@@ -59,8 +59,8 @@ public class RideController : ControllerBase
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        var result = await client.ExecuteQueryAsync(
-            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.http_method AS method, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
+        var result = (await client.ExecuteCypherAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.http_method AS method, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp")).ToJson();
         result.Should().Contain("POST");
         result.Should().Contain("REST");
         result.Should().Contain("StartRideRequest");
@@ -103,8 +103,8 @@ public class RideMutations
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        var result = await client.ExecuteQueryAsync(
-            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
+        var result = (await client.ExecuteCypherAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp")).ToJson();
         result.Should().Contain("GraphQL");
         result.Should().Contain("Mutation");
         result.Should().Contain("StartRideInput");
@@ -144,8 +144,8 @@ public class OrderGrpcService : OrderServiceBase
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        var result = await client.ExecuteQueryAsync(
-            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
+        var result = (await client.ExecuteCypherAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp")).ToJson();
         result.Should().Contain("gRPC");
         result.Should().Contain("Unary");
         result.Should().Contain("CreateOrderRequest");
@@ -195,8 +195,8 @@ public class RideGraphQlController {
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        var result = await client.ExecuteQueryAsync(
-            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
+        var result = (await client.ExecuteCypherAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp")).ToJson();
         result.Should().Contain("REST");
         result.Should().Contain("GraphQL");
         result.Should().Contain("StartRideRequest");
@@ -251,8 +251,8 @@ export class RidesGrpcService {
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        var result = await client.ExecuteQueryAsync(
-            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp ORDER BY ep.protocol");
+        var result = (await client.ExecuteCypherAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp ORDER BY ep.protocol")).ToJson();
         result.Should().Contain("REST");
         result.Should().Contain("GraphQL");
         result.Should().Contain("gRPC");
@@ -302,13 +302,13 @@ public static class DirectivesHandlers
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
         var result =
-            await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.route AS route ORDER BY ep.route");
+            (await client.ExecuteCypherAsync(
+                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.route AS route ORDER BY ep.route")).ToJson();
         result.Should().Contain("/directives");
         result.Should().Contain("/directives/create");
 
-        var triggersResult = await client.ExecuteQueryAsync(
-            "MATCH (ep:Endpoint)-[:TRIGGERS]->(fn:Function) RETURN ep.name AS epName, fn.name AS fnName");
+        var triggersResult = (await client.ExecuteCypherAsync(
+            "MATCH (ep:Endpoint)-[:TRIGGERS]->(fn:Function) RETURN ep.name AS epName, fn.name AS fnName")).ToJson();
         triggersResult.Should().Contain("GetAll");
     }
 }

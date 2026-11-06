@@ -5,26 +5,24 @@ namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
-    private static string FormatFindSymbol(string rawJson, string format, string name, int limit)
+    private static string FormatFindSymbol(CypherQueryResult res, string format, string name, int limit)
     {
-        using var doc = JsonDocument.Parse(rawJson);
-
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+            return ToonYamlSerializer.SerializeYaml(res);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        if (res.Count == 0)
         {
             return $"No symbols found matching '{name}'.";
         }
@@ -34,24 +32,16 @@ public partial class CodeExplorerRepository
         sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
         var count = 0;
 
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var item in res.Rows)
         {
             if (count++ >= limit) break;
 
-            var type = item.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
-            var symName = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-            var fullName = item.TryGetProperty("fullName", out var fn) ? fn.GetString() ?? "" : "";
-            var filePath = item.TryGetProperty("filePath", out var fp) ? fp.GetString() ?? "" : "";
-
-            var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number &&
-                            sl.TryGetInt64(out var slVal)
-                ? slVal
-                : 0;
-
-            var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number &&
-                          el.TryGetInt64(out var elVal)
-                ? elVal
-                : 0;
+            var type = item.GetStringProp("type");
+            var symName = item.GetStringProp("name");
+            var fullName = item.GetStringProp("fullName");
+            var filePath = item.GetStringProp("filePath");
+            var startLine = item.GetLongProp("startLine");
+            var endLine = item.GetLongProp("endLine");
 
             var linesStr = startLine > 0
                 ? (endLine > startLine ? $"L{startLine}-{endLine}" : $"L{startLine}")
@@ -70,7 +60,7 @@ public partial class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["name"] = name
         };
@@ -95,9 +85,9 @@ public partial class CodeExplorerRepository
 
         var effectiveLimit = Math.Clamp(limit, 1, 500);
         query = query.Replace("LIMIT 10", $"LIMIT {effectiveLimit}");
-        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
-        if ((rawJson == "[]" || rawJson.StartsWith("[]")) && client is SqliteGraphClient sqliteClient)
+        if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
         {
             try
             {
@@ -112,16 +102,17 @@ public partial class CodeExplorerRepository
                 var matches = await engine.SearchAsync(sqliteClient.Connection, name, kindFilter, effectiveLimit, ct: cancellationToken);
                 if (matches.Count > 0)
                 {
-                    var mapped = matches.Select(m => new
-                    {
-                        type = m.Kind,
-                        name = m.Name,
-                        fullName = m.FullName,
-                        filePath = m.Path ?? "",
-                        startLine = m.StartLine,
-                        endLine = 0
-                    });
-                    rawJson = JsonSerializer.Serialize(mapped);
+                    string[] cols = ["type", "name", "fullName", "filePath", "startLine", "endLine"];
+                    var rows = matches.Select(m => new CypherRow(cols,
+                    [
+                        CypherValue.FromString(m.Kind.ToString()),
+                        CypherValue.FromString(m.Name),
+                        CypherValue.FromString(m.FullName),
+                        CypherValue.FromString(m.Path ?? ""),
+                        CypherValue.FromInt64(m.StartLine),
+                        CypherValue.FromInt64(0)
+                    ])).ToList();
+                    res = new CypherQueryResult(cols, rows);
                 }
             }
             catch
@@ -130,29 +121,27 @@ public partial class CodeExplorerRepository
             }
         }
 
-        return FormatFindSymbol(rawJson, format, name, effectiveLimit);
+        return FormatFindSymbol(res, format, name, effectiveLimit);
     }
 
-    private static string FormatCallChain(string rawJson, string format, string startFunction, string endFunction, int maxDepth)
+    private static string FormatCallChain(CypherQueryResult res, string format, string startFunction, string endFunction, int maxDepth)
     {
-        using var doc = JsonDocument.Parse(rawJson);
-
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+            return ToonYamlSerializer.SerializeYaml(res);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        if (res.Count == 0)
         {
             return $"No call chain found between '{startFunction}' and '{endFunction}' within depth {maxDepth}.";
         }
@@ -164,26 +153,26 @@ public partial class CodeExplorerRepository
             sb.AppendLine("graph TD");
             var pathIndex = 0;
 
-            foreach (var row in doc.RootElement.EnumerateArray())
+            foreach (var row in res.Rows)
             {
-                if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
+                if (row.TryGetProperty("chain", out var chainProp) && chainProp.Kind == CypherValueKind.Array)
                 {
-                    var nodes = chainProp.EnumerateArray().ToList();
+                    var nodes = chainProp.AsArray();
 
                     for (var i = 0; i < nodes.Count - 1; i++)
                     {
                         var fromName =
-                            nodes[i].ValueKind == JsonValueKind.Object &&
+                            nodes[i].Kind == CypherValueKind.Object &&
                             nodes[i].TryGetProperty("name", out var fn)
-                                ? fn.GetString()
-                                : (nodes[i].ValueKind == JsonValueKind.String ? nodes[i].GetString() : $"Step{i}");
+                                ? fn.AsString()
+                                : (nodes[i].Kind == CypherValueKind.String ? nodes[i].AsString() : $"Step{i}");
 
                         var toName =
-                            nodes[i + 1].ValueKind == JsonValueKind.Object &&
+                            nodes[i + 1].Kind == CypherValueKind.Object &&
                             nodes[i + 1].TryGetProperty("name", out var tn)
-                                ? tn.GetString()
-                                : (nodes[i + 1].ValueKind == JsonValueKind.String
-                                    ? nodes[i + 1].GetString()
+                                ? tn.AsString()
+                                : (nodes[i + 1].Kind == CypherValueKind.String
+                                    ? nodes[i + 1].AsString()
                                     : $"Step{i + 1}");
                         var fromId = $"p{pathIndex}_n{i}";
                         var toId = $"p{pathIndex}_n{i + 1}";
@@ -203,34 +192,34 @@ public partial class CodeExplorerRepository
         md.AppendLine($"### Call Chain: `{startFunction}` → `{endFunction}`\n");
         var pIdx = 1;
 
-        foreach (var row in doc.RootElement.EnumerateArray())
+        foreach (var row in res.Rows)
         {
-            if (doc.RootElement.GetArrayLength() > 1)
+            if (res.Count > 1)
             {
                 md.AppendLine($"#### Path {pIdx++}:");
             }
 
-            if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
+            if (row.TryGetProperty("chain", out var chainProp) && chainProp.Kind == CypherValueKind.Array)
             {
                 var step = 1;
 
-                foreach (var node in chainProp.EnumerateArray())
+                foreach (var node in chainProp.AsArray())
                 {
-                    if (node.ValueKind == JsonValueKind.Object)
+                    if (node.Kind == CypherValueKind.Object)
                     {
-                        var name = node.TryGetProperty("name", out var n) ? n.GetString() : "Function";
-                        var symbol = node.TryGetProperty("symbol", out var s) ? s.GetString() : null;
-                        var file = node.TryGetProperty("file_path", out var f) ? f.GetString() : null;
-                        var line = node.TryGetProperty("start_line", out var l) ? l.ToString() : null;
+                        var name = node.TryGetProperty("name", out var n) ? n.AsString("Function") : "Function";
+                        var symbol = node.TryGetProperty("symbol", out var s) ? s.AsNullableString() : null;
+                        var file = node.TryGetProperty("file_path", out var f) ? f.AsNullableString() : null;
+                        var line = node.TryGetProperty("start_line", out var l) ? l.AsNullableString() : null;
 
                         var loc = !string.IsNullOrEmpty(file)
                             ? $" *({file}{(line != null ? ":" + line : "")})*"
                             : "";
                         md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
                     }
-                    else if (node.ValueKind == JsonValueKind.String)
+                    else if (node.Kind == CypherValueKind.String)
                     {
-                        var str = node.GetString() ?? "Function";
+                        var str = node.AsString("Function");
                         md.AppendLine($"{step++}. `{str}`");
                     }
                 }
@@ -255,13 +244,13 @@ public partial class CodeExplorerRepository
 
         var depth = Math.Max(1, Math.Min(10, maxDepth));
         var query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["startFunction"] = startResolved,
             ["endFunction"] = endResolved
         };
-        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-        return FormatCallChain(rawJson, format, startFunction, endFunction, depth);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        return FormatCallChain(res, format, startFunction, endFunction, depth);
     }
 
     private static async Task<string> ResolveFunctionSymbolAsync(IGraphClient client, string funcIdentifier, CancellationToken cancellationToken)
@@ -271,63 +260,34 @@ public partial class CodeExplorerRepository
         try
         {
             // 1. Direct match by id or symbol
-            var directRows = await client.ExecuteQueryAsync(
+            var directSym = await client.QueryFirstOrDefaultAsync<string>(
                 "MATCH (n:Function) WHERE n.id = $id OR n.symbol = $id RETURN n.symbol AS symbol LIMIT 1",
-                new Dictionary<string, object> { ["id"] = funcIdentifier },
+                new Dictionary<string, string> { ["id"] = funcIdentifier },
                 cancellationToken);
-            using (var doc = JsonDocument.Parse(directRows))
-            {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-                {
-                    if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
-                    {
-                        var sym = symProp.GetString();
-                        if (!string.IsNullOrEmpty(sym)) return sym;
-                    }
-                }
-            }
+            if (!string.IsNullOrEmpty(directSym)) return directSym;
 
             // 2. Exact match by name, graphql_field, or graphql_operation
-            var nameRows = await client.ExecuteQueryAsync(
+            var nameMatches = await client.QueryAsync<string>(
                 "MATCH (n:Function) WHERE n.name = $name OR n.graphql_field = $name OR n.graphql_operation = $name RETURN n.symbol AS symbol LIMIT 5",
-                new Dictionary<string, object> { ["name"] = funcIdentifier },
+                new Dictionary<string, string> { ["name"] = funcIdentifier },
                 cancellationToken);
-            using (var doc = JsonDocument.Parse(nameRows))
+            if (nameMatches.Count == 1 && !string.IsNullOrEmpty(nameMatches[0]))
             {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                return nameMatches[0];
+            }
+            if (nameMatches.Count > 1)
+            {
+                foreach (var sym in nameMatches)
                 {
-                    var len = doc.RootElement.GetArrayLength();
-                    if (len == 1)
+                    if (!string.IsNullOrEmpty(sym) &&
+                        (sym.EndsWith($":{funcIdentifier}", StringComparison.OrdinalIgnoreCase) ||
+                         sym.EndsWith($".{funcIdentifier}", StringComparison.OrdinalIgnoreCase) ||
+                         sym.EndsWith($":{funcIdentifier}.resolve", StringComparison.OrdinalIgnoreCase)))
                     {
-                        if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
-                        {
-                            var sym = symProp.GetString();
-                            if (!string.IsNullOrEmpty(sym)) return sym;
-                        }
-                    }
-                    else if (len > 1)
-                    {
-                        for (int i = 0; i < len; i++)
-                        {
-                            if (doc.RootElement[i].TryGetProperty("symbol", out var symProp))
-                            {
-                                var sym = symProp.GetString();
-                                if (!string.IsNullOrEmpty(sym) &&
-                                    (sym.EndsWith($":{funcIdentifier}", StringComparison.OrdinalIgnoreCase) ||
-                                     sym.EndsWith($".{funcIdentifier}", StringComparison.OrdinalIgnoreCase) ||
-                                     sym.EndsWith($":{funcIdentifier}.resolve", StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    return sym;
-                                }
-                            }
-                        }
-                        if (doc.RootElement[0].TryGetProperty("symbol", out var firstProp))
-                        {
-                            var firstSym = firstProp.GetString();
-                            if (!string.IsNullOrEmpty(firstSym)) return firstSym;
-                        }
+                        return sym;
                     }
                 }
+                if (!string.IsNullOrEmpty(nameMatches[0])) return nameMatches[0];
             }
 
             // 3. Match qualified name like Class.Method or symbol suffix
@@ -339,39 +299,19 @@ public partial class CodeExplorerRepository
                 {
                     dotClass = dotClass[(dotClass.LastIndexOf('.') + 1)..];
                 }
-                var dotRows = await client.ExecuteQueryAsync(
+                var dotSym = await client.QueryFirstOrDefaultAsync<string>(
                     "MATCH (n:Function) WHERE (n.name = $mName OR n.symbol CONTAINS $mName) AND (n.symbol CONTAINS $cName OR n.file_path CONTAINS $cName) RETURN n.symbol AS symbol LIMIT 5",
-                    new Dictionary<string, object> { ["mName"] = dotMethod, ["cName"] = dotClass },
+                    new Dictionary<string, string> { ["mName"] = dotMethod, ["cName"] = dotClass },
                     cancellationToken);
-                using (var doc = JsonDocument.Parse(dotRows))
-                {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-                    {
-                        if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
-                        {
-                            var sym = symProp.GetString();
-                            if (!string.IsNullOrEmpty(sym)) return sym;
-                        }
-                    }
-                }
+                if (!string.IsNullOrEmpty(dotSym)) return dotSym;
             }
 
             // 4. Fallback search via contains on name or symbol
-            var fuzzyRows = await client.ExecuteQueryAsync(
+            var fuzzySym = await client.QueryFirstOrDefaultAsync<string>(
                 "MATCH (n:Function) WHERE n.name CONTAINS $name OR n.symbol CONTAINS $name RETURN n.symbol AS symbol LIMIT 5",
-                new Dictionary<string, object> { ["name"] = funcIdentifier },
+                new Dictionary<string, string> { ["name"] = funcIdentifier },
                 cancellationToken);
-            using (var doc = JsonDocument.Parse(fuzzyRows))
-            {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-                {
-                    if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
-                    {
-                        var sym = symProp.GetString();
-                        if (!string.IsNullOrEmpty(sym)) return sym;
-                    }
-                }
-            }
+            if (!string.IsNullOrEmpty(fuzzySym)) return fuzzySym;
         }
         catch
         {
@@ -384,7 +324,7 @@ public partial class CodeExplorerRepository
     public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("resolve_call_target");
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["interfaceName"] = interfaceName,
             ["methodName"] = methodName
@@ -401,13 +341,13 @@ public partial class CodeExplorerRepository
         }
 
         var query = Queries.Get("analyze_code_impact");
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["symbolName"] = symbolName
         };
-        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
-        if ((rawJson == "[]" || rawJson.StartsWith("[]")) && client is SqliteGraphClient sqliteClient)
+        if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
         {
             try
             {
@@ -416,10 +356,10 @@ public partial class CodeExplorerRepository
                 if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != symbolName && resolved.Name != symbolName)
                 {
                     parameters["symbolName"] = resolved.NodeId;
-                    var retryJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-                    if (retryJson != "[]" && !retryJson.StartsWith("[]"))
+                    var retryRes = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+                    if (retryRes.Count > 0)
                     {
-                        rawJson = retryJson;
+                        res = retryRes;
                     }
                 }
             }
@@ -431,17 +371,15 @@ public partial class CodeExplorerRepository
 
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            using var jsonDoc = JsonDocument.Parse(rawJson);
-            return JsonSerializer.Serialize(new { results = jsonDoc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            using var jsonDoc = JsonDocument.Parse(rawJson);
-            return ToonYamlSerializer.SerializeToon(jsonDoc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
-        return FormatImpactMarkdown(rawJson, symbolName);
+        return FormatImpactMarkdown(res, symbolName);
     }
 
     public async Task<string> SearchIdentifiersAsync(
@@ -505,14 +443,14 @@ public partial class CodeExplorerRepository
         }
 
         var query = Queries.Get("get_callers");
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, object?>
         {
             ["target"] = target,
             ["includeTests"] = includeTests
         };
-        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
-        if ((rawJson == "[]" || rawJson.StartsWith("[]")) && client is SqliteGraphClient sqliteClient)
+        if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
         {
             try
             {
@@ -521,10 +459,10 @@ public partial class CodeExplorerRepository
                 if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != target && resolved.Name != target)
                 {
                     parameters["target"] = resolved.NodeId;
-                    var retryJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-                    if (retryJson != "[]" && !retryJson.StartsWith("[]"))
+                    var retryRes = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+                    if (retryRes.Count > 0)
                     {
-                        rawJson = retryJson;
+                        res = retryRes;
                     }
                 }
             }
@@ -536,41 +474,38 @@ public partial class CodeExplorerRepository
 
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            using var jsonDoc = JsonDocument.Parse(rawJson);
-            return JsonSerializer.Serialize(new { results = jsonDoc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            using var jsonDoc = JsonDocument.Parse(rawJson);
-            return ToonYamlSerializer.SerializeToon(jsonDoc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
-        return FormatCallersMarkdown(rawJson, target, includeTests);
+        return FormatCallersMarkdown(res, target, includeTests);
     }
 
-    private static string FormatCallersMarkdown(string rawJson, string target, bool includeTests)
+    private static string FormatCallersMarkdown(CypherQueryResult res, string target, bool includeTests)
     {
-        using var doc = JsonDocument.Parse(rawJson);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        if (res.Count == 0)
         {
             return $"No callers or incoming references found for '{target}'" + (includeTests ? "." : " (test callers excluded; pass --tests to include tests).");
         }
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"### Callers & Inbound References for `{target}`\n");
-        sb.AppendLine($"**Total Inbound Callers**: {doc.RootElement.GetArrayLength()}\n");
+        sb.AppendLine($"**Total Inbound Callers**: {res.Count}\n");
         sb.AppendLine("| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |");
         sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
 
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var item in res.Rows)
         {
-            var targetName = item.TryGetProperty("targetName", out var tn) ? tn.GetString() ?? "" : target;
-            var callerName = item.TryGetProperty("callerName", out var cn) ? cn.GetString() ?? "" : "";
-            var callerKind = item.TryGetProperty("callerKind", out var ck) ? ck.GetString() ?? "" : "";
-            var relKind = item.TryGetProperty("relKind", out var rk) ? rk.GetString() ?? "" : "";
-            var project = item.TryGetProperty("projectName", out var p) ? p.GetString() ?? "" : "";
-            var loc = item.TryGetProperty("location", out var l) ? l.GetString() ?? "" : "";
+            var targetName = item.GetStringProp("targetName", target);
+            var callerName = item.GetStringProp("callerName");
+            var callerKind = item.GetStringProp("callerKind");
+            var relKind = item.GetStringProp("relKind");
+            var project = item.GetStringProp("projectName");
+            var loc = item.GetStringProp("location");
 
             sb.AppendLine($"| `{targetName}` | `{callerName}` | {callerKind} | {relKind} | {project} | `{loc}` |");
         }
@@ -578,27 +513,26 @@ public partial class CodeExplorerRepository
         return sb.ToString().TrimEnd();
     }
 
-    private static string FormatImpactMarkdown(string rawJson, string symbolName)
+    private static string FormatImpactMarkdown(CypherQueryResult res, string symbolName)
     {
-        using var doc = JsonDocument.Parse(rawJson);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        if (res.Count == 0)
         {
             return $"No direct impact found for symbol '{symbolName}'. No callers, references, or dependent services identified.";
         }
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"### Blast Radius & Impact Analysis for `{symbolName}`\n");
-        sb.AppendLine($"**Total Dependents**: {doc.RootElement.GetArrayLength()}\n");
+        sb.AppendLine($"**Total Dependents**: {res.Count}\n");
         sb.AppendLine("| Kind | Dependent | Relationship | Location (File:Line) | Symbol |");
         sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
 
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var item in res.Rows)
         {
-            var depType = item.TryGetProperty("dependentType", out var dt) ? dt.GetString() ?? "" : "";
-            var depName = item.TryGetProperty("dependentName", out var dn) ? dn.GetString() ?? "" : "";
-            var rel = item.TryGetProperty("relationship", out var r) ? r.GetString() ?? "" : "";
-            var loc = item.TryGetProperty("filePath", out var fp) ? fp.GetString() ?? "" : "";
-            var sym = item.TryGetProperty("dependentSymbol", out var ds) ? ds.GetString() ?? "" : "";
+            var depType = item.GetStringProp("dependentType");
+            var depName = item.GetStringProp("dependentName");
+            var rel = item.GetStringProp("relationship");
+            var loc = item.GetStringProp("filePath");
+            var sym = item.GetStringProp("dependentSymbol");
 
             sb.AppendLine($"| {depType} | `{depName}` | {rel} | `{loc}` | `{sym}` |");
         }

@@ -133,11 +133,7 @@ export class Product {
     {
         // Check customers table from [Table("customers")]
         var qTable = "MATCH (t:Table) WHERE t.name = 'customers' OR t.name = 'Orders' OR t.name = 'orders' OR t.name = 'invoices' RETURN t.name AS name";
-        var res = await _client.ExecuteQueryAsync(qTable);
-
-        using var doc = JsonDocument.Parse(res);
-
-        var tables = doc.RootElement.EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToList();
+        var tables = await _client.QueryAsync<string>(qTable);
 
         tables.Any(t => t is "customers" or "Orders" or "orders").Should().BeTrue("EF Core tables not extracted!");
         tables.Should().Contain("invoices", "EF Core IEntityTypeConfiguration ToTable not extracted!");
@@ -145,25 +141,19 @@ export class Product {
         // Check downward IMPLEMENTED_BY relationship from Table (Layer 4) to Customer Type (Layer 3)
         var qRel =
             "MATCH (t:Table)-[:IMPLEMENTED_BY]->(c:Type) WHERE c.name = 'Customer' OR c.name = 'OrderEntity' OR c.name = 'Invoice' RETURN c.name AS className, t.name AS tableName";
-        var resRel = await _client.ExecuteQueryAsync(qRel);
+        var resRel = await _client.ExecuteCypherAsync(qRel);
 
-        using var docRel = JsonDocument.Parse(resRel);
-
-        docRel.RootElement.GetArrayLength().Should().BeGreaterThan(0, "No IMPLEMENTED_BY relationship found from Table to EF Core entity!");
+        resRel.Count.Should().BeGreaterThan(0, "No IMPLEMENTED_BY relationship found from Table to EF Core entity!");
     }
 
     [Test]
     public async Task Test_JpaHibernate_ExtractsTablesAndPersistedInRelationships()
     {
         var qRel = "MATCH (t:Table)-[:IMPLEMENTED_BY]->(a:Type) WHERE a.name = 'Account' RETURN a.name AS className, t.name AS tableName";
-        var resRel = await _client.ExecuteQueryAsync(qRel);
+        var resRel = await _client.ExecuteCypherAsync(qRel);
 
-        using var docRel = JsonDocument.Parse(resRel);
-
-        var array = docRel.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "JPA Account entity not linked from Table via IMPLEMENTED_BY!");
-        var tableName = array[0].GetProperty("tableName").GetString();
+        resRel.Count.Should().BeGreaterThan(0, "JPA Account entity not linked from Table via IMPLEMENTED_BY!");
+        var tableName = resRel.Rows[0].GetStringProp("tableName");
         tableName.Should().BeEquivalentTo("jpa_accounts");
     }
 
@@ -171,14 +161,10 @@ export class Product {
     public async Task Test_TypeOrm_ExtractsTablesAndPersistedInRelationships()
     {
         var qRel = "MATCH (t:Table)-[:IMPLEMENTED_BY]->(p:Type) WHERE p.name = 'Product' RETURN p.name AS className, t.name AS tableName";
-        var resRel = await _client.ExecuteQueryAsync(qRel);
+        var resRel = await _client.ExecuteCypherAsync(qRel);
 
-        using var docRel = JsonDocument.Parse(resRel);
-
-        var array = docRel.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "TypeORM Product entity not linked from Table via IMPLEMENTED_BY!");
-        var tableName = array[0].GetProperty("tableName").GetString();
+        resRel.Count.Should().BeGreaterThan(0, "TypeORM Product entity not linked from Table via IMPLEMENTED_BY!");
+        var tableName = resRel.Rows[0].GetStringProp("tableName");
         tableName.Should().BeEquivalentTo("typeorm_products");
     }
 
@@ -186,14 +172,10 @@ export class Product {
     public async Task Test_InspectDataLineage_BuiltInQuery_WorksForOrmEntities()
     {
         var query = Queries.Get("inspect_data_lineage");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["tableName"] = "jpa_accounts" });
+        var res = await _client.ExecuteCypherAsync(query, new { tableName = "jpa_accounts" });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "inspect_data_lineage returned 0 rows for jpa_accounts table!");
-        var tableName = array[0].GetProperty("tableName").GetString();
+        res.Count.Should().BeGreaterThan(0, "inspect_data_lineage returned 0 rows for jpa_accounts table!");
+        var tableName = res.Rows[0].GetStringProp("tableName");
         tableName.Should().BeEquivalentTo("jpa_accounts");
     }
 
@@ -345,32 +327,24 @@ export class Product {
     {
         // TypeORM is an ORM, so the database node must NOT be named 'TypeORM', but 'Database'
         var qTypeOrmDb = "MATCH (d:Database) WHERE d.name = 'TypeORM' RETURN d.name AS name";
-        var resTypeOrm = await _client.ExecuteQueryAsync(qTypeOrmDb);
+        var resTypeOrm = await _client.ExecuteCypherAsync(qTypeOrmDb);
 
-        using var docTypeOrm = JsonDocument.Parse(resTypeOrm);
-
-        docTypeOrm.RootElement.EnumerateArray().ToList().Should().BeEmpty("TypeORM must NOT be a Database node!");
+        resTypeOrm.Rows.Should().BeEmpty("TypeORM must NOT be a Database node!");
 
         var qDb =
             "MATCH (d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN d.name AS name, d.id AS id";
-        var resDb = await _client.ExecuteQueryAsync(qDb);
+        var resDb = await _client.ExecuteCypherAsync(qDb);
 
-        using var docDb = JsonDocument.Parse(resDb);
-
-        var dbList = docDb.RootElement.EnumerateArray().ToList();
-        dbList.Should().NotBeEmpty("Canonical relational Database node should exist in graph");
+        resDb.Rows.Should().NotBeEmpty("Canonical relational Database node should exist in graph");
 
         var qRel =
             "MATCH (w)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN w.name AS projName, d.name AS dbName, r.properties AS props";
-        var resRel = await _client.ExecuteQueryAsync(qRel);
+        var resRel = await _client.ExecuteCypherAsync(qRel);
 
-        using var docRel = JsonDocument.Parse(resRel);
+        resRel.Rows.Should().NotBeEmpty("USES_DB relationship from workload to Database should exist");
+        var tsRel = resRel.Rows.Any(r => r["props"].ToJsonString().Contains("TypeORM"));
 
-        var relList = docRel.RootElement.EnumerateArray().ToList();
-        relList.Should().NotBeEmpty("USES_DB relationship from workload to Database should exist");
-        var tsRel = relList.FirstOrDefault(r => r.GetProperty("props").GetRawText().Contains("TypeORM"));
-
-        tsRel.ValueKind.Should().NotBe(JsonValueKind.Undefined, "USES_DB edge for TsOrmApp must retain via: TypeORM attribute");
+        tsRel.Should().BeTrue("USES_DB edge for TsOrmApp must retain via: TypeORM attribute");
     }
 
 
@@ -475,56 +449,37 @@ export class Product {
             await analyzer.RunAsync("workspace", ctx);
 
             // 1. Verify canonical database nodes exist in the graph
-            var canonicalDb = await db.ExecuteQueryAsync(
+            var canonicalDb = await db.ExecuteCypherAsync(
                 "MATCH (d:Database) WHERE d.id = 'workspace:db:relational:postgresql:orders' RETURN d.id AS id, d.name AS name, d.is_canonical AS is_canonical");
 
-            using (var doc = JsonDocument.Parse(canonicalDb))
-            {
-                var rows = doc.RootElement.EnumerateArray().ToList();
-                rows.Should().HaveCount(1);
-                rows[0].GetProperty("name").GetString().Should().Be("PostgreSQL.orders");
-                rows[0].GetProperty("is_canonical").GetString().Should().Be("true");
-            }
+            canonicalDb.Rows.Should().HaveCount(1);
+            canonicalDb.Rows[0].GetStringProp("name").Should().Be("PostgreSQL.orders");
+            canonicalDb.Rows[0].GetBoolProp("is_canonical").Should().BeTrue();
 
             // 2. Verify non-canonical project-scoped and consolidated nodes were cleaned up
-            var staleDb = await db.ExecuteQueryAsync(
+            var staleDb = await db.ExecuteCypherAsync(
                 "MATCH (d:Database) WHERE d.id = 'workspace:project:order_service:db:orders' RETURN d.id AS id");
 
-            using (var doc = JsonDocument.Parse(staleDb))
-            {
-                doc.RootElement.EnumerateArray().Count().Should().Be(0);
-            }
+            staleDb.Count.Should().Be(0);
 
-            var consolidatedDb = await db.ExecuteQueryAsync(
+            var consolidatedDb = await db.ExecuteCypherAsync(
                 "MATCH (d:Database) WHERE d.id = 'workspace:database:relational:orders_db' RETURN d.id AS id");
 
-            using (var doc = JsonDocument.Parse(consolidatedDb))
-            {
-                doc.RootElement.EnumerateArray().Count().Should().Be(0);
-            }
+            consolidatedDb.Count.Should().Be(0);
 
             // 3. Verify direct USES_DB relationships point to the canonical database nodes
-            var orderUsesDb = await db.ExecuteQueryAsync(
+            var orderUsesDb = await db.ExecuteCypherAsync(
                 "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE p.id = 'workspace:project:order_service' RETURN d.id AS dbId, r.is_canonical AS isCanonical");
 
-            using (var doc = JsonDocument.Parse(orderUsesDb))
-            {
-                var rows = doc.RootElement.EnumerateArray().ToList();
-                rows.Should().HaveCount(1);
+            orderUsesDb.Rows.Should().HaveCount(1);
+            orderUsesDb.Rows[0].GetStringProp("dbId").Should().Be("workspace:db:relational:postgresql:orders");
+            orderUsesDb.Rows[0].GetBoolProp("isCanonical").Should().BeTrue();
 
-                rows[0].GetProperty("dbId").GetString().Should().Be("workspace:db:relational:postgresql:orders");
-                rows[0].GetProperty("isCanonical").GetString().Should().Be("true");
-            }
-
-            var billingUsesDb = await db.ExecuteQueryAsync(
+            var billingUsesDb = await db.ExecuteCypherAsync(
                 "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE p.id = 'workspace:project:billing_service' RETURN d.id AS dbId ORDER BY d.id");
 
-            using (var doc = JsonDocument.Parse(billingUsesDb))
-            {
-                var rows = doc.RootElement.EnumerateArray().ToList();
-                rows.Should().HaveCount(1);
-                rows[0].GetProperty("dbId").GetString().Should().Be("workspace:db:relational:postgresql:orders");
-            }
+            billingUsesDb.Rows.Should().HaveCount(1);
+            billingUsesDb.Rows[0].GetStringProp("dbId").Should().Be("workspace:db:relational:postgresql:orders");
         }
         finally
         {

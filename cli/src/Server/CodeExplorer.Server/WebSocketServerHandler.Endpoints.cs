@@ -92,24 +92,8 @@ public partial class WebSocketServerHandler
         long edgesCount = 0;
         try
         {
-            var nodeCountJson = await _graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt", null, cancellationToken);
-
-            using var nodeDoc = JsonDocument.Parse(nodeCountJson);
-
-            if (nodeDoc.RootElement.GetArrayLength() > 0)
-            {
-                nodesCount = nodeDoc.RootElement[0].GetProperty("cnt").GetInt64();
-            }
-
-            var edgeCountJson = await _graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt",
-                null, cancellationToken);
-
-            using var edgeDoc = JsonDocument.Parse(edgeCountJson);
-
-            if (edgeDoc.RootElement.GetArrayLength() > 0)
-            {
-                edgesCount = edgeDoc.RootElement[0].GetProperty("cnt").GetInt64();
-            }
+            nodesCount = await _graphClient.QueryScalarAsync<long>("MATCH (n) RETURN count(n) AS cnt", null, cancellationToken);
+            edgesCount = await _graphClient.QueryScalarAsync<long>("MATCH ()-[r]->() RETURN count(r) AS cnt", null, cancellationToken);
         }
         catch
         {
@@ -493,40 +477,28 @@ public partial class WebSocketServerHandler
                 }
             }
 
-            var rawJson = await _graphClient.ExecuteQueryAsync(query, paramDict, cancellationToken);
+            var cypherResult = await _graphClient.ExecuteCypherAsync(query, paramDict, cancellationToken);
             sw.Stop();
 
             var effectiveGateId = !string.IsNullOrWhiteSpace(gateId) ? gateId.Trim() : "TEST_GATE";
-            var violations = GateExecutionEngine.ParseViolations(effectiveGateId, rawJson, messageTemplate, targetTemplate);
+            var violations = GateExecutionEngine.ParseViolations(effectiveGateId, cypherResult, messageTemplate, targetTemplate);
 
             var projectedCols = new List<string>();
             var hasGraphNode = false;
-            if (!string.IsNullOrWhiteSpace(rawJson))
+            if (cypherResult.Count > 0)
             {
-                try
+                var first = cypherResult.Rows[0];
+                var colCount = Math.Min(first.Columns.Count, first.Values.Count);
+                for (var i = 0; i < colCount; i++)
                 {
-                    using var doc = JsonDocument.Parse(rawJson);
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    projectedCols.Add(first.Columns[i]);
+                    var val = first.Values[i];
+                    if (val.Kind == CypherValueKind.Object &&
+                        val.TryGetProperty("properties", out _) &&
+                        val.TryGetProperty("id", out _))
                     {
-                        var first = doc.RootElement.EnumerateArray().FirstOrDefault();
-                        if (first.ValueKind == JsonValueKind.Object)
-                        {
-                            foreach (var prop in first.EnumerateObject())
-                            {
-                                projectedCols.Add(prop.Name);
-                                if (prop.Value.ValueKind == JsonValueKind.Object &&
-                                    prop.Value.TryGetProperty("properties", out _) &&
-                                    prop.Value.TryGetProperty("id", out _))
-                                {
-                                    hasGraphNode = true;
-                                }
-                            }
-                        }
+                        hasGraphNode = true;
                     }
-                }
-                catch
-                {
-                    // ignore JSON inspection errors
                 }
             }
 

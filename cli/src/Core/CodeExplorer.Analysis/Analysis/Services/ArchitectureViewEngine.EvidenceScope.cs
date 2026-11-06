@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace CodeExplorer.Core.Analysis;
 
 /// <summary>
@@ -139,18 +137,17 @@ public partial class ArchitectureViewEngine
                        OR s.id ENDS WITH (':' + $cleanId) OR s.id ENDS WITH (':' + $cleanId + ':'))
                 RETURN s.id AS id, s.name AS name, coalesce(s.file_path, s.path) AS path, labels(s)[0] AS kind
                 """;
-            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object>
+            var res = await db.ExecuteCypherAsync(query, new Dictionary<string, string>
             {
                 ["sId"] = serviceId,
                 ["cleanId"] = cleanId
             }, ct);
-            using var doc = JsonDocument.Parse(json);
             string? bestId = null;
             string? bestName = null;
             string? bestPath = null;
             var candidateServiceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var row in doc.RootElement.EnumerateArray())
+            foreach (var row in res.Rows)
             {
                 var rId = row.GetStringProp("id", serviceId);
                 var rName = row.GetStringProp("name", cleanId);
@@ -182,9 +179,8 @@ public partial class ArchitectureViewEngine
                         WHERE s.id IN [{svcIdLiterals}]
                         RETURN sym.id AS sym_id
                         """;
-                    var cJson = await db.ExecuteQueryAsync(containsQuery, null, ct);
-                    using var cDoc = JsonDocument.Parse(cJson);
-                    foreach (var row in cDoc.RootElement.EnumerateArray())
+                    var cRes = await db.ExecuteCypherAsync(containsQuery, null, ct);
+                    foreach (var row in cRes.Rows)
                     {
                         var symId = row.GetStringProp("sym_id");
                         if (!string.IsNullOrEmpty(symId)) containedIds.Add(symId);
@@ -204,9 +200,8 @@ public partial class ArchitectureViewEngine
                             MATCH (p:Project)
                             RETURN p.id AS id, coalesce(p.file_path, p.path) AS path
                             """;
-                        var pJson = await db.ExecuteQueryAsync(allProjectsQuery, null, ct);
-                        using var pDoc = JsonDocument.Parse(pJson);
-                        foreach (var row in pDoc.RootElement.EnumerateArray())
+                        var pRes = await db.ExecuteCypherAsync(allProjectsQuery, null, ct);
+                        foreach (var row in pRes.Rows)
                         {
                             var pId = row.GetStringProp("id");
                             if (string.IsNullOrEmpty(pId) || candidateServiceIds.Contains(pId)) continue;
@@ -273,9 +268,8 @@ public partial class ArchitectureViewEngine
                 WHERE s.id IN [{svcLiterals}]
                 RETURN s.id AS svc_id, sym.id AS sym_id
                 """;
-            var cJson = await db.ExecuteQueryAsync(containsQuery, null, ct);
-            using var cDoc = JsonDocument.Parse(cJson);
-            foreach (var row in cDoc.RootElement.EnumerateArray())
+            var cRes = await db.ExecuteCypherAsync(containsQuery, null, ct);
+            foreach (var row in cRes.Rows)
             {
                 var svcId = row.GetStringProp("svc_id");
                 var symId = row.GetStringProp("sym_id");
@@ -298,9 +292,8 @@ public partial class ArchitectureViewEngine
                 MATCH (p:Project)
                 RETURN p.id AS id, coalesce(p.file_path, p.path) AS path
                 """;
-            var pJson = await db.ExecuteQueryAsync(allProjectsQuery, null, ct);
-            using var pDoc = JsonDocument.Parse(pJson);
-            foreach (var row in pDoc.RootElement.EnumerateArray())
+            var pRes = await db.ExecuteCypherAsync(allProjectsQuery, null, ct);
+            foreach (var row in pRes.Rows)
             {
                 var pId = row.GetStringProp("id");
                 var dir = EvidenceScope.NormalizeDirectory(row.GetStringProp("path"));

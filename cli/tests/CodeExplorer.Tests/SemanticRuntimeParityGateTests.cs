@@ -359,10 +359,8 @@ public class SemanticRuntimeParityGateTests
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        var resJson = await client.ExecuteQueryAsync("MATCH (e:ExternalService) RETURN e.id AS id, e.name AS name");
-        using var doc = System.Text.Json.JsonDocument.Parse(resJson);
-        var externalServices = doc.RootElement.EnumerateArray().ToList();
-        externalServices.Any(e => e.GetProperty("name").GetString() == "chat" || e.GetProperty("id").GetString()!.Contains(":grpc:chat")).Should().BeFalse("IChatClient.GetService must not be recognized as a gRPC external service call");
+        var res = await client.ExecuteCypherAsync("MATCH (e:ExternalService) RETURN e.id AS id, e.name AS name");
+        res.Rows.Any(e => e.GetStringProp("name") == "chat" || e.GetStringProp("id").Contains(":grpc:chat")).Should().BeFalse("IChatClient.GetService must not be recognized as a gRPC external service call");
     }
 
     [Test]
@@ -595,9 +593,8 @@ public class SemanticRuntimeParityGateTests
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
         // 1. Verify Level 5 LogicalStructure, Domain, and BoundedContext nodes are persisted
-        var l5Json = await client.ExecuteQueryAsync("MATCH (ls:LogicalStructure)-[:CONTAINS]->(d:Domain)-[:CONTAINS]->(bc:BoundedContext) RETURN ls.id AS lsId, d.id AS domId, bc.id AS bcId");
-        using var l5Doc = System.Text.Json.JsonDocument.Parse(l5Json);
-        l5Doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Level 5 LogicalStructure -> Domain -> BoundedContext hierarchy must be persisted");
+        var l5Res = await client.ExecuteCypherAsync("MATCH (ls:LogicalStructure)-[:CONTAINS]->(d:Domain)-[:CONTAINS]->(bc:BoundedContext) RETURN ls.id AS lsId, d.id AS domId, bc.id AS bcId");
+        l5Res.Count.Should().BeGreaterThan(0, "Level 5 LogicalStructure -> Domain -> BoundedContext hierarchy must be persisted");
 
         // 2. Verify zero upward cross-layer edges across the entire indexed workspace
         static int GetLayerRank(string label) => label switch
@@ -610,14 +607,13 @@ public class SemanticRuntimeParityGateTests
             _ => 0
         };
 
-        var edgesJson = await client.ExecuteQueryAsync("MATCH (a)-[r]->(b) RETURN labels(a)[0] AS fromKind, type(r) AS rel, labels(b)[0] AS toKind, a.id AS fromId, b.id AS toId");
-        using var edgesDoc = System.Text.Json.JsonDocument.Parse(edgesJson);
+        var edgesRes = await client.ExecuteCypherAsync("MATCH (a)-[r]->(b) RETURN labels(a)[0] AS fromKind, type(r) AS rel, labels(b)[0] AS toKind, a.id AS fromId, b.id AS toId");
         var upwardEdges = new List<string>();
-        foreach (var row in edgesDoc.RootElement.EnumerateArray())
+        foreach (var row in edgesRes.Rows)
         {
-            var fromKind = row.GetProperty("fromKind").GetString() ?? "";
-            var toKind = row.GetProperty("toKind").GetString() ?? "";
-            var rel = row.GetProperty("rel").GetString() ?? "";
+            var fromKind = row.GetStringProp("fromKind");
+            var toKind = row.GetStringProp("toKind");
+            var rel = row.GetStringProp("rel");
             var fromRank = GetLayerRank(fromKind);
             var toRank = GetLayerRank(toKind);
             if (fromRank > 0 && toRank > 0 && !(fromKind == "Workspace" && rel == "CONTAINS") && toRank > fromRank)

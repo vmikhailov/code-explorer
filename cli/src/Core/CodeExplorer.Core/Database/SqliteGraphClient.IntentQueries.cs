@@ -203,10 +203,7 @@ public partial class SqliteGraphClient
                 {
                     var domId = $"{widPrefix}dom:{dom.ToLowerInvariant()}";
 
-                    var domProps = JsonSerializer.Serialize(new Dictionary<string, object>
-                    {
-                        ["id"] = domId, ["name"] = dom
-                    });
+                    var domProps = JsonSerializer.Serialize(new { id = domId, name = dom });
 
                     pDomId.Value = domId;
                     pDomProps.Value = domProps;

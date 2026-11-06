@@ -53,15 +53,15 @@ public class ProjectMapRemainingItemsTests
 
             // Verify:
             // 1. Table is now linked to canonical database via CONTAINS
-            var dbTableEdgesJson = await db.ExecuteQueryAsync(
+            var dbTableEdgesJson = (await db.ExecuteCypherAsync(
                 "SELECT from_id, to_id, kind FROM edges WHERE to_id = '1:t:customers' AND kind = 'CONTAINS' AND from_id LIKE '%:db:%';",
-                null);
+                null)).ToJson();
             dbTableEdgesJson.Should().Contain("1:t:customers");
 
             // 2. Project is linked to Table via DEFINES
-            var projTableEdgesJson = await db.ExecuteQueryAsync(
+            var projTableEdgesJson = (await db.ExecuteCypherAsync(
                 "SELECT from_id, to_id, kind FROM edges WHERE from_id = '1:p:api' AND to_id = '1:t:customers' AND kind = 'DEFINES';",
-                null);
+                null)).ToJson();
             projTableEdgesJson.Should().Contain("DEFINES");
         }
         finally

@@ -156,162 +156,121 @@ public partial class PostIndexAnalyzer
     {
         // 1. Query architectural/macro nodes to determine kind and whether project is library
         var nodeMap = new Dictionary<string, (string Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
-        var nodesJson = await db.ExecuteQueryAsync(
+        var nodesRes = await db.ExecuteCypherAsync(
             "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
             null, cancellationToken);
-        using (var nodesDoc = JsonDocument.Parse(nodesJson))
+        foreach (var row in nodesRes.Rows)
         {
-            foreach (var row in nodesDoc.RootElement.EnumerateArray())
+            var id = row.GetStringProp("id");
+            if (string.IsNullOrEmpty(id)) continue;
+            var kind = "Node";
+            if (row.TryGetProperty("lbl", out var lblProp))
             {
-                var id = GetStringProp(row, "id");
-                if (string.IsNullOrEmpty(id)) continue;
-                var kind = "Node";
-                if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+                if (lblProp.Kind == CypherValueKind.Array && lblProp.AsArray() is { Count: > 0 } arr)
                 {
-                    kind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "Node";
+                    kind = arr[0].AsString("Node");
                 }
-                var isLib = kind is "Package" or "Library";
-                if (row.TryGetProperty("is_lib", out var il))
+                else if (lblProp.Kind == CypherValueKind.String && lblProp.AsStringList() is { Count: > 0 } strList)
                 {
-                    isLib = il.ValueKind switch
-                    {
-                        JsonValueKind.True => true,
-                        JsonValueKind.String => string.Equals(il.GetString(), "true", StringComparison.OrdinalIgnoreCase),
-                        JsonValueKind.Number => il.GetInt32() == 1,
-                        _ => isLib
-                    };
+                    kind = strList[0];
                 }
-                var role = GetStringProp(row, "role");
-                if (role is "SharedLibrary" or "Test") isLib = true;
-
-                nodeMap[id] = (kind, isLib);
             }
+            var isLib = kind is "Package" or "Library" || row.GetBoolProp("is_lib");
+            var role = row.GetStringProp("role");
+            if (role is "SharedLibrary" or "Test") isLib = true;
+
+            nodeMap[id] = (kind, isLib);
         }
 
         // 2. Query architectural/macro edges directly from edges table
-        var edgeQuery = "SELECT from_id AS source, to_id AS target, kind, json(properties) AS properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY')";
-        var edgesJson = await db.ExecuteQueryAsync(edgeQuery, null, cancellationToken);
+        var edgeQuery = "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY')";
+        var edgesRes = await db.ExecuteCypherAsync(edgeQuery, null, cancellationToken);
 
-        using (var edgesDoc = JsonDocument.Parse(edgesJson))
+        var updatedCount = 0;
+        var updates = new List<(string NormalizedKind, string PropsJson, string Src, string Tgt, string RawKind)>();
+
+        foreach (var row in edgesRes.Rows)
         {
-            var updatedCount = 0;
-            var updates = new List<(string NormalizedKind, string PropsJson, string Src, string Tgt, string RawKind)>();
+            var src = row.GetStringProp("source");
+            var tgt = row.GetStringProp("target");
+            var rawKind = row.GetStringProp("kind");
+            if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
-            foreach (var row in edgesDoc.RootElement.EnumerateArray())
+            nodeMap.TryGetValue(src, out var srcInfo);
+            nodeMap.TryGetValue(tgt, out var tgtInfo);
+
+            if (string.IsNullOrEmpty(tgtInfo.Kind))
             {
-                var src = GetStringProp(row, "source");
-                var tgt = GetStringProp(row, "target");
-                var rawKind = GetStringProp(row, "kind");
-                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-
-                nodeMap.TryGetValue(src, out var srcInfo);
-                nodeMap.TryGetValue(tgt, out var tgtInfo);
-
-                if (string.IsNullOrEmpty(tgtInfo.Kind))
+                if (tgt.Contains(":pkg:") || tgt.Contains(":package:"))
                 {
-                    if (tgt.Contains(":pkg:") || tgt.Contains(":package:"))
-                    {
-                        tgtInfo = ("Package", true);
-                    }
-                    else if (tgt.Contains(":res:db:") || tgt.Contains(":db:") || tgt.Contains(":database:"))
-                    {
-                        tgtInfo = ("Database", false);
-                    }
-                    else if (tgt.Contains(":top:") || tgt.Contains(":topic:"))
-                    {
-                        tgtInfo = ("Topic", false);
-                    }
+                    tgtInfo = ("Package", true);
                 }
-
-                var existingCategory = "";
-                var existingDepType = "";
-                var props = new Dictionary<string, object>();
-
-                if (row.TryGetProperty("properties", out var pElem))
+                else if (tgt.Contains(":res:db:") || tgt.Contains(":db:") || tgt.Contains(":database:"))
                 {
-                    if (pElem.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in pElem.EnumerateObject())
-                        {
-                            var valStr = prop.Value.ToString();
-                            props[prop.Name] = valStr;
-                            if (prop.NameEquals("category")) existingCategory = valStr;
-                            if (prop.NameEquals("dependency_type")) existingDepType = valStr;
-                        }
-                    }
-                    else if (pElem.ValueKind == JsonValueKind.String && pElem.GetString() is { Length: > 0 } rawJson)
-                    {
-                        try
-                        {
-                            using var innerDoc = JsonDocument.Parse(rawJson);
-
-                            if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
-                            {
-                                foreach (var prop in innerDoc.RootElement.EnumerateObject())
-                                {
-                                    var valStr = prop.Value.ToString();
-                                    props[prop.Name] = valStr;
-                                    if (prop.NameEquals("category")) existingCategory = valStr;
-                                    if (prop.NameEquals("dependency_type")) existingDepType = valStr;
-                                }
-                            }
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    tgtInfo = ("Database", false);
                 }
-
-                var (category, depType, normalizedKind) = NormalizeEdgeCategory(rawKind, srcInfo.Kind, tgtInfo.Kind,
-                    existingCategory, existingDepType, tgtInfo.IsLibrary);
-
-                var categoryStr = category.ToCategoryString();
-                var needsUpdate = !props.ContainsKey("dependency_type") ||
-                                  !string.Equals(props.GetValueOrDefault("dependency_type")?.ToString(), depType,
-                                      StringComparison.Ordinal) ||
-                                  !string.Equals(props.GetValueOrDefault("category")?.ToString(), categoryStr,
-                                      StringComparison.Ordinal) || !string.Equals(rawKind, normalizedKind,
-                                      StringComparison.Ordinal);
-
-                if (needsUpdate)
+                else if (tgt.Contains(":top:") || tgt.Contains(":topic:"))
                 {
-                    props["dependency_type"] = depType;
-                    props["category"] = categoryStr;
-
-                    var propsJson = JsonSerializer.Serialize(props);
-                    updates.Add((normalizedKind, propsJson, src, tgt, rawKind));
+                    tgtInfo = ("Topic", false);
                 }
             }
 
-            const int updateBatchSize = 100;
-            for (int i = 0; i < updates.Count; i += updateBatchSize)
+            var existingCategory = "";
+            var existingDepType = "";
+            var props = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            if (row.TryGetProperty("properties", out var pElem))
             {
-                var chunk = updates.Skip(i).Take(updateBatchSize).ToList();
-                var sb = new System.Text.StringBuilder(chunk.Count * 120);
-                var paramDict = new Dictionary<string, object>();
-                for (int j = 0; j < chunk.Count; j++)
+                foreach (var (k, valStr) in pElem.ExtractStringMap())
                 {
-                    var u = chunk[j];
-                    sb.AppendLine($"UPDATE OR IGNORE edges SET kind = @k{j}, properties = jsonb(@p{j}) WHERE from_id = @s{j} AND to_id = @t{j} AND kind = @rk{j};");
-                    paramDict[$"k{j}"] = u.NormalizedKind;
-                    paramDict[$"p{j}"] = u.PropsJson;
-                    paramDict[$"s{j}"] = u.Src;
-                    paramDict[$"t{j}"] = u.Tgt;
-                    paramDict[$"rk{j}"] = u.RawKind;
+                    props[k] = valStr;
+                    if (string.Equals(k, "category", StringComparison.Ordinal)) existingCategory = valStr;
+                    if (string.Equals(k, "dependency_type", StringComparison.Ordinal)) existingDepType = valStr;
                 }
-                await db.ExecuteWriteAsync(sb.ToString(), paramDict, cancellationToken);
-                updatedCount += chunk.Count;
             }
 
-            return updatedCount;
+            var (category, depType, normalizedKind) = NormalizeEdgeCategory(rawKind, srcInfo.Kind, tgtInfo.Kind,
+                existingCategory, existingDepType, tgtInfo.IsLibrary);
+
+            var categoryStr = category.ToCategoryString();
+            var needsUpdate = !props.ContainsKey("dependency_type") ||
+                              !string.Equals(props.GetValueOrDefault("dependency_type"), depType,
+                                  StringComparison.Ordinal) ||
+                              !string.Equals(props.GetValueOrDefault("category"), categoryStr,
+                                  StringComparison.Ordinal) || !string.Equals(rawKind, normalizedKind,
+                                  StringComparison.Ordinal);
+
+            if (needsUpdate)
+            {
+                props["dependency_type"] = depType;
+                props["category"] = categoryStr;
+
+                var propsJson = JsonSerializer.Serialize(props);
+                updates.Add((normalizedKind, propsJson, src, tgt, rawKind));
+            }
         }
-    }
 
-    private static string GetStringProp(JsonElement elem, string prop, string fallback = "")
-    {
-        return elem.TryGetProperty(prop, out var val) && val.ValueKind == JsonValueKind.String
-            ? (val.GetString() ?? fallback)
-            : fallback;
+        const int updateBatchSize = 100;
+        for (int i = 0; i < updates.Count; i += updateBatchSize)
+        {
+            var chunk = updates.Skip(i).Take(updateBatchSize).ToList();
+            var sb = new System.Text.StringBuilder(chunk.Count * 120);
+            var paramDict = new Dictionary<string, string>(StringComparer.Ordinal);
+            for (int j = 0; j < chunk.Count; j++)
+            {
+                var u = chunk[j];
+                sb.AppendLine($"UPDATE OR IGNORE edges SET kind = @k{j}, properties = jsonb(@p{j}) WHERE from_id = @s{j} AND to_id = @t{j} AND kind = @rk{j};");
+                paramDict[$"k{j}"] = u.NormalizedKind;
+                paramDict[$"p{j}"] = u.PropsJson;
+                paramDict[$"s{j}"] = u.Src;
+                paramDict[$"t{j}"] = u.Tgt;
+                paramDict[$"rk{j}"] = u.RawKind;
+            }
+            await db.ExecuteWriteAsync(sb.ToString(), paramDict, cancellationToken);
+            updatedCount += chunk.Count;
+        }
+
+        return updatedCount;
     }
     public static ProjectNode? FindMatchingServiceProject(string key, IEnumerable<ProjectNode> projects)
     {
@@ -484,21 +443,12 @@ public partial class PostIndexAnalyzer
         CancellationToken cancellationToken = default)
     {
         var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
-        var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
-
-        using var projsDoc = JsonDocument.Parse(projsJson);
+        var projsRows = await db.QueryAsync<(string Id, string Name, string? Path)>(projQuery, null, cancellationToken);
 
         var projectList = new List<ProjectNode>();
 
-        foreach (var row in projsDoc.RootElement.EnumerateArray())
+        foreach (var (pId, pName, pPath) in projsRows)
         {
-            var pId = GetStringProp(row, "id");
-            var pName = GetStringProp(row, "name");
-
-            var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String
-                ? pt.GetString()
-                : null;
-
             if (!string.IsNullOrEmpty(pId))
             {
                 projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
@@ -509,21 +459,17 @@ public partial class PostIndexAnalyzer
 
         var epQuery =
             "MATCH (ep:Endpoint) RETURN ep.id AS id, ep.name AS name, json_extract(ep.properties, '$.route_template') AS route, json_extract(ep.properties, '$.http_method') AS method, json_extract(ep.properties, '$.path') AS path";
-        var epJson = await db.ExecuteQueryAsync(epQuery, null, cancellationToken);
-        using var epDoc = JsonDocument.Parse(epJson);
+        var epRows = await db.QueryAsync<(string Id, string Name, string Route, string Method, string Path)>(epQuery, null, cancellationToken);
         var endpointCandidates = new List<EndpointMatchCandidate>();
-        foreach (var epRow in epDoc.RootElement.EnumerateArray())
+        foreach (var (epId, epName, rawRoute, rawMethod, epPath) in epRows)
         {
-            var epId = GetStringProp(epRow, "id");
-            var epName = GetStringProp(epRow, "name");
-            var epRoute = GetStringProp(epRow, "route");
-            var epMethod = GetStringProp(epRow, "method");
-            var epPath = GetStringProp(epRow, "path");
+            var epRoute = rawRoute;
+            var epMethod = rawMethod;
 
             if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(epName) && epName.Contains(':'))
             {
                 var parts = epName.Split(':', 2);
-                epMethod ??= parts[0];
+                if (string.IsNullOrEmpty(epMethod)) epMethod = parts[0];
                 epRoute = parts[1];
             }
 
@@ -535,33 +481,25 @@ public partial class PostIndexAnalyzer
         }
 
         var callsEpQuery = "MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) RETURN es.id AS es_id";
-        var callsEpJson = await db.ExecuteQueryAsync(callsEpQuery, null, cancellationToken);
-        using var callsEpDoc = JsonDocument.Parse(callsEpJson);
-        var servicesCallingEndpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var edgeRow in callsEpDoc.RootElement.EnumerateArray())
-        {
-            var esId = GetStringProp(edgeRow, "es_id");
-            if (!string.IsNullOrEmpty(esId)) servicesCallingEndpoints.Add(esId);
-        }
+        var callsEpIds = await db.QueryAsync<string>(callsEpQuery, null, cancellationToken);
+        var servicesCallingEndpoints = new HashSet<string>(callsEpIds.Where(id => !string.IsNullOrEmpty(id)), StringComparer.OrdinalIgnoreCase);
 
         var extQuery =
             "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.path') AS path, json_extract(es.properties, '$.inferred_from_path') AS inferred_from_path, json_extract(es.properties, '$.is_relative_path') AS is_relative_path, json_extract(es.properties, '$.is_external') AS is_ext, json_extract(es.properties, '$.inferred_from_identifier') AS inferred_from_ident";
-        var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
-
-        using var extDoc = JsonDocument.Parse(extJson);
+        var extRes = await db.ExecuteCypherAsync(extQuery, null, cancellationToken);
 
         var idsToDelete = new List<string>();
 
-        foreach (var row in extDoc.RootElement.EnumerateArray())
+        foreach (var row in extRes.Rows)
         {
-            var id = GetStringProp(row, "id");
-            var name = GetStringProp(row, "name");
-            var domain = GetStringProp(row, "domain");
-            var path = GetStringProp(row, "path");
-            var inferredFromPath = GetStringProp(row, "inferred_from_path");
-            var isRelativePath = GetStringProp(row, "is_relative_path");
-            var isExt = GetStringProp(row, "is_ext");
-            var inferredFromIdent = GetStringProp(row, "inferred_from_ident");
+            var id = row.GetStringProp("id");
+            var name = row.GetStringProp("name");
+            var domain = row.GetStringProp("domain");
+            var path = row.GetStringProp("path");
+            var inferredFromPath = row.GetStringProp("inferred_from_path");
+            var isRelativePath = row.GetStringProp("is_relative_path");
+            var isExt = row.GetStringProp("is_ext");
+            var inferredFromIdent = row.GetStringProp("inferred_from_ident");
 
             var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
@@ -648,7 +586,7 @@ public partial class PostIndexAnalyzer
         for (int i = 0; i < idsToDelete.Count; i += deleteBatchSize)
         {
             var chunk = idsToDelete.Skip(i).Take(deleteBatchSize).ToList();
-            var paramDict = new Dictionary<string, object>();
+            var paramDict = new Dictionary<string, string>(StringComparer.Ordinal);
             var inParams = string.Join(", ", chunk.Select((id, idx) =>
             {
                 var p = $"@id{idx}";
@@ -667,16 +605,13 @@ public partial class PostIndexAnalyzer
         CancellationToken cancellationToken = default)
     {
         var topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name";
-        var topicsJson = await db.ExecuteQueryAsync(topicQuery, null, cancellationToken);
-        using var topicsDoc = JsonDocument.Parse(topicsJson);
+        var topicsRows = await db.QueryAsync<(string Id, string Name)>(topicQuery, null, cancellationToken);
 
         var placeholderIds = new List<string>();
         var concreteExternalTopicCount = 0;
 
-        foreach (var row in topicsDoc.RootElement.EnumerateArray())
+        foreach (var (id, name) in topicsRows)
         {
-            var id = GetStringProp(row, "id");
-            var name = GetStringProp(row, "name");
             if (string.IsNullOrEmpty(id)) continue;
 
             if (id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) || id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase))
@@ -705,7 +640,7 @@ public partial class PostIndexAnalyzer
             for (int i = 0; i < placeholderIds.Count; i += deleteBatchSize)
             {
                 var chunk = placeholderIds.Skip(i).Take(deleteBatchSize).ToList();
-                var paramDict = new Dictionary<string, object>();
+                var paramDict = new Dictionary<string, string>(StringComparer.Ordinal);
                 var inParams = string.Join(", ", chunk.Select((id, idx) =>
                 {
                     var p = $"@id{idx}";

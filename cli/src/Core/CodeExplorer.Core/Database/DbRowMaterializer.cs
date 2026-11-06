@@ -327,6 +327,7 @@ public static class DbRowMaterializer
         }
 
         if (effectiveType == typeof(CypherValue)) return val;
+        if (effectiveType == typeof(object)) return ConvertCypherValueToClrPrimitive(val);
         if (effectiveType == typeof(string)) return val.AsString();
         if (effectiveType == typeof(int)) return val.AsInt32();
         if (effectiveType == typeof(long)) return val.AsInt64();
@@ -365,8 +366,8 @@ public static class DbRowMaterializer
         if (enumType == typeof(RelationshipKind)) return EnumExtensions.ParseRelationshipKind(raw);
         if (enumType == typeof(GraphEdgeCategory)) return TaxonomyViewEnumExtensions.ParseGraphEdgeCategory(raw);
         if (enumType == typeof(EvidenceKind)) return TaxonomyViewEnumExtensions.ParseEvidenceKind(raw);
-        if (enumType == typeof(TypeSubKind)) return TaxonomyEnumExtensions.ParseTypeSubKind(raw);
-        if (enumType == typeof(FunctionSubKind)) return TaxonomyEnumExtensions.ParseFunctionSubKind(raw);
+        if (enumType == typeof(TypeKind)) return TaxonomyEnumExtensions.ParseTypeKind(raw);
+        if (enumType == typeof(MemberKind)) return TaxonomyEnumExtensions.ParseMemberKind(raw);
         if (enumType == typeof(OperationType)) return TaxonomyEnumExtendedExtensions.ParseOperationType(raw);
         if (enumType == typeof(DatabaseType)) return EnumExtensions.ParseDatabaseType(raw);
         if (enumType == typeof(BrokerType)) return TaxonomyEnumExtensions.ParseBrokerType(raw);

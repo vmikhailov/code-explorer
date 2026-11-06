@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Conventions.Services;
+using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Conventions;
 
@@ -132,77 +133,76 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
             try
             {
                 var json = File.ReadAllText(configPath);
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+                var root = CypherValue.TryParseJsonText(json);
 
-                if (root.TryGetProperty("topics", out var tEl) && tEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("topics", out var tEl) && tEl.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in tEl.EnumerateObject())
+                    foreach (var prop in tEl.AsObject())
                     {
-                        topics[prop.Name] = prop.Value.GetString() ?? prop.Name;
+                        topics[prop.Key] = prop.Value.AsString(prop.Key);
                     }
                 }
 
-                if (root.TryGetProperty("service_prefixes", out var spEl) && spEl.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("service_prefixes", out var spEl) && spEl.Kind == CypherValueKind.Array)
                 {
-                    foreach (var p in spEl.EnumerateArray())
+                    foreach (var p in spEl.AsArray())
                     {
-                        var s = p.GetString();
+                        var s = p.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(s)) customPrefixes.Add(s.Trim().ToLowerInvariant());
                     }
                 }
 
-                if (root.TryGetProperty("route_functions", out var rfEl) && rfEl.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("route_functions", out var rfEl) && rfEl.Kind == CypherValueKind.Array)
                 {
-                    foreach (var r in rfEl.EnumerateArray())
+                    foreach (var r in rfEl.AsArray())
                     {
-                        var fn = r.GetString();
+                        var fn = r.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(fn)) routeFunctions.Add(fn.Trim());
                     }
                 }
 
-                if (root.TryGetProperty("database_aliases", out var daEl) && daEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("database_aliases", out var daEl) && daEl.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in daEl.EnumerateObject())
+                    foreach (var prop in daEl.AsObject())
                     {
-                        var tgt = prop.Value.GetString();
-                        if (!string.IsNullOrWhiteSpace(tgt)) dbAliases[prop.Name.Trim()] = tgt.Trim();
+                        var tgt = prop.Value.AsNullableString();
+                        if (!string.IsNullOrWhiteSpace(tgt)) dbAliases[prop.Key.Trim()] = tgt.Trim();
                     }
                 }
 
-                if (root.TryGetProperty("service_aliases", out var saEl) && saEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("service_aliases", out var saEl) && saEl.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in saEl.EnumerateObject())
+                    foreach (var prop in saEl.AsObject())
                     {
-                        var tgt = prop.Value.GetString();
-                        if (!string.IsNullOrWhiteSpace(tgt)) svcAliases[prop.Name.Trim()] = tgt.Trim();
+                        var tgt = prop.Value.AsNullableString();
+                        if (!string.IsNullOrWhiteSpace(tgt)) svcAliases[prop.Key.Trim()] = tgt.Trim();
                     }
                 }
 
-                if (root.TryGetProperty("garbage_hosts", out var ghEl) && ghEl.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("garbage_hosts", out var ghEl) && ghEl.Kind == CypherValueKind.Array)
                 {
-                    foreach (var h in ghEl.EnumerateArray())
+                    foreach (var h in ghEl.AsArray())
                     {
-                        var host = h.GetString();
+                        var host = h.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(host)) garbageHosts.Add(host.Trim().ToLowerInvariant());
                     }
                 }
 
-                if (root.TryGetProperty("placeholder_names", out var pnEl) && pnEl.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("placeholder_names", out var pnEl) && pnEl.Kind == CypherValueKind.Array)
                 {
-                    foreach (var p in pnEl.EnumerateArray())
+                    foreach (var p in pnEl.AsArray())
                     {
-                        var name = p.GetString();
+                        var name = p.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(name)) placeholderNames.Add(name.Trim());
                     }
                 }
 
-                if (root.TryGetProperty("domains", out var dEl) && dEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("domains", out var dEl) && dEl.Kind == CypherValueKind.Object)
                 {
                     ParseDomainMappings(dEl, projectToDomain, domainIcons, patterns);
                 }
 
-                if (root.TryGetProperty("overrides", out var ovrEl) && ovrEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("overrides", out var ovrEl) && ovrEl.Kind == CypherValueKind.Object)
                 {
                     ParseOverrides(ovrEl, serviceOverrides, projectToDomain);
                 }
@@ -219,26 +219,25 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
             try
             {
                 var json = File.ReadAllText(domainsPath);
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+                var root = CypherValue.TryParseJsonText(json);
 
                 if (root.TryGetProperty("domains", out var domainsEl))
                 {
-                    if (domainsEl.ValueKind == JsonValueKind.Array)
+                    if (domainsEl.Kind == CypherValueKind.Array)
                         ParseDomainDefinitionsArray(domainsEl, projectToDomain, domainIcons, patterns);
-                    else if (domainsEl.ValueKind == JsonValueKind.Object)
+                    else if (domainsEl.Kind == CypherValueKind.Object)
                         ParseDomainMappings(domainsEl, projectToDomain, domainIcons, patterns);
                 }
-                else if (root.ValueKind == JsonValueKind.Array)
+                else if (root.Kind == CypherValueKind.Array)
                 {
                     ParseDomainDefinitionsArray(root, projectToDomain, domainIcons, patterns);
                 }
-                else if (root.ValueKind == JsonValueKind.Object)
+                else if (root.Kind == CypherValueKind.Object)
                 {
                     ParseDomainMappings(root, projectToDomain, domainIcons, patterns);
                 }
 
-                if (root.TryGetProperty("overrides", out var ovrEl) && ovrEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("overrides", out var ovrEl) && ovrEl.Kind == CypherValueKind.Object)
                 {
                     ParseOverrides(ovrEl, serviceOverrides, projectToDomain);
                 }
@@ -265,27 +264,27 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
     }
 
     private static void ParseOverrides(
-        JsonElement overridesEl,
+        CypherValue overridesEl,
         Dictionary<string, string> serviceOverrides,
         Dictionary<string, string> projectToDomain)
     {
-        foreach (var prop in overridesEl.EnumerateObject())
+        foreach (var prop in overridesEl.AsObject())
         {
-            var serviceName = prop.Name.Trim();
-            if (prop.Value.ValueKind == JsonValueKind.String)
+            var serviceName = prop.Key.Trim();
+            if (prop.Value.Kind == CypherValueKind.String)
             {
-                var targetDomain = prop.Value.GetString();
+                var targetDomain = prop.Value.AsNullableString();
                 if (!string.IsNullOrWhiteSpace(targetDomain))
                 {
                     serviceOverrides[serviceName] = targetDomain.Trim();
                     projectToDomain[serviceName] = targetDomain.Trim();
                 }
             }
-            else if (prop.Value.ValueKind == JsonValueKind.Object)
+            else if (prop.Value.Kind == CypherValueKind.Object)
             {
-                if (prop.Value.TryGetProperty("domain", out var domProp) && domProp.ValueKind == JsonValueKind.String)
+                if (prop.Value.TryGetProperty("domain", out var domProp) && domProp.Kind == CypherValueKind.String)
                 {
-                    var targetDomain = domProp.GetString();
+                    var targetDomain = domProp.AsNullableString();
                     if (!string.IsNullOrWhiteSpace(targetDomain))
                     {
                         serviceOverrides[serviceName] = targetDomain.Trim();
@@ -297,49 +296,49 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
     }
 
     private static void ParseDomainDefinitionsArray(
-        JsonElement root,
+        CypherValue root,
         Dictionary<string, string> projectToDomain,
         Dictionary<string, string> domainIcons,
         List<(Regex Regex, string Domain)> patterns)
     {
-        foreach (var item in root.EnumerateArray())
+        foreach (var item in root.AsArray())
         {
-            if (item.ValueKind != JsonValueKind.Object) continue;
+            if (item.Kind != CypherValueKind.Object) continue;
 
             if (item.TryGetProperty("name", out var nameProp))
             {
-                var domainName = nameProp.GetString();
+                var domainName = nameProp.AsNullableString();
                 if (string.IsNullOrWhiteSpace(domainName)) continue;
 
-                if (item.TryGetProperty("icon", out var iconProp) && iconProp.ValueKind == JsonValueKind.String)
+                if (item.TryGetProperty("icon", out var iconProp) && iconProp.Kind == CypherValueKind.String)
                 {
-                    var icon = iconProp.GetString();
+                    var icon = iconProp.AsNullableString();
                     if (!string.IsNullOrWhiteSpace(icon)) domainIcons[domainName.Trim()] = icon.Trim();
                 }
 
-                if (item.TryGetProperty("projects", out var projsProp) && projsProp.ValueKind == JsonValueKind.Array)
+                if (item.TryGetProperty("projects", out var projsProp) && projsProp.Kind == CypherValueKind.Array)
                 {
-                    foreach (var p in projsProp.EnumerateArray())
+                    foreach (var p in projsProp.AsArray())
                     {
-                        var proj = p.GetString();
+                        var proj = p.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(proj)) projectToDomain[proj.Trim()] = domainName.Trim();
                     }
                 }
 
-                if (item.TryGetProperty("services", out var srvsProp) && srvsProp.ValueKind == JsonValueKind.Array)
+                if (item.TryGetProperty("services", out var srvsProp) && srvsProp.Kind == CypherValueKind.Array)
                 {
-                    foreach (var s in srvsProp.EnumerateArray())
+                    foreach (var s in srvsProp.AsArray())
                     {
-                        var srv = s.GetString();
+                        var srv = s.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(srv)) projectToDomain[srv.Trim()] = domainName.Trim();
                     }
                 }
 
-                if (item.TryGetProperty("patterns", out var patsProp) && patsProp.ValueKind == JsonValueKind.Array)
+                if (item.TryGetProperty("patterns", out var patsProp) && patsProp.Kind == CypherValueKind.Array)
                 {
-                    foreach (var pat in patsProp.EnumerateArray())
+                    foreach (var pat in patsProp.AsArray())
                     {
-                        var patternStr = pat.GetString();
+                        var patternStr = pat.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(patternStr))
                             AddPattern(patternStr, domainName.Trim(), patterns);
                     }
@@ -349,61 +348,61 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
     }
 
     private static void ParseDomainMappings(
-        JsonElement root,
+        CypherValue root,
         Dictionary<string, string> projectToDomain,
         Dictionary<string, string> domainIcons,
         List<(Regex Regex, string Domain)> patterns)
     {
-        foreach (var prop in root.EnumerateObject())
+        foreach (var prop in root.AsObject())
         {
-            var domainName = prop.Name;
-            if (prop.Value.ValueKind == JsonValueKind.Array)
+            var domainName = prop.Key;
+            if (prop.Value.Kind == CypherValueKind.Array)
             {
-                foreach (var item in prop.Value.EnumerateArray())
+                foreach (var item in prop.Value.AsArray())
                 {
-                    var proj = item.GetString();
+                    var proj = item.AsNullableString();
                     if (!string.IsNullOrWhiteSpace(proj)) projectToDomain[proj.Trim()] = domainName;
                 }
             }
-            else if (prop.Value.ValueKind == JsonValueKind.String)
+            else if (prop.Value.Kind == CypherValueKind.String)
             {
-                var val = prop.Value.GetString();
+                var val = prop.Value.AsNullableString();
                 if (!string.IsNullOrWhiteSpace(val)) projectToDomain[domainName] = val.Trim();
             }
-            else if (prop.Value.ValueKind == JsonValueKind.Object)
+            else if (prop.Value.Kind == CypherValueKind.Object)
             {
-                if (prop.Name.Equals("projects", StringComparison.OrdinalIgnoreCase))
+                if (prop.Key.Equals("projects", StringComparison.OrdinalIgnoreCase))
                 {
-                    foreach (var projProp in prop.Value.EnumerateObject())
+                    foreach (var projProp in prop.Value.AsObject())
                     {
-                        var assignedDomain = projProp.Value.GetString();
+                        var assignedDomain = projProp.Value.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(assignedDomain))
-                            projectToDomain[projProp.Name.Trim()] = assignedDomain.Trim();
+                            projectToDomain[projProp.Key.Trim()] = assignedDomain.Trim();
                     }
                 }
                 else
                 {
-                    if (prop.Value.TryGetProperty("patterns", out var pats) && pats.ValueKind == JsonValueKind.Array)
+                    if (prop.Value.TryGetProperty("patterns", out var pats) && pats.Kind == CypherValueKind.Array)
                     {
-                        foreach (var pat in pats.EnumerateArray())
+                        foreach (var pat in pats.AsArray())
                         {
-                            var patStr = pat.GetString();
+                            var patStr = pat.AsNullableString();
                             if (!string.IsNullOrWhiteSpace(patStr))
                                 AddPattern(patStr, domainName.Trim(), patterns);
                         }
                     }
-                    if (prop.Value.TryGetProperty("services", out var srvs) && srvs.ValueKind == JsonValueKind.Array)
+                    if (prop.Value.TryGetProperty("services", out var srvs) && srvs.Kind == CypherValueKind.Array)
                     {
-                        foreach (var srv in srvs.EnumerateArray())
+                        foreach (var srv in srvs.AsArray())
                         {
-                            var srvStr = srv.GetString();
+                            var srvStr = srv.AsNullableString();
                             if (!string.IsNullOrWhiteSpace(srvStr))
                                 projectToDomain[srvStr.Trim()] = domainName.Trim();
                         }
                     }
-                    if (prop.Value.TryGetProperty("icon", out var iconProp) && iconProp.ValueKind == JsonValueKind.String)
+                    if (prop.Value.TryGetProperty("icon", out var iconProp) && iconProp.Kind == CypherValueKind.String)
                     {
-                        var iconStr = iconProp.GetString();
+                        var iconStr = iconProp.AsNullableString();
                         if (!string.IsNullOrWhiteSpace(iconStr))
                             domainIcons[domainName.Trim()] = iconStr.Trim();
                     }

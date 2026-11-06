@@ -39,7 +39,7 @@ public class TestFileClassificationTests
             await using var client = new SqliteGraphClient(Path.Combine(ws, "graph.db"));
             WorkspaceIndexer.AutoRegisterParsers();
             await new WorkspaceIndexer(client).IndexAsync(ws, ws, clear: true);
-            return await client.ExecuteQueryAsync(query);
+            return (await client.ExecuteCypherAsync(query)).ToJson();
         }
         finally
         {

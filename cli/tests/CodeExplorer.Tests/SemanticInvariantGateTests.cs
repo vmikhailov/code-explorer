@@ -1343,8 +1343,8 @@ public class SemanticInvariantGateTests
     {
         public string QueryResponse { get; set; } = "[]";
 
-        public Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
-            => Task.FromResult(QueryResponse);
+        public Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(CypherQueryResult.FromJson(QueryResponse));
 
         public Task CreateIndicesAsync() => Task.CompletedTask;
         public Task ClearDatabaseAsync() => Task.CompletedTask;

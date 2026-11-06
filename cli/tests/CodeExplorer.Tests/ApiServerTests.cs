@@ -111,16 +111,12 @@ public class ApiServerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadAsStringAsync();
+        var root = CypherValue.TryParseJsonText(json);
 
-        using var doc = JsonDocument.Parse(json);
-
-        var root = doc.RootElement;
-
-        root.GetProperty("service").GetString().Should().Be("CodeExplorer API Server");
-
-        (root.TryGetProperty("version", out var version) && !string.IsNullOrEmpty(version.GetString())).Should().BeTrue();
-        root.GetProperty("wsEndpoint").GetString().Should().Be("/ws");
-        root.GetProperty("workspace").GetString().Should().Be(_tempWorkspace);
+        root.GetStringProp("service").Should().Be("CodeExplorer API Server");
+        (!string.IsNullOrEmpty(root.GetStringProp("version"))).Should().BeTrue();
+        root.GetStringProp("wsEndpoint").Should().Be("/ws");
+        root.GetStringProp("workspace").Should().Be(_tempWorkspace);
     }
 
     [Test]
@@ -130,13 +126,10 @@ public class ApiServerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadAsStringAsync();
+        var root = CypherValue.TryParseJsonText(json);
 
-        using var doc = JsonDocument.Parse(json);
-
-        var root = doc.RootElement;
-
-        root.GetProperty("status").GetString().Should().Be("ok");
-        root.GetProperty("workspace").GetString().Should().Be(_tempWorkspace);
+        root.GetStringProp("status").Should().Be("ok");
+        root.GetStringProp("workspace").Should().Be(_tempWorkspace);
         root.TryGetProperty("nodes", out _).Should().BeTrue();
         root.TryGetProperty("edges", out _).Should().BeTrue();
     }
@@ -148,14 +141,11 @@ public class ApiServerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadAsStringAsync();
+        var root = CypherValue.TryParseJsonText(json);
 
-        using var doc = JsonDocument.Parse(json);
-
-        var root = doc.RootElement;
-
-        (root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array).Should().BeTrue();
-        (root.TryGetProperty("edges", out var edges) && edges.ValueKind == JsonValueKind.Array).Should().BeTrue();
-        nodes.GetArrayLength().Should().BeGreaterThan(0);
+        (root.TryGetProperty("nodes", out var nodes) && nodes.Kind == CypherValueKind.Array).Should().BeTrue();
+        (root.TryGetProperty("edges", out var edges) && edges.Kind == CypherValueKind.Array).Should().BeTrue();
+        nodes.AsArray().Count.Should().BeGreaterThan(0);
     }
 
     [Test]
@@ -165,13 +155,10 @@ public class ApiServerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadAsStringAsync();
+        var root = CypherValue.TryParseJsonText(json);
 
-        using var doc = JsonDocument.Parse(json);
-
-        var root = doc.RootElement;
-
-        (root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array).Should().BeTrue();
-        nodes.GetArrayLength().Should().BeGreaterThan(0);
+        (root.TryGetProperty("nodes", out var nodes) && nodes.Kind == CypherValueKind.Array).Should().BeTrue();
+        nodes.AsArray().Count.Should().BeGreaterThan(0);
     }
 
     [Test]
@@ -181,14 +168,13 @@ public class ApiServerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadAsStringAsync();
+        var root = CypherValue.TryParseJsonText(json);
 
-        using var doc = JsonDocument.Parse(json);
+        root.Kind.Should().Be(CypherValueKind.Array);
+        root.AsArray().Count.Should().BeGreaterThan(0);
 
-        doc.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
-        doc.RootElement.GetArrayLength().Should().BeGreaterThan(0);
-
-        var first = doc.RootElement[0];
-        first.GetString().Should().Be("SampleProject");
+        var first = root.AsArray()[0];
+        first.AsString().Should().Be("SampleProject");
     }
 
     [Test]
@@ -198,13 +184,10 @@ public class ApiServerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadAsStringAsync();
+        var root = CypherValue.TryParseJsonText(json);
 
-        using var doc = JsonDocument.Parse(json);
-
-        var root = doc.RootElement;
-
-        (root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array).Should().BeTrue();
-        (root.TryGetProperty("edges", out var edges) && edges.ValueKind == JsonValueKind.Array).Should().BeTrue();
+        (root.TryGetProperty("nodes", out var nodes) && nodes.Kind == CypherValueKind.Array).Should().BeTrue();
+        (root.TryGetProperty("edges", out var edges) && edges.Kind == CypherValueKind.Array).Should().BeTrue();
         root.TryGetProperty("metadata", out _).Should().BeTrue();
     }
 
@@ -610,9 +593,8 @@ public class ApiServerTests
 
         foreach (var respJson in receivedResponses)
         {
-            using var doc = JsonDocument.Parse(respJson);
-
-            doc.RootElement.GetProperty("type").GetString().Should().Be(WsMessageTypes.PongResponse);
+            var root = CypherValue.TryParseJsonText(respJson);
+            root.GetStringProp("type").Should().Be(WsMessageTypes.PongResponse);
         }
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);

@@ -53,38 +53,32 @@ def sanitize_input(val):
             indexResult.NodesCount.Should().BeGreaterThan(0);
 
             // 1. Verify ScriptProject is detected with Role = ScriptProject and Kind = ScriptProject
-            var projJson = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.role AS role, p.kind AS kind, p.path AS path");
-            using var projDoc = JsonDocument.Parse(projJson);
-            var projList = projDoc.RootElement.EnumerateArray().ToList();
-            projList.Count.Should().Be(1, "Should detect exactly one ScriptProject for the loose scripts folder");
-            var proj = projList[0];
-            proj.GetProperty("name").GetString().Should().Be("scripts");
-            proj.GetProperty("role").GetString().Should().Be(nameof(ProjectRole.ScriptProject));
-            proj.GetProperty("kind").GetString().Should().Be(nameof(ProjectEntityKind.ScriptProject));
+            var projRes = await client.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name, p.role AS role, p.kind AS kind, p.path AS path");
+            projRes.Count.Should().Be(1, "Should detect exactly one ScriptProject for the loose scripts folder");
+            var proj = projRes.Rows[0];
+            proj.GetStringProp("name").Should().Be("scripts");
+            proj.GetStringProp("role").Should().Be(nameof(ProjectRole.ScriptProject));
+            proj.GetStringProp("kind").Should().Be(nameof(ProjectEntityKind.ScriptProject));
 
             // 2. Verify DECLARED_IN edges connect functions to their file (especially in subfolders)
-            var fnJson = await client.ExecuteQueryAsync(@"
+            var fnRes = await client.ExecuteCypherAsync(@"
                 MATCH (fn:Function)-[:DECLARED_IN]->(f:File)
                 RETURN fn.name AS fnName, f.path AS filePath
             ");
-            using var fnDoc = JsonDocument.Parse(fnJson);
-            var fnList = fnDoc.RootElement.EnumerateArray().ToList();
-            fnList.Count.Should().Be(4, "All 4 functions should have valid DECLARED_IN edges");
+            fnRes.Count.Should().Be(4, "All 4 functions should have valid DECLARED_IN edges");
 
-            var helperFn = fnList.FirstOrDefault(x => x.GetProperty("fnName").GetString() == "format_table");
-            helperFn.ValueKind.Should().NotBe(JsonValueKind.Undefined);
-            helperFn.GetProperty("filePath").GetString().Should().Be("scripts/helpers/util.py");
+            var helperFn = fnRes.Rows.FirstOrDefault(x => x.GetStringProp("fnName") == "format_table");
+            helperFn.FieldCount.Should().BeGreaterThan(0);
+            helperFn.GetStringProp("filePath").Should().Be("scripts/helpers/util.py");
 
             // 3. Verify get_file_outline query returns functions for subfolder file
             var outlineQuery = Queries.Get("get_file_outline");
-            var outlineJson = await client.ExecuteQueryAsync(outlineQuery, new Dictionary<string, object?>
+            var outlineRes = await client.ExecuteCypherAsync(outlineQuery, new
             {
-                ["filePath"] = "scripts/helpers/util.py"
+                filePath = "scripts/helpers/util.py"
             });
-            using var outlineDoc = JsonDocument.Parse(outlineJson);
-            var outlineRows = outlineDoc.RootElement.EnumerateArray().ToList();
-            outlineRows.Count.Should().BeGreaterThan(0, "get_file_outline must find functions declared in scripts/helpers/util.py");
-            var fnNames = outlineRows.Select(r => r.GetProperty("name").GetString()).ToList();
+            outlineRes.Count.Should().BeGreaterThan(0, "get_file_outline must find functions declared in scripts/helpers/util.py");
+            var fnNames = outlineRes.Rows.Select(r => r.GetStringProp("name")).ToList();
             fnNames.Should().Contain("format_table");
             fnNames.Should().Contain("sanitize_input");
         }

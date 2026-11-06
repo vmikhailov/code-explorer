@@ -139,10 +139,8 @@ public class McpIntegrationTests
         responsePost.IsSuccessStatusCode.Should().BeTrue($"Initialize POST returned {responsePost.StatusCode}");
 
         var initResponseStr = await ReadNextSseResponseAsync();
-
-        using var doc = JsonDocument.Parse(initResponseStr);
-
-        doc.RootElement.GetProperty("id").GetInt32().Should().Be(100);
+        var initRoot = CypherValue.TryParseJsonText(initResponseStr);
+        initRoot.GetIntProp("id").Should().Be(100);
 
         // Console.WriteLine("Initialization handshake completed successfully!");
 
@@ -249,16 +247,14 @@ public class McpIntegrationTests
         var responseStr = await ReadNextSseResponseAsync();
         responseStr.Should().NotBeNull();
 
-        using var doc = JsonDocument.Parse(responseStr);
+        var root = CypherValue.TryParseJsonText(responseStr);
 
-        var root = doc.RootElement;
-
-        root.GetProperty("id").GetInt32().Should().Be(responseId);
+        root.GetIntProp("id").Should().Be(responseId);
 
         // Assert no error field on jsonrpc response
         if (root.TryGetProperty("error", out var errorElement))
         {
-            Assert.Fail($"Tool {toolName} returned error: {errorElement.GetRawText()}");
+            Assert.Fail($"Tool {toolName} returned error: {errorElement.ToJsonString()}");
         }
 
         // Verify result exists
@@ -267,14 +263,14 @@ public class McpIntegrationTests
         // Verify isError is false in result content
         if (resultElement.TryGetProperty("isError", out var isErrorElement))
         {
-            if (isErrorElement.GetBoolean())
+            if (isErrorElement.AsBool())
             {
                 var errorText = "No details";
 
                 if (resultElement.TryGetProperty("content", out var contentElement) &&
-                    contentElement.ValueKind == JsonValueKind.Array && contentElement.GetArrayLength() > 0)
+                    contentElement.Kind == CypherValueKind.Array && contentElement.AsArray().Count > 0)
                 {
-                    errorText = contentElement[0].GetProperty("text").GetString();
+                    errorText = contentElement.AsArray()[0].GetStringProp("text");
                 }
 
                 Assert.Fail($"Tool {toolName} result marked with isError: true. Error details: {errorText}");

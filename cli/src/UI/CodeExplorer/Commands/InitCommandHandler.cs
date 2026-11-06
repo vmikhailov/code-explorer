@@ -26,7 +26,7 @@ public static class InitCommandHandler
             await client.ExecuteWriteAsync(
                 "INSERT INTO nodes (id, kind, properties) VALUES ('workspace', 'Workspace', json_object('id', 'workspace', 'name', @name, 'path', @path)) " +
                 "ON CONFLICT(id) DO UPDATE SET properties = json_object('id', 'workspace', 'name', @name, 'path', @path);",
-                new Dictionary<string, object?> { ["name"] = name, ["path"] = ws.RootDirectory });
+                new { name, path = ws.RootDirectory });
         }
 
         Console.ForegroundColor = ConsoleColor.Green;

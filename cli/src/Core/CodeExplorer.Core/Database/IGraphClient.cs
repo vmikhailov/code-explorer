@@ -16,14 +16,8 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     Task SaveEmptyWorkspaceNodeAsync(string id, string path);
     Task UploadNodesAsync(List<Node> nodes);
     Task UploadRelationshipsAsync(List<Relationship> rels);
-    Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
     Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
-
-    async Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
-    {
-        var json = await ExecuteQueryAsync(query, parameters, cancellationToken);
-        return CypherQueryResult.FromJson(json);
-    }
+    Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
 
     async Task<List<T>> QueryAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {

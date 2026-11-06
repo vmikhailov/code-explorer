@@ -70,24 +70,24 @@ public partial class Layer2ProjectParser
 
             try
             {
-                using var doc = JsonDocument.Parse(pkgJsonText, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-                PopulatePackageJsonProjectExtensions(project, doc.RootElement);
-                var root = doc.RootElement;
+                var root = CypherValue.TryParseJsonText(pkgJsonText);
+                if (root.Kind != CypherValueKind.Object) continue;
+                PopulatePackageJsonProjectExtensions(project, root);
 
-                if (root.TryGetProperty("scripts", out var scriptsProp) && scriptsProp.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("scripts", out var scriptsProp) && scriptsProp.Kind == CypherValueKind.Object)
                 {
-                    foreach (var script in scriptsProp.EnumerateObject())
+                    foreach (var script in scriptsProp.AsObject())
                     {
-                        var cmd = script.Value.GetString() ?? string.Empty;
-                        var isInstallHook = InstallHookNames.Contains(script.Name);
-                        var isBuildHook = !isInstallHook && BuildHookNames.Contains(script.Name);
+                        var cmd = script.Value.AsString();
+                        var isInstallHook = InstallHookNames.Contains(script.Key);
+                        var isBuildHook = !isInstallHook && BuildHookNames.Contains(script.Key);
                         if (!isInstallHook && !isBuildHook) continue;
 
                         var entryType = isInstallHook ? "lifecycle-hook" : "build-hook";
-                        var entryId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{entryType}:{project.Path}:{script.Name}";
+                        var entryId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{entryType}:{project.Path}:{script.Key}";
                         var entryNode = new EntryPointNode(
                             Id: entryId,
-                            Name: script.Name,
+                            Name: script.Key,
                             Path: relManifestPath,
                             EntryType: entryType)
                         {
@@ -109,14 +109,14 @@ public partial class Layer2ProjectParser
 
                 // Record package export entrypoints (`main`, `module`, `exports`, `bin`)
                 var exportTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (root.TryGetProperty("main", out var mainProp) && mainProp.ValueKind == JsonValueKind.String)
+                if (root.TryGetProperty("main", out var mainProp) && mainProp.Kind == CypherValueKind.String)
                 {
-                    var mainVal = mainProp.GetString();
+                    var mainVal = mainProp.AsNullableString();
                     if (!string.IsNullOrWhiteSpace(mainVal)) exportTargets.Add(mainVal);
                 }
-                if (root.TryGetProperty("module", out var modProp) && modProp.ValueKind == JsonValueKind.String)
+                if (root.TryGetProperty("module", out var modProp) && modProp.Kind == CypherValueKind.String)
                 {
-                    var modVal = modProp.GetString();
+                    var modVal = modProp.AsNullableString();
                     if (!string.IsNullOrWhiteSpace(modVal)) exportTargets.Add(modVal);
                 }
                 if (root.TryGetProperty("exports", out var expProp))
@@ -149,27 +149,27 @@ public partial class Layer2ProjectParser
         }
     }
 
-    private static void CollectExportTargetStrings(JsonElement elem, HashSet<string> targets)
+    private static void CollectExportTargetStrings(CypherValue elem, HashSet<string> targets)
     {
-        if (elem.ValueKind == JsonValueKind.String)
+        if (elem.Kind == CypherValueKind.String)
         {
-            var s = elem.GetString();
+            var s = elem.AsNullableString();
             if (!string.IsNullOrWhiteSpace(s) && !s.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase))
             {
                 targets.Add(s);
             }
         }
-        else if (elem.ValueKind == JsonValueKind.Object)
+        else if (elem.Kind == CypherValueKind.Object)
         {
-            foreach (var p in elem.EnumerateObject())
+            foreach (var p in elem.AsObject())
             {
-                if (p.Name.Equals("types", StringComparison.OrdinalIgnoreCase)) continue;
+                if (p.Key.Equals("types", StringComparison.OrdinalIgnoreCase)) continue;
                 CollectExportTargetStrings(p.Value, targets);
             }
         }
-        else if (elem.ValueKind == JsonValueKind.Array)
+        else if (elem.Kind == CypherValueKind.Array)
         {
-            foreach (var item in elem.EnumerateArray())
+            foreach (var item in elem.AsArray())
             {
                 CollectExportTargetStrings(item, targets);
             }
@@ -225,14 +225,14 @@ public partial class Layer2ProjectParser
 
     private static readonly char[] PathWildcardTrimChars = ['*', '/'];
 
-    private static void PopulatePackageJsonProjectExtensions(ProjectNode project, JsonElement root)
+    private static void PopulatePackageJsonProjectExtensions(ProjectNode project, CypherValue root)
     {
         var hints = project.Signals().ManifestHints ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         string? pkgName = null;
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var nameProp) && nameProp.Kind == CypherValueKind.String)
         {
-            pkgName = nameProp.GetString();
+            pkgName = nameProp.AsNullableString();
             if (!string.IsNullOrWhiteSpace(pkgName))
             {
                 project.PackageName = pkgName;
@@ -240,9 +240,9 @@ public partial class Layer2ProjectParser
             }
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var verProp) && verProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var verProp) && verProp.Kind == CypherValueKind.String)
         {
-            var ver = verProp.GetString();
+            var ver = verProp.AsNullableString();
             if (!string.IsNullOrWhiteSpace(ver))
             {
                 project.PackageVersion = ver;
@@ -251,9 +251,9 @@ public partial class Layer2ProjectParser
         }
 
         string? publisher = null;
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pubProp) && pubProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pubProp) && pubProp.Kind == CypherValueKind.String)
         {
-            publisher = pubProp.GetString();
+            publisher = pubProp.AsNullableString();
         }
         else if (!string.IsNullOrEmpty(pkgName) && pkgName.StartsWith('@') && pkgName.Contains('/'))
         {
@@ -265,9 +265,9 @@ public partial class Layer2ProjectParser
             hints[OntologyConstants.ExtensionKeys.Publisher] = publisher;
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Main, out var mainProp) && mainProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Main, out var mainProp) && mainProp.Kind == CypherValueKind.String)
         {
-            var mainVal = mainProp.GetString();
+            var mainVal = mainProp.AsNullableString();
             if (!string.IsNullOrWhiteSpace(mainVal))
             {
                 project.MainFile = mainVal;
@@ -275,9 +275,9 @@ public partial class Layer2ProjectParser
             }
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Module, out var modProp) && modProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Module, out var modProp) && modProp.Kind == CypherValueKind.String)
         {
-            var modVal = modProp.GetString();
+            var modVal = modProp.AsNullableString();
             if (!string.IsNullOrWhiteSpace(modVal))
             {
                 project.ModuleFile = modVal;
@@ -285,9 +285,9 @@ public partial class Layer2ProjectParser
             }
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Description, out var descProp) && descProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Description, out var descProp) && descProp.Kind == CypherValueKind.String)
         {
-            var desc = descProp.GetString();
+            var desc = descProp.AsNullableString();
             if (!string.IsNullOrWhiteSpace(desc))
             {
                 project.Description = desc;
@@ -296,33 +296,29 @@ public partial class Layer2ProjectParser
         }
 
         if (root.TryGetProperty(OntologyConstants.ManifestFields.Bin, out var binProp) &&
-            ((binProp.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(binProp.GetString())) ||
-             (binProp.ValueKind == JsonValueKind.Object && binProp.EnumerateObject().Any())))
+            ((binProp.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(binProp.AsNullableString())) ||
+             (binProp.Kind == CypherValueKind.Object && binProp.AsObject().Count > 0)))
         {
             project.HasBin = true;
             hints[OntologyConstants.ExtensionKeys.HasBin] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contribProp) && contribProp.ValueKind == JsonValueKind.Object)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contribProp) && contribProp.Kind == CypherValueKind.Object)
         {
             project.HasContributes = true;
             hints[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var engProp) && engProp.ValueKind == JsonValueKind.Object &&
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var engProp) && engProp.Kind == CypherValueKind.Object &&
             engProp.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
         {
             project.HasVsCodeEngine = true;
             hints[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Keywords, out var kwProp) && kwProp.ValueKind == JsonValueKind.Array)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Keywords, out var kwProp) && kwProp.Kind == CypherValueKind.Array)
         {
-            var kws = kwProp.EnumerateArray()
-                .Where(e => e.ValueKind == JsonValueKind.String)
-                .Select(e => e.GetString()!)
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .ToArray();
+            var kws = kwProp.AsStringList().Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
             if (kws.Length > 0)
             {
                 var kwJson = JsonSerializer.Serialize(kws);
@@ -334,15 +330,11 @@ public partial class Layer2ProjectParser
         var extDeps = new List<string>();
         foreach (var propName in new[] { "extensionDependencies", "extensionPack" })
         {
-            if (root.TryGetProperty(propName, out var arr) && arr.ValueKind == JsonValueKind.Array)
+            if (root.TryGetProperty(propName, out var arr) && arr.Kind == CypherValueKind.Array)
             {
-                foreach (var item in arr.EnumerateArray())
+                foreach (var val in arr.AsStringList())
                 {
-                    if (item.ValueKind == JsonValueKind.String)
-                    {
-                        var val = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(val)) extDeps.Add(val);
-                    }
+                    if (!string.IsNullOrWhiteSpace(val)) extDeps.Add(val);
                 }
             }
         }
@@ -354,13 +346,9 @@ public partial class Layer2ProjectParser
         }
 
         string? activationJoined = null;
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var actProp) && actProp.ValueKind == JsonValueKind.Array)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var actProp) && actProp.Kind == CypherValueKind.Array)
         {
-            var acts = actProp.EnumerateArray()
-                .Where(e => e.ValueKind == JsonValueKind.String)
-                .Select(e => e.GetString()!)
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .ToArray();
+            var acts = actProp.AsStringList().Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
             if (acts.Length > 0)
             {
                 activationJoined = string.Join(",", acts);
@@ -398,21 +386,20 @@ public partial class Layer2ProjectParser
         {
             try
             {
-                using var doc = JsonDocument.Parse(rootPkgText, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-                var root = doc.RootElement;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var n) && n.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(n.GetString()))
-                    ws.PackageName = n.GetString()!;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
-                    ws.PackageVersion = v.GetString()!;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pub) && pub.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pub.GetString()))
-                    ws.Publisher = pub.GetString()!;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var eng) && eng.ValueKind == JsonValueKind.Object && eng.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
+                var root = CypherValue.TryParseJsonText(rootPkgText);
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var n) && n.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(n.AsNullableString()))
+                    ws.PackageName = n.AsString();
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var v) && v.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(v.AsNullableString()))
+                    ws.PackageVersion = v.AsString();
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pub) && pub.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(pub.AsNullableString()))
+                    ws.Publisher = pub.AsString();
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var eng) && eng.Kind == CypherValueKind.Object && eng.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
                     ws.HasVsCodeEngine = true;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contrib) && contrib.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contrib) && contrib.Kind == CypherValueKind.Object)
                     ws.HasContributes = true;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var act) && act.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var act) && act.Kind == CypherValueKind.Array)
                 {
-                    var acts = act.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+                    var acts = act.AsStringList().Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
                     if (acts.Length > 0) ws.ActivationEvents = string.Join(",", acts);
                 }
             }
@@ -429,22 +416,22 @@ public partial class Layer2ProjectParser
         {
             try
             {
-                using var tDoc = JsonDocument.Parse(tasksText, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                if (tDoc.RootElement.TryGetProperty(OntologyConstants.ManifestFields.Tasks, out var tasksArr) && tasksArr.ValueKind == JsonValueKind.Array)
+                var tRoot = CypherValue.TryParseJsonText(tasksText);
+                if (tRoot.TryGetProperty(OntologyConstants.ManifestFields.Tasks, out var tasksArr) && tasksArr.Kind == CypherValueKind.Array)
                 {
                     var rootProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
                     var folderOpenTasks = new List<Dictionary<string, string>>();
-                    foreach (var task in tasksArr.EnumerateArray())
+                    foreach (var task in tasksArr.AsArray())
                     {
-                        if (task.ValueKind != JsonValueKind.Object) continue;
+                        if (task.Kind != CypherValueKind.Object) continue;
                         var isFolderOpen = task.TryGetProperty(OntologyConstants.ManifestFields.RunOptions, out var ro) &&
-                                           ro.ValueKind == JsonValueKind.Object &&
+                                           ro.Kind == CypherValueKind.Object &&
                                            ro.TryGetProperty(OntologyConstants.ManifestFields.RunOn, out var runOn) &&
-                                           string.Equals(runOn.GetString(), "folderOpen", StringComparison.OrdinalIgnoreCase);
+                                           string.Equals(runOn.AsNullableString(), "folderOpen", StringComparison.OrdinalIgnoreCase);
                         if (!isFolderOpen) continue;
 
-                        var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl) ? lbl.GetString() ?? "folderOpen" : "folderOpen";
-                        var cmd = task.TryGetProperty(OntologyConstants.ManifestFields.Command, out var c) ? c.GetString() ?? "" : "";
+                        var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl) ? lbl.AsString("folderOpen") : "folderOpen";
+                        var cmd = task.TryGetProperty(OntologyConstants.ManifestFields.Command, out var c) ? c.AsString() : "";
                         folderOpenTasks.Add(new Dictionary<string, string> { [OntologyConstants.ManifestFields.Label] = label, [OntologyConstants.ManifestFields.Command] = cmd });
 
                         if (rootProj != null)
@@ -541,31 +528,20 @@ public partial class Layer2ProjectParser
 
             try
             {
-                using var doc = JsonDocument.Parse(tsConfigText, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                if (doc.RootElement.TryGetProperty(OntologyConstants.ManifestFields.CompilerOptions, out var compOpts) &&
-                    compOpts.ValueKind == JsonValueKind.Object &&
+                var tsRoot = CypherValue.TryParseJsonText(tsConfigText);
+                if (tsRoot.TryGetProperty(OntologyConstants.ManifestFields.CompilerOptions, out var compOpts) &&
+                    compOpts.Kind == CypherValueKind.Object &&
                     compOpts.TryGetProperty(OntologyConstants.ManifestFields.Paths, out var pathsProp) &&
-                    pathsProp.ValueKind == JsonValueKind.Object)
+                    pathsProp.Kind == CypherValueKind.Object)
                 {
-                    foreach (var p in pathsProp.EnumerateObject())
+                    foreach (var p in pathsProp.AsObject())
                     {
-                        if (p.Value.ValueKind == JsonValueKind.Array && p.Value.GetArrayLength() > 0)
+                        if (p.Value.Kind == CypherValueKind.Array && p.Value.AsArray() is { Count: > 0 } arr)
                         {
-                            var rawTarget = p.Value[0].GetString();
+                            var rawTarget = arr[0].AsNullableString();
                             if (!string.IsNullOrEmpty(rawTarget))
                             {
-                                ctx.TsConfigPaths[p.Name] = rawTarget.Replace('\\', '/');
-                            }
-                        }
-                        var aliasKey = p.Name.TrimEnd(PathWildcardTrimChars);
-                        if (string.IsNullOrEmpty(aliasKey)) continue;
-                        if (p.Value.ValueKind == JsonValueKind.Array && p.Value.GetArrayLength() > 0)
-                        {
-                            var firstTarget = p.Value[0].GetString()?.TrimEnd(PathWildcardTrimChars);
-                            if (!string.IsNullOrEmpty(firstTarget))
-                            {
-                                var absTarget = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, firstTarget)).Replace('\\', '/');
-                                // Stored raw in ctx.TsConfigPaths above
+                                ctx.TsConfigPaths[p.Key] = rawTarget.Replace('\\', '/');
                             }
                         }
                     }

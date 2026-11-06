@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
 
@@ -12,7 +11,7 @@ public partial class ArchitectureViewEngine
     private async Task<List<DatabaseObjectRef>> FindDatabaseObjectsAsync(string dbId, string dbName, string rawId, CancellationToken ct)
     {
         var found = new Dictionary<string, DatabaseObjectRef>(StringComparer.OrdinalIgnoreCase);
-        var parameters = new Dictionary<string, object> { ["id"] = dbId, ["name"] = dbName, ["rawId"] = rawId };
+        var parameters = new { id = dbId, name = dbName, rawId };
 
         foreach (var pattern in new[] { "(obj)-[r]->(tgt)", "(tgt)-[r]->(obj)" })
         {
@@ -21,14 +20,12 @@ public partial class ArchitectureViewEngine
                 WHERE (obj:Table OR obj:Procedure) AND (tgt.id = $id OR tgt.name = $name OR tgt.id = $rawId)
                 RETURN obj.id AS id, obj.name AS name, labels(obj)[0] AS kind
                 """;
-            var json = await db.ExecuteQueryAsync(query, parameters, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var rows = await db.QueryAsync<(string Id, string Name, string Kind)>(query, parameters, ct);
+            foreach (var (id, rawName, kind) in rows)
             {
-                var id = row.GetStringProp("id");
                 if (!string.IsNullOrEmpty(id))
                 {
-                    found.TryAdd(id, new DatabaseObjectRef(id, row.GetStringProp("name", id), row.GetStringProp("kind")));
+                    found.TryAdd(id, new DatabaseObjectRef(id, string.IsNullOrEmpty(rawName) ? id : rawName, kind));
                 }
             }
         }
@@ -148,13 +145,12 @@ public partial class ArchitectureViewEngine
                 """;
             try
             {
-                var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object>
+                var res = await db.ExecuteCypherAsync(query, new
                 {
-                    ["topicId"] = topic.Id,
-                    ["topicName"] = topic.Name
+                    topicId = topic.Id,
+                    topicName = topic.Name
                 }, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                foreach (var row in res.Rows)
                 {
                     var rProps = row.ExtractProperties();
                     var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
@@ -214,13 +210,12 @@ public partial class ArchitectureViewEngine
                 """;
             try
             {
-                var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object>
+                var res = await db.ExecuteCypherAsync(query, new
                 {
-                    ["extId"] = external.Id,
-                    ["extName"] = external.Name
+                    extId = external.Id,
+                    extName = external.Name
                 }, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                foreach (var row in res.Rows)
                 {
                     var rProps = row.ExtractProperties();
                     var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
@@ -280,9 +275,8 @@ public partial class ArchitectureViewEngine
             """;
         try
         {
-            var json = await db.ExecuteQueryAsync(epQuery, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(epQuery, null, ct);
+            foreach (var row in res.Rows)
             {
                 var epId = row.GetStringProp("id");
                 var path = row.GetStringProp("path");
@@ -329,10 +323,9 @@ public partial class ArchitectureViewEngine
             """;
         try
         {
-            var json = await db.ExecuteQueryAsync(entryQuery, null, ct);
-            using var doc = JsonDocument.Parse(json);
+            var res = await db.ExecuteCypherAsync(entryQuery, null, ct);
             var entryCount = 0;
-            foreach (var row in doc.RootElement.EnumerateArray())
+            foreach (var row in res.Rows)
             {
                 var entryId = row.GetStringProp("id");
                 var path = row.GetStringProp("path");
@@ -376,9 +369,8 @@ public partial class ArchitectureViewEngine
             """;
         try
         {
-            var json = await db.ExecuteQueryAsync(ormQuery, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(ormQuery, null, ct);
+            foreach (var row in res.Rows)
             {
                 var typeId = row.GetStringProp("id");
                 var path = row.GetStringProp("path");

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
 
@@ -46,9 +45,8 @@ public partial class ArchitectureViewEngine
 
             try
             {
-                var json = await db.ExecuteQueryAsync(query, null, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                var res = await db.ExecuteCypherAsync(query, null, ct);
+                foreach (var row in res.Rows)
                 {
                     var tId = row.GetStringProp("t_id");
                     if (!topicById.TryGetValue(tId, out var topic)) continue;
@@ -134,9 +132,8 @@ public partial class ArchitectureViewEngine
 
             try
             {
-                var json = await db.ExecuteQueryAsync(query, null, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                var res = await db.ExecuteCypherAsync(query, null, ct);
+                foreach (var row in res.Rows)
                 {
                     var extId = row.GetStringProp("ext_id");
                     if (!extById.TryGetValue(extId, out var external)) continue;
@@ -229,9 +226,8 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var json = await db.ExecuteQueryAsync(epQuery, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(epQuery, null, ct);
+            foreach (var row in res.Rows)
             {
                 var rProps = row.ExtractProperties();
                 var symId = row.GetStringProp("id");
@@ -308,9 +304,8 @@ public partial class ArchitectureViewEngine
                 """;
             try
             {
-                var json = await db.ExecuteQueryAsync(symQuery, null, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                var res = await db.ExecuteCypherAsync(symQuery, null, ct);
+                foreach (var row in res.Rows)
                 {
                     var sym1Id = row.GetStringProp("id");
                     var sym2Id = row.GetStringProp("target_id");
@@ -370,9 +365,8 @@ public partial class ArchitectureViewEngine
                 """;
             try
             {
-                var json = await db.ExecuteQueryAsync(pkgQuery, null, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                var res = await db.ExecuteCypherAsync(pkgQuery, null, ct);
+                foreach (var row in res.Rows)
                 {
                     var p1Id = row.GetStringProp("p1_id");
                     var p2Id = row.GetStringProp("p2_id");
@@ -433,9 +427,8 @@ public partial class ArchitectureViewEngine
                 """;
             try
             {
-                var json = await db.ExecuteQueryAsync(directEdgeQuery, null, ct);
-                using var doc = JsonDocument.Parse(json);
-                foreach (var row in doc.RootElement.EnumerateArray())
+                var res = await db.ExecuteCypherAsync(directEdgeQuery, null, ct);
+                foreach (var row in res.Rows)
                 {
                     var s1Id = row.GetStringProp("s1_id");
                     var s2Id = row.GetStringProp("s2_id");
@@ -623,9 +616,8 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var json = await db.ExecuteQueryAsync(query, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(query, null, ct);
+            foreach (var row in res.Rows)
             {
                 var kind = row.GetStringProp("kind", "CALLS");
                 var fromName = row.GetStringProp("from_name");

@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Parser.TypeScript;
@@ -124,23 +125,20 @@ public class JavaScriptParser : IProjectParser, IFileParser
         try
         {
             var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(content);
 
             if (root.TryGetProperty("name", out var nameProp) &&
-                nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                nameProp.Kind == CypherValueKind.String)
             {
-                var name = nameProp.GetString();
+                var name = nameProp.AsNullableString();
                 if (string.IsNullOrEmpty(name)) return null;
 
                 var version = "1.0.0";
 
                 if (root.TryGetProperty("version", out var versionProp) &&
-                    versionProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    versionProp.Kind == CypherValueKind.String)
                 {
-                    version = versionProp.GetString() ?? "1.0.0";
+                    version = versionProp.AsString("1.0.0");
                 }
 
                 return new ProducedPackageInfo(name, version, "npm");
@@ -168,22 +166,19 @@ public class JavaScriptParser : IProjectParser, IFileParser
         try
         {
             var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(content);
 
             var depProperties = new[] { "dependencies", "devDependencies" };
 
             foreach (var propName in depProperties)
             {
                 if (root.TryGetProperty(propName, out var depsObj) &&
-                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    depsObj.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in depsObj.EnumerateObject())
+                    foreach (var prop in depsObj.AsObject())
                     {
-                        var packageName = prop.Name;
-                        var packageVersion = prop.Value.GetString() ?? "unknown";
+                        var packageName = prop.Key;
+                        var packageVersion = prop.Value.AsString("unknown");
 
                         // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
                         if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||

@@ -80,19 +80,19 @@ public class CodeIntentAnalyzerTests
         await client.SaveIntentPredictionsAsync("ws", predictions);
 
         // Verify updated properties via Cypher query
-        var queryResult = await client.ExecuteQueryAsync(
-            "MATCH (n:Type {id: 'ws:type:svc'}) RETURN n.intent_domain AS domain, n.intent_layer AS layer, n.intent_summary AS summary");
+        var queryResult = (await client.ExecuteCypherAsync(
+            "MATCH (n:Type {id: 'ws:type:svc'}) RETURN n.intent_domain AS domain, n.intent_layer AS layer, n.intent_summary AS summary")).ToJson();
         queryResult.Contains("Billing").Should().BeTrue();
         queryResult.Contains("Application").Should().BeTrue();
         queryResult.Contains("Handles invoices and payment execution.").Should().BeTrue();
 
         // Verify Domain node creation and relationship
-        var domainResult = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
+        var domainResult = (await client.ExecuteCypherAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name")).ToJson();
         domainResult.Contains("Billing").Should().BeTrue();
 
         var relResult =
-            await client.ExecuteQueryAsync(
-                "MATCH (n:Type)-[r:BELONGS_TO_DOMAIN]->(d:Domain) RETURN n.id AS from_id, d.id AS to_id");
+            (await client.ExecuteCypherAsync(
+                "MATCH (n:Type)-[r:BELONGS_TO_DOMAIN]->(d:Domain) RETURN n.id AS from_id, d.id AS to_id")).ToJson();
         relResult.Contains("ws:type:svc").Should().BeTrue();
         domainResult.ToLowerInvariant().Contains("ws:dom:billing").Should().BeTrue();
     }
@@ -290,7 +290,7 @@ Domain Entities:
         var applied = await client.ApplyCachedIntentsToGraphAsync("ws");
         applied.Should().BeGreaterThanOrEqualTo(1);
 
-        var domainQuery = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
+        var domainQuery = (await client.ExecuteCypherAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name")).ToJson();
         domainQuery.Contains("Payments").Should().BeTrue();
 
         // Clear database (e.g. ce scan --clear)
@@ -657,7 +657,7 @@ Domain Entities:
         await client.ApplyCachedIntentsToGraphAsync("ws");
 
         // Verify GhostDomain exists before purge
-        var domainsBefore = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
+        var domainsBefore = (await client.ExecuteCypherAsync("MATCH (d:Domain) RETURN d.name AS name")).ToJson();
         domainsBefore.Contains("GhostDomain").Should().BeTrue();
 
         // Purge orphan intent
@@ -666,7 +666,7 @@ Domain Entities:
         // Apply cache again: orphan Domain node must be cleaned up
         await client.ApplyCachedIntentsToGraphAsync("ws");
 
-        var domainsAfter = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
+        var domainsAfter = (await client.ExecuteCypherAsync("MATCH (d:Domain) RETURN d.name AS name")).ToJson();
         domainsAfter.Contains("GhostDomain").Should().BeFalse();
     }
 
@@ -708,7 +708,7 @@ Domain Entities:
         // Apply cached intents: step 0 auto-deletes .sql intents and step 6 prevents SqlDomain creation
         await client.ApplyCachedIntentsToGraphAsync("ws");
 
-        var domains = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
+        var domains = (await client.ExecuteCypherAsync("MATCH (d:Domain) RETURN d.name AS name")).ToJson();
         domains.Contains("SqlDomain").Should().BeFalse();
 
         var intents = await client.LoadExistingIntentsAsync("ws");

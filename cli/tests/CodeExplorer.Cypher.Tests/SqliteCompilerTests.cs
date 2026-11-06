@@ -334,11 +334,10 @@ public class SqliteCompilerTests
         rows.Should().HaveCount(1);
         var relJson = (string)rows[0]["r"]!;
 
-        using var doc = JsonDocument.Parse(relJson);
-
-        doc.RootElement.GetProperty("type").GetString().Should().Be("CALLS");
-        doc.RootElement.GetProperty("from").GetString().Should().Be("fn:process");
-        doc.RootElement.GetProperty("to").GetString().Should().Be("fn:save");
+        var relObj = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(relJson)!;
+        relObj["type"].GetString().Should().Be("CALLS");
+        relObj["from"].GetString().Should().Be("fn:process");
+        relObj["to"].GetString().Should().Be("fn:save");
     }
 
     [Test]

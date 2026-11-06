@@ -56,7 +56,7 @@ public sealed class EnvFileParser : ISharedFileParser
 /// <summary>appsettings*.json and any other JSON configuration, flattened to Section:Key paths.</summary>
 public sealed class JsonConfigurationParser : ISharedFileParser
 {
-    private static readonly System.Text.Json.JsonDocumentOptions Options = new()
+    private static readonly System.Text.Json.JsonReaderOptions Options = new()
     {
         CommentHandling = System.Text.Json.JsonCommentHandling.Skip,
         AllowTrailingCommas = true
@@ -70,36 +70,60 @@ public sealed class JsonConfigurationParser : ISharedFileParser
 
     public IProjectEnrichment? Parse(SharedFileContext file)
     {
-        using var doc = System.Text.Json.JsonDocument.Parse(file.Content, Options);
-        if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+        var bytes = System.Text.Encoding.UTF8.GetBytes(file.Content);
+        var reader = new System.Text.Json.Utf8JsonReader(bytes, Options);
+        if (!reader.Read() || reader.TokenType != System.Text.Json.JsonTokenType.StartObject) return null;
 
         var values = new List<ConfigValue>();
-        Traverse(doc.RootElement, "", values);
+        TraverseObject(ref reader, "", values);
         return new ConfigurationFileInformation(file.FullPath, "json", values);
     }
 
-    private static void Traverse(System.Text.Json.JsonElement element, string prefix, List<ConfigValue> values)
+    private static void TraverseObject(ref System.Text.Json.Utf8JsonReader reader, string prefix, List<ConfigValue> values)
     {
-        switch (element.ValueKind)
+        while (reader.Read())
         {
-            case System.Text.Json.JsonValueKind.Object:
-                foreach (var prop in element.EnumerateObject())
-                {
-                    Traverse(prop.Value, string.IsNullOrEmpty(prefix) ? prop.Name : $"{prefix}:{prop.Name}", values);
-                }
+            if (reader.TokenType == System.Text.Json.JsonTokenType.EndObject) return;
+            if (reader.TokenType != System.Text.Json.JsonTokenType.PropertyName) continue;
+
+            var propName = reader.GetString() ?? "";
+            var nextPrefix = string.IsNullOrEmpty(prefix) ? propName : $"{prefix}:{propName}";
+            if (!reader.Read()) return;
+            TraverseValue(ref reader, nextPrefix, values);
+        }
+    }
+
+    private static void TraverseArray(ref System.Text.Json.Utf8JsonReader reader, string prefix, List<ConfigValue> values)
+    {
+        var index = 0;
+        while (reader.Read())
+        {
+            if (reader.TokenType == System.Text.Json.JsonTokenType.EndArray) return;
+            TraverseValue(ref reader, $"{prefix}:{index++}", values);
+        }
+    }
+
+    private static void TraverseValue(ref System.Text.Json.Utf8JsonReader reader, string prefix, List<ConfigValue> values)
+    {
+        switch (reader.TokenType)
+        {
+            case System.Text.Json.JsonTokenType.StartObject:
+                TraverseObject(ref reader, prefix, values);
                 break;
-            case System.Text.Json.JsonValueKind.Array:
-                var index = 0;
-                foreach (var item in element.EnumerateArray())
-                {
-                    Traverse(item, $"{prefix}:{index++}", values);
-                }
+            case System.Text.Json.JsonTokenType.StartArray:
+                TraverseArray(ref reader, prefix, values);
                 break;
-            case System.Text.Json.JsonValueKind.String:
-            case System.Text.Json.JsonValueKind.Number:
-            case System.Text.Json.JsonValueKind.True:
-            case System.Text.Json.JsonValueKind.False:
-                values.Add(new ConfigValue(prefix, element.ToString() ?? ""));
+            case System.Text.Json.JsonTokenType.String:
+                values.Add(new ConfigValue(prefix, reader.GetString() ?? ""));
+                break;
+            case System.Text.Json.JsonTokenType.Number:
+                values.Add(new ConfigValue(prefix, System.Text.Encoding.UTF8.GetString(reader.ValueSpan)));
+                break;
+            case System.Text.Json.JsonTokenType.True:
+                values.Add(new ConfigValue(prefix, "True"));
+                break;
+            case System.Text.Json.JsonTokenType.False:
+                values.Add(new ConfigValue(prefix, "False"));
                 break;
         }
     }

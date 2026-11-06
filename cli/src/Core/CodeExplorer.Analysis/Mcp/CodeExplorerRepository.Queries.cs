@@ -18,18 +18,16 @@ public partial class CodeExplorerRepository
     public async Task<string> GetWorkspaceContentAsync(string? workspacePath = null, string? type = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
-        var parameters = new Dictionary<string, object?>
-        {
-            ["type"] = string.IsNullOrEmpty(type) ? null : type
-        };
         var query = Queries.Get("get_workspace_content");
-        return await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var res = await client.ExecuteCypherAsync(query, new { type = string.IsNullOrEmpty(type) ? null : type }, cancellationToken);
+        return res.ToJson();
     }
 
     public async Task<string> ExecuteRawQueryAsync(string query, Dictionary<string, object?>? parameters = null, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
-        return await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        return res.ToJson();
     }
 
 
@@ -125,20 +123,19 @@ public partial class CodeExplorerRepository
         {
             try
             {
-                using var doc = JsonDocument.Parse(parametersJson);
-
-                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                var parsedParams = JsonSerializer.Deserialize<Dictionary<string, CypherValue>>(parametersJson);
+                if (parsedParams != null)
                 {
-                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    foreach (var (k, v) in parsedParams)
                     {
-                        paramDict[prop.Name] = prop.Value.ValueKind switch
+                        paramDict[k] = v.Kind switch
                         {
-                            JsonValueKind.String => prop.Value.GetString(),
-                            JsonValueKind.Number => prop.Value.TryGetInt64(out var l) ? l : prop.Value.GetDouble(),
-                            JsonValueKind.True => true,
-                            JsonValueKind.False => false,
-                            JsonValueKind.Null => null,
-                            _ => prop.Value.GetRawText()
+                            CypherValueKind.String => v.AsString(),
+                            CypherValueKind.Int64 => v.AsInt64(),
+                            CypherValueKind.Float64 => v.AsDouble(),
+                            CypherValueKind.Boolean => v.AsBool(),
+                            CypherValueKind.Null => null,
+                            _ => v.ToJsonString()
                         };
                     }
                 }
@@ -198,7 +195,7 @@ public partial class CodeExplorerRepository
             await client.ExecuteWriteAsync(
                 "INSERT INTO nodes (id, kind, properties) VALUES ('workspace', 'Workspace', json_object('id', 'workspace', 'name', @name, 'path', @path)) " +
                 "ON CONFLICT(id) DO UPDATE SET properties = json_object('id', 'workspace', 'name', @name, 'path', @path);",
-                new Dictionary<string, object?> { ["name"] = wsName, ["path"] = ws.RootDirectory }, cancellationToken);
+                new { name = wsName, path = ws.RootDirectory }, cancellationToken);
         }
 
         return JsonSerializer.Serialize(new
@@ -266,15 +263,11 @@ public partial class CodeExplorerRepository
         var sizeMb = fileInfo.Length / (1024.0 * 1024.0);
         var client = await ResolveClientAsync(ws.RootDirectory);
 
-        var projResult = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path", null, cancellationToken);
+        var projRes = await client.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path", null, cancellationToken);
 
-        using var projDoc = JsonDocument.Parse(projResult);
-
-        var countResult = await client.ExecuteQueryAsync(
+        var countRes = await client.ExecuteCypherAsync(
             "MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC", null,
             cancellationToken);
-
-        using var countDoc = JsonDocument.Parse(countResult);
 
         var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
             ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
@@ -287,8 +280,8 @@ public partial class CodeExplorerRepository
                 workspacePath = ws.RootDirectory,
                 dbPath = ws.DbPath,
                 databaseSizeMb = Math.Round(sizeMb, 2),
-                projects = projDoc.RootElement,
-                nodeCounts = countDoc.RootElement,
+                projects = projRes.Rows,
+                nodeCounts = countRes.Rows,
                 customQueriesCount
             }, CompactJsonOptions);
     }
@@ -341,25 +334,25 @@ public partial class CodeExplorerRepository
             return StandbyMessageJson;
         }
 
-        using var nodesDoc = JsonDocument.Parse(nodesJson);
+        var nodesRoot = CypherValue.TryParseJsonText(nodesJson);
 
         int nodesIngested = 0;
         int relsIngested = 0;
 
-        if (nodesDoc.RootElement.ValueKind == JsonValueKind.Array)
+        if (nodesRoot.Kind == CypherValueKind.Array)
         {
-            foreach (var node in nodesDoc.RootElement.EnumerateArray())
+            foreach (var node in nodesRoot.AsArray())
             {
                 if (node.TryGetProperty("id", out var idProp) && node.TryGetProperty("kind", out var kindProp))
                 {
-                    var id = idProp.GetString();
-                    var kind = kindProp.GetString();
+                    var id = idProp.AsNullableString();
+                    var kind = kindProp.AsNullableString();
                     if (id == null || kind == null) continue;
-                    var props = node.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
+                    var props = node.TryGetProperty("properties", out var p) && !p.IsNull ? p.ToJsonString() : "{}";
 
                     await client.ExecuteWriteAsync(
                         "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, json(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = json(@props);",
-                        new Dictionary<string, object?> { ["id"] = id, ["kind"] = kind, ["props"] = props },
+                        new { id, kind, props },
                         cancellationToken);
                     nodesIngested++;
                 }
@@ -368,30 +361,27 @@ public partial class CodeExplorerRepository
 
         if (!string.IsNullOrWhiteSpace(relationshipsJson))
         {
-            using var relsDoc = JsonDocument.Parse(relationshipsJson);
+            var relsRoot = CypherValue.TryParseJsonText(relationshipsJson);
 
-            if (relsDoc.RootElement.ValueKind == JsonValueKind.Array)
+            if (relsRoot.Kind == CypherValueKind.Array)
             {
-                foreach (var rel in relsDoc.RootElement.EnumerateArray())
+                foreach (var rel in relsRoot.AsArray())
                 {
                     var kind = rel.TryGetProperty("kind", out var kProp)
-                        ? kProp.GetString()
-                        : (rel.TryGetProperty("type", out var tProp) ? tProp.GetString() : null);
+                        ? kProp.AsNullableString()
+                        : (rel.TryGetProperty("type", out var tProp) ? tProp.AsNullableString() : null);
 
                     if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty("from_id", out var fProp) &&
                         rel.TryGetProperty("to_id", out var toProp))
                     {
-                        var fromId = fProp.GetString();
-                        var toId = toProp.GetString();
+                        var fromId = fProp.AsNullableString();
+                        var toId = toProp.AsNullableString();
                         if (fromId == null || toId == null) continue;
-                        var props = rel.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
+                        var props = rel.TryGetProperty("properties", out var p) && !p.IsNull ? p.ToJsonString() : "{}";
 
                         await client.ExecuteWriteAsync(
                             "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES (@fromId, @toId, @kind, json(@props));",
-                            new Dictionary<string, object?>
-                            {
-                                ["kind"] = kind, ["fromId"] = fromId, ["toId"] = toId, ["props"] = props
-                            }, cancellationToken);
+                            new { kind, fromId, toId, props }, cancellationToken);
                         relsIngested++;
                     }
                 }

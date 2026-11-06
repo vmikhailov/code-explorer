@@ -159,21 +159,16 @@ public class InventoryRepository
 
     private async Task<List<Dictionary<string, string>>> QueryAsync(string cypher)
     {
-        var json = await _client.ExecuteQueryAsync(cypher);
-
-        using var doc = JsonDocument.Parse(json);
-
+        var res = await _client.ExecuteCypherAsync(cypher);
         var result = new List<Dictionary<string, string>>();
 
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var row in res.Rows)
         {
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var prop in item.EnumerateObject())
+            for (var i = 0; i < row.FieldCount; i++)
             {
-                dict[prop.Name] = prop.Value.ToString();
+                dict[row.Columns[i]] = row[i].AsString();
             }
-
             result.Add(dict);
         }
 

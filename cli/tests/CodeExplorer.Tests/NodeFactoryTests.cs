@@ -24,13 +24,12 @@ public class NodeFactoryTests
     private static Dictionary<string, object> LegacyFromNode(IOntologyNode node)
     {
         var json = JsonSerializer.Serialize(node, node.GetType(), LegacySerializerOptions);
-        var rawProperties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, LegacySerializerOptions)
-            ?? new Dictionary<string, object>();
+        var root = CypherValue.TryParseJsonText(json);
 
         var properties = new Dictionary<string, object>();
-        foreach (var kvp in rawProperties)
+        foreach (var kvp in root.AsObject())
         {
-            var cleanedVal = JsonHelper.ConvertJsonElement(kvp.Value);
+            var cleanedVal = DbRowMaterializer.ConvertCypherValue(kvp.Value, typeof(object));
             if (cleanedVal != null)
             {
                 properties[kvp.Key] = cleanedVal;

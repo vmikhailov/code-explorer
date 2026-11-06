@@ -34,8 +34,8 @@ public class GateExecutionEngine
                 paramDict[k] = v;
             }
 
-            var rawJson = await _dbClient.ExecuteQueryAsync(query, paramDict, cancellationToken);
-            violations = ParseViolations(gate.Id, rawJson, gate.Message, gate.Target);
+            var result = await _dbClient.ExecuteCypherAsync(query, paramDict, cancellationToken);
+            violations = ParseViolations(gate.Id, result, gate.Message, gate.Target);
 
             var baseline = await _gateRepository.LoadBaselineAsync(gate, cancellationToken);
             var (status, newViolations, tolerated, baselineCount) = RatchetService.Evaluate(gate, violations, baseline);
@@ -122,217 +122,224 @@ public class GateExecutionEngine
         string? messageTemplate,
         string? targetTemplate)
     {
-        var violations = new List<GateViolation>();
-        if (string.IsNullOrWhiteSpace(rawJson)) return violations;
-
+        if (string.IsNullOrWhiteSpace(rawJson)) return [];
         try
         {
-            using var doc = JsonDocument.Parse(rawJson);
-            if (doc.RootElement.ValueKind != JsonValueKind.Array) return violations;
-
-            var occurrenceCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var row in doc.RootElement.EnumerateArray())
-            {
-                if (row.ValueKind != JsonValueKind.Object) continue;
-
-                var explicitFile = ExtractStringProperty(row, "file", "filePath", "path");
-                var explicitLine = ExtractIntProperty(row, "line", "startLine", "row", "startRow");
-                var explicitColumn = ExtractIntProperty(row, "column", "col", "startCol", "startColumn", "char");
-                var file = explicitFile;
-                var line = explicitLine;
-                var column = explicitColumn;
-                var symbol = ExtractStringProperty(row, "symbol", "name", "source");
-                var target = ExtractStringProperty(row, "target", "destination", "illegal_dependency", "dependency", "blocking_target", "callee");
-                var message = ExtractStringProperty(row, "message", "description", "details");
-                string? nodeId = null;
-                string? targetNodeId = null;
-
-                // Discover graph nodes and graph relationships returned by query (e.g. 'RETURN fn, r, target')
-                var graphNodes = new List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)>();
-                var graphEdges = new List<(string PropName, string? FromId, string? ToId, string? RelType, JsonElement Properties)>();
-
-                foreach (var prop in row.EnumerateObject())
-                {
-                    if (TryGetGraphRelationship(prop.Value, out var fId, out var tId, out var rType, out var rProps))
-                    {
-                        graphEdges.Add((prop.Name, fId, tId, rType, rProps));
-                    }
-                    else if (TryGetGraphNode(prop.Value, out var nId, out var nKind, out var nProps))
-                    {
-                        graphNodes.Add((prop.Name, nId, nKind, nProps));
-                    }
-                }
-
-                if (graphNodes.Count > 0)
-                {
-                    // Prefer non-CallLiteral node as the primary source symbol when multiple nodes are returned
-                    var nonLiteralNodes = graphNodes.Where(n => !IsLiteralEvidenceNode(n.PropName, n.Kind)).ToList();
-                    var candidateSourcePool = nonLiteralNodes.Count > 0 ? nonLiteralNodes : graphNodes;
-
-                    var srcNode = candidateSourcePool.FirstOrDefault(n => IsSourceNodeName(n.PropName));
-                    if (srcNode.Properties.ValueKind == JsonValueKind.Undefined)
-                    {
-                        srcNode = candidateSourcePool.FirstOrDefault(n =>
-                            ExtractStringProperty(n.Properties, "file_path", "path", "filePath") != null ||
-                            ExtractIntProperty(n.Properties, "start_line", "startLine", "line") > 0);
-                        if (srcNode.Properties.ValueKind == JsonValueKind.Undefined)
-                        {
-                            srcNode = candidateSourcePool[0];
-                        }
-                    }
-
-                    if (srcNode.Properties.ValueKind == JsonValueKind.Object)
-                    {
-                        file ??= ExtractStringProperty(srcNode.Properties, "file_path", "path", "filePath");
-                        if (line == 0) line = ExtractIntProperty(srcNode.Properties, "start_line", "startLine", "line", "line_number", "row");
-                        if (column == 0) column = ExtractIntProperty(srcNode.Properties, "start_col", "startCol", "column", "col", "char");
-                        symbol ??= ExtractStringProperty(srcNode.Properties, "name", "exception_type", "symbol", "id") ?? srcNode.Id;
-                        nodeId = srcNode.Id;
-                    }
-
-                    // If a CallLiteral evidence node (e.g. 'lit') is also returned, use its exact call-site coordinates
-                    var litNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && IsLiteralEvidenceNode(n.PropName, n.Kind));
-                    if (litNode.Properties.ValueKind == JsonValueKind.Object)
-                    {
-                        file ??= ExtractStringProperty(litNode.Properties, "file_path", "path", "filePath");
-                        if (explicitLine == 0)
-                        {
-                            var litLine = ExtractIntProperty(litNode.Properties, "line", "start_line");
-                            if (litLine > 0) line = litLine;
-                        }
-                        if (explicitColumn == 0)
-                        {
-                            var litCol = ExtractIntProperty(litNode.Properties, "column", "col", "start_col");
-                            if (litCol > 0) column = litCol;
-                        }
-                    }
-
-                    // Identify target node (distinct from source node and CallLiteral/File context nodes unless no other target exists)
-                    var fileNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && n.Kind == CodeExplorer.Cypher.Common.NodeKind.File);
-                    if (file == null && fileNode.Properties.ValueKind == JsonValueKind.Object)
-                    {
-                        file = ExtractStringProperty(fileNode.Properties, "path", "file_path", "name");
-                    }
-
-                    if (file == null && srcNode.Properties.ValueKind == JsonValueKind.Object)
-                    {
-                        file = ExtractStringProperty(srcNode.Properties, "symbol", "name");
-                    }
-
-                    var targetCandidates = graphNodes
-                        .Where(n => n.PropName != srcNode.PropName
-                                 && !IsLiteralEvidenceNode(n.PropName, n.Kind)
-                                 && n.Kind != CodeExplorer.Cypher.Common.NodeKind.File)
-                        .ToList();
-                    var tgtNode = targetCandidates.FirstOrDefault(n => IsTargetNodeName(n.PropName));
-                    if (tgtNode.Properties.ValueKind == JsonValueKind.Undefined && targetCandidates.Count > 0)
-                    {
-                        tgtNode = targetCandidates[0];
-                    }
-
-
-                    if (tgtNode.Properties.ValueKind == JsonValueKind.Object)
-                    {
-                        target ??= ExtractStringProperty(tgtNode.Properties, "name", "full_name", "symbol", "path", "id") ?? tgtNode.Id;
-                        targetNodeId = tgtNode.Id;
-                    }
-                    else if (litNode.Properties.ValueKind == JsonValueKind.Object && target == null)
-                    {
-                        target = ExtractStringProperty(litNode.Properties, "callee", "value", "name");
-                        targetNodeId = litNode.Id;
-                    }
-                }
-
-                // Extract call-site coordinates (including multi-call-site unrolling) from returned relationship edge
-                var callSiteLocations = new List<(int Line, int Column)>();
-                if (graphEdges.Count > 0 && explicitLine == 0)
-                {
-                    var relEdge = graphEdges.FirstOrDefault(e => IsRelationshipAlias(e.PropName));
-                    if (relEdge.Properties.ValueKind == JsonValueKind.Undefined)
-                    {
-                        relEdge = graphEdges[0];
-                    }
-
-                    if (relEdge.Properties.ValueKind == JsonValueKind.Object)
-                    {
-                        ExtractEdgeCallSites(relEdge.Properties, callSiteLocations);
-                    }
-                }
-
-                if (callSiteLocations.Count == 0)
-                {
-                    callSiteLocations.Add((line, column));
-                }
-
-                foreach (var (siteLine, siteCol) in callSiteLocations)
-                {
-                    var resolvedTarget = target;
-                    if (!string.IsNullOrWhiteSpace(targetTemplate))
-                    {
-                        resolvedTarget = InterpolateMessage(targetTemplate, row, graphNodes, graphEdges, file, siteLine, siteCol, symbol, target);
-                    }
-
-                    var resolvedMessage = message;
-                    if (!string.IsNullOrWhiteSpace(messageTemplate))
-                    {
-                        resolvedMessage = InterpolateMessage(messageTemplate, row, graphNodes, graphEdges, file, siteLine, siteCol, symbol, resolvedTarget);
-                    }
-                    else if (string.IsNullOrWhiteSpace(resolvedMessage))
-                    {
-                        resolvedMessage = !string.IsNullOrEmpty(resolvedTarget)
-                            ? $"Invariant violation: {symbol ?? "element"} references {resolvedTarget}"
-                            : $"Invariant violation in {symbol ?? file ?? "element"}";
-                    }
-
-                    var tupleKey = $"{GateFingerprintGenerator.NormalizeFilePath(file)}|{(symbol ?? "").Trim()}|{(resolvedTarget ?? "").Trim()}";
-                    var occurrence = occurrenceCounts.GetValueOrDefault(tupleKey, 0) + 1;
-                    occurrenceCounts[tupleKey] = occurrence;
-
-                    var fp = GateFingerprintGenerator.Generate(gateId, file, symbol, resolvedTarget, occurrence);
-
-                    violations.Add(new GateViolation
-                    {
-                        GateId = gateId,
-                        File = file,
-                        Line = siteLine,
-                        Column = siteCol,
-                        Symbol = symbol,
-                        Target = resolvedTarget,
-                        Message = resolvedMessage,
-                        NodeId = nodeId,
-                        TargetNodeId = targetNodeId,
-                        Fingerprint = fp
-                    });
-                }
-            }
+            return ParseViolations(gateId, CypherQueryResult.FromJson(rawJson), messageTemplate, targetTemplate);
         }
         catch
         {
-            // Ignore JSON parsing errors
+            return [];
+        }
+    }
+
+    public static List<GateViolation> ParseViolations(
+        string gateId,
+        CypherQueryResult result,
+        string? messageTemplate,
+        string? targetTemplate)
+    {
+        var violations = new List<GateViolation>();
+        if (result.Count == 0) return violations;
+
+        var occurrenceCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in result.Rows)
+        {
+            var explicitFile = ExtractStringProperty(row, "file", "filePath", "path");
+            var explicitLine = ExtractIntProperty(row, "line", "startLine", "row", "startRow");
+            var explicitColumn = ExtractIntProperty(row, "column", "col", "startCol", "startColumn", "char");
+            var file = explicitFile;
+            var line = explicitLine;
+            var column = explicitColumn;
+            var symbol = ExtractStringProperty(row, "symbol", "name", "source");
+            var target = ExtractStringProperty(row, "target", "destination", "illegal_dependency", "dependency", "blocking_target", "callee");
+            var message = ExtractStringProperty(row, "message", "description", "details");
+            string? nodeId = null;
+            string? targetNodeId = null;
+
+            // Discover graph nodes and graph relationships returned by query (e.g. 'RETURN fn, r, target')
+            var graphNodes = new List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, CypherValue Properties)>();
+            var graphEdges = new List<(string PropName, string? FromId, string? ToId, string? RelType, CypherValue Properties)>();
+
+            var colCount = Math.Min(row.Columns.Count, row.Values.Count);
+            for (var i = 0; i < colCount; i++)
+            {
+                var propName = row.Columns[i];
+                var propVal = row.Values[i];
+                if (TryGetGraphRelationship(propVal, out var fId, out var tId, out var rType, out var rProps))
+                {
+                    graphEdges.Add((propName, fId, tId, rType, rProps));
+                }
+                else if (TryGetGraphNode(propVal, out var nId, out var nKind, out var nProps))
+                {
+                    graphNodes.Add((propName, nId, nKind, nProps));
+                }
+            }
+
+            if (graphNodes.Count > 0)
+            {
+                // Prefer non-CallLiteral node as the primary source symbol when multiple nodes are returned
+                var nonLiteralNodes = graphNodes.Where(n => !IsLiteralEvidenceNode(n.PropName, n.Kind)).ToList();
+                var candidateSourcePool = nonLiteralNodes.Count > 0 ? nonLiteralNodes : graphNodes;
+
+                var srcNode = candidateSourcePool.FirstOrDefault(n => IsSourceNodeName(n.PropName));
+                if (srcNode.Properties.Kind == CypherValueKind.Null)
+                {
+                    srcNode = candidateSourcePool.FirstOrDefault(n =>
+                        ExtractStringProperty(n.Properties, "file_path", "path", "filePath") != null ||
+                        ExtractIntProperty(n.Properties, "start_line", "startLine", "line") > 0);
+                    if (srcNode.Properties.Kind == CypherValueKind.Null)
+                    {
+                        srcNode = candidateSourcePool[0];
+                    }
+                }
+
+                if (srcNode.Properties.Kind == CypherValueKind.Object)
+                {
+                    file ??= ExtractStringProperty(srcNode.Properties, "file_path", "path", "filePath");
+                    if (line == 0) line = ExtractIntProperty(srcNode.Properties, "start_line", "startLine", "line", "line_number", "row");
+                    if (column == 0) column = ExtractIntProperty(srcNode.Properties, "start_col", "startCol", "column", "col", "char");
+                    symbol ??= ExtractStringProperty(srcNode.Properties, "name", "exception_type", "symbol", "id") ?? srcNode.Id;
+                    nodeId = srcNode.Id;
+                }
+
+                // If a CallLiteral evidence node (e.g. 'lit') is also returned, use its exact call-site coordinates
+                var litNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && IsLiteralEvidenceNode(n.PropName, n.Kind));
+                if (litNode.Properties.Kind == CypherValueKind.Object)
+                {
+                    file ??= ExtractStringProperty(litNode.Properties, "file_path", "path", "filePath");
+                    if (explicitLine == 0)
+                    {
+                        var litLine = ExtractIntProperty(litNode.Properties, "line", "start_line");
+                        if (litLine > 0) line = litLine;
+                    }
+                    if (explicitColumn == 0)
+                    {
+                        var litCol = ExtractIntProperty(litNode.Properties, "column", "col", "start_col");
+                        if (litCol > 0) column = litCol;
+                    }
+                }
+
+                // Identify target node (distinct from source node and CallLiteral/File context nodes unless no other target exists)
+                var fileNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && n.Kind == CodeExplorer.Cypher.Common.NodeKind.File);
+                if (file == null && fileNode.Properties.Kind == CypherValueKind.Object)
+                {
+                    file = ExtractStringProperty(fileNode.Properties, "path", "file_path", "name");
+                }
+
+                if (file == null && srcNode.Properties.Kind == CypherValueKind.Object)
+                {
+                    file = ExtractStringProperty(srcNode.Properties, "symbol", "name");
+                }
+
+                var targetCandidates = graphNodes
+                    .Where(n => n.PropName != srcNode.PropName
+                             && !IsLiteralEvidenceNode(n.PropName, n.Kind)
+                             && n.Kind != CodeExplorer.Cypher.Common.NodeKind.File)
+                    .ToList();
+                var tgtNode = targetCandidates.FirstOrDefault(n => IsTargetNodeName(n.PropName));
+                if (tgtNode.Properties.Kind == CypherValueKind.Null && targetCandidates.Count > 0)
+                {
+                    tgtNode = targetCandidates[0];
+                }
+
+                if (tgtNode.Properties.Kind == CypherValueKind.Object)
+                {
+                    target ??= ExtractStringProperty(tgtNode.Properties, "name", "full_name", "symbol", "path", "id") ?? tgtNode.Id;
+                    targetNodeId = tgtNode.Id;
+                }
+                else if (litNode.Properties.Kind == CypherValueKind.Object && target == null)
+                {
+                    target = ExtractStringProperty(litNode.Properties, "callee", "value", "name");
+                    targetNodeId = litNode.Id;
+                }
+            }
+
+            // Extract call-site coordinates (including multi-call-site unrolling) from returned relationship edge
+            var callSiteLocations = new List<(int Line, int Column)>();
+            if (graphEdges.Count > 0 && explicitLine == 0)
+            {
+                var relEdge = graphEdges.FirstOrDefault(e => IsRelationshipAlias(e.PropName));
+                if (relEdge.Properties.Kind == CypherValueKind.Null)
+                {
+                    relEdge = graphEdges[0];
+                }
+
+                if (relEdge.Properties.Kind == CypherValueKind.Object)
+                {
+                    ExtractEdgeCallSites(relEdge.Properties, callSiteLocations);
+                }
+            }
+
+            if (callSiteLocations.Count == 0)
+            {
+                callSiteLocations.Add((line, column));
+            }
+
+            foreach (var (siteLine, siteCol) in callSiteLocations)
+            {
+                var resolvedTarget = target;
+                if (!string.IsNullOrWhiteSpace(targetTemplate))
+                {
+                    resolvedTarget = InterpolateMessage(targetTemplate, row, graphNodes, graphEdges, file, siteLine, siteCol, symbol, target);
+                }
+
+                var resolvedMessage = message;
+                if (!string.IsNullOrWhiteSpace(messageTemplate))
+                {
+                    resolvedMessage = InterpolateMessage(messageTemplate, row, graphNodes, graphEdges, file, siteLine, siteCol, symbol, resolvedTarget);
+                }
+                else if (string.IsNullOrWhiteSpace(resolvedMessage))
+                {
+                    resolvedMessage = !string.IsNullOrEmpty(resolvedTarget)
+                        ? $"Invariant violation: {symbol ?? "element"} references {resolvedTarget}"
+                        : $"Invariant violation in {symbol ?? file ?? "element"}";
+                }
+
+                var tupleKey = $"{GateFingerprintGenerator.NormalizeFilePath(file)}|{(symbol ?? "").Trim()}|{(resolvedTarget ?? "").Trim()}";
+                var occurrence = occurrenceCounts.GetValueOrDefault(tupleKey, 0) + 1;
+                occurrenceCounts[tupleKey] = occurrence;
+
+                var fp = GateFingerprintGenerator.Generate(gateId, file, symbol, resolvedTarget, occurrence);
+
+                violations.Add(new GateViolation
+                {
+                    GateId = gateId,
+                    File = file,
+                    Line = siteLine,
+                    Column = siteCol,
+                    Symbol = symbol,
+                    Target = resolvedTarget,
+                    Message = resolvedMessage,
+                    NodeId = nodeId,
+                    TargetNodeId = targetNodeId,
+                    Fingerprint = fp
+                });
+            }
         }
 
         return violations;
     }
 
-    private static void ExtractEdgeCallSites(JsonElement edgeProps, List<(int Line, int Column)> destinations)
+    private static void ExtractEdgeCallSites(CypherValue edgeProps, List<(int Line, int Column)> destinations)
     {
         if (edgeProps.TryGetProperty("call_sites", out var csElem))
         {
-            if (csElem.ValueKind == JsonValueKind.Array)
+            if (csElem.Kind == CypherValueKind.Array)
             {
-                foreach (var item in csElem.EnumerateArray())
+                foreach (var item in csElem.AsArray())
                 {
-                    if (item.ValueKind == JsonValueKind.String &&
-                        Analysis.EvidenceProvenanceHelper.TryParseSite(item.GetString() ?? "", out var l, out var c))
+                    if (item.Kind == CypherValueKind.String &&
+                        Analysis.EvidenceProvenanceHelper.TryParseSite(item.AsString(), out var l, out var c))
                     {
                         destinations.Add((l, c));
                     }
                 }
             }
-            else if (csElem.ValueKind == JsonValueKind.String)
+            else if (csElem.Kind == CypherValueKind.String)
             {
-                var raw = csElem.GetString();
+                var raw = csElem.AsString();
                 if (!string.IsNullOrWhiteSpace(raw))
                 {
                     try
@@ -434,15 +441,15 @@ public class GateExecutionEngine
         || name.Equals("parse", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryGetGraphRelationship(
-        JsonElement element,
+        CypherValue element,
         out string? fromId,
         out string? toId,
         out string? relType,
-        out JsonElement properties)
+        out CypherValue properties)
     {
-        if (element.ValueKind == JsonValueKind.Object &&
+        if (element.Kind == CypherValueKind.Object &&
             element.TryGetProperty("properties", out properties) &&
-            properties.ValueKind == JsonValueKind.Object &&
+            properties.Kind == CypherValueKind.Object &&
             (element.TryGetProperty("from", out _) || element.TryGetProperty("to", out _) || element.TryGetProperty("source", out _)) &&
             !element.TryGetProperty("id", out _))
         {
@@ -455,27 +462,27 @@ public class GateExecutionEngine
         fromId = null;
         toId = null;
         relType = null;
-        properties = default;
+        properties = CypherValue.Null;
         return false;
     }
 
-    private static bool TryGetGraphNode(JsonElement element, out string? id, out CodeExplorer.Cypher.Common.NodeKind kind, out JsonElement properties)
+    private static bool TryGetGraphNode(CypherValue element, out string? id, out CodeExplorer.Cypher.Common.NodeKind kind, out CypherValue properties)
     {
-        if (element.ValueKind == JsonValueKind.Object &&
+        if (element.Kind == CypherValueKind.Object &&
             element.TryGetProperty("properties", out properties) &&
-            properties.ValueKind == JsonValueKind.Object &&
+            properties.Kind == CypherValueKind.Object &&
             !element.TryGetProperty("from", out _) &&
             !element.TryGetProperty("to", out _))
         {
-            id = element.TryGetProperty("id", out var idElem) ? idElem.GetString() : null;
-            var rawKind = element.TryGetProperty("kind", out var kindElem) ? kindElem.GetString() : null;
+            id = element.TryGetProperty("id", out var idElem) ? idElem.AsNullableString() : null;
+            var rawKind = element.TryGetProperty("kind", out var kindElem) ? kindElem.AsNullableString() : null;
             kind = CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(rawKind);
             return true;
         }
 
         id = null;
         kind = CodeExplorer.Cypher.Common.NodeKind.Unspecified;
-        properties = default;
+        properties = CypherValue.Null;
         return false;
     }
 
@@ -483,8 +490,8 @@ public class GateExecutionEngine
 
     public static string InterpolateMessage(
         string template,
-        JsonElement row,
-        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)> graphNodes,
+        CypherRow row,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, CypherValue Properties)> graphNodes,
         string? file,
         int line,
         int column,
@@ -494,9 +501,9 @@ public class GateExecutionEngine
 
     public static string InterpolateMessage(
         string template,
-        JsonElement row,
-        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)> graphNodes,
-        List<(string PropName, string? FromId, string? ToId, string? RelType, JsonElement Properties)> graphEdges,
+        CypherRow row,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, CypherValue Properties)> graphNodes,
+        List<(string PropName, string? FromId, string? ToId, string? RelType, CypherValue Properties)> graphEdges,
         string? file,
         int line,
         int column,
@@ -528,9 +535,9 @@ public class GateExecutionEngine
 
     private static string? ResolveTokenValue(
         string token,
-        JsonElement row,
-        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)> graphNodes,
-        List<(string PropName, string? FromId, string? ToId, string? RelType, JsonElement Properties)> graphEdges,
+        CypherRow row,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, CypherValue Properties)> graphNodes,
+        List<(string PropName, string? FromId, string? ToId, string? RelType, CypherValue Properties)> graphEdges,
         string? file,
         int line,
         int column,
@@ -557,7 +564,7 @@ public class GateExecutionEngine
             var propKey = token[(dotIdx + 1)..];
 
             var matchedNode = graphNodes.FirstOrDefault(n => string.Equals(n.PropName, entityKey, StringComparison.OrdinalIgnoreCase));
-            if (matchedNode.Properties.ValueKind == JsonValueKind.Object)
+            if (matchedNode.Properties.Kind == CypherValueKind.Object)
             {
                 if (string.Equals(propKey, "id", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(matchedNode.Id))
                 {
@@ -567,9 +574,9 @@ public class GateExecutionEngine
                 {
                     return CodeExplorer.Cypher.Common.EnumExtensions.ToCypherLabel(matchedNode.Kind);
                 }
-                if (matchedNode.Properties.TryGetProperty(propKey, out var pVal) && pVal.ValueKind != JsonValueKind.Null)
+                if (matchedNode.Properties.TryGetProperty(propKey, out var pVal) && !pVal.IsNull)
                 {
-                    return FormatJsonElement(pVal);
+                    return FormatCypherValue(pVal);
                 }
                 if (string.Equals(propKey, "kind", StringComparison.OrdinalIgnoreCase) && matchedNode.Kind != CodeExplorer.Cypher.Common.NodeKind.Unspecified)
                 {
@@ -578,109 +585,118 @@ public class GateExecutionEngine
 
                 // Automatic path <-> file_path and name <-> full_name fallback
                 if (string.Equals(propKey, "path", StringComparison.OrdinalIgnoreCase) &&
-                    matchedNode.Properties.TryGetProperty("file_path", out var fpVal) && fpVal.ValueKind != JsonValueKind.Null)
+                    matchedNode.Properties.TryGetProperty("file_path", out var fpVal) && !fpVal.IsNull)
                 {
-                    return FormatJsonElement(fpVal);
+                    return FormatCypherValue(fpVal);
                 }
                 if (string.Equals(propKey, "file_path", StringComparison.OrdinalIgnoreCase) &&
-                    matchedNode.Properties.TryGetProperty("path", out var pathVal) && pathVal.ValueKind != JsonValueKind.Null)
+                    matchedNode.Properties.TryGetProperty("path", out var pathVal) && !pathVal.IsNull)
                 {
-                    return FormatJsonElement(pathVal);
+                    return FormatCypherValue(pathVal);
                 }
                 if (string.Equals(propKey, "full_name", StringComparison.OrdinalIgnoreCase) &&
-                    matchedNode.Properties.TryGetProperty("name", out var nameVal) && nameVal.ValueKind != JsonValueKind.Null)
+                    matchedNode.Properties.TryGetProperty("name", out var nameVal) && !nameVal.IsNull)
                 {
-                    return FormatJsonElement(nameVal);
+                    return FormatCypherValue(nameVal);
                 }
                 if (string.Equals(propKey, "text", StringComparison.OrdinalIgnoreCase) &&
-                    matchedNode.Properties.TryGetProperty("value", out var valProp) && valProp.ValueKind != JsonValueKind.Null)
+                    matchedNode.Properties.TryGetProperty("value", out var valProp) && !valProp.IsNull)
                 {
-                    return FormatJsonElement(valProp);
+                    return FormatCypherValue(valProp);
                 }
                 if (string.Equals(propKey, "value", StringComparison.OrdinalIgnoreCase) &&
-                    matchedNode.Properties.TryGetProperty("text", out var txtProp) && txtProp.ValueKind != JsonValueKind.Null)
+                    matchedNode.Properties.TryGetProperty("text", out var txtProp) && !txtProp.IsNull)
                 {
-                    return FormatJsonElement(txtProp);
+                    return FormatCypherValue(txtProp);
                 }
             }
 
             var matchedEdge = graphEdges.FirstOrDefault(e => string.Equals(e.PropName, entityKey, StringComparison.OrdinalIgnoreCase));
-            if (matchedEdge.Properties.ValueKind == JsonValueKind.Object)
+            if (matchedEdge.Properties.Kind == CypherValueKind.Object)
             {
                 if (string.Equals(propKey, "type", StringComparison.OrdinalIgnoreCase) || string.Equals(propKey, "kind", StringComparison.OrdinalIgnoreCase))
                 {
                     return matchedEdge.RelType;
                 }
-                if (matchedEdge.Properties.TryGetProperty(propKey, out var eVal) && eVal.ValueKind != JsonValueKind.Null)
+                if (matchedEdge.Properties.TryGetProperty(propKey, out var eVal) && !eVal.IsNull)
                 {
-                    return FormatJsonElement(eVal);
+                    return FormatCypherValue(eVal);
                 }
             }
         }
 
         // Flat column lookup in row: e.g. {illegal_dependency}, {loc}, {method_count}
-        if (row.TryGetProperty(token, out var colVal) && colVal.ValueKind != JsonValueKind.Null)
+        if (row.TryGetProperty(token, out var colVal) && !colVal.IsNull)
         {
-            return FormatJsonElement(colVal);
+            return FormatCypherValue(colVal);
         }
 
         // Check if token matches a node property directly on the source node (e.g. {name})
-        if (graphNodes.Count > 0 && graphNodes[0].Properties.TryGetProperty(token, out var defaultPropVal) && defaultPropVal.ValueKind != JsonValueKind.Null)
+        if (graphNodes.Count > 0 && graphNodes[0].Properties.TryGetProperty(token, out var defaultPropVal) && !defaultPropVal.IsNull)
         {
-            return FormatJsonElement(defaultPropVal);
+            return FormatCypherValue(defaultPropVal);
         }
 
         return null;
     }
 
-    private static string FormatJsonElement(JsonElement val)
+    private static string FormatCypherValue(CypherValue val)
     {
-        if (val.ValueKind == JsonValueKind.String) return val.GetString() ?? "";
-        if (val.ValueKind == JsonValueKind.Array)
+        if (val.Kind == CypherValueKind.String) return val.AsString();
+        if (val.Kind == CypherValueKind.Array)
         {
             var items = new List<string>();
-            foreach (var item in val.EnumerateArray())
+            foreach (var item in val.AsArray())
             {
-                items.Add(FormatJsonElement(item));
+                items.Add(FormatCypherValue(item));
             }
             return string.Join(", ", items);
         }
         return val.ToString();
     }
 
-    private static string? ExtractStringProperty(JsonElement element, params string[] propertyNames)
+    private static string? ExtractStringProperty(CypherRow row, params string[] propertyNames)
     {
         foreach (var prop in propertyNames)
         {
-            if (element.TryGetProperty(prop, out var val))
+            if (row.TryGetProperty(prop, out var val) && !val.IsNull && val.Kind is CypherValueKind.String or CypherValueKind.Int64 or CypherValueKind.Float64 or CypherValueKind.Boolean)
             {
-                if (val.ValueKind == JsonValueKind.String)
-                {
-                    return val.GetString();
-                }
-                if (val.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
-                {
-                    return val.ToString();
-                }
+                return val.AsString();
             }
         }
         return null;
     }
 
-    private static int ExtractIntProperty(JsonElement element, params string[] propertyNames)
+    private static string? ExtractStringProperty(CypherValue element, params string[] propertyNames)
+    {
+        foreach (var prop in propertyNames)
+        {
+            if (element.TryGetProperty(prop, out var val) && !val.IsNull && val.Kind is CypherValueKind.String or CypherValueKind.Int64 or CypherValueKind.Float64 or CypherValueKind.Boolean)
+            {
+                return val.AsString();
+            }
+        }
+        return null;
+    }
+
+    private static int ExtractIntProperty(CypherRow row, params string[] propertyNames)
+    {
+        foreach (var prop in propertyNames)
+        {
+            var i = row.GetNullableIntProp(prop);
+            if (i.HasValue) return i.Value;
+        }
+        return 0;
+    }
+
+    private static int ExtractIntProperty(CypherValue element, params string[] propertyNames)
     {
         foreach (var prop in propertyNames)
         {
             if (element.TryGetProperty(prop, out var val))
             {
-                if (val.ValueKind == JsonValueKind.Number && val.TryGetInt32(out var i))
-                {
-                    return i;
-                }
-                if (val.ValueKind == JsonValueKind.String && int.TryParse(val.GetString(), out var si))
-                {
-                    return si;
-                }
+                var i = val.AsNullableInt32();
+                if (i.HasValue) return i.Value;
             }
         }
         return 0;

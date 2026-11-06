@@ -66,14 +66,17 @@ public sealed class OpenAiIntentPredictor : IIntentPredictor
             const string propMessage = "message";
             const string propContent = "content";
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-            using var doc = JsonDocument.Parse(responseJson);
-            var content = doc.RootElement
-                .GetProperty(propChoices)[0]
-                .GetProperty(propMessage)
-                .GetProperty(propContent)
-                .GetString();
+            var root = CypherValue.TryParseJsonText(responseJson);
+            if (root.TryGetProperty(propChoices, out var choices) &&
+                choices.Kind == CypherValueKind.Array &&
+                choices.AsArray() is { Count: > 0 } arr &&
+                arr[0].TryGetProperty(propMessage, out var msg) &&
+                msg.TryGetProperty(propContent, out var cnt))
+            {
+                return cnt.AsString();
+            }
 
-            return content ?? string.Empty;
+            return string.Empty;
         }
         finally
         {

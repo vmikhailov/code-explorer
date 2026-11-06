@@ -91,14 +91,10 @@ export class OrdersController {
     public async Task Test_GetProjectEntryPoints_ReturnsRows()
     {
         var query = Queries.Get("get_project_entry_points");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["projectName"] = "ProjectB" });
+        var res = await _client.ExecuteCypherAsync(query, new { projectName = "ProjectB" });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "get_project_entry_points returned 0 rows for ProjectB!");
-        var names = array.Select(x => x.GetProperty("entryPoint").GetString()).ToList();
+        res.Count.Should().BeGreaterThan(0, "get_project_entry_points returned 0 rows for ProjectB!");
+        var names = res.Rows.Select(x => x.GetStringProp("entryPoint")).ToList();
         names.Any(n => n is "chargeOrder" or "getOrderStatus").Should().BeTrue();
     }
 
@@ -106,14 +102,10 @@ export class OrdersController {
     public async Task Test_FindRefactorGodObjects_ReturnsRows()
     {
         var query = Queries.Get("find_refactor_god_objects");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["projectName"] = "ProjectA" });
+        var res = await _client.ExecuteCypherAsync(query, new { projectName = "ProjectA" });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "find_refactor_god_objects returned 0 rows for ProjectA!");
-        var firstName = array[0].GetProperty("name").GetString();
+        res.Count.Should().BeGreaterThan(0, "find_refactor_god_objects returned 0 rows for ProjectA!");
+        var firstName = res.Rows[0].GetStringProp("name");
         firstName.Should().Be("OrderGodObject");
     }
 
@@ -121,14 +113,10 @@ export class OrdersController {
     public async Task Test_FindRefactorDeadCode_ReturnsRows()
     {
         var query = Queries.Get("find_refactor_dead_code");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["projectName"] = "ProjectA" });
+        var res = await _client.ExecuteCypherAsync(query, new { projectName = "ProjectA" });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "find_refactor_dead_code returned 0 rows for ProjectA!");
-        var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
+        res.Count.Should().BeGreaterThan(0, "find_refactor_dead_code returned 0 rows for ProjectA!");
+        var names = res.Rows.Select(x => x.GetStringProp("name")).ToList();
         names.Any(n => n is "DeadClass" or "UnusedMethod").Should().BeTrue();
     }
 
@@ -136,14 +124,10 @@ export class OrdersController {
     public async Task Test_GetFileOutline_ReturnsRows()
     {
         var query = Queries.Get("get_file_outline");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["filePath"] = "OrdersController.ts" });
+        var res = await _client.ExecuteCypherAsync(query, new { filePath = "OrdersController.ts" });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "get_file_outline returned 0 rows for OrdersController.ts!");
-        var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
+        res.Count.Should().BeGreaterThan(0, "get_file_outline returned 0 rows for OrdersController.ts!");
+        var names = res.Rows.Select(x => x.GetStringProp("name")).ToList();
         names.Should().Contain("OrdersController");
     }
 
@@ -151,39 +135,28 @@ export class OrdersController {
     public async Task Test_FindSymbol_Queries_ReturnMatches()
     {
         var qClass = Queries.Get("find_symbol_class");
-        var resClass = await _client.ExecuteQueryAsync(qClass, new Dictionary<string, object?> { ["name"] = "OrdersController" });
-        using (var doc = JsonDocument.Parse(resClass))
-        {
-            doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_class failed");
-        }
+        var resClass = await _client.ExecuteCypherAsync(qClass, new { name = "OrdersController" });
+        resClass.Count.Should().BeGreaterThan(0, "find_symbol_class failed");
 
         var qInterface = Queries.Get("find_symbol_interface");
-        var resInterface = await _client.ExecuteQueryAsync(qInterface, new Dictionary<string, object?> { ["name"] = "IOrderService" });
-        using (var doc = JsonDocument.Parse(resInterface))
-        {
-            doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_interface failed");
-        }
+        var resInterface = await _client.ExecuteCypherAsync(qInterface, new { name = "IOrderService" });
+        resInterface.Count.Should().BeGreaterThan(0, "find_symbol_interface failed");
 
         var qFunc = Queries.Get("find_symbol_function");
-        var resFunc = await _client.ExecuteQueryAsync(qFunc, new Dictionary<string, object?> { ["name"] = "chargeOrder" });
-        using (var doc = JsonDocument.Parse(resFunc))
-        {
-            doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_function failed");
-        }
+        var resFunc = await _client.ExecuteCypherAsync(qFunc, new { name = "chargeOrder" });
+        resFunc.Count.Should().BeGreaterThan(0, "find_symbol_function failed");
     }
 
     [Test]
     public async Task Test_GetArchitectureMapWorkspace_ReturnsProjects()
     {
         var query = Queries.Get("get_architecture_map_workspace");
-        var res = await _client.ExecuteQueryAsync(query);
+        var res = await _client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(res);
-        var array = doc.RootElement.EnumerateArray().ToList();
-        array.Count.Should().BeGreaterThan(0);
-        var projects = array[0].GetProperty("projects").EnumerateArray().ToList();
+        res.Count.Should().BeGreaterThan(0);
+        var projects = res.Rows[0]["projects"].AsArray();
         projects.Count.Should().BeGreaterThanOrEqualTo(2);
-        var projectNames = projects.Select(p => p.GetProperty("name").GetString()).ToList();
+        var projectNames = projects.Select(p => p.GetStringProp("name")).ToList();
         projectNames.Should().Contain("ProjectA");
         projectNames.Should().Contain("ProjectB");
     }
@@ -192,12 +165,10 @@ export class OrdersController {
     public async Task Test_GetArchitectureOverview_ReturnsProjects()
     {
         var query = Queries.Get("get_architecture_overview");
-        var res = await _client.ExecuteQueryAsync(query);
+        var res = await _client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(res);
-        var array = doc.RootElement.EnumerateArray().ToList();
-        array.Count.Should().BeGreaterThan(0);
-        var totalProjects = array[0].GetProperty("totalProjects").GetInt32();
+        res.Count.Should().BeGreaterThan(0);
+        var totalProjects = res.Rows[0].GetIntProp("totalProjects");
         totalProjects.Should().BeGreaterThanOrEqualTo(2);
     }
 
@@ -205,16 +176,10 @@ export class OrdersController {
     public async Task Test_InspectDataLineage_EmptyOrNullTableName_ReturnsWithoutError()
     {
         var query = Queries.Get("inspect_data_lineage");
-        var resEmpty = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["tableName"] = "" });
-        using (var docEmpty = JsonDocument.Parse(resEmpty))
-        {
-            docEmpty.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
-        }
+        var resEmpty = await _client.ExecuteCypherAsync(query, new { tableName = "" });
+        resEmpty.Rows.Should().NotBeNull();
 
-        var resNull = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["tableName"] = null });
-        using (var docNull = JsonDocument.Parse(resNull))
-        {
-            docNull.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
-        }
+        var resNull = await _client.ExecuteCypherAsync(query, new { tableName = (string?)null });
+        resNull.Rows.Should().NotBeNull();
     }
 }

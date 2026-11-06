@@ -74,7 +74,7 @@ Scripts/vendor/
             var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);
 
             var filesQuery = "MATCH (f:File) RETURN f.path AS path";
-            var queryResult = await client.ExecuteQueryAsync(filesQuery);
+            var queryResult = (await client.ExecuteCypherAsync(filesQuery)).ToJson();
 
             queryResult.Should().Contain("MyController.js");
             queryResult.Should().NotContain("editor.js");
@@ -257,7 +257,7 @@ packages/
             var indexer = new WorkspaceIndexer(client);
             await indexer.IndexAsync(tempDir, tempDir, clear: true);
 
-            var queryResult = await client.ExecuteQueryAsync("MATCH (f:File) RETURN f.path AS path");
+            var queryResult = (await client.ExecuteCypherAsync("MATCH (f:File) RETURN f.path AS path")).ToJson();
 
             // packages/ui/src/lib/utils.ts must be indexed
             queryResult.Should().Contain("packages/ui/src/lib/utils.ts");

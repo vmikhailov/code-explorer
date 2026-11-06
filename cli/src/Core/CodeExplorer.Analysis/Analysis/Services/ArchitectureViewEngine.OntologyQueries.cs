@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
@@ -10,17 +9,13 @@ public partial class ArchitectureViewEngine
     public async Task<List<string>> GetAllProjectsAsync(CancellationToken ct = default)
     {
         var query = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN DISTINCT p.name AS name ORDER BY p.name";
-        var json = await db.ExecuteQueryAsync(query, null, ct);
-
-        using var doc = JsonDocument.Parse(json);
+        var names = await db.QueryAsync<string>(query, null, ct);
 
         var result = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var row in doc.RootElement.EnumerateArray())
+        foreach (var name in names)
         {
-            var name = row.GetStringProp("name");
-
             if (!string.IsNullOrEmpty(name) && seen.Add(name))
             {
                 result.Add(name);
@@ -36,19 +31,14 @@ public partial class ArchitectureViewEngine
         try
         {
             var query = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.name AS name, p.path AS path, p.id AS id";
-            var json = await db.ExecuteQueryAsync(query, null, ct);
+            var rows = await db.QueryAsync<(string Name, string Path, string Id)>(query, null, ct);
 
-            using var doc = JsonDocument.Parse(json);
-
-            foreach (var row in doc.RootElement.EnumerateArray())
+            foreach (var (name, rawPath, id) in rows)
             {
-                var name = row.GetStringProp("name");
-                var path = row.GetStringProp("path");
+                var path = rawPath;
 
                 if (string.IsNullOrEmpty(path))
                 {
-                    var id = row.GetStringProp("id");
-
                     if (!string.IsNullOrEmpty(id))
                     {
                         if (id.StartWithIC($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:"))
@@ -164,19 +154,10 @@ public partial class ArchitectureViewEngine
                     {
                         var roleQuery =
                             "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, json_extract(p.properties, '$.is_library') AS is_lib, count(p) AS cnt";
-                        var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
+                        var roleRows = await db.QueryAsync<(string Role, string IsLib, long Cnt)>(roleQuery, null, ct);
 
-                        using var roleDoc = JsonDocument.Parse(roleJson);
-
-                        foreach (var row in roleDoc.RootElement.EnumerateArray())
+                        foreach (var (role, isLib, cnt) in roleRows)
                         {
-                            var role = row.GetStringProp("role");
-                            var isLib = row.GetStringProp("is_lib");
-
-                            var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
-                                ? c.GetInt64()
-                                : 0;
-
                             if (role is "FrontendApp" or "App")
                             {
                                 result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
@@ -244,29 +225,25 @@ public partial class ArchitectureViewEngine
         try
         {
             var nodeQuery = "MATCH (n) WHERE (labels(n)[0] <> 'Topic' OR (coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory')) RETURN labels(n)[0] AS lbl, count(n) AS cnt";
-            var nodeJson = await db.ExecuteQueryAsync(nodeQuery, null, ct);
-
-            using var nodeDoc = JsonDocument.Parse(nodeJson);
+            var nodeRes = await db.ExecuteCypherAsync(nodeQuery, null, ct);
 
             long totalNodes = 0;
 
-            foreach (var row in nodeDoc.RootElement.EnumerateArray())
+            foreach (var row in nodeRes.Rows)
             {
-                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
-                    ? c.GetInt64()
-                    : 0;
+                var cnt = row.TryGetProperty("cnt", out var c) ? c.AsInt64() : 0L;
 
                 string? lbl = null;
 
                 if (row.TryGetProperty("lbl", out var lblProp))
                 {
-                    if (lblProp.ValueKind == JsonValueKind.String)
+                    if (lblProp.Kind == CypherValueKind.String)
                     {
-                        lbl = lblProp.GetString();
+                        lbl = lblProp.AsNullableString();
                     }
-                    else if (lblProp.ValueKind == JsonValueKind.Array && lblProp.GetArrayLength() > 0)
+                    else if (lblProp.Kind == CypherValueKind.Array && lblProp.AsArray() is { Count: > 0 } arr)
                     {
-                        lbl = lblProp[0].GetString();
+                        lbl = arr[0].AsNullableString();
                     }
                 }
 
@@ -311,19 +288,10 @@ public partial class ArchitectureViewEngine
                 {
                     var roleQuery =
                         "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, json_extract(p.properties, '$.is_library') AS is_lib, count(p) AS cnt";
-                    var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
+                    var roleRows = await db.QueryAsync<(string Role, string IsLib, long Cnt)>(roleQuery, null, ct);
 
-                    using var roleDoc = JsonDocument.Parse(roleJson);
-
-                    foreach (var row in roleDoc.RootElement.EnumerateArray())
+                    foreach (var (role, isLib, cnt) in roleRows)
                     {
-                        var role = row.GetStringProp("role");
-                        var isLib = row.GetStringProp("is_lib");
-
-                        var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
-                            ? c.GetInt64()
-                            : 0;
-
                         if (role is "FrontendApp" or "App")
                         {
                             result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
@@ -361,20 +329,12 @@ public partial class ArchitectureViewEngine
         try
         {
             var relQuery = "MATCH ()-[r]->() RETURN type(r) AS rel, count(r) AS cnt";
-            var relJson = await db.ExecuteQueryAsync(relQuery, null, ct);
-
-            using var relDoc = JsonDocument.Parse(relJson);
+            var relRows = await db.QueryAsync<(string Rel, long Cnt)>(relQuery, null, ct);
 
             long totalEdges = 0;
 
-            foreach (var row in relDoc.RootElement.EnumerateArray())
+            foreach (var (rel, cnt) in relRows)
             {
-                var rel = row.GetStringProp("rel");
-
-                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
-                    ? c.GetInt64()
-                    : 0;
-
                 if (!string.IsNullOrEmpty(rel))
                 {
                     result.RelationshipCounts[rel] = cnt;
@@ -452,16 +412,12 @@ public partial class ArchitectureViewEngine
             {
                 var normSrv = WorkspaceConventions.NormalizeServiceName(service);
                 var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:TestSuite OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'TestSuite'] THEN 0 ELSE 1 END LIMIT 1";
-                var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service, ["normSrv"] = normSrv }, ct);
+                var first = await db.QueryFirstOrDefaultAsync<(string Id, string Name, string Kind)>(sQuery, new { srv = service, normSrv }, ct);
 
-                using var sDoc = JsonDocument.Parse(sJson);
-
-                var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();
-
-                if (first.ValueKind == JsonValueKind.Object)
+                if (!string.IsNullOrEmpty(first.Id))
                 {
-                    serviceId = first.GetStringProp("id");
-                    serviceNameResolved = first.GetStringProp("name");
+                    serviceId = first.Id;
+                    serviceNameResolved = first.Name;
                 }
             }
             catch { }
@@ -497,17 +453,7 @@ public partial class ArchitectureViewEngine
             var countQuery = $"{matchRel} {searchRel}RETURN count(r) AS total";
             try
             {
-                var countJson = await db.ExecuteQueryAsync(countQuery, null, ct);
-
-                using var countDoc = JsonDocument.Parse(countJson);
-
-                var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
-
-                if (firstRow.ValueKind == JsonValueKind.Object &&
-                    firstRow.TryGetProperty("total", out var totProp) && totProp.ValueKind == JsonValueKind.Number)
-                {
-                    result.Total = totProp.GetInt64();
-                }
+                result.Total = await db.QueryScalarAsync<long>(countQuery, null, ct);
             }
             catch { }
 
@@ -515,11 +461,9 @@ public partial class ArchitectureViewEngine
 
             try
             {
-                var dataJson = await db.ExecuteQueryAsync(relDataQuery, null, ct);
+                var dataRes = await db.ExecuteCypherAsync(relDataQuery, null, ct);
 
-                using var dataDoc = JsonDocument.Parse(dataJson);
-
-                foreach (var row in dataDoc.RootElement.EnumerateArray())
+                foreach (var row in dataRes.Rows)
                 {
                     var id = row.GetStringProp("id");
                     var name = row.GetStringProp("name");
@@ -527,12 +471,7 @@ public partial class ArchitectureViewEngine
                     var srcName = row.GetStringProp("srcName");
                     var tgtName = row.GetStringProp("tgtName");
                     var filePath = row.GetStringProp("file_path");
-                    int? line = null;
-
-                    if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
-                    {
-                        line = lp.GetInt32();
-                    }
+                    var line = row.GetNullableIntProp("line");
 
                     var dto = new GraphNodeDto
                     {
@@ -694,17 +633,7 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var countJson = await db.ExecuteQueryAsync(countQueryFinal, null, ct);
-
-            using var countDoc = JsonDocument.Parse(countJson);
-
-            var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
-
-            if (firstRow.ValueKind == JsonValueKind.Object && firstRow.TryGetProperty("total", out var totProp) &&
-                totProp.ValueKind == JsonValueKind.Number)
-            {
-                result.Total = totProp.GetInt64();
-            }
+            result.Total = await db.QueryScalarAsync<long>(countQueryFinal, null, ct);
         }
         catch { }
 
@@ -713,11 +642,9 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var dataJson = await db.ExecuteQueryAsync(dataQuery, null, ct);
+            var dataRes = await db.ExecuteCypherAsync(dataQuery, null, ct);
 
-            using var dataDoc = JsonDocument.Parse(dataJson);
-
-            foreach (var row in dataDoc.RootElement.EnumerateArray())
+            foreach (var row in dataRes.Rows)
             {
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
@@ -728,28 +655,21 @@ public partial class ArchitectureViewEngine
                     filePath = row.GetStringProp("path");
                 }
 
-                int? line = null;
-
-                if (row.TryGetProperty("line", out var lp))
-                {
-                    if (lp.ValueKind == JsonValueKind.Number)
-                    {
-                        line = lp.GetInt32();
-                    }
-                    else if (lp.ValueKind == JsonValueKind.String &&
-                             int.TryParse(lp.GetString(), out var parsedLine))
-                    {
-                        line = parsedLine;
-                    }
-                }
+                var line = row.GetNullableIntProp("line");
 
                 var role = row.GetStringProp("role");
                 string nodeKind = safeKind ?? "";
 
-                if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp) &&
-                    lblProp.ValueKind == JsonValueKind.Array)
+                if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp))
                 {
-                    nodeKind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "";
+                    if (lblProp.Kind == CypherValueKind.Array && lblProp.AsArray() is { Count: > 0 } arr)
+                    {
+                        nodeKind = arr[0].AsString();
+                    }
+                    else if (lblProp.Kind == CypherValueKind.String)
+                    {
+                        nodeKind = lblProp.AsString();
+                    }
                 }
 
                 if (Mcp.OntologyRegistry.IsSystemNode(nodeKind))

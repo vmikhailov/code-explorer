@@ -125,17 +125,16 @@ public partial class ArchitectureViewEngine
     {
         const string query =
             "MATCH (p:Project)-[:CONTAINS]->(f:File) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, coalesce(p.kind, p.role, '') AS kind, count(f) AS files";
-        var json = await db.ExecuteQueryAsync(query, null, ct);
-        using var doc = JsonDocument.Parse(json);
+        var res = await db.ExecuteCypherAsync(query, null, ct);
 
-        var list = doc.RootElement.EnumerateArray()
+        var list = res.Rows
             .Select(e => new ProjectMapProjectInfo(
                 e.GetStringProp("id"),
                 e.GetStringProp("name"),
                 e.GetStringProp("path"),
-                ReadBool(e, "is_test"),
+                e.GetBoolProp("is_test"),
                 e.GetNullableIntProp("files") ?? 0,
-                ReadBool(e, "is_build_orch"),
+                e.GetBoolProp("is_build_orch"),
                 e.GetStringProp("excluded_subpaths"),
                 e.GetStringProp("kind")))
             .Where(p => !string.IsNullOrEmpty(p.Id))
@@ -146,10 +145,9 @@ public partial class ArchitectureViewEngine
             "MATCH (p:Project)-[:CONTAINS]->(sub:Project) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, coalesce(p.kind, p.role, '') AS kind, count(sub) AS sub_count";
         try
         {
-            var pJson = await db.ExecuteQueryAsync(parentProjectsQuery, null, ct);
-            using var pDoc = JsonDocument.Parse(pJson);
+            var pRes = await db.ExecuteCypherAsync(parentProjectsQuery, null, ct);
             var existingIds = list.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var e in pDoc.RootElement.EnumerateArray())
+            foreach (var e in pRes.Rows)
             {
                 var id = e.GetStringProp("id");
                 if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
@@ -158,9 +156,9 @@ public partial class ArchitectureViewEngine
                         id,
                         e.GetStringProp("name"),
                         e.GetStringProp("path"),
-                        ReadBool(e, "is_test"),
+                        e.GetBoolProp("is_test"),
                         e.GetNullableIntProp("sub_count") ?? 1,
-                        ReadBool(e, "is_build_orch"),
+                        e.GetBoolProp("is_build_orch"),
                         e.GetStringProp("excluded_subpaths"),
                         e.GetStringProp("kind")));
                 }
@@ -181,9 +179,8 @@ public partial class ArchitectureViewEngine
         var result = new List<ProjectMapSubProject>();
         try
         {
-            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["pid"] = parentProjectId }, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var e in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(query, new { pid = parentProjectId }, ct);
+            foreach (var e in res.Rows)
             {
                 var subId = e.GetStringProp("id");
                 if (string.IsNullOrEmpty(subId)) continue;
@@ -239,11 +236,10 @@ public partial class ArchitectureViewEngine
     {
         const string query =
             "MATCH (p:Project)-[:CONTAINS]->(f:File) WHERE p.id = $pid RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
-        var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["pid"] = projectId }, ct);
-        using var doc = JsonDocument.Parse(json);
+        var res = await db.ExecuteCypherAsync(query, new { pid = projectId }, ct);
 
-        return doc.RootElement.EnumerateArray()
-            .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), ReadBool(e, "is_test"), e.GetNullableIntProp("line_count")))
+        return res.Rows
+            .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp("is_test"), e.GetNullableIntProp("line_count")))
             .Where(f => f.Path.Length > 0)
             .ToList();
     }
@@ -747,19 +743,18 @@ public partial class ArchitectureViewEngine
         return normPrimary.Length > 0 ? normPrimary : normAlt;
     }
 
-    private async Task<List<JsonElement>> QueryProjectMapRowsAsync(
+    private async Task<IReadOnlyList<CypherRow>> QueryProjectMapRowsAsync(
         string query, string prefix, string context, List<string> warnings, CancellationToken ct)
     {
         try
         {
             var slashPrefix = prefix.Length == 0 ? "" : "/" + prefix.TrimStart('/');
-            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object?>
+            var res = await db.ExecuteCypherAsync(query, new
             {
-                ["prefix"] = prefix,
-                ["slashPrefix"] = slashPrefix
+                prefix,
+                slashPrefix
             }, ct);
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.EnumerateArray().Select(e => e.Clone()).ToList();
+            return res.Rows;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -818,15 +813,5 @@ public partial class ArchitectureViewEngine
         }
     }
 
-    private static bool ReadBool(JsonElement e, string prop)
-    {
-        if (!e.TryGetProperty(prop, out var v)) return false;
-        return v.ValueKind switch
-        {
-            JsonValueKind.True => true,
-            JsonValueKind.Number => v.TryGetInt32(out var n) && n != 0,
-            JsonValueKind.String => v.GetString() is "true" or "True" or "1",
-            _ => false
-        };
-    }
+    private static bool ReadBool(CypherRow e, string prop) => e.GetBoolProp(prop);
 }

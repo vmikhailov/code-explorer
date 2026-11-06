@@ -417,11 +417,11 @@ public partial class WebSocketServerHandler
                         return;
                     }
 
-                    var cypherResult = await _graphClient.ExecuteQueryAsync(cypherReq.Query, cypherReq.Parameters, cancellationToken);
+                    var cypherResult = await _graphClient.ExecuteCypherAsync(cypherReq.Query, cypherReq.Parameters, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
-                        RawJson = cypherResult
+                        RawJson = cypherResult.ToJson()
                     }, cancellationToken);
                     break;
 

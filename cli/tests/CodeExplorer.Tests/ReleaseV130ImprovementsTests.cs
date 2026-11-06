@@ -114,55 +114,43 @@ public class GameController : ControllerBase
 
             // Verify Orleans Grain Endpoint
             var grainRes =
-                await client.ExecuteQueryAsync(
+                await client.ExecuteCypherAsync(
                     "MATCH (e:Endpoint) WHERE e.name CONTAINS 'GameSessionGrain' RETURN e.name AS name");
 
-            using var grainDoc = JsonDocument.Parse(grainRes);
-
-            grainDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Orleans Grain GameSessionGrain should be detected as Endpoint");
+            grainRes.Count.Should().BeGreaterThan(0, "Orleans Grain GameSessionGrain should be detected as Endpoint");
 
             // Verify no phantom controller endpoint for class
             var phantomRes =
-                await client.ExecuteQueryAsync(
+                await client.ExecuteCypherAsync(
                     "MATCH (e:Endpoint) WHERE e.name = 'GET:/api/Game' RETURN e.name AS name");
 
-            using var phantomDoc = JsonDocument.Parse(phantomRes);
-
-            phantomDoc.RootElement.GetArrayLength().Should().Be(0, "Phantom GET:/api/Game endpoint should NOT exist");
+            phantomRes.Count.Should().Be(0, "Phantom GET:/api/Game endpoint should NOT exist");
 
             // Verify real endpoint with trimmed Async
             var methodEndpointRes =
-                await client.ExecuteQueryAsync(
+                await client.ExecuteCypherAsync(
                     "MATCH (e:Endpoint) WHERE e.name CONTAINS 'connect' RETURN e.name AS name");
 
-            using var methodDoc = JsonDocument.Parse(methodEndpointRes);
-
-            methodDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Endpoint for connect should exist");
+            methodEndpointRes.Count.Should().BeGreaterThan(0, "Endpoint for connect should exist");
 
             // Verify no Table named 'DbSet'
-            var dbSetTableRes = await client.ExecuteQueryAsync(
+            var dbSetTableRes = await client.ExecuteCypherAsync(
                 "MATCH (t:Table) WHERE t.name = 'DbSet' OR t.name = 'IDbSet' RETURN t.name AS name");
 
-            using var dbSetDoc = JsonDocument.Parse(dbSetTableRes);
-
-            dbSetDoc.RootElement.GetArrayLength().Should().Be(0, "Table named DbSet should NOT exist");
+            dbSetTableRes.Count.Should().Be(0, "Table named DbSet should NOT exist");
 
             // Verify real Table 'Orders' exists
             var ordersTableRes =
-                await client.ExecuteQueryAsync(
+                await client.ExecuteCypherAsync(
                     "MATCH (t:Table) WHERE t.name = 'Orders' RETURN t.name AS name");
 
-            using var ordersDoc = JsonDocument.Parse(ordersTableRes);
-
-            ordersDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Table Orders should exist");
+            ordersTableRes.Count.Should().BeGreaterThan(0, "Table Orders should exist");
 
             // Verify MongoDB collection table
-            var mongoTableRes = await client.ExecuteQueryAsync(
+            var mongoTableRes = await client.ExecuteCypherAsync(
                 "MATCH (t:Table) WHERE t.name = 'orders_collection' RETURN t.name AS name");
 
-            using var mongoDoc = JsonDocument.Parse(mongoTableRes);
-
-            mongoDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "MongoDB table orders_collection should exist");
+            mongoTableRes.Count.Should().BeGreaterThan(0, "MongoDB table orders_collection should exist");
         }
         finally
         {

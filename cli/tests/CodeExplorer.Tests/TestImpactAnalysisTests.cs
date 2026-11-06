@@ -96,47 +96,28 @@ public class OrderProcessorTests
     public async Task Test_TestSuiteNode_IsMaterialized_And_HasTestsRelationship()
     {
         // Check that TestSuite node exists in the graph
-        var res = await _client.ExecuteQueryAsync("MATCH (ts:TestSuite) RETURN ts.name AS name, ts.kind AS kind");
+        var res = await _client.ExecuteCypherAsync("MATCH (ts:TestSuite) RETURN ts.name AS name, ts.kind AS kind");
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "No TestSuite node materialized!");
-        var suiteName = array[0].GetProperty("name").GetString();
+        res.Count.Should().BeGreaterThan(0, "No TestSuite node materialized!");
+        var suiteName = res.Rows[0].GetStringProp("name");
         suiteName.Should().ContainEquivalentOf("OrderService.Tests");
 
         // Check TESTS relationship from TestSuite to target
         var testsRelRes =
-            await _client.ExecuteQueryAsync(
+            await _client.ExecuteCypherAsync(
                 "MATCH (ts:TestSuite)-[r:TESTS]->(target) RETURN ts.name AS suite, target.name AS target");
 
-        using var relDoc = JsonDocument.Parse(testsRelRes);
-
-        var relArray = relDoc.RootElement.EnumerateArray().ToList();
-        relArray.Count.Should().BeGreaterThan(0, "TestSuite does not have a TESTS relationship!");
+        testsRelRes.Count.Should().BeGreaterThan(0, "TestSuite does not have a TESTS relationship!");
     }
 
     [Test]
     public async Task Test_FunctionNode_IsTaggedAsTest()
     {
-        var res = await _client.ExecuteQueryAsync("MATCH (f:Function) WHERE f.name = 'Test_ProcessPayment_Success' RETURN f.name AS name, f.is_test AS isTest, f.test_framework AS framework");
+        var res = await _client.ExecuteCypherAsync("MATCH (f:Function) WHERE f.name = 'Test_ProcessPayment_Success' RETURN f.name AS name, f.is_test AS isTest, f.test_framework AS framework");
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().Be(1, "Expected 1 Test_ProcessPayment_Success function node");
-        var isTestProp = array[0].GetProperty("isTest");
-        var isTest = isTestProp.ValueKind switch
-        {
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Number => isTestProp.GetInt32() == 1 ? "true" : "false",
-            _ => isTestProp.GetString()
-        };
-        isTest.Should().Be("true");
-        var framework = array[0].GetProperty("framework").GetString();
+        res.Count.Should().Be(1, "Expected 1 Test_ProcessPayment_Success function node");
+        res.Rows[0].GetBoolProp("isTest").Should().BeTrue();
+        var framework = res.Rows[0].GetStringProp("framework");
         framework.Should().Be("xunit");
     }
 
@@ -144,18 +125,14 @@ public class OrderProcessorTests
     public async Task Test_GetAffectedTests_TracesChangedSourceFile_ToTest()
     {
         var query = Queries.Get("get_affected_tests");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?>
+        var res = await _client.ExecuteCypherAsync(query, new
         {
-            ["filePath"] = "OrderProcessor.cs",
-            ["symbolName"] = null
+            filePath = "OrderProcessor.cs",
+            symbolName = (string?)null
         });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "Expected at least 1 affected test for OrderProcessor.cs");
-        var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
+        res.Count.Should().BeGreaterThan(0, "Expected at least 1 affected test for OrderProcessor.cs");
+        var testNames = res.Rows.Select(x => x.GetStringProp("testName")).ToList();
         testNames.Should().Contain("Test_ProcessPayment_Success");
     }
 
@@ -163,18 +140,14 @@ public class OrderProcessorTests
     public async Task Test_GetAffectedTests_TracesChangedTestFile_ToSelf()
     {
         var query = Queries.Get("get_affected_tests");
-        var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?>
+        var res = await _client.ExecuteCypherAsync(query, new
         {
-            ["filePath"] = "OrderProcessorTests.cs",
-            ["symbolName"] = null
+            filePath = "OrderProcessorTests.cs",
+            symbolName = (string?)null
         });
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "Expected at least 1 affected test for OrderProcessorTests.cs");
-        var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
+        res.Count.Should().BeGreaterThan(0, "Expected at least 1 affected test for OrderProcessorTests.cs");
+        var testNames = res.Rows.Select(x => x.GetStringProp("testName")).ToList();
         testNames.Should().Contain("Test_ProcessPayment_Success");
     }
 }

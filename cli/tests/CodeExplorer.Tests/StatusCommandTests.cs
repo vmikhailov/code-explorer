@@ -71,12 +71,11 @@ public class StatusCommandTests
         exitCode.Should().Be(0);
         var output = sw.ToString();
 
-        using var doc = JsonDocument.Parse(output);
-        var root = doc.RootElement;
+        var root = CypherValue.TryParseJsonText(output);
 
-        root.GetProperty("schema_version").GetInt32().Should().Be(SqliteGraphClient.CurrentSchemaVersion);
-        root.GetProperty("current_schema_version").GetInt32().Should().Be(SqliteGraphClient.CurrentSchemaVersion);
-        root.GetProperty("is_schema_outdated").GetBoolean().Should().BeFalse();
+        root.GetIntProp("schema_version").Should().Be(SqliteGraphClient.CurrentSchemaVersion);
+        root.GetIntProp("current_schema_version").Should().Be(SqliteGraphClient.CurrentSchemaVersion);
+        root.GetBoolProp("is_schema_outdated").Should().BeFalse();
     }
 
     [Test]

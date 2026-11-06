@@ -64,15 +64,8 @@ public partial class CodeExplorerRepository
         if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath)) return false;
         try
         {
-            var testJson = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt LIMIT 1;");
-
-            using var doc = JsonDocument.Parse(testJson);
-
-            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0 &&
-                doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-            {
-                return pCnt.GetInt64() == 0;
-            }
+            var cnt = await client.QueryScalarAsync<long>("MATCH (n) RETURN count(n) AS cnt LIMIT 1;");
+            return cnt == 0;
         }
         catch { }
         return false;
@@ -89,11 +82,8 @@ public partial class CodeExplorerRepository
             return StandbyMessageJson;
         }
 
-        var resultJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-
-        using var doc = JsonDocument.Parse(resultJson);
-
-        return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
     }
 
 
@@ -138,7 +128,7 @@ public partial class CodeExplorerRepository
         }
 
         var overviewQuery = Queries.Get("get_architecture_overview");
-        var rawJson = await client.ExecuteQueryAsync(overviewQuery, null, cancellationToken);
+        var overviewRes = await client.ExecuteCypherAsync(overviewQuery, null, cancellationToken);
 
         long totalNodes = 0;
         long totalFiles = 0;
@@ -146,58 +136,40 @@ public partial class CodeExplorerRepository
 
         try
         {
-            var nodesCountJson = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
-
-            using var doc = JsonDocument.Parse(nodesCountJson);
-
-            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                totalNodes = pCnt.GetInt64();
+            totalNodes = await client.QueryScalarAsync<long>("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
         }
         catch { }
 
         try
         {
-            var filesCountJson = await client.ExecuteQueryAsync("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
-
-            using var doc = JsonDocument.Parse(filesCountJson);
-
-            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                totalFiles = pCnt.GetInt64();
+            totalFiles = await client.QueryScalarAsync<long>("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
         }
         catch { }
 
         try
         {
-            var relsCountJson = await client.ExecuteQueryAsync("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
-
-            using var doc = JsonDocument.Parse(relsCountJson);
-
-            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                totalRels = pCnt.GetInt64();
+            totalRels = await client.QueryScalarAsync<long>("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
         }
         catch { }
 
-        using var overviewDoc = JsonDocument.Parse(rawJson);
-
-        if (overviewDoc.RootElement.ValueKind != JsonValueKind.Array ||
-            overviewDoc.RootElement.GetArrayLength() == 0)
+        if (overviewRes.Count == 0)
         {
-            return rawJson;
+            return overviewRes.ToJson(indented: false);
         }
 
-        var row = overviewDoc.RootElement[0];
-        var wsName = row.TryGetProperty("workspace", out var wProp) ? wProp.GetString() : "workspace";
-        var wsPath = row.TryGetProperty("path", out var pathProp) ? pathProp.GetString() : "";
+        var row = overviewRes.Rows[0];
+        var wsName = row.GetStringProp("workspace", "workspace");
+        var wsPath = row.GetStringProp("path");
 
         var rawProjects = new List<Dictionary<string, string>>();
 
-        if (row.TryGetProperty("projects", out var projProp) && projProp.ValueKind == JsonValueKind.Array)
+        if (row.TryGetProperty("projects", out var projProp) && projProp.Kind == CypherValueKind.Array)
         {
-            foreach (var p in projProp.EnumerateArray())
+            foreach (var p in projProp.AsArray())
             {
-                var pName = p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                var pLang = p.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "";
-                var pPath = p.TryGetProperty("path", out var pt) ? pt.GetString() ?? "" : "";
+                var pName = p.TryGetProperty("name", out var n) ? n.AsString() : "";
+                var pLang = p.TryGetProperty("language", out var l) ? l.AsString() : "";
+                var pPath = p.TryGetProperty("path", out var pt) ? pt.AsString() : "";
 
                 if (!string.IsNullOrEmpty(pName))
                 {
@@ -225,27 +197,8 @@ public partial class CodeExplorerRepository
             return new { layer, count = items.Count, projects = items };
         }).Where(g => g.count > 0).ToList();
 
-        var databases = new List<string>();
-
-        if (row.TryGetProperty("databases", out var dbProp) && dbProp.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var db in dbProp.EnumerateArray())
-            {
-                var dbStr = db.GetString();
-                if (!string.IsNullOrEmpty(dbStr)) databases.Add(dbStr);
-            }
-        }
-
-        var externalServices = new List<string>();
-
-        if (row.TryGetProperty("externalServices", out var esProp) && esProp.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var es in esProp.EnumerateArray())
-            {
-                var esStr = es.GetString();
-                if (!string.IsNullOrEmpty(esStr)) externalServices.Add(esStr);
-            }
-        }
+        var databases = row.GetStringListProp("databases").Where(s => !string.IsNullOrEmpty(s)).ToList();
+        var externalServices = row.GetStringListProp("externalServices").Where(s => !string.IsNullOrEmpty(s)).ToList();
 
         var overviewResult = new
         {
@@ -299,11 +252,11 @@ public partial class CodeExplorerRepository
         if (!string.IsNullOrEmpty(projectName))
         {
             var query = Queries.Get("get_architecture_map_project");
-            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectName"] = projectName }, workspacePath, cancellationToken);
+            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, string> { ["projectName"] = projectName }, workspacePath, cancellationToken);
         }
         else
         {
-            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object>(), workspacePath, cancellationToken);
+            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), null, workspacePath, cancellationToken);
         }
 
         try
@@ -312,12 +265,13 @@ public partial class CodeExplorerRepository
             var savedQueries = _queryManager.ListQueries(effectiveWsPath);
             if (savedQueries.Count > 0)
             {
-                using var doc = JsonDocument.Parse(resultJson);
+                var parsed = CypherValue.TryParseJsonText(resultJson);
+                parsed.TryGetProperty("results", out var resultsVal);
 
                 var formatted = JsonSerializer.Serialize(
                     new
                     {
-                        results = doc.RootElement.GetProperty("results"),
+                        results = resultsVal,
                         saved_project_queries = savedQueries.Select(q => new
                         {
                             name = q.Name,

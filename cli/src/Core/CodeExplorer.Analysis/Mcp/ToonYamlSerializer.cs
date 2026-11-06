@@ -1,5 +1,5 @@
+using System.Globalization;
 using System.Text;
-using System.Text.Json;
 
 namespace CodeExplorer.Core.Mcp;
 
@@ -12,12 +12,15 @@ public static class ToonYamlSerializer
 {
     public static string SerializeYaml(string json)
     {
-        using var doc = JsonDocument.Parse(json);
-
-        return SerializeYaml(doc.RootElement);
+        return SerializeYaml(CypherValue.TryParseJsonText(json));
     }
 
-    public static string SerializeYaml(JsonElement element)
+    public static string SerializeYaml(CypherQueryResult result)
+    {
+        return SerializeYaml(ResultToValue(result));
+    }
+
+    public static string SerializeYaml(CypherValue element)
     {
         var sb = new StringBuilder();
         WriteYamlElement(sb, element, 0, false);
@@ -26,72 +29,93 @@ public static class ToonYamlSerializer
 
     public static string SerializeToon(string json)
     {
-        using var doc = JsonDocument.Parse(json);
-
-        return SerializeToon(doc.RootElement);
+        return SerializeToon(CypherValue.TryParseJsonText(json));
     }
 
-    public static string SerializeToon(JsonElement element)
+    public static string SerializeToon(CypherQueryResult result)
+    {
+        return SerializeToon(ResultToValue(result));
+    }
+
+    public static string SerializeToon(CypherValue element)
     {
         var sb = new StringBuilder();
         WriteToonElement(sb, element, 0, null);
         return sb.ToString().TrimEnd();
     }
 
+    private static CypherValue ResultToValue(CypherQueryResult result)
+    {
+        if (result.Count == 0) return CypherValue.FromArray([]);
+        var list = new List<CypherValue>(result.Count);
+        foreach (var row in result.Rows)
+        {
+            var props = new List<KeyValuePair<string, CypherValue>>(row.FieldCount);
+            var count = Math.Min(row.Columns.Count, row.Values.Count);
+            for (var i = 0; i < count; i++)
+            {
+                props.Add(new KeyValuePair<string, CypherValue>(row.Columns[i], row.Values[i]));
+            }
+            list.Add(CypherValue.FromObject(props));
+        }
+        return CypherValue.FromArray(list);
+    }
+
     #region YAML Implementation
 
-    private static void WriteYamlElement(StringBuilder sb, JsonElement element, int indentLevel, bool isListItem)
+    private static void WriteYamlElement(StringBuilder sb, CypherValue element, int indentLevel, bool isListItem)
     {
         var indent = new string(' ', indentLevel);
 
-        switch (element.ValueKind)
+        switch (element.Kind)
         {
-            case JsonValueKind.Object:
+            case CypherValueKind.Object:
                 var isFirstProp = true;
-                foreach (var prop in element.EnumerateObject())
+                foreach (var prop in element.AsObject())
                 {
                     var prefix = (isFirstProp && isListItem) ? "" : indent;
                     isFirstProp = false;
 
-                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                    if (prop.Value.Kind == CypherValueKind.Object)
                     {
-                        sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Name)}:");
+                        sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Key)}:");
                         WriteYamlElement(sb, prop.Value, indentLevel + 2, false);
                     }
-                    else if (prop.Value.ValueKind == JsonValueKind.Array)
+                    else if (prop.Value.Kind == CypherValueKind.Array)
                     {
-                        if (prop.Value.GetArrayLength() == 0)
+                        if (prop.Value.AsArray().Count == 0)
                         {
-                            sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Name)}: []");
+                            sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Key)}: []");
                         }
                         else
                         {
-                            sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Name)}:");
+                            sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Key)}:");
                             WriteYamlElement(sb, prop.Value, indentLevel + 2, false);
                         }
                     }
                     else
                     {
-                        sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Name)}: {FormatYamlPrimitive(prop.Value)}");
+                        sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Key)}: {FormatYamlPrimitive(prop.Value)}");
                     }
                 }
                 break;
 
-            case JsonValueKind.Array:
-                if (element.GetArrayLength() == 0)
+            case CypherValueKind.Array:
+                var items = element.AsArray();
+                if (items.Count == 0)
                 {
                     sb.AppendLine($"{indent}[]");
                     return;
                 }
 
-                foreach (var item in element.EnumerateArray())
+                foreach (var item in items)
                 {
-                    if (item.ValueKind == JsonValueKind.Object)
+                    if (item.Kind == CypherValueKind.Object)
                     {
                         sb.Append($"{indent}- ");
                         WriteYamlElement(sb, item, indentLevel + 2, true);
                     }
-                    else if (item.ValueKind == JsonValueKind.Array)
+                    else if (item.Kind == CypherValueKind.Array)
                     {
                         sb.AppendLine($"{indent}-");
                         WriteYamlElement(sb, item, indentLevel + 2, false);
@@ -119,16 +143,16 @@ public static class ToonYamlSerializer
         return key;
     }
 
-    private static string FormatYamlPrimitive(JsonElement elem)
+    private static string FormatYamlPrimitive(CypherValue elem)
     {
-        return elem.ValueKind switch
+        return elem.Kind switch
         {
-            JsonValueKind.Null => "null",
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Number => elem.GetRawText(),
-            JsonValueKind.String => FormatYamlString(elem.GetString() ?? ""),
-            _ => elem.GetRawText()
+            CypherValueKind.Null => "null",
+            CypherValueKind.Boolean => elem.AsBool() ? "true" : "false",
+            CypherValueKind.Int64 => elem.AsInt64().ToString(CultureInfo.InvariantCulture),
+            CypherValueKind.Float64 => elem.AsDouble().ToString("G", CultureInfo.InvariantCulture),
+            CypherValueKind.String => FormatYamlString(elem.AsString()),
+            _ => elem.ToJsonString()
         };
     }
 
@@ -150,14 +174,14 @@ public static class ToonYamlSerializer
 
     #region TOON Implementation
 
-    private static void WriteToonElement(StringBuilder sb, JsonElement element, int indentLevel, string? propertyName)
+    private static void WriteToonElement(StringBuilder sb, CypherValue element, int indentLevel, string? propertyName)
     {
         var indent = new string(' ', indentLevel);
 
-        if (element.ValueKind == JsonValueKind.Array)
+        if (element.Kind == CypherValueKind.Array)
         {
-            var length = element.GetArrayLength();
-            if (length == 0)
+            var items = element.AsArray();
+            if (items.Count == 0)
             {
                 if (propertyName != null) sb.AppendLine($"{indent}{propertyName}: []");
                 else sb.AppendLine($"{indent}[]");
@@ -172,7 +196,7 @@ public static class ToonYamlSerializer
                 sb.AppendLine($"{indent}{headerPrefix}[{fieldsHeader}]:");
 
                 var rowIndent = new string(' ', indentLevel + 2);
-                foreach (var row in element.EnumerateArray())
+                foreach (var row in items)
                 {
                     var values = new List<string>(fieldNames.Count);
                     foreach (var f in fieldNames)
@@ -197,9 +221,9 @@ public static class ToonYamlSerializer
                 sb.AppendLine($"{indent}{propertyName}:");
             }
             var itemIndent = new string(' ', propertyName != null ? indentLevel + 2 : indentLevel);
-            foreach (var item in element.EnumerateArray())
+            foreach (var item in items)
             {
-                if (item.ValueKind == JsonValueKind.Object)
+                if (item.Kind == CypherValueKind.Object)
                 {
                     WriteToonElement(sb, item, itemIndent.Length, null);
                 }
@@ -211,7 +235,7 @@ public static class ToonYamlSerializer
             return;
         }
 
-        if (element.ValueKind == JsonValueKind.Object)
+        if (element.Kind == CypherValueKind.Object)
         {
             if (propertyName != null)
             {
@@ -220,15 +244,15 @@ public static class ToonYamlSerializer
                 indentLevel += 2;
             }
 
-            foreach (var prop in element.EnumerateObject())
+            foreach (var prop in element.AsObject())
             {
-                if (prop.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                if (prop.Value.Kind is CypherValueKind.Object or CypherValueKind.Array)
                 {
-                    WriteToonElement(sb, prop.Value, indentLevel, prop.Name);
+                    WriteToonElement(sb, prop.Value, indentLevel, prop.Key);
                 }
                 else
                 {
-                    sb.AppendLine($"{indent}{prop.Name}: {FormatToonScalar(prop.Value)}");
+                    sb.AppendLine($"{indent}{prop.Key}: {FormatToonScalar(prop.Value)}");
                 }
             }
             return;
@@ -246,15 +270,15 @@ public static class ToonYamlSerializer
         }
     }
 
-    private static bool IsUniformObjectArray(JsonElement arrayElem, out List<string> fieldNames)
+    private static bool IsUniformObjectArray(CypherValue arrayElem, out List<string> fieldNames)
     {
         fieldNames = [];
         var allObjects = true;
         var first = true;
 
-        foreach (var item in arrayElem.EnumerateArray())
+        foreach (var item in arrayElem.AsArray())
         {
-            if (item.ValueKind != JsonValueKind.Object)
+            if (item.Kind != CypherValueKind.Object)
             {
                 allObjects = false;
                 break;
@@ -262,15 +286,15 @@ public static class ToonYamlSerializer
 
             if (first)
             {
-                foreach (var prop in item.EnumerateObject())
+                foreach (var prop in item.AsObject())
                 {
                     // Only scalar fields can be flattened into TOON tabular format
-                    if (prop.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    if (prop.Value.Kind is CypherValueKind.Object or CypherValueKind.Array)
                     {
                         allObjects = false;
                         break;
                     }
-                    fieldNames.Add(prop.Name);
+                    fieldNames.Add(prop.Key);
                 }
                 first = false;
                 if (!allObjects || fieldNames.Count == 0) return false;
@@ -280,16 +304,16 @@ public static class ToonYamlSerializer
         return allObjects && fieldNames.Count > 0;
     }
 
-    private static string FormatToonScalar(JsonElement elem)
+    private static string FormatToonScalar(CypherValue elem)
     {
-        return elem.ValueKind switch
+        return elem.Kind switch
         {
-            JsonValueKind.Null => "-",
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Number => elem.GetRawText(),
-            JsonValueKind.String => EscapeToonCsvValue(elem.GetString() ?? ""),
-            _ => EscapeToonCsvValue(elem.GetRawText())
+            CypherValueKind.Null => "-",
+            CypherValueKind.Boolean => elem.AsBool() ? "true" : "false",
+            CypherValueKind.Int64 => elem.AsInt64().ToString(CultureInfo.InvariantCulture),
+            CypherValueKind.Float64 => elem.AsDouble().ToString("G", CultureInfo.InvariantCulture),
+            CypherValueKind.String => EscapeToonCsvValue(elem.AsString()),
+            _ => EscapeToonCsvValue(elem.ToJsonString())
         };
     }
 

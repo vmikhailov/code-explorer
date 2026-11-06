@@ -69,7 +69,7 @@ public class RideGatewayController : ControllerBase
 
         // 3. Execute trace_ingress_to_egress query
         var cypher = Queries.Get("trace_ingress_to_egress");
-        var result = await client.ExecuteQueryAsync(cypher);
+        var result = (await client.ExecuteCypherAsync(cypher)).ToJson();
 
         result.Should().Contain("WebAppGateway");
         result.Should().Contain("POST");

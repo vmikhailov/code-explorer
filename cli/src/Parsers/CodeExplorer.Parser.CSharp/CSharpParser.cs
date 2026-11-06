@@ -207,6 +207,15 @@ public partial class CSharpParser : IProjectParser, IFileParser
         }
     }
 
+    private sealed record LibManConfig(IReadOnlyList<LibManEntry>? Libraries);
+    private sealed record LibManEntry(string? Destination);
+    private static readonly JsonSerializerOptions LibManJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
     public static void RegisterLibManExclusions(
         string libmanPath,
         string currentDir,
@@ -216,25 +225,20 @@ public partial class CSharpParser : IProjectParser, IFileParser
         try
         {
             var content = PhysicalFileStore.ReadAllText(libmanPath);
-            using var doc = JsonDocument.Parse(content);
-            if (doc.RootElement.TryGetProperty("libraries", out var libs) &&
-                libs.ValueKind == JsonValueKind.Array)
+            var cfg = JsonSerializer.Deserialize<LibManConfig>(content, LibManJsonOptions);
+            if (cfg?.Libraries is not null)
             {
-                foreach (var lib in libs.EnumerateArray())
+                foreach (var lib in cfg.Libraries)
                 {
-                    if (lib.TryGetProperty("destination", out var destProp) &&
-                        destProp.ValueKind == JsonValueKind.String)
+                    var dest = lib.Destination;
+                    if (!string.IsNullOrWhiteSpace(dest))
                     {
-                        var dest = destProp.GetString();
-                        if (!string.IsNullOrWhiteSpace(dest))
+                        var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
+                        var relDest = Path.GetRelativePath(gitignore.WorkspaceRoot, fullDest).Replace('\\', '/').Trim('/');
+                        if (!string.IsNullOrEmpty(relDest))
                         {
-                            var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
-                            var relDest = Path.GetRelativePath(gitignore.WorkspaceRoot, fullDest).Replace('\\', '/').Trim('/');
-                            if (!string.IsNullOrEmpty(relDest))
-                            {
-                                gitignore.AddPattern(relDest + "/");
-                                log?.Invoke($"[CSharpParser] LibMan: Excluded library destination '{relDest}'");
-                            }
+                            gitignore.AddPattern(relDest + "/");
+                            log?.Invoke($"[CSharpParser] LibMan: Excluded library destination '{relDest}'");
                         }
                     }
                 }

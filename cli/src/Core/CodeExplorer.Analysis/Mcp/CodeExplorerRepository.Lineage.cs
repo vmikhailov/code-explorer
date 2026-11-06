@@ -9,23 +9,21 @@ public partial class CodeExplorerRepository
         return text.Replace(".", "_").Replace("-", "_").Replace(":", "_").Replace("/", "_").Replace(" ", "_");
     }
 
-    private static string FormatDependenciesAll(string rawJson, string format, int limit, string type = "all")
+    private static string FormatDependenciesAll(CypherQueryResult res, string format, int limit, string type = "all")
     {
-        using var doc = JsonDocument.Parse(rawJson);
-
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+            return ToonYamlSerializer.SerializeYaml(res);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
         var isRuntimeOnly = type.Equals("runtime", StringComparison.OrdinalIgnoreCase);
@@ -37,24 +35,21 @@ public partial class CodeExplorerRepository
             sb.AppendLine("graph TD");
             var count = 0;
 
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            foreach (var item in res.Rows)
             {
-                foreach (var item in doc.RootElement.EnumerateArray())
+                var proj = item.GetStringProp("project");
+                var dep = item.GetStringProp("dependency");
+
+                if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
                 {
-                    var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
-                    var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
+                    if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
+                                          dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
+                        continue;
 
-                    if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
-                    {
-                        if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-                                              dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
-                            continue;
+                    if (count++ >= limit) break;
 
-                        if (count++ >= limit) break;
-
-                        sb.AppendLine(
-                            $"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
-                    }
+                    sb.AppendLine(
+                        $"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
                 }
             }
 
@@ -73,29 +68,26 @@ public partial class CodeExplorerRepository
         var grouped = new Dictionary<string, List<string>>();
         var total = 0;
 
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+        foreach (var item in res.Rows)
         {
-            foreach (var item in doc.RootElement.EnumerateArray())
+            var proj = item.GetStringProp("project");
+            var dep = item.GetStringProp("dependency");
+
+            if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
             {
-                var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
-                var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
+                if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
+                                      dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
+                    continue;
 
-                if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
+                if (total++ >= limit) break;
+
+                if (!grouped.TryGetValue(proj, out var list))
                 {
-                    if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-                                          dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
-                        continue;
-
-                    if (total++ >= limit) break;
-
-                    if (!grouped.TryGetValue(proj, out var list))
-                    {
-                        list = [];
-                        grouped[proj] = list;
-                    }
-
-                    list.Add(dep);
+                    list = [];
+                    grouped[proj] = list;
                 }
+
+                list.Add(dep);
             }
         }
 
@@ -114,49 +106,31 @@ public partial class CodeExplorerRepository
         return md.ToString().TrimEnd();
     }
 
-    private static string FormatDependenciesFiltered(string rawJson, string format, string projectFilter, string type = "all")
+    private static string FormatDependenciesFiltered(CypherQueryResult res, string format, string projectFilter, string type = "all")
     {
-        using var doc = JsonDocument.Parse(rawJson);
-
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+            return ToonYamlSerializer.SerializeYaml(res);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
         var outgoing = new List<string>();
         var incoming = new List<string>();
 
-        if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+        if (res.Count > 0)
         {
-            var row = doc.RootElement[0];
-
-            if (row.TryGetProperty("outgoingDependencies", out var outProp) &&
-                outProp.ValueKind == JsonValueKind.Array)
-            {
-                outgoing =
-                [
-                    .. outProp.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x))
-                ];
-            }
-
-            if (row.TryGetProperty("incomingDependencies", out var inProp) &&
-                inProp.ValueKind == JsonValueKind.Array)
-            {
-                incoming =
-                [
-                    .. inProp.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x))
-                ];
-            }
+            var row = res.Rows[0];
+            outgoing = row.GetStringListProp("outgoingDependencies").Where(x => !string.IsNullOrEmpty(x)).ToList();
+            incoming = row.GetStringListProp("incomingDependencies").Where(x => !string.IsNullOrEmpty(x)).ToList();
         }
 
         if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
@@ -227,37 +201,35 @@ public partial class CodeExplorerRepository
         if (!string.IsNullOrEmpty(projectFilter))
         {
             var query = Queries.Get("get_project_dependencies_filtered");
-            var rawJson = await client.ExecuteQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter }, cancellationToken);
-            return FormatDependenciesFiltered(rawJson, format, projectFilter, type);
+            var res = await client.ExecuteCypherAsync(query, new Dictionary<string, string> { ["projectFilter"] = projectFilter }, cancellationToken);
+            return FormatDependenciesFiltered(res, format, projectFilter, type);
         }
         else
         {
             var query = Queries.Get("get_project_dependencies_all");
-            var rawJson = await client.ExecuteQueryAsync(query, new Dictionary<string, object>(), cancellationToken);
-            return FormatDependenciesAll(rawJson, format, limit, type);
+            var res = await client.ExecuteCypherAsync(query, null, cancellationToken);
+            return FormatDependenciesAll(res, format, limit, type);
         }
     }
 
-    private static string FormatFileOutline(string rawJson, string format, string filePath)
+    private static string FormatFileOutline(CypherQueryResult res, string format, string filePath)
     {
-        using var doc = JsonDocument.Parse(rawJson);
-
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
         }
 
         if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+            return ToonYamlSerializer.SerializeYaml(res);
         }
 
         if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
         {
-            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+            return ToonYamlSerializer.SerializeToon(res);
         }
 
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        if (res.Count == 0)
         {
             return $"No symbols found in outline for '{filePath}'.";
         }
@@ -265,25 +237,12 @@ public partial class CodeExplorerRepository
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"### File Outline: `{filePath}`\n");
 
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var item in res.Rows)
         {
-            var type = item.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
-                ? t.GetString() ?? "Symbol"
-                : "Symbol";
-
-            var name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
-                ? n.GetString() ?? ""
-                : "";
-
-            var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number &&
-                            sl.TryGetInt64(out var slVal)
-                ? slVal
-                : 0;
-
-            var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number &&
-                          el.TryGetInt64(out var elVal)
-                ? elVal
-                : 0;
+            var type = item.GetStringProp("type", "Symbol");
+            var name = item.GetStringProp("name");
+            var startLine = item.GetLongProp("startLine");
+            var endLine = item.GetLongProp("endLine");
 
             var linesStr = startLine > 0
                 ? (endLine > startLine ? $" (L{startLine}-{endLine})" : $" (L{startLine})")
@@ -304,19 +263,19 @@ public partial class CodeExplorerRepository
 
         var normalizedPath = filePath.Trim().Replace('\\', '/').TrimStart('/');
         var query = Queries.Get("get_file_outline");
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["filePath"] = normalizedPath
         };
-        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-        return FormatFileOutline(rawJson, format, normalizedPath);
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        return FormatFileOutline(res, format, normalizedPath);
     }
 
 
     public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("inspect_data_lineage");
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["tableName"] = tableName
         };
@@ -326,31 +285,25 @@ public partial class CodeExplorerRepository
     public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("get_project_entry_points");
-        var parameters = new Dictionary<string, object>
+        var parameters = new Dictionary<string, string>
         {
             ["projectName"] = projectName
         };
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
-    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, Dictionary<string, object> parameters, string? workspacePath = null, CancellationToken cancellationToken = default)
+    private async Task AppendMetricResultsAsync(List<CypherRow> results, string queryKey, Dictionary<string, string> parameters, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         var query = Queries.Get(queryKey);
-        var res = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-
-        using var doc = JsonDocument.Parse(res);
-
-        foreach (var item in doc.RootElement.EnumerateArray())
-        {
-            results.Add(item.Clone());
-        }
+        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        results.AddRange(res.Rows);
     }
 
     public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
-        var results = new List<object>();
-        var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
+        var results = new List<CypherRow>();
+        var parameters = new Dictionary<string, string> { ["projectName"] = projectName };
 
         if (metricType is "dead_code" or "all")
             await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters, workspacePath, cancellationToken);
@@ -376,15 +329,23 @@ public partial class CodeExplorerRepository
             return StandbyMessageJson;
         }
 
-        var parameters = new Dictionary<string, object?>();
         var query = Queries.Get("get_taxonomy_nodes");
         var propQuery = Queries.Get("get_taxonomy_properties");
 
-        var resultJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
-        var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
+        var res = await client.ExecuteCypherAsync(query, null, cancellationToken);
+        var parsedTriplets = res.Rows.Select(r => new Dictionary<string, string>
+        {
+            ["fromLabel"] = r.GetStringProp("fromLabel"),
+            ["relType"] = r.GetStringProp("relType"),
+            ["toLabel"] = r.GetStringProp("toLabel")
+        }).ToList();
 
-        var propJson = await client.ExecuteQueryAsync(propQuery, parameters, cancellationToken);
-        var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
+        var propRes = await client.ExecuteCypherAsync(propQuery, null, cancellationToken);
+        var parsedProperties = propRes.Rows.Select(r => new Dictionary<string, string>
+        {
+            ["label"] = r.GetStringProp("label"),
+            ["key"] = r.GetStringProp("key")
+        }).ToList();
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
         var finalJson = JsonSerializer.Serialize(new { taxonomy }, CompactJsonOptions);

@@ -267,16 +267,15 @@ public class TestIntelligenceService
                 var kind = reader.GetString(1);
                 var propsJson = reader.GetString(2);
 
-                using var doc = JsonDocument.Parse(propsJson);
-                var root = doc.RootElement;
+                var root = CypherValue.TryParseJsonText(propsJson);
 
                 var filePath = ResolveBestFilePath(root);
-                var name = root.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
-                var symbol = root.TryGetProperty("symbol", out var sProp) ? sProp.GetString() ?? name : name;
-                var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.GetInt32() : 0;
-                var eLine = root.TryGetProperty("end_line", out var elProp) ? elProp.GetInt32() : sLine;
-                var project = root.TryGetProperty("project", out var prProp) ? prProp.GetString() : null;
-                var isTestProp = root.TryGetProperty("is_test", out var itProp) && string.Equals(itProp.GetString(), "true", StringComparison.OrdinalIgnoreCase);
+                var name = root.TryGetProperty("name", out var nProp) ? nProp.AsString() : "";
+                var symbol = root.TryGetProperty("symbol", out var sProp) && !sProp.IsNull ? sProp.AsString(name) : name;
+                var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.AsInt32() : 0;
+                var eLine = root.TryGetProperty("end_line", out var elProp) ? elProp.AsInt32(sLine) : sLine;
+                var project = root.TryGetProperty("project", out var prProp) ? prProp.AsNullableString() : null;
+                var isTestProp = root.TryGetProperty("is_test", out var itProp) && itProp.AsBool();
 
                 var normPath = filePath.Replace('\\', '/').ToLowerInvariant();
                 var isTestPath = normPath.Contains("/test/") || normPath.Contains("/tests/") ||
@@ -291,7 +290,7 @@ public class TestIntelligenceService
                 {
                     if (isTest)
                     {
-                        var fw = root.TryGetProperty("test_framework", out var fwProp) ? fwProp.GetString() : null;
+                        var fw = root.TryGetProperty("test_framework", out var fwProp) ? fwProp.AsNullableString() : null;
                         testMethods.Add(new RawTestFunction(id, name, symbol, filePath, fw));
                     }
                     else
@@ -313,7 +312,7 @@ public class TestIntelligenceService
                 }
                 else if (kind == "Type")
                 {
-                    var typeKind = root.TryGetProperty("kind", out var tkProp) ? tkProp.GetString() : "class";
+                    var typeKind = root.TryGetProperty("kind", out var tkProp) ? tkProp.AsString("class") : "class";
                     if (!isTest && !string.Equals(typeKind, "interface", StringComparison.OrdinalIgnoreCase))
                     {
                         types.Add(new RawTypeSymbol(id, name, symbol, filePath, sLine, eLine, project));
@@ -541,14 +540,13 @@ public class TestIntelligenceService
             var kind = reader.GetString(1);
             var propsJson = reader.GetString(2);
 
-            using var doc = JsonDocument.Parse(propsJson);
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(propsJson);
 
             var filePath = ResolveBestFilePath(root);
-            var name = root.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
-            var symbol = root.TryGetProperty("symbol", out var sProp) ? sProp.GetString() ?? name : name;
-            var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.GetInt32() : 0;
-            var eLine = root.TryGetProperty("end_line", out var elProp) ? elProp.GetInt32() : sLine;
+            var name = root.TryGetProperty("name", out var nProp) ? nProp.AsString() : "";
+            var symbol = root.TryGetProperty("symbol", out var sProp) && !sProp.IsNull ? sProp.AsString(name) : name;
+            var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.AsInt32() : 0;
+            var eLine = root.TryGetProperty("end_line", out var elProp) ? elProp.AsInt32(sLine) : sLine;
 
             var normPath = filePath.Replace('\\', '/').TrimStart('/');
 
@@ -692,14 +690,13 @@ public class TestIntelligenceService
                     var newPath = new List<string>(targetPath.Path.Count + 1) { callerName };
                     newPath.AddRange(targetPath.Path);
 
-                    using var doc = JsonDocument.Parse(propsJson);
-                    var root = doc.RootElement;
+                    var root = CypherValue.TryParseJsonText(propsJson);
 
-                    var name = root.TryGetProperty("name", out var np) ? np.GetString() ?? callerName : callerName;
-                    var symbol = root.TryGetProperty("symbol", out var sp) ? sp.GetString() ?? name : name;
+                    var name = root.TryGetProperty("name", out var np) && !np.IsNull ? np.AsString(callerName) : callerName;
+                    var symbol = root.TryGetProperty("symbol", out var sp) && !sp.IsNull ? sp.AsString(name) : name;
                     var filePath = ResolveBestFilePath(root);
-                    var sLine = root.TryGetProperty("start_line", out var slp) ? slp.GetInt32() : 0;
-                    var framework = root.TryGetProperty("test_framework", out var tfp) ? tfp.GetString() : DetectFramework(filePath);
+                    var sLine = root.TryGetProperty("start_line", out var slp) ? slp.AsInt32() : 0;
+                    var framework = root.TryGetProperty("test_framework", out var tfp) && !tfp.IsNull ? tfp.AsString() : DetectFramework(filePath);
 
                     var isTest = IsTestFunction(root, name, filePath);
 
@@ -776,14 +773,13 @@ public class TestIntelligenceService
         return null;
     }
 
-    private static bool IsTestFunction(JsonElement root, string name, string filePath)
+    private static bool IsTestFunction(CypherValue root, string name, string filePath)
     {
         if (IsLifecycleOrHelperName(name)) return false;
 
-        if (root.TryGetProperty("is_test", out var itp))
+        if (root.TryGetProperty("is_test", out var itp) && itp.AsBool())
         {
-            if (itp.ValueKind == JsonValueKind.True) return true;
-            if (itp.ValueKind == JsonValueKind.String && string.Equals(itp.GetString(), "true", StringComparison.OrdinalIgnoreCase)) return true;
+            return true;
         }
 
         var normPath = filePath.Replace('\\', '/').ToLowerInvariant();
@@ -822,10 +818,10 @@ public class TestIntelligenceService
         return "generic";
     }
 
-    private static string ResolveBestFilePath(JsonElement root)
+    private static string ResolveBestFilePath(CypherValue root)
     {
-        var path = root.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
-        var filePath = root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "";
+        var path = root.TryGetProperty("path", out var pp) ? pp.AsString() : "";
+        var filePath = root.TryGetProperty("file_path", out var fp) ? fp.AsString() : "";
 
         if (path.Contains('/') || path.Contains('\\'))
         {

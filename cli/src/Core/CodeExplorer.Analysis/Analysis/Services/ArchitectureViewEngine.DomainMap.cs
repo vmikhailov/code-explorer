@@ -274,23 +274,18 @@ public partial class ArchitectureViewEngine
         var result = new List<string>();
         if (rawSecondary.TrimStart().StartsWith("["))
         {
-            try
+            var arrVal = CypherValue.TryParseJsonText(rawSecondary);
+            if (arrVal.Kind == CypherValueKind.Array)
             {
-                using var doc = JsonDocument.Parse(rawSecondary);
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                foreach (var val in arrVal.AsStringList())
                 {
-                    foreach (var el in doc.RootElement.EnumerateArray())
+                    if (!string.IsNullOrWhiteSpace(val) && !result.Contains(val, StringComparer.OrdinalIgnoreCase))
                     {
-                        var val = el.GetString();
-                        if (!string.IsNullOrWhiteSpace(val) && !result.Contains(val, StringComparer.OrdinalIgnoreCase))
-                        {
-                            result.Add(val);
-                        }
+                        result.Add(val);
                     }
-                    return result;
                 }
+                return result;
             }
-            catch { }
         }
         foreach (var part in rawSecondary.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {

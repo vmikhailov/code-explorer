@@ -97,13 +97,13 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         string? PrimaryRelationalEngine);
 
     private async Task<SystemContextDiscoveryState> DiscoverSystemContextCandidatesAsync(
-        JsonDocument nodesDoc,
+        CypherQueryResult nodesRes,
         CancellationToken ct)
     {
         var internalProjectsLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectCandidates = new List<ProjectMatchCandidate>();
 
-        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
+        foreach (var elem in nodesRes.Rows)
         {
             var k = elem.GetStringProp("kind");
             var nid = elem.GetStringProp("id");
@@ -147,9 +147,8 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         {
             var epQuery =
                 "MATCH (ep:Endpoint) RETURN ep.id AS id, ep.name AS name, json_extract(ep.properties, '$.route_template') AS route, json_extract(ep.properties, '$.http_method') AS method, json_extract(ep.properties, '$.path') AS path";
-            var epJson = await db.ExecuteQueryAsync(epQuery, null, ct);
-            using var epDoc = JsonDocument.Parse(epJson);
-            foreach (var epRow in epDoc.RootElement.EnumerateArray())
+            var epRes = await db.ExecuteCypherAsync(epQuery, null, ct);
+            foreach (var epRow in epRes.Rows)
             {
                 var epId = epRow.GetStringProp("id");
                 var epName = epRow.GetStringProp("name");
@@ -160,7 +159,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
                 if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(epName) && epName.Contains(':'))
                 {
                     var parts = epName.Split(':', 2);
-                    epMethod ??= parts[0];
+                    if (string.IsNullOrEmpty(epMethod)) epMethod = parts[0];
                     epRoute = parts[1];
                 }
 
@@ -179,7 +178,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
 
         string? primaryRelationalEngine = null;
 
-        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
+        foreach (var elem in nodesRes.Rows)
         {
             if (elem.GetStringProp("kind") == "Database")
             {
@@ -211,7 +210,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         return new SystemContextDiscoveryState(internalProjectsLookup, projectCandidates, endpointCandidates, primaryRelationalEngine);
     }
 
-    private static Dictionary<string, string> ExtractBaseNodeProperties(JsonElement elem)
+    private static Dictionary<string, string> ExtractBaseNodeProperties(CypherRow elem)
     {
         var props = elem.ExtractProperties();
         var role = elem.GetStringProp("role", props.GetValueOrDefault("role", ""));
@@ -257,7 +256,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     }
 
     private static void ProcessDatabaseNode(
-        JsonElement elem,
+        CypherRow elem,
         string id,
         string name,
         Dictionary<string, string> props,
@@ -361,7 +360,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     }
 
     private static void ProcessPackageNode(
-        JsonElement elem,
+        CypherRow elem,
         string id,
         string name,
         Dictionary<string, string> props,
@@ -408,7 +407,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     }
 
     private static void ProcessTopicNode(
-        JsonElement elem,
+        CypherRow elem,
         string id,
         string name,
         Dictionary<string, string> props,
@@ -474,7 +473,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     }
 
     private static void ProcessCloudServiceNode(
-        JsonElement elem,
+        CypherRow elem,
         string id,
         string name,
         Dictionary<string, string> props,
@@ -550,7 +549,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     }
 
     private static void ProcessExternalServiceNode(
-        JsonElement elem,
+        CypherRow elem,
         string id,
         string name,
         Dictionary<string, string> props,
@@ -670,7 +669,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     }
 
     private void ProcessProjectOrWorkloadNode(
-        JsonElement elem,
+        CypherRow elem,
         string id,
         string kind,
         string name,

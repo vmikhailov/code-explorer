@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.TypeScript;
@@ -159,8 +160,7 @@ public partial class TypeScriptParser
         try
         {
             var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(content);
 
             var hasMainOrExports = root.TryGetProperty("main", out _) ||
                                    root.TryGetProperty("module", out _) ||
@@ -171,9 +171,9 @@ public partial class TypeScriptParser
             var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var depSec in new[] { "dependencies", "devDependencies" })
             {
-                if (root.TryGetProperty(depSec, out var dObj) && dObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                if (root.TryGetProperty(depSec, out var dObj) && dObj.Kind == CypherValueKind.Object)
                 {
-                    foreach (var p in dObj.EnumerateObject()) allDeps.Add(p.Name);
+                    foreach (var p in dObj.AsObject()) allDeps.Add(p.Key);
                 }
             }
 
@@ -221,13 +221,12 @@ public partial class TypeScriptParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(projectJsonPath);
+                var pRoot = CypherValue.TryParseJsonText(content);
 
-                using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-                if (doc.RootElement.TryGetProperty("projectType", out var ptProp) &&
-                    ptProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                if (pRoot.TryGetProperty("projectType", out var ptProp) &&
+                    ptProp.Kind == CypherValueKind.String)
                 {
-                    var pt = ptProp.GetString()?.ToLowerInvariant();
+                    var pt = ptProp.AsNullableString()?.ToLowerInvariant();
 
                     if (pt == "library")
                     {
@@ -255,22 +254,19 @@ public partial class TypeScriptParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-
-                using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-                var root = doc.RootElement;
+                var root = CypherValue.TryParseJsonText(content);
 
                 // Check "bin" property
                 if (root.TryGetProperty("bin", out var binProp))
                 {
-                    if (binProp.ValueKind == System.Text.Json.JsonValueKind.String &&
-                        !string.IsNullOrWhiteSpace(binProp.GetString()))
+                    if (binProp.Kind == CypherValueKind.String &&
+                        !string.IsNullOrWhiteSpace(binProp.AsNullableString()))
                     {
                         props["has_cli_bin"] = "true";
                         if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
                     }
-                    else if (binProp.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                             binProp.EnumerateObject().Any())
+                    else if (binProp.Kind == CypherValueKind.Object &&
+                             binProp.AsObject().Count > 0)
                     {
                         props["has_cli_bin"] = "true";
                         if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
@@ -281,15 +277,15 @@ public partial class TypeScriptParser
                 var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 if (root.TryGetProperty("dependencies", out var depsObj) &&
-                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    depsObj.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in depsObj.EnumerateObject()) allDeps.Add(prop.Name);
+                    foreach (var prop in depsObj.AsObject()) allDeps.Add(prop.Key);
                 }
 
                 if (root.TryGetProperty("devDependencies", out var devDepsObj) &&
-                    devDepsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    devDepsObj.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in devDepsObj.EnumerateObject()) allDeps.Add(prop.Name);
+                    foreach (var prop in devDepsObj.AsObject()) allDeps.Add(prop.Key);
                 }
 
                 var hasIndexHtml = filesInDirectory.Any(f =>
@@ -328,8 +324,8 @@ public partial class TypeScriptParser
                     allDeps.Any(d => d is "solid-js" or "nuxt");
 
                 var pkgName =
-                    root.TryGetProperty("name", out var np) && np.ValueKind == System.Text.Json.JsonValueKind.String
-                        ? (np.GetString() ?? "").ToLowerInvariant()
+                    root.TryGetProperty("name", out var np) && np.Kind == CypherValueKind.String
+                        ? np.AsString().ToLowerInvariant()
                         : "";
                 var projDirName = Path.GetFileName(directoryPath).ToLowerInvariant();
 
@@ -338,11 +334,11 @@ public partial class TypeScriptParser
                                             pkgName.Contains("scheduler") || pkgName.Contains("consumer");
 
                 var hasWorkerScripts = root.TryGetProperty("scripts", out var scrObj) &&
-                                       scrObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                                       scrObj.EnumerateObject().Any(s =>
-                                           s.Name.StartWithIC("worker:") ||
-                                           s.Name.Contains("wrangler", StringComparison.OrdinalIgnoreCase) ||
-                                           s.Value.ToString().Contains("wrangler", StringComparison.OrdinalIgnoreCase));
+                                       scrObj.Kind == CypherValueKind.Object &&
+                                       scrObj.AsObject().Any(s =>
+                                           s.Key.StartWithIC("worker:") ||
+                                           s.Key.Contains("wrangler", StringComparison.OrdinalIgnoreCase) ||
+                                           s.Value.AsString().Contains("wrangler", StringComparison.OrdinalIgnoreCase));
 
                 var isWorkerProject = hasWrangler || (hasWorkerDeps && (isDedicatedWorkerName || hasWorkerScripts));
 
@@ -370,8 +366,8 @@ public partial class TypeScriptParser
                 var hasPeerDeps = root.TryGetProperty("peerDependencies", out _);
                 var hasPublishConfig = root.TryGetProperty("publishConfig", out _);
                 var hasPublishScript = root.TryGetProperty("scripts", out var sObj) &&
-                                       sObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                                       sObj.EnumerateObject().Any(s => s.Value.ToString().Contains("npm publish", StringComparison.OrdinalIgnoreCase));
+                                       sObj.Kind == CypherValueKind.Object &&
+                                       sObj.AsObject().Any(s => s.Value.AsString().Contains("npm publish", StringComparison.OrdinalIgnoreCase));
 
                 var hasExplicitExports = root.TryGetProperty("exports", out _) ||
                                          root.TryGetProperty("types", out _) ||
@@ -379,19 +375,19 @@ public partial class TypeScriptParser
                                          root.TryGetProperty("main", out _);
 
                 var hasPrimaryAppStartScript = root.TryGetProperty("scripts", out var scriptsObj) &&
-                                               scriptsObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                                               scriptsObj.EnumerateObject().Any(s =>
-                                                   s.Name.Equals("start", StringComparison.OrdinalIgnoreCase) ||
-                                                   s.Name.Equals("start:prod", StringComparison.OrdinalIgnoreCase) ||
-                                                   s.Name.Equals("serve", StringComparison.OrdinalIgnoreCase));
+                                               scriptsObj.Kind == CypherValueKind.Object &&
+                                               scriptsObj.AsObject().Any(s =>
+                                                   s.Key.Equals("start", StringComparison.OrdinalIgnoreCase) ||
+                                                   s.Key.Equals("start:prod", StringComparison.OrdinalIgnoreCase) ||
+                                                   s.Key.Equals("serve", StringComparison.OrdinalIgnoreCase));
 
                 var isVsCodeExtension = (root.TryGetProperty("engines", out var enginesProp) &&
-                                         enginesProp.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                         enginesProp.Kind == CypherValueKind.Object &&
                                          enginesProp.TryGetProperty("vscode", out _)) ||
                                         (root.TryGetProperty("contributes", out var contributesProp) &&
-                                         contributesProp.ValueKind == System.Text.Json.JsonValueKind.Object) ||
+                                         contributesProp.Kind == CypherValueKind.Object) ||
                                         (root.TryGetProperty("activationEvents", out var actProp) &&
-                                         actProp.ValueKind == System.Text.Json.JsonValueKind.Array) ||
+                                         actProp.Kind == CypherValueKind.Array) ||
                                         allDeps.Contains("@types/vscode");
 
                 var isLibraryByContract = !isWorkerProject && !isVsCodeExtension && (hasPeerDeps || hasPublishConfig || hasPublishScript || (hasExplicitExports && !hasPrimaryAppStartScript));

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
@@ -37,7 +36,7 @@ public partial class ArchitectureViewEngine
         return null;
     }
 
-    private static int? ParseLineProp(IReadOnlyDictionary<string, string> relProps, string propKey, JsonElement row, string rowKey)
+    private static int? ParseLineProp(IReadOnlyDictionary<string, string> relProps, string propKey, CypherRow row, string rowKey)
     {
         if (relProps.TryGetValue(propKey, out var raw) && int.TryParse(raw, out var parsed) && parsed > 0)
         {
@@ -67,25 +66,18 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var tJson = await db.ExecuteQueryAsync(targetQuery, new Dictionary<string, object> { ["id"] = nodeId }, ct);
+            var tRes = await db.ExecuteCypherAsync(targetQuery, new { id = nodeId }, ct);
 
-            using var tDoc = JsonDocument.Parse(tJson);
-
-            var first = tDoc.RootElement.EnumerateArray().FirstOrDefault();
-
-            if (first.ValueKind == JsonValueKind.Object)
+            if (tRes.Rows.Count > 0)
             {
+                var first = tRes.Rows[0];
                 response.TargetId = first.GetStringProp("id", nodeId);
                 response.TargetName = first.GetStringProp("name", nodeId);
                 response.TargetKind = EnumExtensions.ParseNodeKind(first.GetStringProp("kind", ""));
                 targetName = response.TargetName;
                 targetKind = response.TargetKind.ToCypherLabel();
                 declFile = first.GetStringProp("file_path");
-
-                if (first.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
-                {
-                    declLine = lp.GetInt32();
-                }
+                declLine = first.GetNullableIntProp("line");
             }
         }
         catch { }
@@ -114,16 +106,13 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var paramsDict = new Dictionary<string, object>
+            var uRes = await db.ExecuteCypherAsync(usagesQuery, new
             {
-                ["id"] = response.TargetId,
-                ["name"] = response.TargetName
-            };
-            var uJson = await db.ExecuteQueryAsync(usagesQuery, paramsDict, ct);
+                id = response.TargetId,
+                name = response.TargetName
+            }, ct);
 
-            using var uDoc = JsonDocument.Parse(uJson);
-
-            foreach (var row in uDoc.RootElement.EnumerateArray())
+            foreach (var row in uRes.Rows)
             {
                 var srcId = row.GetStringProp("src_id");
                 if (string.IsNullOrEmpty(srcId) || srcId == response.TargetId) continue;
@@ -139,14 +128,7 @@ public partial class ArchitectureViewEngine
                     service = row.GetStringProp("project_id");
                 }
 
-                int? line = null;
-
-                if (row.TryGetProperty("line", out var lp))
-                {
-                    if (lp.ValueKind == JsonValueKind.Number) line = lp.GetInt32();
-                    else if (lp.ValueKind == JsonValueKind.String && int.TryParse(lp.GetString(), out var pl))
-                        line = pl;
-                }
+                var line = row.GetNullableIntProp("line");
 
                 var key = $"{srcId}:{relKind}:{filePath}:{line}";
                 if (!seenKeys.Add(key)) continue;
@@ -222,11 +204,10 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var dbJson = await db.ExecuteQueryAsync(dbQuery, new Dictionary<string, object> { ["id"] = databaseId }, ct);
-            using var dbDoc = JsonDocument.Parse(dbJson);
-            var firstDb = dbDoc.RootElement.EnumerateArray().FirstOrDefault();
-            if (firstDb.ValueKind == JsonValueKind.Object)
+            var dbRes = await db.ExecuteCypherAsync(dbQuery, new { id = databaseId }, ct);
+            if (dbRes.Rows.Count > 0)
             {
+                var firstDb = dbRes.Rows[0];
                 resolvedDbId = firstDb.GetStringProp("id", databaseId);
                 dbName = firstDb.GetStringProp("name", databaseId);
                 dbEngine = firstDb.GetStringProp("engine", "");
@@ -283,8 +264,7 @@ public partial class ArchitectureViewEngine
                        json_extract(q.properties, '$.service') AS service,
                        json_extract(q.properties, '$.caller') AS caller
                 """;
-            var qJson = await db.ExecuteQueryAsync(qQuery, null, ct);
-            using var qDoc = JsonDocument.Parse(qJson);
+            var qRes = await db.ExecuteCypherAsync(qQuery, null, ct);
 
             // Also find callers from (q:Query)-[:DECLARED_IN|ACCESSED_BY]->(fn:Function) or legacy (fn:Function)-[:DECLARES]->(q:Query)
             var fnCallersQuery = """
@@ -295,12 +275,9 @@ public partial class ArchitectureViewEngine
             var fnCallers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                var fnJson = await db.ExecuteQueryAsync(fnCallersQuery, null, ct);
-                using var fnDoc = JsonDocument.Parse(fnJson);
-                foreach (var row in fnDoc.RootElement.EnumerateArray())
+                var fnRows = await db.QueryAsync<(string QId, string FnName)>(fnCallersQuery, null, ct);
+                foreach (var (qId, fnName) in fnRows)
                 {
-                    var qId = row.GetStringProp("q_id");
-                    var fnName = row.GetStringProp("fn_name");
                     if (!string.IsNullOrEmpty(qId) && !string.IsNullOrEmpty(fnName) && !fnCallers.ContainsKey(qId))
                     {
                         fnCallers[qId] = fnName;
@@ -312,7 +289,7 @@ public partial class ArchitectureViewEngine
                 RecordEvidenceWarning(warnings, "Query function callers lookup", ex);
             }
 
-            foreach (var row in qDoc.RootElement.EnumerateArray())
+            foreach (var row in qRes.Rows)
             {
                 var qId = row.GetStringProp("id");
                 var qName = row.GetStringProp("name");
@@ -414,16 +391,14 @@ public partial class ArchitectureViewEngine
                            json_extract(src.properties, '$.query_text') AS query_text,
                            json_extract(src.properties, '$.verb') AS verb
                     """;
-                var paramsDict = new Dictionary<string, object>
+                var relsRes = await db.ExecuteCypherAsync(relsQuery, new
                 {
-                    ["id"] = resolvedDbId ?? databaseId,
-                    ["name"] = dbName ?? databaseId,
-                    ["rawId"] = databaseId
-                };
-                var relsJson = await db.ExecuteQueryAsync(relsQuery, paramsDict, ct);
-                using var relsDoc = JsonDocument.Parse(relsJson);
+                    id = resolvedDbId ?? databaseId,
+                    name = dbName ?? databaseId,
+                    rawId = databaseId
+                }, ct);
 
-                foreach (var row in relsDoc.RootElement.EnumerateArray())
+                foreach (var row in relsRes.Rows)
                 {
                     var rProps = row.ExtractProperties();
                     var srcId = row.GetStringProp("id");
@@ -563,9 +538,8 @@ public partial class ArchitectureViewEngine
                                json_extract(src.properties, '$.query_text') AS query_text,
                                json_extract(src.properties, '$.service') AS service
                         """;
-                    var usersJson = await db.ExecuteQueryAsync(usersQuery, new Dictionary<string, object> { ["objId"] = obj.Id }, ct);
-                    using var usersDoc = JsonDocument.Parse(usersJson);
-                    foreach (var row in usersDoc.RootElement.EnumerateArray())
+                    var usersRes = await db.ExecuteCypherAsync(usersQuery, new { objId = obj.Id }, ct);
+                    foreach (var row in usersRes.Rows)
                     {
                         var rProps = row.ExtractProperties();
                         var srcId = row.GetStringProp("id");

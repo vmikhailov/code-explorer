@@ -82,8 +82,8 @@ public class PostIndexAnalyzerTests
                 {
                     var from = reader.GetString(0);
                     var to = reader.GetString(1);
-                    var props = JsonDocument.Parse(reader.GetString(2)).RootElement;
-                    tcRels[(from, to)] = props.GetProperty("hops").GetInt32();
+                    var props = CypherValue.TryParseJsonText(reader.GetString(2));
+                    tcRels[(from, to)] = props.GetIntProp("hops");
                 }
 
                 tcRels.Should().HaveCount(8);
@@ -111,10 +111,10 @@ public class PostIndexAnalyzerTests
                 {
                     var from = reader.GetString(0);
                     var to = reader.GetString(1);
-                    var props = JsonDocument.Parse(reader.GetString(2)).RootElement;
+                    var props = CypherValue.TryParseJsonText(reader.GetString(2));
 
-                    attrRels[(from, to)] = (props.GetProperty("hops").GetInt32(),
-                        props.GetProperty("sink_kind").GetString()!);
+                    attrRels[(from, to)] = (props.GetIntProp("hops"),
+                        props.GetStringProp("sink_kind"));
                 }
 
                 attrRels.Should().HaveCount(3);
@@ -135,9 +135,9 @@ public class PostIndexAnalyzerTests
         {
             cmd.CommandText = "SELECT json(properties) FROM nodes WHERE id = '1:project:main';";
             var rawJson = (string)cmd.ExecuteScalar()!;
-            var doc = JsonDocument.Parse(rawJson);
-            doc.RootElement.TryGetProperty("external_apis", out var extApis).Should().BeTrue();
-            var apiList = extApis.EnumerateArray().Select(x => x.GetString()).ToList();
+            var doc = CypherValue.TryParseJsonText(rawJson);
+            doc.TryGetProperty("external_apis", out var extApis).Should().BeTrue();
+            var apiList = extApis.AsStringList();
             apiList.Should().Contain("api.stripe.com");
         }
 
@@ -194,14 +194,14 @@ public class PostIndexAnalyzerTests
         // Find workspace
         using var client = new SqliteGraphClient(dbPath);
 
-        var wsRes = await client.ExecuteQueryAsync(
+        var wsRes = await client.ExecuteCypherAsync(
             "MATCH (w:Workspace) RETURN w.id AS id, w.name AS name, w.path AS path");
 
         var queriesDir = Path.Combine(dir.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
         var cypher = File.ReadAllText(Path.Combine(queriesDir, "get_architecture_map_workspace.cypher"));
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var res = await client.ExecuteQueryAsync(cypher, new { workspaceId = "2" });
+        var res = await client.ExecuteCypherAsync(cypher, new { workspaceId = "2" });
         sw.Stop();
     }
 

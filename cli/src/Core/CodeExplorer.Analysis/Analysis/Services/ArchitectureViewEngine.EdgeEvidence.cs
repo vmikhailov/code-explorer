@@ -226,9 +226,8 @@ public partial class ArchitectureViewEngine
                 WHERE s.id IN [{srcLiterals}] AND t.id IN [{tgtLiterals}]
                 RETURN s.id AS s_id, t.id AS t_id, r.properties AS properties
                 """;
-            var json = await db.ExecuteQueryAsync(rolledQuery, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(rolledQuery, null, ct);
+            foreach (var row in res.Rows)
             {
                 var sId = row.GetStringProp("s_id");
                 var tId = row.GetStringProp("t_id");
@@ -300,9 +299,8 @@ public partial class ArchitectureViewEngine
                        coalesce(json_extract(src.properties, '$.query_text'), json_extract(tgt.properties, '$.query_text')) AS query_text,
                        coalesce(json_extract(src.properties, '$.verb'), json_extract(tgt.properties, '$.verb')) AS src_verb
                 """;
-            var cJson = await db.ExecuteQueryAsync(contribQuery, null, ct);
-            using var cDoc = JsonDocument.Parse(cJson);
-            foreach (var row in cDoc.RootElement.EnumerateArray())
+            var cRes = await db.ExecuteCypherAsync(contribQuery, null, ct);
+            foreach (var row in cRes.Rows)
             {
                 var srcId = row.GetStringProp("src_id");
                 var tgtId = row.GetStringProp("tgt_id");
@@ -569,9 +567,8 @@ public partial class ArchitectureViewEngine
                 RETURN n.id AS id, n.name AS name, labels(n)[0] AS kind, coalesce(n.file_path, n.path) AS path,
                        coalesce(n.start_line, n.line) AS line
                 """;
-            var json = await db.ExecuteQueryAsync(query, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+            var res = await db.ExecuteCypherAsync(query, null, ct);
+            foreach (var row in res.Rows)
             {
                 var rId = row.GetStringProp("id");
                 if (string.IsNullOrEmpty(rId)) continue;

@@ -7,7 +7,7 @@ namespace CodeExplorer.Core.Analysis;
 public partial class ArchitectureViewEngine
 {
     private void PopulateSystemContextNodes(
-        JsonDocument nodesDoc,
+        CypherQueryResult nodesRes,
         GraphDataDto graph,
         Dictionary<string, GraphNodeDto> nodeMap,
         Dictionary<string, string> dbIdToCanonicalId,
@@ -16,7 +16,7 @@ public partial class ArchitectureViewEngine
         bool includeLibraries,
         string? projectFilter)
     {
-        var sortedElems = nodesDoc.RootElement.EnumerateArray()
+        var sortedElems = nodesRes.Rows
             .OrderBy(e => e.GetStringProp("kind") == "Project" ? 1 : 0);
 
         foreach (var elem in sortedElems)
@@ -76,19 +76,10 @@ public partial class ArchitectureViewEngine
             {
                 var pkgCountQuery =
                     "MATCH (p)-[:DEPENDS_ON]->(pkg:Package) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS projId, count(pkg) AS pkgCount";
-                var pkgCountJson = await db.ExecuteQueryAsync(pkgCountQuery, null, ct);
+                var pkgCountRows = await db.QueryAsync<(string ProjId, long PkgCount)>(pkgCountQuery, null, ct);
 
-                using var pkgCountDoc = JsonDocument.Parse(pkgCountJson);
-
-                foreach (var row in pkgCountDoc.RootElement.EnumerateArray())
+                foreach (var (projId, count) in pkgCountRows)
                 {
-                    var projId = row.GetStringProp("projId");
-
-                    var count = row.TryGetProperty("pkgCount", out var pc) &&
-                                pc.ValueKind == JsonValueKind.Number
-                        ? pc.GetInt64()
-                        : 0;
-
                     if (!string.IsNullOrEmpty(projId) && nodeMap.TryGetValue(projId, out var pNode) &&
                         pNode.Properties != null)
                     {
@@ -112,13 +103,11 @@ public partial class ArchitectureViewEngine
     {
         var edgesQuery =
             "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'USES_CLOUD', 'READS_FROM', 'WRITES_TO', 'COORDINATES_WITH', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY', 'TESTS'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
-        var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
-
-        using var edgesDoc = JsonDocument.Parse(edgesJson);
+        var edgesRes = await db.ExecuteCypherAsync(edgesQuery, null, ct);
 
         var edgeSet = new HashSet<(string From, string To, string Kind)>();
 
-        foreach (var elem in edgesDoc.RootElement.EnumerateArray())
+        foreach (var elem in edgesRes.Rows)
         {
             var rawFrom = elem.GetStringProp("from_id");
             var rawTo = elem.GetStringProp("to_id");
@@ -609,19 +598,14 @@ public partial class ArchitectureViewEngine
 
         // Query all components declared in or persisted in this project (excluding unit tests)
         var query = "MATCH (p)-[:CONTAINS*1..3]->(c) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) AND (p.id = $scope OR p.name = $scope) AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, c.path AS path";
-        var resJson = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["scope"] = projectScope }, ct);
-
-        using var doc = JsonDocument.Parse(resJson);
+        var resRows = await db.QueryAsync<(string Id, string Kind, string Name, string? Path)>(query, new { scope = projectScope }, ct);
 
         var compIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var elem in doc.RootElement.EnumerateArray())
+        foreach (var (id, kind, rawName, path) in resRows)
         {
-            var id = elem.GetProperty("id").GetString();
-            var kind = elem.GetProperty("kind").GetString();
-            if (id == null || kind == null) continue;
-            var name = elem.GetProperty("name").GetString() ?? id;
-            var path = elem.TryGetProperty("path", out var pp) ? pp.GetString() : null;
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(kind)) continue;
+            var name = string.IsNullOrEmpty(rawName) ? id : rawName;
 
             if (compIds.Add(id))
             {
@@ -640,16 +624,11 @@ public partial class ArchitectureViewEngine
 
                 var relsQuery =
                     $"MATCH (src)-[r]->(tgt) WHERE src.id IN [{inListStr}] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind";
-                var relsJson = await db.ExecuteQueryAsync(relsQuery, null, ct);
+                var relsRows = await db.QueryAsync<(string FromId, string ToId, string Kind)>(relsQuery, null, ct);
 
-                using var relsDoc = JsonDocument.Parse(relsJson);
-
-                foreach (var elem in relsDoc.RootElement.EnumerateArray())
+                foreach (var (fromId, toId, kind) in relsRows)
                 {
-                    var fromId = elem.GetProperty("from_id").GetString();
-                    var toId = elem.GetProperty("to_id").GetString();
-                    var kind = elem.GetProperty("kind").GetString();
-                    if (fromId == null || toId == null || kind == null) continue;
+                    if (string.IsNullOrEmpty(fromId) || string.IsNullOrEmpty(toId) || string.IsNullOrEmpty(kind)) continue;
 
                     if (!compIds.Contains(toId)) continue;
 

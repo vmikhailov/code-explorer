@@ -214,7 +214,7 @@ public class ClearWorkspacesTests
         nodeCount.Should().Be(4);
         relCount.Should().Be(2);
 
-        var remainingNodes = await client.ExecuteQueryAsync("MATCH (n) RETURN n.id AS id ORDER BY id");
+        var remainingNodes = (await client.ExecuteCypherAsync("MATCH (n) RETURN n.id AS id ORDER BY id")).ToJson();
         remainingNodes.Should().NotContain("service-a");
         remainingNodes.Should().NotContain("OrderService");
         remainingNodes.Should().NotContain("Process");

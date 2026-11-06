@@ -547,11 +547,7 @@ public partial class SqliteGraphClient
                     pFrom.Value = rel.EpId;
                     pTo.Value = rel.SinkId;
 
-                    var props = new Dictionary<string, object>
-                    {
-                        ["hops"] = rel.Hops, ["sink_kind"] = rel.SinkKind
-                    };
-                    pProps.Value = JsonSerializer.Serialize(props);
+                    pProps.Value = JsonSerializer.Serialize(new { hops = rel.Hops, sink_kind = rel.SinkKind });
                     insCmd.ExecuteNonQuery();
                 }
             }

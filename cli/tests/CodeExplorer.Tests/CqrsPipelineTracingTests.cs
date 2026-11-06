@@ -74,15 +74,11 @@ public class CqrsPipelineTracingTests
                     MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
                     RETURN pub.name AS producer, topic.name AS message, topic.broker_type AS broker, sub.name AS consumer
                     """;
-        var resultJson = await client.ExecuteQueryAsync(query);
+        var res = await client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(resultJson);
+        res.Count.Should().BeGreaterThan(0, "MediatR message pipeline should be traceable");
 
-        var rows = doc.RootElement.EnumerateArray().ToList();
-
-        rows.Count.Should().BeGreaterThan(0, "MediatR message pipeline should be traceable");
-
-        (rows.Any(r => r.GetProperty("message").GetString() == "OrderCreatedEvent")).Should().BeTrue("OrderCreatedEvent topic should connect publisher to subscriber");
+        (res.Rows.Any(r => r.GetStringProp("message") == "OrderCreatedEvent")).Should().BeTrue("OrderCreatedEvent topic should connect publisher to subscriber");
     }
 
     [Test]
@@ -132,16 +128,12 @@ public class CqrsPipelineTracingTests
                     MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
                     RETURN pub.name AS producer, topic.name AS message, topic.broker_type AS broker, sub.name AS consumer
                     """;
-        var resultJson = await client.ExecuteQueryAsync(query);
+        var res = await client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(resultJson);
+        res.Count.Should().BeGreaterThan(0, "Spring Events pipeline should connect publisher to @EventListener subscriber");
 
-        var rows = doc.RootElement.EnumerateArray().ToList();
-
-        rows.Count.Should().BeGreaterThan(0, "Spring Events pipeline should connect publisher to @EventListener subscriber");
-
-        (rows.Any(r =>
-                r.GetProperty("message").GetString() == "OrderCreatedEvent" &&
-                r.GetProperty("broker").GetString() == "spring")).Should().BeTrue();
+        (res.Rows.Any(r =>
+                r.GetStringProp("message") == "OrderCreatedEvent" &&
+                r.GetStringProp("broker") == "spring")).Should().BeTrue();
     }
 }

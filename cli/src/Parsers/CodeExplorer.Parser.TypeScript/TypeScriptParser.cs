@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -345,8 +346,8 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
                 if (File.Exists(parentPkgJson))
                 {
                     var content = PhysicalFileStore.ReadAllText(parentPkgJson);
-                    using var doc = System.Text.Json.JsonDocument.Parse(content);
-                    if (!doc.RootElement.TryGetProperty("workspaces", out _))
+                    var pRoot = CypherValue.TryParseJsonText(content);
+                    if (pRoot.Kind == CypherValueKind.Object && !pRoot.TryGetProperty("workspaces", out _))
                     {
                         return true;
                     }
@@ -398,14 +399,13 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         try
         {
             var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            var root = doc.RootElement;
-            if (root.ValueKind != System.Text.Json.JsonValueKind.Object || !root.EnumerateObject().Any())
+            var root = CypherValue.TryParseJsonText(content);
+            if (root.Kind != CypherValueKind.Object || root.AsObject().Count == 0)
             {
                 return false;
             }
 
-            if (root.TryGetProperty("name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+            if (root.TryGetProperty("name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.AsNullableString()))
             {
                 return false;
             }
@@ -446,13 +446,12 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(packageJsonPath);
+                var root = CypherValue.TryParseJsonText(content);
 
-                using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-                if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
-                    nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                if (root.TryGetProperty("name", out var nameProp) &&
+                    nameProp.Kind == CypherValueKind.String)
                 {
-                    var rawName = nameProp.GetString();
+                    var rawName = nameProp.AsNullableString();
 
                     if (!string.IsNullOrWhiteSpace(rawName))
                     {
@@ -587,23 +586,20 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         try
         {
             var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(content);
 
             if (root.TryGetProperty("name", out var nameProp) &&
-                nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                nameProp.Kind == CypherValueKind.String)
             {
-                var name = nameProp.GetString();
+                var name = nameProp.AsNullableString();
                 if (string.IsNullOrEmpty(name)) return null;
 
                 var version = "1.0.0";
 
                 if (root.TryGetProperty("version", out var versionProp) &&
-                    versionProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    versionProp.Kind == CypherValueKind.String)
                 {
-                    version = versionProp.GetString() ?? "1.0.0";
+                    version = versionProp.AsString("1.0.0");
                 }
 
                 return new ProducedPackageInfo(name, version, "npm");
@@ -631,22 +627,19 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         try
         {
             var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(content);
 
             var depProperties = new[] { "dependencies", "devDependencies" };
 
             foreach (var propName in depProperties)
             {
                 if (root.TryGetProperty(propName, out var depsObj) &&
-                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    depsObj.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in depsObj.EnumerateObject())
+                    foreach (var prop in depsObj.AsObject())
                     {
-                        var packageName = prop.Name;
-                        var packageVersion = prop.Value.GetString() ?? "unknown";
+                        var packageName = prop.Key;
+                        var packageVersion = prop.Value.AsString("unknown");
 
                         // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
                         if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
@@ -796,20 +789,17 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         try
         {
             var content = PhysicalFileStore.ReadAllText(path);
-
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(content);
             var depProperties = new[] { "dependencies", "devDependencies" };
 
             foreach (var propName in depProperties)
             {
                 if (root.TryGetProperty(propName, out var depsObj) &&
-                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    depsObj.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in depsObj.EnumerateObject())
+                    foreach (var prop in depsObj.AsObject())
                     {
-                        deps.Add(prop.Name);
+                        deps.Add(prop.Key);
                     }
                 }
             }

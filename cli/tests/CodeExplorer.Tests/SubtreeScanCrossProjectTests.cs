@@ -81,12 +81,12 @@ public class SubtreeScanCrossProjectTests
             var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
 
             // Verify cross-project CALLS and CALLS_ENDPOINT exist after full scan
-            var callsJson = await client.ExecuteQueryAsync(
-                $"MATCH (f1:Function)-[:CALLS]->(f2:Function {{name: 'ProcessOrder'}}) WHERE f1.id STARTS WITH '{wsId}:' RETURN count(f1) AS count");
+            var callsJson = (await client.ExecuteCypherAsync(
+                $"MATCH (f1:Function)-[:CALLS]->(f2:Function {{name: 'ProcessOrder'}}) WHERE f1.id STARTS WITH '{wsId}:' RETURN count(f1) AS count")).ToJson();
             callsJson.Should().Contain("\"count\": 1");
 
-            var lateBoundJson = await client.ExecuteQueryAsync(
-                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN count(es) AS count");
+            var lateBoundJson = (await client.ExecuteCypherAsync(
+                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN count(es) AS count")).ToJson();
             lateBoundJson.Should().Contain("\"count\": 1");
 
             // 2. Subtree scan ONLY ProjectC (incremental scan of a single project)
@@ -94,23 +94,23 @@ public class SubtreeScanCrossProjectTests
             subtreeResults.NodesCount.Should().BeGreaterThan(0);
 
             // Verify cross-project CALLS to OrderService.ProcessOrder is still resolved!
-            var subtreeCallsJson = await client.ExecuteQueryAsync(
-                $"MATCH (f1:Function)-[:CALLS]->(f2:Function {{name: 'ProcessOrder'}}) WHERE f1.id STARTS WITH '{wsId}:' RETURN count(f1) AS count");
+            var subtreeCallsJson = (await client.ExecuteCypherAsync(
+                $"MATCH (f1:Function)-[:CALLS]->(f2:Function {{name: 'ProcessOrder'}}) WHERE f1.id STARTS WITH '{wsId}:' RETURN count(f1) AS count")).ToJson();
             subtreeCallsJson.Should().Contain("\"count\": 1");
 
             // Verify late binding CALLS_ENDPOINT is still resolved!
-            var subtreeLateBoundJson = await client.ExecuteQueryAsync(
-                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN count(es) AS count");
+            var subtreeLateBoundJson = (await client.ExecuteCypherAsync(
+                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN count(es) AS count")).ToJson();
             subtreeLateBoundJson.Should().Contain("\"count\": 1");
 
             var allEdgesJson =
-                await client.ExecuteQueryAsync(
-                    "MATCH (a)-[r]->(b) RETURN a.id AS from_id, type(r) AS kind, b.id AS to_id");
+                (await client.ExecuteCypherAsync(
+                    "MATCH (a)-[r]->(b) RETURN a.id AS from_id, type(r) AS kind, b.id AS to_id")).ToJson();
             allEdgesJson.Should().NotBeNull();
 
             // Verify transitive calls / post-indexing analysis wasn't wiped out across workspace
-            var tcJson = await client.ExecuteQueryAsync(
-                "MATCH ()-[r:TRANSITIVELY_CALLS]->() RETURN count(r) AS count");
+            var tcJson = (await client.ExecuteCypherAsync(
+                "MATCH ()-[r:TRANSITIVELY_CALLS]->() RETURN count(r) AS count")).ToJson();
             tcJson.Should().Contain("\"count\": 1");
         }
         finally
@@ -176,8 +176,8 @@ public class SubtreeScanCrossProjectTests
             await indexer.IndexAsync(projBDir, tempWorkspace, clear: false);
 
             // Verify IMPLEMENTS relationship exists in DB
-            var implJson = await client.ExecuteQueryAsync(
-                "MATCH (t:Type {name: 'StripeGateway'})-[:IMPLEMENTS]->(i:Type {name: 'IPaymentGateway'}) RETURN count(t) AS count");
+            var implJson = (await client.ExecuteCypherAsync(
+                "MATCH (t:Type {name: 'StripeGateway'})-[:IMPLEMENTS]->(i:Type {name: 'IPaymentGateway'}) RETURN count(t) AS count")).ToJson();
             implJson.Should().Contain("\"count\": 1");
 
             // Step 2: Now do an incremental subtree scan of Project C alone
@@ -185,8 +185,8 @@ public class SubtreeScanCrossProjectTests
             resC.NodesCount.Should().BeGreaterThan(0);
 
             // Verify that CheckoutService.Checkout calls StripeGateway.Pay through polymorphic resolution!
-            var callJson = await client.ExecuteQueryAsync(
-                "MATCH (f1:Function {name: 'Checkout'})-[:CALLS]->(f2:Function) RETURN f2.name AS target");
+            var callJson = (await client.ExecuteCypherAsync(
+                "MATCH (f1:Function {name: 'Checkout'})-[:CALLS]->(f2:Function) RETURN f2.name AS target")).ToJson();
             callJson.Should().Contain("Pay");
         }
         finally
@@ -242,19 +242,19 @@ public class SubtreeScanCrossProjectTests
             await indexer.IndexAsync(projADir, tempWorkspace, clear: true);
 
             // At this point, no Endpoint exists yet
-            var epCheck = await client.ExecuteQueryAsync("MATCH (ep:Endpoint) RETURN count(ep) AS count");
+            var epCheck = (await client.ExecuteCypherAsync("MATCH (ep:Endpoint) RETURN count(ep) AS count")).ToJson();
             epCheck.Should().Contain("\"count\": 0");
 
             var lateBoundBefore =
-                await client.ExecuteQueryAsync("MATCH ()-[r:CALLS_ENDPOINT]->() RETURN count(r) AS count");
+                (await client.ExecuteCypherAsync("MATCH ()-[r:CALLS_ENDPOINT]->() RETURN count(r) AS count")).ToJson();
             lateBoundBefore.Should().Contain("\"count\": 0");
 
             // Step 2: Now do an incremental subtree scan of the server project
             await indexer.IndexAsync(projBDir, tempWorkspace, clear: false);
 
             // Verify that CALLS_ENDPOINT was successfully created!
-            var lateBoundAfter = await client.ExecuteQueryAsync(
-                "MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) RETURN count(es) AS count");
+            var lateBoundAfter = (await client.ExecuteCypherAsync(
+                "MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) RETURN count(es) AS count")).ToJson();
             lateBoundAfter.Should().Contain("\"count\": 1");
         }
         finally
@@ -309,8 +309,8 @@ public class SubtreeScanCrossProjectTests
             await indexer.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
             var callsV1 =
-                await client.ExecuteQueryAsync(
-                    "MATCH (c:Function {name: 'Execute'})-[:CALLS]->(w:Function) RETURN count(w) AS count");
+                (await client.ExecuteCypherAsync(
+                    "MATCH (c:Function {name: 'Execute'})-[:CALLS]->(w:Function) RETURN count(w) AS count")).ToJson();
             callsV1.Should().Contain("\"count\": 1");
 
             // Step 2: Update Consumer.cs to call both TaskOne and TaskTwo
@@ -326,8 +326,8 @@ public class SubtreeScanCrossProjectTests
             // Step 3: Rescan ConsumerProject incrementally
             await indexer.IndexAsync(projBDir, tempWorkspace, clear: false);
 
-            var callsV2 = await client.ExecuteQueryAsync(
-                "MATCH (c:Function {name: 'Execute'})-[:CALLS]->(w:Function) RETURN w.name AS calledMethod ORDER BY calledMethod");
+            var callsV2 = (await client.ExecuteCypherAsync(
+                "MATCH (c:Function {name: 'Execute'})-[:CALLS]->(w:Function) RETURN w.name AS calledMethod ORDER BY calledMethod")).ToJson();
             callsV2.Should().Contain("TaskOne");
             callsV2.Should().Contain("TaskTwo");
         }

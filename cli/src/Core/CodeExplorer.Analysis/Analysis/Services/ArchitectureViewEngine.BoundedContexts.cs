@@ -846,14 +846,10 @@ public partial class ArchitectureViewEngine
             try
             {
                 var epQuery = "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE s.id = $id OR s.name = $name RETURN ep.name AS epName";
-                var epJson = await db.ExecuteQueryAsync(epQuery, new Dictionary<string, object> { ["id"] = targetId, ["name"] = serviceName }, ct);
+                var epNames = await db.QueryAsync<string>(epQuery, new { id = targetId, name = serviceName }, ct);
 
-                using var epDoc = JsonDocument.Parse(epJson);
-
-                foreach (var row in epDoc.RootElement.EnumerateArray())
+                foreach (var epName in epNames)
                 {
-                    var epName = row.GetStringProp("epName");
-
                     if (!string.IsNullOrEmpty(epName) && !contract.IngressEndpoints.Contains(epName))
                     {
                         contract.IngressEndpoints.Add(epName);

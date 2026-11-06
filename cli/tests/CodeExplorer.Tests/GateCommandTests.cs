@@ -240,12 +240,11 @@ public class GateCommandTests
         });
 
         checkExit.Should().Be(1);
-        var checkJson = JsonDocument.Parse(swCheck.ToString());
-        var checkRoot = checkJson.RootElement;
-        checkRoot.GetProperty("totalGates").GetInt32().Should().Be(2);
-        checkRoot.GetProperty("failedCount").GetInt32().Should().Be(1);
-        checkRoot.GetProperty("gates").EnumerateArray().First().GetProperty("violations").ValueKind.Should().Be(
-            JsonValueKind.Number,
+        var checkRoot = CypherValue.TryParseJsonText(swCheck.ToString());
+        checkRoot.GetIntProp("totalGates").Should().Be(2);
+        checkRoot.GetIntProp("failedCount").Should().Be(1);
+        checkRoot["gates"].AsArray()[0]["violations"].Kind.Should().Be(
+            CypherValueKind.Int64,
             "Gate check JSON summary must provide violation count number, not violation details array");
 
         // 2. Details in JSON: Complete details with violations array
@@ -260,13 +259,12 @@ public class GateCommandTests
         });
 
         detailsExit.Should().Be(1);
-        var detailsJson = JsonDocument.Parse(swDetails.ToString());
-        var detailsRoot = detailsJson.RootElement;
-        var failGate = detailsRoot.GetProperty("gates").EnumerateArray().First(g => g.GetProperty("id").GetString() == "SIG-FAIL-001");
-        failGate.GetProperty("remediation").GetString().Should().Contain("Inject an abstraction interface");
-        var viols = failGate.GetProperty("violations").EnumerateArray().ToList();
+        var detailsRoot = CypherValue.TryParseJsonText(swDetails.ToString());
+        var failGate = detailsRoot["gates"].AsArray().First(g => g.GetStringProp("id") == "SIG-FAIL-001");
+        failGate.GetStringProp("remediation").Should().Contain("Inject an abstraction interface");
+        var viols = failGate["violations"].AsArray();
         viols.Count.Should().Be(1);
-        viols[0].GetProperty("symbol").GetString().Should().Be("CallerMethod");
-        viols[0].GetProperty("location").GetString().Should().Be("src/Domain/OrderService.cs:45");
+        viols[0].GetStringProp("symbol").Should().Be("CallerMethod");
+        viols[0].GetStringProp("location").Should().Be("src/Domain/OrderService.cs:45");
     }
 }

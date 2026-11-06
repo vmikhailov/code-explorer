@@ -52,11 +52,7 @@ require (
             // 1. Verify Project -> Project DEPENDS_ON exists in database
             var query =
                 "MATCH (p1:Project {name: 'service-b'})-[r:DEPENDS_ON]->(p2:Project {name: 'service-a'}) RETURN count(r) AS cnt";
-            var json = await db.ExecuteQueryAsync(query);
-
-            using var doc = JsonDocument.Parse(json);
-
-            var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
+            var cnt = await db.QueryScalarAsync<long>(query);
 
             cnt.Should().Be(1, "service-b should depend on service-a via workspace module resolution");
 
@@ -136,11 +132,7 @@ require (
             // Verify Project -> Project DEPENDS_ON exists in database
             var query =
                 "MATCH (p1:Project {name: 'web-app'})-[r:DEPENDS_ON]->(p2:Project {name: 'common-lib'}) RETURN count(r) AS cnt";
-            var json = await db.ExecuteQueryAsync(query);
-
-            using var doc = JsonDocument.Parse(json);
-
-            var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
+            var cnt = await db.QueryScalarAsync<long>(query);
 
             cnt.Should().Be(1, "web-app should depend on common-lib via @myorg/common-lib package mapping");
 
@@ -490,23 +482,17 @@ require (
             await indexer.IndexAsync(tempWorkspace, clear: true);
 
             // 1. Verify projects: cf-worker, tracker-worker, queue-consumer-worker exist, and NO standalone "workers-site" project exists
-            var projJson = await db.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name");
-            using var projDoc = JsonDocument.Parse(projJson);
-            var projNames = projDoc.RootElement.EnumerateArray().Select(e => e.GetProperty("name").GetString()!).ToList();
+            var projNames = await db.QueryAsync<string>("MATCH (p:Project) RETURN p.name AS name");
             projNames.Should().Contain(["cf-worker", "tracker-worker", "queue-consumer-worker"]);
             projNames.Should().NotContain("workers-site");
 
             // 2. Verify parent-child (:Project)-[:CONTAINS]->(:Project) relationships
-            var subProjJson = await db.ExecuteQueryAsync("MATCH (p:Project {name: 'cf-worker'})-[:CONTAINS]->(sub:Project) RETURN sub.name AS name");
-            using var subProjDoc = JsonDocument.Parse(subProjJson);
-            var subProjNames = subProjDoc.RootElement.EnumerateArray().Select(e => e.GetProperty("name").GetString()!).ToList();
+            var subProjNames = await db.QueryAsync<string>("MATCH (p:Project {name: 'cf-worker'})-[:CONTAINS]->(sub:Project) RETURN sub.name AS name");
             subProjNames.Should().BeEquivalentTo(["tracker-worker", "queue-consumer-worker"]);
 
             // 3. Verify shared file CONTAINS: save-impression.js is contained in BOTH tracker-worker AND queue-consumer-worker
-            var sharedFileJson = await db.ExecuteQueryAsync(
+            var ownerProjects = await db.QueryAsync<string>(
                 "MATCH (p:Project)-[:CONTAINS]->(f:File) WHERE f.path CONTAINS 'save-impression.js' RETURN p.name AS name");
-            using var sharedDoc = JsonDocument.Parse(sharedFileJson);
-            var ownerProjects = sharedDoc.RootElement.EnumerateArray().Select(e => e.GetProperty("name").GetString()!).ToList();
             ownerProjects.Should().BeEquivalentTo(["tracker-worker", "queue-consumer-worker"]);
 
             // 4. Verify Project Map of cf-worker shows tracker-worker and queue-consumer-worker without public_src or gulpfile.js garbage

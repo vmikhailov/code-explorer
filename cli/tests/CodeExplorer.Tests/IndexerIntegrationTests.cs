@@ -67,16 +67,16 @@ public class IndexerIntegrationTests
             // Verify Endpoint and CALLS_ENDPOINT in the database
             var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
 
-            var endpointCountJson = await client.ExecuteQueryAsync(
-                $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count");
+            var endpointCountJson = (await client.ExecuteCypherAsync(
+                $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count")).ToJson();
             endpointCountJson.Should().Contain("\"count\": 1");
 
-            var implByJson = await client.ExecuteQueryAsync(
-                $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+            var implByJson = (await client.ExecuteCypherAsync(
+                $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id")).ToJson();
             implByJson.Should().Contain(":ep:ProjectB:POST:/orders/charge");
 
-            var lateBoundJson = await client.ExecuteQueryAsync(
-                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+            var lateBoundJson = (await client.ExecuteCypherAsync(
+                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id")).ToJson();
             lateBoundJson.Should().Contain(":ep:ProjectB:POST:/orders/charge");
         }
         finally
@@ -132,7 +132,7 @@ export class OrderService {
             // Verify using database query that Function 'process' CALLS Function 'charge' in Type 'PaymentService'
             var callsQuery =
                 $"MATCH (c:Type {{name: 'PaymentService'}})-[:HAS_METHOD]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
-            var queryResult = await client.ExecuteQueryAsync(callsQuery);
+            var queryResult = (await client.ExecuteCypherAsync(callsQuery)).ToJson();
 
             queryResult.Should().Contain("\"f1Name\": \"process\"");
             queryResult.Should().Contain("\"f2Name\": \"charge\"");
@@ -186,9 +186,9 @@ export class OrderService {
             var containsQuery =
                 "MATCH (p1:Project {name: 'ProjectA'})-[:LOCATED_IN]->(f1:Folder)-[:CONTAINS]->(f2:Folder)<-[:LOCATED_IN]-(p2:Project {name: 'ProjectB'}) RETURN p1.name AS p1Name, p2.name AS p2Name";
 
-            var resA = await client.ExecuteQueryAsync(projectAQuery);
-            var resB = await client.ExecuteQueryAsync(projectBQuery);
-            var resContains = await client.ExecuteQueryAsync(containsQuery);
+            var resA = (await client.ExecuteCypherAsync(projectAQuery)).ToJson();
+            var resB = (await client.ExecuteCypherAsync(projectBQuery)).ToJson();
+            var resContains = (await client.ExecuteCypherAsync(containsQuery)).ToJson();
 
             resA.Should().Contain("ProjectA");
             resB.Should().Contain("ProjectB");
@@ -238,17 +238,17 @@ export class OrderService {
 
             // Verify A.cs exists and has path SubA/A.cs
             var fileAQuery = "MATCH (f:File) WHERE f.name = 'A.cs' RETURN f.id AS id, f.path AS path";
-            var fileAResult = await client.ExecuteQueryAsync(fileAQuery);
+            var fileAResult = (await client.ExecuteCypherAsync(fileAQuery)).ToJson();
             fileAResult.Should().Contain("SubA/A.cs");
 
             // Verify B.cs was NOT scanned
             var fileBQuery = "MATCH (f:File) WHERE f.name = 'B.cs' RETURN count(f) AS count";
-            var fileBResult = await client.ExecuteQueryAsync(fileBQuery);
+            var fileBResult = (await client.ExecuteCypherAsync(fileBQuery)).ToJson();
             fileBResult.Should().Contain("\"count\": 0");
 
             // Verify SubA is linked to FilesStructure
             var folderLinkQuery = "MATCH (fs:FilesStructure)-[:CONTAINS]->(f:Folder) RETURN f.name AS name";
-            var folderLinkResult = await client.ExecuteQueryAsync(folderLinkQuery);
+            var folderLinkResult = (await client.ExecuteCypherAsync(folderLinkQuery)).ToJson();
             folderLinkResult.Should().Contain("\"name\": \"SubA\"");
         }
         finally
@@ -294,17 +294,17 @@ export class OrderService {
 
             // Verify enclosing project MyService was detected
             var projQuery = "MATCH (p:Project) RETURN p.name AS name, p.path AS path";
-            var projResult = await client.ExecuteQueryAsync(projQuery);
+            var projResult = (await client.ExecuteCypherAsync(projQuery)).ToJson();
             projResult.Should().Contain("\"name\": \"MyService\"");
 
             // Verify OrderHandler was parsed into the syntax structure
             var handlerQuery = "MATCH (f:File {name: 'OrderHandler.cs'}) RETURN f.id AS id";
-            var handlerResult = await client.ExecuteQueryAsync(handlerQuery);
+            var handlerResult = (await client.ExecuteCypherAsync(handlerQuery)).ToJson();
             handlerResult.Should().Contain("OrderHandler.cs");
 
             // Verify OrderModel was NOT parsed
             var modelQuery = "MATCH (f:File {name: 'OrderModel.cs'}) RETURN count(f) AS count";
-            var modelResult = await client.ExecuteQueryAsync(modelQuery);
+            var modelResult = (await client.ExecuteCypherAsync(modelQuery)).ToJson();
             modelResult.Should().Contain("\"count\": 0");
         }
         finally
@@ -348,7 +348,7 @@ export class OrderService {
 
             // Verify both A and B are present
             var allFilesQuery = "MATCH (f:File) RETURN count(f) AS count";
-            var allFilesRes = await client.ExecuteQueryAsync(allFilesQuery);
+            var allFilesRes = (await client.ExecuteCypherAsync(allFilesQuery)).ToJson();
             allFilesRes.Should().Contain("\"count\": 2");
 
             // Clear ONLY SubA
@@ -357,11 +357,11 @@ export class OrderService {
 
             // Verify A.cs is gone, but B.cs remains
             var fileAQuery = "MATCH (f:File {name: 'A.cs'}) RETURN count(f) AS count";
-            var fileARes = await client.ExecuteQueryAsync(fileAQuery);
+            var fileARes = (await client.ExecuteCypherAsync(fileAQuery)).ToJson();
             fileARes.Should().Contain("\"count\": 0");
 
             var fileBQuery = "MATCH (f:File {name: 'B.cs'}) RETURN count(f) AS count";
-            var fileBRes = await client.ExecuteQueryAsync(fileBQuery);
+            var fileBRes = (await client.ExecuteCypherAsync(fileBQuery)).ToJson();
             fileBRes.Should().Contain("\"count\": 1");
         }
         finally

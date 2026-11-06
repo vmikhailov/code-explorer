@@ -76,56 +76,55 @@ public static class DomainManagementService
         try
         {
             var json = File.ReadAllText(configPath);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+            var root = CypherValue.TryParseJsonText(json);
             var result = new WorkspaceDomainsConfigDto();
 
             if (root.TryGetProperty("domains", out var domainsEl))
             {
-                if (domainsEl.ValueKind == JsonValueKind.Array)
+                if (domainsEl.Kind == CypherValueKind.Array)
                 {
-                    result.Domains = JsonSerializer.Deserialize<List<DomainDefinitionDto>>(domainsEl.GetRawText(), JsonOpts) ??
+                    result.Domains = JsonSerializer.Deserialize<List<DomainDefinitionDto>>(domainsEl.ToJsonString(), JsonOpts) ??
                                      [];
                 }
-                else if (domainsEl.ValueKind == JsonValueKind.Object)
+                else if (domainsEl.Kind == CypherValueKind.Object)
                 {
-                    foreach (var prop in domainsEl.EnumerateObject())
+                    foreach (var prop in domainsEl.AsObject())
                     {
-                        var def = new DomainDefinitionDto { Name = prop.Name };
-                        if (prop.Value.ValueKind == JsonValueKind.Array)
+                        var def = new DomainDefinitionDto { Name = prop.Key };
+                        if (prop.Value.Kind == CypherValueKind.Array)
                         {
-                            def.Services = JsonSerializer.Deserialize<List<string>>(prop.Value.GetRawText(), JsonOpts);
+                            def.Services = prop.Value.AsStringList().ToList();
                         }
-                        else if (prop.Value.ValueKind == JsonValueKind.Object)
+                        else if (prop.Value.Kind == CypherValueKind.Object)
                         {
-                            if (prop.Value.TryGetProperty("displayName", out var dn)) def.DisplayName = dn.GetString();
-                            if (prop.Value.TryGetProperty("description", out var desc)) def.Description = desc.GetString();
-                            if (prop.Value.TryGetProperty("icon", out var ic)) def.Icon = ic.GetString();
-                            if (prop.Value.TryGetProperty("color", out var clr)) def.Color = clr.GetString();
-                            if (prop.Value.TryGetProperty("services", out var srvs) && srvs.ValueKind == JsonValueKind.Array)
-                                def.Services = JsonSerializer.Deserialize<List<string>>(srvs.GetRawText(), JsonOpts);
-                            if (prop.Value.TryGetProperty("patterns", out var pats) && pats.ValueKind == JsonValueKind.Array)
-                                def.Patterns = JsonSerializer.Deserialize<List<string>>(pats.GetRawText(), JsonOpts);
+                            if (prop.Value.TryGetProperty("displayName", out var dn)) def.DisplayName = dn.AsNullableString();
+                            if (prop.Value.TryGetProperty("description", out var desc)) def.Description = desc.AsNullableString();
+                            if (prop.Value.TryGetProperty("icon", out var ic)) def.Icon = ic.AsNullableString();
+                            if (prop.Value.TryGetProperty("color", out var clr)) def.Color = clr.AsNullableString();
+                            if (prop.Value.TryGetProperty("services", out var srvs) && srvs.Kind == CypherValueKind.Array)
+                                def.Services = srvs.AsStringList().ToList();
+                            if (prop.Value.TryGetProperty("patterns", out var pats) && pats.Kind == CypherValueKind.Array)
+                                def.Patterns = pats.AsStringList().ToList();
                         }
                         result.Domains.Add(def);
                     }
                 }
             }
 
-            if (root.TryGetProperty("overrides", out var overridesEl) && overridesEl.ValueKind == JsonValueKind.Object)
+            if (root.TryGetProperty("overrides", out var overridesEl) && overridesEl.Kind == CypherValueKind.Object)
             {
-                foreach (var prop in overridesEl.EnumerateObject())
+                foreach (var prop in overridesEl.AsObject())
                 {
-                    if (prop.Value.ValueKind == JsonValueKind.String)
+                    if (prop.Value.Kind == CypherValueKind.String)
                     {
-                        result.Overrides[prop.Name] = new ServiceOverrideDto { Domain = prop.Value.GetString() ?? "" };
+                        result.Overrides[prop.Key] = new ServiceOverrideDto { Domain = prop.Value.AsString() };
                     }
-                    else if (prop.Value.ValueKind == JsonValueKind.Object)
+                    else if (prop.Value.Kind == CypherValueKind.Object)
                     {
-                        var ovr = JsonSerializer.Deserialize<ServiceOverrideDto>(prop.Value.GetRawText(), JsonOpts);
+                        var ovr = JsonSerializer.Deserialize<ServiceOverrideDto>(prop.Value.ToJsonString(), JsonOpts);
                         if (ovr != null)
                         {
-                            result.Overrides[prop.Name] = ovr;
+                            result.Overrides[prop.Key] = ovr;
                         }
                     }
                 }

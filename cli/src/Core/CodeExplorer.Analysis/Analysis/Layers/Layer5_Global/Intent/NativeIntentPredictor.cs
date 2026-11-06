@@ -493,34 +493,34 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                 var rawResponse = sb.ToString().Trim();
 
                 // Parse action
-                using var doc = JsonDocument.Parse(rawResponse);
+                var root = CypherValue.TryParseJsonText(rawResponse);
 
-                if (doc.RootElement.TryGetProperty("thought", out var thoughtProp))
+                if (root.TryGetProperty("thought", out var thoughtProp))
                 {
-                    var thought = thoughtProp.GetString();
+                    var thought = thoughtProp.AsNullableString();
                     if (!string.IsNullOrWhiteSpace(thought))
                     {
                         logger?.Invoke($"    [{signature.Name}] {thought}");
                     }
                 }
 
-                var action = doc.RootElement.TryGetProperty("action", out var actProp) ? actProp.GetString() : "finish";
+                var action = root.TryGetProperty("action", out var actProp) ? actProp.AsString("finish") : "finish";
 
                 if (action == "finish" || isFinalTurn)
                 {
-                    var bc = doc.RootElement.TryGetProperty("bounded_context", out var bcp) ? bcp.GetString() ?? signature.Name : signature.Name;
-                    var cap = doc.RootElement.TryGetProperty("capability", out var capp) ? capp.GetString() ?? $"Handles {signature.Name} business capabilities." : $"Handles {signature.Name} business capabilities.";
-                    var dom = doc.RootElement.TryGetProperty("suggested_domain", out var domp) ? domp.GetString() ?? "Core" : "Core";
+                    var bc = root.TryGetProperty("bounded_context", out var bcp) ? bcp.AsString(signature.Name) : signature.Name;
+                    var cap = root.TryGetProperty("capability", out var capp) ? capp.AsString($"Handles {signature.Name} business capabilities.") : $"Handles {signature.Name} business capabilities.";
+                    var dom = root.TryGetProperty("suggested_domain", out var domp) ? domp.AsString("Core") : "Core";
 
                     bc = SanitizePredictedDomainName(bc);
                     dom = SanitizePredictedDomainName(dom);
 
                     var aggs = new List<string>();
-                    if (doc.RootElement.TryGetProperty("primary_aggregates", out var aggsProp) && aggsProp.ValueKind == JsonValueKind.Array)
+                    if (root.TryGetProperty("primary_aggregates", out var aggsProp) && aggsProp.Kind == CypherValueKind.Array)
                     {
-                        foreach (var el in aggsProp.EnumerateArray())
+                        foreach (var el in aggsProp.AsArray())
                         {
-                            var s = el.GetString();
+                            var s = el.AsNullableString();
                             if (!string.IsNullOrWhiteSpace(s)) aggs.Add(s);
                         }
                     }
@@ -532,11 +532,11 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                 // If calling a tool
                 if (action == "call_tool")
                 {
-                    var toolName = doc.RootElement.TryGetProperty("tool", out var tp) ? tp.GetString() : "";
-                    var args = doc.RootElement.TryGetProperty("args", out var argsp) ? argsp : default;
+                    var toolName = root.TryGetProperty("tool", out var tp) ? tp.AsString() : "";
+                    var args = root.TryGetProperty("args", out var argsp) ? argsp : CypherValue.Null;
 
-                    var targetService = (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("service", out var sp)) ? sp.GetString() : signature.Name;
-                    var targetLibrary = (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("library", out var lp)) ? lp.GetString() : "";
+                    var targetService = (args.Kind == CypherValueKind.Object && args.TryGetProperty("service", out var sp)) ? sp.AsString(signature.Name) : signature.Name;
+                    var targetLibrary = (args.Kind == CypherValueKind.Object && args.TryGetProperty("library", out var lp)) ? lp.AsString() : "";
 
                     logger?.Invoke($"    -> [{signature.Name}] (Turn {turn}) Tool Call: {toolName}({(string.IsNullOrEmpty(targetLibrary) ? targetService : targetService + ", lib=" + targetLibrary)})");
 

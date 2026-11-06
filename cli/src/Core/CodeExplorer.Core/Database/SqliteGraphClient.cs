@@ -96,11 +96,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     public async Task SaveEmptyWorkspaceNodeAsync(string id, string path)
     {
         var normalized = path.Replace('\\', '/');
-        var propsJson = JsonSerializer.Serialize(new Dictionary<string, object>
-        {
-            ["id"] = id,
-            ["path"] = normalized
-        });
+        var propsJson = JsonSerializer.Serialize(new { id, path = normalized });
 
         await _lock.WaitAsync();
         try
@@ -269,12 +265,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         return unique;
     }
 
-    public async Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
-    {
-        var result = await ExecuteCypherAsync(query, parameters, cancellationToken);
-        return result.ToJson(indented: true);
-    }
-
     public async Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         return await ExecuteCompiledReaderAsync(
@@ -370,50 +360,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             _lock.Release();
         }
     }
-
-    public async Task<string> ExecuteQueryAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
-    {
-        var sw = Stopwatch.StartNew();
-        var compiled = SqliteCompiler.Compile(query, parameters);
-
-        await _lock.WaitAsync(ct);
-        try
-        {
-            await using var cmd = _conn.CreateCommand();
-
-            cmd.CommandTimeout = CommandTimeoutSeconds;
-            cmd.CommandText = compiled.Sql;
-
-            foreach (var (k, v) in compiled.Parameters)
-            {
-                cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
-            }
-
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-            var result = await DbRowMaterializer.ReadDynamicResultAsync(reader, ct);
-            sw.Stop();
-
-            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
-                sw.Elapsed.TotalMilliseconds, result.Count);
-
-            return result.ToJson(indented: true);
-        }
-        catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
-        {
-            sw.Stop();
-            _logger.LogError(ex, "[Database   ] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s)",
-                sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds);
-            throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds.", ex);
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    public Task<string> ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
-        ExecuteQueryAsync(cypher, parameters, ct);
 
     public async Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {
@@ -532,8 +478,12 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     {
         if (parameters == null) return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (parameters is Dictionary<string, object?> dict) return dict;
+        if (parameters is IReadOnlyDictionary<string, object?> roDict)
+            return roDict.ToDictionary(k => k.Key, v => v.Value, StringComparer.OrdinalIgnoreCase);
         if (parameters is IDictionary<string, object> idict)
             return idict.ToDictionary(k => k.Key, v => (object?)v.Value, StringComparer.OrdinalIgnoreCase);
+        if (parameters is IReadOnlyDictionary<string, string> strDict)
+            return strDict.ToDictionary(k => k.Key, v => (object?)v.Value, StringComparer.OrdinalIgnoreCase);
 
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var prop in parameters.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))

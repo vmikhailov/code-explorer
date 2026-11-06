@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace CodeExplorer.Core.Parser;
 
 public partial class PostIndexAnalyzer
@@ -35,8 +33,8 @@ public partial class PostIndexAnalyzer
 
         // 4. Query relationships targeting any database and consolidate per service/project
         var relEdgesQuery =
-            "SELECT from_id AS source, to_id AS target, kind, json(properties) AS properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'IMPLEMENTED_BY', 'DEPLOYS', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN')";
-        var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
+            "SELECT from_id, to_id, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'IMPLEMENTED_BY', 'DEPLOYS', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN')";
+        var relEdges = await db.QueryAsync<Relationship>(relEdgesQuery, null, cancellationToken);
 
         var libraryProjects = projectList.Where(p => p.IsLibrary).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
         var projById = projectList.ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
@@ -44,128 +42,123 @@ public partial class PostIndexAnalyzer
         var workloadToProject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectToWorkload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        var projectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, JsonElement Properties, bool IsImplicitEdge)>();
+        var projectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, Relationship Rel, bool IsImplicitEdge)>();
 
-        using (var edgesDoc = JsonDocument.Parse(relEdgesJson))
+        foreach (var rel in relEdges)
         {
-            foreach (var row in edgesDoc.RootElement.EnumerateArray())
-            {
-                var src = GetStringProp(row, "source");
-                var tgt = GetStringProp(row, "target");
-                var kind = GetStringProp(row, "kind");
-                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+            var src = rel.From;
+            var tgt = rel.To;
+            var kind = rel.Kind;
+            if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
-                if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(tgt))
-                {
-                    workloadToProject[src] = tgt;
-                    projectToWorkload[tgt] = src;
-                }
-                else if (string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(src))
-                {
-                    workloadToProject[tgt] = src;
-                    projectToWorkload[src] = tgt;
-                }
+            if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(tgt))
+            {
+                workloadToProject[src] = tgt;
+                projectToWorkload[tgt] = src;
+            }
+            else if (string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(src))
+            {
+                workloadToProject[tgt] = src;
+                projectToWorkload[src] = tgt;
+            }
+        }
+
+        foreach (var rel in relEdges)
+        {
+            var src = rel.From;
+            var tgt = rel.To;
+            var kind = rel.Kind;
+            if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+            if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
             }
 
-            foreach (var row in edgesDoc.RootElement.EnumerateArray())
+            if (string.Equals(kind, "DEPENDS_ON", StringComparison.OrdinalIgnoreCase))
             {
-                var src = GetStringProp(row, "source");
-                var tgt = GetStringProp(row, "target");
-                var kind = GetStringProp(row, "kind");
-                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-                if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase))
+                var resolvedSrc = workloadToProject.GetValueOrDefault(src, src);
+                var resolvedTgt = workloadToProject.GetValueOrDefault(tgt, tgt);
+                if (libraryProjects.TryGetValue(resolvedTgt, out var lib))
                 {
-                    continue;
-                }
-
-                if (string.Equals(kind, "DEPENDS_ON", StringComparison.OrdinalIgnoreCase))
-                {
-                    var resolvedSrc = workloadToProject.GetValueOrDefault(src, src);
-                    var resolvedTgt = workloadToProject.GetValueOrDefault(tgt, tgt);
-                    if (libraryProjects.TryGetValue(resolvedTgt, out var lib))
+                    if (!serviceToReferencedLibs.TryGetValue(resolvedSrc, out var lList))
                     {
-                        if (!serviceToReferencedLibs.TryGetValue(resolvedSrc, out var lList))
-                        {
-                            lList = [];
-                            serviceToReferencedLibs[resolvedSrc] = lList;
-                        }
-                        lList.Add((lib.Id, lib.Name));
+                        lList = [];
+                        serviceToReferencedLibs[resolvedSrc] = lList;
                     }
+                    lList.Add((lib.Id, lib.Name));
+                }
+                continue;
+            }
+
+            var isReverseDbRel = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(kind, "QUERIED_BY", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(kind, "DECLARED_IN", StringComparison.OrdinalIgnoreCase);
+            var dbTarget = isReverseDbRel ? src : tgt;
+            var callerSrc = isReverseDbRel ? tgt : src;
+
+            if (rawToCanonical.TryGetValue(dbTarget, out var canonicalId))
+            {
+                if (WorkspaceConventions.IsTestFilePath(callerSrc) ||
+                    callerSrc.Contains("/tests/", StringComparison.OrdinalIgnoreCase) ||
+                    callerSrc.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) ||
+                    callerSrc.Contains(".Tests", StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
                 }
+                var resolvedCaller = workloadToProject.GetValueOrDefault(callerSrc, callerSrc);
+                // Resolve owning project
+                string? projId = null;
+                string projName = "";
+                var exactProj = projectList.FirstOrDefault(p => p.Id == resolvedCaller);
 
-                var isReverseDbRel = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(kind, "QUERIED_BY", StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(kind, "DECLARED_IN", StringComparison.OrdinalIgnoreCase);
-                var dbTarget = isReverseDbRel ? src : tgt;
-                var callerSrc = isReverseDbRel ? tgt : src;
-
-                if (rawToCanonical.TryGetValue(dbTarget, out var canonicalId))
+                if (!string.IsNullOrEmpty(exactProj.Id))
                 {
-                    if (WorkspaceConventions.IsTestFilePath(callerSrc) ||
-                        callerSrc.Contains("/tests/", StringComparison.OrdinalIgnoreCase) ||
-                        callerSrc.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) ||
-                        callerSrc.Contains(".Tests", StringComparison.OrdinalIgnoreCase))
+                    if (exactProj.IsTest) continue;
+                    projId = exactProj.Id;
+                    projName = exactProj.Name;
+                }
+                else
+                {
+                    var matched = projectList.FirstOrDefault(p =>
+                        resolvedCaller.StartWithIC(p.Id) ||
+                        (!string.IsNullOrEmpty(p.Path) &&
+                         resolvedCaller.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                    if (matched.IsTest) continue;
+                    projId = matched.Id;
+                    projName = matched.Name;
+                }
+
+                if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
+                {
+                    var isRawImplicitEdge = rawImplicitDbIds.Contains(dbTarget) ||
+                                            dbTarget.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase) ||
+                                            rel.IsImplicitSchema;
+
+                    if (isRawImplicitEdge && libraryProjects.ContainsKey(projId))
                     {
                         continue;
                     }
-                    var resolvedCaller = workloadToProject.GetValueOrDefault(callerSrc, callerSrc);
-                    // Resolve owning project
-                    string? projId = null;
-                    string projName = "";
-                    var exactProj = projectList.FirstOrDefault(p => p.Id == resolvedCaller);
 
-                    if (!string.IsNullOrEmpty(exactProj.Id))
-                    {
-                        if (exactProj.IsTest) continue;
-                        projId = exactProj.Id;
-                        projName = exactProj.Name;
-                    }
-                    else
-                    {
-                        var matched = projectList.FirstOrDefault(p =>
-                            resolvedCaller.StartWithIC(p.Id) ||
-                            (!string.IsNullOrEmpty(p.Path) &&
-                             resolvedCaller.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
-                        if (matched.IsTest) continue;
-                        projId = matched.Id;
-                        projName = matched.Name;
-                    }
+                    projectDbEdges.Add(((projId, projName), canonicalId, rel, isRawImplicitEdge));
 
-                    if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
+                    if (!isRawImplicitEdge && callerSrc.Contains(":f:", StringComparison.OrdinalIgnoreCase))
                     {
-                        row.TryGetProperty("properties", out var pElem);
-                        var isRawImplicitEdge = rawImplicitDbIds.Contains(dbTarget) ||
-                                                dbTarget.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase) ||
-                                                (pElem.ValueKind == JsonValueKind.Object && pElem.TryGetProperty("is_implicit_schema", out var impProp) && impProp.ValueKind == JsonValueKind.String && impProp.GetString() == "true");
-
-                        if (isRawImplicitEdge && libraryProjects.ContainsKey(projId))
+                        var normSrc = callerSrc.Replace('\\', '/');
+                        var binIdx = normSrc.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
+                        if (binIdx >= 0)
                         {
-                            continue;
-                        }
-
-                        var clonedProps = pElem.Clone();
-                        projectDbEdges.Add(((projId, projName), canonicalId, clonedProps, isRawImplicitEdge));
-
-                        if (!isRawImplicitEdge && callerSrc.Contains(":f:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var normSrc = callerSrc.Replace('\\', '/');
-                            var binIdx = normSrc.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
-                            if (binIdx >= 0)
+                            var afterBin = normSrc[(binIdx + 5)..];
+                            var slashIdx = afterBin.IndexOf('/');
+                            if (slashIdx > 0)
                             {
-                                var afterBin = normSrc[(binIdx + 5)..];
-                                var slashIdx = afterBin.IndexOf('/');
-                                if (slashIdx > 0)
+                                var subBinName = afterBin[..slashIdx];
+                                var matchingBinProj = projectList.FirstOrDefault(p =>
+                                    !p.IsLibrary && !p.IsTest && !string.IsNullOrEmpty(p.Id) && p.Id != projId &&
+                                    string.Equals(p.Name, subBinName, StringComparison.OrdinalIgnoreCase));
+                                if (!string.IsNullOrEmpty(matchingBinProj.Id))
                                 {
-                                    var subBinName = afterBin[..slashIdx];
-                                    var matchingBinProj = projectList.FirstOrDefault(p =>
-                                        !p.IsLibrary && !p.IsTest && !string.IsNullOrEmpty(p.Id) && p.Id != projId &&
-                                        string.Equals(p.Name, subBinName, StringComparison.OrdinalIgnoreCase));
-                                    if (!string.IsNullOrEmpty(matchingBinProj.Id))
-                                    {
-                                        projectDbEdges.Add(((matchingBinProj.Id, matchingBinProj.Name), canonicalId, clonedProps, false));
-                                    }
+                                    projectDbEdges.Add(((matchingBinProj.Id, matchingBinProj.Name), canonicalId, rel, false));
                                 }
                             }
                         }
@@ -237,7 +230,7 @@ public partial class PostIndexAnalyzer
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
         // Filter out edges from multiDomainSharedLibs to generic databases, and propagate non-generic lib edges to services
-        var filteredProjectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, JsonElement Properties, bool IsImplicitEdge)>();
+        var filteredProjectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, Relationship Rel, bool IsImplicitEdge)>();
         foreach (var edge in projectDbEdges)
         {
             var isMultiDomainLib = multiDomainSharedLibs.Contains(edge.Owner.Id);
@@ -257,7 +250,7 @@ public partial class PostIndexAnalyzer
                         var svcProj = projectList.FirstOrDefault(p => p.Id == svcId);
                         if (!string.IsNullOrEmpty(svcProj.Id) && !svcProj.IsTest)
                         {
-                            filteredProjectDbEdges.Add(((svcProj.Id, svcProj.Name), edge.CanonicalTarget, edge.Properties, edge.IsImplicitEdge));
+                            filteredProjectDbEdges.Add(((svcProj.Id, svcProj.Name), edge.CanonicalTarget, edge.Rel, edge.IsImplicitEdge));
                         }
                     }
                 }

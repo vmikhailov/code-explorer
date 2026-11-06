@@ -630,9 +630,8 @@ public class RealLifeExecutionTests
         reader.Read().Should().BeTrue();
         var rawJson = reader.GetString(0);
 
-        using var doc = JsonDocument.Parse(rawJson);
-
-        var typesProp = doc.RootElement.GetProperty("types");
+        var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(rawJson)!;
+        var typesProp = parsed["types"];
         typesProp.ValueKind.Should().Be(JsonValueKind.Array);
         typesProp.GetArrayLength().Should().BeGreaterThan(0);
     }
@@ -653,10 +652,8 @@ public class RealLifeExecutionTests
         rows.Should().HaveCount(1);
         var projectsRaw = rows[0]["projects"]?.ToString() ?? "";
 
-        using var doc = JsonDocument.Parse(projectsRaw);
-
-        var proj = doc.RootElement[0];
-        var dbs = proj.GetProperty("databases");
+        var projs = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(projectsRaw)!;
+        var dbs = projs[0]["databases"];
         dbs.ValueKind.Should().Be(JsonValueKind.Array);
         dbs.GetArrayLength().Should().BeGreaterThanOrEqualTo(1);
     }
@@ -726,9 +723,7 @@ public class RealLifeExecutionTests
         reader1["name"].Should().Be("BillingService");
         var lblsJson = reader1.GetString(1);
 
-        using var doc = JsonDocument.Parse(lblsJson);
-
-        var labels = doc.RootElement.EnumerateArray().Select(e => e.GetString()).ToList();
+        var labels = JsonSerializer.Deserialize<List<string>>(lblsJson)!;
         labels.Should().Contain("Project");
         labels.Should().Contain("Service");
     }

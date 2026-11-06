@@ -117,26 +117,20 @@ export class PaymentsController {
     {
         // Query endpoints with roles
         var query = "MATCH (e:Endpoint) WHERE e.name CONTAINS 'admin-refund' RETURN e.name AS name, e.required_roles AS roles, e.protocol AS protocol";
-        var res = await _client.ExecuteQueryAsync(query);
+        var res = await _client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "No endpoint with required_roles found for C# admin-refund!");
-        var roles = array[0].GetProperty("roles").GetString();
+        res.Count.Should().BeGreaterThan(0, "No endpoint with required_roles found for C# admin-refund!");
+        var roles = res.Rows[0].GetStringProp("roles");
         roles.Should().Contain("Admin");
-        var protocol = array[0].GetProperty("protocol").GetString();
+        var protocol = res.Rows[0].GetStringProp("protocol");
         protocol.Should().Be("REST");
 
         // Query anonymous endpoints
         var anonQuery =
             "MATCH (e:Endpoint {is_anonymous: true}) WHERE e.name CONTAINS 'public-catalog' RETURN e.name AS name";
-        var anonRes = await _client.ExecuteQueryAsync(anonQuery);
+        var anonRes = await _client.ExecuteCypherAsync(anonQuery);
 
-        using var anonDoc = JsonDocument.Parse(anonRes);
-
-        anonDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Anonymous endpoint not flagged as is_anonymous: true in C#!");
+        anonRes.Count.Should().BeGreaterThan(0, "Anonymous endpoint not flagged as is_anonymous: true in C#!");
     }
 
     [Test]
@@ -144,24 +138,18 @@ export class PaymentsController {
     {
         // Query role-guarded endpoint in Java
         var query = "MATCH (e:Endpoint) WHERE e.name CONTAINS 'deleteUser' OR e.route_template CONTAINS '{id}' RETURN e.name AS name, e.required_roles AS roles";
-        var res = await _client.ExecuteQueryAsync(query);
+        var res = await _client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "No endpoint found in Java controller!");
-        var roles = array[0].GetProperty("roles").GetString();
+        res.Count.Should().BeGreaterThan(0, "No endpoint found in Java controller!");
+        var roles = res.Rows[0].GetStringProp("roles");
         roles.Should().Contain("ADMIN");
 
         // Query anonymous/permit-all endpoint in Java
         var anonQuery =
             "MATCH (e:Endpoint {is_anonymous: true}) WHERE e.name CONTAINS 'health' OR e.route_template CONTAINS 'health' RETURN e.name AS name";
-        var anonRes = await _client.ExecuteQueryAsync(anonQuery);
+        var anonRes = await _client.ExecuteCypherAsync(anonQuery);
 
-        using var anonDoc = JsonDocument.Parse(anonRes);
-
-        anonDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Java PermitAll endpoint not flagged as is_anonymous: true!");
+        anonRes.Count.Should().BeGreaterThan(0, "Java PermitAll endpoint not flagged as is_anonymous: true!");
     }
 
     [Test]
@@ -169,22 +157,16 @@ export class PaymentsController {
     {
         // Query role-guarded endpoint in NestJS
         var query = "MATCH (e:Endpoint) WHERE e.required_roles CONTAINS 'finance-admin' RETURN e.name AS name, e.required_roles AS roles";
-        var res = await _client.ExecuteQueryAsync(query);
+        var res = await _client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(res);
-
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThan(0, "No endpoint with required_roles found in NestJS controller!");
+        res.Count.Should().BeGreaterThan(0, "No endpoint with required_roles found in NestJS controller!");
 
         // Query public endpoint in NestJS
         var anonQuery =
             "MATCH (e:Endpoint {is_anonymous: true}) WHERE e.name CONTAINS 'plans' RETURN e.name AS name";
-        var anonRes = await _client.ExecuteQueryAsync(anonQuery);
+        var anonRes = await _client.ExecuteCypherAsync(anonQuery);
 
-        using var anonDoc = JsonDocument.Parse(anonRes);
-
-        anonDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "NestJS @Public() endpoint not flagged as is_anonymous: true!");
+        anonRes.Count.Should().BeGreaterThan(0, "NestJS @Public() endpoint not flagged as is_anonymous: true!");
     }
 
     [Test]
@@ -192,22 +174,12 @@ export class PaymentsController {
     {
         // Architect audit query: Find all endpoints guarded by roles or unauthenticated
         var query = "MATCH (e:Endpoint) RETURN e.name AS name, coalesce(e.protocol, 'REST') AS protocol, e.is_anonymous AS isAnonymous, e.required_roles AS roles";
-        var res = await _client.ExecuteQueryAsync(query);
+        var res = await _client.ExecuteCypherAsync(query);
 
-        using var doc = JsonDocument.Parse(res);
+        res.Count.Should().BeGreaterThanOrEqualTo(3, "Expected at least 3 endpoints from C#, Java, and NestJS");
 
-        var array = doc.RootElement.EnumerateArray().ToList();
-
-        array.Count.Should().BeGreaterThanOrEqualTo(3, "Expected at least 3 endpoints from C#, Java, and NestJS");
-
-        var hasAnonymous = array.Any(x =>
-            x.TryGetProperty("isAnonymous", out var prop) && (prop.ValueKind == JsonValueKind.True ||
-                                                              (prop.ValueKind == JsonValueKind.Number &&
-                                                               prop.GetInt32() != 0)));
-
-        var hasRoles = array.Any(x =>
-            x.TryGetProperty("roles", out var prop) && prop.ValueKind == JsonValueKind.String &&
-            !string.IsNullOrEmpty(prop.GetString()));
+        var hasAnonymous = res.Rows.Any(x => x.GetBoolProp("isAnonymous"));
+        var hasRoles = res.Rows.Any(x => !string.IsNullOrEmpty(x.GetStringProp("roles")));
 
         hasAnonymous.Should().BeTrue("Security audit query should identify anonymous endpoints");
         hasRoles.Should().BeTrue("Security audit query should identify role-guarded endpoints");

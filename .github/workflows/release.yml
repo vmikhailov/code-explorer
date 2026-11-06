@@ -66,9 +66,29 @@ jobs:
             rid: osx-arm64
             archive: tar.gz
             bin_name: ce
+          # macOS Intel
+          - os: macos-latest
+            rid: osx-x64
+            archive: tar.gz
+            bin_name: ce
+          # Linux x64
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+            bin_name: ce
+          # Linux ARM64
+          - os: ubuntu-latest
+            rid: linux-arm64
+            archive: tar.gz
+            bin_name: ce
           # Windows x64
           - os: windows-latest
             rid: win-x64
+            archive: zip
+            bin_name: ce.exe
+          # Windows ARM64
+          - os: windows-latest
+            rid: win-arm64
             archive: zip
             bin_name: ce.exe
 
@@ -212,30 +232,50 @@ jobs:
             exit 0
           fi
 
-          if [ ! -f ./dist/ce-osx-arm64.tar.gz ]; then
-            echo "::warning::./dist/ce-osx-arm64.tar.gz not found; skipping Homebrew tap formula update."
-            exit 0
-          fi
+          for rid in osx-arm64 osx-x64 linux-arm64 linux-x64; do
+            if [ ! -f "./dist/ce-${rid}.tar.gz" ]; then
+              echo "::warning::./dist/ce-${rid}.tar.gz not found; skipping Homebrew tap formula update."
+              exit 0
+            fi
+          done
 
-          SHA256_ARM64=$(sha256sum ./dist/ce-osx-arm64.tar.gz | awk '{print $1}')
-          echo "Updating vmikhailov/homebrew-tap formula for ce v${VERSION} (sha256: ${SHA256_ARM64})..."
+          SHA_OSX_ARM64=$(sha256sum ./dist/ce-osx-arm64.tar.gz | awk '{print $1}')
+          SHA_OSX_X64=$(sha256sum ./dist/ce-osx-x64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum ./dist/ce-linux-arm64.tar.gz | awk '{print $1}')
+          SHA_LINUX_X64=$(sha256sum ./dist/ce-linux-x64.tar.gz | awk '{print $1}')
+          BASE_URL="https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}"
+          echo "Updating vmikhailov/homebrew-tap formula for ce v${VERSION} (macOS + Linux, arm64 + x64)..."
 
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/vmikhailov/homebrew-tap.git" /tmp/homebrew-tap
           cd /tmp/homebrew-tap
 
           mkdir -p Formula
-          cat <<EOF | sed 's/^          //' > Formula/ce.rb
+          cat <<EOF > Formula/ce.rb
           class Ce < Formula
             desc "Codebase intelligence CLI and knowledge graph engine"
             homepage "https://github.com/vmikhailov/code-explorer"
             version "${VERSION}"
             license "MIT"
 
-            depends_on :macos
-            depends_on arch: :arm64
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/ce-osx-arm64.tar.gz"
+                sha256 "${SHA_OSX_ARM64}"
+              else
+                url "${BASE_URL}/ce-osx-x64.tar.gz"
+                sha256 "${SHA_OSX_X64}"
+              end
+            end
 
-            url "https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}/ce-osx-arm64.tar.gz"
-            sha256 "${SHA256_ARM64}"
+            on_linux do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/ce-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "${BASE_URL}/ce-linux-x64.tar.gz"
+                sha256 "${SHA_LINUX_X64}"
+              end
+            end
 
             def install
               bin.install "ce"

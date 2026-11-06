@@ -63,20 +63,17 @@ public class TypeScriptImportCallResolutionTests
             // MATCH (t:Function)<-[:CALLS]-(d) WHERE t.name = 'pluralize'
             // RETURN t.symbol AS def, d.name AS caller
             var query = "MATCH (t:Function)<-[:CALLS]-(d) WHERE t.name = 'pluralize' RETURN t.symbol AS def, d.name AS caller";
-            var json = await client.ExecuteQueryAsync(query);
+            var res = await client.ExecuteCypherAsync(query);
 
-            using var doc = JsonDocument.Parse(json);
-            var rows = doc.RootElement.EnumerateArray().ToList();
+            res.Count.Should().Be(2, "Both usersLabel and itemsLabel must have CALLS relationships to pluralize");
 
-            rows.Count.Should().Be(2, "Both usersLabel and itemsLabel must have CALLS relationships to pluralize");
+            var usersRow = res.Rows.FirstOrDefault(r => r.GetStringProp("caller") == "usersLabel");
+            usersRow.FieldCount.Should().BeGreaterThan(0, "usersLabel should call pluralize");
+            usersRow.GetStringProp("def").Should().Contain("apps/admin/src/plural.ts", "usersLabel must resolve to apps/admin/src/plural.ts");
 
-            var usersRow = rows.FirstOrDefault(r => r.GetProperty("caller").GetString() == "usersLabel");
-            usersRow.ValueKind.Should().NotBe(JsonValueKind.Undefined, "usersLabel should call pluralize");
-            usersRow.GetProperty("def").GetString().Should().Contain("apps/admin/src/plural.ts", "usersLabel must resolve to apps/admin/src/plural.ts");
-
-            var itemsRow = rows.FirstOrDefault(r => r.GetProperty("caller").GetString() == "itemsLabel");
-            itemsRow.ValueKind.Should().NotBe(JsonValueKind.Undefined, "itemsLabel should call pluralize");
-            itemsRow.GetProperty("def").GetString().Should().Contain("libs/text/src/index.ts", "itemsLabel must resolve to libs/text/src/index.ts");
+            var itemsRow = res.Rows.FirstOrDefault(r => r.GetStringProp("caller") == "itemsLabel");
+            itemsRow.FieldCount.Should().BeGreaterThan(0, "itemsLabel should call pluralize");
+            itemsRow.GetStringProp("def").Should().Contain("libs/text/src/index.ts", "itemsLabel must resolve to libs/text/src/index.ts");
         }
         finally
         {

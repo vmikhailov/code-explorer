@@ -49,15 +49,15 @@ public static class ServerRouteBuilderExtensions
                 const string countNodesQuery = "MATCH (n) RETURN count(n) AS cnt";
                 const string countEdgesQuery = "MATCH ()-[r]->() RETURN count(r) AS cnt";
                 logger.LogInformation("[REST] GET /api/status");
-                var nodeCountJson = await graphClient.ExecuteQueryAsync(countNodesQuery);
-                var edgeCountJson = await graphClient.ExecuteQueryAsync(countEdgesQuery);
+                var nodeCountRes = await graphClient.ExecuteCypherAsync(countNodesQuery);
+                var edgeCountRes = await graphClient.ExecuteCypherAsync(countEdgesQuery);
                 return Results.Ok(new
                 {
                     status = "ok",
                     version = AppVersionProvider.GetAppVersion(),
                     workspace = wsRoot,
-                    nodes = nodeCountJson,
-                    edges = edgeCountJson
+                    nodes = nodeCountRes.ToJson(),
+                    edges = edgeCountRes.ToJson()
                 });
             }
             catch (Exception ex)

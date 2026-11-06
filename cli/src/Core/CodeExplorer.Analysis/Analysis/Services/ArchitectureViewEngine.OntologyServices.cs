@@ -133,26 +133,21 @@ public partial class ArchitectureViewEngine
         try
         {
             var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp OR s:TestSuite) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.primary_role AS primary_role, s.secondary_roles AS secondary_roles, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
-            var json = await db.ExecuteQueryAsync(query, null, ct);
+            var res = await db.ExecuteCypherAsync(query, null, ct);
+            var rows = res.Rows;
 
-            using var doc = JsonDocument.Parse(json);
-
-            var root = doc.RootElement;
-            JsonDocument? fallbackDoc = null;
-
-            if (root.GetArrayLength() == 0)
+            if (rows.Count == 0)
             {
                 var fallbackQuery =
                     "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool', 'Test', 'TestSuite'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.primary_role AS primary_role, s.secondary_roles AS secondary_roles, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
-                var fbJson = await db.ExecuteQueryAsync(fallbackQuery, null, ct);
-                fallbackDoc = JsonDocument.Parse(fbJson);
-                root = fallbackDoc.RootElement;
+                var fbRes = await db.ExecuteCypherAsync(fallbackQuery, null, ct);
+                rows = fbRes.Rows;
             }
 
             var serviceMap = new Dictionary<string, ServiceSummaryDto>(StringComparer.OrdinalIgnoreCase);
             var idToName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var row in root.EnumerateArray())
+            foreach (var row in rows)
             {
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
@@ -160,9 +155,9 @@ public partial class ArchitectureViewEngine
 
                 var nodeKind = NodeKind.Service;
 
-                if (row.TryGetProperty("role", out var roleProp) && roleProp.ValueKind == JsonValueKind.String)
+                if (row.TryGetProperty("role", out var roleProp) && roleProp.Kind == CypherValueKind.String)
                 {
-                    var r = roleProp.GetString();
+                    var r = roleProp.AsString();
 
                     if (r is "FrontendApp" or "App") nodeKind = NodeKind.App;
                     else if (r is "Worker") nodeKind = NodeKind.Worker;
@@ -170,12 +165,10 @@ public partial class ArchitectureViewEngine
                     else if (r is "CliTool" or "ScriptProject") nodeKind = NodeKind.CliTool;
                     else if (r is "Test" or "TestSuite") nodeKind = NodeKind.TestSuite;
                 }
-                else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+                else if (row.TryGetProperty("lbl", out var lblProp))
                 {
-                    foreach (var l in lblProp.EnumerateArray())
+                    foreach (var ls in lblProp.AsStringList())
                     {
-                        var ls = l.GetString();
-
                         if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp" or "TestSuite" or "Test" or "ScriptProject")
                         {
                             nodeKind = ls is "ScriptProject" ? NodeKind.CliTool : EnumExtensions.ParseNodeKind(ls);
@@ -187,51 +180,17 @@ public partial class ArchitectureViewEngine
                 var primaryRole = row.GetStringProp("primary_role");
                 if (string.IsNullOrEmpty(primaryRole) && row.TryGetProperty("role", out var rProp))
                 {
-                    primaryRole = rProp.GetString();
+                    primaryRole = rProp.AsNullableString();
                 }
 
                 var secondaryRolesList = new List<string>();
                 if (row.TryGetProperty("secondary_roles", out var secProp))
                 {
-                    if (secProp.ValueKind == JsonValueKind.Array)
+                    foreach (var val in secProp.AsStringList())
                     {
-                        foreach (var el in secProp.EnumerateArray())
+                        if (!string.IsNullOrWhiteSpace(val) && !secondaryRolesList.Contains(val, StringComparer.OrdinalIgnoreCase))
                         {
-                            var val = el.GetString();
-                            if (!string.IsNullOrWhiteSpace(val) && !secondaryRolesList.Contains(val, StringComparer.OrdinalIgnoreCase))
-                                secondaryRolesList.Add(val);
-                        }
-                    }
-                    else if (secProp.ValueKind == JsonValueKind.String)
-                    {
-                        var rawSec = secProp.GetString();
-                        if (!string.IsNullOrWhiteSpace(rawSec))
-                        {
-                            if (rawSec.TrimStart().StartsWith("["))
-                            {
-                                try
-                                {
-                                    using var secDoc = JsonDocument.Parse(rawSec);
-                                    if (secDoc.RootElement.ValueKind == JsonValueKind.Array)
-                                    {
-                                        foreach (var el in secDoc.RootElement.EnumerateArray())
-                                        {
-                                            var val = el.GetString();
-                                            if (!string.IsNullOrWhiteSpace(val) && !secondaryRolesList.Contains(val, StringComparer.OrdinalIgnoreCase))
-                                                secondaryRolesList.Add(val);
-                                        }
-                                    }
-                                }
-                                catch { }
-                            }
-                            else
-                            {
-                                foreach (var part in rawSec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                                {
-                                    if (!string.IsNullOrWhiteSpace(part) && !secondaryRolesList.Contains(part, StringComparer.OrdinalIgnoreCase))
-                                        secondaryRolesList.Add(part);
-                                }
-                            }
+                            secondaryRolesList.Add(val);
                         }
                     }
                 }
@@ -272,13 +231,11 @@ public partial class ArchitectureViewEngine
                 idToName[id] = name;
             }
 
-            fallbackDoc?.Dispose();
-
             // Tally endpoints directly from graph
             try
             {
-                string epJson;
-                if (db is SqliteGraphClient sqliteClient)
+                IReadOnlyList<(string SName, string SId, int EpCount)> epRows;
+                if (db is SqliteGraphClient)
                 {
                     const string fastEpQuery = """
                         SELECT coalesce(json_extract(s.properties, '$.name'), s.id) AS sName, s.id AS sId, COUNT(ep.id) AS epCount
@@ -289,21 +246,17 @@ public partial class ArchitectureViewEngine
                           AND (s.kind IN ('Project', 'Service', 'App', 'Worker', 'CliTool', 'TestSuite'))
                         GROUP BY sName, sId;
                         """;
-                    epJson = await sqliteClient.ExecuteRawAsync(fastEpQuery, null, ct);
+                    epRows = await db.QueryAsync<(string SName, string SId, int EpCount)>(fastEpQuery, null, ct);
                 }
                 else
                 {
                     var epCountQuery =
                         "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:TestSuite) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
-                    epJson = await db.ExecuteQueryAsync(epCountQuery, null, ct);
+                    epRows = await db.QueryAsync<(string SName, string SId, int EpCount)>(epCountQuery, null, ct);
                 }
 
-                using var epDoc = JsonDocument.Parse(epJson);
-
-                foreach (var row in epDoc.RootElement.EnumerateArray())
+                foreach (var (sName, sId, epCount) in epRows)
                 {
-                    var sName = row.GetStringProp("sName");
-                    var sId = row.GetStringProp("sId");
                     ServiceSummaryDto? summary = null;
 
                     if (!string.IsNullOrEmpty(sName) && serviceMap.TryGetValue(sName, out summary))
@@ -314,10 +267,9 @@ public partial class ArchitectureViewEngine
                     {
                     }
 
-                    if (summary != null && row.TryGetProperty("epCount", out var cp) &&
-                        cp.ValueKind == JsonValueKind.Number)
+                    if (summary != null)
                     {
-                        summary.EndpointCount = cp.GetInt32();
+                        summary.EndpointCount = epCount;
                     }
                 }
             }
@@ -479,22 +431,17 @@ public partial class ArchitectureViewEngine
         try
         {
             var epQuery = "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE s.id = $id OR s.name = $name RETURN ep.id AS id, ep.name AS name, ep.http_method AS method, ep.route_template AS route, ep.protocol AS protocol, coalesce(ep.file_path, ep.path) AS file_path, ep.line AS line ORDER BY ep.name ASC";
-            var epJson = await db.ExecuteQueryAsync(epQuery, new Dictionary<string, object> { ["id"] = targetId, ["name"] = serviceName }, ct);
+            var epRes = await db.ExecuteCypherAsync(epQuery, new { id = targetId, name = serviceName }, ct);
 
-            using var epDoc = JsonDocument.Parse(epJson);
-
-            foreach (var row in epDoc.RootElement.EnumerateArray())
+            foreach (var row in epRes.Rows)
             {
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
                 var method = row.GetStringProp("method");
                 var route = row.GetStringProp("route");
-                var protocol = row.GetStringProp("protocol") ?? "REST";
+                var protocol = row.GetStringProp("protocol", "REST");
                 var filePath = row.GetStringProp("file_path");
-                int? line = null;
-
-                if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
-                    line = lp.GetInt32();
+                var line = row.GetNullableIntProp("line");
 
                 epGroup.Items.Add(new ServiceCapabilityItemDto
                 {

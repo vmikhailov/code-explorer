@@ -1,4 +1,4 @@
-# CodeExplorer (`ce`) — Make AI Coding Agents Production-Safe
+# CodeExplorer (`ce`) — a local code graph for you and your AI agent
 
 [![Website](https://img.shields.io/badge/Website-code--explorer.app-8b5cf6.svg)](https://code-explorer.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
@@ -10,18 +10,18 @@
 
 **AI agents see files, not architecture.** CodeExplorer (`ce`) gives your AI coding agents (`Claude Code`, `Cursor`, `GitHub Copilot`, `Windsurf`, `Cline`) and engineering teams a **live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI**.
 
-**✓ Live Architecture Map in VS Code** • **✓ Surgical MCP Context (7.5× Faster, 40× Fewer Tokens)** • **✓ CI Architecture Gates** • **✓ 100% Local SQLite Graph**
+**✓ Live Architecture Map in VS Code** • **✓ Graph Context for Agents (CLI + MCP)** • **✓ CI Architecture Gates** • **✓ 100% Local SQLite Graph**
 
-It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints, message broker topologies, and SQL schemas into a single local SQLite graph (`.codeexplorer/graph.db`) powered by an embedded OpenCypher-to-SQL compiler:
+It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints, message broker topologies, and SQL schemas into a single local SQLite graph (`.codeexplorer/graph.db`) powered by an embedded OpenCypher-to-SQL compiler. It ships as a single native binary: no .NET runtime, JVM, Docker, or graph database server required, and nothing leaves your machine.
 
 1. **Live Architecture Map in VS Code**: Interactive C1/C2/C3 service topologies, concentric architectural tiers, async broker flows, and database lineage with click-to-source navigation.
 2. **Surgical MCP Context for AI Agents**: Gives coding agents instant access to call chains, cross-service dependencies, data lineage, and blast-radius impact analysis without burning millions of tokens on blind `grep` searches.
 3. **CI Architecture Gates (Semantic Invariant Gates)**: Enforces architectural boundaries in the IDE and CI (`ce gate check`) using declarative OpenCypher rules and SHA-256 ratchet baselines.
 
-### Enterprise Benchmark: Plain AI Agent (`ripgrep`) vs. AI Agent + CodeExplorer MCP
-*(Measured on a 450-module enterprise monorepo: 324 microservices, 93 shared libraries, 33 workers — [full benchmark details](./benchmarks/02-enterprise-microservices-deep-audit/README.md))*
+### Benchmark: Plain AI Agent (`ripgrep`) vs. AI Agent + CodeExplorer Graph
+*(Single blast-radius audit task on a private 450-module TypeScript/Go/SQL monorepo: 324 microservices, 93 shared libraries, 33 workers. Same model (Gemini Flash) for both agents, one run each. The agent used `ce` CLI graph queries. [Full methodology and transcript metrics](./benchmarks/02-enterprise-microservices-deep-audit/README.md). A smaller benchmark you can reproduce on this repository itself: [Case Study 01](./benchmarks/01-polyglot-architecture-and-blast-radius/README.md).)*
 
-| Metric | Plain AI Agent (`ripgrep` + file reads) | AI Agent + **CodeExplorer MCP** | Improvement |
+| Metric | Plain AI Agent (`ripgrep` + file reads) | AI Agent + **CodeExplorer Graph** | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Analysis Time** | 29m 52s | **3m 56s** | **7.59× faster** |
 | **Cumulative Input Tokens** | 17.19M tokens | **393K tokens** | **43.7× fewer tokens** |
@@ -44,6 +44,7 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
   <a href="#vs-code-extension">VS Code Extension</a> •
   <a href="#supported-languages--frameworks">Languages</a> •
   <a href="#graph-ontology">Ontology</a> •
+  <a href="#how-it-compares">Comparison</a> •
   <a href="#cli-reference">CLI Reference</a> •
   <a href="#mcp-tools">MCP Tools</a>
 </p>
@@ -52,7 +53,7 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
 
 ## Installation
 
-CodeExplorer is distributed as a self-contained single-file binary (`ce` / `ce.exe`) with embedded Tree-sitter grammars and SQLite, and as a VS Code extension that bundles the native binary for your platform.
+CodeExplorer is distributed as a self-contained single-file binary (`ce` / `ce.exe`) with embedded Tree-sitter grammars and SQLite (no .NET runtime required), and as a VS Code extension that finds an installed `ce` or downloads the native binary for your platform on first run.
 
 ### Homebrew (macOS & Linux)
 
@@ -93,9 +94,13 @@ Standalone archives are available on [GitHub Releases](https://github.com/vmikha
 | OS | Architecture | Asset |
 | :--- | :--- | :--- |
 | macOS | Apple Silicon (`arm64`) | `ce-osx-arm64.tar.gz` |
-| Windows | x64 | `ce-win-x64.zip` |
+| macOS | Intel (`x64`) | `ce-osx-x64.tar.gz` |
+| Linux | `x64` | `ce-linux-x64.tar.gz` |
+| Linux | `arm64` | `ce-linux-arm64.tar.gz` |
+| Windows | `x64` | `ce-win-x64.zip` |
+| Windows | `arm64` | `ce-win-arm64.zip` |
 
-*Note: For other architectures (Linux x64/ARM64, macOS Intel, Windows ARM64), install the lightweight universal .NET tool: `dotnet tool install -g CodeExplorer.Cli`.*
+*The .NET global tool (`dotnet tool install -g CodeExplorer.Cli`) is an alternative if you already have the .NET 10 SDK.*
 
 
 ---
@@ -114,7 +119,7 @@ ce status
 
 # 4. Run a built-in or ad-hoc OpenCypher query
 ce query -n get_architecture_map_workspace
-ce query "MATCH (s:Service)-[:CALLS]->(t:Service) RETURN s.name, t.name"
+ce query "MATCH (a:Project)-[:DEPENDS_ON]->(b:Project) RETURN a.name, b.name"
 
 # 5. Evaluate architectural gates
 ce gate check
@@ -263,18 +268,18 @@ The VS Code extension provides an interactive workspace for exploring the graph,
 
 ## Supported Languages & Frameworks
 
-CodeExplorer combines Tree-sitter grammars, Microsoft SQL ScriptDom, and framework-specific semantic analyzers (`ISemanticExtension`):
+CodeExplorer combines Tree-sitter grammars, Microsoft SQL ScriptDom, and framework-specific semantic analyzers (`ISemanticExtension`). Maturity reflects how much real-world code each analyzer has been validated against: **Stable** means used daily on large production repositories, **Beta** means the analyzers exist and are tested, but coverage of real-world framework patterns is still growing. If the graph looks wrong on your repository, please [open an issue](https://github.com/vmikhailov/code-explorer/issues).
 
-| Language | Files & Manifests | Extracted Framework Semantics |
-| :--- | :--- | :--- |
-| **C#** | `.cs`, `.csproj`, `.sln`, `.slnx` | ASP.NET Core Controllers & Minimal APIs, gRPC services/clients, HttpClient, EF Core (`DbContext`, entities, migrations), Dapper, MassTransit, MediatR |
-| **TypeScript / JS** | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS, Express, Next.js, React, Vue, Angular, Svelte, Axios/fetch/undici clients, Prisma/TypeORM, AWS SDK (SQS, S3, DynamoDB), Azure SDK, Stripe, Jest/Vitest/Playwright/Cypress |
-| **Java** | `.java`, `pom.xml`, `build.gradle` | Spring Boot REST (`@RestController`, `@RequestMapping`), Spring Kafka (`KafkaTemplate`, `@KafkaListener`), Spring AMQP / RabbitMQ, JPA / Hibernate |
-| **Kotlin & Android** | `.kt`, `.kts`, `build.gradle.kts`, `AndroidManifest.xml` | Android Activities/Services/BroadcastReceivers/ContentProviders, Intents, Retrofit, OkHttp, Ktor, Room DAO/Entities, gRPC/Protobuf, Hilt/Dagger/Koin DI, Jetpack Compose, Navigation |
-| **Go** | `.go`, `go.mod` | Gin, Fiber, Echo, `net/http` handlers & clients, Resty, gRPC, `pgx` / `database/sql` |
-| **Python** | `.py`, `pyproject.toml`, `requirements.txt` | FastAPI, Flask, Django routes & ORM models, `requests`, `httpx`, `aiohttp`, Celery / Kafka consumers |
-| **SQL** | `.sql` & embedded SQL strings | T-SQL, PostgreSQL, MySQL, SQLite, ClickHouse, BigQuery DDL & CRUD lineage (`READS_FROM`, `WRITES_TO`) |
-| **ColdFusion** | `.cfc`, `.cfm` | Components, functions, `cfquery` SQL extraction, HTTP calls |
+| Language | Maturity | Files & Manifests | Extracted Framework Semantics |
+| :--- | :--- | :--- | :--- |
+| **C#** | Stable | `.cs`, `.csproj`, `.sln`, `.slnx` | ASP.NET Core Controllers & Minimal APIs, gRPC services/clients, HttpClient, EF Core (`DbContext`, entities, migrations), Dapper, MassTransit, MediatR |
+| **TypeScript / JS** | Stable | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS, Express, Next.js, React, Vue, Angular, Svelte, Axios/fetch/undici clients, Prisma/TypeORM, AWS SDK (SQS, S3, DynamoDB), Azure SDK, Stripe, Jest/Vitest/Playwright/Cypress |
+| **SQL** | Stable | `.sql` & embedded SQL strings | T-SQL, PostgreSQL, MySQL, SQLite, ClickHouse, BigQuery DDL & CRUD lineage (`READS_FROM`, `WRITES_TO`) |
+| **Go** | Beta | `.go`, `go.mod` | Gin, Fiber, Echo, `net/http` handlers & clients, Resty, gRPC, `pgx` / `database/sql` |
+| **Java** | Beta | `.java`, `pom.xml`, `build.gradle` | Spring Boot REST (`@RestController`, `@RequestMapping`), Spring Kafka (`KafkaTemplate`, `@KafkaListener`), Spring AMQP / RabbitMQ, JPA / Hibernate |
+| **Kotlin & Android** | Beta | `.kt`, `.kts`, `build.gradle.kts`, `AndroidManifest.xml` | Android Activities/Services/BroadcastReceivers/ContentProviders, Intents, Retrofit, OkHttp, Ktor, Room DAO/Entities, gRPC/Protobuf, Hilt/Dagger/Koin DI, Jetpack Compose, Navigation |
+| **Python** | Beta | `.py`, `pyproject.toml`, `requirements.txt` | FastAPI, Flask, Django routes & ORM models, `requests`, `httpx`, `aiohttp`, Celery / Kafka consumers |
+| **ColdFusion** | Beta | `.cfc`, `.cfm` | Components, functions, `cfquery` SQL extraction, HTTP calls |
 
 ---
 
@@ -287,6 +292,33 @@ The graph schema is organized into five decoupled layers (see [`docs/ontology.md
 3. **Layer 3 — Syntactic**: `Namespace`, `Type` (class, interface, struct, record, enum), `Function` (method, constructor), `Variable`, `Field`, `CallLiteral`.
 4. **Layer 4 — Semantic**: `Endpoint` (REST, gRPC, GraphQL, WebSocket), `ExternalService`, `Database`, `Table`, `Query`, `Topic`, `Queue`.
 5. **Layer 5 — Cross-Project & Analytical**: Late-bound cross-project `CALLS`, `IMPLEMENTS`, `USES_TYPE`, `PUBLISHES_TO`, `SUBSCRIBES_TO`, `READS_FROM`, `WRITES_TO`, and optional LLM-distilled `Domain` / `BoundedContext` classifications.
+
+---
+
+## How It Compares
+
+CodeExplorer sits between code-intelligence indexers and architecture-testing libraries. It is not a replacement for most of the tools below, and several of them are complementary.
+
+| Tool | What it does best | How CodeExplorer differs |
+| :--- | :--- | :--- |
+| **Sourcegraph** (code search, SCIP) | Compiler-accurate code navigation and search across many repositories, run as a server. | Runs locally as a single binary. Models system-level architecture (services, endpoints, topics, tables) and enforces rules on it. Its symbol resolution is less precise than SCIP indexers. |
+| **GitHub CodeQL** | Deep semantic and security dataflow queries over per-language databases, built from the compiler for compiled languages. | No build required. One graph across all languages, with cross-service HTTP/gRPC/queue edges and architecture gates with ratchet baselines. Not a security dataflow engine. |
+| **Joern** | Open-source Code Property Graph for vulnerability research, queried with a Scala DSL. | Architecture-level ontology instead of a low-level CPG, standard OpenCypher, and MCP / VS Code / CI integration out of the box. |
+| **Serena** and other LSP-based MCP servers | Precise symbol lookup and editing for agents through language servers. | Gives agents the system view (cross-service calls, data lineage, blast radius) rather than symbol-level edits. Works well alongside an LSP-based server. |
+| **Aider repo map** | Compact Tree-sitter summary of important symbols, placed directly into the prompt. | A persistent graph the agent can query on demand with multi-hop questions, instead of a static summary. |
+| **ArchUnit**, **NetArchTest**, **dependency-cruiser** | Architecture rules written as tests inside one language ecosystem. ArchUnit can also freeze existing violations. | One rule language (OpenCypher) across languages and services, and the same graph also powers visualization and agent context. |
+| **Structurizr**, C4 diagrams-as-code | Carefully authored architecture models and diagrams. | The model is derived from code, so it does not drift. Diagrams can be exported to Mermaid or C4 (`ce export`). |
+
+## Limitations
+
+* **Static analysis only.** Reflection, runtime-configured DI, and URLs or topic names assembled at runtime can be missed. Common constant patterns (string constants and simple concatenation) are resolved.
+* **Not a type checker.** Calls are resolved from Tree-sitter syntax plus imports, DI bindings, and interface implementations. This is fast and polyglot, but less precise than compiler-based indexers for heavy overloading or dynamic dispatch.
+* **Language maturity varies.** See the Maturity column in [Supported Languages](#supported-languages--frameworks).
+* **One workspace at a time.** Cross-service links are resolved within one indexed workspace (for example, a monorepo).
+
+## Privacy
+
+Parsing, indexing, queries, gates, and the MCP server run locally, and the graph is stored in `.codeexplorer/graph.db` inside your repository. There is no telemetry. The CLI only uses the network when you explicitly run `ce model download` (fetches the optional local GGUF model) or configure `ce intent` with an OpenAI-compatible API. The VS Code extension downloads the `ce` binary from GitHub Releases if it is not already installed.
 
 ---
 

@@ -464,11 +464,11 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
 
     public Task UploadRelationshipsAsync(List<Relationship> rels) => UpsertRelationshipsAsync(rels);
 
-    public Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    public Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         lock (SyncLock)
         {
-            return Task.FromResult(JsonSerializer.Serialize(NodesById.Values));
+            return Task.FromResult(CypherQueryResult.FromJson(JsonSerializer.Serialize(NodesById.Values)));
         }
     }
 

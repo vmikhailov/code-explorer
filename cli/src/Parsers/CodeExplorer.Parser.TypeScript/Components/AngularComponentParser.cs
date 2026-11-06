@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Components;
 
 namespace CodeExplorer.Parser.TypeScript.Components;
@@ -45,9 +46,9 @@ public class AngularComponentParser : IComponentLibraryParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-                using var doc = System.Text.Json.JsonDocument.Parse(content);
-                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                    doc.RootElement.TryGetProperty("ngPackage", out _))
+                var root = CypherValue.TryParseJsonText(content);
+                if (root.Kind == CypherValueKind.Object &&
+                    root.TryGetProperty("ngPackage", out _))
                 {
                     props["manifest_type"] = "library";
                     props["framework_type"] = "frontend";
@@ -70,20 +71,20 @@ public class AngularComponentParser : IComponentLibraryParser
                 try
                 {
                     var json = PhysicalFileStore.ReadAllText(ancestorAngularJson);
-                    using var angDoc = System.Text.Json.JsonDocument.Parse(json);
-                    if (angDoc.RootElement.TryGetProperty("projects", out var projectsObj) &&
-                        projectsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    var angRoot = CypherValue.TryParseJsonText(json);
+                    if (angRoot.TryGetProperty("projects", out var projectsObj) &&
+                        projectsObj.Kind == CypherValueKind.Object)
                     {
-                        foreach (var pProp in projectsObj.EnumerateObject())
+                        foreach (var pProp in projectsObj.AsObject())
                         {
                             var projVal = pProp.Value;
-                            var rootPath = projVal.TryGetProperty("root", out var r) ? r.GetString() : null;
+                            var rootPath = projVal.TryGetProperty("root", out var r) ? r.AsNullableString() : null;
                             if (!string.IsNullOrEmpty(rootPath) &&
                                 directoryPath.Replace('\\', '/').EndsWith(rootPath.Replace('\\', '/').Trim('/'), StringComparison.OrdinalIgnoreCase))
                             {
                                 if (projVal.TryGetProperty("projectType", out var ptProp))
                                 {
-                                    var pt = ptProp.GetString()?.ToLowerInvariant();
+                                    var pt = ptProp.AsNullableString()?.ToLowerInvariant();
                                     if (pt == "application")
                                     {
                                         props["manifest_type"] = "application";
@@ -137,27 +138,27 @@ public class AngularComponentParser : IComponentLibraryParser
         try
         {
             var json = PhysicalFileStore.ReadAllText(manifestPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("projects", out var projectsObj) ||
-                projectsObj.ValueKind != System.Text.Json.JsonValueKind.Object)
+            var root = CypherValue.TryParseJsonText(json);
+            if (!root.TryGetProperty("projects", out var projectsObj) ||
+                projectsObj.Kind != CypherValueKind.Object)
             {
                 return;
             }
 
-            foreach (var projProp in projectsObj.EnumerateObject())
+            foreach (var projProp in projectsObj.AsObject())
             {
-                var childName = projProp.Name;
+                var childName = projProp.Key;
                 var projVal = projProp.Value;
-                if (projVal.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (projVal.Kind != CypherValueKind.Object) continue;
 
-                var rootRel = projVal.TryGetProperty("root", out var rProp) && rProp.ValueKind == System.Text.Json.JsonValueKind.String
-                    ? (rProp.GetString() ?? "").Replace('\\', '/').Trim('/')
+                var rootRel = projVal.TryGetProperty("root", out var rProp) && rProp.Kind == CypherValueKind.String
+                    ? rProp.AsString().Replace('\\', '/').Trim('/')
                     : "";
-                var srcRootRel = projVal.TryGetProperty("sourceRoot", out var srProp) && srProp.ValueKind == System.Text.Json.JsonValueKind.String
-                    ? (srProp.GetString() ?? "").Replace('\\', '/').Trim('/')
+                var srcRootRel = projVal.TryGetProperty("sourceRoot", out var srProp) && srProp.Kind == CypherValueKind.String
+                    ? srProp.AsString().Replace('\\', '/').Trim('/')
                     : "";
-                var projType = projVal.TryGetProperty("projectType", out var ptProp) && ptProp.ValueKind == System.Text.Json.JsonValueKind.String
-                    ? (ptProp.GetString() ?? "").ToLowerInvariant()
+                var projType = projVal.TryGetProperty("projectType", out var ptProp) && ptProp.Kind == CypherValueKind.String
+                    ? ptProp.AsString().ToLowerInvariant()
                     : "application";
 
                 if (string.IsNullOrEmpty(rootRel) || rootRel == ".")

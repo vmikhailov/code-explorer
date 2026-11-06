@@ -280,43 +280,35 @@ public class MessagingConnectionsTests
             var domain = await engine.GetDomainArchitectureAsync();
 
             // 1. Query raw graph edges for publisher and subscriber projects
-            var queryResult = await client.ExecuteQueryAsync(
+            var queryResult = await client.ExecuteCypherAsync(
                 """
                 MATCH (s)-[r:PUBLISHES_TO|SUBSCRIBES_TO|SUBSCRIBED_BY]->(t:Topic)
                 RETURN s.name AS service, type(r) AS rel, t.name AS topic
                 """
             );
 
-            using var doc = System.Text.Json.JsonDocument.Parse(queryResult);
             var edgeList = new List<(string Service, string Rel, string Topic)>();
-            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            foreach (var elem in queryResult.Rows)
             {
-                foreach (var elem in doc.RootElement.EnumerateArray())
-                {
-                    var s = elem.GetProperty("service").GetString() ?? "";
-                    var r = elem.GetProperty("rel").GetString() ?? "";
-                    var t = elem.GetProperty("topic").GetString() ?? "";
-                    edgeList.Add((s, r, t));
-                }
+                var s = elem.GetStringProp("service");
+                var r = elem.GetStringProp("rel");
+                var t = elem.GetStringProp("topic");
+                edgeList.Add((s, r, t));
             }
 
             // Also check undirected SUBSCRIBES edges
-            var reverseQuery = await client.ExecuteQueryAsync(
+            var reverseQuery = await client.ExecuteCypherAsync(
                 """
                 MATCH (t:Topic)-[r:SUBSCRIBES_TO|SUBSCRIBED_BY]->(s)
                 RETURN s.name AS service, type(r) AS rel, t.name AS topic
                 """
             );
-            using var revDoc = System.Text.Json.JsonDocument.Parse(reverseQuery);
-            if (revDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            foreach (var elem in reverseQuery.Rows)
             {
-                foreach (var elem in revDoc.RootElement.EnumerateArray())
-                {
-                    var s = elem.GetProperty("service").GetString() ?? "";
-                    var r = elem.GetProperty("rel").GetString() ?? "";
-                    var t = elem.GetProperty("topic").GetString() ?? "";
-                    edgeList.Add((s, r, t));
-                }
+                var s = elem.GetStringProp("service");
+                var r = elem.GetStringProp("rel");
+                var t = elem.GetStringProp("topic");
+                edgeList.Add((s, r, t));
             }
             TestContext.WriteLine("ALL EDGES: " + string.Join(", ", edgeList.Select(e => $"{e.Service} -{e.Rel}-> {e.Topic}")));
 
