@@ -105,12 +105,12 @@ describe("Auth Module", () => {
 
         var suite = functions.FirstOrDefault(e => e.Name == "Jest:Suite:Auth Module");
         suite.Should().NotBeNull("Expected Jest:Suite:Auth Module to be detected");
-        suite!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
-        suite.Extensions?.GetValueOrDefault("test_framework").Should().Be("jest");
+        suite!.IsTest.Should().BeTrue();
+        suite.TestFramework.Should().Be("jest");
 
         var itTest = functions.FirstOrDefault(e => e.Name == "Jest:Test:should login successfully");
         itTest.Should().NotBeNull("Expected Jest:Test:should login successfully to be detected");
-        itTest!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
+        itTest!.IsTest.Should().BeTrue();
 
         var fnTest = functions.FirstOrDefault(e => e.Name == "Jest:Test:should handle invalid credentials");
         fnTest.Should().NotBeNull("Expected Jest:Test:should handle invalid credentials to be detected");
@@ -142,12 +142,12 @@ describe("User Controller", () => {
         var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
         var suite = functions.FirstOrDefault(e => e.Name == "Vitest:Suite:User Controller");
         suite.Should().NotBeNull("Expected Vitest:Suite:User Controller to be detected");
-        suite!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
-        suite.Extensions?.GetValueOrDefault("test_framework").Should().Be("vitest");
+        suite!.IsTest.Should().BeTrue();
+        suite.TestFramework.Should().Be("vitest");
 
         var testCase = functions.FirstOrDefault(e => e.Name == "Vitest:Test:fetches user by ID");
         testCase.Should().NotBeNull();
-        testCase!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
+        testCase!.IsTest.Should().BeTrue();
 
         var allRefs = FindAllReferences(ws.FileNode);
         allRefs.Any(r => r.TargetName == "./services/user.service" && r.Kind == "DEPENDS_ON").Should().BeTrue();
@@ -174,15 +174,15 @@ describe("Mocha Payment Suite", () => {
         var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
         var suite = functions.FirstOrDefault(e => e.Name == "Mocha:Suite:Mocha Payment Suite");
         suite.Should().NotBeNull("Expected Mocha:Suite:Mocha Payment Suite");
-        suite!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
-        suite.Extensions?.GetValueOrDefault("test_framework").Should().Be("mocha");
+        suite!.IsTest.Should().BeTrue();
+        suite.TestFramework.Should().Be("mocha");
 
         var ctxSuite = functions.FirstOrDefault(e => e.Name == "Mocha:Suite:when balance is sufficient");
         ctxSuite.Should().NotBeNull("Expected Mocha:Suite:when balance is sufficient");
 
         var specifyTest = functions.FirstOrDefault(e => e.Name == "Mocha:Test:sends receipt email");
         specifyTest.Should().NotBeNull("Expected Mocha:Test:sends receipt email");
-        specifyTest!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
+        specifyTest!.IsTest.Should().BeTrue();
     }
 
     [Test]
@@ -201,7 +201,7 @@ describe("Checkout Workflow", () => {
         var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
         var suite = functions.FirstOrDefault(e => e.Name == "Cypress:Suite:Checkout Workflow");
         suite.Should().NotBeNull("Expected Cypress:Suite:Checkout Workflow");
-        suite!.Extensions?.GetValueOrDefault("test_framework").Should().Be("cypress");
+        suite!.TestFramework.Should().Be("cypress");
 
         var testCase = functions.FirstOrDefault(e => e.Name == "Cypress:Test:completes order");
         testCase.Should().NotBeNull("Expected Cypress:Test:completes order");
@@ -232,7 +232,7 @@ test.describe("Admin Portal", () => {
         var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
         var suite = functions.FirstOrDefault(e => e.Name == "Playwright:Suite:Admin Portal");
         suite.Should().NotBeNull("Expected Playwright:Suite:Admin Portal");
-        suite!.Extensions?.GetValueOrDefault("test_framework").Should().Be("playwright");
+        suite!.TestFramework.Should().Be("playwright");
 
         var testCase = functions.FirstOrDefault(e => e.Name == "Playwright:Test:navigates and verifies telemetry");
         testCase.Should().NotBeNull("Expected Playwright:Test:navigates and verifies telemetry");

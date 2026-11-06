@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -23,10 +22,10 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
             var wsEntity = await _client.Graph.Workspaces.FirstOrDefaultAsync(ct);
             if (wsEntity is not null && !string.IsNullOrEmpty(wsEntity.Id))
             {
-                var ext = !string.IsNullOrEmpty(wsEntity.IndexedAt)
-                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [OntologyConstants.ExtensionKeys.IndexedAt] = wsEntity.IndexedAt }
-                    : null;
-                return new WorkspaceNode(wsEntity.Id, wsEntity.Name, wsEntity.FilePath ?? string.Empty, ext);
+                return new WorkspaceNode(wsEntity.Id, wsEntity.Name, wsEntity.FilePath ?? string.Empty)
+                {
+                    IndexedAt = wsEntity.IndexedAt
+                };
             }
         }
         catch (NotSupportedException)
@@ -42,25 +41,20 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     {
         if (string.IsNullOrEmpty(id)) return null;
 
-        var json = await _client.ExecuteQueryAsync(
+        return await _client.QueryFirstOrDefaultAsync<Node>(
             "MATCH (n) WHERE n.id = $id RETURN n LIMIT 1",
             new { id },
             ct);
-
-        var list = DeserializeNodes(json);
-        return list.Count > 0 ? list[0] : null;
     }
 
     public async ValueTask<IReadOnlyList<Node>> GetNodesByKindAsync(string kind, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(kind)) return [];
 
-        var json = await _client.ExecuteQueryAsync(
+        return await _client.QueryAsync<Node>(
             "MATCH (n) WHERE n.kind = $kind RETURN n",
             new { kind },
             ct);
-
-        return DeserializeNodes(json);
     }
 
     public ValueTask<IReadOnlyList<Node>> GetNodesByKindAsync(NodeKind kind, CancellationToken ct = default)
@@ -71,22 +65,18 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
 
     public async ValueTask<IReadOnlyList<Node>> GetAllNodesAsync(CancellationToken ct = default)
     {
-        var json = await _client.ExecuteQueryAsync(
+        return await _client.QueryAsync<Node>(
             "MATCH (n) RETURN n",
             null,
             ct);
-
-        return DeserializeNodes(json);
     }
 
     public async ValueTask<IReadOnlyList<Relationship>> GetAllRelationshipsAsync(CancellationToken ct = default)
     {
-        var json = await _client.ExecuteQueryAsync(
+        return await _client.QueryAsync<Relationship>(
             "MATCH ()-[r]->() RETURN r",
             null,
             ct);
-
-        return DeserializeRelationships(json);
     }
 
     public ValueTask<IReadOnlyList<Relationship>> GetOutgoingRelationshipsAsync(
@@ -137,8 +127,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
             parameters = new { fromId = fromNodeId, relKind = relationshipKind };
         }
 
-        var json = await _client.ExecuteQueryAsync(query, parameters, ct);
-        return DeserializeRelationships(json);
+        return await _client.QueryAsync<Relationship>(query, parameters, ct);
     }
 
     public ValueTask<IReadOnlyList<Relationship>> GetIncomingRelationshipsAsync(
@@ -189,8 +178,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
             parameters = new { toId = toNodeId, relKind = relationshipKind };
         }
 
-        var json = await _client.ExecuteQueryAsync(query, parameters, ct);
-        return DeserializeRelationships(json);
+        return await _client.QueryAsync<Relationship>(query, parameters, ct);
     }
 
     public Task UpsertNodesAsync(IEnumerable<Node> nodes, CancellationToken ct = default) =>
@@ -222,48 +210,4 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
         _client.LoadLateBindingCandidatesAsync(workspaceId, needEndpoints, needExternalServices, ct);
 
     public ValueTask DisposeAsync() => _client.DisposeAsync();
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
-    private static IReadOnlyList<Node> DeserializeNodes(string json)
-    {
-        if (string.IsNullOrWhiteSpace(json) || json is "[]" or "null") return [];
-        try
-        {
-            var nodes = JsonSerializer.Deserialize<List<Node>>(json, JsonOptions) ?? [];
-            foreach (var node in nodes)
-            {
-                if (node.Properties is null) continue;
-                foreach (var key in node.Properties.Keys.ToList())
-                {
-                    if (node.Properties[key] is JsonElement elem)
-                    {
-                        var converted = JsonHelper.ConvertJsonElement(elem);
-                        if (converted is not null) node.Properties[key] = converted;
-                    }
-                }
-            }
-            return nodes;
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
-    private static IReadOnlyList<Relationship> DeserializeRelationships(string json)
-    {
-        if (string.IsNullOrWhiteSpace(json) || json is "[]" or "null") return [];
-        try
-        {
-            return JsonSerializer.Deserialize<List<Relationship>>(json, JsonOptions) ?? [];
-        }
-        catch
-        {
-            return [];
-        }
-    }
 }

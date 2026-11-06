@@ -425,7 +425,7 @@ public partial class ArchitectureViewEngine
 
         var result = new NodesResponseDto
         {
-            Kind = kind ?? "",
+            Kind = EnumExtensions.ParseNodeKind(kind),
             Offset = offset,
             Limit = limit
         };

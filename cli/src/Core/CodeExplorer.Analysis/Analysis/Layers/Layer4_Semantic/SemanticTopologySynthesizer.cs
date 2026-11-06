@@ -272,25 +272,24 @@ internal static class SemanticTopologySynthesizer
         var meshId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.PeerMesh}:peer-network";
         if (!semanticStructureNode.Children.Any(child => child.Id.Equals(meshId, StringComparison.OrdinalIgnoreCase)))
         {
-            var extensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            var detectionSignals = string.Join(',', new[]
             {
-                ["topology"] = "symmetric",
-                ["detection_signals"] = string.Join(',', new[]
-                {
-                    evidence.PeerConfiguration ? "peer configuration" : null,
-                    evidence.BidirectionalTransport ? "bidirectional transport" : null,
-                    evidence.ComposeReplicas ? "compose replicas" : null,
-                    evidence.CollectiveCompute ? "collective compute" : null
-                }.Where(signal => signal != null)),
-                ["is_semantic_entity"] = "true"
-            };
+                evidence.PeerConfiguration ? "peer configuration" : null,
+                evidence.BidirectionalTransport ? "bidirectional transport" : null,
+                evidence.ComposeReplicas ? "compose replicas" : null,
+                evidence.CollectiveCompute ? "collective compute" : null
+            }.Where(signal => signal != null));
             semanticStructureNode.Children.Add(new PeerMeshNode(
                 meshId,
                 meshName,
                 ".",
                 memberCount,
-                string.Join(", ", protocols),
-                extensions));
+                string.Join(", ", protocols))
+            {
+                Topology = "symmetric",
+                DetectionSignals = detectionSignals,
+                IsSemanticEntity = true
+            });
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.PeerMesh, meshName, meshId);
         }
 
@@ -344,14 +343,11 @@ internal static class SemanticTopologySynthesizer
                 continue;
             }
 
-            var relationship = new CoordinatesWithRelationship(
-                sourceId,
-                meshId,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["protocols"] = string.Join(", ", protocols),
-                    ["is_semantic"] = "true"
-                });
+            var relationship = new CoordinatesWithRelationship(sourceId, meshId)
+            {
+                Protocols = string.Join(", ", protocols),
+                IsSemantic = true
+            };
             AddRelationship(
                 Relationship.FromRelationship(relationship),
                 semanticRelationships,
@@ -361,8 +357,7 @@ internal static class SemanticTopologySynthesizer
 
     private static IReadOnlyList<string> GetReachableDependencyFiles(ProjectNode project, string workspaceRoot)
     {
-        var json = project.TryGetSignals()?.SourceReachability ??
-                   project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
+        var json = project.TryGetSignals()?.SourceReachability;
         if (string.IsNullOrWhiteSpace(json))
         {
             return [];

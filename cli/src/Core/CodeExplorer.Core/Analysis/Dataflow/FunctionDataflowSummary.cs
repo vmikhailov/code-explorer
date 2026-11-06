@@ -116,23 +116,41 @@ public static class FunctionDataflowAnalyzer
     {
         for (int i = 0; i < block.Children.Count; i++)
         {
-            var child = block.Children[i];
-            if (child is StatementSyntax stmt)
-            {
-                ScanStatement(stmt, varOrigins, summary);
-            }
-            else if (child is DeclarationSyntax decl)
-            {
+            ScanNode(block.Children[i], varOrigins, summary);
+        }
+    }
+
+    private static void ScanNode(SyntaxNode node, Dictionary<string, List<DataflowOrigin>> varOrigins, FunctionDataflowSummary summary)
+    {
+        switch (node)
+        {
+            case LambdaExprSyntax:
+                return;
+
+            case DeclarationSyntax decl:
                 ProcessDeclaration(decl, varOrigins, summary);
-            }
-            else if (child is AssignmentExprSyntax assign)
-            {
+                break;
+
+            case AssignmentExprSyntax assign:
                 HandleAssignment(assign, varOrigins, summary);
-            }
-            else if (child is ExprSyntax expr)
-            {
+                break;
+
+            case ReturnStmtSyntax ret when ret.Value != null:
+                var retOrigins = ResolveExprOrigins(ret.Value, varOrigins);
+                summary.ReturnOrigins.AddRange(retOrigins);
+                ScanExprCalls(ret.Value, varOrigins, summary);
+                break;
+
+            case ExprSyntax expr:
                 ScanExprCalls(expr, varOrigins, summary);
-            }
+                break;
+
+            default:
+                for (int i = 0; i < node.Children.Count; i++)
+                {
+                    ScanNode(node.Children[i], varOrigins, summary);
+                }
+                break;
         }
     }
 
@@ -159,80 +177,6 @@ public static class FunctionDataflowAnalyzer
             {
                 ProcessDeclaration(childDecl, varOrigins, summary);
             }
-        }
-    }
-
-    private static void ScanStatement(StatementSyntax stmt, Dictionary<string, List<DataflowOrigin>> varOrigins, FunctionDataflowSummary summary)
-    {
-        switch (stmt)
-        {
-            case BlockStmtSyntax b:
-                ScanBlock(b, varOrigins, summary);
-                break;
-
-            case DeclStmtSyntax declStmt:
-                foreach (var decl in declStmt.Declarations)
-                {
-                    ProcessDeclaration(decl, varOrigins, summary);
-                }
-                break;
-
-            case ExprStmtSyntax exprStmt when exprStmt.Expression != null:
-                if (exprStmt.Expression is AssignmentExprSyntax assign)
-                {
-                    HandleAssignment(assign, varOrigins, summary);
-                }
-                else
-                {
-                    ScanExprCalls(exprStmt.Expression, varOrigins, summary);
-                }
-                break;
-
-            case ReturnOrYieldStmtSyntax ret when ret.Value != null:
-                var retOrigins = ResolveExprOrigins(ret.Value, varOrigins);
-                summary.ReturnOrigins.AddRange(retOrigins);
-                ScanExprCalls(ret.Value, varOrigins, summary);
-                break;
-
-            case IfStmtSyntax ifStmt:
-                if (ifStmt.Condition != null) ScanExprCalls(ifStmt.Condition, varOrigins, summary);
-                if (ifStmt.ThenBranch != null) ScanStatement(ifStmt.ThenBranch, varOrigins, summary);
-                if (ifStmt.ElseBranch != null) ScanStatement(ifStmt.ElseBranch, varOrigins, summary);
-                break;
-
-            case LoopStmtSyntax loop:
-                if (loop.Collection != null) ScanExprCalls(loop.Collection, varOrigins, summary);
-                if (loop.Condition != null) ScanExprCalls(loop.Condition, varOrigins, summary);
-                if (loop.Body != null) ScanStatement(loop.Body, varOrigins, summary);
-                break;
-
-            case TryStmtSyntax tryStmt:
-                if (tryStmt.Body != null) ScanBlock(tryStmt.Body, varOrigins, summary);
-                foreach (var c in tryStmt.Catches)
-                {
-                    if (c.Body != null) ScanBlock(c.Body, varOrigins, summary);
-                }
-                if (tryStmt.FinallyBody != null) ScanBlock(tryStmt.FinallyBody, varOrigins, summary);
-                break;
-
-            case LockStmtSyntax lockStmt:
-                if (lockStmt.Body != null) ScanBlock(lockStmt.Body, varOrigins, summary);
-                break;
-
-            case UsingOrWithStmtSyntax usingStmt:
-                if (usingStmt.Body != null) ScanStatement(usingStmt.Body, varOrigins, summary);
-                break;
-
-            default:
-                foreach (var childStmt in stmt.Children.OfType<StatementSyntax>())
-                {
-                    ScanStatement(childStmt, varOrigins, summary);
-                }
-                foreach (var childExpr in stmt.Children.OfType<ExprSyntax>())
-                {
-                    ScanExprCalls(childExpr, varOrigins, summary);
-                }
-                break;
         }
     }
 
@@ -356,8 +300,8 @@ public static class FunctionDataflowAnalyzer
                 list.Add(new DataflowOrigin(FlowSourceKind.CallReturn, call.MethodName));
                 break;
 
-            case AwaitOrTryExprSyntax awaitExpr when awaitExpr.Operand != null:
-                list.AddRange(ResolveExprOrigins(awaitExpr.Operand, varOrigins));
+            case UnaryExprSyntax unary when unary.Operand != null:
+                list.AddRange(ResolveExprOrigins(unary.Operand, varOrigins));
                 break;
 
             case ArgumentSyntax arg when arg.Value != null:

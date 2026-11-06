@@ -107,7 +107,7 @@ public class DotNetTestComponentParser : IComponentLibraryParser
 
         if (hasTestsInFile)
         {
-            syntaxTree.FileNode.SetExtension("is_test", "true");
+            syntaxTree.FileNode.IsTest = true;
         }
     }
 
@@ -125,8 +125,8 @@ public class DotNetTestComponentParser : IComponentLibraryParser
                 if (string.Equals(fn.Name, methodName, StringComparison.OrdinalIgnoreCase) ||
                     fn.StartLine == startRow || fn.StartLine == startRow + 1)
                 {
-                    fn.SetExtension("is_test", "true");
-                    fn.SetExtension("test_framework", framework);
+                    fn.IsTest = true;
+                    fn.TestFramework = framework;
                     if (result != null && !string.IsNullOrEmpty(fn.Name))
                     {
                         result.Tests.Add(fn.Name);

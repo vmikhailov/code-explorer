@@ -135,22 +135,16 @@ public partial class Layer5AnalysisParser
 
         foreach (var targetId in targetNodeIds)
         {
-            var relProps = new Dictionary<string, object>
+            var rel = new Relationship(hostId, targetId, OntologyConstants.Relationships.Instantiates)
             {
-                ["category"] = "ui_host",
-                ["dependency_type"] = "instantiates",
-                ["asset"] = cleanAsset,
-                [OntologyConstants.PropertyNames.FilePath] = callerFile ?? "",
-                ["target_file"] = primaryFile,
-                [OntologyConstants.PropertyNames.EvidenceKind] = "instantiates"
+                Category = "ui_host",
+                DependencyType = "instantiates",
+                Asset = cleanAsset,
+                FilePath = callerFile ?? "",
+                TargetFile = primaryFile,
+                EvidenceKind = "instantiates",
+                Line = refItem.Line > 0 ? refItem.Line : 0
             };
-
-            if (refItem.Line > 0)
-            {
-                relProps[OntologyConstants.PropertyNames.Line] = refItem.Line;
-            }
-
-            var rel = new Relationship(hostId, targetId, OntologyConstants.Relationships.Instantiates, relProps);
             referenceRelationships.Add(rel);
         }
     }

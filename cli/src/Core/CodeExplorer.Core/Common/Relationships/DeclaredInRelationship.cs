@@ -6,11 +6,11 @@ namespace CodeExplorer.Core.Common.Relationships;
 
 [OntologyRelationship(OntologyConstants.Relationships.DeclaredIn, "Links a syntactic type, function, or member declaration to its physical declaring source file.")]
 public record DeclaredInRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyRelationship
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
+) : OntologyRelationship(From, To, CustomProperties)
 {
     [JsonIgnore]
-    public RelationshipKind Kind => RelationshipKind.DeclaredIn;
+    public override RelationshipKind Kind => RelationshipKind.DeclaredIn;
 }

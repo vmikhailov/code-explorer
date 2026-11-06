@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Analysis;
@@ -64,19 +63,25 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
 
         try
         {
-            var json = await _db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["name"] = serviceName }, ct);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            var rows = await _db.QueryAsync<(string ServiceId, List<string> Endpoints, List<string> Publishes, List<string> Subscribes)>(
+                query,
+                new { name = serviceName },
+                ct);
+
+            if (rows.Count > 0)
             {
                 var endpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var publishes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var subscribes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var row in doc.RootElement.EnumerateArray())
+                foreach (var row in rows)
                 {
-                    foreach (var ep in ExtractStringList(row, "endpoints")) endpoints.Add(ep);
-                    foreach (var pub in ExtractStringList(row, "publishes")) publishes.Add(pub);
-                    foreach (var sub in ExtractStringList(row, "subscribes")) subscribes.Add(sub);
+                    foreach (var ep in row.Endpoints)
+                        if (!string.IsNullOrWhiteSpace(ep)) endpoints.Add(ep.Trim());
+                    foreach (var pub in row.Publishes)
+                        if (!string.IsNullOrWhiteSpace(pub)) publishes.Add(pub.Trim());
+                    foreach (var sub in row.Subscribes)
+                        if (!string.IsNullOrWhiteSpace(sub)) subscribes.Add(sub.Trim());
                 }
 
                 return new ServiceSurfaceDto(serviceName, [.. endpoints], [.. publishes], [.. subscribes]);
@@ -105,17 +110,22 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
 
         try
         {
-            var json = await _db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["name"] = serviceName }, ct);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            var rows = await _db.QueryAsync<(string ServiceId, List<string> Databases, List<string> Tables)>(
+                query,
+                new { name = serviceName },
+                ct);
+
+            if (rows.Count > 0)
             {
                 var databases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var tables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var row in doc.RootElement.EnumerateArray())
+                foreach (var row in rows)
                 {
-                    foreach (var db in ExtractStringList(row, "databases")) databases.Add(db);
-                    foreach (var tb in ExtractStringList(row, "tables")) tables.Add(tb);
+                    foreach (var db in row.Databases)
+                        if (!string.IsNullOrWhiteSpace(db)) databases.Add(db.Trim());
+                    foreach (var tb in row.Tables)
+                        if (!string.IsNullOrWhiteSpace(tb)) tables.Add(tb.Trim());
                 }
 
                 return new ServiceDataLineageDto(serviceName, [.. databases], [.. tables]);
@@ -144,35 +154,41 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
 
         try
         {
-            var json = await _db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["name"] = serviceName }, ct);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            var rows = await _db.QueryAsync<(string ServiceId, List<string> ReferencedLibraries, List<string> CallsServices, List<string> CalledBy)>(
+                query,
+                new { name = serviceName },
+                ct);
+
+            if (rows.Count > 0)
             {
                 var libs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var calls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var calledBy = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var row in doc.RootElement.EnumerateArray())
+                foreach (var row in rows)
                 {
-                    foreach (var lib in ExtractStringList(row, "referenced_libraries"))
+                    foreach (var lib in row.ReferencedLibraries)
                     {
-                        if (!string.Equals(lib, serviceName, StringComparison.OrdinalIgnoreCase))
+                        var trimmed = lib.Trim();
+                        if (!string.IsNullOrWhiteSpace(trimmed) && !string.Equals(trimmed, serviceName, StringComparison.OrdinalIgnoreCase))
                         {
-                            libs.Add(lib);
+                            libs.Add(trimmed);
                         }
                     }
-                    foreach (var call in ExtractStringList(row, "calls_services"))
+                    foreach (var call in row.CallsServices)
                     {
-                        if (!string.Equals(call, serviceName, StringComparison.OrdinalIgnoreCase))
+                        var trimmed = call.Trim();
+                        if (!string.IsNullOrWhiteSpace(trimmed) && !string.Equals(trimmed, serviceName, StringComparison.OrdinalIgnoreCase))
                         {
-                            calls.Add(call);
+                            calls.Add(trimmed);
                         }
                     }
-                    foreach (var caller in ExtractStringList(row, "called_by"))
+                    foreach (var caller in row.CalledBy)
                     {
-                        if (!string.Equals(caller, serviceName, StringComparison.OrdinalIgnoreCase))
+                        var trimmed = caller.Trim();
+                        if (!string.IsNullOrWhiteSpace(trimmed) && !string.Equals(trimmed, serviceName, StringComparison.OrdinalIgnoreCase))
                         {
-                            calledBy.Add(caller);
+                            calledBy.Add(trimmed);
                         }
                     }
                 }
@@ -200,17 +216,17 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
 
         try
         {
-            var json = await _db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["library"] = libraryName }, ct);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            var rows = await _db.QueryAsync<List<string>>(query, new { library = libraryName }, ct);
+            if (rows.Count > 0)
             {
                 var entities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var row in doc.RootElement.EnumerateArray())
+                foreach (var list in rows)
                 {
-                    foreach (var e in ExtractStringList(row, "entities"))
+                    foreach (var raw in list)
                     {
-                        if (!e.EndsWith("Tests") && !e.EndsWith("Test") && !e.EndsWith("Fixture"))
+                        var e = raw.Trim();
+                        if (!string.IsNullOrWhiteSpace(e) && !e.EndsWith("Tests") && !e.EndsWith("Test") && !e.EndsWith("Fixture"))
                         {
                             entities.Add(e);
                         }
@@ -226,22 +242,5 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
         }
 
         return new LibraryEntitiesDto(libraryName, []);
-    }
-
-    private static List<string> ExtractStringList(JsonElement element, string propName)
-    {
-        var list = new List<string>();
-        if (element.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in prop.EnumerateArray())
-            {
-                var str = item.GetString();
-                if (!string.IsNullOrWhiteSpace(str))
-                {
-                    list.Add(str.Trim());
-                }
-            }
-        }
-        return list;
     }
 }

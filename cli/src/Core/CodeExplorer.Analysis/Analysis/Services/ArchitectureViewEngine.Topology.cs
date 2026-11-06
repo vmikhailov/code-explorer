@@ -76,7 +76,7 @@ public partial class ArchitectureViewEngine
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var usedDbIds = graph.Edges
-            .Where(e => (e.Kind is "USES_DB" or "READS_FROM" or "WRITES_TO" or "ACCESSES_TABLE" || string.Equals(e.Category, "database", StringComparison.OrdinalIgnoreCase)) &&
+            .Where(e => (e.Kind is RelationshipKind.UsesDb or RelationshipKind.ReadsFrom or RelationshipKind.WritesTo or RelationshipKind.AccessesTable || e.Category == GraphEdgeCategory.Database) &&
                         (nonTestNodeIds.Contains(e.Source) || nonTestNodeIds.Contains(e.Target)))
             .SelectMany(e => new[] { e.Source, e.Target })
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -333,18 +333,18 @@ public partial class ArchitectureViewEngine
                     foreach (var inEdge in incomingToLib)
                     {
                         if (!nodesById.TryGetValue(inEdge.Source, out var srcNode)) continue;
-                        if (srcNode.Kind == NodeKind.Topic || inEdge.Kind == "TRIGGERS" || inEdge.Kind == "SUBSCRIBES_TO")
+                        if (srcNode.Kind == NodeKind.Topic || inEdge.Kind is RelationshipKind.Triggers or RelationshipKind.SubscribesTo)
                         {
                             if (IsInternalTopic(srcNode) || inEdge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
-                            if (graph.Edges.All(e => !(e.Source == srcNode.Id && e.Target == service.Id && (e.Kind == "SUBSCRIBES_TO" || e.Kind == "SUBSCRIBED_BY"))))
+                            if (graph.Edges.All(e => !(e.Source == srcNode.Id && e.Target == service.Id && e.Kind is RelationshipKind.SubscribesTo or RelationshipKind.SubscribedBy)))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
                                     Id = $"{srcNode.Id}->{service.Id}:SUBSCRIBES_TO",
                                     Source = srcNode.Id,
                                     Target = service.Id,
-                                    Kind = "SUBSCRIBES_TO",
-                                    Category = "messaging",
+                                    Kind = RelationshipKind.SubscribesTo,
+                                    Category = GraphEdgeCategory.Messaging,
                                     IsTransitive = true,
                                     IsInferred = true,
                                     Properties = new Dictionary<string, string>
@@ -367,7 +367,7 @@ public partial class ArchitectureViewEngine
                         if (!nodesById.TryGetValue(edge.Target, out var targetNode)) continue;
 
                         // Case 1: Library connects to Database -> Lift direct USES_DB to Service
-                        if (targetNode.Kind == NodeKind.Database || edge.Kind == "USES_DB")
+                        if (targetNode.Kind == NodeKind.Database || edge.Kind == RelationshipKind.UsesDb)
                         {
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id)))
                             {
@@ -376,8 +376,8 @@ public partial class ArchitectureViewEngine
                                     Id = $"{service.Id}->{targetNode.Id}:USES_DB",
                                     Source = service.Id,
                                     Target = targetNode.Id,
-                                    Kind = "USES_DB",
-                                    Category = "database",
+                                    Kind = RelationshipKind.UsesDb,
+                                    Category = GraphEdgeCategory.Database,
                                     IsTransitive = false,
                                     IsInferred = true,
                                     Properties = new Dictionary<string, string>
@@ -393,18 +393,18 @@ public partial class ArchitectureViewEngine
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
                         else if (IsProjectNodeKind(targetNode.Kind) && !IsLibraryProject(targetNode) && targetNode.Id != service.Id &&
-                                 (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" || edge.Category == "service_call" ||
+                                 (edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint || edge.Category == GraphEdgeCategory.ServiceCall ||
                                   edge.Properties?.GetValueOrDefault("dependency_type") == "service_call"))
                         {
-                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "SERVICE_CALL" || e.Kind == "CALLS_ENDPOINT"))))
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && e.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint)))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
                                     Id = $"{service.Id}->{targetNode.Id}:SERVICE_CALL",
                                     Source = service.Id,
                                     Target = targetNode.Id,
-                                    Kind = "SERVICE_CALL",
-                                    Category = "service_call",
+                                    Kind = RelationshipKind.ServiceCall,
+                                    Category = GraphEdgeCategory.ServiceCall,
                                     IsTransitive = false,
                                     IsInferred = true,
                                     Properties = new Dictionary<string, string>
@@ -420,15 +420,15 @@ public partial class ArchitectureViewEngine
                         // Case 3: Library connects to External Service -> Lift direct SERVICE_CALL
                         else if (targetNode.Kind == NodeKind.ExternalService)
                         {
-                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && e.Kind == "SERVICE_CALL")))
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && e.Kind == RelationshipKind.ServiceCall)))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
                                     Id = $"{service.Id}->{targetNode.Id}:SERVICE_CALL",
                                     Source = service.Id,
                                     Target = targetNode.Id,
-                                    Kind = "SERVICE_CALL",
-                                    Category = "service_call",
+                                    Kind = RelationshipKind.ServiceCall,
+                                    Category = GraphEdgeCategory.ServiceCall,
                                     IsTransitive = false,
                                     IsInferred = true,
                                     Properties = new Dictionary<string, string>
@@ -445,15 +445,15 @@ public partial class ArchitectureViewEngine
                         else if (targetNode.Kind == NodeKind.Topic)
                         {
                             if (IsInternalTopic(targetNode) || edge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
-                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "TRIGGERS" || e.Kind == "PUBLISHES_TO"))))
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && e.Kind is RelationshipKind.Triggers or RelationshipKind.PublishesTo)))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
                                     Id = $"{service.Id}->{targetNode.Id}:PUBLISHES_TO",
                                     Source = service.Id,
                                     Target = targetNode.Id,
-                                    Kind = "PUBLISHES_TO",
-                                    Category = "messaging",
+                                    Kind = RelationshipKind.PublishesTo,
+                                    Category = GraphEdgeCategory.Messaging,
                                     IsTransitive = true,
                                     IsInferred = true,
                                     Properties = new Dictionary<string, string>

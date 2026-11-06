@@ -113,7 +113,7 @@ public static class UniversalCypherEdgeLifter
                 Id = $"{src}->{tgt}:{kind}",
                 Source = src,
                 Target = tgt,
-                Kind = kind,
+                Kind = edge.Kind,
                 Properties = props
             });
         }
@@ -140,16 +140,12 @@ public static class UniversalCypherEdgeLifter
             RETURN c1.id AS source, c2.id AS target, type(r) AS kind, count(r) AS weight
         ";
 
-        var json = await db.ExecuteQueryAsync(query, null, ct);
-        using var doc = JsonDocument.Parse(json);
+        var rows = await db.QueryAsync<(string Source, string Target, string Kind, int? Weight)>(query, null, ct);
 
-        var list = new List<GraphEdgeDto>();
-        foreach (var elem in doc.RootElement.EnumerateArray())
+        var list = new List<GraphEdgeDto>(rows.Count);
+        foreach (var (src, tgt, kind, weightVal) in rows)
         {
-            var src = elem.GetStringProp(OntologyConstants.PropertyNames.Source);
-            var tgt = elem.GetStringProp(OntologyConstants.PropertyNames.Target);
-            var kind = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
-            var weight = elem.GetNullableIntProp(OntologyConstants.PropertyNames.Weight) ?? 1;
+            var weight = weightVal ?? 1;
 
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
@@ -158,7 +154,7 @@ public static class UniversalCypherEdgeLifter
                 Id = $"{src}->{tgt}:{kind}",
                 Source = src,
                 Target = tgt,
-                Kind = kind,
+                Kind = EnumExtensions.ParseRelationshipKind(kind),
                 Properties = new Dictionary<string, string>
                 {
                     [OntologyConstants.PropertyNames.Count] = weight.ToString(),

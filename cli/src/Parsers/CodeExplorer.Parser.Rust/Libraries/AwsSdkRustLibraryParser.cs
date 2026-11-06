@@ -480,33 +480,22 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         HashSet<(string From, string To, string Kind)> existingRelKeys,
         ParsingContext ctx)
     {
-        const string KeyResourceRole = "resource_role";
-        const string ValTrue = "true";
-        const string KeyCategory = "category";
-        const string ValExternalResource = "external_resource";
-        const string KeyDepType = "dependency_type";
-        const string ValCloudResource = "cloud_resource";
-        const string KeyIsSemantic = "is_semantic";
-
         var detectedRoles = DetectAwsResourceRoles(effectiveSource, packageNames);
         foreach (var resource in CloudResourceRules.Where(r => detectedRoles.Contains(r.Role, StringComparer.OrdinalIgnoreCase)))
         {
             var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CloudService}:{resource.IdSuffix}";
             if (!semanticStructureNode.Children.Any(child => child.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)))
             {
-                var extensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["provider"] = "AWS",
-                    ["resource_type"] = CodeExplorer.Cypher.Common.TaxonomyEnumExtensions.ToCanonicalString(resource.ResourceType),
-                    [KeyResourceRole] = resource.Role,
-                    ["is_semantic_entity"] = ValTrue
-                };
                 semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.CloudServiceNode(
                     resourceId,
                     resource.Name,
                     resource.ResourceType,
-                    project.Path,
-                    extensions));
+                    project.Path)
+                {
+                    Provider = "AWS",
+                    ResourceRole = resource.Role,
+                    IsSemanticEntity = true
+                });
                 ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, resource.Name, resourceId);
             }
 
@@ -515,29 +504,30 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
                 continue;
             }
 
+            const string ValExternalResource = "external_resource";
+            const string ValCloudResource = "cloud_resource";
+
             AddCloudRelationship(
-                new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.UsesCloud,
-                    new Dictionary<string, object>
-                    {
-                        [KeyCategory] = ValExternalResource,
-                        [KeyDepType] = ValCloudResource,
-                        [KeyResourceRole] = resource.Role,
-                        [KeyIsSemantic] = ValTrue
-                    }),
+                new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.UsesCloud)
+                {
+                    Category = ValExternalResource,
+                    DependencyType = ValCloudResource,
+                    ResourceRole = resource.Role,
+                    IsSemantic = true
+                },
                 semanticRelationships,
                 existingRelKeys);
 
             if (resource.ReadPattern.IsMatch(effectiveSource))
             {
                 AddCloudRelationship(
-                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.ReadsFrom,
-                        new Dictionary<string, object>
-                        {
-                            [KeyCategory] = ValExternalResource,
-                            [KeyDepType] = ValCloudResource,
-                            [KeyResourceRole] = resource.Role,
-                            [KeyIsSemantic] = ValTrue
-                        }),
+                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.ReadsFrom)
+                    {
+                        Category = ValExternalResource,
+                        DependencyType = ValCloudResource,
+                        ResourceRole = resource.Role,
+                        IsSemantic = true
+                    },
                     semanticRelationships,
                     existingRelKeys);
             }
@@ -545,14 +535,13 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             if (resource.WritePattern.IsMatch(effectiveSource))
             {
                 AddCloudRelationship(
-                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.WritesTo,
-                        new Dictionary<string, object>
-                        {
-                            [KeyCategory] = ValExternalResource,
-                            [KeyDepType] = ValCloudResource,
-                            [KeyResourceRole] = resource.Role,
-                            [KeyIsSemantic] = ValTrue
-                        }),
+                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.WritesTo)
+                    {
+                        Category = ValExternalResource,
+                        DependencyType = ValCloudResource,
+                        ResourceRole = resource.Role,
+                        IsSemantic = true
+                    },
                     semanticRelationships,
                     existingRelKeys);
             }

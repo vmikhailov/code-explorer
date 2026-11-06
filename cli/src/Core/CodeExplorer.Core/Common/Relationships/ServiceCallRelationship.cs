@@ -6,11 +6,11 @@ namespace CodeExplorer.Core.Common.Relationships;
 
 [OntologyRelationship(OntologyConstants.Relationships.ServiceCall, "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.")]
 public record ServiceCallRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyRelationship
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
+) : OntologyRelationship(From, To, CustomProperties)
 {
     [JsonIgnore]
-    public RelationshipKind Kind => RelationshipKind.ServiceCall;
+    public override RelationshipKind Kind => RelationshipKind.ServiceCall;
 }

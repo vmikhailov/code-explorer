@@ -30,10 +30,8 @@ public class ReleaseV14614BugFixTests
 
         var dbNode = container.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
-        dbNode!.Extensions.Should().ContainKey("from_config");
-        dbNode.Extensions["from_config"].Should().Be("true");
-        dbNode.Extensions.Should().ContainKey("config_key");
-        dbNode.Extensions["config_key"].Should().Be(key);
+        dbNode!.FromConfig.Should().BeTrue();
+        dbNode.ConfigKey.Should().Be(key);
     }
 
     [Test]

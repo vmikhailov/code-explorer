@@ -54,32 +54,30 @@ public sealed class RustSyntaxConverter : TreeSitterSyntaxConverterBase
                 new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "field_expression" or "scoped_identifier" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "index_expression" => new IndexOrSliceExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "index_expression" => new IndexExprSyntax { Span = span, RawGrammarKind = rawKind },
             "binary_expression" => new BinaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "unary_expression" or "reference_expression" or "pointer_expression" =>
                 new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "assignment_expression" or "compound_assignment_expr" =>
                 new AssignmentExprSyntax { Span = span, RawGrammarKind = rawKind },
             "closure_expression" => new LambdaExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "await_expression" => new AwaitOrTryExprSyntax { Span = span, RawGrammarKind = rawKind, IsTryPropagate = false },
-            "try_expression" => new AwaitOrTryExprSyntax { Span = span, RawGrammarKind = rawKind, IsTryPropagate = true },
-            "array_expression" or "tuple_expression" or "struct_expression" =>
-                new CollectionExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "await_expression" => new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind, Operator = "await" },
+            "try_expression" => new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind, Operator = "?" },
 
             "block" or "unsafe_block" =>
                 new BlockStmtSyntax { Span = span, RawGrammarKind = rawKind, IsUnsafe = rawKind == "unsafe_block" },
-            "if_expression" => new IfStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "match_expression" => new SwitchOrMatchStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "if_expression" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.If },
+            "match_expression" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Switch },
             "loop_expression" or "while_expression" or "for_expression" =>
-                new LoopStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "return_expression" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Loop },
+            "return_expression" => new ReturnStmtSyntax { Span = span, RawGrammarKind = rawKind },
             "break_expression" or "continue_expression" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Branch },
 
             "generic_type" or "reference_type" or "pointer_type" or "tuple_type" or "array_type" or "function_type" or "scoped_type_identifier" or "primitive_type" =>
                 new TypeRefSyntax { Span = span, RawGrammarKind = rawKind },
 
-            "expression_statement" => new ExprStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "expression_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Expression },
 
             _ => new UnmappedSyntax { Span = span, RawGrammarKind = rawKind }
         };

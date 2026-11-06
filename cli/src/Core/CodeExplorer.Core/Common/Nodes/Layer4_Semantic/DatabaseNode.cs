@@ -23,8 +23,8 @@ public record DatabaseNode(
     [property: OntologyProperty("The database engine or catalog name.")] string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     [property: JsonPropertyName("db_type"), OntologyProperty("The database system type (sqlserver, postgres, sqlite, mongodb, neo4j).")] DatabaseType DbType,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     private static readonly HashSet<string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,8 +32,8 @@ public record DatabaseNode(
         "analytics", "timeseries", "columnar", "multimodel"
     };
 
-    public DatabaseNode(string Id, string Name, string Path, string DbType, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Path, ValidateDbType(DbType), Extensions)
+    public DatabaseNode(string Id, string Name, string Path, string DbType, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Path, ValidateDbType(DbType), CustomProperties)
     {
     }
 
@@ -45,6 +45,42 @@ public record DatabaseNode(
         }
         return EnumExtensions.ParseDatabaseType(dbType);
     }
+
+    [JsonPropertyName("display_name")]
+    public string? DisplayName { get; set; }
+
+    [JsonPropertyName("engine")]
+    public string? Engine { get; set; }
+
+    [JsonPropertyName("technology")]
+    public string? Technology { get; set; }
+
+    [JsonPropertyName("schema")]
+    public string? Schema { get; set; }
+
+    [JsonPropertyName("provider")]
+    public string? Provider { get; set; }
+
+    [JsonPropertyName("role")]
+    public string? Role { get; set; }
+
+    [JsonPropertyName("config_key")]
+    public string? ConfigKey { get; set; }
+
+    [JsonPropertyName("is_explicit_schema")]
+    public bool? IsExplicitSchema { get; set; }
+
+    [JsonPropertyName("from_config")]
+    public bool? FromConfig { get; set; }
+
+    [JsonPropertyName("is_test")]
+    public bool? IsTest { get; set; }
+
+    [JsonPropertyName("is_orm")]
+    public bool? IsOrm { get; set; }
+
+    [JsonPropertyName("is_canonical")]
+    public bool? IsCanonical { get; set; }
 
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the database node was synthesized from an implicit default schema.")]
     public bool? IsImplicitSchema { get; set; }

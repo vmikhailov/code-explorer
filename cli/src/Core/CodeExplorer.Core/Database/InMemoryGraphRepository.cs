@@ -307,7 +307,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
             {
                 if (widPrefix.Length > 0 && !node.Id.StartsWith(widPrefix, StringComparison.Ordinal)) continue;
 
-                if (node.Kind is "Type" or "Function" or "Procedure" or "Table" or "EntryPoint" or "Endpoint")
+                if (node.NodeKind is NodeKind.Type or NodeKind.Function or NodeKind.Procedure or NodeKind.Table or NodeKind.EntryPoint or NodeKind.Endpoint)
                 {
                     var name = node.GetName();
                     if (!string.IsNullOrEmpty(name) && targetNames.Contains(name))
@@ -334,7 +334,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
         {
             foreach (var rel in AllRelationships)
             {
-                if (rel.Kind is "IMPLEMENTS" or "INHERITS_FROM")
+                if (rel.RelationshipKind is RelationshipKind.Implements or RelationshipKind.InheritsFrom)
                 {
                     if (NodesById.TryGetValue(rel.To, out var targetNode))
                     {
@@ -399,7 +399,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                     }
                 }
 
-                if (node.Kind == "Endpoint" && needEndpoints)
+                if (node.NodeKind == NodeKind.Endpoint && needEndpoints)
                 {
                     var name = GetProp(node, "name");
                     var filePath = GetProp(node, "path", GetProp(node, "file_path"));
@@ -407,14 +407,14 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                     var route = GetProp(node, "route_template", GetProp(node, "route"));
                     endpoints.Add(new EndpointNode(node.Id, name, filePath, httpMethod, route));
                 }
-                else if (node.Kind == "EntryPoint" && needEndpoints)
+                else if (node.NodeKind == NodeKind.EntryPoint && needEndpoints)
                 {
                     var name = GetProp(node, "name");
                     var path = GetProp(node, "path", GetProp(node, "file_path"));
                     var type = GetProp(node, "entry_type", GetProp(node, "type"));
                     entryPoints.Add(new EntryPointNode(node.Id, name, path, type));
                 }
-                else if (node.Kind == "ExternalService" && needExternalServices)
+                else if (node.NodeKind == NodeKind.ExternalService && needExternalServices)
                 {
                     var name = GetProp(node, "name");
                     var protocol = GetProp(node, "protocol", GetProp(node, "service_type"));
@@ -422,7 +422,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                     var path = GetProp(node, "path", GetProp(node, "target_path"));
                     externalServices.Add(new ExternalServiceNode(node.Id, name, protocol, domain, path));
                 }
-                else if (node.Kind == "Project")
+                else if (node.NodeKind == NodeKind.Project)
                 {
                     var name = GetProp(node, "name");
                     var role = GetProp(node, "role");

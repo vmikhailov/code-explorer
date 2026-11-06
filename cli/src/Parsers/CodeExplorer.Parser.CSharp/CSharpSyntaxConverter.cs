@@ -12,8 +12,8 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
     protected override SyntaxNode CreateSyntaxNode(string rawKind, TextSpan span, string parentRawKind) =>
         rawKind switch
         {
-            "namespace_declaration" => new NamespaceDeclSyntax { Span = span, RawGrammarKind = rawKind, IsFileScoped = false },
-            "file_scoped_namespace_declaration" => new NamespaceDeclSyntax { Span = span, RawGrammarKind = rawKind, IsFileScoped = true },
+            "namespace_declaration" or "file_scoped_namespace_declaration" =>
+                new NamespaceDeclSyntax { Span = span, RawGrammarKind = rawKind },
             "using_directive" => new ImportDeclSyntax { Span = span, RawGrammarKind = rawKind },
 
             "class_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Class },
@@ -64,38 +64,34 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
                 new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "member_access_expression" or "qualified_name" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "element_access_expression" => new IndexOrSliceExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "element_access_expression" => new IndexExprSyntax { Span = span, RawGrammarKind = rawKind },
             "binary_expression" or "is_expression" or "as_expression" => new BinaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "prefix_unary_expression" or "postfix_unary_expression" or "typeof_expression" or "sizeof_expression" or "nameof_expression" =>
                 new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "assignment_expression" => new AssignmentExprSyntax { Span = span, RawGrammarKind = rawKind },
             "conditional_expression" => new ConditionalExprSyntax { Span = span, RawGrammarKind = rawKind },
             "lambda_expression" => new LambdaExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "await_expression" => new AwaitOrTryExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "array_creation_expression" or "implicit_array_creation_expression" or "collection_expression" or "initializer_expression" or "tuple_expression" =>
-                new CollectionExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "query_expression" => new QueryOrComprehensionExprSyntax { Span = span, RawGrammarKind = rawKind, IsLinq = true },
+            "await_expression" => new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind, Operator = "await" },
 
             "block" or "unsafe_statement" or "checked_statement" =>
                 new BlockStmtSyntax { Span = span, RawGrammarKind = rawKind, IsUnsafe = rawKind == "unsafe_statement" },
-            "if_statement" => new IfStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "switch_statement" or "switch_expression" => new SwitchOrMatchStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "if_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.If },
+            "switch_statement" or "switch_expression" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Switch },
             "for_statement" or "for_each_statement" or "while_statement" or "do_statement" =>
-                new LoopStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "try_statement" => new TryStmtSyntax { Span = span, RawGrammarKind = rawKind },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Loop },
+            "try_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Try },
             "catch_clause" => new CatchClauseSyntax { Span = span, RawGrammarKind = rawKind },
-            "using_statement" => new UsingOrWithStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "return_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind, IsYield = false },
-            "yield_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind, IsYield = true },
-            "throw_statement" or "throw_expression" => new ThrowStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "using_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Using },
+            "return_statement" or "yield_statement" => new ReturnStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "throw_statement" or "throw_expression" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Throw },
             "break_statement" or "continue_statement" or "goto_statement" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
-            "lock_statement" => new LockStmtSyntax { Span = span, RawGrammarKind = rawKind },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Branch },
+            "lock_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Lock },
 
             "generic_name" or "nullable_type" or "array_type" or "pointer_type" or "tuple_type" or "predefined_type" =>
                 new TypeRefSyntax { Span = span, RawGrammarKind = rawKind },
 
-            "expression_statement" => new ExprStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "expression_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Expression },
 
             _ => new UnmappedSyntax { Span = span, RawGrammarKind = rawKind }
         };

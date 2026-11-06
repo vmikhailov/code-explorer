@@ -464,5 +464,39 @@ public enum GraphEdgeCategory : byte
     Containment = 10,
     Inheritance = 11,
     Testing = 12,
-    Logical = 13
+    Logical = 13,
+    ServiceCall = 14,
+    Library = 15,
+    Resource = 16,
+    Test = 17,
+    External = 18,
+    Configuration = 19,
+    UnidentifiedDependency = 20,
+    Event = 21,
+    Shared = 22,
+    Http = 23,
+    Grpc = 24,
+    Message = 25
+}
+
+[JsonConverter(typeof(EvidenceKindJsonConverter))]
+public enum EvidenceKind : byte
+{
+    Unspecified = 0,
+    Endpoint = 1,
+    EntryPoint = 2,
+    HttpCall = 3,
+    GrpcCall = 4,
+    WcfCall = 5,
+    Publish = 6,
+    Subscribe = 7,
+    Query = 8,
+    Procedure = 9,
+    Orm = 10,
+    Table = 11,
+    Config = 12,
+    Migration = 13,
+    LibraryCall = 14,
+    TestCall = 15,
+    TypeReference = 16
 }

@@ -225,6 +225,18 @@ public static class TaxonomyViewEnumExtensions
         GraphEdgeCategory.Inheritance => "inheritance",
         GraphEdgeCategory.Testing => "testing",
         GraphEdgeCategory.Logical => "logical",
+        GraphEdgeCategory.ServiceCall => "service_call",
+        GraphEdgeCategory.Library => "library",
+        GraphEdgeCategory.Resource => "resource",
+        GraphEdgeCategory.Test => "test",
+        GraphEdgeCategory.External => "external",
+        GraphEdgeCategory.Configuration => "configuration",
+        GraphEdgeCategory.UnidentifiedDependency => "unidentified_dependency",
+        GraphEdgeCategory.Event => "event",
+        GraphEdgeCategory.Shared => "shared",
+        GraphEdgeCategory.Http => "http",
+        GraphEdgeCategory.Grpc => "grpc",
+        GraphEdgeCategory.Message => "message",
         _ => "semantic"
     };
 
@@ -246,7 +258,79 @@ public static class TaxonomyViewEnumExtensions
             "inheritance" => GraphEdgeCategory.Inheritance,
             "testing" => GraphEdgeCategory.Testing,
             "logical" => GraphEdgeCategory.Logical,
+            "service_call" or "servicecall" => GraphEdgeCategory.ServiceCall,
+            "library" => GraphEdgeCategory.Library,
+            "resource" => GraphEdgeCategory.Resource,
+            "test" => GraphEdgeCategory.Test,
+            "external" => GraphEdgeCategory.External,
+            "configuration" or "config" => GraphEdgeCategory.Configuration,
+            "unidentified_dependency" => GraphEdgeCategory.UnidentifiedDependency,
+            "event" => GraphEdgeCategory.Event,
+            "shared" => GraphEdgeCategory.Shared,
+            "http" => GraphEdgeCategory.Http,
+            "grpc" => GraphEdgeCategory.Grpc,
+            "message" or "msg" => GraphEdgeCategory.Message,
             _ => GraphEdgeCategory.Semantic
+        };
+    }
+
+    public static GraphEdgeCategory ToGraphEdgeCategory(this BoundedContextInteractionType val) => val switch
+    {
+        BoundedContextInteractionType.Call => GraphEdgeCategory.Call,
+        BoundedContextInteractionType.Event => GraphEdgeCategory.Event,
+        BoundedContextInteractionType.Database => GraphEdgeCategory.Database,
+        BoundedContextInteractionType.Shared => GraphEdgeCategory.Shared,
+        BoundedContextInteractionType.Http => GraphEdgeCategory.Http,
+        BoundedContextInteractionType.Grpc => GraphEdgeCategory.Grpc,
+        BoundedContextInteractionType.Message => GraphEdgeCategory.Message,
+        BoundedContextInteractionType.Messaging => GraphEdgeCategory.Messaging,
+        BoundedContextInteractionType.ServiceCall => GraphEdgeCategory.ServiceCall,
+        _ => GraphEdgeCategory.Call
+    };
+
+    public static string ToCanonicalString(this EvidenceKind val) => val switch
+    {
+        EvidenceKind.Endpoint => "endpoint",
+        EvidenceKind.EntryPoint => "entrypoint",
+        EvidenceKind.HttpCall => "http_call",
+        EvidenceKind.GrpcCall => "grpc_call",
+        EvidenceKind.WcfCall => "wcf_call",
+        EvidenceKind.Publish => "publish",
+        EvidenceKind.Subscribe => "subscribe",
+        EvidenceKind.Query => "query",
+        EvidenceKind.Procedure => "procedure",
+        EvidenceKind.Orm => "orm",
+        EvidenceKind.Table => "table",
+        EvidenceKind.Config => "config",
+        EvidenceKind.Migration => "migration",
+        EvidenceKind.LibraryCall => "library_call",
+        EvidenceKind.TestCall => "test_call",
+        EvidenceKind.TypeReference => "type_reference",
+        _ => ""
+    };
+
+    public static EvidenceKind ParseEvidenceKind(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return EvidenceKind.Unspecified;
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "endpoint" => EvidenceKind.Endpoint,
+            "entrypoint" or "entry_point" => EvidenceKind.EntryPoint,
+            "http_call" or "httpcall" => EvidenceKind.HttpCall,
+            "grpc_call" or "grpccall" => EvidenceKind.GrpcCall,
+            "wcf_call" or "wcfcall" => EvidenceKind.WcfCall,
+            "publish" => EvidenceKind.Publish,
+            "subscribe" => EvidenceKind.Subscribe,
+            "query" => EvidenceKind.Query,
+            "procedure" => EvidenceKind.Procedure,
+            "orm" => EvidenceKind.Orm,
+            "table" => EvidenceKind.Table,
+            "config" or "configuration" => EvidenceKind.Config,
+            "migration" => EvidenceKind.Migration,
+            "library_call" or "librarycall" => EvidenceKind.LibraryCall,
+            "test_call" or "testcall" => EvidenceKind.TestCall,
+            "type_reference" or "typereference" => EvidenceKind.TypeReference,
+            _ => EvidenceKind.Unspecified
         };
     }
 
@@ -295,6 +379,8 @@ public static class TaxonomyViewEnumExtensions
             return Unsafe.As<TEnum, BoundedContextInteractionType>(ref value).ToCanonicalString();
         if (typeof(TEnum) == typeof(GraphEdgeCategory))
             return Unsafe.As<TEnum, GraphEdgeCategory>(ref value).ToCanonicalString();
+        if (typeof(TEnum) == typeof(EvidenceKind))
+            return Unsafe.As<TEnum, EvidenceKind>(ref value).ToCanonicalString();
         return value.ToString();
     }
 
@@ -321,6 +407,7 @@ public static class TaxonomyViewEnumExtensions
         QueryParameterType qpt => qpt.ToCanonicalString(),
         BoundedContextInteractionType bcit => bcit.ToCanonicalString(),
         GraphEdgeCategory gec => gec.ToCanonicalString(),
+        EvidenceKind ek => ek.ToCanonicalString(),
         _ => e.ToString()
     };
 }
@@ -482,5 +569,13 @@ public sealed class GraphEdgeCategoryJsonConverter : JsonConverter<GraphEdgeCate
     public override GraphEdgeCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.String ? TaxonomyViewEnumExtensions.ParseGraphEdgeCategory(reader.GetString()) : GraphEdgeCategory.Unspecified;
     public override void Write(Utf8JsonWriter writer, GraphEdgeCategory value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToCanonicalString());
+}
+
+public sealed class EvidenceKindJsonConverter : JsonConverter<EvidenceKind>
+{
+    public override EvidenceKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.String ? TaxonomyViewEnumExtensions.ParseEvidenceKind(reader.GetString()) : EvidenceKind.Unspecified;
+    public override void Write(Utf8JsonWriter writer, EvidenceKind value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToCanonicalString());
 }

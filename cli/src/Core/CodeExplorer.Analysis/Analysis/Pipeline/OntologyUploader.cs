@@ -21,7 +21,7 @@ public static class OntologyUploader
         // Store all tree relationships in ctx for post-indexing and layer 5 analysis
         ctx.TreeRelationships.AddRange(collectedRelationships);
 
-        ctx.LogDebug($"[Database   ] Queued {collectedNodes.Count} nodes and {collectedRelationships.Count} relationships to persistence pipeline.");
+        ctx.PipelineLog.QueuedToPersistencePipeline(collectedNodes.Count, collectedRelationships.Count);
 
         // Upload nodes in chunks of 10000
         for (var i = 0; i < collectedNodes.Count; i += 10000)
@@ -138,26 +138,27 @@ public static class OntologyUploader
                         }
                     }
                 }
-                if (node.Kind == NodeKind.Function &&
-                    node.TryGetExtension("graphql_field", out var gqlFieldAlias) &&
-                    !string.IsNullOrEmpty(gqlFieldAlias))
+                if (node is FunctionNode fnWithGql)
                 {
-                    ctx.AddGlobalSymbol(node.Kind, gqlFieldAlias, node.Id);
-                    if (!string.IsNullOrEmpty(filePath))
+                    var gqlField = fnWithGql.TryGetSignals()?.GraphqlField;
+                    if (!string.IsNullOrEmpty(gqlField))
                     {
-                        ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind.ToCypherLabel(), gqlFieldAlias, node.Id);
-                    }
-                }
-                if (node.Kind == NodeKind.Function &&
-                    node.TryGetExtension("graphql_aliases", out var gqlAliases) &&
-                    !string.IsNullOrEmpty(gqlAliases))
-                {
-                    foreach (var alias in gqlAliases.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    {
-                        ctx.AddGlobalSymbol(node.Kind, alias, node.Id);
+                        ctx.AddGlobalSymbol(node.Kind, gqlField, node.Id);
                         if (!string.IsNullOrEmpty(filePath))
                         {
-                            ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind.ToCypherLabel(), alias, node.Id);
+                            ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind.ToCypherLabel(), gqlField, node.Id);
+                        }
+                    }
+                    var gqlAliases = fnWithGql.TryGetSignals()?.GraphqlAliases;
+                    if (!string.IsNullOrEmpty(gqlAliases))
+                    {
+                        foreach (var alias in gqlAliases.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            ctx.AddGlobalSymbol(node.Kind, alias, node.Id);
+                            if (!string.IsNullOrEmpty(filePath))
+                            {
+                                ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind.ToCypherLabel(), alias, node.Id);
+                            }
                         }
                     }
                 }
@@ -295,7 +296,7 @@ public static class OntologyUploader
             {
                 return new ImplementedByRelationship(child.Id, parentId);
             }
-            return new DependsOnRelationship(parentId, child.Id, new() { ["dependency_type"] = "package", ["category"] = "library" });
+            return new DependsOnRelationship(parentId, child.Id) { DependencyType = "package", Category = "library" };
         }
         if (child is ProjectNode)
         {
@@ -330,8 +331,8 @@ public static class OntologyUploader
         }
         if (child.Kind == NodeKind.Topic)
         {
-            var isSubscriber = child is TopicNode { Extensions: { } topicExt } &&
-                               string.Equals(topicExt.GetValueOrDefault(OntologyConstants.PropertyNames.MessagingDirection),
+            var isSubscriber = child is TopicNode topicNode &&
+                               string.Equals(topicNode.MessagingDirection,
                                    OntologyConstants.EvidenceKinds.Subscribe, StringComparison.OrdinalIgnoreCase);
             if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
             {

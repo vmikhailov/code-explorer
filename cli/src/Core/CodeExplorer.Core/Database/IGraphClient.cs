@@ -19,6 +19,31 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
     Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
 
+    async Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var json = await ExecuteQueryAsync(query, parameters, cancellationToken);
+        return CypherQueryResult.FromJson(json);
+    }
+
+    async Task<List<T>> QueryAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var res = await ExecuteCypherAsync(query, parameters, cancellationToken);
+        return DbRowMaterializer.MaterializeList<T>(res);
+    }
+
+    async Task<T?> QueryFirstOrDefaultAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var res = await ExecuteCypherAsync(query, parameters, cancellationToken);
+        return res.Rows.Count > 0 ? DbRowMaterializer.MaterializeRow<T>(res.Rows[0]) : default;
+    }
+
+    async Task<T?> QueryScalarAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var res = await ExecuteCypherAsync(query, parameters, cancellationToken);
+        if (res.Rows.Count == 0 || res.Rows[0].FieldCount == 0) return default;
+        return (T?)DbRowMaterializer.ConvertCypherValue(res.Rows[0][0], typeof(T));
+    }
+
 
     Task<int> ICypherQueryExecutor.ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
         throw new NotSupportedException();

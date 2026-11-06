@@ -30,8 +30,8 @@ public record EndpointNode(
     [property: JsonPropertyName("request_type"), OntologyProperty("The request payload type (e.g. StartRideRequest, CreateOrderDto).")] string? RequestType = null,
     [property: JsonPropertyName("response_type"), OntologyProperty("The response payload type (e.g. RideDto, OrderResponse).")] string? ResponseType = null,
     [property: JsonPropertyName("operation_type"), OntologyProperty("The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming).")] OperationType? OperationType = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     public EndpointNode(
         string Id,
@@ -46,10 +46,43 @@ public record EndpointNode(
         string? RequestType,
         string? ResponseType,
         string? OperationType,
-        Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Path, HttpMethod, RouteTemplate, Protocol, IsAnonymous, RequiredRoles, Policies, RequestType, ResponseType, TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), Extensions)
+        Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Path, HttpMethod, RouteTemplate, Protocol, IsAnonymous, RequiredRoles, Policies, RequestType, ResponseType, TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CustomProperties)
     {
     }
+
+    [JsonPropertyName("file_path")]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("start_line")]
+    public int? StartLine { get; set; }
+
+    [JsonPropertyName("end_line")]
+    public int? EndLine { get; set; }
+
+    [JsonPropertyName("line")]
+    public int? Line { get; set; }
+
+    [JsonPropertyName("line_end")]
+    public int? LineEnd { get; set; }
+
+    [JsonPropertyName("operation")]
+    public string? Operation { get; set; }
+
+    [JsonPropertyName("evidence_kind")]
+    public string? EvidenceKind { get; set; }
+
+    [JsonPropertyName("graphql_field")]
+    public string? GraphqlField { get; set; }
+
+    [JsonPropertyName("graphql_sdl")]
+    public bool? IsGraphqlSdl { get; set; }
+
+    [JsonPropertyName("status_code")]
+    public string? StatusCode { get; set; }
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Endpoint;

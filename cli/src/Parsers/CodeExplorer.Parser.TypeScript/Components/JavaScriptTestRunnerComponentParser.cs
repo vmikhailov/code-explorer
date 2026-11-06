@@ -128,7 +128,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
 
         if (hasTestsInFile)
         {
-            syntaxTree.FileNode.SetExtension("is_test", "true");
+            syntaxTree.FileNode.IsTest = true;
         }
     }
 
@@ -146,8 +146,8 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
                 if (fn.StartLine == startRow || fn.StartLine == startRow + 1 ||
                     (!string.IsNullOrEmpty(testTitle) && string.Equals(fn.Name, testTitle, StringComparison.OrdinalIgnoreCase)))
                 {
-                    fn.SetExtension("is_test", "true");
-                    fn.SetExtension("test_framework", framework);
+                    fn.IsTest = true;
+                    fn.TestFramework = framework;
                     if (result != null && !string.IsNullOrEmpty(fn.Name))
                     {
                         result.Tests.Add(fn.Name);

@@ -456,8 +456,6 @@ public partial class Layer2ProjectParser
                 {
                     var oldName = proj.Name;
                     proj.Name = folderName;
-                    proj.Extensions ??= [];
-                    proj.Extensions["name"] = folderName;
                     packageToProjectMap[folderName] = proj;
                     packageToProjectMap[oldName] = proj;
                     var normFolder = WorkspaceConventions.NormalizeServiceName(folderName);
@@ -506,8 +504,6 @@ public partial class Layer2ProjectParser
             {
                 var oldName = proj.Name;
                 proj.Name = folderName;
-                proj.Extensions ??= [];
-                proj.Extensions["name"] = folderName;
                 packageToProjectMap[folderName] = proj;
                 packageToProjectMap[oldName] = proj;
                 var normFolder = WorkspaceConventions.NormalizeServiceName(folderName);
@@ -609,7 +605,7 @@ public partial class Layer2ProjectParser
             }
             catch (Exception ex)
             {
-                ctx.LogWarning($"[Layer 2    ] Sibling library scan error in '{libRoot}': {ex.Message}", ex);
+                ctx.Layer2Log.SiblingLibraryScanError(libRoot, ex);
                 ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", libRoot, ex.Message, name: "SiblingLibraryScanError", exception: ex, isFileParent: false, logToConsole: false);
             }
         }
@@ -672,7 +668,7 @@ public partial class Layer2ProjectParser
                         parser.ProjectType,
                         manifestDirectory,
                         [entryPoint],
-                        extensions: extensions);
+                        manifestProps: extensions);
                     if (!string.IsNullOrEmpty(relativeReachability))
                     {
                         projectNode.Signals().SourceReachability = relativeReachability;
@@ -808,7 +804,7 @@ public partial class Layer2ProjectParser
             if (!string.Equals(normFrom, dep.From, StringComparison.Ordinal) ||
                 !string.Equals(normTo, dep.To, StringComparison.Ordinal))
             {
-                dependencies[i] = new Relationship(normFrom, normTo, dep.Kind, dep.Properties);
+                dependencies[i] = dep with { From = normFrom, To = normTo };
             }
         }
     }
@@ -897,8 +893,8 @@ public partial class Layer2ProjectParser
                     IsInternal: false,
                     Ecosystem: ecosystem,
                     Path: string.Empty,
-                    Archetype: OntologyConstants.Archetypes.PureUtility,
-                    Extensions: BuildExternalPackageExtensions(extPack));
+                    Archetype: OntologyConstants.Archetypes.PureUtility);
+                ApplyExternalPackageMetadata(packageNode, extPack);
                 projectNode.Children.Add(packageNode);
                 packages.Add(packageNode);
 

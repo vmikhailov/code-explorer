@@ -119,36 +119,32 @@ public class ReleaseV14617BugFixTests
             $"{wsId}:project:Ordering.API:db:OrderingDB",
             "OrderingDB",
             "src/Ordering.API/appsettings.json",
-            "relational",
-            new Dictionary<string, string>
-            {
-                ["engine"] = "PostgreSQL",
-                ["from_config"] = "true",
-                ["config_key"] = "ConnectionStrings:OrderingDB"
-            });
+            "relational")
+        {
+            Engine = "PostgreSQL",
+            FromConfig = true,
+            ConfigKey = "ConnectionStrings:OrderingDB"
+        };
 
         // 2. AST DB node from OrderingContext.cs (EF Core HasDefaultSchema("ordering"))
         var astDbNode = new DatabaseNode(
             $"{wsId}:file:OrderingContext.cs:db:ordering",
             "PostgreSQL.ordering",
             "src/Ordering.Infrastructure/OrderingContext.cs",
-            "relational",
-            new Dictionary<string, string>
-            {
-                ["engine"] = "PostgreSQL",
-                ["schema"] = "ordering"
-            });
+            "relational")
+        {
+            Engine = "PostgreSQL",
+            Schema = "ordering"
+        };
 
         // 3. Table node "ordering.orders" (e.g. from SQL / EF Core entity)
         var tableNode = new TableNode(
             $"{wsId}:table:ordering.orders",
             "ordering.orders",
-            "src/Ordering.Infrastructure/OrderingContext.cs",
-            new Dictionary<string, string>
-            {
-                ["schema"] = "ordering",
-                ["table"] = "orders"
-            });
+            "src/Ordering.Infrastructure/OrderingContext.cs")
+        {
+            Schema = "ordering"
+        };
         astDbNode.Children.Add(tableNode);
 
         svcProject.Children.Add(configDbNode);

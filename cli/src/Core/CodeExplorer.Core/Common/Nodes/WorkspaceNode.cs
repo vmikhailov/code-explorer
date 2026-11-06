@@ -23,11 +23,29 @@ public record WorkspaceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonPropertyName("indexed_at"), OntologyProperty("Timestamp when the workspace was indexed (ISO 8601 UTC).")]
     public string? IndexedAt { get; set; }
+
+    [JsonPropertyName("package_name"), OntologyProperty("Primary package name declared in the workspace root manifest.")]
+    public string? PackageName { get; set; }
+
+    [JsonPropertyName("package_version"), OntologyProperty("Primary package version declared in the workspace root manifest.")]
+    public string? PackageVersion { get; set; }
+
+    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier declared in the workspace root manifest.")]
+    public string? Publisher { get; set; }
+
+    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the workspace root manifest targets the VS Code extension engine.")]
+    public bool? HasVsCodeEngine { get; set; }
+
+    [JsonPropertyName("has_contributes"), OntologyProperty("Whether the workspace root manifest declares VS Code extension contributions.")]
+    public bool? HasContributes { get; set; }
+
+    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.")]
+    public string? ActivationEvents { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Workspace;

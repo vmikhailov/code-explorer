@@ -18,9 +18,15 @@ public record PeerMeshNode(
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     [property: JsonPropertyName("member_count"), OntologyProperty("The number of configured peer members, when known.")] int? MemberCount,
     [property: OntologyProperty("The detected communication protocols.")] string Protocols,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
+    [JsonPropertyName("topology")]
+    public string? Topology { get; set; }
+
+    [JsonPropertyName("detection_signals")]
+    public string? DetectionSignals { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.PeerMesh;
 }

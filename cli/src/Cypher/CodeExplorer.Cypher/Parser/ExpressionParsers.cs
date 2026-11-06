@@ -262,13 +262,22 @@ public static class ExpressionParsers
          from expr in Parse.Ref(() => ExpressionParser)
          select new MapProjectionElement(prop, expr, false));
 
+    private enum PostfixSuffixKind : byte
+    {
+        Property,
+        Slice,
+        Index,
+        Label,
+        Projection
+    }
+
     // Postfix operations: property access (.prop), index/slice access ([0], [1..3]), label predicate (:Label), or map projection ({...})
     public static TokenListParser<CypherToken, Expression> PostfixExpression { get; } =
         from baseExpr in Atom
         from suffixes in (
             (from dot in Token.EqualTo(CypherToken.Dot)
              from prop in PropertyNameText
-             select (Kind: "prop", Property: prop, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)null))
+             select (Kind: PostfixSuffixKind.Property, Property: prop, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)null))
             .Or(
              from lbracket in Token.EqualTo(CypherToken.LBracket)
              from slice in (
@@ -281,33 +290,33 @@ public static class ExpressionParsers
                  select (IsSlice: false, From: (Expression?)null, To: (Expression?)null, Single: (Expression?)idx)
              )
              from rbracket in Token.EqualTo(CypherToken.RBracket)
-             select (Kind: slice.IsSlice ? "slice" : "index", Property: "", IndexExpr: slice.Single, SliceFrom: slice.From, SliceTo: slice.To, ProjElements: (List<MapProjectionElement>?)null))
+             select (Kind: slice.IsSlice ? PostfixSuffixKind.Slice : PostfixSuffixKind.Index, Property: "", IndexExpr: slice.Single, SliceFrom: slice.From, SliceTo: slice.To, ProjElements: (List<MapProjectionElement>?)null))
             .Or(
              from colon in Token.EqualTo(CypherToken.Colon)
              from label in PropertyNameText
-             select (Kind: "label", Property: label, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)null))
+             select (Kind: PostfixSuffixKind.Label, Property: label, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)null))
             .Or(
              (from open in Token.EqualTo(CypherToken.LBrace)
               from elements in MapProjectionElementParser.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
               from close in Token.EqualTo(CypherToken.RBrace)
-              select (Kind: "projection", Property: "", IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)
+              select (Kind: PostfixSuffixKind.Projection, Property: "", IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)
                   [.. elements])).Try())
         ).Many()
         select suffixes.Aggregate(baseExpr, (current, suffix) =>
         {
-            if (suffix.Kind == "projection")
+            if (suffix.Kind == PostfixSuffixKind.Projection)
             {
                 return new MapProjectionExpression(current, suffix.ProjElements!);
             }
-            if (suffix.Kind == "label")
+            if (suffix.Kind == PostfixSuffixKind.Label)
             {
                 return new HasLabelExpression(current, suffix.Property);
             }
-            if (suffix.Kind == "slice")
+            if (suffix.Kind == PostfixSuffixKind.Slice)
             {
                 return new ListSliceExpression(current, suffix.SliceFrom, suffix.SliceTo);
             }
-            if (suffix.Kind == "index")
+            if (suffix.Kind == PostfixSuffixKind.Index)
             {
                 return new FunctionCallExpression("item_at", false, [current, suffix.IndexExpr!]);
             }

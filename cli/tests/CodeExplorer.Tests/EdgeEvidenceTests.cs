@@ -110,11 +110,11 @@ public class EdgeEvidenceTests
     {
         var result = await _engine.GetDatabaseEvidenceAsync(OrdersDb, Order);
 
-        var orm = result.Items.Single(i => i.Kind == "orm");
+        var orm = result.Items.Single(i => i.Kind == CodeExplorer.Cypher.Common.EvidenceKind.Orm);
         Assert.That(orm.LineStart, Is.EqualTo(12));
         Assert.That(orm.TargetSymbol, Is.EqualTo("orders"));
 
-        var proc = result.Items.Single(i => i.Kind == "procedure");
+        var proc = result.Items.Single(i => i.Kind == CodeExplorer.Cypher.Common.EvidenceKind.Procedure);
         Assert.That(proc.CallerSymbol, Is.EqualTo("CloseOrder"));
         Assert.That(proc.FilePath, Is.EqualTo("services/order-service/Repo.cs"));
     }
@@ -127,7 +127,7 @@ public class EdgeEvidenceTests
         var item = result.Items.Single();
         Assert.Multiple(() =>
         {
-            Assert.That(item.Kind, Is.EqualTo("publish"));
+            Assert.That(item.Kind, Is.EqualTo(CodeExplorer.Cypher.Common.EvidenceKind.Publish));
             Assert.That(item.CallerSymbol, Is.EqualTo("PublishCreated"));
             Assert.That(item.LineStart, Is.EqualTo(21));
             Assert.That(result.TotalCount, Is.EqualTo(1));
@@ -140,7 +140,7 @@ public class EdgeEvidenceTests
         var result = await _engine.GetEdgeEvidenceAsync([OrdersTopic], [Payment], "TRIGGERS");
 
         var item = result.Items.Single();
-        Assert.That(item.Kind, Is.EqualTo("subscribe"));
+        Assert.That(item.Kind, Is.EqualTo(CodeExplorer.Cypher.Common.EvidenceKind.Subscribe));
         Assert.That(item.FilePath, Is.EqualTo("services/payment-service/Consumer.cs"));
     }
 
@@ -152,7 +152,7 @@ public class EdgeEvidenceTests
         var item = result.Items.Single();
         Assert.Multiple(() =>
         {
-            Assert.That(item.Kind, Is.EqualTo("http_call"));
+            Assert.That(item.Kind, Is.EqualTo(CodeExplorer.Cypher.Common.EvidenceKind.HttpCall));
             Assert.That(item.Operation, Is.EqualTo("POST"));
             Assert.That(item.CallerSymbol, Is.EqualTo("ChargeAsync"));
             Assert.That(item.TargetSymbol, Is.EqualTo("POST /charge"));
@@ -164,7 +164,7 @@ public class EdgeEvidenceTests
     {
         var result = await _engine.GetEdgeEvidenceAsync([Order], [OrdersDb], "USES_DB");
 
-        Assert.That(result.Items.Select(i => i.Kind), Does.Contain("orm").And.Contain("procedure"));
+        Assert.That(result.Items.Select(i => i.Kind), Does.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Orm).And.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Procedure));
     }
 
     [Test]
@@ -352,7 +352,7 @@ public class EdgeEvidenceTests
         var item = result.Items.Single();
         Assert.Multiple(() =>
         {
-            Assert.That(item.Kind, Is.EqualTo("http_call"));
+            Assert.That(item.Kind, Is.EqualTo(CodeExplorer.Cypher.Common.EvidenceKind.HttpCall));
             Assert.That(item.CallerSymbol, Is.EqualTo("ChargeAsync"));
             Assert.That(item.TargetSymbol, Is.EqualTo("POST /charge"));
         });
@@ -362,9 +362,9 @@ public class EdgeEvidenceTests
     public async Task NodeEvidence_ReturnsEndpointsAndOrmEntitiesForService()
     {
         var payEvidence = await _engine.GetNodeEvidenceAsync(["service:payment-service"], "Service");
-        Assert.That(payEvidence.Items.Select(i => i.Kind), Does.Contain("endpoint").And.Contain("config"));
+        Assert.That(payEvidence.Items.Select(i => i.Kind), Does.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Endpoint).And.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Config));
 
         var orderEvidence = await _engine.GetNodeEvidenceAsync(["service:order-service"], "Service");
-        Assert.That(orderEvidence.Items.Select(i => i.Kind), Does.Contain("orm").And.Contain("config"));
+        Assert.That(orderEvidence.Items.Select(i => i.Kind), Does.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Orm).And.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Config));
     }
 }

@@ -631,7 +631,7 @@ public class CrossLanguageCommunicationDetectionTests
             // 4. Assert Direct File-to-Project DB Resolution:
             // order.entity.ts used db:postgres -> order-service must have USES_DB -> PostgreSQL
             var orderToPg = graph.Edges.FirstOrDefault(e =>
-                e.Source == "proj:svc_order" && e.Target == pgNode.Id && e.Kind == "USES_DB");
+                e.Source == "proj:svc_order" && e.Target == pgNode.Id && e.Kind == RelationshipKind.UsesDb);
 
             orderToPg.Should().NotBeNull("File-level database usage must resolve directly to owning order-service");
             orderToPg!.Properties?["is_semantic"].Should().Be("true");
@@ -641,7 +641,7 @@ public class CrossLanguageCommunicationDetectionTests
             var mysqlNode = graph.Nodes.First(n => n.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase));
 
             var orderToMysql = graph.Edges.FirstOrDefault(e =>
-                e.Source == "proj:svc_order" && e.Target == mysqlNode.Id && e.Kind == "USES_DB");
+                e.Source == "proj:svc_order" && e.Target == mysqlNode.Id && e.Kind == RelationshipKind.UsesDb);
 
             orderToMysql.Should().NotBeNull("Transitive database access via data-access-lib must be lifted to order-service");
             orderToMysql!.Properties?["semantic_lifted"].Should().Be("true");
@@ -651,7 +651,7 @@ public class CrossLanguageCommunicationDetectionTests
             // 6. Assert Transitive Service-to-Service Lifting:
             // order-service -> billing-client -> billing-service => order-service -[:SERVICE_CALL]-> billing-service
             var orderToBilling = graph.Edges.FirstOrDefault(e =>
-                e.Source == "proj:svc_order" && e.Target == "proj:svc_billing" && e.Kind == "SERVICE_CALL");
+                e.Source == "proj:svc_order" && e.Target == "proj:svc_billing" && e.Kind == RelationshipKind.ServiceCall);
 
             orderToBilling.Should().NotBeNull("Transitive service call via billing-client must be lifted to order-service -> billing-service");
             orderToBilling!.Properties?["semantic_lifted"].Should().Be("true");

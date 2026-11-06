@@ -432,7 +432,7 @@ public class RustParserTests
         var functions = FindNodes<FunctionNode>(fileNode.Children);
         var listUsersFn = functions.FirstOrDefault(f => f.Name == "list_users");
         listUsersFn.Should().NotBeNull();
-        listUsersFn!.Extensions?.GetValueOrDefault("visibility").Should().Be("pub");
+        listUsersFn!.Visibility.Should().Be("pub");
     }
 
     [Test]
@@ -514,7 +514,7 @@ public class RustParserTests
             fnNames.Should().Contain("process_payment");
 
             var paymentFn = functions.First(f => f.Name == "process_payment");
-            paymentFn.Extensions?.GetValueOrDefault("visibility").Should().Be("pub");
+            paymentFn.Visibility.Should().Be("pub");
             var calls = paymentFn.References.Where(r => r.Kind == "CALLS").Select(r => r.TargetName).ToList();
             calls.Should().Contain("calculate_total");
         }

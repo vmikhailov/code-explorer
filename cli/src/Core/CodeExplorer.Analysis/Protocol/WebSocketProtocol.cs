@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Protocol;
@@ -133,11 +134,11 @@ public class GraphEdgeDto
     public string Target { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public RelationshipKind Kind { get; set; } = RelationshipKind.Unspecified;
 
     [JsonPropertyName("category")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Category { get; set; }
+    public GraphEdgeCategory? Category { get; set; }
 
     [JsonPropertyName("isTransitive")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -415,7 +416,7 @@ public class MetadataResponseDto
 public class NodesResponseDto
 {
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public NodeKind Kind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("nodes")]
     public List<GraphNodeDto> Nodes { get; set; } = [];
@@ -482,7 +483,7 @@ public class NodeUsagesResponseDto
 public class OntologyCategoryDto
 {
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public NodeKind Kind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("label")]
     public string Label { get; set; } = string.Empty;
@@ -662,7 +663,7 @@ public class DomainMacroEdgeDto
     public string Target { get; set; } = string.Empty;
 
     [JsonPropertyName("category")]
-    public string Category { get; set; } = "service_call";
+    public GraphEdgeCategory Category { get; set; } = GraphEdgeCategory.ServiceCall;
 
     [JsonPropertyName("label")]
     public string Label { get; set; } = "CALLS";
@@ -950,7 +951,7 @@ public class CrossServiceHopDto
     public string Target { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public RelationshipKind Kind { get; set; } = RelationshipKind.Unspecified;
 
     [JsonPropertyName("protocol")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1216,7 +1217,7 @@ public class GateItemDto
     public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("category")]
-    public string Category { get; set; } = "Architectural";
+    public GateCategory Category { get; set; } = GateCategory.Architectural;
 
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "agnostic";
@@ -1446,7 +1447,7 @@ public class ArchitectureEvidenceItemDto
     public string Id { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty; // "query", "orm", "table", "config", "migration"
+    public EvidenceKind Kind { get; set; } = EvidenceKind.Unspecified;
 
     [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;

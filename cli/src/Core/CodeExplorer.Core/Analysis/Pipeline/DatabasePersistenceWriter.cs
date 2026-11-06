@@ -8,7 +8,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
     public DatabasePersistenceWriter(ParsingContext ctx)
     {
         _ctx = ctx;
-        _ctx.LogDebug("Starting background database persistence loop...");
+        _ctx.PipelineLog.PersistenceLoopStarted();
         _consumerTask = Task.Run(ConsumeChannelAsync);
     }
 
@@ -22,7 +22,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _ctx.LogError($"[Database   ] Error writing to database: {ex.Message}", ex);
+                _ctx.PipelineLog.DatabaseWriteFailed(ex);
             }
         }
     }
@@ -38,7 +38,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _ctx.LogError($"Consumer task finished with error: {ex.Message}", ex);
+            _ctx.PipelineLog.ConsumerTaskFailed(ex);
         }
     }
 }

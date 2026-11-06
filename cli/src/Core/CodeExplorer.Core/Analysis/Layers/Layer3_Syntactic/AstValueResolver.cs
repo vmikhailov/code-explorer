@@ -142,10 +142,9 @@ public static partial class AstValueResolver
         }
 
         // 2e. Unary / reference / await / try expressions: unwrap inner
-        if (node is UnaryExprSyntax or AwaitOrTryExprSyntax)
+        if (node is UnaryExprSyntax unaryNode)
         {
-            var inner = (node as UnaryExprSyntax)?.Operand ??
-                        (node as AwaitOrTryExprSyntax)?.Operand ??
+            var inner = unaryNode.Operand ??
                         node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "&" and not "mut" and not "*" and not "?" and not "." and not "await");
             if (inner.IsValid() && inner.Id != node.Id)
             {
@@ -199,7 +198,7 @@ public static partial class AstValueResolver
         }
 
         // 8. Index / Slice Access
-        if (node is IndexOrSliceExprSyntax)
+        if (node is IndexExprSyntax)
         {
             return TryResolveSubscript(node, contextOrProject, depth, visitedVars, out result);
         }
@@ -211,7 +210,7 @@ public static partial class AstValueResolver
         }
 
         // 10. Plain Identifier
-        if (node is IdentifierExprSyntax or IdentifierPatternSyntax or TypeRefSyntax { TypeArguments.Count: 0 })
+        if (node is IdentifierExprSyntax or TypeRefSyntax)
         {
             return TryResolveIdentifier(node, contextOrProject, depth, visitedVars, out result);
         }
@@ -236,7 +235,7 @@ public static partial class AstValueResolver
                 Node? retChild = null;
                 if (returnStmt.IsValid())
                 {
-                    retChild = (returnStmt as ReturnOrYieldStmtSyntax)?.Value ??
+                    retChild = (returnStmt as ReturnStmtSyntax)?.Value ??
                                returnStmt.Children.FirstOrDefault(c => c.IsValid() && c.Text is not "return" and not ";");
                 }
                 else
@@ -265,7 +264,7 @@ public static partial class AstValueResolver
     {
         foreach (var child in root.Children)
         {
-            if (child is ReturnOrYieldStmtSyntax) return child;
+            if (child is ReturnStmtSyntax) return child;
             var sub = FindFirstReturnStmt(child);
             if (sub.IsValid()) return sub;
         }
@@ -505,7 +504,7 @@ public static partial class AstValueResolver
     private static bool TryResolveSubscript(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
     {
         result = string.Empty;
-        var idxSyntax = node as IndexOrSliceExprSyntax;
+        var idxSyntax = node as IndexExprSyntax;
         Node? argNode = idxSyntax?.Index;
 
         if (!argNode.IsValid())

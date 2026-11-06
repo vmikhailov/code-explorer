@@ -83,7 +83,7 @@ public static partial class CodeIntentAnalyzer
                 var applied = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
                 if (applied > 0)
                 {
-                    ctx.Log($"[Intent     ] Fast-applied cached architectural intents to {applied} nodes.");
+                    ctx.IntentLog.FastAppliedCachedIntents(applied);
                 }
 
                 // If projects still lack domain assignments, synthesize them topologically from AST
@@ -110,14 +110,14 @@ public static partial class CodeIntentAnalyzer
                         if (toSave.Count > 0)
                         {
                             await ctx.DbClient.SaveProjectIntentsAsync(ctx.WorkspaceId, toSave, cancellationToken);
-                            ctx.Log($"[Intent     ] Materialized {topoDomains.Domains.Count} topological AST domains across {toSave.Count} services.");
+                            ctx.IntentLog.MaterializedTopologicalDomains(topoDomains.Domains.Count, toSave.Count);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                ctx.LogDebug($"[Intent     ] Note on applying cached intents: {ex.Message}");
+                ctx.IntentLog.CachedIntentsApplyNote(ex.Message);
             }
             return;
         }
@@ -159,7 +159,7 @@ public static partial class CodeIntentAnalyzer
             var modelPath = await ModelManager.EnsureModelAvailableAsync(ctx, cancellationToken);
             if (string.IsNullOrEmpty(modelPath))
             {
-                ctx.Log("[Intent     ] Intent distillation model not available; skipping intent distillation.");
+                ctx.IntentLog.ModelNotAvailableSkipping();
                 return 0;
             }
 
@@ -182,8 +182,8 @@ public static partial class CodeIntentAnalyzer
         {
             using (predictor)
             {
-                ctx.Log($"[Intent     ] Compute Device: {predictor.ExecutionDevice}");
-                ctx.Log($"[Intent     ] Concurrency: {predictor.Concurrency}x ({predictor.ConcurrencyReason})");
+                ctx.IntentLog.ComputeDevice(predictor.ExecutionDevice);
+                ctx.IntentLog.ConcurrencyInfo(predictor.Concurrency, predictor.ConcurrencyReason);
 
                 // Top-Down Phase 0: Whole-System Macro-Domain Synthesis (DDD Problem Space)
                 var projectSignatures =
@@ -272,7 +272,7 @@ public static partial class CodeIntentAnalyzer
                     if (targetServices.Count > 0)
                     {
                         var modeText = deep ? "Multi-Turn Agentic ReAct Exploration" : "Single-Shot Graph Traversal";
-                        ctx.Log($"[Intent     ] Distilling Bounded Contexts & Aggregates across {targetServices.Count} service(s) on {predictor.ExecutionDevice} (mode: {modeText}, concurrency: {predictor.Concurrency}x)...");
+                        ctx.IntentLog.DistillingBoundedContexts(targetServices.Count, predictor.ExecutionDevice, modeText, predictor.Concurrency);
 
                         var distilledContexts = new ConcurrentBag<ProjectBoundedContextResult>();
                         var explorer = new ServiceGraphExplorer(ctx.DbClient);
@@ -288,7 +288,7 @@ public static partial class CodeIntentAnalyzer
                                         sig,
                                         explorer,
                                         maxTurns: 3,
-                                        logger: msg => ctx.Log(msg),
+                                        logger: msg => ctx.IntentLog.AgenticTurnMessage(msg),
                                         cancellationToken);
                                 }
                                 else
@@ -301,14 +301,15 @@ public static partial class CodeIntentAnalyzer
                                     var canonicalDomain = WorkspaceConventions.CanonicalizeDomain(pbc.SuggestedDomain, sig.Name, sig.RelativePath, sig.Role);
                                     var pbcCanonical = pbc with { SuggestedDomain = canonicalDomain };
                                     distilledContexts.Add(pbcCanonical);
-                                    ctx.Log($"  - [{sig.Name}] -> Context: {pbc.BoundedContext} | Aggregates: [{(pbc.PrimaryAggregates.Count > 0 ? string.Join(", ", pbc.PrimaryAggregates) : "None")}] | Domain: {canonicalDomain}");
+                                    var aggregatesStr = pbc.PrimaryAggregates.Count > 0 ? string.Join(", ", pbc.PrimaryAggregates) : "None";
+                                    ctx.IntentLog.DistilledServiceContext(sig.Name, pbc.BoundedContext, aggregatesStr, canonicalDomain);
                                     projectDomainMap[sig.Name] = (canonicalDomain, pbc.Capability);
                                     projectIntentsToSave[sig.Name] = (canonicalDomain, pbc.Capability, pbc.PrimaryAggregates);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                ctx.Log($"  [!] Failed to distill context for {sig.Name}: {ex.Message}");
+                                ctx.IntentLog.DistillServiceContextFailed(sig.Name, ex.Message);
                             }
                         });
 
@@ -326,14 +327,14 @@ public static partial class CodeIntentAnalyzer
 
                             if (domainConfig != null && domainConfig.Domains.Count > 0)
                             {
-                                ctx.Log($"[Intent     ] Matching Bounded Contexts against {domainConfig.Domains.Count} configured domains from .codeexplorer/domains.json...");
+                                ctx.IntentLog.MatchingConfiguredDomains(domainConfig.Domains.Count);
                                 var topoResult = SynthesizeDomainsTopologically(projectSignatures, domainConfig);
                                 if (topoResult?.Domains != null)
                                 {
-                                    ctx.Log($"[Intent     ] Grouped into {topoResult.Domains.Count} Business Domains via configuration:");
+                                    ctx.IntentLog.GroupedIntoConfiguredDomains(topoResult.Domains.Count);
                                     foreach (var d in topoResult.Domains)
                                     {
-                                        ctx.Log($"  - [{d.Name}] ({d.Services.Count} services): {d.Description}");
+                                        ctx.IntentLog.DomainSummaryItem(d.Name, d.Services.Count, d.Description);
                                         foreach (var svc in d.Services)
                                         {
                                             var cleanSvc = svc.Trim();
@@ -350,21 +351,21 @@ public static partial class CodeIntentAnalyzer
                                 SystemDomainsResult? macroDomains = null;
                                 try
                                 {
-                                    ctx.Log($"[Intent     ] Synthesizing Macro-Domains via LLM from {allForMacro.Count} Bounded Contexts on {predictor.ExecutionDevice}...");
+                                    ctx.IntentLog.SynthesizingMacroDomainsViaLlm(allForMacro.Count, predictor.ExecutionDevice);
                                     macroDomains = await predictor.PredictMacroDomainsFromContextsAsync(allForMacro, cancellationToken);
                                 }
                                 catch (Exception ex)
                                 {
-                                    ctx.LogWarning($"[Intent     ] Note on LLM macro-domain synthesis: {ex.Message}. Falling back to graph topology synthesis.");
+                                    ctx.IntentLog.MacroDomainLlmFallback(ex.Message);
                                 }
 
                                 if (macroDomains?.Domains != null && macroDomains.Domains.Count > 0)
                                 {
-                                    ctx.Log($"[Intent     ] Discovered {macroDomains.Domains.Count} Business Domains via LLM synthesis:");
+                                    ctx.IntentLog.DiscoveredMacroDomainsViaLlm(macroDomains.Domains.Count);
                                     foreach (var d in macroDomains.Domains)
                                     {
                                         var canonicalName = WorkspaceConventions.CanonicalizeDomain(d.Name);
-                                        ctx.Log($"  - [{canonicalName}] ({d.Services.Count} services): {d.Description}");
+                                        ctx.IntentLog.DomainSummaryItem(canonicalName, d.Services.Count, d.Description);
                                         foreach (var svc in d.Services)
                                         {
                                             var cleanSvc = svc.Trim();
@@ -476,7 +477,7 @@ public static partial class CodeIntentAnalyzer
 
                         if (unassignedCount > 0)
                         {
-                            ctx.Log($"[Intent     ] Categorized {unassignedCount} remaining projects via ontology role/directory.");
+                            ctx.IntentLog.CategorizedRemainingProjects(unassignedCount);
                         }
                     }
 
@@ -485,8 +486,7 @@ public static partial class CodeIntentAnalyzer
                         await ctx.DbClient.SaveProjectIntentsAsync(ctx.WorkspaceId, projectIntentsToSave,
                             cancellationToken);
 
-                        ctx.Log(
-                            $"[Intent     ] Persisted macro-domain assignments for {projectIntentsToSave.Count} services to graph database.");
+                        ctx.IntentLog.PersistedMacroDomainAssignments(projectIntentsToSave.Count);
                     }
                 }
 
@@ -501,7 +501,7 @@ public static partial class CodeIntentAnalyzer
                     {
                         if (filters.Any(f => svcName.ToLowerInvariant().Contains(f)))
                         {
-                            ctx.Log($"[Intent     ] Target Service [{svcName}] mapped to Domain: [{dom}] ({role})");
+                            ctx.IntentLog.TargetServiceMappedToDomain(svcName, dom, role);
                         }
                     }
                 }
@@ -544,7 +544,7 @@ public static partial class CodeIntentAnalyzer
                     {
                         existingMap.Remove(op);
                     }
-                    ctx.Log($"[Intent     ] Purged {orphanPaths.Count} orphaned/non-project file intents (including .sql).");
+                    ctx.IntentLog.PurgedOrphanedIntents(orphanPaths.Count);
                 }
 
                 // Realign existing file intents to match their parent project's macro-domain
@@ -574,17 +574,17 @@ public static partial class CodeIntentAnalyzer
                     {
                         await ctx.DbClient.SaveIntentRecordAsync(rec, cancellationToken);
                     }
-                    ctx.Log($"[Intent     ] Realigned {intentsToUpdate.Count} cached file intents to their parent project macro-domain.");
+                    ctx.IntentLog.RealignedCachedIntents(intentsToUpdate.Count);
                 }
 
                 var appliedCount = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
-                ctx.Log($"[Intent     ] Architectural intent distillation complete. Enriched {appliedCount} nodes in knowledge graph.");
+                ctx.IntentLog.IntentDistillationComplete(appliedCount);
                 return appliedCount;
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ctx.LogWarning($"[Intent     ] Intent distillation encountered an issue: {ex.Message}");
+            ctx.IntentLog.IntentDistillationFailed(ex.Message);
             return 0;
         }
     }

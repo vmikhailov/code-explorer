@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CodeExplorer.Core.Gates.Models;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace CodeExplorer.Core.Gates.Models;
 /// Architectural (language- and runtime-agnostic structural invariants) vs
 /// Platform (framework-, runtime-, or language-specific invariants).
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum GateCategory
 {
     Architectural = 1,

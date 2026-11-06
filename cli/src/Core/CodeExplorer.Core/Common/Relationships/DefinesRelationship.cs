@@ -6,11 +6,11 @@ namespace CodeExplorer.Core.Common.Relationships;
 
 [OntologyRelationship(OntologyConstants.Relationships.Defines, "Indicates that an entity defines a particular property or configuration.")]
 public record DefinesRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyRelationship
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
+) : OntologyRelationship(From, To, CustomProperties)
 {
     [JsonIgnore]
-    public RelationshipKind Kind => RelationshipKind.Defines;
+    public override RelationshipKind Kind => RelationshipKind.Defines;
 }

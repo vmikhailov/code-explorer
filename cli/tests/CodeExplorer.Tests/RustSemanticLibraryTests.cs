@@ -249,7 +249,7 @@ public class RustSemanticLibraryTests
         tables.Should().NotBeEmpty();
         var customerTable = tables.FirstOrDefault(t => t.Name == "customers");
         customerTable.Should().NotBeNull();
-        customerTable!.Extensions?.GetValueOrDefault("schema_name").Should().Be("sales");
+        customerTable!.Schema.Should().Be("sales");
     }
 
     [Test]
@@ -360,7 +360,7 @@ public class RustSemanticLibraryTests
         var topic = topics.FirstOrDefault(t => t.BrokerType == BrokerType.Sqs);
         topic.Should().NotBeNull();
         topic!.Name.Should().Be("requests-queue");
-        topic.Extensions![OntologyConstants.PropertyNames.MessagingDirection].Should().Be(OntologyConstants.EvidenceKinds.Subscribe);
+        topic.MessagingDirection.Should().Be(OntologyConstants.EvidenceKinds.Subscribe);
 
         var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();
         allRefs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName.Contains(topic.Name)).Should().BeTrue();
@@ -406,7 +406,7 @@ public class RustSemanticLibraryTests
         topics.Should().ContainSingle();
         topics[0].BrokerType.Should().Be(BrokerType.Sns);
         topics[0].Name.Should().Be("results-topic");
-        topics[0].Extensions![OntologyConstants.PropertyNames.MessagingDirection].Should().Be(OntologyConstants.EvidenceKinds.Publish);
+        topics[0].MessagingDirection.Should().Be(OntologyConstants.EvidenceKinds.Publish);
     }
 
     [Test]

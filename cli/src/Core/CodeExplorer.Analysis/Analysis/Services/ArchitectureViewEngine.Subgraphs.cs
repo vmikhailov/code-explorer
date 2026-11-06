@@ -281,8 +281,8 @@ public partial class ArchitectureViewEngine
                     Id = $"{fromId}->{toId}:{outKind}",
                     Source = fromId,
                     Target = toId,
-                    Kind = outKind,
-                    Category = categoryStr,
+                    Kind = EnumExtensions.ParseRelationshipKind(outKind),
+                    Category = category.ToGraphEdgeCategory(),
                     IsTransitive = isTrans,
                     IsInferred = isInferred,
                     Properties = edgeProps
@@ -305,8 +305,8 @@ public partial class ArchitectureViewEngine
                         Id = $"{srcId}->{canonicalId}:USES_DB",
                         Source = srcId,
                         Target = canonicalId,
-                        Kind = "USES_DB",
-                        Category = "database",
+                        Kind = RelationshipKind.UsesDb,
+                        Category = GraphEdgeCategory.Database,
                         Properties = new Dictionary<string, string>
                         {
                             ["dependency_type"] = "database", ["is_semantic"] = "true"
@@ -323,7 +323,7 @@ public partial class ArchitectureViewEngine
 
         foreach (var edge in graph.Edges)
         {
-            if (edge.Category == "database" || edge.Kind == "USES_DB")
+            if (edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb)
             {
                 dbInDegree[edge.Target] = dbInDegree.GetValueOrDefault(edge.Target) + 1;
             }
@@ -505,23 +505,25 @@ public partial class ArchitectureViewEngine
             }
         }
 
-        void AddNeighborEdge(string from, string to, string kind, string category, Dictionary<string, string>? props)
+        void AddNeighborEdge(string from, string to, RelationshipKind kind, GraphEdgeCategory category, Dictionary<string, string>? props)
         {
+            var catStr = category.ToCanonicalString();
+            var kindStr = kind.ToCypherType();
             var eProps = props != null ? new Dictionary<string, string>(props) : new Dictionary<string, string>();
             if (!eProps.ContainsKey("dependency_type"))
             {
-                eProps["dependency_type"] = category;
+                eProps["dependency_type"] = catStr;
             }
             if (!eProps.ContainsKey("category"))
             {
-                eProps["category"] = category;
+                eProps["category"] = catStr;
             }
 
             if (graph.Edges.All(e => !(e.Source == from && e.Target == to && e.Kind == kind)))
             {
                 graph.Edges.Add(new GraphEdgeDto
                 {
-                    Id = $"{from}->{to}:{kind}",
+                    Id = $"{from}->{to}:{kindStr}",
                     Source = from,
                     Target = to,
                     Kind = kind,
@@ -537,10 +539,10 @@ public partial class ArchitectureViewEngine
             {
                 if (nodeLookup.TryGetValue(edge.Target, out var tgtNode))
                 {
-                    if (tgtNode.Kind == NodeKind.Topic && edge.Kind.Equals("SUBSCRIBES_TO", StringComparison.OrdinalIgnoreCase))
+                    if (tgtNode.Kind == NodeKind.Topic && edge.Kind == RelationshipKind.SubscribesTo)
                     {
                         AddNeighborNode(tgtNode, column: "left", role: "topic");
-                        AddNeighborEdge(tgtNode.Id, centerId, "SUBSCRIBES", "messaging", edge.Properties);
+                        AddNeighborEdge(tgtNode.Id, centerId, RelationshipKind.Subscribes, GraphEdgeCategory.Messaging, edge.Properties);
                     }
                     else
                     {
@@ -554,11 +556,11 @@ public partial class ArchitectureViewEngine
                         };
                         var cat = edge.Category ?? (tgtNode.Kind switch
                         {
-                            NodeKind.Database => "database",
-                            NodeKind.ExternalService => "service_call",
-                            NodeKind.Topic => "messaging",
-                            NodeKind.Package => "library",
-                            _ => (edge.Kind == "LIBRARY" ? "library" : "service_call")
+                            NodeKind.Database => GraphEdgeCategory.Database,
+                            NodeKind.ExternalService => GraphEdgeCategory.ServiceCall,
+                            NodeKind.Topic => GraphEdgeCategory.Messaging,
+                            NodeKind.Package => GraphEdgeCategory.Library,
+                            _ => (edge.Kind == RelationshipKind.Library ? GraphEdgeCategory.Library : GraphEdgeCategory.ServiceCall)
                         });
 
                         AddNeighborNode(tgtNode, column: "right", role: role);
@@ -573,8 +575,8 @@ public partial class ArchitectureViewEngine
                     var role = srcNode.Kind == NodeKind.Topic ? "topic" : "inbound";
                     var cat = edge.Category ?? (srcNode.Kind switch
                     {
-                        NodeKind.Topic => "messaging",
-                        _ => (edge.Kind == "LIBRARY" ? "library" : "service_call")
+                        NodeKind.Topic => GraphEdgeCategory.Messaging,
+                        _ => (edge.Kind == RelationshipKind.Library ? GraphEdgeCategory.Library : GraphEdgeCategory.ServiceCall)
                     });
 
                     AddNeighborNode(srcNode, column: "left", role: role);
@@ -663,8 +665,8 @@ public partial class ArchitectureViewEngine
                         Id = edgeId,
                         Source = fromId,
                         Target = toId,
-                        Kind = normalizedKind,
-                        Category = categoryStr,
+                        Kind = EnumExtensions.ParseRelationshipKind(normalizedKind),
+                        Category = category.ToGraphEdgeCategory(),
                         Properties = new Dictionary<string, string>
                         {
                             ["category"] = categoryStr, ["dependency_type"] = depType

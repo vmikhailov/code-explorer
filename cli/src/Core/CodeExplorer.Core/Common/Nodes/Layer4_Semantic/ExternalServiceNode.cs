@@ -21,9 +21,54 @@ public record ExternalServiceNode(
     string Protocol,
     string DomainOrService,
     string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
+    [JsonPropertyName("file_path")]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("start_line")]
+    public int? StartLine { get; set; }
+
+    [JsonPropertyName("start_col")]
+    public int? StartCol { get; set; }
+
+    [JsonPropertyName("caller_symbol_id")]
+    public string? CallerSymbolId { get; set; }
+
+    [JsonPropertyName("base_url")]
+    public string? BaseUrl { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    [JsonPropertyName("config_key")]
+    public string? ConfigKey { get; set; }
+
+    [JsonPropertyName("graphql_field")]
+    public string? GraphqlField { get; set; }
+
+    [JsonPropertyName("operation_type")]
+    public string? OperationType { get; set; }
+
+    [JsonPropertyName("method")]
+    public string? Method { get; set; }
+
+    [JsonPropertyName("is_external")]
+    public bool? IsExternal { get; set; }
+
+    [JsonPropertyName("is_internal")]
+    public bool? IsInternal { get; set; }
+
+    [JsonPropertyName("is_relative_path")]
+    public bool? IsRelativePath { get; set; }
+
+    [JsonPropertyName("inferred_from_path")]
+    public bool? InferredFromPath { get; set; }
+
+    [JsonPropertyName("inferred_from_identifier")]
+    public bool? InferredFromIdentifier { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.ExternalService;
 }

@@ -492,14 +492,14 @@ public partial class ArchitectureViewEngine
         var interactions = new List<BoundedContextInteractionDto>();
         var crossCalls = await db.LoadCrossDomainInteractionsAsync(workspaceId ?? "", ct);
 
-        var macroCalls = new List<(string SourceKey, string TargetKey, string EdgeKind, int Count)>();
+        var macroCalls = new List<(string SourceKey, string TargetKey, RelationshipKind EdgeKind, int Count)>();
         foreach (var c in crossCalls)
         {
             var src = CategorizeBoundedContext(c.SourceDomain).CanonicalKey;
             var tgt = CategorizeBoundedContext(c.TargetDomain).CanonicalKey;
             if (!src.Equals(tgt, StringComparison.OrdinalIgnoreCase))
             {
-                macroCalls.Add((src, tgt, c.EdgeKind.ToCypherType(), c.InteractionCount));
+                macroCalls.Add((src, tgt, c.EdgeKind, c.InteractionCount));
             }
         }
 
@@ -511,13 +511,13 @@ public partial class ArchitectureViewEngine
             var srcId = $"context:{group.Key.Source.ToLowerInvariant()}";
             var tgtId = $"context:{group.Key.Target.ToLowerInvariant()}";
             var totalCount = group.Sum(x => x.Count);
-            var details = group.Select(x => $"{x.EdgeKind} ({x.Count})").Distinct().ToList();
+            var details = group.Select(x => $"{x.EdgeKind.ToCypherType()} ({x.Count})").Distinct().ToList();
 
             var primaryItem = group.OrderByDescending(x => x.Count).First();
-            var cat = (primaryItem.EdgeKind.ToUpperInvariant()) switch
+            var cat = primaryItem.EdgeKind switch
             {
-                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => BoundedContextInteractionType.Messaging,
-                "USES_DB" or "ACCESSES_TABLE" => BoundedContextInteractionType.Database,
+                RelationshipKind.Publishes or RelationshipKind.PublishesTo or RelationshipKind.Subscribes or RelationshipKind.SubscribesTo or RelationshipKind.Triggers or RelationshipKind.Consumes => BoundedContextInteractionType.Messaging,
+                RelationshipKind.UsesDb or RelationshipKind.AccessesTable => BoundedContextInteractionType.Database,
                 _ => BoundedContextInteractionType.ServiceCall
             };
 
@@ -527,7 +527,7 @@ public partial class ArchitectureViewEngine
                 Source = srcId,
                 Target = tgtId,
                 InteractionType = cat,
-                Label = totalCount > 1 ? $"{totalCount} calls" : primaryItem.EdgeKind,
+                Label = totalCount > 1 ? $"{totalCount} calls" : primaryItem.EdgeKind.ToCypherType(),
                 Count = totalCount,
                 Details = details
             });
@@ -684,14 +684,14 @@ public partial class ArchitectureViewEngine
         ];
 
         var crossCalls = await db.LoadCrossDomainInteractionsAsync(workspaceId ?? "", ct);
-        var macroCalls = new List<(string SourceKey, string TargetKey, string EdgeKind, int Count)>();
+        var macroCalls = new List<(string SourceKey, string TargetKey, RelationshipKind EdgeKind, int Count)>();
         foreach (var c in crossCalls)
         {
             var src = CategorizeBoundedContext(c.SourceDomain).CanonicalKey;
             var tgt = CategorizeBoundedContext(c.TargetDomain).CanonicalKey;
             if (!src.Equals(tgt, StringComparison.OrdinalIgnoreCase))
             {
-                macroCalls.Add((src, tgt, c.EdgeKind.ToCypherType(), c.InteractionCount));
+                macroCalls.Add((src, tgt, c.EdgeKind, c.InteractionCount));
             }
         }
 
@@ -702,12 +702,12 @@ public partial class ArchitectureViewEngine
             var srcId = $"context:{group.Key.Source.ToLowerInvariant()}";
             var tgtId = $"context:{group.Key.Target.ToLowerInvariant()}";
             var totalCount = group.Sum(x => x.Count);
-            var details = group.Select(x => $"{x.EdgeKind} ({x.Count})").Distinct().ToList();
+            var details = group.Select(x => $"{x.EdgeKind.ToCypherType()} ({x.Count})").Distinct().ToList();
             var primaryItem = group.OrderByDescending(x => x.Count).First();
-            var cat = (primaryItem.EdgeKind.ToUpperInvariant()) switch
+            var cat = primaryItem.EdgeKind switch
             {
-                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => BoundedContextInteractionType.Messaging,
-                "USES_DB" or "ACCESSES_TABLE" => BoundedContextInteractionType.Database,
+                RelationshipKind.Publishes or RelationshipKind.PublishesTo or RelationshipKind.Subscribes or RelationshipKind.SubscribesTo or RelationshipKind.Triggers or RelationshipKind.Consumes => BoundedContextInteractionType.Messaging,
+                RelationshipKind.UsesDb or RelationshipKind.AccessesTable => BoundedContextInteractionType.Database,
                 _ => BoundedContextInteractionType.ServiceCall
             };
 
@@ -717,7 +717,7 @@ public partial class ArchitectureViewEngine
                 Source = srcId,
                 Target = tgtId,
                 InteractionType = cat,
-                Label = totalCount > 1 ? $"{totalCount} calls" : primaryItem.EdgeKind,
+                Label = totalCount > 1 ? $"{totalCount} calls" : primaryItem.EdgeKind.ToCypherType(),
                 Count = totalCount,
                 Details = details
             });
@@ -785,13 +785,24 @@ public partial class ArchitectureViewEngine
         var validIds = map.Contexts.Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var edge in map.Interactions.Where(e => validIds.Contains(e.Source) && validIds.Contains(e.Target)))
         {
+            var parsedKind = EnumExtensions.ParseRelationshipKind(edge.Label);
+            if (parsedKind == RelationshipKind.Unspecified)
+            {
+                parsedKind = edge.InteractionType switch
+                {
+                    BoundedContextInteractionType.Database => RelationshipKind.UsesDb,
+                    BoundedContextInteractionType.Messaging => RelationshipKind.PublishesTo,
+                    _ => RelationshipKind.ServiceCall
+                };
+            }
+
             graph.Edges.Add(new GraphEdgeDto
             {
                 Id = edge.Id,
                 Source = edge.Source,
                 Target = edge.Target,
-                Kind = edge.Label,
-                Category = edge.InteractionType.ToCanonicalString(),
+                Kind = parsedKind,
+                Category = edge.InteractionType.ToGraphEdgeCategory(),
                 Properties = new Dictionary<string, string>
                 {
                     ["count"] = edge.Count.ToString(),
@@ -855,7 +866,7 @@ public partial class ArchitectureViewEngine
             {
                 if (edge.Target.Equals(targetId, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "TRIGGERS")
+                    if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.SubscribesTo or RelationshipKind.SubscribedBy or RelationshipKind.Triggers)
                     {
                         var srcNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Source, StringComparison.OrdinalIgnoreCase));
                         var topicName = srcNode?.Name ?? edge.Source;
@@ -873,9 +884,9 @@ public partial class ArchitectureViewEngine
                 {
                     var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
                     var tgtName = tgtNode?.Name ?? edge.Target;
-                    var isTopic = tgtNode?.Kind == NodeKind.Topic || edge.Category == "messaging";
+                    var isTopic = tgtNode?.Kind == NodeKind.Topic || edge.Category == GraphEdgeCategory.Messaging;
 
-                    if (isTopic && edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "SUBSCRIBES" or "CONSUMES")
+                    if (isTopic && edge.Kind is RelationshipKind.SubscribesTo or RelationshipKind.SubscribedBy or RelationshipKind.Subscribes or RelationshipKind.Consumes)
                     {
                         var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
                                          tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -900,13 +911,13 @@ public partial class ArchitectureViewEngine
                     var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
                     var tgtName = tgtNode?.Name ?? edge.Target;
 
-                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == NodeKind.Database)
+                    if (edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb || tgtNode?.Kind == NodeKind.Database)
                     {
                         if (!contract.Databases.Contains(tgtName)) contract.Databases.Add(tgtName);
                     }
-                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "PUBLISHES" or "TRIGGERS" || tgtNode?.Kind == NodeKind.Topic)
+                    else if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.PublishesTo or RelationshipKind.Publishes or RelationshipKind.Triggers || tgtNode?.Kind == NodeKind.Topic)
                     {
-                        if (edge.Kind is not ("SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "SUBSCRIBES" or "CONSUMES"))
+                        if (edge.Kind is not (RelationshipKind.SubscribesTo or RelationshipKind.SubscribedBy or RelationshipKind.Subscribes or RelationshipKind.Consumes))
                         {
                             var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
                                              tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -919,7 +930,7 @@ public partial class ArchitectureViewEngine
                     {
                         if (!contract.ExternalServices.Contains(tgtName)) contract.ExternalServices.Add(tgtName);
                     }
-                    else if (edge.Category == "service_call" || edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")
+                    else if (edge.Category == GraphEdgeCategory.ServiceCall || edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint)
                     {
                         if (!contract.OutboundServiceCalls.Contains(tgtName)) contract.OutboundServiceCalls.Add(tgtName);
                     }
@@ -977,7 +988,7 @@ public partial class ArchitectureViewEngine
                         Source = currNode?.Name ?? currId,
                         Target = tgtName,
                         Kind = edge.Kind,
-                        Protocol = edge.Properties?.GetValueOrDefault("protocol") ?? edge.Category,
+                        Protocol = edge.Properties?.GetValueOrDefault("protocol") ?? edge.Category?.ToCanonicalString(),
                         Details = edge.Properties?.GetValueOrDefault("via_library") != null ? $"via {edge.Properties["via_library"]}" : null
                     });
 

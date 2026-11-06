@@ -23,15 +23,7 @@ public partial class ResourceSemanticAnalyzer
             _projectDriverCache[cacheKey] = res;
             return res;
         }
-        if (projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverEngine, out var extEngineVal) &&
-            !string.IsNullOrEmpty(extEngineVal))
-        {
-            projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverType, out var extTypeVal);
-            var res = (extEngineVal, extTypeVal ?? "relational");
-            _projectDriverCache[cacheKey] = res;
-            return res;
-        }
-        if (projSignals?.DbDriverChecked == true || projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverChecked, out _))
+        if (projSignals?.DbDriverChecked == true)
         {
             if (ctx.ResourceRegistry != null)
             {
@@ -122,14 +114,6 @@ public partial class ResourceSemanticAnalyzer
         CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode? fileNode,
         SyntaxTree? syntaxTree)
     {
-        if (fileNode != null &&
-            fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverEngine, out var extEngine) &&
-            !string.IsNullOrEmpty(extEngine))
-        {
-            fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverType, out var extType);
-            return (extEngine, extType ?? "relational");
-        }
-
         if (fileNode != null)
         {
             var fromRefs = FindEngineInNodeReferences(fileNode);

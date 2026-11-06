@@ -122,36 +122,35 @@ public class GraphQLFileParser : IFileParser
                 1,
                 1);
 
-            funcNode.SetExtension("graphql_operation", opName);
-            funcNode.SetExtension("operation_type", opTypeStr);
-            funcNode.SetExtension("graphql_fields", string.Join(",", op.RootFields));
+            funcNode.GraphqlOperation = opName;
+            funcNode.OperationType = opTypeStr;
+            funcNode.GraphqlFields = string.Join(",", op.RootFields);
             if (op.RootFields.Count == 1)
             {
-                funcNode.SetExtension("graphql_field", op.RootFields[0]);
+                funcNode.Signals().GraphqlField = op.RootFields[0];
             }
 
             if (!string.IsNullOrEmpty(op.OperationName))
             {
                 var aliases = BuildCodegenAliases(op.OperationName, opTypeStr);
-                funcNode.SetExtension("graphql_aliases", string.Join(",", aliases));
+                funcNode.Signals().GraphqlAliases = string.Join(",", aliases);
             }
 
             foreach (var rootField in op.RootFields)
             {
                 var gqlPath = "/" + rootField.TrimStart('/');
                 var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:graphql:{opTypeStr}:{rootField}:{symbolId}";
-                var extProps = new Dictionary<string, string>
+                var extNode = new ExternalServiceNode(extId, rootField, "graphql", "graphql", gqlPath)
                 {
-                    ["file_path"] = relativePath,
-                    ["start_line"] = op.StartLine.ToString(),
-                    ["start_col"] = "1",
-                    ["graphql_field"] = rootField,
-                    ["operation_type"] = opTypeStr,
-                    ["caller_symbol_id"] = symbolId,
-                    ["is_internal"] = "true",
-                    ["url"] = gqlPath
+                    FilePath = relativePath,
+                    StartLine = op.StartLine,
+                    StartCol = 1,
+                    GraphqlField = rootField,
+                    OperationType = opTypeStr,
+                    CallerSymbolId = symbolId,
+                    IsInternal = true,
+                    Url = gqlPath
                 };
-                var extNode = new ExternalServiceNode(extId, rootField, "graphql", "graphql", gqlPath, extProps);
                 funcNode.Children.Add(extNode);
             }
 
@@ -178,9 +177,11 @@ public class GraphQLFileParser : IFileParser
                 null,
                 null,
                 sdl.ReturnType,
-                sdl.OperationType);
-            epNode.SetExtension("graphql_field", sdl.FieldName);
-            epNode.SetExtension("graphql_sdl", "true");
+                sdl.OperationType)
+            {
+                GraphqlField = sdl.FieldName,
+                IsGraphqlSdl = true
+            };
             fileNode.Children.Add(epNode);
         }
 

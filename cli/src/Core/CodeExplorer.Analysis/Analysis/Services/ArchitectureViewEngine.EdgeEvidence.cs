@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Protocol;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -349,41 +350,42 @@ public partial class ArchitectureViewEngine
                                ?? line;
 
                 var effectiveResourceKind = isDownwardResourceEdge ? srcKind : tgtKind;
-                var kind = !string.IsNullOrEmpty(relEvKind)
-                    ? relEvKind
+                var parsedEvKind = TaxonomyViewEnumExtensions.ParseEvidenceKind(relEvKind);
+                var kind = parsedEvKind != EvidenceKind.Unspecified
+                    ? parsedEvKind
                     : relKind switch
                     {
                         OntologyConstants.Relationships.CallsEndpoint or OntologyConstants.Relationships.CalledBy when effectiveResourceKind == OntologyConstants.NodeLabels.Endpoint =>
-                            protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
-                            : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
-                            : OntologyConstants.EvidenceKinds.HttpCall,
+                            protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? EvidenceKind.GrpcCall
+                            : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? EvidenceKind.WcfCall
+                            : EvidenceKind.HttpCall,
                         OntologyConstants.Relationships.PublishesTo or OntologyConstants.Relationships.PublishedBy =>
-                            OntologyConstants.EvidenceKinds.Publish,
+                            EvidenceKind.Publish,
                         OntologyConstants.Relationships.SubscribesTo or OntologyConstants.Relationships.SubscribedBy or OntologyConstants.Relationships.Triggers =>
-                            OntologyConstants.EvidenceKinds.Subscribe,
+                            EvidenceKind.Subscribe,
                         OntologyConstants.Relationships.PersistedIn =>
-                            OntologyConstants.EvidenceKinds.Orm,
+                            EvidenceKind.Orm,
                         OntologyConstants.Relationships.AccessedBy when tgtKind == OntologyConstants.NodeLabels.Type =>
-                            OntologyConstants.EvidenceKinds.Orm,
+                            EvidenceKind.Orm,
                         OntologyConstants.Relationships.Configures or OntologyConstants.Relationships.DeclaredIn when tgtKind == OntologyConstants.NodeLabels.File =>
-                            OntologyConstants.EvidenceKinds.Config,
+                            EvidenceKind.Config,
                         _ when effectiveResourceKind == OntologyConstants.NodeLabels.Procedure =>
-                            OntologyConstants.EvidenceKinds.Procedure,
+                            EvidenceKind.Procedure,
                         _ when effectiveResourceKind is OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Table =>
-                            OntologyConstants.EvidenceKinds.Query,
-                        _ => OntologyConstants.EvidenceKinds.HttpCall
+                            EvidenceKind.Query,
+                        _ => EvidenceKind.HttpCall
                     };
 
                 var operation = !string.IsNullOrEmpty(relOp)
                     ? relOp
                     : kind switch
                     {
-                        OntologyConstants.EvidenceKinds.Publish => "PUBLISH",
-                        OntologyConstants.EvidenceKinds.Subscribe => "SUBSCRIBE",
-                        OntologyConstants.EvidenceKinds.Orm => "ORM",
-                        OntologyConstants.EvidenceKinds.Config => "CONFIG",
-                        OntologyConstants.EvidenceKinds.Procedure => "EXEC",
-                        OntologyConstants.EvidenceKinds.Query => InferSqlVerb(srcVerb, queryText, isDownwardResourceEdge ? tgtName : srcName) ?? "SELECT",
+                        EvidenceKind.Publish => "PUBLISH",
+                        EvidenceKind.Subscribe => "SUBSCRIBE",
+                        EvidenceKind.Orm => "ORM",
+                        EvidenceKind.Config => "CONFIG",
+                        EvidenceKind.Procedure => "EXEC",
+                        EvidenceKind.Query => InferSqlVerb(srcVerb, queryText, isDownwardResourceEdge ? tgtName : srcName) ?? "SELECT",
                         _ => !string.IsNullOrEmpty(httpMethod) && !httpMethod.Equals("ALL", StringComparison.OrdinalIgnoreCase)
                             ? httpMethod.ToUpperInvariant()
                             : "CALL"
@@ -397,7 +399,7 @@ public partial class ArchitectureViewEngine
                 var title = !string.IsNullOrEmpty(route)
                     ? $"{operation} {route}"
                     : isTopic
-                        ? $"{(kind == OntologyConstants.EvidenceKinds.Publish ? "Publishes" : "Subscribes")} {topicTargetName}"
+                        ? $"{(kind == EvidenceKind.Publish ? "Publishes" : "Subscribes")} {topicTargetName}"
                         : $"{callerSym} → {targetSym}";
 
                 items.Add(new ArchitectureEvidenceItemDto
@@ -431,15 +433,15 @@ public partial class ArchitectureViewEngine
         return (items, coveredPairs);
     }
 
-    private static int EvidenceKindOrder(string kind) => kind switch
+    private static int EvidenceKindOrder(EvidenceKind kind) => kind switch
     {
-        "http_call" or "grpc_call" or "wcf_call" or "publish" or "subscribe" => 0,
-        "query" or "procedure" => 1,
-        "orm" or "table" => 2,
-        "endpoint" or "entrypoint" => 3,
-        "library_call" or "test_call" => 4,
-        "config" => 5,
-        "migration" => 6,
+        EvidenceKind.HttpCall or EvidenceKind.GrpcCall or EvidenceKind.WcfCall or EvidenceKind.Publish or EvidenceKind.Subscribe => 0,
+        EvidenceKind.Query or EvidenceKind.Procedure => 1,
+        EvidenceKind.Orm or EvidenceKind.Table => 2,
+        EvidenceKind.Endpoint or EvidenceKind.EntryPoint => 3,
+        EvidenceKind.LibraryCall or EvidenceKind.TestCall => 4,
+        EvidenceKind.Config => 5,
+        EvidenceKind.Migration => 6,
         _ => 7
     };
 

@@ -163,8 +163,8 @@ public static class ProjectMapGraphMapper
             Id = $"pm:e:{e.SourceId}->{e.TargetId}",
             Source = e.SourceId,
             Target = e.TargetId,
-            Kind = dominant,
-            Category = e.IsResourceLink ? "resource" : "dependency",
+            Kind = EnumExtensions.ParseRelationshipKind(dominant),
+            Category = e.IsResourceLink ? GraphEdgeCategory.Resource : GraphEdgeCategory.Dependency,
             Properties = props
         };
     }

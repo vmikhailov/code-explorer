@@ -45,7 +45,7 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("|---|---|---|---|");
         foreach (var e in dto.Edges)
         {
-            sb.AppendLine($"| {e.Source} | {e.Target} | `{e.Category}` | {e.Count} |");
+            sb.AppendLine($"| {e.Source} | {e.Target} | `{e.Category.ToCanonicalString()}` | {e.Count} |");
         }
         return sb.ToString();
     }
@@ -71,7 +71,7 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("  macro_edges:");
         foreach (var e in dto.Edges)
         {
-            sb.AppendLine($"    - from: {e.Source}, to: {e.Target}, category: {e.Category}, count: {e.Count}");
+            sb.AppendLine($"    - from: {e.Source}, to: {e.Target}, category: {e.Category.ToCanonicalString()}, count: {e.Count}");
         }
         return sb.ToString();
     }
@@ -302,7 +302,7 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("|---|---|---|---|---|");
         foreach (var hop in dto.Hops)
         {
-            sb.AppendLine($"| {hop.Step} | **{hop.Source}** | **{hop.Target}** | `{hop.Kind}` | {hop.Protocol ?? "N/A"} {hop.Details} |");
+            sb.AppendLine($"| {hop.Step} | **{hop.Source}** | **{hop.Target}** | `{hop.Kind.ToCypherType()}` | {hop.Protocol ?? "N/A"} {hop.Details} |");
         }
         return sb.ToString();
     }
@@ -314,7 +314,7 @@ public partial class ArchitectureViewEngine
         var sanitize = (string s) => s.Replace(":", "_").Replace("-", "_").Replace(".", "_").Replace("/", "_");
         foreach (var hop in dto.Hops)
         {
-            sb.AppendLine($"  {sanitize(hop.Source)} -->|\"{hop.Kind}\"| {sanitize(hop.Target)}");
+            sb.AppendLine($"  {sanitize(hop.Source)} -->|\"{hop.Kind.ToCypherType()}\"| {sanitize(hop.Target)}");
         }
         return sb.ToString();
     }
@@ -344,7 +344,7 @@ public partial class ArchitectureViewEngine
 
         foreach (var edge in graph.Edges)
         {
-            var kind = !string.IsNullOrWhiteSpace(edge.Kind) ? edge.Kind : "DEPENDS_ON";
+            var kind = edge.Kind != RelationshipKind.Unspecified ? edge.Kind.ToCypherType() : OntologyConstants.Relationships.DependsOn;
             sb.AppendLine($"  {sanitize(edge.Source)} -->|\"{kind}\"| {sanitize(edge.Target)}");
         }
 
@@ -368,7 +368,7 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("  edges:");
         foreach (var edge in graph.Edges)
         {
-            sb.AppendLine($"    - {edge.Source} -> {edge.Target} [{edge.Kind}]");
+            sb.AppendLine($"    - {edge.Source} -> {edge.Target} [{edge.Kind.ToCypherType()}]");
         }
         return sb.ToString();
     }
@@ -395,7 +395,7 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("|---|---|---|---|");
         foreach (var edge in graph.Edges.OrderBy(e => e.Kind).ThenBy(e => e.Source))
         {
-            sb.AppendLine($"| **{edge.Source}** | **{edge.Target}** | `{edge.Kind}` | {edge.Category ?? "N/A"} |");
+            sb.AppendLine($"| **{edge.Source}** | **{edge.Target}** | `{edge.Kind.ToCypherType()}` | {edge.Category?.ToCanonicalString() ?? "N/A"} |");
         }
         return sb.ToString();
     }

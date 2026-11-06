@@ -19,7 +19,7 @@ namespace CodeExplorer.Tests.OntologyGen.Fixtures;
 public record OwnsRelationship(
     [property: JsonIgnore] string From,
     [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
+    [property: JsonIgnore] Dictionary<string, string>? CustomProperties = null
 ) : IOntologyRelationship
 {
     [JsonIgnore] public RelationshipKind Kind => RelationshipKind.Unspecified;
@@ -29,7 +29,7 @@ public record OwnsRelationship(
 public record LivesInRelationship(
     [property: JsonIgnore] string From,
     [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
+    [property: JsonIgnore] Dictionary<string, string>? CustomProperties = null
 ) : IOntologyRelationship
 {
     [JsonIgnore] public RelationshipKind Kind => RelationshipKind.Unspecified;
@@ -46,8 +46,8 @@ public record ZooNode(
     string Id,
     [property: OntologyProperty("The name of the zoo.")] string Name,
     [property: OntologyProperty("The path of the zoo relative to its parent.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
 }
@@ -62,8 +62,8 @@ public record AnimalNode(
     [property: OntologyProperty("The name of the animal.")] string Name,
     [property: OntologyProperty("The species of the animal.")] string Species,
     [property: OntologyProperty("The path of the animal relative to its parent.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
 }
@@ -78,8 +78,8 @@ public record HabitatNode(
     [property: OntologyProperty("The name of the habitat.")] string Name,
     [property: OntologyProperty("The climate type (tropical, arctic, etc.).")] string Climate,
     [property: OntologyProperty("The path of the habitat relative to its parent.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
 }

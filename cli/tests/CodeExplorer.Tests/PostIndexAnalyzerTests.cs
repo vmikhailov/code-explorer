@@ -62,7 +62,7 @@ public class PostIndexAnalyzerTests
 
         // 3. Run PostIndexAnalyzer
         var analyzer = new PostIndexAnalyzer(_client);
-        await analyzer.RunAsync("1");
+        await analyzer.RunAsync("1", new ParsingContext("", ""));
 
         // 4. Verify TRANSITIVELY_CALLS in edges table
 
@@ -142,7 +142,7 @@ public class PostIndexAnalyzerTests
         }
 
         // 7. Verify Idempotency - running again should not duplicate edges
-        await analyzer.RunAsync("1");
+        await analyzer.RunAsync("1", new ParsingContext("", ""));
 
         using (var cmd = conn.CreateCommand())
         {
@@ -173,7 +173,7 @@ public class PostIndexAnalyzerTests
         var analyzer = new PostIndexAnalyzer(client);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        await analyzer.RunAsync("1");
+        await analyzer.RunAsync("1", new ParsingContext("", ""));
         sw.Stop();
 
         sw.ElapsedMilliseconds.Should().BeLessThan(5000, $"PostIndexAnalyzer took {sw.ElapsedMilliseconds}ms, expected under 5000ms");

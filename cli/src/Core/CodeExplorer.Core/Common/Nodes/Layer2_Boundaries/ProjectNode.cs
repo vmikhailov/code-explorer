@@ -29,21 +29,21 @@ public record ProjectNode(
     ProjectLanguage ProjectType,
     string Role = "Service",
     bool IsLibrary = false,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public ProjectNode(string Id, string Name, string Path, ProjectLanguage ProjectType, Dictionary<string, string>? Extensions)
-        : this(Id, Name, Path, ProjectType, "Service", false, Extensions)
+    public ProjectNode(string Id, string Name, string Path, ProjectLanguage ProjectType, Dictionary<string, string>? CustomProperties)
+        : this(Id, Name, Path, ProjectType, "Service", false, CustomProperties)
     {
     }
 
-    public ProjectNode(string Id, string Name, string Path, string ProjectType, string Role = "Service", bool IsLibrary = false, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), Role, IsLibrary, Extensions)
+    public ProjectNode(string Id, string Name, string Path, string ProjectType, string Role = "Service", bool IsLibrary = false, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), Role, IsLibrary, CustomProperties)
     {
     }
 
-    public ProjectNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? Extensions)
-        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), "Service", false, Extensions)
+    public ProjectNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? CustomProperties)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), "Service", false, CustomProperties)
     {
     }
 
@@ -73,7 +73,7 @@ public record ProjectNode(
     [JsonPropertyName("archetype"), OntologyProperty("Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon).")]
     public ProjectArchetype Archetype
     {
-        get => _archetype ?? TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Extensions?.GetValueOrDefault("archetype") ?? Role);
+        get => _archetype ?? TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Role);
         set => _archetype = value;
     }
 
@@ -81,7 +81,7 @@ public record ProjectNode(
     [JsonPropertyName("primary_role"), OntologyProperty("Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework).")]
     public string? PrimaryRole
     {
-        get => _primaryRole ?? Extensions?.GetValueOrDefault("primary_role") ?? Role;
+        get => _primaryRole ?? Role;
         set => _primaryRole = value;
     }
 
@@ -89,7 +89,7 @@ public record ProjectNode(
     [JsonPropertyName("secondary_roles"), OntologyProperty("Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']).")]
     public string? SecondaryRoles
     {
-        get => _secondaryRoles ?? Extensions?.GetValueOrDefault("secondary_roles") ?? "[]";
+        get => _secondaryRoles ?? "[]";
         set => _secondaryRoles = value;
     }
 
@@ -97,12 +97,63 @@ public record ProjectNode(
     [JsonPropertyName("all_roles"), OntologyProperty("All architectural roles detected in the project.")]
     public string? AllRoles
     {
-        get => _allRoles ?? Extensions?.GetValueOrDefault("all_roles");
+        get => _allRoles;
         set => _allRoles = value;
     }
 
     [JsonPropertyName("framework"), OntologyProperty("Detected primary framework of the project.")]
     public string? Framework { get; set; }
+
+    [JsonPropertyName("entity_type"), OntologyProperty("Normalized semantic entity type (app, service, worker, cli, test, library).")]
+    public string? EntityType { get; set; }
+
+    [JsonPropertyName("external_apis"), OntologyProperty("Comma-separated external APIs or SDKs used by this project.")]
+    public string? ExternalApis { get; set; }
+
+    [JsonPropertyName("package_name"), OntologyProperty("Package name declared in the project manifest.")]
+    public string? PackageName { get; set; }
+
+    [JsonPropertyName("package_version"), OntologyProperty("Package version declared in the project manifest.")]
+    public string? PackageVersion { get; set; }
+
+    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier declared in the project manifest.")]
+    public string? Publisher { get; set; }
+
+    [JsonPropertyName("main_file"), OntologyProperty("Main entry file declared in the project manifest.")]
+    public string? MainFile { get; set; }
+
+    [JsonPropertyName("module_file"), OntologyProperty("ESM module entry file declared in the project manifest.")]
+    public string? ModuleFile { get; set; }
+
+    [JsonPropertyName("description"), OntologyProperty("Project description from manifest.")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("has_bin"), OntologyProperty("Whether the project manifest declares CLI binary entrypoints.")]
+    public bool? HasBin { get; set; }
+
+    [JsonPropertyName("has_contributes"), OntologyProperty("Whether the project manifest declares VS Code extension contributions.")]
+    public bool? HasContributes { get; set; }
+
+    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the project manifest targets the VS Code extension engine.")]
+    public bool? HasVsCodeEngine { get; set; }
+
+    [JsonPropertyName("keywords_json"), OntologyProperty("JSON array of keywords from the project manifest.")]
+    public string? KeywordsJson { get; set; }
+
+    [JsonPropertyName("extension_dependencies_json"), OntologyProperty("JSON array of VS Code extension dependencies.")]
+    public string? ExtensionDependenciesJson { get; set; }
+
+    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.")]
+    public string? ActivationEvents { get; set; }
+
+    [JsonPropertyName("is_build_orchestrator"), OntologyProperty("Indicates whether this project is a root build orchestrator wrapping child projects.")]
+    public bool? IsBuildOrchestrator { get; set; }
+
+    [JsonPropertyName("excluded_subpaths"), OntologyProperty("JSON array of excluded asset subpaths within the project directory.")]
+    public string? ExcludedSubpaths { get; set; }
+
+    [JsonPropertyName("absorbed_subpaths"), OntologyProperty("JSON array of absorbed technical subpaths within the project directory.")]
+    public string? AbsorbedSubpaths { get; set; }
 
     [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a shared library rather than an executable application.")]
     public bool IsLibrary { get; set; } = IsLibrary;

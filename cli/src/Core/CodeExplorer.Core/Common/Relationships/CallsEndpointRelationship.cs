@@ -6,11 +6,11 @@ namespace CodeExplorer.Core.Common.Relationships;
 
 [OntologyRelationship(OntologyConstants.Relationships.CallsEndpoint, "Links an external API call to the target HTTP endpoint it invokes.")]
 public record CallsEndpointRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyRelationship
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
+) : OntologyRelationship(From, To, CustomProperties)
 {
     [JsonIgnore]
-    public RelationshipKind Kind => RelationshipKind.CallsEndpoint;
+    public override RelationshipKind Kind => RelationshipKind.CallsEndpoint;
 }

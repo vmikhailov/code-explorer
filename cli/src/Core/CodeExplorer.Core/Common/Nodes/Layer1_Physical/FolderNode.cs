@@ -20,8 +20,8 @@ public record FolderNode(
     string Id,
     [property: OntologyProperty("The name of the folder.")] string Name,
     string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Folder;

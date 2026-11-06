@@ -19,8 +19,8 @@ public partial class PostIndexAnalyzer
         Dictionary<string, List<ProjectNode>> projectsByDomain,
         Func<string, string?, bool> isTestSource)
     {
-        if (!allDbNodes.Any(d => d.Extensions != null && d.Extensions.TryGetValue("from_config", out var fc) && fc == "true") &&
-            !canonicalDbNodes.Values.Any(d => d.Extensions != null && d.Extensions.TryGetValue("from_config", out var fc) && fc == "true"))
+        if (!allDbNodes.Any(d => d.FromConfig == true) &&
+            !canonicalDbNodes.Values.Any(d => d.FromConfig == true))
         {
             return;
         }
@@ -84,12 +84,12 @@ public partial class PostIndexAnalyzer
                 if (!isFromDomain) continue;
 
                 var targetDb = allDbNodes.FirstOrDefault(d => d.Id == relDbId || relDbId.StartWithIC(d.Id));
-                var isFromConfig = (targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true") ||
-                                   (rel.Properties != null && rel.Properties.TryGetValue("from_config", out var rfc) && rfc?.ToString() == "true");
+                var isFromConfig = targetDb?.FromConfig == true ||
+                                   rel.FromConfig == true;
 
                 if (!isFromConfig && targetDb != null)
                 {
-                    var eng = targetDb.Extensions?.GetValueOrDefault("engine") ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
+                    var eng = targetDb.Engine ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
                     if (!string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase))
                     {
                         vEngines.Add(ResourceReconciliationService.NormalizeEngineName(eng));
@@ -214,7 +214,7 @@ public partial class PostIndexAnalyzer
             if (rel.Kind != OntologyConstants.Relationships.UsesDb) continue;
 
             var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartWithIC(d.Id));
-            var isConfigDb = targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true";
+            var isConfigDb = targetDb?.FromConfig == true;
             if (!isConfigDb || targetDb == null) continue;
 
             var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
@@ -231,9 +231,9 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            var eng = targetDb.Extensions?.GetValueOrDefault("engine") ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
+            var eng = targetDb.Engine ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
             var normEng = ResourceReconciliationService.NormalizeEngineName(eng);
-            var key = targetDb.Extensions?.GetValueOrDefault("config_key");
+            var key = targetDb.ConfigKey;
 
             var vEngines = domainVerifiedEngines.GetValueOrDefault(domain, []);
             var vDbTypes = domainVerifiedDbTypes.GetValueOrDefault(domain, []);
@@ -260,7 +260,7 @@ public partial class PostIndexAnalyzer
 
             // Remove any unverified config databases that now have 0 non-test incoming edges
             var remainingTargets = allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.UsesDb).Select(r => r.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var orphanedConfigDbs = allDbNodes.Where(d => d.Extensions != null && d.Extensions.TryGetValue("from_config", out var fc) && fc == "true" && !remainingTargets.Contains(d.Id)).ToList();
+            var orphanedConfigDbs = allDbNodes.Where(d => d.FromConfig == true && !remainingTargets.Contains(d.Id)).ToList();
             foreach (var oDb in orphanedConfigDbs)
             {
                 allDbNodes.Remove(oDb);
@@ -341,14 +341,14 @@ public partial class PostIndexAnalyzer
 
                 if (owner != null && owner.Id != canonicalTarget)
                 {
-                    var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
+                    var relFilePath = rel.FilePath;
                     if (isTestSource(owner.Id, owner.Path) || isTestSource(relCallerId, relFilePath))
                     {
                         continue;
                     }
 
                     var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(relDbId)) ||
-                                            (rel.Properties != null && rel.Properties.TryGetValue("is_implicit_schema", out var impObj) && impObj?.ToString() == "true") ||
+                                            rel.IsImplicitSchema == true ||
                                             relDbId.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
 
                     var isLibraryOwner = libraryProjects.ContainsKey(owner.Id) || owner.IsLibrary;
@@ -361,8 +361,8 @@ public partial class PostIndexAnalyzer
                     var isGenericTarget = IsGenericOrLibraryDbId(canonicalTarget) || isRawImplicitEdge;
 
                     var targetNode = canonicalDbNodes.GetValueOrDefault(canonicalTarget);
-                    var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
-                    var targetSch = targetNode?.Extensions?.GetValueOrDefault("schema") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[1] : "");
+                    var targetEng = targetNode?.Engine ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
+                    var targetSch = targetNode?.Schema ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[1] : "");
                     var isTrulyEngineOnlyTarget = string.IsNullOrWhiteSpace(targetSch) ||
                                                   targetSch.Equals("default", StringComparison.OrdinalIgnoreCase) ||
                                                   targetSch.Equals(targetEng, StringComparison.OrdinalIgnoreCase) ||
@@ -439,11 +439,11 @@ public partial class PostIndexAnalyzer
                 .OfType<DatabaseNode>()
                 .Select(n => {
                     var name = n.Name;
-                    var engine = (n.Extensions != null && n.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
-                        ? eng
+                    var engine = !string.IsNullOrWhiteSpace(n.Engine)
+                        ? n.Engine
                         : (name.Contains('.') ? name.Split('.', 2)[0] : name);
-                    var schema = (n.Extensions != null && n.Extensions.TryGetValue("schema", out var sc) && !string.IsNullOrWhiteSpace(sc))
-                        ? sc
+                    var schema = !string.IsNullOrWhiteSpace(n.Schema)
+                        ? n.Schema
                         : (name.Contains('.') ? name.Split('.', 2)[1] : "");
                     return (n.Id, name, engine, schema);
                 })
@@ -454,8 +454,8 @@ public partial class PostIndexAnalyzer
             foreach (var (loser, winner) in localRemap)
             {
                 var loserNode = canonicalDbNodes.GetValueOrDefault(loser);
-                var loserEng = loserNode?.Extensions?.GetValueOrDefault("engine") ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
-                var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode?.Name, loserNode?.Extensions?.GetValueOrDefault("schema"), loserNode?.DbType.ToCanonicalString(), loser);
+                var loserEng = loserNode?.Engine ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
+                var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode?.Name, loserNode?.Schema, loserNode?.DbType.ToCanonicalString(), loser);
 
                 if (isLoserGeneric)
                 {
@@ -481,7 +481,7 @@ public partial class PostIndexAnalyzer
 
                 var cfgNodes = engList.Where(n => {
                     var nodeObj = canonicalDbNodes.GetValueOrDefault(n.Id);
-                    return nodeObj?.Extensions != null && nodeObj.Extensions.TryGetValue("from_config", out var fc) && fc == "true";
+                    return nodeObj?.FromConfig == true;
                 }).ToList();
 
                 var astNodes = engList.Where(n => !cfgNodes.Any(c => c.Id == n.Id)).ToList();
@@ -518,7 +518,7 @@ public partial class PostIndexAnalyzer
         foreach (var k in globalConsolidationRemap.Keys.ToList())
         {
             var node = canonicalDbNodes.GetValueOrDefault(k);
-            if (IsGenericOrLibraryDbId(k) || IsAbstractEngineOnlyDatabase(node?.Name, node?.Extensions?.GetValueOrDefault("schema"), node?.DbType.ToCanonicalString(), k))
+            if (IsGenericOrLibraryDbId(k) || IsAbstractEngineOnlyDatabase(node?.Name, node?.Schema, node?.DbType.ToCanonicalString(), k))
             {
                 globalConsolidationRemap.Remove(k);
             }

@@ -237,9 +237,8 @@ public class FastApiParserTests
         createEp.Should().NotBeNull();
         createEp!.RequestType.Should().Be("UserCreate");
         createEp.ResponseType.Should().Be("UserResponse");
-        createEp.Extensions.Should().NotBeNull();
-        createEp.Extensions!.GetValueOrDefault("status_code").Should().Be("201");
-        createEp.Extensions!.GetValueOrDefault("summary").Should().Be("Create a user");
+        createEp.StatusCode.Should().Be("201");
+        createEp.Summary.Should().Be("Create a user");
 
         var listOrdersEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/orders");
         listOrdersEp.Should().NotBeNull();

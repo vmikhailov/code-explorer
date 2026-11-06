@@ -14,6 +14,9 @@ namespace CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
 /// </summary>
 public static class EndpointSemanticAnalyzer
 {
+    private const string PropSchemaName = "schema_name";
+    private const string PropSchema = "schema";
+
     public static void Enrich(
         SyntaxTree syntaxTree,
         ProjectNode? project = null,
@@ -92,15 +95,14 @@ public static class EndpointSemanticAnalyzer
                 var parentScopeId = syntactic.ParentScopeId;
                 if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
                 {
-                    var qExt = new Dictionary<string, string>
+                    var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(typedNode.Id, parentScopeId)
                     {
-                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                        [OntologyConstants.PropertyNames.Line] = qStartLine.ToString(),
-                        [OntologyConstants.PropertyNames.LineEnd] = qEndLine.ToString(),
-                        [OntologyConstants.PropertyNames.Operation] = "SQL",
-                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
-                    };
-                    var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(typedNode.Id, parentScopeId, qExt));
+                        FilePath = relativePath,
+                        Line = qStartLine,
+                        LineEnd = qEndLine,
+                        Operation = "SQL",
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Query
+                    });
                     ctx?.AddGlobalProjectDependency(accessedRel);
                     relationships?.Add(accessedRel);
                 }
@@ -126,10 +128,18 @@ public static class EndpointSemanticAnalyzer
             var parentScopeId = syntactic.ParentScopeId;
             if (isEndpoint)
             {
-                typedNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic, projectName);
+                var epNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic, projectName);
+                typedNode = epNode;
                 if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
                 {
-                    var expRel = Relationship.FromRelationship(new ExposedByRelationship(typedNode.Id, parentScopeId, typedNode.Extensions));
+                    var expRel = Relationship.FromRelationship(new ExposedByRelationship(typedNode.Id, parentScopeId)
+                    {
+                        FilePath = relativePath,
+                        Line = (int)node.StartPosition.Row + 1,
+                        LineEnd = (int)node.EndPosition.Row + 1,
+                        Operation = epNode.HttpMethod,
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint
+                    });
                     ctx?.AddGlobalProjectDependency(expRel);
                     relationships?.Add(expRel);
                 }
@@ -139,11 +149,21 @@ public static class EndpointSemanticAnalyzer
                 typedNode = CreateEntryPointNode(name, node, relativePath, workspaceId, projectName);
                 if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
                 {
-                    var implRel = Relationship.FromRelationship(new ImplementedByRelationship(typedNode.Id, parentScopeId, typedNode.Extensions));
+                    var implRel = Relationship.FromRelationship(new ImplementedByRelationship(typedNode.Id, parentScopeId)
+                    {
+                        FilePath = relativePath,
+                        Line = (int)node.StartPosition.Row + 1,
+                        Column = (int)node.StartPosition.Column + 1
+                    });
                     ctx?.AddGlobalProjectDependency(implRel);
                     relationships?.Add(implRel);
 
-                    var fnImplRel = Relationship.FromRelationship(new ImplementsRelationship(parentScopeId, typedNode.Id, typedNode.Extensions));
+                    var fnImplRel = Relationship.FromRelationship(new ImplementsRelationship(parentScopeId, typedNode.Id)
+                    {
+                        FilePath = relativePath,
+                        Line = (int)node.StartPosition.Row + 1,
+                        Column = (int)node.StartPosition.Column + 1
+                    });
                     ctx?.AddGlobalProjectDependency(fnImplRel);
                     relationships?.Add(fnImplRel);
                 }
@@ -157,15 +177,14 @@ public static class EndpointSemanticAnalyzer
             {
                 var startLine = (int)node.StartPosition.Row + 1;
                 var endLine = (int)node.EndPosition.Row + 1;
-                var calledByExt = new Dictionary<string, string>
+                var calledByRel = Relationship.FromRelationship(new CalledByRelationship(typedNode.Id, parentScopeId)
                 {
-                    [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                    [OntologyConstants.PropertyNames.Line] = startLine.ToString(),
-                    [OntologyConstants.PropertyNames.LineEnd] = endLine.ToString(),
-                    [OntologyConstants.PropertyNames.Operation] = "CALL",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.HttpCall
-                };
-                var calledByRel = Relationship.FromRelationship(new CalledByRelationship(typedNode.Id, parentScopeId, calledByExt));
+                    FilePath = relativePath,
+                    Line = startLine,
+                    LineEnd = endLine,
+                    Operation = "CALL",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
+                });
                 ctx?.AddGlobalProjectDependency(calledByRel);
                 relationships?.Add(calledByRel);
             }
@@ -184,20 +203,30 @@ public static class EndpointSemanticAnalyzer
                     resolvedName = rName;
                 }
             }
+            var explicitSchema = syntactic.GetPropertyOrDefault(PropSchemaName) ?? syntactic.GetPropertyOrDefault(PropSchema);
+            if (string.IsNullOrEmpty(explicitSchema) && !string.IsNullOrEmpty(node.Text))
+            {
+                var sm = Regex.Match(node.Text, @"schema_name\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase);
+                if (sm.Success) explicitSchema = sm.Groups[1].Value;
+            }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
-            typedNode = new TableNode(tableId, resolvedName, relativePath);
+            typedNode = new TableNode(tableId, resolvedName, relativePath)
+            {
+                Schema = explicitSchema
+            };
             var parentScopeId = syntactic.ParentScopeId;
             if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
             {
-                var tblExt = new Dictionary<string, string>
+                var tStartLine = (int)node.StartPosition.Row + 1;
+                var tEndLine = (int)node.EndPosition.Row + 1;
+                var accRel = Relationship.FromRelationship(new AccessedByRelationship(typedNode.Id, parentScopeId)
                 {
-                    [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                    [OntologyConstants.PropertyNames.Line] = ((int)node.StartPosition.Row + 1).ToString(),
-                    [OntologyConstants.PropertyNames.LineEnd] = ((int)node.EndPosition.Row + 1).ToString(),
-                    [OntologyConstants.PropertyNames.Operation] = "ORM",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Orm
-                };
-                var accRel = Relationship.FromRelationship(new AccessedByRelationship(typedNode.Id, parentScopeId, tblExt));
+                    FilePath = relativePath,
+                    Line = tStartLine,
+                    LineEnd = tEndLine,
+                    Operation = "ORM",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Orm
+                });
                 ctx?.AddGlobalProjectDependency(accRel);
                 relationships?.Add(accRel);
 
@@ -206,7 +235,14 @@ public static class EndpointSemanticAnalyzer
                     !resolvedName.Equals("Table", StringComparison.OrdinalIgnoreCase) &&
                     !resolvedName.Equals("ViewEntity", StringComparison.OrdinalIgnoreCase))
                 {
-                    var implRel = Relationship.FromRelationship(new ImplementedByRelationship(typedNode.Id, parentScopeId, tblExt));
+                    var implRel = Relationship.FromRelationship(new ImplementedByRelationship(typedNode.Id, parentScopeId)
+                    {
+                        FilePath = relativePath,
+                        Line = tStartLine,
+                        LineEnd = tEndLine,
+                        Operation = "ORM",
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Orm
+                    });
                     ctx?.AddGlobalProjectDependency(implRel);
                     relationships?.Add(implRel);
                 }
@@ -222,29 +258,42 @@ public static class EndpointSemanticAnalyzer
                 syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.MessagingDirection),
                 OntologyConstants.EvidenceKinds.Subscribe,
                 StringComparison.OrdinalIgnoreCase);
-            var topicExt = new Dictionary<string, string>
+            var msgDirection = isSubscriber
+                ? OntologyConstants.EvidenceKinds.Subscribe
+                : OntologyConstants.EvidenceKinds.Publish;
+            typedNode = new TopicNode(
+                topicId,
+                name,
+                relativePath,
+                broker)
             {
-                [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                [OntologyConstants.PropertyNames.Line] = startLine.ToString(),
-                [OntologyConstants.PropertyNames.LineEnd] = endLine.ToString(),
-                [OntologyConstants.PropertyNames.MessagingDirection] = isSubscriber
-                    ? OntologyConstants.EvidenceKinds.Subscribe
-                    : OntologyConstants.EvidenceKinds.Publish
+                FilePath = relativePath,
+                Line = startLine,
+                LineEnd = endLine,
+                MessagingDirection = msgDirection
             };
-            typedNode = new TopicNode(topicId, name, relativePath, broker, topicExt);
             var parentScopeId = syntactic.ParentScopeId;
             if (!string.IsNullOrEmpty(parentScopeId))
             {
-                var flowExt = new Dictionary<string, string>(topicExt)
-                {
-                    [OntologyConstants.PropertyNames.Operation] = isSubscriber ? "SUBSCRIBE" : "PUBLISH",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = isSubscriber
-                        ? OntologyConstants.EvidenceKinds.Subscribe
-                        : OntologyConstants.EvidenceKinds.Publish
-                };
                 var flowRel = isSubscriber
-                    ? Relationship.FromRelationship(new SubscribedByRelationship(typedNode.Id, parentScopeId, flowExt))
-                    : Relationship.FromRelationship(new PublishedByRelationship(typedNode.Id, parentScopeId, flowExt));
+                    ? Relationship.FromRelationship(new SubscribedByRelationship(typedNode.Id, parentScopeId)
+                    {
+                        FilePath = relativePath,
+                        Line = startLine,
+                        LineEnd = endLine,
+                        MessagingDirection = msgDirection,
+                        Operation = "SUBSCRIBE",
+                        EvidenceKind = msgDirection
+                    })
+                    : Relationship.FromRelationship(new PublishedByRelationship(typedNode.Id, parentScopeId)
+                    {
+                        FilePath = relativePath,
+                        Line = startLine,
+                        LineEnd = endLine,
+                        MessagingDirection = msgDirection,
+                        Operation = "PUBLISH",
+                        EvidenceKind = msgDirection
+                    });
                 ctx?.AddGlobalProjectDependency(flowRel);
                 relationships?.Add(flowRel);
             }
@@ -323,7 +372,7 @@ public static class EndpointSemanticAnalyzer
         {
             foreach (var (k, v) in syntactic.Properties)
             {
-                typedNode.SetExtension(k, v);
+                typedNode.ApplySyntacticProperty(k, v);
             }
         }
 
@@ -430,16 +479,8 @@ public static class EndpointSemanticAnalyzer
             ? $"{gqlSchema}:"
             : "";
         var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}{schemaPart}{method}:{route}";
-        var epExt = new Dictionary<string, string>
-        {
-            [OntologyConstants.PropertyNames.FilePath] = relativePath,
-            ["start_line"] = (node.StartPosition.Row + 1).ToString(),
-            ["end_line"] = (node.EndPosition.Row + 1).ToString(),
-            [OntologyConstants.PropertyNames.Line] = (node.StartPosition.Row + 1).ToString(),
-            [OntologyConstants.PropertyNames.LineEnd] = (node.EndPosition.Row + 1).ToString(),
-            [OntologyConstants.PropertyNames.Operation] = method,
-            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Endpoint
-        };
+        var startLine = (int)node.StartPosition.Row + 1;
+        var endLine = (int)node.EndPosition.Row + 1;
         return new EndpointNode(
             endpointId,
             name,
@@ -452,8 +493,16 @@ public static class EndpointSemanticAnalyzer
             syntactic?.Policies,
             syntactic?.RequestType,
             syntactic?.ResponseType,
-            operationType,
-            epExt);
+            operationType)
+        {
+            FilePath = relativePath,
+            StartLine = startLine,
+            EndLine = endLine,
+            Line = startLine,
+            LineEnd = endLine,
+            Operation = method,
+            EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint
+        };
     }
 
     private static EntryPointNode CreateEntryPointNode(
@@ -503,13 +552,16 @@ public static class EndpointSemanticAnalyzer
         var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
         var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{projPart}{entryType}:{cleanName}";
 
-        var ext = new Dictionary<string, string>
+        return new EntryPointNode(
+            entryPointId,
+            cleanName,
+            relativePath,
+            entryType)
         {
-            { "file_path", relativePath },
-            { "start_line", (node.StartPosition.Row + 1).ToString() },
-            { "start_col", (node.StartPosition.Column + 1).ToString() }
+            FilePath = relativePath,
+            StartLine = (int)node.StartPosition.Row + 1,
+            StartCol = (int)node.StartPosition.Column + 1
         };
-        return new EntryPointNode(entryPointId, cleanName, relativePath, entryType, ext);
     }
 
     private static ExternalServiceNode CreateExternalServiceNode(
@@ -547,21 +599,22 @@ public static class EndpointSemanticAnalyzer
                 var gqlPath = "/" + gqlField.TrimStart('/');
                 var scopeKey = !string.IsNullOrEmpty(parentScopeId) ? parentScopeId : relativePath;
                 var gqlExtId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:graphql:{gqlOpType}:{gqlField}:{scopeKey}";
-                var gqlExt = new Dictionary<string, string>
+                return new ExternalServiceNode(
+                    gqlExtId,
+                    gqlField,
+                    "graphql",
+                    "graphql",
+                    gqlPath)
                 {
-                    ["file_path"] = relativePath,
-                    ["start_line"] = (node.StartPosition.Row + 1).ToString(),
-                    ["start_col"] = (node.StartPosition.Column + 1).ToString(),
-                    ["graphql_field"] = gqlField,
-                    ["operation_type"] = gqlOpType,
-                    ["is_internal"] = "true",
-                    ["url"] = gqlPath
+                    FilePath = relativePath,
+                    StartLine = (int)node.StartPosition.Row + 1,
+                    StartCol = (int)node.StartPosition.Column + 1,
+                    GraphqlField = gqlField,
+                    OperationType = gqlOpType,
+                    IsInternal = true,
+                    Url = gqlPath,
+                    CallerSymbolId = !string.IsNullOrEmpty(parentScopeId) ? parentScopeId : null
                 };
-                if (!string.IsNullOrEmpty(parentScopeId))
-                {
-                    gqlExt["caller_symbol_id"] = parentScopeId;
-                }
-                return new ExternalServiceNode(gqlExtId, gqlField, "graphql", "graphql", gqlPath, gqlExt);
             }
         }
 
@@ -778,45 +831,58 @@ public static class EndpointSemanticAnalyzer
             : "";
         var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}{serviceScopeSuffix}";
 
-        var ext = new Dictionary<string, string>
-        {
-            { "file_path", relativePath },
-            { "start_line", (node.StartPosition.Row + 1).ToString() },
-            { "start_col", (node.StartPosition.Column + 1).ToString() }
-        };
-        if (!string.IsNullOrEmpty(parentScopeId))
-        {
-            ext["caller_symbol_id"] = parentScopeId;
-        }
+        bool? isRelativePath = null;
+        bool? inferredFromPath = null;
+        bool? isInternal = null;
+        bool? isExternal;
+        bool? inferredFromIdentifier = null;
+        string? url = null;
 
         if (slashIdx == 0 || (isGarbage && path.StartsWith('/') && path != "/"))
         {
-            ext["is_relative_path"] = "true";
-            ext["inferred_from_path"] = "true";
-            ext["is_internal"] = "true";
-            ext["is_external"] = "false";
-            ext["url"] = path;
+            isRelativePath = true;
+            inferredFromPath = true;
+            isInternal = true;
+            isExternal = false;
+            url = path;
         }
         else if (domainOrService is "localhost" or "127.0.0.1" || domainOrService.StartsWith("localhost:") || domainOrService.StartsWith("127.0.0.1:"))
         {
-            ext["is_internal"] = "true";
-            ext["is_external"] = "false";
+            isInternal = true;
+            isExternal = false;
         }
         else if (isGarbage || domainOrService == "unknown-service" ||
                  domainOrService.StartsWith('*') || domainOrService.StartsWith('?') || domainOrService.StartsWith('&') || domainOrService.StartsWith('='))
         {
-            ext["is_external"] = "false";
+            isExternal = false;
         }
         else if (!hasExplicitScheme && !domainOrService.Contains('.') && !hadExplicitPath)
         {
-            ext["is_external"] = "false";
-            ext["inferred_from_identifier"] = "true";
+            isExternal = false;
+            inferredFromIdentifier = true;
         }
         else
         {
-            ext["is_external"] = "true";
+            isExternal = true;
         }
-        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
+        return new ExternalServiceNode(
+            extServiceId,
+            domainOrService,
+            protocol,
+            domainOrService,
+            path)
+        {
+            FilePath = relativePath,
+            StartLine = (int)node.StartPosition.Row + 1,
+            StartCol = (int)node.StartPosition.Column + 1,
+            CallerSymbolId = !string.IsNullOrEmpty(parentScopeId) ? parentScopeId : null,
+            Url = url,
+            IsInternal = isInternal,
+            IsExternal = isExternal,
+            IsRelativePath = isRelativePath,
+            InferredFromPath = inferredFromPath,
+            InferredFromIdentifier = inferredFromIdentifier
+        };
     }
 
     public static bool IsRouteOrConfigCandidate(string path)

@@ -122,17 +122,10 @@ public class KotlinFileParser : IFileParser
             var inheritancePart = cm.Groups[3].Success ? cm.Groups[3].Value.Trim() : null;
 
             var typeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Type:{className}";
-            var extensions = new Dictionary<string, string>();
-
-            if (!string.IsNullOrEmpty(packageName))
-            {
-                extensions["namespace"] = packageName;
-            }
-
+            string? cleanBase = null;
             if (!string.IsNullOrEmpty(inheritancePart))
             {
-                var cleanBase = Regex.Replace(inheritancePart, @"\(.*?\)", "").Trim();
-                extensions["extends"] = cleanBase;
+                cleanBase = Regex.Replace(inheritancePart, @"\(.*?\)", "").Trim();
             }
 
             var typeNode = new TypeNode(
@@ -145,9 +138,11 @@ public class KotlinFileParser : IFileParser
                 1,
                 0,
                 0,
-                kind,
-                extensions
-            );
+                kind
+            )
+            {
+                Extends = cleanBase
+            };
 
             fileNode.Children.Add(typeNode);
             primaryClassNode ??= typeNode;
@@ -160,11 +155,7 @@ public class KotlinFileParser : IFileParser
         foreach (Match fm in funMatches)
         {
             var funName = fm.Groups[2].Value.Trim();
-            var receiver = fm.Groups[1].Success ? fm.Groups[1].Value.Trim() : null;
             var funId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{funName}";
-
-            var extensions = new Dictionary<string, string>();
-            if (receiver != null) extensions["receiver"] = receiver;
 
             var funcNode = new FunctionNode(
                 funId,
@@ -175,8 +166,7 @@ public class KotlinFileParser : IFileParser
                 1,
                 1,
                 0,
-                0,
-                extensions
+                0
             );
 
             if (primaryClassNode != null)
@@ -213,12 +203,7 @@ public class KotlinFileParser : IFileParser
                     channelId,
                     $"MethodChannel {channelName}",
                     relativePath,
-                    "channel",
-                    new()
-                    {
-                        ["channel_name"] = channelName,
-                        ["platform"] = "flutter"
-                    }
+                    "channel"
                 );
 
                 fileNode.Children.Add(channelEp);
@@ -234,12 +219,7 @@ public class KotlinFileParser : IFileParser
                     channelId,
                     $"MethodChannel {varVal}",
                     relativePath,
-                    "channel",
-                    new()
-                    {
-                        ["channel_name"] = varVal,
-                        ["platform"] = "flutter"
-                    }
+                    "channel"
                 );
                 fileNode.Children.Add(channelEp);
             }

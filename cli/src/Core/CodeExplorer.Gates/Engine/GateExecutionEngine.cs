@@ -149,7 +149,7 @@ public class GateExecutionEngine
                 string? targetNodeId = null;
 
                 // Discover graph nodes and graph relationships returned by query (e.g. 'RETURN fn, r, target')
-                var graphNodes = new List<(string PropName, string? Id, string? Kind, JsonElement Properties)>();
+                var graphNodes = new List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)>();
                 var graphEdges = new List<(string PropName, string? FromId, string? ToId, string? RelType, JsonElement Properties)>();
 
                 foreach (var prop in row.EnumerateObject())
@@ -209,7 +209,7 @@ public class GateExecutionEngine
                     }
 
                     // Identify target node (distinct from source node and CallLiteral/File context nodes unless no other target exists)
-                    var fileNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && string.Equals(n.Kind, "File", StringComparison.OrdinalIgnoreCase));
+                    var fileNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && n.Kind == CodeExplorer.Cypher.Common.NodeKind.File);
                     if (file == null && fileNode.Properties.ValueKind == JsonValueKind.Object)
                     {
                         file = ExtractStringProperty(fileNode.Properties, "path", "file_path", "name");
@@ -223,7 +223,7 @@ public class GateExecutionEngine
                     var targetCandidates = graphNodes
                         .Where(n => n.PropName != srcNode.PropName
                                  && !IsLiteralEvidenceNode(n.PropName, n.Kind)
-                                 && !string.Equals(n.Kind, "File", StringComparison.OrdinalIgnoreCase))
+                                 && n.Kind != CodeExplorer.Cypher.Common.NodeKind.File)
                         .ToList();
                     var tgtNode = targetCandidates.FirstOrDefault(n => IsTargetNodeName(n.PropName));
                     if (tgtNode.Properties.ValueKind == JsonValueKind.Undefined && targetCandidates.Count > 0)
@@ -368,8 +368,8 @@ public class GateExecutionEngine
         }
     }
 
-    private static bool IsLiteralEvidenceNode(string propName, string? kind)
-        => string.Equals(kind, "CallLiteral", StringComparison.OrdinalIgnoreCase)
+    private static bool IsLiteralEvidenceNode(string propName, CodeExplorer.Cypher.Common.NodeKind kind)
+        => kind == CodeExplorer.Cypher.Common.NodeKind.CallLiteral
         || string.Equals(propName, "lit", StringComparison.OrdinalIgnoreCase)
         || string.Equals(propName, "literal", StringComparison.OrdinalIgnoreCase);
 
@@ -459,7 +459,7 @@ public class GateExecutionEngine
         return false;
     }
 
-    private static bool TryGetGraphNode(JsonElement element, out string? id, out string? kind, out JsonElement properties)
+    private static bool TryGetGraphNode(JsonElement element, out string? id, out CodeExplorer.Cypher.Common.NodeKind kind, out JsonElement properties)
     {
         if (element.ValueKind == JsonValueKind.Object &&
             element.TryGetProperty("properties", out properties) &&
@@ -468,12 +468,13 @@ public class GateExecutionEngine
             !element.TryGetProperty("to", out _))
         {
             id = element.TryGetProperty("id", out var idElem) ? idElem.GetString() : null;
-            kind = element.TryGetProperty("kind", out var kindElem) ? kindElem.GetString() : null;
+            var rawKind = element.TryGetProperty("kind", out var kindElem) ? kindElem.GetString() : null;
+            kind = CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(rawKind);
             return true;
         }
 
         id = null;
-        kind = null;
+        kind = CodeExplorer.Cypher.Common.NodeKind.Unspecified;
         properties = default;
         return false;
     }
@@ -483,7 +484,7 @@ public class GateExecutionEngine
     public static string InterpolateMessage(
         string template,
         JsonElement row,
-        List<(string PropName, string? Id, string? Kind, JsonElement Properties)> graphNodes,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)> graphNodes,
         string? file,
         int line,
         int column,
@@ -494,7 +495,7 @@ public class GateExecutionEngine
     public static string InterpolateMessage(
         string template,
         JsonElement row,
-        List<(string PropName, string? Id, string? Kind, JsonElement Properties)> graphNodes,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)> graphNodes,
         List<(string PropName, string? FromId, string? ToId, string? RelType, JsonElement Properties)> graphEdges,
         string? file,
         int line,
@@ -528,7 +529,7 @@ public class GateExecutionEngine
     private static string? ResolveTokenValue(
         string token,
         JsonElement row,
-        List<(string PropName, string? Id, string? Kind, JsonElement Properties)> graphNodes,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, JsonElement Properties)> graphNodes,
         List<(string PropName, string? FromId, string? ToId, string? RelType, JsonElement Properties)> graphEdges,
         string? file,
         int line,
@@ -562,17 +563,17 @@ public class GateExecutionEngine
                 {
                     return matchedNode.Id;
                 }
-                if (string.Equals(propKey, "label", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(matchedNode.Kind))
+                if (string.Equals(propKey, "label", StringComparison.OrdinalIgnoreCase) && matchedNode.Kind != CodeExplorer.Cypher.Common.NodeKind.Unspecified)
                 {
-                    return matchedNode.Kind;
+                    return CodeExplorer.Cypher.Common.EnumExtensions.ToCypherLabel(matchedNode.Kind);
                 }
                 if (matchedNode.Properties.TryGetProperty(propKey, out var pVal) && pVal.ValueKind != JsonValueKind.Null)
                 {
                     return FormatJsonElement(pVal);
                 }
-                if (string.Equals(propKey, "kind", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(matchedNode.Kind))
+                if (string.Equals(propKey, "kind", StringComparison.OrdinalIgnoreCase) && matchedNode.Kind != CodeExplorer.Cypher.Common.NodeKind.Unspecified)
                 {
-                    return matchedNode.Kind;
+                    return CodeExplorer.Cypher.Common.EnumExtensions.ToCypherLabel(matchedNode.Kind);
                 }
 
                 // Automatic path <-> file_path and name <-> full_name fallback

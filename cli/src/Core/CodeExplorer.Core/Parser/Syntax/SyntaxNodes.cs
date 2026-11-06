@@ -192,23 +192,19 @@ public enum CallSyntaxKind : byte
     ThisConstructor
 }
 
-public enum ArgumentModifier : byte
+public enum ControlFlowKind : byte
 {
-    None,
-    Ref,
-    Out,
-    In,
-    Spread,
-    KeywordSpread
-}
-
-public enum CollectionSyntaxKind : byte
-{
-    Array,
-    ObjectOrMap,
-    Tuple,
-    Set,
-    StructInit
+    Expression,
+    If,
+    Loop,
+    Switch,
+    Try,
+    Using,
+    Lock,
+    Defer,
+    Goroutine,
+    Branch,
+    Throw
 }
 
 public enum SqlOperationKind : byte
@@ -250,8 +246,7 @@ public abstract class SyntaxNode
     public string RawGrammarKind { get; set; } = string.Empty;
     public string Type => RawGrammarKind;
     public string? FieldRole { get; set; }
-    public bool IsNamed { get; set; } = true;
-    public string? LeadingDocComment { get; set; }
+    public bool IsNamed => true;
 
     public SyntaxDocument? Document { get; set; }
     public SyntaxDocument? Tree => Document;
@@ -293,9 +288,7 @@ public abstract class SyntaxNode
         return -1;
     }
 
-    public IReadOnlyList<AnnotationSyntax> Annotations { get; set; } = [];
     public IReadOnlyList<SyntaxNode> Children { get; set; } = [];
-
     public IReadOnlyList<SyntaxNode> NamedChildren => Children;
 
     public SyntaxNode? ResolveSyntheticField(string fieldName) =>
@@ -309,8 +302,7 @@ public abstract class SyntaxNode
             SyntaxFields.Left when this is AssignmentExprSyntax { Left: { } assignLeft } => assignLeft,
             SyntaxFields.Right when this is BinaryExprSyntax { Right: { } binRight } => binRight,
             SyntaxFields.Left when this is BinaryExprSyntax { Left: { } binLeft } => binLeft,
-            SyntaxFields.Condition when this is IfStmtSyntax { Condition: { } ifCond } => ifCond,
-            SyntaxFields.Condition when this is LoopStmtSyntax { Condition: { } loopCond } => loopCond,
+            SyntaxFields.Condition when this is ControlFlowStmtSyntax { Condition: { } cfCond } => cfCond,
             "trait" when this is ImplDeclSyntax { ImplementedTrait: { } implTrait } => implTrait,
             SyntaxFields.Type when this is ImplDeclSyntax { TargetType: { } implTarget } => implTarget,
             _ => null
@@ -344,37 +336,16 @@ public abstract class SyntaxNode
         }
     }
 
-    public string? ExplicitText { get; init; }
-
     /// <summary>
     /// Gets the source code slice corresponding to this syntax node without caching duplicate fragments on the node.
     /// Prefer <see cref="AsSpan"/> or <see cref="TextSpan"/> for zero-allocation inspection.
     /// </summary>
-    public string Text
-    {
-        get
-        {
-            if (ExplicitText != null) return ExplicitText;
-            if (Document != null)
-            {
-                return Document.GetText(Span.StartByte, Span.EndByte);
-            }
-            return string.Empty;
-        }
-    }
+    public string Text => Document != null ? Document.GetText(Span.StartByte, Span.EndByte) : string.Empty;
 
     /// <summary>
     /// Zero-allocation slice into the owning document's source text.
     /// </summary>
-    public ReadOnlySpan<char> AsSpan()
-    {
-        if (ExplicitText != null) return ExplicitText.AsSpan();
-        if (Document != null)
-        {
-            return Document.Slice(Span);
-        }
-        return ReadOnlySpan<char>.Empty;
-    }
+    public ReadOnlySpan<char> AsSpan() => Document != null ? Document.Slice(Span) : ReadOnlySpan<char>.Empty;
 
     public ReadOnlySpan<char> TextSpan => AsSpan();
 
@@ -724,7 +695,7 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 }
 
 // ============================================================================
-// DECLARATIONS
+// DECLARATIONS (9 Canonical Node Types)
 // ============================================================================
 
 public abstract class DeclarationSyntax : SyntaxNode
@@ -747,88 +718,59 @@ public abstract class DeclarationSyntax : SyntaxNode
     public SyntaxModifiers Modifiers { get; set; }
 }
 
-public sealed class NamespaceDeclSyntax : DeclarationSyntax
-{
-    public bool IsFileScoped { get; set; }
-    public IReadOnlyList<DeclarationSyntax> Members { get; set; } = [];
-    public IReadOnlyList<ImportDeclSyntax> Imports { get; set; } = [];
-}
-
-public sealed record ImportSpecifierSyntax(string Name, string? Alias = null);
+public sealed class NamespaceDeclSyntax : DeclarationSyntax;
 
 public sealed class ImportDeclSyntax : DeclarationSyntax
 {
     public string ModulePath { get; set; } = string.Empty;
     public string? Alias { get; set; }
-    public IReadOnlyList<ImportSpecifierSyntax> ImportedSymbols { get; set; } = [];
     public bool IsWildcard { get; set; }
     public bool IsReExport { get; set; }
     public bool IsStatic { get; set; }
-    public int RelativeDotCount { get; set; }
-    public ImportType ResolvedImportType { get; set; } = ImportType.External;
 }
 
 public sealed class TypeDeclSyntax : DeclarationSyntax
 {
     public TypeSyntaxKind Kind { get; set; } = TypeSyntaxKind.Class;
-    public IReadOnlyList<string> TypeParameters { get; set; } = [];
-    public FunctionDeclSyntax? PrimaryConstructor { get; set; }
-    public IReadOnlyList<TypeRefSyntax> BaseTypes { get; set; } = [];
-    public IReadOnlyList<DeclarationSyntax> Members { get; set; } = [];
-    public IReadOnlyList<MemberDeclSyntax> EnumVariants { get; set; } = [];
 }
 
 public sealed class ImplDeclSyntax : DeclarationSyntax
 {
     public TypeRefSyntax? TargetType { get; set; }
     public TypeRefSyntax? ImplementedTrait { get; set; }
-    public IReadOnlyList<string> TypeParameters { get; set; } = [];
-    public IReadOnlyList<DeclarationSyntax> Members { get; set; } = [];
 }
 
 public sealed class FunctionDeclSyntax : DeclarationSyntax
 {
     public FunctionSyntaxKind Kind { get; set; } = FunctionSyntaxKind.Method;
     public ParameterDeclSyntax? Receiver { get; set; }
-    public IReadOnlyList<string> TypeParameters { get; set; } = [];
     public IReadOnlyList<ParameterDeclSyntax> Parameters { get; set; } = [];
-    public IReadOnlyList<TypeRefSyntax> ReturnTypes { get; set; } = [];
-    public IReadOnlyList<TypeRefSyntax> ThrowsTypes { get; set; } = [];
     public BlockStmtSyntax? Body { get; set; }
     public ExprSyntax? ExpressionBody { get; set; }
     public CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowSummary? DataflowSummary { get; set; }
     public bool IsAsync => Modifiers.HasFlag(SyntaxModifiers.Async);
-    public bool IsGenerator { get; set; }
 }
 
 public sealed class ParameterDeclSyntax : DeclarationSyntax
 {
-    public BindingPatternSyntax? Pattern { get; set; }
     public TypeRefSyntax? ParameterType { get; set; }
     public ExprSyntax? DefaultValue { get; set; }
     public ParameterPassingMode PassingMode { get; set; } = ParameterPassingMode.Value;
-    public bool IsPropertyParameter { get; set; }
 }
 
 public sealed class MemberDeclSyntax : DeclarationSyntax
 {
     public MemberSyntaxKind Kind { get; set; } = MemberSyntaxKind.Field;
-    public TypeRefSyntax? MemberType { get; set; }
     public ExprSyntax? Initializer { get; set; }
-    public FunctionDeclSyntax? Getter { get; set; }
-    public FunctionDeclSyntax? Setter { get; set; }
-    public string? StructTag { get; set; }
     public string? ResolvedValue { get; set; }
     public bool IsDecoded { get; set; }
 }
 
 public sealed class VariableDeclSyntax : DeclarationSyntax
 {
-    public BindingPatternSyntax? Pattern { get; set; }
     public TypeRefSyntax? VariableType { get; set; }
     public ExprSyntax? Initializer { get; set; }
     public bool IsConstant { get; set; }
-    public bool IsMutable { get; set; } = true;
     public string Scope { get; set; } = "local";
     public string? ResolvedValue { get; set; }
     public bool IsDecoded { get; set; }
@@ -836,12 +778,11 @@ public sealed class VariableDeclSyntax : DeclarationSyntax
 
 public sealed class AnnotationSyntax : DeclarationSyntax
 {
-    public string? Target { get; set; }
     public IReadOnlyList<ArgumentSyntax> Arguments { get; set; } = [];
 }
 
 // ============================================================================
-// TYPE REFERENCES & BINDING PATTERNS
+// TYPE REFERENCES (1 Canonical Node Type)
 // ============================================================================
 
 public sealed class TypeRefSyntax : SyntaxNode
@@ -859,199 +800,36 @@ public sealed class TypeRefSyntax : SyntaxNode
         get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : Text);
         set => _explicitName = value;
     }
-
-    public string? Qualifier { get; set; }
-    public TypeRefKind RefKind { get; set; } = TypeRefKind.Named;
-    public IReadOnlyList<TypeRefSyntax> TypeArguments { get; set; } = [];
-    public bool IsNullable { get; set; }
-    public bool IsMutableRef { get; set; }
-    public string? Lifetime { get; set; }
-}
-
-public abstract class BindingPatternSyntax : SyntaxNode;
-
-public sealed class IdentifierPatternSyntax : BindingPatternSyntax
-{
-    private string? _explicitName;
-    public SourceSlice NameSlice { get; set; }
-
-    public ReadOnlySpan<char> NameSpan =>
-        _explicitName != null
-            ? _explicitName.AsSpan()
-            : (NameSlice.Length > 0 && Document != null ? Document.AsSpan(NameSlice) : AsSpan());
-
-    public string Name
-    {
-        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : Text);
-        set => _explicitName = value;
-    }
-}
-
-public sealed class ObjectDestructuringPatternSyntax : BindingPatternSyntax
-{
-    public IReadOnlyList<(string Key, string? Alias, ExprSyntax? Default)> Properties { get; set; } = [];
-}
-
-public sealed class ArrayDestructuringPatternSyntax : BindingPatternSyntax
-{
-    public IReadOnlyList<BindingPatternSyntax> Elements { get; set; } = [];
-}
-
-public sealed class TuplePatternSyntax : BindingPatternSyntax
-{
-    public IReadOnlyList<BindingPatternSyntax> Elements { get; set; } = [];
 }
 
 // ============================================================================
-// STATEMENTS
+// STATEMENTS (5 Canonical Node Types)
 // ============================================================================
 
 public abstract class StatementSyntax : SyntaxNode;
 
 public sealed class BlockStmtSyntax : StatementSyntax
 {
-    private IReadOnlyList<StatementSyntax>? _statements;
-
-    public IReadOnlyList<StatementSyntax> Statements
-    {
-        get => _statements ??= BuildStatements();
-        set => _statements = value;
-    }
-
     public bool IsUnsafe { get; set; }
-
-    private IReadOnlyList<StatementSyntax> BuildStatements()
-    {
-        if (Children.Count == 0) return [];
-        var stmts = new List<StatementSyntax>(Children.Count);
-        for (int i = 0; i < Children.Count; i++)
-        {
-            var child = Children[i];
-            if (child is StatementSyntax stmt)
-            {
-                stmts.Add(stmt);
-            }
-            else if (child is DeclarationSyntax decl)
-            {
-                stmts.Add(new DeclStmtSyntax
-                {
-                    Span = decl.Span,
-                    RawGrammarKind = decl.RawGrammarKind,
-                    Parent = decl.Parent,
-                    Document = decl.Document,
-                    Declarations = [decl]
-                });
-            }
-            else if (child is ExprSyntax expr)
-            {
-                stmts.Add(new ExprStmtSyntax
-                {
-                    Span = expr.Span,
-                    RawGrammarKind = expr.RawGrammarKind,
-                    Parent = expr.Parent,
-                    Document = expr.Document,
-                    Expression = expr
-                });
-            }
-        }
-        return stmts;
-    }
 }
 
-public sealed class ExprStmtSyntax : StatementSyntax
+public sealed class ControlFlowStmtSyntax : StatementSyntax
 {
-    public ExprSyntax? Expression { get; set; }
-    public bool IsImplicitReturn { get; set; }
-}
-
-public sealed class DeclStmtSyntax : StatementSyntax
-{
-    public IReadOnlyList<DeclarationSyntax> Declarations { get; set; } = [];
-}
-
-public sealed class IfStmtSyntax : StatementSyntax
-{
-    public StatementSyntax? Init { get; set; }
-    public BindingPatternSyntax? Pattern { get; set; }
+    public ControlFlowKind Kind { get; set; } = ControlFlowKind.Expression;
     public ExprSyntax? Condition { get; set; }
-    public StatementSyntax? ThenBranch { get; set; }
-    public StatementSyntax? ElseBranch { get; set; }
-}
-
-public sealed class MatchArmSyntax : SyntaxNode
-{
-    public SyntaxNode? Pattern { get; set; }
-    public ExprSyntax? Guard { get; set; }
     public SyntaxNode? Body { get; set; }
-}
-
-public sealed class SwitchOrMatchStmtSyntax : StatementSyntax
-{
-    public ExprSyntax? Subject { get; set; }
-    public bool IsChannelSelect { get; set; }
-    public IReadOnlyList<MatchArmSyntax> Arms { get; set; } = [];
-}
-
-public sealed class LoopStmtSyntax : StatementSyntax
-{
-    public BindingPatternSyntax? IteratorPattern { get; set; }
-    public SyntaxNode? Init { get; set; }
-    public ExprSyntax? Condition { get; set; }
-    public ExprSyntax? Increment { get; set; }
-    public ExprSyntax? Collection { get; set; }
-    public StatementSyntax? Body { get; set; }
-    public bool IsAsync { get; set; }
+    public SyntaxNode? Alternative { get; set; }
 }
 
 public sealed class CatchClauseSyntax : StatementSyntax
 {
     public TypeRefSyntax? ExceptionType { get; set; }
-    public string? ExceptionVariable { get; set; }
     public BlockStmtSyntax? Body { get; set; }
 }
 
-public sealed class TryStmtSyntax : StatementSyntax
+public sealed class ReturnStmtSyntax : StatementSyntax
 {
-    public BlockStmtSyntax? Body { get; set; }
-    public IReadOnlyList<CatchClauseSyntax> Catches { get; set; } = [];
-    public BlockStmtSyntax? FinallyBody { get; set; }
-    public IReadOnlyList<SyntaxNode> Resources { get; set; } = [];
-}
-
-public sealed class UsingOrWithStmtSyntax : StatementSyntax
-{
-    public IReadOnlyList<SyntaxNode> Resources { get; set; } = [];
-    public StatementSyntax? Body { get; set; }
-    public bool IsAsync { get; set; }
-}
-
-public sealed class DeferOrGoStmtSyntax : StatementSyntax
-{
-    public bool IsGoroutine { get; set; }
-    public ExprSyntax? Call { get; set; }
-}
-
-public sealed class ReturnOrYieldStmtSyntax : StatementSyntax
-{
-    public bool IsYield { get; set; }
     public ExprSyntax? Value { get; set; }
-}
-
-public sealed class ThrowStmtSyntax : StatementSyntax
-{
-    public ExprSyntax? Exception { get; set; }
-}
-
-public sealed class BranchStmtSyntax : StatementSyntax
-{
-    public BranchKind BranchKind { get; set; }
-    public string? Label { get; set; }
-}
-
-public sealed class LockStmtSyntax : StatementSyntax
-{
-    public ExprSyntax? LockTarget { get; set; }
-    public BlockStmtSyntax? Body { get; set; }
 }
 
 public sealed record SqlTableRefSyntax(
@@ -1072,7 +850,7 @@ public sealed class SqlStmtSyntax : StatementSyntax
 }
 
 // ============================================================================
-// EXPRESSIONS
+// EXPRESSIONS (12 Canonical Node Types)
 // ============================================================================
 
 public abstract class ExprSyntax : SyntaxNode
@@ -1082,11 +860,6 @@ public abstract class ExprSyntax : SyntaxNode
     /// </summary>
     public string? ResolvedValue { get; set; }
     public bool IsDecoded { get; set; }
-
-    /// <summary>
-    /// Declared or inferred type reference.
-    /// </summary>
-    public TypeRefSyntax? InferredType { get; set; }
 
     /// <summary>
     /// Embedded SQL or GraphQL syntax node parsed after value evaluation in Layer 3.
@@ -1127,17 +900,7 @@ public sealed class LiteralExprSyntax : ExprSyntax
     }
 }
 
-public sealed record InterpolationPartSyntax(
-    bool IsHole,
-    string? LiteralText,
-    ExprSyntax? Expression
-);
-
-public sealed class InterpolatedStringExprSyntax : ExprSyntax
-{
-    public ExprSyntax? Tag { get; set; }
-    public IReadOnlyList<InterpolationPartSyntax> Parts { get; set; } = [];
-}
+public sealed class InterpolatedStringExprSyntax : ExprSyntax;
 
 public sealed class IdentifierExprSyntax : ExprSyntax
 {
@@ -1151,8 +914,6 @@ public sealed class IdentifierExprSyntax : ExprSyntax
         get => _explicitName ?? Text;
         set => _explicitName = value;
     }
-
-    public DeclarationSyntax? TargetDeclaration { get; set; }
 }
 
 public sealed class MemberAccessExprSyntax : ExprSyntax
@@ -1176,13 +937,10 @@ public sealed class MemberAccessExprSyntax : ExprSyntax
     public string Operator { get; set; } = ".";
 }
 
-public sealed class IndexOrSliceExprSyntax : ExprSyntax
+public sealed class IndexExprSyntax : ExprSyntax
 {
     public ExprSyntax? Target { get; set; }
     public ExprSyntax? Index { get; set; }
-    public ExprSyntax? SliceStart { get; set; }
-    public ExprSyntax? SliceEnd { get; set; }
-    public ExprSyntax? SliceStep { get; set; }
 }
 
 public sealed class ArgumentSyntax : ExprSyntax
@@ -1202,7 +960,6 @@ public sealed class ArgumentSyntax : ExprSyntax
     }
 
     public ExprSyntax? Value { get; set; }
-    public ArgumentModifier Modifier { get; set; } = ArgumentModifier.None;
 }
 
 public sealed class CallExprSyntax : ExprSyntax
@@ -1224,7 +981,6 @@ public sealed class CallExprSyntax : ExprSyntax
         set => _explicitMethodName = value;
     }
 
-    public IReadOnlyList<TypeRefSyntax> TypeArguments { get; set; } = [];
     public IReadOnlyList<ArgumentSyntax> Arguments { get; set; } = [];
 }
 
@@ -1240,6 +996,8 @@ public sealed class UnaryExprSyntax : ExprSyntax
     public string Operator { get; set; } = string.Empty;
     public ExprSyntax? Operand { get; set; }
     public bool IsPrefix { get; set; } = true;
+    public bool IsAwait => Operator == "await" || RawGrammarKind is "await_expression" or "await";
+    public bool IsTryPropagate => Operator == "?" || RawGrammarKind == "try_expression";
 }
 
 public sealed class AssignmentExprSyntax : ExprSyntax
@@ -1252,8 +1010,6 @@ public sealed class AssignmentExprSyntax : ExprSyntax
 public sealed class ConditionalExprSyntax : ExprSyntax
 {
     public ExprSyntax? Condition { get; set; }
-    public ExprSyntax? WhenTrue { get; set; }
-    public ExprSyntax? WhenFalse { get; set; }
 }
 
 public sealed class LambdaExprSyntax : ExprSyntax
@@ -1261,71 +1017,11 @@ public sealed class LambdaExprSyntax : ExprSyntax
     public IReadOnlyList<ParameterDeclSyntax> Parameters { get; set; } = [];
     public SyntaxNode? Body { get; set; }
     public bool IsAsync { get; set; }
-    public bool IsMove { get; set; }
-}
-
-public sealed class AwaitOrTryExprSyntax : ExprSyntax
-{
-    public bool IsTryPropagate { get; set; }
-    public ExprSyntax? Operand { get; set; }
-}
-
-public sealed class MatchExprSyntax : ExprSyntax
-{
-    public ExprSyntax? Subject { get; set; }
-    public IReadOnlyList<MatchArmSyntax> Arms { get; set; } = [];
-}
-
-public sealed record CollectionElementSyntax(
-    ExprSyntax? Key,
-    ExprSyntax? Value,
-    bool IsSpread = false
-);
-
-public sealed class CollectionExprSyntax : ExprSyntax
-{
-    public CollectionSyntaxKind CollectionKind { get; set; } = CollectionSyntaxKind.Array;
-    public TypeRefSyntax? StructType { get; set; }
-    public IReadOnlyList<CollectionElementSyntax> Elements { get; set; } = [];
-}
-
-public sealed class QueryOrComprehensionExprSyntax : ExprSyntax
-{
-    public bool IsLinq { get; set; }
-    public ExprSyntax? Projection { get; set; }
-}
-
-public sealed class JsxElementExprSyntax : ExprSyntax
-{
-    public string TagName { get; set; } = string.Empty;
-    public IReadOnlyList<ArgumentSyntax> Attributes { get; set; } = [];
-    public IReadOnlyList<SyntaxNode> JsxChildren { get; set; } = [];
-}
-
-public sealed class ChannelExprSyntax : ExprSyntax
-{
-    public bool IsSend { get; set; }
-    public ExprSyntax? Channel { get; set; }
-    public ExprSyntax? Value { get; set; }
-}
-
-public sealed class RangeOrSpreadExprSyntax : ExprSyntax
-{
-    public ExprSyntax? Start { get; set; }
-    public ExprSyntax? End { get; set; }
-    public bool IsInclusive { get; set; }
-    public bool IsSpread { get; set; }
 }
 
 // ============================================================================
-// UNMAPPED NODES
-#if FALSE
+// UNMAPPED NODES (1 Fallback Node Type)
 // ============================================================================
-
-/// <summary>
-// Represents an unnamed token node (removed — only named UAST nodes are materialized).
-/// </summary>
-#endif
 
 /// <summary>
 /// Zero-loss fallback for any named grammar node not matched by a more specific *Syntax class.

@@ -14,6 +14,8 @@ namespace CodeExplorer.Core.Parser;
 
 public class WorkspaceIndexer
 {
+    private const string SemanticFootprintName = "<semantic>";
+
     static WorkspaceIndexer()
     {
         Layer3SyntacticParser.SemanticPostProcessor ??= (_, _) => { };
@@ -649,13 +651,13 @@ public class WorkspaceIndexer
 
         if (structuralReasons.Count > 0)
         {
-            if (modifiedWithStructuralChanges.Count > 0)
+            if (changeset.Modified.Count > 0)
             {
                 _logger.LogInformation(
                     "[Incremental] Removing stale graph nodes for {Count} updated file(s)...",
-                    modifiedWithStructuralChanges.Count);
+                    changeset.Modified.Count);
 
-                foreach (var mod in modifiedWithStructuralChanges)
+                foreach (var mod in changeset.Modified)
                 {
                     await _dbClient.ClearWorkspaceAsync(mod);
                 }
@@ -699,6 +701,23 @@ public class WorkspaceIndexer
 
             var symbols = new Dictionary<string, Incremental.SymbolFootprint>(StringComparer.Ordinal);
             CollectSymbols(syntaxTree.FileNode, syntaxTree.FileNode.References, symbols);
+            if (syntaxTree.SemanticSymbols.Count > 0)
+            {
+                var semSummary = string.Join(";", syntaxTree.SemanticSymbols
+                    .Select(s => $"{s.Kind}:{s.Name}:{s.Callee}")
+                    .OrderBy(x => x, StringComparer.Ordinal));
+                var semHash = Incremental.HashUtility.ComputeSha256(semSummary);
+                var semKey = $"{relPath}:{SemanticFootprintName}";
+                symbols[semKey] = new Incremental.SymbolFootprint(
+                    semKey,
+                    SemanticFootprintName,
+                    NodeKind.File,
+                    semHash,
+                    semHash,
+                    new HashSet<string>(),
+                    new HashSet<string>(),
+                    0, 0, 0, 0);
+            }
 
             return new Incremental.FileGraphSnapshot(relPath, contentHash, lastModifiedUtc, symbols);
         }
@@ -747,12 +766,12 @@ public class WorkspaceIndexer
             var symbolRefs = child.References.Concat(refsByScope[child.Id]);
 
             var calls = symbolRefs
-                .Where(r => r.Kind.Contains("CALL", StringComparison.OrdinalIgnoreCase))
+                .Where(r => r.RelationshipKind is RelationshipKind.Calls or RelationshipKind.CalledBy or RelationshipKind.CallsEndpoint or RelationshipKind.ServiceCall or RelationshipKind.TransitivelyCalls)
                 .Select(r => r.TargetName)
                 .ToHashSet();
 
             var types = symbolRefs
-                .Where(r => r.Kind.Contains("TYPE", StringComparison.OrdinalIgnoreCase))
+                .Where(r => r.RelationshipKind is RelationshipKind.UsesType or RelationshipKind.OfType)
                 .Select(r => r.TargetName)
                 .ToHashSet();
 

@@ -15,8 +15,8 @@ public record CounterNode(
     [property: OntologyProperty("The name of the counter.")] string Name,
     [property: OntologyProperty("The current counter value.")] int Value,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Counter;

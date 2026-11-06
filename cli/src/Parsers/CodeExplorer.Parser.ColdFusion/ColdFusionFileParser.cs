@@ -77,8 +77,10 @@ public class ColdFusionFileParser : IFileParser
                 }
             }
 
-            var extensions = extendsName != null ? new Dictionary<string, string> { ["extends"] = extendsName } : null;
-            componentNode = new TypeNode(componentId, componentName, componentName, relativePath, relativePath, 1, 1, 0, 0, "class", extensions);
+            componentNode = new TypeNode(componentId, componentName, componentName, relativePath, relativePath, 1, 1, 0, 0, "class")
+            {
+                Extends = extendsName
+            };
             fileNode.Children.Add(componentNode);
         }
         else
@@ -340,8 +342,10 @@ public class ColdFusionFileParser : IFileParser
 
             var cleanUrl = CleanUrl(url);
             var serviceId = $"{workspaceId}:externalservice:http:{relativePath}:{extCount}";
-            var extExtensions = new Dictionary<string, string> { ["method"] = method };
-            var extNode = new ExternalServiceNode(serviceId, $"{method} {cleanUrl}", "http", cleanUrl, relativePath, extExtensions);
+            var extNode = new ExternalServiceNode(serviceId, $"{method} {cleanUrl}", "http", cleanUrl, relativePath)
+            {
+                Method = method
+            };
             fileNode.Children.Add(extNode);
         }
 

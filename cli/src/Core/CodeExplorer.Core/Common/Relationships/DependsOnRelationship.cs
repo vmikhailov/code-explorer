@@ -6,11 +6,11 @@ namespace CodeExplorer.Core.Common.Relationships;
 
 [OntologyRelationship(OntologyConstants.Relationships.DependsOn, "Represents a dependency relationship between projects, packages, or other entities.")]
 public record DependsOnRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyRelationship
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
+) : OntologyRelationship(From, To, CustomProperties)
 {
     [JsonIgnore]
-    public RelationshipKind Kind => RelationshipKind.DependsOn;
+    public override RelationshipKind Kind => RelationshipKind.DependsOn;
 }

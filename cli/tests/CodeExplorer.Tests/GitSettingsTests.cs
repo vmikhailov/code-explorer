@@ -146,8 +146,7 @@ public class GitSettingsTests
             $"{ctx.WorkspaceId}:p:Backend/Services/CoreApi:",
             "CoreApi",
             "Backend/Services/CoreApi",
-            "csharp",
-            Extensions: new Dictionary<string, string>()
+            "csharp"
         );
 
         // 3. Upload via OntologyUploader

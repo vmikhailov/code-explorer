@@ -22,9 +22,9 @@ public partial class PostIndexAnalyzer
         {
             if (node is DatabaseNode db)
             {
-                var eng = (db.Extensions != null && db.Extensions.TryGetValue("engine", out var eVal) && !string.IsNullOrWhiteSpace(eVal))
-                    ? eVal
-                    : (db.Extensions != null && db.Extensions.TryGetValue("technology", out var tVal) ? tVal : null);
+                var eng = !string.IsNullOrWhiteSpace(db.Engine)
+                    ? db.Engine
+                    : db.Technology;
                 if (IsLikelyDatabaseName(db.Name, eng) || IsLikelyDatabaseName(db.Id, eng))
                 {
                     allDbNodes.Add(db);
@@ -56,7 +56,7 @@ public partial class PostIndexAnalyzer
         {
             foreach (var wl in l4Result.SemanticStructure.Children)
             {
-                var projId = wl.Extensions?.GetValueOrDefault("project_id");
+                var projId = (wl as CompositeNode)?.ProjectId;
                 var proj = !string.IsNullOrEmpty(projId) ? projects.FirstOrDefault(p => p.Id == projId) : null;
                 if (proj != null)
                 {
@@ -89,7 +89,6 @@ public partial class PostIndexAnalyzer
             if (fileToProject.TryGetValue(fromId, out var p) || workloadToProject.TryGetValue(fromId, out p))
             {
                 if (p.IsTest || string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
-                    (p.Extensions != null && p.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
                     WorkspaceConventions.IsTestFilePath(p.Path))
                 {
                     return true;
@@ -100,7 +99,6 @@ public partial class PostIndexAnalyzer
             if (matchingProj != null)
             {
                 if (matchingProj.IsTest || string.Equals(matchingProj.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
-                    (matchingProj.Extensions != null && matchingProj.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
                     WorkspaceConventions.IsTestFilePath(matchingProj.Path))
                 {
                     return true;
@@ -138,7 +136,7 @@ public partial class PostIndexAnalyzer
             if (!dbTarget.Contains(":db:") && !dbTarget.Contains(":database:") && !dbTarget.Contains(":res:db:"))
                 continue;
 
-            var filePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var fp) ? fp?.ToString() : null;
+            var filePath = rel.FilePath;
             if (!IsTestSource(callerSource, filePath))
             {
                 nonTestAccessedTargets.Add(dbTarget);
@@ -155,8 +153,8 @@ public partial class PostIndexAnalyzer
         var primaryRelationalEngine = allDbNodes
             .Where(d => {
                 var isDeclaredInProduction = !string.IsNullOrEmpty(d.Path) && !WorkspaceConventions.IsTestFilePath(d.Path);
-                var isExplicitTest = (d.Extensions != null && d.Extensions.TryGetValue("is_test", out var itVal) && (itVal == "true" || itVal == "1")) ||
-                                     (d.Extensions != null && d.Extensions.TryGetValue("role", out var rVal) && rVal.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
+                var isExplicitTest = d.IsTest == true ||
+                                     string.Equals(d.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                                      WorkspaceConventions.IsTestFilePath(d.Path);
                 var hasNonTest = (!isExplicitTest && isDeclaredInProduction) ||
                                  nonTestAccessedTargets.Contains(d.Id) ||
@@ -164,8 +162,8 @@ public partial class PostIndexAnalyzer
                 return hasNonTest && (d.DbType is CodeExplorer.Cypher.Common.DatabaseType.Unknown or CodeExplorer.Cypher.Common.DatabaseType.Relational);
             })
             .Select(d => {
-                if (d.Extensions != null && d.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
-                    return eng;
+                if (!string.IsNullOrWhiteSpace(d.Engine))
+                    return d.Engine;
                 if (!string.IsNullOrEmpty(d.Name) && d.Name.Contains('.'))
                     return d.Name.Split('.', 2)[0];
                 return d.Name;
@@ -181,8 +179,8 @@ public partial class PostIndexAnalyzer
         foreach (var db in allDbNodes)
         {
             var isDeclaredInProduction = !string.IsNullOrEmpty(db.Path) && !WorkspaceConventions.IsTestFilePath(db.Path);
-            var isExplicitTest = (db.Extensions != null && db.Extensions.TryGetValue("is_test", out var itVal) && (itVal == "true" || itVal == "1")) ||
-                                 (db.Extensions != null && db.Extensions.TryGetValue("role", out var rVal) && rVal.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
+            var isExplicitTest = db.IsTest == true ||
+                                 string.Equals(db.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                                  WorkspaceConventions.IsTestFilePath(db.Path);
             var hasNonTestAccess = (!isExplicitTest && isDeclaredInProduction) ||
                                    nonTestAccessedTargets.Contains(db.Id) ||
@@ -191,11 +189,11 @@ public partial class PostIndexAnalyzer
             {
                 continue;
             }
-            var rawEngine = (db.Extensions != null && db.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
-                ? eng
+            var rawEngine = !string.IsNullOrWhiteSpace(db.Engine)
+                ? db.Engine
                 : null;
-            var rawSchema = (db.Extensions != null && db.Extensions.TryGetValue("schema", out var sch) && !string.IsNullOrWhiteSpace(sch))
-                ? sch
+            var rawSchema = !string.IsNullOrWhiteSpace(db.Schema)
+                ? db.Schema
                 : null;
             var (cName, cType, cKey) = CanonicalizeDatabase(db.Name, db.DbType.ToCanonicalString(), rawEngine, rawSchema, primaryRelationalEngine);
             var canonicalId = BuildCanonicalDatabaseId(db.Id, cType, cKey, ctx.WorkspaceId);
@@ -208,16 +206,15 @@ public partial class PostIndexAnalyzer
 
             var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : (rawSchema ?? "");
 
-            var isRawImplicit = db.IsImplicitSchema == true || db.Flags.HasFlag(SymbolFlags.IsImplicitSchema) ||
-                                (db.Extensions != null && db.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true");
-            var isRawExplicit = db.Extensions != null && ((db.Extensions.TryGetValue("is_explicit_schema", out var exp) && exp == "true") || (db.Extensions.TryGetValue("from_config", out var fc) && fc == "true"));
+            var isRawImplicit = db.IsImplicitSchema == true || db.Flags.HasFlag(SymbolFlags.IsImplicitSchema);
+            var isRawExplicit = db.IsExplicitSchema == true || db.FromConfig == true;
             if (isRawImplicit && !isRawExplicit)
             {
                 rawImplicitDbIds.Add(db.Id);
             }
 
             if (!canonicalDbNodes.TryGetValue(canonicalId, out var existingNode) ||
-                (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
+                (!string.IsNullOrEmpty(existingNode.Engine) && existingNode.Engine.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
             {
                 var dispName = cName.Contains('.')
                     ? (cName.Equals("SQLite.main", StringComparison.OrdinalIgnoreCase) ? "SQLite" : cName)
@@ -229,25 +226,22 @@ public partial class PostIndexAnalyzer
                     canonicalId,
                     cName,
                     db.Path ?? "",
-                    cType,
-                    new Dictionary<string, string>
-                    {
-                        ["name"] = cName,
-                        ["display_name"] = dispName,
-                        ["db_type"] = cType,
-                        ["role"] = "database",
-                        ["engine"] = engineToUse,
-                        ["technology"] = engineToUse,
-                        ["schema"] = schemaToUse,
-                        ["is_canonical"] = "true",
-                        ["is_semantic_entity"] = "true",
-                        ["layer"] = StandardLayers.Foundation.LayerId,
-                        ["layerId"] = StandardLayers.Foundation.LayerId,
-                        ["layerName"] = StandardLayers.Foundation.LayerName,
-                        ["layerColor"] = StandardLayers.Foundation.Color,
-                        ["layerIcon"] = StandardLayers.Foundation.Icon
-                    }
-                );
+                    cType
+                )
+                {
+                    DisplayName = dispName,
+                    Role = "database",
+                    Engine = engineToUse,
+                    Technology = engineToUse,
+                    Schema = schemaToUse,
+                    IsCanonical = true,
+                    IsSemanticEntity = true,
+                    Layer = StandardLayers.Foundation.LayerId,
+                    LayerId = StandardLayers.Foundation.LayerId,
+                    LayerName = StandardLayers.Foundation.LayerName,
+                    LayerColor = StandardLayers.Foundation.Color,
+                    LayerIcon = StandardLayers.Foundation.Icon
+                };
                 if (isRawImplicit && !isRawExplicit)
                 {
                     canonicalNode.IsImplicitSchema = true;
@@ -255,19 +249,17 @@ public partial class PostIndexAnalyzer
                 }
                 else
                 {
-                    canonicalNode.Extensions ??= new Dictionary<string, string>();
-                    canonicalNode.Extensions["is_explicit_schema"] = "true";
+                    canonicalNode.IsExplicitSchema = true;
                 }
                 canonicalDbNodes[canonicalId] = canonicalNode;
             }
 
             var targetCanonical = canonicalDbNodes[canonicalId];
-            if ((!isRawImplicit || isRawExplicit) && targetCanonical.Extensions != null)
+            if (!isRawImplicit || isRawExplicit)
             {
                 targetCanonical.IsImplicitSchema = null;
                 targetCanonical.Flags &= ~SymbolFlags.IsImplicitSchema;
-                targetCanonical.Extensions.Remove("is_implicit_schema");
-                targetCanonical.Extensions["is_explicit_schema"] = "true";
+                targetCanonical.IsExplicitSchema = true;
             }
             foreach (var child in db.Children)
             {
@@ -310,25 +302,22 @@ public partial class PostIndexAnalyzer
                         dsCanonicalId,
                         dsCName,
                         ds.Path ?? "",
-                        dsCType,
-                        new Dictionary<string, string>
-                        {
-                            ["name"] = dsCName,
-                            ["display_name"] = dsCName,
-                            ["db_type"] = dsCType,
-                            ["role"] = "database",
-                            ["engine"] = dsEngine,
-                            ["technology"] = dsEngine,
-                            ["schema"] = ds.Name,
-                            ["is_canonical"] = "true",
-                            ["is_semantic_entity"] = "true",
-                            ["layer"] = StandardLayers.Foundation.LayerId,
-                            ["layerId"] = StandardLayers.Foundation.LayerId,
-                            ["layerName"] = StandardLayers.Foundation.LayerName,
-                            ["layerColor"] = StandardLayers.Foundation.Color,
-                            ["layerIcon"] = StandardLayers.Foundation.Icon
-                        }
-                    );
+                        dsCType
+                    )
+                    {
+                        DisplayName = dsCName,
+                        Role = "database",
+                        Engine = dsEngine,
+                        Technology = dsEngine,
+                        Schema = ds.Name,
+                        IsCanonical = true,
+                        IsSemanticEntity = true,
+                        Layer = StandardLayers.Foundation.LayerId,
+                        LayerId = StandardLayers.Foundation.LayerId,
+                        LayerName = StandardLayers.Foundation.LayerName,
+                        LayerColor = StandardLayers.Foundation.Color,
+                        LayerIcon = StandardLayers.Foundation.Icon
+                    };
                     canonicalDbNodes[dsCanonicalId] = dsNode;
                 }
             }
@@ -356,7 +345,7 @@ public partial class PostIndexAnalyzer
 
             if (!rawToCanonical.ContainsKey(dbTarget))
             {
-                var filePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var fp) ? fp?.ToString() : null;
+                var filePath = rel.FilePath;
                 if (IsTestSource(callerSource, filePath)) continue;
                 if (!nonTestAccessedTargets.Contains(dbTarget)) continue;
 
@@ -364,17 +353,9 @@ public partial class PostIndexAnalyzer
                 var rawName = parts.Length > 0 ? parts[^1] : "";
                 if (string.IsNullOrWhiteSpace(rawName)) continue;
 
-                var rawType = "relational";
-                if (rel.Properties != null && rel.Properties.TryGetValue("db_type", out var dtObj) && dtObj != null)
-                {
-                    rawType = dtObj.ToString() ?? "relational";
-                }
-                var rawEngine = rel.Properties != null && rel.Properties.TryGetValue("engine", out var engObj) && engObj != null
-                    ? engObj.ToString()
-                    : null;
-                var rawSchema = rel.Properties != null && rel.Properties.TryGetValue("schema", out var schObj) && schObj != null
-                    ? schObj.ToString()
-                    : null;
+                var rawType = !string.IsNullOrEmpty(rel.DbType) ? rel.DbType : "relational";
+                var rawEngine = rel.Engine;
+                var rawSchema = rel.Schema;
 
                 // STRICT VALIDATION: Only canonicalize if rawName is a genuine database!
                 if (!IsLikelyDatabaseName(rawName, rawEngine))
@@ -393,7 +374,7 @@ public partial class PostIndexAnalyzer
                 var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : (rawSchema ?? "");
 
                 if (!canonicalDbNodes.TryGetValue(canonicalId, out var existingNode) ||
-                    (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
+                    (!string.IsNullOrEmpty(existingNode.Engine) && existingNode.Engine.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
                 {
                     var dispName = cName.Contains('.')
                         ? (cName.Equals("SQLite.main", StringComparison.OrdinalIgnoreCase) ? "SQLite" : cName)
@@ -405,25 +386,22 @@ public partial class PostIndexAnalyzer
                         canonicalId,
                         cName,
                         "",
-                        cType,
-                        new Dictionary<string, string>
-                        {
-                            ["name"] = cName,
-                            ["display_name"] = dispName,
-                            ["db_type"] = cType,
-                            ["role"] = "database",
-                            ["engine"] = engineToUse,
-                            ["technology"] = engineToUse,
-                            ["schema"] = schemaToUse,
-                            ["is_canonical"] = "true",
-                            ["is_semantic_entity"] = "true",
-                            ["layer"] = StandardLayers.Foundation.LayerId,
-                            ["layerId"] = StandardLayers.Foundation.LayerId,
-                            ["layerName"] = StandardLayers.Foundation.LayerName,
-                            ["layerColor"] = StandardLayers.Foundation.Color,
-                            ["layerIcon"] = StandardLayers.Foundation.Icon
-                        }
-                    );
+                        cType
+                    )
+                    {
+                        DisplayName = dispName,
+                        Role = "database",
+                        Engine = engineToUse,
+                        Technology = engineToUse,
+                        Schema = schemaToUse,
+                        IsCanonical = true,
+                        IsSemanticEntity = true,
+                        Layer = StandardLayers.Foundation.LayerId,
+                        LayerId = StandardLayers.Foundation.LayerId,
+                        LayerName = StandardLayers.Foundation.LayerName,
+                        LayerColor = StandardLayers.Foundation.Color,
+                        LayerIcon = StandardLayers.Foundation.Icon
+                    };
                     canonicalDbNodes[canonicalId] = canonicalNode;
                 }
             }

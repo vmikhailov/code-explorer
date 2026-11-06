@@ -30,8 +30,8 @@ public record SemanticStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.SemanticStructure;

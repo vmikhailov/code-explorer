@@ -36,21 +36,21 @@ public record TypeNode(
     string? ProjectName = null,
     int? StageOrder = null,
     int? Loc = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, TypeKind TypeKind, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TypeKind, false, null, null, null, null, Extensions)
+    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, TypeKind TypeKind, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TypeKind, false, null, null, null, null, CustomProperties)
     {
     }
 
-    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, string TypeKind, bool IsTest, ProjectEntityKind? ProjectKind = null, string? ProjectName = null, int? StageOrder = null, int? Loc = null, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseTypeKind(TypeKind), IsTest, ProjectKind, ProjectName, StageOrder, Loc, Extensions)
+    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, string TypeKind, bool IsTest, ProjectEntityKind? ProjectKind = null, string? ProjectName = null, int? StageOrder = null, int? Loc = null, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseTypeKind(TypeKind), IsTest, ProjectKind, ProjectName, StageOrder, Loc, CustomProperties)
     {
     }
 
-    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, string TypeKind, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseTypeKind(TypeKind), false, null, null, null, null, Extensions)
+    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, string TypeKind, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseTypeKind(TypeKind), false, null, null, null, null, CustomProperties)
     {
     }
 
@@ -71,6 +71,9 @@ public record TypeNode(
 
     [JsonPropertyName("is_exported"), OntologyProperty("Indicates whether the type is publicly exported from its module.")]
     public bool? IsExported { get; set; }
+
+    [JsonPropertyName("extends"), OntologyProperty("Declared base type or component inherited by this type.")]
+    public string? Extends { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Type;

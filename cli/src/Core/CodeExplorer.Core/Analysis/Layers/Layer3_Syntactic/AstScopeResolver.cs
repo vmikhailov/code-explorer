@@ -48,7 +48,7 @@ public static class AstScopeResolver
                 var nameNode = varDecl.GetField(SyntaxFields.Name) ??
                                varDecl.GetField(SyntaxFields.Pattern) ??
                                varDecl.GetField(SyntaxFields.Left) ??
-                               varDecl.Children.FirstOrDefault(c => c is IdentifierExprSyntax or IdentifierPatternSyntax);
+                               varDecl.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                 if (nameNode.IsValid() && nameNode.Text == varName)
                 {
                     nameMatch = true;
@@ -108,7 +108,8 @@ public static class AstScopeResolver
             }
         }
 
-        if (node is ExprStmtSyntax { Expression: AssignmentExprSyntax exprAssign })
+        if (node is ControlFlowStmtSyntax { Kind: ControlFlowKind.Expression } exprStmt &&
+            exprStmt.FirstChildOfType<AssignmentExprSyntax>() is { } exprAssign)
         {
             var left = exprAssign.Left ?? exprAssign.GetField(SyntaxFields.Left);
             var right = exprAssign.Right ?? exprAssign.GetField(SyntaxFields.Right);
@@ -299,7 +300,7 @@ public static class AstScopeResolver
                 foreach (var p in fn.Parameters)
                 {
                     if (p.Name == varName) return true;
-                    var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax or IdentifierPatternSyntax);
+                    var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                     if (pat.IsValid() && pat.Text == varName) return true;
                 }
 
@@ -310,7 +311,7 @@ public static class AstScopeResolver
                     {
                         if (!p.IsValid()) continue;
                         if (p is ParameterDeclSyntax pd && pd.Name == varName) return true;
-                        var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax or IdentifierPatternSyntax);
+                        var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                         if (pat.IsValid() && pat.Text == varName) return true;
                     }
                 }
@@ -329,7 +330,7 @@ public static class AstScopeResolver
                 if (p.PassingMode is ParameterPassingMode.Receiver or ParameterPassingMode.RefBorrow or ParameterPassingMode.MutBorrow && p.Name is "self" or "&self" or "&mut self")
                     continue;
                 if (!string.IsNullOrEmpty(p.Name) && p.Name != "self") return p.Name;
-                var pat = p.GetField(SyntaxFields.Pattern) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax or IdentifierPatternSyntax);
+                var pat = p.GetField(SyntaxFields.Pattern) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                 if (pat.IsValid() && pat.Text != "self") return pat.Text;
             }
         }
@@ -342,7 +343,7 @@ public static class AstScopeResolver
                 if (p is ParameterDeclSyntax pd && pd.PassingMode != ParameterPassingMode.Receiver)
                 {
                     if (!string.IsNullOrEmpty(pd.Name) && pd.Name != "self") return pd.Name;
-                    var pat = pd.GetField(SyntaxFields.Pattern) ?? pd.Children.FirstOrDefault(c => c is IdentifierExprSyntax or IdentifierPatternSyntax);
+                    var pat = pd.GetField(SyntaxFields.Pattern) ?? pd.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                     if (pat.IsValid() && pat.Text != "self") return pat.Text;
                 }
             }

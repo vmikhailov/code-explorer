@@ -144,7 +144,7 @@ public class Layer1PhysicalParser
 
         for (int i = 0; i < parsersToNotify.Count; i++)
         {
-            parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.LogDebug);
+            parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.Layer1Log.DirectoryScanHookMessage);
             parsersToNotify[i].InspectDirectoryFiles(currentDir, dirFiles, workspaceNode);
         }
 

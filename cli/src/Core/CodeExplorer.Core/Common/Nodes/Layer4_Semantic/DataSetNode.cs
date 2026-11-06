@@ -17,9 +17,15 @@ public record DataSetNode(
     string Id,
     string Name,
     string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
+    [JsonPropertyName("engine")]
+    public string? Engine { get; set; }
+
+    [JsonPropertyName("schema")]
+    public string? Schema { get; set; }
+
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the dataset node uses an implicit default schema.")]
     public bool? IsImplicitSchema { get; set; }
 

@@ -205,6 +205,7 @@ public partial class Layer3SyntacticParser
         string workspaceId,
         string relativePath)
     {
+        var memberCountsByName = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var rawVar in fileVariables)
         {
             var isConfig = (rawVar.Name.Length >= 3 && ConfigRegex.IsMatch(rawVar.Name)) ||
@@ -229,7 +230,11 @@ public partial class Layer3SyntacticParser
                 if (isField) varTypeStr.Add("field");
 
                 var varType = string.Join(",", varTypeStr);
-                var varId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}";
+                memberCountsByName.TryGetValue(rawVar.Name, out var count);
+                count++;
+                memberCountsByName[rawVar.Name] = count;
+                var baseVarId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}";
+                var varId = count == 1 ? baseVarId : $"{baseVarId}:{rawVar.StartLine}";
 
                 var varNode = new MemberNode(
                     varId,
@@ -394,7 +399,7 @@ public partial class Layer3SyntacticParser
                 {
                     continue;
                 }
-                typedNode.SetExtension(k, v);
+                typedNode.ApplySyntacticProperty(k, v);
             }
         }
 

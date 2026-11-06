@@ -15,9 +15,7 @@ public partial class ResourceSemanticAnalyzer
     {
         if (fileNode == null) return false;
         if (fileNode.Flags.HasFlag(SymbolFlags.HasEntityOrTable) || fileNode.TryGetSignals()?.HasEntityOrTable == true) return true;
-        if (HasEntityOrTableNode(fileNode)) return true;
-        return fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtHasEntityOrTable, out var val) &&
-               val == "true";
+        return HasEntityOrTableNode(fileNode);
     }
 
     internal static IReadOnlyList<(string ClassName, string ContextStem, string? ConnectionKey)> DetectDeclaredDbContextInfos(
@@ -31,10 +29,6 @@ public partial class ResourceSemanticAnalyzer
             var signals = fileNode.TryGetSignals();
             string? baseConnKey = null;
             var bc = signals?.DbContextBaseConn;
-            if (string.IsNullOrWhiteSpace(bc))
-            {
-                fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbContextBaseConn, out bc);
-            }
             if (!string.IsNullOrWhiteSpace(bc))
             {
                 baseConnKey = bc.Trim();
@@ -43,7 +37,7 @@ public partial class ResourceSemanticAnalyzer
             foreach (var typeNode in fileNode.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>())
             {
                 var isDbCtx = typeNode.References.Any(r =>
-                    r.Kind == "INHERITS_FROM" &&
+                    r.RelationshipKind == RelationshipKind.InheritsFrom &&
                     (r.TargetName.Equals("DbContext", StringComparison.OrdinalIgnoreCase) ||
                      r.TargetName.Equals("IdentityDbContext", StringComparison.OrdinalIgnoreCase) ||
                      r.TargetName.EndsWith(".DbContext", StringComparison.OrdinalIgnoreCase) ||
@@ -56,10 +50,6 @@ public partial class ResourceSemanticAnalyzer
             if (list.Count == 0)
             {
                 var classesRaw = signals?.DbContextClasses;
-                if (string.IsNullOrWhiteSpace(classesRaw))
-                {
-                    fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbContextClasses, out classesRaw);
-                }
                 if (!string.IsNullOrWhiteSpace(classesRaw))
                 {
                     foreach (var className in classesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -119,16 +109,11 @@ public partial class ResourceSemanticAnalyzer
     private static bool HasEntityOrTableNode(IOntologyNode node)
     {
         if (node is DatabaseNode dbNode &&
-            (dbNode.IsImplicitSchema == true || dbNode.Flags.HasFlag(SymbolFlags.IsImplicitSchema) ||
-             (dbNode.Extensions != null && dbNode.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true")))
+            (dbNode.IsImplicitSchema == true || dbNode.Flags.HasFlag(SymbolFlags.IsImplicitSchema)))
         {
             return false;
         }
         if (node is TableNode) return true;
-        if (node.Extensions != null && (node.Extensions.ContainsKey("table") || node.Extensions.ContainsKey("entity")))
-        {
-            return true;
-        }
         foreach (var child in node.Children)
         {
             if (HasEntityOrTableNode(child)) return true;
@@ -389,10 +374,6 @@ public partial class ResourceSemanticAnalyzer
         var val = fileNode.TryGetSignals()?.DeclaredSchemaRaw;
         if (string.IsNullOrWhiteSpace(val))
         {
-            fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDeclaredSchemaRaw, out val);
-        }
-        if (string.IsNullOrWhiteSpace(val))
-        {
             return null;
         }
 
@@ -446,15 +427,10 @@ public partial class ResourceSemanticAnalyzer
 
     private static string? FindSchemaInNode(IOntologyNode node)
     {
-        if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
+        var (s, isImp) = GetNodeSchemaAndImplicit(node);
+        if (!string.IsNullOrWhiteSpace(s) && !isImp)
         {
-            if (node.TryGetExtension("is_implicit_schema", out var isImp) && isImp == "true")
-            {
-            }
-            else
-            {
-                return s;
-            }
+            return s;
         }
         foreach (var child in node.Children)
         {
@@ -466,12 +442,10 @@ public partial class ResourceSemanticAnalyzer
 
     private static string? FindImplicitSchemaInNode(IOntologyNode node)
     {
-        if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
+        var (s, isImp) = GetNodeSchemaAndImplicit(node);
+        if (!string.IsNullOrWhiteSpace(s) && isImp)
         {
-            if (node.TryGetExtension("is_implicit_schema", out var isImp) && isImp == "true")
-            {
-                return s;
-            }
+            return s;
         }
         foreach (var child in node.Children)
         {
@@ -480,6 +454,14 @@ public partial class ResourceSemanticAnalyzer
         }
         return null;
     }
+
+    private static (string? Schema, bool IsImplicit) GetNodeSchemaAndImplicit(IOntologyNode node) => node switch
+    {
+        DatabaseNode db => (db.Schema, db.IsImplicitSchema == true || db.Flags.HasFlag(SymbolFlags.IsImplicitSchema)),
+        DataSetNode ds => (ds.Schema, ds.IsImplicitSchema == true || ds.Flags.HasFlag(SymbolFlags.IsImplicitSchema)),
+        TableNode tbl => (tbl.Schema, tbl.IsImplicitSchema == true || tbl.Flags.HasFlag(SymbolFlags.IsImplicitSchema)),
+        _ => (null, false)
+    };
 
     public static string GetDefaultSchemaForEngine(string engine, string dbType)
     {

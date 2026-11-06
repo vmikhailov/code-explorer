@@ -1422,9 +1422,7 @@ export class IdHelperService {
             var es = extServices[0];
             es.DomainOrService.Should().Be("id_helper_nest", "BaseURL from this._baseUrl and config.get('ID_HELPER_NEST') must be resolved");
             es.Path.Should().Be("/api/v1/smart-cpa/campaigns/start");
-            es.Extensions.Should().NotBeNull();
-            es.Extensions!.ContainsKey("caller_symbol_id").Should().BeTrue();
-            es.Extensions["caller_symbol_id"].Should().Contain("startCampaign");
+            es.CallerSymbolId.Should().Contain("startCampaign");
 
             // Test LateBinding generates direct CALLS_ENDPOINT from calling function
             var targetEp = new EndpointNode(
@@ -1825,9 +1823,7 @@ export class TrackerApiService {
         var bffService = extServices.FirstOrDefault(e => e.Name.Contains("bff.at-systems.biz"));
         bffService.Should().NotBeNull();
         bffService!.Path.Should().Contain("cpm-stats");
-        bffService.Extensions.Should().NotBeNull();
-        bffService.Extensions!.ContainsKey("caller_symbol_id").Should().BeTrue();
-        bffService.Extensions["caller_symbol_id"].Should().Contain("cpmStats.loader");
+        bffService.CallerSymbolId.Should().Contain("cpmStats.loader");
     }
 
     [Test]
@@ -1948,6 +1944,6 @@ export async function importScenarios() {
         var es = extServices[0];
         es.DomainOrService.Should().Be("localhost");
         es.Path.Should().Be("/api/v1/config/scenarios");
-        es.Extensions?["is_internal"].Should().Be("true");
+        es.IsInternal.Should().BeTrue();
     }
 }

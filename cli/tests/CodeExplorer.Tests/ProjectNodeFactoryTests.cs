@@ -23,8 +23,8 @@ public class ProjectNodeFactoryTests
         node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("Service");
         node.IsLibrary.Should().BeFalse();
-        node.Extensions?["role"].Should().Be("Service");
-        node.Extensions?["entity_type"].Should().Be("service");
+        node.Role.Should().Be("Service");
+        node.EntityType.Should().Be("service");
     }
 
     [Test]
@@ -62,7 +62,7 @@ public class ProjectNodeFactoryTests
         node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("SharedLibrary");
         node.IsLibrary.Should().BeTrue();
-        node.Extensions?["entity_type"].Should().Be("library");
+        node.EntityType.Should().Be("library");
     }
 
     [Test]

@@ -1298,12 +1298,18 @@ public class SemanticInvariantGateTests
         // Upload two CALLS edges between the same pair at different call sites
         var relSite1 = Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.CallsRelationship(
             caller.Id,
-            callee.Id,
-            CodeExplorer.Core.Analysis.EvidenceProvenanceHelper.BuildCallSiteExtensions(18, 9)));
+            callee.Id)
+        {
+            Line = 18,
+            Column = 9
+        });
         var relSite2 = Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.CallsRelationship(
             caller.Id,
-            callee.Id,
-            CodeExplorer.Core.Analysis.EvidenceProvenanceHelper.BuildCallSiteExtensions(34, 13)));
+            callee.Id)
+        {
+            Line = 34,
+            Column = 13
+        });
 
         await client.UploadRelationshipsAsync([relSite1, relSite2]);
 

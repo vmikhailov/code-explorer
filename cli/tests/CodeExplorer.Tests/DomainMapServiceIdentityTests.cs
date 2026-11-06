@@ -154,7 +154,7 @@ public class DomainMapServiceIdentityTests
             archWithLibs.Edges.Should().ContainSingle(e =>
                 e.Source == "service:bundle-update-adapter" &&
                 e.Target == "library:library" &&
-                e.Category == "library" &&
+                e.Category == CodeExplorer.Cypher.Common.GraphEdgeCategory.Library &&
                 e.Label == "DEPENDS_ON");
             archWithLibs.Edges.Should().NotContain(e =>
                 e.Source == "service:bundle-update-adapter" && e.Target == "service:fe");

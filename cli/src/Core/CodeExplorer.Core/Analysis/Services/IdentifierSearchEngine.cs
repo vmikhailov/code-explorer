@@ -138,42 +138,6 @@ public class IdentifierSearchEngine
             var ownerName = reader.IsDBNull(5) ? null : reader.GetString(5);
             var fullName = !string.IsNullOrEmpty(ownerName) && !name.Contains('.') ? $"{ownerName}.{name}" : name;
             rawRows.Add((id, name, fullName, kind, path, startLine));
-            if (false)
-            {
-            /*
-
-            string name = id;
-            string? path = null;
-            int startLine = 0;
-
-            try
-            {
-                using var doc = JsonDocument.Parse(propsJson);
-                var root = doc.RootElement;
-                if (root.TryGetProperty("name", out var np)) name = np.GetString() ?? id;
-                else if (root.TryGetProperty("route_template", out var rp)) name = rp.GetString() ?? id;
-                else if (root.TryGetProperty("symbol", out var sp)) name = sp.GetString() ?? id;
-
-                if (root.TryGetProperty("path", out var pp)) path = pp.GetString();
-                else if (root.TryGetProperty("file_path", out var fpp)) path = fpp.GetString();
-
-                if (root.TryGetProperty("start_line", out var slp) && slp.TryGetInt32(out var sl)) startLine = sl;
-            }
-            catch
-            {
-                // Ignore parse errors on corrupted JSON
-            }
-
-            var fullName = !string.IsNullOrEmpty(ownerName) && !name.Contains('.')
-                ? $"{ownerName}.{name}"
-                : name;
-
-            // Combine name, full name, and path for vector representation
-            var textToEmbed = $"{fullName} {name} {path ?? ""}";
-            var vec = IdentifierVectorEncoder.Encode(textToEmbed);
-            */
-
-            }
         }
         var entries = new (string NodeId, string Name, string FullName, string Kind, string? Path, int StartLine, byte[] Embedding)[rawRows.Count];
         Parallel.For(0, rawRows.Count, i =>

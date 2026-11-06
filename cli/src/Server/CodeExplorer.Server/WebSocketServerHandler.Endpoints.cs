@@ -157,7 +157,7 @@ public partial class WebSocketServerHandler
             {
                 Id = g.Id,
                 Name = g.Name,
-                Category = g.Category.ToString(),
+                Category = g.Category,
                 Platform = g.Platform,
                 Scope = g.Scope.ToString(),
                 Dimension = g.Dimension.ToString(),
@@ -234,7 +234,7 @@ public partial class WebSocketServerHandler
                         {
                             Id = g.Id,
                             Name = g.Name,
-                            Category = g.Category.ToString(),
+                            Category = g.Category,
                             Platform = g.Platform.ToString(),
                             Scope = g.Scope.ToString(),
                             Severity = g.Severity.ToString(),
@@ -409,7 +409,7 @@ public partial class WebSocketServerHandler
             };
         }
 
-        var category = Enum.TryParse<GateCategory>(gateDto.Category, true, out var cat) ? cat : GateCategory.Architectural;
+        var category = gateDto.Category;
         var platform = !string.IsNullOrWhiteSpace(gateDto.Platform) ? gateDto.Platform.Trim().ToLowerInvariant() : "agnostic";
         var scope = Enum.TryParse<InvariantScope>(gateDto.Scope, true, out var sc) ? sc : InvariantScope.Module;
         var dim = Enum.TryParse<InvariantDimension>(gateDto.Dimension, true, out var dm) ? dm : InvariantDimension.Boundaries;
@@ -612,7 +612,7 @@ public partial class WebSocketServerHandler
             {
                 Id = r.Gate.Id,
                 Name = r.Gate.Name,
-                Category = r.Gate.Category.ToString(),
+                Category = r.Gate.Category,
                 Platform = r.Gate.Platform,
                 Scope = r.Gate.Scope.ToString(),
                 Dimension = r.Gate.Dimension.ToString(),

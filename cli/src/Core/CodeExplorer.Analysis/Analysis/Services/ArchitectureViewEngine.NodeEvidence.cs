@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Protocol;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -168,7 +169,7 @@ public partial class ArchitectureViewEngine
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = row.GetStringProp("id"),
-                        Kind = publish ? OntologyConstants.EvidenceKinds.Publish : OntologyConstants.EvidenceKinds.Subscribe,
+                        Kind = publish ? EvidenceKind.Publish : EvidenceKind.Subscribe,
                         Operation = publish ? "PUBLISH" : "SUBSCRIBE",
                         Title = $"{(publish ? "Publishes" : "Subscribes")} {topic.Name}",
                         FilePath = path,
@@ -237,7 +238,7 @@ public partial class ArchitectureViewEngine
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = row.GetStringProp("id"),
-                        Kind = OntologyConstants.EvidenceKinds.HttpCall,
+                        Kind = EvidenceKind.HttpCall,
                         Operation = "CALL",
                         Title = $"Calls {external.Name}",
                         FilePath = path,
@@ -300,7 +301,7 @@ public partial class ArchitectureViewEngine
                 items.Add(new ArchitectureEvidenceItemDto
                 {
                     Id = epId,
-                    Kind = OntologyConstants.EvidenceKinds.Endpoint,
+                    Kind = EvidenceKind.Endpoint,
                     Operation = op,
                     Title = string.IsNullOrEmpty(route) ? epName : $"{op} {route}",
                     FilePath = path,
@@ -346,7 +347,7 @@ public partial class ArchitectureViewEngine
                 items.Add(new ArchitectureEvidenceItemDto
                 {
                     Id = entryId,
-                    Kind = OntologyConstants.EvidenceKinds.EntryPoint,
+                    Kind = EvidenceKind.EntryPoint,
                     Operation = "ENTRY",
                     Title = name,
                     FilePath = path,
@@ -393,7 +394,7 @@ public partial class ArchitectureViewEngine
                 items.Add(new ArchitectureEvidenceItemDto
                 {
                     Id = typeId,
-                    Kind = OntologyConstants.EvidenceKinds.Orm,
+                    Kind = EvidenceKind.Orm,
                     Operation = "ORM",
                     Title = $"{name} → {tblName}",
                     FilePath = path,
@@ -420,7 +421,7 @@ public partial class ArchitectureViewEngine
             items.Add(new ArchitectureEvidenceItemDto
             {
                 Id = serviceNode.Id,
-                Kind = OntologyConstants.EvidenceKinds.Config,
+                Kind = EvidenceKind.Config,
                 Operation = "MANIFEST",
                 Title = $"{scope.Name} ({serviceNode.Label})",
                 FilePath = manifestPath,

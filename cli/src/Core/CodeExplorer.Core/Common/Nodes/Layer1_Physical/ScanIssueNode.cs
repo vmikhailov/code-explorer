@@ -27,8 +27,8 @@ public record ScanIssueNode(
     [property: OntologyProperty("The 1-based ending column number of the issue, if known.")] int? EndCol = null,
     [property: OntologyProperty("The CLR exception type name if thrown.")] string? ExceptionType = null,
     [property: OntologyProperty("The parser or language associated with the file.")] string? Language = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     public ScanIssueNode(
         string Id,
@@ -44,8 +44,8 @@ public record ScanIssueNode(
         int? EndCol = null,
         string? ExceptionType = null,
         string? Language = null,
-        Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Path, Stage, TaxonomyEnumExtendedExtensions.ParseScanIssueCategory(Category), Severity, Message, StartLine, EndLine, StartCol, EndCol, ExceptionType, Language, Extensions)
+        Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Path, Stage, TaxonomyEnumExtendedExtensions.ParseScanIssueCategory(Category), Severity, Message, StartLine, EndLine, StartCol, EndCol, ExceptionType, Language, CustomProperties)
     {
     }
 

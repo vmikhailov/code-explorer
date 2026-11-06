@@ -21,8 +21,8 @@ public record DomainNode(
     [property: OntologyProperty("A concise summary of the domain's business responsibility.")] string? Summary = null,
     [property: OntologyProperty("Representative icon for the domain.")] string? Icon = null,
     [property: OntologyProperty("Primary path associated with the domain.")] string Path = "",
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     public DomainNode(
         string Id,
@@ -32,8 +32,8 @@ public record DomainNode(
         string? Summary = null,
         string? Icon = null,
         string Path = "",
-        Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, DisplayName, TaxonomyEnumExtensions.ParseDomainType(DomainType), Summary, Icon, Path, Extensions)
+        Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, DisplayName, TaxonomyEnumExtensions.ParseDomainType(DomainType), Summary, Icon, Path, CustomProperties)
     {
     }
 

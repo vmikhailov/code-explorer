@@ -36,12 +36,12 @@ public class GraphProjectionPipelineTests
         lifted.Should().HaveCount(2);
 
         var controllerToService = lifted.Single(e => e.Source == "type:OrdersController" && e.Target == "type:OrderService");
-        controllerToService.Kind.Should().Be("CALLS");
+        controllerToService.Kind.Should().Be(RelationshipKind.Calls);
         controllerToService.Properties!["count"].Should().Be("2");
         controllerToService.Properties["distinct_files"].Should().Be("1");
 
         var serviceToTable = lifted.Single(e => e.Source == "type:OrderService" && e.Target == "tbl:orders");
-        serviceToTable.Kind.Should().Be("WRITES_TO");
+        serviceToTable.Kind.Should().Be(RelationshipKind.WritesTo);
         serviceToTable.Properties!["count"].Should().Be("1");
     }
 
@@ -58,10 +58,10 @@ public class GraphProjectionPipelineTests
 
         var edges = new List<GraphEdgeDto>
         {
-            new() { Id = "e1", Source = "type:A", Target = "type:B", Kind = "CALLS" },
-            new() { Id = "e2", Source = "type:B", Target = "type:C", Kind = "CALLS" },
-            new() { Id = "e3", Source = "type:C", Target = "type:A", Kind = "CALLS" },
-            new() { Id = "e4", Source = "type:D", Target = "type:A", Kind = "CALLS" }
+            new() { Id = "e1", Source = "type:A", Target = "type:B", Kind = RelationshipKind.Calls },
+            new() { Id = "e2", Source = "type:B", Target = "type:C", Kind = RelationshipKind.Calls },
+            new() { Id = "e3", Source = "type:C", Target = "type:A", Kind = RelationshipKind.Calls },
+            new() { Id = "e4", Source = "type:D", Target = "type:A", Kind = RelationshipKind.Calls }
         };
 
         var result = TopologyAndCycleAnalyzer.Analyze(nodes, edges);
@@ -87,10 +87,10 @@ public class GraphProjectionPipelineTests
 
         var edges = new List<GraphEdgeDto>
         {
-            new() { Id = "e1", Source = "ep:post", Target = "type:Controller", Kind = "CALLS" },
-            new() { Id = "e2", Source = "type:Controller", Target = "type:Service", Kind = "CALLS" },
-            new() { Id = "e3", Source = "type:Service", Target = "type:Repo", Kind = "CALLS" },
-            new() { Id = "e4", Source = "type:Repo", Target = "tbl:orders", Kind = "WRITES_TO" }
+            new() { Id = "e1", Source = "ep:post", Target = "type:Controller", Kind = RelationshipKind.Calls },
+            new() { Id = "e2", Source = "type:Controller", Target = "type:Service", Kind = RelationshipKind.Calls },
+            new() { Id = "e3", Source = "type:Service", Target = "type:Repo", Kind = RelationshipKind.Calls },
+            new() { Id = "e4", Source = "type:Repo", Target = "tbl:orders", Kind = RelationshipKind.WritesTo }
         };
 
         var result = TopologyAndCycleAnalyzer.Analyze(nodes, edges);

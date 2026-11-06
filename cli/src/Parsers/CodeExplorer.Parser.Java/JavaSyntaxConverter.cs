@@ -61,32 +61,30 @@ public sealed class JavaSyntaxConverter : TreeSitterSyntaxConverterBase
                 new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "field_access" or "scoped_identifier" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "array_access" => new IndexOrSliceExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "array_access" => new IndexExprSyntax { Span = span, RawGrammarKind = rawKind },
             "binary_expression" or "instanceof_expression" => new BinaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "unary_expression" or "update_expression" => new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "assignment_expression" => new AssignmentExprSyntax { Span = span, RawGrammarKind = rawKind },
             "ternary_expression" => new ConditionalExprSyntax { Span = span, RawGrammarKind = rawKind },
             "lambda_expression" => new LambdaExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "array_creation_expression" or "array_initializer" => new CollectionExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "block" => new BlockStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "if_statement" => new IfStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "switch_expression" or "switch_statement" => new SwitchOrMatchStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "if_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.If },
+            "switch_expression" or "switch_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Switch },
             "for_statement" or "enhanced_for_statement" or "while_statement" or "do_statement" =>
-                new LoopStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "try_statement" or "try_with_resources_statement" => new TryStmtSyntax { Span = span, RawGrammarKind = rawKind },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Loop },
+            "try_statement" or "try_with_resources_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Try },
             "catch_clause" => new CatchClauseSyntax { Span = span, RawGrammarKind = rawKind },
-            "return_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind, IsYield = false },
-            "yield_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind, IsYield = true },
-            "throw_statement" => new ThrowStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "return_statement" or "yield_statement" => new ReturnStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "throw_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Throw },
             "break_statement" or "continue_statement" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
-            "synchronized_statement" => new LockStmtSyntax { Span = span, RawGrammarKind = rawKind },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Branch },
+            "synchronized_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Lock },
 
             "generic_type" or "array_type" or "scoped_type_identifier" or "integral_type" or "floating_point_type" or "boolean_type" =>
                 new TypeRefSyntax { Span = span, RawGrammarKind = rawKind },
 
-            "expression_statement" => new ExprStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "expression_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Expression },
 
             _ => new UnmappedSyntax { Span = span, RawGrammarKind = rawKind }
         };

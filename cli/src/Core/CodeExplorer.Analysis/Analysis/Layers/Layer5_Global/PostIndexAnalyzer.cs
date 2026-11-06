@@ -13,28 +13,29 @@ public record CanonicalizeDatabasesResult(int CanonicalNodesCount, int Materiali
 
 public partial class PostIndexAnalyzer(IGraphClient db)
 {
-    public async Task RunAsync(string workspaceId, ParsingContext? ctx = null)
+    public async Task RunAsync(string workspaceId, ParsingContext ctx)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
 
-        ctx?.Log("[PostIndex  ] Canonicalizing databases across workspace...");
+        ctx.PostIndexLog.CanonicalizingDatabasesAcrossWorkspace();
         await CanonicalizeDatabasesAsync(db, widPrefix);
-        ctx?.Log("[PostIndex  ] Normalizing architectural edges...");
+        ctx.PostIndexLog.NormalizingArchitecturalEdges();
         await NormalizeEdgesAsync(db, widPrefix);
-        ctx?.LogDebug("[PostIndex  ] Purging phantom external services...");
+        ctx.PostIndexLog.PurgingPhantomExternalServices();
         await PurgePhantomExternalServicesAsync(db, widPrefix);
-        ctx?.LogDebug("[PostIndex  ] Purging placeholder topics...");
+        ctx.PostIndexLog.PurgingPlaceholderTopics();
         await PurgePlaceholderTopicsAsync(db, widPrefix);
-        ctx?.LogDebug("[PostIndex  ] Deduplicating project nodes...");
+        ctx.PostIndexLog.DeduplicatingProjectNodes();
         await DeduplicateProjectNodesAsync(db, widPrefix);
 
-        ctx?.LogDebug("[PostIndex  ] Loading post-index graph reachability data...");
+        ctx.PostIndexLog.LoadingReachabilityData();
         var graphData = await db.LoadPostIndexGraphDataAsync(widPrefix);
         if (graphData.CallsAdjacency.Count > 0 || graphData.Sinks.Count > 0 || graphData.Callers.Count > 0)
         {
-            ctx?.LogDebug("[PostIndex  ] Analyzing call paths and external API dependencies...");
+            ctx.PostIndexLog.AnalyzingCallPaths();
             var result = Analyze(graphData, widPrefix);
-            ctx?.LogDebug("[PostIndex  ] Saving reachability analysis results to database...");
+            ctx.PostIndexLog.SavingReachabilityResults();
             await db.SavePostIndexResultsAsync(widPrefix, result);
         }
         else
@@ -197,7 +198,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         {
             foreach (var workloadNode in l4Result.SemanticStructure.Children)
             {
-                var projId = workloadNode.Extensions?.GetValueOrDefault("project_id");
+                var projId = (workloadNode as CompositeNode)?.ProjectId;
                 if (!string.IsNullOrEmpty(projId) && projectToEntryPoints.TryGetValue(projId, out var epList))
                 {
                     foreach (var child in workloadNode.Children)
@@ -230,9 +231,9 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         foreach (var (projId, domains) in result.ProjectExternalApis)
         {
             var proj = l4Result.Prev.Prev.Projects.FirstOrDefault(p => p.Id == projId);
-            if (proj != null && proj.Extensions != null)
+            if (proj != null)
             {
-                proj.Extensions["external_apis"] = JsonSerializer.Serialize(domains);
+                proj.ExternalApis = JsonSerializer.Serialize(domains);
             }
         }
 
@@ -245,14 +246,14 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         allCombinedRels.AddRange(lateBoundRels);
         allCombinedRels.AddRange(ctx.TreeRelationships);
 
-        ctx.LogDebug("[PostIndex  ] Building file-to-project map...");
+        ctx.PostIndexLog.BuildingFileToProjectMap();
         var fileToProject = Layer2ProjectParser.BuildFileToProjectMap(
             l4Result.Prev.Prev.Prev.Files,
             l4Result.Prev.Prev.Projects
         );
 
         // Canonicalize databases and link projects in graph
-        ctx.Log("[PostIndex  ] Canonicalizing databases and linking projects...");
+        ctx.PostIndexLog.CanonicalizingDatabasesAndLinkingProjects();
         var (canonicalDbRels, rawToCanonicalDbMap) = await CanonicalizeDatabasesInMemoryAsync(
             ctx,
             l4Result,
@@ -285,7 +286,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        ctx.LogDebug("[PostIndex  ] Materializing direct project relationships...");
+        ctx.PostIndexLog.MaterializingDirectProjectRelationships();
         var directProjectRels = MaterializeDirectProjectRelationships(
             l4Result.Prev.Prev.Projects,
             l4Result.Prev.Prev.Prev.Files,
@@ -297,13 +298,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         if (directProjectRels.Count > 0)
         {
-            ctx.LogDebug($"[PostIndex  ] Uploading {directProjectRels.Count} direct project relationships...");
+            ctx.PostIndexLog.UploadingDirectProjectRelationships(directProjectRels.Count);
             await ctx.DbClient.UploadRelationshipsAsync(directProjectRels);
             ctx.AddRelsCount(directProjectRels.Count);
             allCombinedRels.AddRange(directProjectRels);
         }
 
-        ctx.LogDebug("[PostIndex  ] Materializing transitive semantic relationships...");
+        ctx.PostIndexLog.MaterializingTransitiveSemanticRelationships();
         var liftedSemanticRels = LiftTransitiveSemanticRelations(
             l4Result.Prev.Prev.Projects,
             allCombinedRels,
@@ -312,13 +313,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         );
         if (liftedSemanticRels.Count > 0)
         {
-            ctx.LogDebug($"[PostIndex  ] Uploading {liftedSemanticRels.Count} transitive semantic relationships...");
+            ctx.PostIndexLog.UploadingTransitiveSemanticRelationships(liftedSemanticRels.Count);
             await ctx.DbClient.UploadRelationshipsAsync(liftedSemanticRels);
             ctx.AddRelsCount(liftedSemanticRels.Count);
         }
 
         // Classify projects and persist layer metadata into SQLite nodes
-        ctx.Log($"[PostIndex  ] Classifying architectural layers for {l4Result.Prev.Prev.Projects.Count} projects...");
+        ctx.PostIndexLog.ClassifyingArchitecturalLayers(l4Result.Prev.Prev.Projects.Count);
         var classifierItems = l4Result.Prev.Prev.Projects.Select(p =>
         {
             var allChildren = new List<IOntologyNode>();
@@ -336,7 +337,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             {
                 foreach (var wl in l4Result.SemanticStructure.Children)
                 {
-                    if ((wlId != null && wl.Id == wlId) || wl.Extensions?.GetValueOrDefault("project_id") == p.Id)
+                    if ((wlId != null && wl.Id == wlId) || (wl as CompositeNode)?.ProjectId == p.Id)
                     {
                         Collect(wl);
                     }
@@ -353,14 +354,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                 Id = p.Id,
                 Name = p.Name,
                 FilePath = p.Path,
-                Framework = p.Extensions?.GetValueOrDefault("framework") ?? p.ProjectType.ToCanonicalString(),
+                Framework = p.Framework ?? p.ProjectType.ToCanonicalString(),
                 Role = p.Role,
                 IsLibrary = p.IsLibrary,
                 EndpointsCount = endpointsCount,
                 EntryPoints = entryPoints,
                 ExternalServicesCount = externalServicesCount,
-                UsesDbCount = usesDbCount,
-                Extensions = p.Extensions
+                UsesDbCount = usesDbCount
             };
         });
 
@@ -379,37 +379,29 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var updatedProjectNodes = new List<Node>();
         foreach (var p in l4Result.Prev.Prev.Projects)
         {
-            p.Extensions ??= [];
             if (layerMap.TryGetValue(p.Id, out var layerInfo))
             {
-                p.Extensions["layer"] = layerInfo.LayerId;
-                p.Extensions["layerId"] = layerInfo.LayerId;
-                p.Extensions["layerName"] = layerInfo.LayerName;
-                p.Extensions["layerOrder"] = layerInfo.Order.ToString();
-                p.Extensions["layerColor"] = layerInfo.Color;
-                p.Extensions["layerIcon"] = layerInfo.Icon;
+                p.Layer = layerInfo.LayerId;
+                p.LayerId = layerInfo.LayerId;
+                p.LayerName = layerInfo.LayerName;
+                p.LayerOrder = layerInfo.Order;
+                p.LayerColor = layerInfo.Color;
+                p.LayerIcon = layerInfo.Icon;
             }
-            p.Extensions["role"] = p.Role;
-            p.Extensions["is_library"] = p.IsLibrary ? "true" : "false";
-            p.Extensions["entity_type"] = p.IsLibrary ? "library" : "service";
-            p.Extensions["is_semantic_entity"] = p.IsLibrary ? "false" : "true";
-            p.Extensions["entity_kind"] = p.EntityKind.ToString();
-            p.Extensions["sub_kind"] = p.SubKind.ToString();
-            p.Extensions["kind"] = p.EntityKind != ProjectEntityKind.Unknown ? p.EntityKind.ToString() : p.Role;
-            p.Extensions["language"] = p.ProjectType.ToCanonicalString();
-            p.Extensions["project_type"] = p.ProjectType.ToCanonicalString();
+            p.EntityType = p.IsLibrary ? "library" : "service";
+            p.IsSemanticEntity = !p.IsLibrary;
 
-            if (!p.Extensions.ContainsKey("primary_role") || p.Extensions["primary_role"] == "General")
+            if (string.IsNullOrEmpty(p.PrimaryRole) || p.PrimaryRole == "General")
             {
-                p.Extensions["primary_role"] = p.Role;
+                p.PrimaryRole = p.Role;
             }
-            if (!p.Extensions.ContainsKey("secondary_roles"))
+            if (string.IsNullOrEmpty(p.SecondaryRoles))
             {
-                p.Extensions["secondary_roles"] = "[]";
+                p.SecondaryRoles = "[]";
             }
-            if (!p.Extensions.ContainsKey("all_roles") || p.Extensions["all_roles"] == "[]")
+            if (string.IsNullOrEmpty(p.AllRoles) || p.AllRoles == "[]")
             {
-                p.Extensions["all_roles"] = JsonSerializer.Serialize(new[] { p.Extensions["primary_role"] });
+                p.AllRoles = JsonSerializer.Serialize(new[] { p.PrimaryRole });
             }
 
             updatedProjectNodes.Add(Node.FromNode(p));
@@ -421,16 +413,15 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             {
                 if (workloadNode is CompositeNode compNode)
                 {
-                    compNode.Extensions ??= [];
-                    var projId = compNode.Extensions.GetValueOrDefault("project_id");
+                    var projId = compNode.ProjectId;
                     if (projId != null && layerMap.TryGetValue(projId, out var layerInfo))
                     {
-                        compNode.Extensions["layer"] = layerInfo.LayerId;
-                        compNode.Extensions["layerId"] = layerInfo.LayerId;
-                        compNode.Extensions["layerName"] = layerInfo.LayerName;
-                        compNode.Extensions["layerOrder"] = layerInfo.Order.ToString();
-                        compNode.Extensions["layerColor"] = layerInfo.Color;
-                        compNode.Extensions["layerIcon"] = layerInfo.Icon;
+                        compNode.Layer = layerInfo.LayerId;
+                        compNode.LayerId = layerInfo.LayerId;
+                        compNode.LayerName = layerInfo.LayerName;
+                        compNode.LayerOrder = layerInfo.Order;
+                        compNode.LayerColor = layerInfo.Color;
+                        compNode.LayerIcon = layerInfo.Icon;
                         updatedProjectNodes.Add(Node.FromNode(compNode));
                     }
                 }
@@ -439,12 +430,12 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         if (updatedProjectNodes.Count > 0)
         {
-            ctx.LogDebug($"[PostIndex  ] Uploading {updatedProjectNodes.Count} classified project nodes...");
+            ctx.PostIndexLog.UploadingClassifiedProjectNodes(updatedProjectNodes.Count);
             await ctx.DbClient.UploadNodesAsync(updatedProjectNodes);
         }
 
         // Normalize edges in SQLite graph database
-        ctx.Log("[PostIndex  ] Normalizing architectural edges and cleaning database...");
+        ctx.PostIndexLog.NormalizingEdgesAndCleaningDatabase();
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePhantomExternalServicesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePlaceholderTopicsAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
@@ -499,25 +490,25 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        void AddLifted(string fromId, string toId, string relKind, Dictionary<string, object> properties)
+        void AddLifted(string fromId, string toId, string relKind, Action<Relationship> configure)
         {
             if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(fromId, out var semFrom) && semFrom != null)
             {
                 var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
                 if (semFrom != semTo && existingEdges.Add((semFrom, semTo, relKind)))
                 {
-                    var semProps = new Dictionary<string, object>(properties)
-                    {
-                        ["is_semantic"] = "true"
-                    };
-                    liftedRels.Add(new Relationship(semFrom, semTo, relKind, semProps));
+                    var rel = new Relationship(semFrom, semTo, relKind) { IsSemantic = true };
+                    configure(rel);
+                    liftedRels.Add(rel);
                 }
                 return;
             }
 
             if (existingEdges.Add((fromId, toId, relKind)))
             {
-                liftedRels.Add(new Relationship(fromId, toId, relKind, properties));
+                var rel = new Relationship(fromId, toId, relKind);
+                configure(rel);
+                liftedRels.Add(rel);
             }
         }
 
@@ -576,13 +567,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 inEdge.From,
                                 OntologyConstants.Relationships.SubscribesTo,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true",
-                                    ["semantic_lifted"] = "true",
-                                    ["via_library"] = viaLib,
-                                    ["call_chain"] = chainStr
+                                    r.DependencyType = "messaging";
+                                    r.IsSemantic = true;
+                                    r.IsSemanticLifted = true;
+                                    r.ViaLibrary = viaLib;
+                                    r.CallChain = chainStr;
                                 }
                             );
                         }
@@ -618,34 +609,34 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 targetDbId,
                                 OntologyConstants.Relationships.UsesDb,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "database",
-                                    ["is_semantic"] = "true",
-                                    ["semantic_lifted"] = "true",
-                                    ["is_canonical"] = "true",
-                                    ["via_library"] = viaLib,
-                                    ["call_chain"] = chainStr
+                                    r.DependencyType = "database";
+                                    r.IsSemantic = true;
+                                    r.IsSemanticLifted = true;
+                                    r.IsCanonical = true;
+                                    r.ViaLibrary = viaLib;
+                                    r.CallChain = chainStr;
                                 }
                             );
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
                         else if (projects.Any(p => p.Id == targetProjId && !p.IsLibrary && p.Id != service.Id) &&
-                                 (edge.Kind is OntologyConstants.Relationships.ServiceCall or "CALLS_ENDPOINT" or "CALLS" ||
-                                  (edge.Properties?.TryGetValue("dependency_type", out var dt) == true && dt?.ToString() == "service_call")))
+                                 (edge.Kind is OntologyConstants.Relationships.ServiceCall or OntologyConstants.Relationships.CallsEndpoint or OntologyConstants.Relationships.Calls ||
+                                  edge.DependencyType == "service_call"))
                         {
                             AddLifted(
                                 service.Id,
                                 targetProjId,
                                 OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true",
-                                    ["semantic_lifted"] = "true",
-                                    ["via_library"] = viaLib,
-                                    ["call_chain"] = chainStr
+                                    r.DependencyType = "service_call";
+                                    r.IsSemantic = true;
+                                    r.IsSemanticLifted = true;
+                                    r.ViaLibrary = viaLib;
+                                    r.CallChain = chainStr;
                                 }
                             );
                         }
@@ -659,13 +650,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 edge.To,
                                 OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true",
-                                    ["semantic_lifted"] = "true",
-                                    ["via_library"] = viaLib,
-                                    ["call_chain"] = chainStr
+                                    r.DependencyType = "service_call";
+                                    r.IsSemantic = true;
+                                    r.IsSemanticLifted = true;
+                                    r.ViaLibrary = viaLib;
+                                    r.CallChain = chainStr;
                                 }
                             );
                         }
@@ -689,13 +680,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 edge.To,
                                 outKind,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true",
-                                    ["semantic_lifted"] = "true",
-                                    ["via_library"] = viaLib,
-                                    ["call_chain"] = chainStr
+                                    r.DependencyType = "messaging";
+                                    r.IsSemantic = true;
+                                    r.IsSemanticLifted = true;
+                                    r.ViaLibrary = viaLib;
+                                    r.CallChain = chainStr;
                                 }
                             );
                         }
@@ -786,8 +777,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
     private static Dictionary<string, HashSet<string>>? ParseSourceReachability(ProjectNode project)
     {
-        var json = project.TryGetSignals()?.SourceReachability ??
-                   project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
+        var json = project.TryGetSignals()?.SourceReachability;
         if (string.IsNullOrWhiteSpace(json))
         {
             return null;

@@ -49,7 +49,7 @@ public class TsArrowCallerAttributionTests
     }
 
     private static string Caller(ExternalServiceNode es) =>
-        es.Extensions != null && es.Extensions.TryGetValue("caller_symbol_id", out var c) ? c : "";
+        es.CallerSymbolId ?? "";
 
     [Test]
     public async Task Angular_RxResource_LoaderArrow_IsAttributedToFunction()

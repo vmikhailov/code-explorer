@@ -271,8 +271,6 @@ public abstract class TreeSitterSyntaxConverterBase
 
             case ConditionalExprSyntax cond:
                 cond.Condition = cond.GetChildForField(SyntaxFields.Condition) as ExprSyntax ?? cond.NthChildOfType<ExprSyntax>(0);
-                cond.WhenTrue = cond.GetChildForField(SyntaxFields.Consequence) as ExprSyntax ?? cond.NthChildOfType<ExprSyntax>(1);
-                cond.WhenFalse = cond.GetChildForField(SyntaxFields.Alternative) as ExprSyntax ?? cond.NthChildOfType<ExprSyntax>(2);
                 break;
 
             case UnaryExprSyntax unary:
@@ -283,57 +281,59 @@ public abstract class TreeSitterSyntaxConverterBase
                 if (unaryOp != null) unary.Operator = InternOperator(unaryOp.AsSpan());
                 break;
 
-            case ExprStmtSyntax exprStmt:
-                exprStmt.Expression = exprStmt.FirstChildOfType<ExprSyntax>();
-                break;
-
-            case IfStmtSyntax ifStmt:
-                ifStmt.Condition = ifStmt.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
-                                   ifStmt.FirstChildOfType<ExprSyntax>() ??
-                                   ifStmt.GetChildForField(SyntaxFields.Condition)?.FirstChildOfType<ExprSyntax>();
-                ifStmt.ThenBranch = AsStatementOrWrap(ifStmt.GetChildForField(SyntaxFields.Consequence) ?? ifStmt.FirstChildOfType<StatementSyntax>());
-                ifStmt.ElseBranch = AsStatementOrWrap(ifStmt.GetChildForField(SyntaxFields.Alternative) ?? ifStmt.NthChildOfType<StatementSyntax>(1));
-                break;
-
-            case LoopStmtSyntax loop:
-                loop.Condition = loop.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
-                                 loop.FirstChildOfType<ExprSyntax>() ??
-                                 loop.GetChildForField(SyntaxFields.Condition)?.FirstChildOfType<ExprSyntax>();
-                loop.Body = AsStatementOrWrap(loop.GetChildForField(SyntaxFields.Body) ?? loop.LastChildOfType<StatementSyntax>());
-                loop.Collection = loop.GetChildForField(SyntaxFields.Right) as ExprSyntax ?? loop.GetChildForField(SyntaxFields.Value) as ExprSyntax;
-                break;
-
-            case TryStmtSyntax tryStmt:
-                tryStmt.Body = tryStmt.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ??
-                               tryStmt.FirstChildOfType<BlockStmtSyntax>();
-                List<CatchClauseSyntax>? catches = null;
-                SyntaxNode? finallyNode = tryStmt.GetChildForField(SyntaxFields.Finalizer);
-                for (int i = 0; i < tryStmt.Children.Count; i++)
+            case ControlFlowStmtSyntax cf:
+                switch (cf.Kind)
                 {
-                    var c = tryStmt.Children[i];
-                    if (c is CatchClauseSyntax cc)
-                    {
-                        (catches ??= new List<CatchClauseSyntax>(2)).Add(cc);
-                    }
-                    if (finallyNode == null && (c.FieldRole is "finalizer" or "finally_clause" || c.RawGrammarKind is "finally_clause"))
-                    {
-                        finallyNode = c;
-                    }
+                    case ControlFlowKind.If:
+                        cf.Condition = cf.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
+                                       cf.FirstChildOfType<ExprSyntax>() ??
+                                       cf.GetChildForField(SyntaxFields.Condition)?.FirstChildOfType<ExprSyntax>();
+                        cf.Body = cf.GetChildForField(SyntaxFields.Consequence) ?? cf.FirstChildOfType<StatementSyntax>();
+                        cf.Alternative = cf.GetChildForField(SyntaxFields.Alternative) ?? cf.NthChildOfType<StatementSyntax>(1);
+                        break;
+
+                    case ControlFlowKind.Loop:
+                        cf.Condition = cf.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
+                                       cf.FirstChildOfType<ExprSyntax>() ??
+                                       cf.GetChildForField(SyntaxFields.Condition)?.FirstChildOfType<ExprSyntax>();
+                        cf.Body = cf.GetChildForField(SyntaxFields.Body) ?? cf.LastChildOfType<StatementSyntax>();
+                        break;
+
+                    case ControlFlowKind.Try:
+                        cf.Body = cf.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ??
+                                  cf.FirstChildOfType<BlockStmtSyntax>();
+                        SyntaxNode? finallyNode = cf.GetChildForField(SyntaxFields.Finalizer);
+                        if (finallyNode == null)
+                        {
+                            for (int i = 0; i < cf.Children.Count; i++)
+                            {
+                                var c = cf.Children[i];
+                                if (c.FieldRole is "finalizer" or "finally_clause" || c.RawGrammarKind is "finally_clause")
+                                {
+                                    finallyNode = c;
+                                    break;
+                                }
+                            }
+                        }
+                        cf.Alternative = finallyNode as BlockStmtSyntax ?? finallyNode?.FirstChildOfType<BlockStmtSyntax>();
+                        break;
+
+                    case ControlFlowKind.Lock:
+                        cf.Body = cf.FirstChildOfType<BlockStmtSyntax>();
+                        break;
+
+                    case ControlFlowKind.Using:
+                        cf.Body = cf.LastChildOfType<StatementSyntax>();
+                        break;
                 }
-                if (catches != null) tryStmt.Catches = catches;
-                tryStmt.FinallyBody = finallyNode as BlockStmtSyntax ?? finallyNode?.FirstChildOfType<BlockStmtSyntax>();
                 break;
 
             case CatchClauseSyntax catchClause:
                 catchClause.Body = catchClause.FirstChildOfType<BlockStmtSyntax>();
                 break;
 
-            case ReturnOrYieldStmtSyntax ret:
+            case ReturnStmtSyntax ret:
                 ret.Value = ret.FirstChildOfType<ExprSyntax>();
-                break;
-
-            case ThrowStmtSyntax thr:
-                thr.Exception = thr.FirstChildOfType<ExprSyntax>();
                 break;
 
             case VariableDeclSyntax varDecl:
@@ -477,30 +477,8 @@ public abstract class TreeSitterSyntaxConverterBase
                     }
                 }
                 break;
-
-            case LockStmtSyntax lockStmt:
-                lockStmt.Body = lockStmt.FirstChildOfType<BlockStmtSyntax>();
-                break;
-
-            case UsingOrWithStmtSyntax usingStmt:
-                usingStmt.Body = usingStmt.LastChildOfType<StatementSyntax>();
-                break;
-
-            case AwaitOrTryExprSyntax awaitExpr:
-                awaitExpr.Operand = awaitExpr.FirstChildOfType<ExprSyntax>();
-                break;
         }
     }
-
-    protected static StatementSyntax? AsStatementOrWrap(SyntaxNode? node) =>
-        node switch
-        {
-            null => null,
-            StatementSyntax stmt => stmt,
-            DeclarationSyntax decl => new DeclStmtSyntax { Span = decl.Span, RawGrammarKind = decl.RawGrammarKind, Parent = decl.Parent, Document = decl.Document, Declarations = [decl] },
-            ExprSyntax expr => new ExprStmtSyntax { Span = expr.Span, RawGrammarKind = expr.RawGrammarKind, Parent = expr.Parent, Document = expr.Document, Expression = expr },
-            _ => null
-        };
 
     protected virtual bool HasInterpolationChild(LiteralExprSyntax litExpr) => false;
 

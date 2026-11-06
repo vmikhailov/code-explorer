@@ -28,7 +28,7 @@ namespace CodeExplorer.Core.Parser
                 func = firstChild.Id != IntPtr.Zero ? firstChild : null;
             }
 
-            while (func.IsValid() && (func is AwaitOrTryExprSyntax ||
+            while (func.IsValid() && (func is UnaryExprSyntax { IsAwait: true } or UnaryExprSyntax { IsTryPropagate: true } ||
                                       func.Type is "await_expression" or "parenthesized_expression" ||
                                       func.Type.Contains("instantiation") || func.Type.Contains("type_arguments") || func.Type == "expression_with_type_arguments"))
             {

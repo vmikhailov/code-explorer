@@ -240,7 +240,7 @@ public partial class SqliteGraphClient
             cmd.Parameters.AddWithValue("@needExternalServices", needExternalServices ? 1 : 0);
 
             cmd.CommandText = """
-                              SELECT id, kind, json(properties)
+                              SELECT id, kind, properties
                               FROM nodes
                               WHERE (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%')
                                 AND (
@@ -258,73 +258,40 @@ public partial class SqliteGraphClient
             {
                 var id = reader.GetString(0);
                 var kind = reader.GetString(1);
-                var propsJson = reader.GetString(2);
+                var root = reader.IsDBNull(2) ? CypherValue.Null : CypherValue.FromSqliteObject(reader.GetValue(2));
+                if (root.IsNull) continue;
 
-                try
+                if (kind == "Endpoint")
                 {
-                    using var doc = JsonDocument.Parse(propsJson);
-
-                    var root = doc.RootElement;
-
-                    if (kind == "Endpoint")
-                    {
-                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-
-                        var filePath = root.TryGetProperty("path", out var p)
-                            ? p.GetString() ?? ""
-                            : (root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "");
-
-                        var httpMethod = root.TryGetProperty("http_method", out var hm)
-                            ? hm.GetString() ?? ""
-                            : "";
-                        var route = root.TryGetProperty("route_template", out var rt)
-                            ? rt.GetString() ?? ""
-                            : (root.TryGetProperty("route", out var r) ? r.GetString() ?? "" : "");
-                        endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route));
-                    }
-                    else if (kind == "EntryPoint")
-                    {
-                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                        var path = root.TryGetProperty("path", out var p)
-                            ? p.GetString() ?? ""
-                            : (root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "");
-                        var type = root.TryGetProperty("entry_type", out var et)
-                            ? et.GetString() ?? ""
-                            : (root.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "");
-                        entryPoints.Add(new EntryPointNode(id, name, path, type));
-                    }
-                    else if (kind == "ExternalService")
-                    {
-                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-
-                        var protocol = root.TryGetProperty("protocol", out var pr)
-                            ? pr.GetString() ?? ""
-                            : (root.TryGetProperty("service_type", out var st) ? st.GetString() ?? "" : "");
-
-                        var domain = root.TryGetProperty("domain_or_service", out var d)
-                            ? d.GetString() ?? ""
-                            : (root.TryGetProperty("domain", out var dom) ? dom.GetString() ?? "" : (root.TryGetProperty("service", out var s) ? s.GetString() ?? "" : ""));
-
-                        var path = root.TryGetProperty("path", out var p)
-                            ? p.GetString() ?? ""
-                            : (root.TryGetProperty("target_path", out var tp) ? tp.GetString() ?? "" : "");
-                        externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path));
-                    }
-                    else if (kind == "Project")
-                    {
-                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
-                        var projectType = root.TryGetProperty("project_type", out var pt)
-                            ? pt.GetString() ?? ""
-                            : (root.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "");
-                        var role = root.TryGetProperty("role", out var r) ? r.GetString() ?? "Service" : "Service";
-                        var isLib = root.TryGetProperty("is_library", out var il) && il.GetBoolean();
-                        projects.Add(new ProjectNode(id, name, path, projectType, role, isLib));
-                    }
+                    var name = root.GetStringProp("name");
+                    var filePath = root.GetStringProp("path", root.GetStringProp("file_path"));
+                    var httpMethod = root.GetStringProp("http_method");
+                    var route = root.GetStringProp("route_template", root.GetStringProp("route"));
+                    endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route));
                 }
-                catch
+                else if (kind == "EntryPoint")
                 {
-                    // Ignore malformed node properties
+                    var name = root.GetStringProp("name");
+                    var path = root.GetStringProp("path", root.GetStringProp("file_path"));
+                    var type = root.GetStringProp("entry_type", root.GetStringProp("type"));
+                    entryPoints.Add(new EntryPointNode(id, name, path, type));
+                }
+                else if (kind == "ExternalService")
+                {
+                    var name = root.GetStringProp("name");
+                    var protocol = root.GetStringProp("protocol", root.GetStringProp("service_type"));
+                    var domain = root.GetStringProp("domain_or_service", root.GetStringProp("domain", root.GetStringProp("service")));
+                    var path = root.GetStringProp("path", root.GetStringProp("target_path"));
+                    externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path));
+                }
+                else if (kind == "Project")
+                {
+                    var name = root.GetStringProp("name");
+                    var path = root.GetStringProp("path");
+                    var projectType = root.GetStringProp("project_type", root.GetStringProp("language"));
+                    var role = root.GetStringProp("role", "Service");
+                    var isLib = root.GetBoolProp("is_library");
+                    projects.Add(new ProjectNode(id, name, path, projectType, role, isLib));
                 }
             }
         }

@@ -27,8 +27,8 @@ public record MemberNode(
     [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
     [property: JsonPropertyName("kind"), OntologyProperty("The specific member kind (field, property, parameter, variable).")] MemberKind MemberKind,
     [property: JsonPropertyName("data_type"), OntologyProperty("The declared data type of the member.")] string? DataType = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     public MemberNode(
         string Id,
@@ -42,8 +42,8 @@ public record MemberNode(
         int EndCol,
         string MemberKind,
         string? DataType = null,
-        Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseMemberKind(MemberKind), DataType, Extensions)
+        Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseMemberKind(MemberKind), DataType, CustomProperties)
     {
     }
 

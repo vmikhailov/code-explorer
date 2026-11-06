@@ -157,7 +157,7 @@ require (
             var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeApp.Id && e.Target == nodeLib.Id);
 
             edge.Should().NotBeNull("ArchitectureViewEngine should output edge from web-app to common-lib");
-            edge!.Kind.Should().Be("LIBRARY");
+            edge!.Kind.Should().Be(RelationshipKind.Library);
             edge.Properties?.GetValueOrDefault("dependency_type").Should().Be("library");
         }
         finally
@@ -227,17 +227,17 @@ require (
 
             var svcEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
             svcEdge.Should().NotBeNull();
-            svcEdge!.Kind.Should().Be("SERVICE_CALL");
+            svcEdge!.Kind.Should().Be(RelationshipKind.ServiceCall);
             svcEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("service_call");
 
             var libEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:common");
             libEdge.Should().NotBeNull();
-            libEdge!.Kind.Should().Be("LIBRARY");
+            libEdge!.Kind.Should().Be(RelationshipKind.Library);
             libEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("library");
 
             var dbEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "db:main");
             dbEdge.Should().NotBeNull();
-            dbEdge!.Kind.Should().Be("USES_DB");
+            dbEdge!.Kind.Should().Be(RelationshipKind.UsesDb);
             dbEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("database");
 
             // Test Neighborhood Graph for ClientSvc
@@ -247,18 +247,18 @@ require (
             var hoodSvcEdge =
                 hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
             hoodSvcEdge.Should().NotBeNull();
-            hoodSvcEdge!.Kind.Should().Be("SERVICE_CALL");
+            hoodSvcEdge!.Kind.Should().Be(RelationshipKind.ServiceCall);
             hoodSvcEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("service_call");
 
             var hoodLibEdge =
                 hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:common");
             hoodLibEdge.Should().NotBeNull();
-            hoodLibEdge!.Kind.Should().Be("LIBRARY");
+            hoodLibEdge!.Kind.Should().Be(RelationshipKind.Library);
             hoodLibEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("library");
 
             var hoodDbEdge = hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "db:main");
             hoodDbEdge.Should().NotBeNull();
-            hoodDbEdge!.Kind.Should().Be("USES_DB");
+            hoodDbEdge!.Kind.Should().Be(RelationshipKind.UsesDb);
             hoodDbEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("database");
         }
         finally
@@ -330,14 +330,14 @@ require (
                 flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Core:");
             coreEdge.Should().NotBeNull("Edge to Dobco.PACSONWEB3.Core should exist");
 
-            coreEdge!.Kind.Should().Be("LIBRARY", "Edge to Core must be classified as LIBRARY, not SERVICE_CALL");
+            coreEdge!.Kind.Should().Be(RelationshipKind.Library, "Edge to Core must be classified as LIBRARY, not SERVICE_CALL");
             coreEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("library");
 
             var modelsEdge =
                 flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Models:");
             modelsEdge.Should().NotBeNull("Edge to Dobco.PACSONWEB3.Models should exist");
 
-            modelsEdge!.Kind.Should().Be("LIBRARY", "Edge to Models must be classified as LIBRARY, not SERVICE_CALL");
+            modelsEdge!.Kind.Should().Be(RelationshipKind.Library, "Edge to Models must be classified as LIBRARY, not SERVICE_CALL");
             modelsEdge.Properties?.GetValueOrDefault("dependency_type").Should().Be("library");
         }
         finally
@@ -407,8 +407,8 @@ require (
 
             var angularEdge = hood.Edges.FirstOrDefault(e => e.Target == "workspace:package:@angular/core");
             angularEdge.Should().NotBeNull("Edge to @angular/core should exist");
-            angularEdge!.Kind.Should().Be("LIBRARY");
-            angularEdge.Category.Should().Be("library");
+            angularEdge!.Kind.Should().Be(RelationshipKind.Library);
+            angularEdge.Category.Should().Be(GraphEdgeCategory.Library);
 
             var centerNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
             centerNode?.Properties?.GetValueOrDefault("package_count").Should().Be("2");
@@ -420,7 +420,7 @@ require (
 
             (arch.Nodes.Any(n => n.Kind == NodeKind.Package)).Should().BeTrue("Architecture graph should contain package nodes");
 
-            (arch.Edges.Any(e => e.Target == "workspace:package:@angular/core" && e.Kind == "LIBRARY")).Should().BeTrue("Architecture graph should contain LIBRARY edge to package");
+            (arch.Edges.Any(e => e.Target == "workspace:package:@angular/core" && e.Kind == RelationshipKind.Library)).Should().BeTrue("Architecture graph should contain LIBRARY edge to package");
         }
         finally
         {

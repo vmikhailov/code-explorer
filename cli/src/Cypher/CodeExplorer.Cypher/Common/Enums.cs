@@ -116,7 +116,12 @@ public enum RelationshipKind : byte
     ExposesEndpoint = 57,
     Inherits = 58,
     AnnotatedWith = 59,
-    Uses = 60
+    Uses = 60,
+    Publishes = 61,
+    Subscribes = 62,
+    Library = 63,
+    AccessesTable = 64,
+    Related = 65
 }
 
 /// <summary>

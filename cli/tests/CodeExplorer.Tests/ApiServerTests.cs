@@ -251,7 +251,7 @@ public class ApiServerTests
             {
                 Id = "SIG-TEST-API-001",
                 Name = "API Test Gate",
-                Category = "Architectural",
+                Category = CodeExplorer.Core.Gates.Models.GateCategory.Architectural,
                 Platform = "agnostic",
                 Scope = "Project",
                 Dimension = "Rules",

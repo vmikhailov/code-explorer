@@ -43,7 +43,7 @@ public class UastCompletionAndFlowAnalysisTests
         Assert.That(fn.Parameters[0].Name, Is.EqualTo("a"));
         Assert.That(fn.Parameters[1].Name, Is.EqualTo("b"));
         Assert.That(fn.Body, Is.Not.Null);
-        Assert.That(fn.Body!.Statements.Count, Is.GreaterThanOrEqualTo(1));
+        Assert.That(fn.Body!.Children.Count, Is.GreaterThanOrEqualTo(1));
     }
 
     [Test]
@@ -78,12 +78,12 @@ public class UastCompletionAndFlowAnalysisTests
                    """;
 
         var doc = _tsParser.Parse(code, "typescript", "check.ts", "check.ts");
-        var ifStmt = doc.DescendantsAndSelf().OfType<IfStmtSyntax>().FirstOrDefault();
-        var loop = doc.DescendantsAndSelf().OfType<LoopStmtSyntax>().FirstOrDefault();
+        var ifStmt = doc.DescendantsAndSelf().OfType<ControlFlowStmtSyntax>().FirstOrDefault(s => s.Kind == ControlFlowKind.If);
+        var loop = doc.DescendantsAndSelf().OfType<ControlFlowStmtSyntax>().FirstOrDefault(s => s.Kind == ControlFlowKind.Loop);
 
         Assert.That(ifStmt, Is.Not.Null);
         Assert.That(ifStmt!.Condition, Is.Not.Null);
-        Assert.That(ifStmt.ThenBranch, Is.Not.Null);
+        Assert.That(ifStmt.Body, Is.Not.Null);
 
         Assert.That(loop, Is.Not.Null);
         Assert.That(loop!.Condition, Is.Not.Null);

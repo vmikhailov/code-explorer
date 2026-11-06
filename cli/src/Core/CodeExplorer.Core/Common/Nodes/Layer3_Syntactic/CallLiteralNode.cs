@@ -28,11 +28,11 @@ public record CallLiteralNode(
     string? ProjectName = null,
     string Role = "Business",
     bool IsDecorator = false,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public CallLiteralNode(string id, string name, string value, string callee, int argIndex, string filePath, int line, int column, Dictionary<string, string>? extensions = null)
-        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, "Business", false, extensions)
+    public CallLiteralNode(string id, string name, string value, string callee, int argIndex, string filePath, int line, int column, Dictionary<string, string>? customProperties = null)
+        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, "Business", false, customProperties)
     {
     }
 

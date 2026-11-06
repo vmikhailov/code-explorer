@@ -70,6 +70,7 @@ public static class ModelManager
 
     public static async Task<string?> EnsureModelAvailableAsync(ParsingContext ctx, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         var existing = ResolveModelPath(ctx.HostWorkspacePath);
         if (existing != null)
         {
@@ -81,8 +82,7 @@ public static class ModelManager
 
         if (!autoDownload)
         {
-            ctx.Log($"[Intent     ] Architectural intent model '{ModelFileName}' (~940MB) not found.");
-            ctx.Log($"[Intent     ] Run 'ce model download' or set CODE_INTENT_AUTO_DOWNLOAD=1 to download it.");
+            ctx.IntentLog.ModelNotFoundHint(ModelFileName);
             return null;
         }
 
@@ -96,6 +96,9 @@ public static class ModelManager
         IProgress<(long DownloadedBytes, long TotalBytes)>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var log = ctx != null
+            ? ctx.IntentLog
+            : new IntentLogger(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
         var targetDir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
         {
@@ -103,7 +106,7 @@ public static class ModelManager
         }
 
         var tempPath = destinationPath + ".downloading";
-        ctx?.Log($"[Intent     ] Downloading {ModelFileName} from {downloadUrl}...");
+        log.DownloadingModelStarted(ModelFileName, downloadUrl);
 
         try
         {
@@ -141,13 +144,11 @@ public static class ModelManager
                         if (totalBytes > 0)
                         {
                             var pct = (double)downloadedBytes / totalBytes * 100.0;
-
-                            ctx?.Log(
-                                $"[Intent     ] Downloading model: {currentMb} MB / {totalBytes / (1024 * 1024)} MB ({pct:F0}%)...");
+                            log.DownloadingModelProgressWithTotal(currentMb, totalBytes / (1024 * 1024), pct);
                         }
                         else
                         {
-                            ctx?.Log($"[Intent     ] Downloading model: {currentMb} MB...");
+                            log.DownloadingModelProgress(currentMb);
                         }
                     }
                 }
@@ -159,12 +160,12 @@ public static class ModelManager
             }
 
             File.Move(tempPath, destinationPath);
-            ctx?.Log($"[Intent     ] Successfully downloaded model to '{destinationPath}'.");
+            log.DownloadingModelCompleted(destinationPath);
             return destinationPath;
         }
         catch (Exception ex)
         {
-            ctx?.LogWarning($"[Intent     ] Failed to download model: {ex.Message}");
+            log.DownloadingModelFailed(ex.Message);
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* Ignore */ }
             return null;
         }

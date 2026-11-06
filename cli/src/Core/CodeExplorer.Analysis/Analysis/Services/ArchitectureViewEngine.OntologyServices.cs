@@ -26,12 +26,13 @@ public partial class ArchitectureViewEngine
         foreach (var node in Mcp.OntologyRegistry.AllNodes.OrderBy(n => n.Attribute.Order))
         {
             var attr = node.Attribute;
-            var kind = node.Kind.ToCypherLabel();
-            if (attr.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(kind))
+            var kind = node.Kind;
+            var kindLabel = kind.ToCypherLabel();
+            if (attr.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(kindLabel))
             {
                 continue;
             }
-            var count = counts.GetValueOrDefault(kind, 0);
+            var count = counts.GetValueOrDefault(kindLabel, 0);
 
             if (attr.Layer == OntologyConstants.Layers.Physical)
             {
@@ -39,7 +40,7 @@ public partial class ArchitectureViewEngine
             }
             else if (attr.Layer == OntologyConstants.Layers.ProjectBoundary)
             {
-                if (kind is "EntryPoint" && count == 0)
+                if (kind == NodeKind.EntryPoint && count == 0)
                 {
                     continue;
                 }
@@ -51,7 +52,7 @@ public partial class ArchitectureViewEngine
             }
             else if (attr.Layer == OntologyConstants.Layers.Semantic)
             {
-                if (kind is "DataSet" || (kind is "Procedure" or "Query" or "ApiInUse" && count == 0))
+                if (kind == NodeKind.DataSet || (kind is NodeKind.Procedure or NodeKind.Query or NodeKind.ApiInUse && count == 0))
                 {
                     continue;
                 }
@@ -345,14 +346,14 @@ public partial class ArchitectureViewEngine
                 {
                     var tgtName = tgtNode?.Name ?? edge.Target;
 
-                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == NodeKind.Database)
+                    if (edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb || tgtNode?.Kind == NodeKind.Database)
                     {
                         if (seenServiceDbs.Add($"{srcSummary.ServiceName}->{tgtName}"))
                         {
                             srcSummary.DatabaseCount++;
                         }
                     }
-                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" ||
+                    else if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.PublishesTo or RelationshipKind.Triggers ||
                              tgtNode?.Kind == NodeKind.Topic)
                     {
                         var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -371,9 +372,9 @@ public partial class ArchitectureViewEngine
                         var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) &&
                                                tgtNode.Kind is not (NodeKind.ExternalService or NodeKind.CloudService);
 
-                        var isServiceCall = edge.Category == "service_call" ||
-                                            edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
-                                            (edge.Kind == "DEPENDS_ON" &&
+                        var isServiceCall = edge.Category == GraphEdgeCategory.ServiceCall ||
+                                            edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint ||
+                                            (edge.Kind == RelationshipKind.DependsOn &&
                                              edge.Properties?.GetValueOrDefault("dependency_type") ==
                                              "service_call");
 
@@ -385,7 +386,7 @@ public partial class ArchitectureViewEngine
                             }
                         }
                         else if (tgtNode?.Kind is NodeKind.ExternalService or NodeKind.CloudService ||
-                                 (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
+                                 (!isInternalDirect && (edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint)))
                         {
                             var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
 
@@ -424,7 +425,7 @@ public partial class ArchitectureViewEngine
 
                 if (tgtNode != null && serviceMap.TryGetValue(tgtNode.Name, out var tgtSummary))
                 {
-                    if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBED_BY" or "SUBSCRIBES_TO" ||
+                    if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.SubscribedBy or RelationshipKind.SubscribesTo ||
                         srcNode?.Kind == NodeKind.Topic)
                     {
                         var topicName = srcNode?.Name ?? edge.Source;
@@ -527,7 +528,7 @@ public partial class ArchitectureViewEngine
                 var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
                 var tgtName = tgtNode?.Name ?? edge.Target;
 
-                if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == NodeKind.Database)
+                if (edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb || tgtNode?.Kind == NodeKind.Database)
                 {
                     if (seenDbs.Add(tgtName))
                     {
@@ -542,7 +543,7 @@ public partial class ArchitectureViewEngine
                         });
                     }
                 }
-                else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" or "SUBSCRIBES_TO" || tgtNode?.Kind == NodeKind.Topic)
+                else if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.PublishesTo or RelationshipKind.Triggers or RelationshipKind.SubscribesTo || tgtNode?.Kind == NodeKind.Topic)
                 {
                     var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
                                      tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -551,7 +552,7 @@ public partial class ArchitectureViewEngine
 
                     if (!isInternal && seenTopics.Add(tgtName))
                     {
-                        var isSubscriber = edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBES" or "SUBSCRIBED_BY" or "CONSUMES";
+                        var isSubscriber = edge.Kind is RelationshipKind.SubscribesTo or RelationshipKind.Subscribes or RelationshipKind.SubscribedBy or RelationshipKind.Consumes;
                         topicGroup.Items.Add(new ServiceCapabilityItemDto
                         {
                             Id = tgtNode?.Id ?? edge.Target,
@@ -566,7 +567,7 @@ public partial class ArchitectureViewEngine
                 else
                 {
                     var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) && tgtNode.Kind is not (NodeKind.ExternalService or NodeKind.CloudService);
-                    var isServiceCall = edge.Category == "service_call" || edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" || (edge.Kind == "DEPENDS_ON" && edge.Properties?.GetValueOrDefault("dependency_type") == "service_call");
+                    var isServiceCall = edge.Category == GraphEdgeCategory.ServiceCall || edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint || (edge.Kind == RelationshipKind.DependsOn && edge.Properties?.GetValueOrDefault("dependency_type") == "service_call");
 
                     if (isInternalDirect && isServiceCall)
                     {
@@ -592,7 +593,7 @@ public partial class ArchitectureViewEngine
                             });
                         }
                     }
-                    else if (tgtNode?.Kind is NodeKind.ExternalService or NodeKind.CloudService || (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
+                    else if (tgtNode?.Kind is NodeKind.ExternalService or NodeKind.CloudService || (!isInternalDirect && (edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint)))
                     {
                         var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
                         if (resolved != null)
@@ -661,7 +662,7 @@ public partial class ArchitectureViewEngine
             }
             else if (edge.Target.Equals(targetId, StringComparison.OrdinalIgnoreCase))
             {
-                if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBED_BY" or "SUBSCRIBES_TO" or "TRIGGERS")
+                if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.SubscribedBy or RelationshipKind.SubscribesTo or RelationshipKind.Triggers)
                 {
                     var srcNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Source, StringComparison.OrdinalIgnoreCase));
                     var topicName = srcNode?.Name ?? edge.Source;
@@ -672,7 +673,7 @@ public partial class ArchitectureViewEngine
 
                     if (!isInternal && seenTopics.Add(topicName))
                     {
-                        var isPub = edge.Kind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY";
+                        var isPub = edge.Kind is RelationshipKind.Publishes or RelationshipKind.PublishesTo or RelationshipKind.PublishedBy;
                         topicGroup.Items.Add(new ServiceCapabilityItemDto
                         {
                             Id = srcNode?.Id ?? edge.Source,

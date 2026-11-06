@@ -299,9 +299,9 @@ public partial class Layer5AnalysisParser
         // Fallback mapping via file_path or path for all external services, endpoints, and entry points
         foreach (var es in externalServices)
         {
-            if (!nodeToProject.ContainsKey(es.Id) && es.Extensions?.TryGetValue("file_path", out var fp) == true)
+            if (!nodeToProject.ContainsKey(es.Id) && !string.IsNullOrEmpty(es.FilePath))
             {
-                var proj = Layer2ProjectParser.FindProjectForFilePath(fp, allProjects);
+                var proj = Layer2ProjectParser.FindProjectForFilePath(es.FilePath, allProjects);
                 if (proj != null) nodeToProject[es.Id] = proj;
             }
         }
@@ -309,7 +309,7 @@ public partial class Layer5AnalysisParser
         {
             if (!nodeToProject.ContainsKey(ep.Id))
             {
-                var p = !string.IsNullOrEmpty(ep.Path) ? ep.Path : (ep.Extensions?.TryGetValue("file_path", out var efp) == true ? efp : null);
+                var p = !string.IsNullOrEmpty(ep.Path) ? ep.Path : ep.FilePath;
                 if (!string.IsNullOrEmpty(p))
                 {
                     var proj = Layer2ProjectParser.FindProjectForFilePath(p, allProjects);
@@ -321,7 +321,7 @@ public partial class Layer5AnalysisParser
         {
             if (!nodeToProject.ContainsKey(entry.Id))
             {
-                var p = entry.Extensions?.TryGetValue("file_path", out var efp) == true ? efp : null;
+                var p = !string.IsNullOrEmpty(entry.FilePath) ? entry.FilePath : entry.Path;
                 if (!string.IsNullOrEmpty(p))
                 {
                     var proj = Layer2ProjectParser.FindProjectForFilePath(p, allProjects);
@@ -425,7 +425,7 @@ public partial class Layer5AnalysisParser
                     if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                     {
                         ctx.Layer5Log.SynthesizedDependencyViaEntryPoint(callerProj.Name, targetProj.Name, entryPoint.EntryPoint.Name);
-                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
+                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id) { DependencyType = "service_call" }));
                     }
                 }
             }
@@ -457,28 +457,23 @@ public partial class Layer5AnalysisParser
                              !endpoint.Endpoint.HttpMethod.Equals("ALL", StringComparison.OrdinalIgnoreCase)
                     ? endpoint.Endpoint.HttpMethod.ToUpperInvariant()
                     : "CALL";
-                var callEpExt = new Dictionary<string, string>
-                {
-                    [OntologyConstants.PropertyNames.Operation] = opVerb,
-                    [OntologyConstants.PropertyNames.EvidenceKind] = evKind
-                };
-                if (extService.Service.Extensions != null)
-                {
-                    if (extService.Service.Extensions.TryGetValue("file_path", out var fp) && !string.IsNullOrEmpty(fp))
-                        callEpExt[OntologyConstants.PropertyNames.FilePath] = fp;
-                    if (extService.Service.Extensions.TryGetValue("start_line", out var sl) && !string.IsNullOrEmpty(sl))
-                        callEpExt[OntologyConstants.PropertyNames.Line] = sl;
-                }
+                var extFp = !string.IsNullOrEmpty(extService.Service.FilePath) ? extService.Service.FilePath : null;
+                var extLine = extService.Service.StartLine ?? 0;
 
-                var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Service.Id, endpoint.Endpoint.Id, callEpExt));
+                var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Service.Id, endpoint.Endpoint.Id)
+                {
+                    Operation = opVerb,
+                    EvidenceKind = evKind,
+                    FilePath = extFp,
+                    Line = extLine
+                });
                 lateBoundRels.Add(rel);
                 matchedEndpoint = true;
                 boundServicesCount++;
 
                 // Bridge CALLS from caller function to endpoint handler/resolver FunctionNodes (L3 -> L3)
-                if (extService.Service.Extensions != null &&
-                    extService.Service.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
-                    !string.IsNullOrEmpty(callerId))
+                var callerId = extService.Service.CallerSymbolId;
+                if (!string.IsNullOrEmpty(callerId))
                 {
                     if (handlersByEndpointId.TryGetValue(endpoint.Endpoint.Id, out var handlerFnIds))
                     {
@@ -486,7 +481,13 @@ public partial class Layer5AnalysisParser
                         {
                             if (callerId != handlerFnId && addedFunctionCalls.Add((callerId, handlerFnId)))
                             {
-                                lateBoundRels.Add(Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId, callEpExt)));
+                                lateBoundRels.Add(Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId)
+                                {
+                                    Operation = opVerb,
+                                    EvidenceKind = evKind,
+                                    FilePath = extFp,
+                                    Line = extLine
+                                }));
                             }
                         }
                     }
@@ -502,7 +503,7 @@ public partial class Layer5AnalysisParser
                     if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                     {
                         ctx.Layer5Log.SynthesizedDependencyViaEndpoint(callerProj.Name, targetProj.Name, endpoint.Endpoint.RouteTemplate);
-                        var projDep = Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" }));
+                        var projDep = Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id) { DependencyType = "service_call" });
                         EvidenceProvenanceHelper.RecordContributingEdge(projDep, contribRel);
                         lateBoundRels.Add(projDep);
                     }
@@ -552,7 +553,7 @@ public partial class Layer5AnalysisParser
                                     if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
                                     {
                                         ctx.Layer5Log.InferredDependencyViaDomain(callerProj.Name, proj.Name, extService.Service.DomainOrService);
-                                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id, new() { ["dependency_type"] = "service_call" })));
+                                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id) { DependencyType = "service_call" }));
                                     }
                                 }
                             }
@@ -793,7 +794,7 @@ public partial class Layer5AnalysisParser
 
         foreach (var wl in workloads)
         {
-            var rawName = wl.Extensions?.GetValueOrDefault("raw_name") ?? wl.GetName();
+            var rawName = (wl as CompositeNode)?.RawName ?? wl.GetName();
             var domainKey = ResourceSemanticAnalyzer.CleanProjectNameToDomain(rawName);
             if (string.IsNullOrWhiteSpace(domainKey))
             {
@@ -855,20 +856,20 @@ public partial class Layer5AnalysisParser
                     var toBc = bcIdByKey[toDomain];
                     if (seenLogicalDeps.Add((fromBc, toBc)))
                     {
-                        relsToUpload.Add(Relationship.FromRelationship(new DependsOnRelationship(fromBc, toBc, new Dictionary<string, string>
+                        relsToUpload.Add(Relationship.FromRelationship(new DependsOnRelationship(fromBc, toBc)
                         {
-                            ["dependency_type"] = "bounded_context"
-                        })));
+                            DependencyType = "bounded_context"
+                        }));
                     }
 
                     var fromDom = domainIdByKey[fromDomain];
                     var toDom = domainIdByKey[toDomain];
                     if (seenLogicalDeps.Add((fromDom, toDom)))
                     {
-                        relsToUpload.Add(Relationship.FromRelationship(new DependsOnRelationship(fromDom, toDom, new Dictionary<string, string>
+                        relsToUpload.Add(Relationship.FromRelationship(new DependsOnRelationship(fromDom, toDom)
                         {
-                            ["dependency_type"] = "domain"
-                        })));
+                            DependencyType = "domain"
+                        }));
                     }
                 }
             }

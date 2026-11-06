@@ -20,6 +20,9 @@ public static class NodeFactory
     private const string ItemPropName = "Item";
     private const string LineSuffix = "_line";
     private const string ColSuffix = "_col";
+    private const string PropIndexedAt = "indexed_at";
+    private const string PropActivationEvents = "activation_events";
+    private const string BoolTrueStr = "true";
 
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Dictionary<string, object>>> Converters = new();
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Utf8JsonWriter>> JsonWriters = new();
@@ -38,7 +41,7 @@ public static class NodeFactory
         var properties = new Dictionary<string, object>(StringComparer.Ordinal);
         converter(node, properties);
 
-        ApplyExtensions(node, properties);
+        ApplyCustomProperties(node, properties);
 
         return properties;
     }
@@ -54,7 +57,7 @@ public static class NodeFactory
             var jsonWriter = JsonWriters.GetOrAdd(ont.GetType(), CreateJsonWriter);
             jsonWriter(ont, writer);
 
-            WriteJsonExtensions(ont, writer);
+            WriteJsonCustomProperties(ont, writer);
             writer.WriteEndObject();
             return;
         }
@@ -64,11 +67,11 @@ public static class NodeFactory
         JsonSerializer.Serialize(writer, props);
     }
 
-    private static void WriteJsonExtensions(IOntologyNode node, Utf8JsonWriter writer)
+    private static void WriteJsonCustomProperties(IOntologyNode node, Utf8JsonWriter writer)
     {
-        if (node.Extensions == null || node.Extensions.Count == 0) return;
+        if (node.CustomProperties == null || node.CustomProperties.Count == 0) return;
 
-        foreach (var kvp in node.Extensions)
+        foreach (var kvp in node.CustomProperties)
         {
             if (int.TryParse(kvp.Value, out var intVal) &&
                 (kvp.Key.EndsWith(LineSuffix, StringComparison.Ordinal) || kvp.Key.EndsWith(ColSuffix, StringComparison.Ordinal) || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order" or "loc" or "line_count" or "statement_count"))
@@ -194,11 +197,11 @@ public static class NodeFactory
         return Expression.Lambda<Action<IOntologyNode, Utf8JsonWriter>>(body, nodeParam, writerParam).Compile();
     }
 
-    public static void ApplyExtensions(IOntologyNode node, Dictionary<string, object> properties)
+    public static void ApplyCustomProperties(IOntologyNode node, Dictionary<string, object> properties)
     {
-        if (node.Extensions == null || node.Extensions.Count == 0) return;
+        if (node.CustomProperties == null || node.CustomProperties.Count == 0) return;
 
-        foreach (var kvp in node.Extensions)
+        foreach (var kvp in node.CustomProperties)
         {
             if (int.TryParse(kvp.Value, out var intVal) &&
                 (kvp.Key.EndsWith("_line") || kvp.Key.EndsWith("_col") || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order" or "loc" or "line_count" or "statement_count"))
@@ -318,21 +321,25 @@ public static class NodeFactory
         var props = node.Properties;
         var name = props != null && props.TryGetValue(OntologyConstants.PropertyNames.Name, out var n) ? n?.ToString() ?? string.Empty : string.Empty;
         var path = props != null && props.TryGetValue(OntologyConstants.PropertyNames.Path, out var p) ? p?.ToString() ?? string.Empty : string.Empty;
-        Dictionary<string, string>? ext = null;
+        var wsNode = new WorkspaceNode(node.Id, name, path);
         if (props != null)
         {
-            foreach (var (k, v) in props)
-            {
-                if (k is OntologyConstants.PropertyNames.Id or OntologyConstants.PropertyNames.Name or OntologyConstants.PropertyNames.Path or OntologyConstants.PropertyNames.Kind)
-                    continue;
-                if (v != null)
-                {
-                    ext ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    ext[k] = v.ToString() ?? string.Empty;
-                }
-            }
+            if (props.TryGetValue(PropIndexedAt, out var idxAt) && idxAt != null)
+                wsNode.IndexedAt = idxAt.ToString();
+            if (props.TryGetValue(OntologyConstants.ExtensionKeys.PackageName, out var pkgName) && pkgName != null)
+                wsNode.PackageName = pkgName.ToString();
+            if (props.TryGetValue(OntologyConstants.ExtensionKeys.PackageVersion, out var pkgVer) && pkgVer != null)
+                wsNode.PackageVersion = pkgVer.ToString();
+            if (props.TryGetValue(OntologyConstants.ExtensionKeys.Publisher, out var pub) && pub != null)
+                wsNode.Publisher = pub.ToString();
+            if (props.TryGetValue(OntologyConstants.ExtensionKeys.HasVsCodeEngine, out var vsc) && vsc != null)
+                wsNode.HasVsCodeEngine = string.Equals(vsc.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase);
+            if (props.TryGetValue(OntologyConstants.ExtensionKeys.HasContributes, out var contrib) && contrib != null)
+                wsNode.HasContributes = string.Equals(contrib.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase);
+            if (props.TryGetValue(PropActivationEvents, out var act) && act != null)
+                wsNode.ActivationEvents = act.ToString();
         }
-        return new WorkspaceNode(node.Id, name, path, ext);
+        return wsNode;
     }
 }
 

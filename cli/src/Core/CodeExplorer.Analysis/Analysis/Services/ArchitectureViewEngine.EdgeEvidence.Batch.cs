@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Protocol;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -70,7 +71,7 @@ public partial class ArchitectureViewEngine
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = symId,
-                        Kind = publish ? OntologyConstants.EvidenceKinds.Publish : OntologyConstants.EvidenceKinds.Subscribe,
+                        Kind = publish ? EvidenceKind.Publish : EvidenceKind.Subscribe,
                         Operation = publish ? "PUBLISH" : "SUBSCRIBE",
                         Title = $"{(publish ? "Publishes" : "Subscribes")} {topic.Name}",
                         FilePath = path,
@@ -163,7 +164,7 @@ public partial class ArchitectureViewEngine
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = symId,
-                        Kind = OntologyConstants.EvidenceKinds.HttpCall,
+                        Kind = EvidenceKind.HttpCall,
                         Operation = "CALL",
                         Title = $"Calls {external.Name}",
                         FilePath = path,
@@ -259,11 +260,11 @@ public partial class ArchitectureViewEngine
 
                 var callerName = row.GetStringProp("name");
 
-                var kind = protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
-                         : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
-                         : OntologyConstants.EvidenceKinds.HttpCall;
+                var kind = protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? EvidenceKind.GrpcCall
+                         : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? EvidenceKind.WcfCall
+                         : EvidenceKind.HttpCall;
                 var operation = string.IsNullOrEmpty(method) || method.Equals("ALL", StringComparison.OrdinalIgnoreCase)
-                    ? (kind == OntologyConstants.EvidenceKinds.HttpCall ? "CALL" : kind[..4].ToUpperInvariant())
+                    ? (kind == EvidenceKind.HttpCall ? "CALL" : kind.ToCanonicalString()[..4].ToUpperInvariant())
                     : method.ToUpperInvariant();
 
                 if (!seen.Add($"{path}:{line}:{epName}")) continue;
@@ -337,7 +338,7 @@ public partial class ArchitectureViewEngine
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = sym1Id,
-                        Kind = OntologyConstants.EvidenceKinds.HttpCall,
+                        Kind = EvidenceKind.HttpCall,
                         Operation = relKind == "CALLS" ? "CALL" : relKind,
                         Title = $"{callerName} → {targetName}",
                         FilePath = cPath,
@@ -396,7 +397,7 @@ public partial class ArchitectureViewEngine
                         items.Add(new ArchitectureEvidenceItemDto
                         {
                             Id = p1Id,
-                            Kind = OntologyConstants.EvidenceKinds.LibraryCall,
+                            Kind = EvidenceKind.LibraryCall,
                             Operation = "DEPENDS_ON",
                             Title = $"Depends on package {pkgName}",
                             FilePath = manifestPath,
@@ -451,7 +452,7 @@ public partial class ArchitectureViewEngine
                         items.Add(new ArchitectureEvidenceItemDto
                         {
                             Id = matchedCaller.Node.Id,
-                            Kind = OntologyConstants.EvidenceKinds.Config,
+                            Kind = EvidenceKind.Config,
                             Operation = relKind,
                             Title = $"{matchedCaller.Scope.Name} → {matchedCallee.Scope.Name}",
                             FilePath = manifestPath,
@@ -514,7 +515,7 @@ public partial class ArchitectureViewEngine
                         items.Add(new ArchitectureEvidenceItemDto
                         {
                             Id = s.Id,
-                            Kind = "EXPOSED_BY",
+                            Kind = EvidenceKind.EntryPoint,
                             Operation = "ENTRY",
                             Title = $"{s.Name} → {t.Name}",
                             FilePath = filePath ?? string.Empty,
@@ -645,10 +646,14 @@ public partial class ArchitectureViewEngine
                        : kind == "USES_TYPE" ? "USE"
                        : kind;
 
+                var evKind = kind is "USES_TYPE" or "IMPLEMENTS" or "INHERITS_FROM"
+                    ? EvidenceKind.TypeReference
+                    : EvidenceKind.LibraryCall;
+
                 items.Add(new ArchitectureEvidenceItemDto
                 {
                     Id = $"{row.GetStringProp("from_id")}->{row.GetStringProp("to_id")}:{kind}",
-                    Kind = kind,
+                    Kind = evKind,
                     Operation = op,
                     Title = !string.IsNullOrEmpty(fromName) && !string.IsNullOrEmpty(toName)
                         ? $"{fromName}() → {toName}()"

@@ -17,9 +17,15 @@ public record ProcedureNode(
     string Id,
     string Name,
     string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
+    [JsonPropertyName("engine")]
+    public string? Engine { get; set; }
+
+    [JsonPropertyName("schema")]
+    public string? Schema { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Procedure;
 }

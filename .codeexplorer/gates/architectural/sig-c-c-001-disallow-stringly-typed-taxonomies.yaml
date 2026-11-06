@@ -17,7 +17,7 @@ query: |
     AND NOT (coalesce(m.file_path, '') CONTAINS 'Test' OR coalesce(m.file_path, '') CONTAINS 'test')
     AND NOT (coalesce(m.file_path, '') CONTAINS 'Constants'
           OR coalesce(m.file_path, '') CONTAINS 'Options'
-          OR coalesce(m.file_path, '') CONTAINS 'WebSocketProtocol'
+          OR (coalesce(m.file_path, '') CONTAINS 'WebSocketProtocol' AND m.name = 'Type')
           OR coalesce(m.file_path, '') CONTAINS 'OntologyGen'
           OR coalesce(m.file_path, '') CONTAINS 'SyntaxNodes'
           OR coalesce(m.file_path, '') CONTAINS 'Parser.cs'

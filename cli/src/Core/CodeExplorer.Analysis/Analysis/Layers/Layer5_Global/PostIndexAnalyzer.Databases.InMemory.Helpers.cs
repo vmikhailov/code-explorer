@@ -21,10 +21,9 @@ public partial class PostIndexAnalyzer
         }
         var node = canonicalDbNodes.GetValueOrDefault(targetId);
         if (node == null) return true;
-        var eng = node.Extensions?.GetValueOrDefault("engine") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[0] : node.Name);
-        var sch = node.Extensions?.GetValueOrDefault("schema") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[1] : "");
-        var isImplicit = node.IsImplicitSchema == true || node.Flags.HasFlag(SymbolFlags.IsImplicitSchema) ||
-                         node.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
+        var eng = node.Engine ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[0] : node.Name);
+        var sch = node.Schema ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[1] : "");
+        var isImplicit = node.IsImplicitSchema == true || node.Flags.HasFlag(SymbolFlags.IsImplicitSchema);
         var isMultiDomainLibDb = multiDomainSharedLibDbIds.Contains(targetId);
         return string.IsNullOrWhiteSpace(sch) ||
                sch.Equals("default", StringComparison.OrdinalIgnoreCase) ||
@@ -58,7 +57,7 @@ public partial class PostIndexAnalyzer
             if (!IsGenericOrLibraryDbIdInMemory(target, canonicalDbNodes, multiDomainSharedLibDbIds) && !implicitSchemaIds.Contains(target) && !isImplicitEdge)
             {
                 var targetNode = canonicalDbNodes.GetValueOrDefault(target);
-                var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
+                var targetEng = targetNode?.Engine ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
                 if (!string.IsNullOrEmpty(targetEng))
                 {
                     if (!ownerConcreteEngines.TryGetValue(owner.Id, out var set))
@@ -85,7 +84,7 @@ public partial class PostIndexAnalyzer
             if (implicitSchemaIds.Contains(target) || isImplicitEdge || multiDomainSharedLibDbIds.Contains(target))
             {
                 var targetNode = canonicalDbNodes.GetValueOrDefault(target);
-                var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
+                var targetEng = targetNode?.Engine ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
                 var hasConcrete = ownerConcreteEngines.TryGetValue(owner.Id, out var oEngs) && oEngs.Contains(targetEng);
                 if (!hasConcrete && !owner.IsLibrary)
                 {
@@ -97,7 +96,7 @@ public partial class PostIndexAnalyzer
         // Remove any generic engine-only or library-only database nodes when concrete database nodes exist
         var concreteEngines = canonicalDbNodes.Values
             .Where(n => {
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var s = n.Schema ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
                 var isImplicit = implicitSchemaIds.Contains(n.Id);
                 var isMultiDomainLib = multiDomainSharedLibDbIds.Contains(n.Id);
                 return !string.IsNullOrWhiteSpace(s) &&
@@ -105,13 +104,13 @@ public partial class PostIndexAnalyzer
                        !isImplicit &&
                        !isMultiDomainLib;
             })
-            .Select(n => n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name))
+            .Select(n => n.Engine ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var genericOrLibraryDbsToPurge = canonicalDbNodes.Values
             .Where(n => {
-                var eng = n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name);
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var eng = n.Engine ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name);
+                var s = n.Schema ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
                 var isImplicit = implicitSchemaIds.Contains(n.Id);
                 var isMultiDomainLib = multiDomainSharedLibDbIds.Contains(n.Id);
                 var isEngineOnly = string.IsNullOrWhiteSpace(s) ||
@@ -133,7 +132,7 @@ public partial class PostIndexAnalyzer
 
         // Remove any abstract engine-only database nodes
         var abstractDbsToPurge = canonicalDbNodes.Values
-            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Extensions?.GetValueOrDefault("schema"), n.DbType.ToCanonicalString(), n.Id))
+            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Schema, n.DbType.ToCanonicalString(), n.Id))
             .ToList();
 
         foreach (var purgeNode in abstractDbsToPurge)
@@ -145,13 +144,13 @@ public partial class PostIndexAnalyzer
         // Remove any test database nodes (name/schema ends with -test, _test, or test config with 0 non-test callers)
         var testDbsToPurge = canonicalDbNodes.Values
             .Where(n => {
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var s = n.Schema ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
                 var isTestName = s.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
                                  s.EndsWith("_test", StringComparison.OrdinalIgnoreCase) ||
                                  n.Name.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
                                  n.Name.EndsWith("_test", StringComparison.OrdinalIgnoreCase);
-                var isExplicitTest = (n.Extensions != null && n.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
-                                     (n.Extensions != null && n.Extensions.TryGetValue("role", out var r) && r.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
+                var isExplicitTest = n.IsTest == true ||
+                                     string.Equals(n.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                                      WorkspaceConventions.IsTestFilePath(n.Path);
                 return (isTestName || isExplicitTest) && !nonTestAccessedTargets.Contains(n.Id);
             })
@@ -174,26 +173,43 @@ public partial class PostIndexAnalyzer
     {
         foreach (var cNode in canonicalDbNodes.Values)
         {
-            var eng = cNode.Extensions?.GetValueOrDefault("engine") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
-            var sch = cNode.Extensions?.GetValueOrDefault("schema") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
+            var eng = cNode.Engine ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
+            var sch = cNode.Schema ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
 
             cNode.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
             foreach (var child in cNode.Children)
             {
-                if (child.Extensions != null)
+                switch (child)
                 {
-                    child.Extensions["engine"] = eng;
-                    if (!string.IsNullOrEmpty(sch)) child.Extensions["schema"] = sch;
+                    case DataSetNode dsNode:
+                        dsNode.Engine = eng;
+                        if (!string.IsNullOrEmpty(sch)) dsNode.Schema = sch;
+                        break;
+                    case TableNode tblNode:
+                        tblNode.Engine = eng;
+                        if (!string.IsNullOrEmpty(sch)) tblNode.Schema = sch;
+                        break;
+                    case ProcedureNode procNode:
+                        procNode.Engine = eng;
+                        if (!string.IsNullOrEmpty(sch)) procNode.Schema = sch;
+                        break;
                 }
                 if (child is DataSetNode ds)
                 {
                     ds.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
                     foreach (var tc in ds.Children)
                     {
-                        if (tc.Extensions != null)
+                        var childSch = !string.IsNullOrEmpty(ds.Name) ? ds.Name : sch;
+                        switch (tc)
                         {
-                            tc.Extensions["engine"] = eng;
-                            tc.Extensions["schema"] = !string.IsNullOrEmpty(ds.Name) ? ds.Name : sch;
+                            case TableNode tblChild:
+                                tblChild.Engine = eng;
+                                tblChild.Schema = childSch;
+                                break;
+                            case ProcedureNode procChild:
+                                procChild.Engine = eng;
+                                procChild.Schema = childSch;
+                                break;
                         }
                     }
                 }
@@ -224,7 +240,7 @@ public partial class PostIndexAnalyzer
 
         if (canonicalDbNodes.Count > 0 && ctx.DbClient != null)
         {
-            ctx.LogDebug($"[PostIndex  ] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
+            ctx.PostIndexLog.MaterializingCanonicalDatabaseNodes(canonicalDbNodes.Count);
             await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
             ctx.AddNodesCount(canonicalDbNodes.Count);
         }
@@ -262,7 +278,7 @@ public partial class PostIndexAnalyzer
             }
 
             var targetNode = canonicalDbNodes.GetValueOrDefault(target);
-            var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
+            var targetEng = targetNode?.Engine ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
             var isImplicit = implicitSchemaIds.Contains(target) || isImplicitEdge;
             var hasConcreteForEngine = ownerConcreteEngines.TryGetValue(owner.Id, out var oEngs) && oEngs.Contains(targetEng);
 
@@ -288,51 +304,33 @@ public partial class PostIndexAnalyzer
 
             if (effectiveFrom != target && seen.Add((effectiveFrom, target)))
             {
-                var props = new Dictionary<string, object>
+                var created = new Relationship(effectiveFrom, target, OntologyConstants.Relationships.UsesDb)
                 {
-                    ["dependency_type"] = "database",
-                    ["is_semantic"] = "true",
-                    ["is_canonical"] = "true"
+                    DependencyType = "database",
+                    IsSemantic = true,
+                    IsCanonical = true
                 };
-                if (rel.Properties != null)
-                {
-                    foreach (var (k, v) in rel.Properties)
-                    {
-                        if (v != null && !props.ContainsKey(k))
-                        {
-                            props[k] = v;
-                        }
-                    }
-                }
+                EvidenceProvenanceHelper.MergeRelationships(created, rel);
+                created.DependencyType = "database";
+                created.IsSemantic = true;
+                created.IsCanonical = true;
                 if (!string.Equals(rel.From, effectiveFrom, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(rel.To, target, StringComparison.OrdinalIgnoreCase))
                 {
-                    EvidenceProvenanceHelper.RecordContributingEdge(props, rel);
+                    EvidenceProvenanceHelper.RecordContributingEdge(created, rel);
                 }
-                canonicalRels.Add(new Relationship(
-                    effectiveFrom,
-                    target,
-                    OntologyConstants.Relationships.UsesDb,
-                    props
-                ));
+                canonicalRels.Add(created);
             }
-            else if (rel.Properties != null)
+            else
             {
                 var existing = canonicalRels.FirstOrDefault(r => r.From == effectiveFrom && r.To == target);
-                if (existing?.Properties != null)
+                if (existing != null)
                 {
-                    EvidenceProvenanceHelper.MergeProvenance(existing.Properties, rel.Properties);
+                    EvidenceProvenanceHelper.MergeRelationships(existing, rel);
                     if (!string.Equals(rel.From, effectiveFrom, StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(rel.To, target, StringComparison.OrdinalIgnoreCase))
                     {
-                        EvidenceProvenanceHelper.RecordContributingEdge(existing.Properties, rel);
-                    }
-                    foreach (var (k, v) in rel.Properties)
-                    {
-                        if (v != null && !existing.Properties.ContainsKey(k))
-                        {
-                            existing.Properties[k] = v;
-                        }
+                        EvidenceProvenanceHelper.RecordContributingEdge(existing, rel);
                     }
                 }
             }
@@ -346,7 +344,7 @@ public partial class PostIndexAnalyzer
 
         if (canonicalRels.Count > 0 && ctx.DbClient != null)
         {
-            ctx.LogDebug($"[PostIndex  ] Materializing {canonicalRels.Count} direct workload->canonical database relationships...");
+            ctx.PostIndexLog.MaterializingCanonicalDatabaseRelationships(canonicalRels.Count);
             await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
             ctx.AddRelsCount(canonicalRels.Count);
         }

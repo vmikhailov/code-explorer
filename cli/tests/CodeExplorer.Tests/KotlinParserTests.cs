@@ -155,7 +155,7 @@ public class KotlinParserTests
             typeNodes.Count.Should().Be(1);
             var mainActivityClass = typeNodes[0];
             mainActivityClass.Name.Should().Be("MainActivity");
-            mainActivityClass.Extensions?["extends"].Should().Be("FlutterActivity");
+            mainActivityClass.Extends.Should().Be("FlutterActivity");
 
             // Methods
             var methods = mainActivityClass.Children.OfType<FunctionNode>().Select(f => f.Name).ToList();

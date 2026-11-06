@@ -62,7 +62,7 @@ public static class ConfigurationParser
         }
         catch (Exception ex)
         {
-            ctx.LogWarning($"[ConfigurationParser] Failed to parse config file '{relativePath}': {ex.Message}");
+            ctx.Layer4Log.ConfigParseFailed(relativePath, ex);
         }
     }
 
@@ -253,13 +253,13 @@ public static class ConfigurationParser
 
         if (string.IsNullOrWhiteSpace(dbName))
         {
-            var rawProjName = containerNode.Extensions?.GetValueOrDefault("raw_name") ?? containerNode.GetName();
+            var rawProjName = (containerNode as CompositeNode)?.RawName ?? containerNode.GetName();
             var isLibContainer = (containerNode is ProjectNode pLib && pLib.IsLibrary) ||
                                  containerNode is LibraryNode ||
-                                 (containerNode.Extensions != null && containerNode.Extensions.TryGetValue("is_library", out var il) && il == "true");
+                                 (containerNode is ServiceNode { IsLibrary: true } or AppNode { IsLibrary: true } or WorkerNode { IsLibrary: true } or CliToolNode { IsLibrary: true });
             var isTstContainer = (containerNode is ProjectNode pTst && (pTst.IsTest || pTst.EntityKind == ProjectEntityKind.Test || pTst.Role == "Test")) ||
                                  containerNode is TestSuiteNode ||
-                                 (containerNode.Extensions != null && containerNode.Extensions.TryGetValue("role", out var rl) && rl == "Test");
+                                 (containerNode is ServiceNode { Role: "Test" } or AppNode { Role: "Test" } or WorkerNode { Role: "Test" } or CliToolNode { Role: "Test" } or LibraryNode { Role: "Test" });
 
             if (isCache)
             {
@@ -339,7 +339,7 @@ public static class ConfigurationParser
 
         var isTestContainer = (containerNode is ProjectNode pNode && (pNode.IsTest || pNode.EntityKind == ProjectEntityKind.Test || pNode.Role == "Test")) ||
                               containerNode is TestSuiteNode ||
-                              (containerNode.Extensions != null && containerNode.Extensions.TryGetValue("role", out var rRole) && rRole == "Test") ||
+                              (containerNode is ServiceNode { Role: "Test" } or AppNode { Role: "Test" } or WorkerNode { Role: "Test" } or CliToolNode { Role: "Test" } or LibraryNode { Role: "Test" }) ||
                               WorkspaceConventions.IsTestFilePath(relativePath);
 
         var regProps = new Dictionary<string, string>
@@ -372,39 +372,36 @@ public static class ConfigurationParser
         var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
         if (!targetTreeContainer.Children.Any(c => c.Id == dbId))
         {
-            var ext = new Dictionary<string, string>
+            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType)
             {
-                ["engine"] = engine,
-                ["from_config"] = "true",
-                ["config_key"] = customName ?? ""
+                Engine = engine,
+                FromConfig = true,
+                ConfigKey = customName ?? "",
+                Schema = !string.IsNullOrWhiteSpace(catalog) ? catalog : null,
+                IsTest = isTestContainer ? true : null,
+                Role = isTestContainer ? "Test" : null
             };
-            if (!string.IsNullOrWhiteSpace(catalog))
-            {
-                ext["schema"] = catalog;
-            }
-            if (isTestContainer)
-            {
-                ext["is_test"] = "true";
-                ext["role"] = "Test";
-            }
-            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, ext);
             targetTreeContainer.Children.Add(dbNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, dbName, dbId);
         }
 
-        var cfgExt = new Dictionary<string, string>
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(dbId, fileNodeId)
         {
-            [OntologyConstants.PropertyNames.FilePath] = relativePath,
-            [OntologyConstants.PropertyNames.Operation] = "CONFIG",
-            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
-        };
-        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(dbId, fileNodeId, cfgExt));
+            FilePath = relativePath,
+            Operation = "CONFIG",
+            EvidenceKind = OntologyConstants.EvidenceKinds.Config
+        });
         relationships.Add(cfgRel);
 
         if (!string.IsNullOrEmpty(workloadId))
         {
-            var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId, cfgExt));
-            EvidenceProvenanceHelper.RecordContributingEdge(usesDbRel.Properties, cfgRel);
+            var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId)
+            {
+                FilePath = relativePath,
+                Operation = "CONFIG",
+                EvidenceKind = OntologyConstants.EvidenceKinds.Config
+            });
+            EvidenceProvenanceHelper.RecordContributingEdge(usesDbRel, cfgRel);
             relationships.Add(usesDbRel);
             ctx.AddGlobalProjectDependency(usesDbRel);
         }
@@ -430,26 +427,35 @@ public static class ConfigurationParser
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, topicName, topicId);
         }
 
-        var cfgExt = new Dictionary<string, string>
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(topicId, fileNodeId)
         {
-            [OntologyConstants.PropertyNames.FilePath] = relativePath,
-            [OntologyConstants.PropertyNames.Operation] = "CONFIG",
-            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
-        };
-        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(topicId, fileNodeId, cfgExt));
+            FilePath = relativePath,
+            Operation = "CONFIG",
+            EvidenceKind = OntologyConstants.EvidenceKinds.Config
+        });
         relationships.Add(cfgRel);
 
         var (_, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
         if (!string.IsNullOrEmpty(workloadId))
         {
-            var pubRel = Relationship.FromRelationship(new PublishesToRelationship(workloadId, topicId, cfgExt));
-            EvidenceProvenanceHelper.RecordContributingEdge(pubRel.Properties, cfgRel);
+            var pubRel = Relationship.FromRelationship(new PublishesToRelationship(workloadId, topicId)
+            {
+                FilePath = relativePath,
+                Operation = "CONFIG",
+                EvidenceKind = OntologyConstants.EvidenceKinds.Config
+            });
+            EvidenceProvenanceHelper.RecordContributingEdge(pubRel, cfgRel);
             relationships.Add(pubRel);
             ctx.AddGlobalProjectDependency(pubRel);
 
-            var triggersRel = Relationship.FromRelationship(new TriggersRelationship(topicId, workloadId, cfgExt));
-            EvidenceProvenanceHelper.RecordContributingEdge(triggersRel.Properties, cfgRel);
+            var triggersRel = Relationship.FromRelationship(new TriggersRelationship(topicId, workloadId)
+            {
+                FilePath = relativePath,
+                Operation = "CONFIG",
+                EvidenceKind = OntologyConstants.EvidenceKinds.Config
+            });
+            EvidenceProvenanceHelper.RecordContributingEdge(triggersRel, cfgRel);
             relationships.Add(triggersRel);
             ctx.AddGlobalProjectDependency(triggersRel);
         }
@@ -474,21 +480,25 @@ public static class ConfigurationParser
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, cloudName, cloudId);
         }
 
-        var cfgExt = new Dictionary<string, string>
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(cloudId, fileNodeId)
         {
-            [OntologyConstants.PropertyNames.FilePath] = relativePath,
-            [OntologyConstants.PropertyNames.Operation] = "CONFIG",
-            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
-        };
-        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(cloudId, fileNodeId, cfgExt));
+            FilePath = relativePath,
+            Operation = "CONFIG",
+            EvidenceKind = OntologyConstants.EvidenceKinds.Config
+        });
         relationships.Add(cfgRel);
 
         var (_, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
         if (!string.IsNullOrEmpty(workloadId))
         {
-            var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId, cfgExt));
-            EvidenceProvenanceHelper.RecordContributingEdge(usesCloudRel.Properties, cfgRel);
+            var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId)
+            {
+                FilePath = relativePath,
+                Operation = "CONFIG",
+                EvidenceKind = OntologyConstants.EvidenceKinds.Config
+            });
+            EvidenceProvenanceHelper.RecordContributingEdge(usesCloudRel, cfgRel);
             relationships.Add(usesCloudRel);
             ctx.AddGlobalProjectDependency(usesCloudRel);
         }
@@ -506,8 +516,9 @@ public static class ConfigurationParser
 
         if (containerNode is ServiceNode or AppNode or WorkerNode or CliToolNode or LibraryNode or TestSuiteNode)
         {
-            var pid = containerNode.Extensions?.GetValueOrDefault("project_id");
-            var pname = containerNode.Extensions?.GetValueOrDefault("raw_name") ?? containerNode.GetName();
+            var comp = (CompositeNode)containerNode;
+            var pid = comp.ProjectId;
+            var pname = comp.RawName ?? containerNode.GetName();
             return (pid, containerNode.Id, pname);
         }
 
@@ -517,9 +528,8 @@ public static class ConfigurationParser
             if (ctx.SemanticStructure != null)
             {
                 wlId = ctx.SemanticStructure.Children
-                    .FirstOrDefault(c => c.Extensions != null &&
-                                         c.Extensions.TryGetValue("project_id", out var p) &&
-                                         string.Equals(p, pn.Id, StringComparison.OrdinalIgnoreCase))?.Id;
+                    .FirstOrDefault(c => c is CompositeNode comp &&
+                                         string.Equals(comp.ProjectId, pn.Id, StringComparison.OrdinalIgnoreCase))?.Id;
             }
             wlId ??= $"{workspaceId}:{(pn.IsTest ? OntologyConstants.IdPrefixes.TestSuite : pn.IsLibrary ? OntologyConstants.IdPrefixes.Library : OntologyConstants.IdPrefixes.Service)}:{pn.Name}";
             return (pn.Id, wlId, pn.Name);
@@ -571,15 +581,14 @@ public static class ConfigurationParser
                     ep.ServiceName,
                     ep.Scheme,
                     ep.Host,
-                    "/",
-                    new Dictionary<string, string>
-                    {
-                        ["file_path"] = relativePath,
-                        ["base_url"] = ep.Url,
-                        ["is_external"] = "true",
-                        ["config_key"] = ep.ConfigKey
-                    }
-                );
+                    "/"
+                )
+                {
+                    FilePath = relativePath,
+                    BaseUrl = ep.Url,
+                    IsExternal = true,
+                    ConfigKey = ep.ConfigKey
+                };
 
                 if (containerNode is not ProjectNode && !containerNode.Children.Any(c => c.Id == extId))
                 {
@@ -593,36 +602,28 @@ public static class ConfigurationParser
                     ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
                 }
 
-                var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(
-                    extId,
-                    fileNodeId,
-                    new Dictionary<string, string>
-                    {
-                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                        [OntologyConstants.PropertyNames.Operation] = "CONFIG",
-                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
-                    }));
+                var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(extId, fileNodeId)
+                {
+                    FilePath = relativePath,
+                    Operation = "CONFIG",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Config
+                });
                 relationships.Add(cfgRel);
 
                 if (!string.IsNullOrEmpty(workloadId))
                 {
-                    var callProps = new Dictionary<string, object>
+                    var callRel = new Relationship(workloadId, extId, OntologyConstants.Relationships.ServiceCall)
                     {
-                        ["dependency_type"] = "service_call",
-                        ["is_semantic"] = "true",
-                        ["is_external"] = "true",
-                        ["config_key"] = ep.ConfigKey,
-                        ["url"] = ep.Url,
-                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                        [OntologyConstants.PropertyNames.Operation] = "CONFIG",
-                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
+                        DependencyType = "service_call",
+                        IsSemantic = true,
+                        IsExternal = true,
+                        ConfigKey = ep.ConfigKey,
+                        Url = ep.Url,
+                        FilePath = relativePath,
+                        Operation = "CONFIG",
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Config
                     };
-                    EvidenceProvenanceHelper.RecordContributingEdge(callProps, cfgRel);
-                    var callRel = new Relationship(
-                        workloadId,
-                        extId,
-                        OntologyConstants.Relationships.ServiceCall,
-                        callProps);
+                    EvidenceProvenanceHelper.RecordContributingEdge(callRel, cfgRel);
                     relationships.Add(callRel);
                     ctx.AddGlobalProjectDependency(callRel);
                 }
@@ -632,21 +633,17 @@ public static class ConfigurationParser
                 if (string.IsNullOrEmpty(workloadId)) continue;
 
                 var targetId = $"{workspaceId}:service_target:{ep.ServiceName.ToLowerInvariant()}";
-                var rel = new Relationship(
-                    workloadId,
-                    targetId,
-                    OntologyConstants.Relationships.ServiceCall,
-                    new Dictionary<string, object>
-                    {
-                        ["service_key"] = ep.ServiceName,
-                        ["url"] = ep.Url,
-                        ["dependency_type"] = "service_call",
-                        ["is_semantic"] = "true",
-                        ["config_key"] = ep.ConfigKey,
-                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
-                        [OntologyConstants.PropertyNames.Operation] = "CONFIG",
-                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
-                    });
+                var rel = new Relationship(workloadId, targetId, OntologyConstants.Relationships.ServiceCall)
+                {
+                    ServiceKey = ep.ServiceName,
+                    Url = ep.Url,
+                    DependencyType = "service_call",
+                    IsSemantic = true,
+                    ConfigKey = ep.ConfigKey,
+                    FilePath = relativePath,
+                    Operation = "CONFIG",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Config
+                };
                 relationships.Add(rel);
                 ctx.AddGlobalProjectDependency(rel);
             }

@@ -33,8 +33,8 @@ public record BoundedContextNode(
     [property: OntologyProperty("Border color for visual rendering.")] string? BorderColor = null,
     [property: OntologyProperty("Domain purity percentage (0-100).")] double PurityPercentage = 0.0,
     [property: OntologyProperty("Primary path associated with the bounded context.")] string Path = "",
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.BoundedContext;

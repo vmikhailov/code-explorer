@@ -284,9 +284,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             {
                 var methodName = ExtractProfileIdentifier(enclosing);
                 if (!string.IsNullOrEmpty(methodName) &&
-                    !symbolNode.References.Any(r => r.Kind == "CALLS" && r.TargetName == methodName))
+                    !symbolNode.References.Any(r => r.RelationshipKind == CodeExplorer.Cypher.Common.RelationshipKind.Calls && r.TargetName == methodName))
                 {
-                    symbolNode.References.Add(new Reference("", methodName, "CALLS",
+                    symbolNode.References.Add(new Reference("", methodName, CodeExplorer.Cypher.Common.RelationshipKind.Calls,
                         node.StartPosition.Row + 1,
                         node.StartPosition.Column + 1));
                 }

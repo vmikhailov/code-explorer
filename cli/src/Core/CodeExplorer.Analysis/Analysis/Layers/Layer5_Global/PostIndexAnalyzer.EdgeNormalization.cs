@@ -405,7 +405,7 @@ public partial class PostIndexAnalyzer
         var candidates = projList.Where(p =>
         {
             var isWorker = p.Role == OntologyConstants.ProjectRoles.Worker ||
-                           p.Extensions?.GetValueOrDefault("primary_role") is "WorkerService" or "Scheduler" or "Worker";
+                           p.PrimaryRole is "WorkerService" or "Scheduler" or "Worker";
             return !isWorker;
         }).Select(p => new ProjectMatchCandidate(
             p.Id,
@@ -427,7 +427,7 @@ public partial class PostIndexAnalyzer
             foreach (var p in projList.Where(p => !p.IsLibrary))
             {
                 var isWorker = p.Role == OntologyConstants.ProjectRoles.Worker ||
-                               p.Extensions?.GetValueOrDefault("primary_role") is "WorkerService" or "Scheduler" or "Worker";
+                               p.PrimaryRole is "WorkerService" or "Scheduler" or "Worker";
                 if (isWorker) continue;
 
                 var candDomain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
@@ -725,13 +725,13 @@ public partial class PostIndexAnalyzer
     public static void DeduplicateProjectNodes(List<Node> nodes, List<Relationship> relationships)
     {
         var canonicalPaths = new HashSet<string>(
-            nodes.Where(n => n.Kind == "Project" && n.Id.Contains(":p:"))
+            nodes.Where(n => n.NodeKind == NodeKind.Project && n.Id.Contains(":p:"))
                  .Select(n => n.Properties.TryGetValue("path", out var p) ? p?.ToString() ?? "" : "")
                  .Where(p => !string.IsNullOrEmpty(p))
         );
 
         var removedIds = new HashSet<string>(
-            nodes.Where(n => n.Kind == "Project" && (n.Id.Contains(":project:") || n.Id.EndsWith(":project"))
+            nodes.Where(n => n.NodeKind == NodeKind.Project && (n.Id.Contains(":project:") || n.Id.EndsWith(":project"))
                              && n.Properties.TryGetValue("path", out var p) && canonicalPaths.Contains(p?.ToString() ?? ""))
                  .Select(n => n.Id)
         );

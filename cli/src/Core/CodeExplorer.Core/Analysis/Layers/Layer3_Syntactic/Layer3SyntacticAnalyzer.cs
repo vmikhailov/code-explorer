@@ -366,7 +366,7 @@ public partial class Layer3SyntacticParser
                 project.Children.OfType<PackageNode>().Select(p => p.Name)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
-                project.Extensions ?? new Dictionary<string, string>());
+                project.TryGetSignals()?.ManifestHints ?? new Dictionary<string, string>());
             var componentParsers = ctx.LightweightAstScanMode
                 ? []
                 : Components.ComponentLibraryParserRegistry.GetParsers(projectContext);

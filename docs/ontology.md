@@ -302,6 +302,12 @@ graph TD
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `IndexedAt` | `string?` | Timestamp when the workspace was indexed (ISO 8601 UTC). |
+| `PackageName` | `string?` | Primary package name declared in the workspace root manifest. |
+| `PackageVersion` | `string?` | Primary package version declared in the workspace root manifest. |
+| `Publisher` | `string?` | Publisher identifier declared in the workspace root manifest. |
+| `HasVsCodeEngine` | `bool?` | Whether the workspace root manifest targets the VS Code extension engine. |
+| `HasContributes` | `bool?` | Whether the workspace root manifest declares VS Code extension contributions. |
+| `ActivationEvents` | `string?` | Comma-separated VS Code extension activation events. |
 
 ---
 
@@ -518,6 +524,12 @@ graph TD
 | `Name` | `string` | The name of the binary or process entry point. |
 | `Path` | `string` | The path of the entry point file relative to its parent container. |
 | `EntryType` | `EntryPointType` | The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry). |
+| `FilePath` | `string?` | Relative path of the source file declaring the entry point. |
+| `StartLine` | `int?` | 1-based starting line number of the entry point. |
+| `StartCol` | `int?` | 1-based starting column number of the entry point. |
+| `Command` | `string?` | Shell command executed by a lifecycle or task entry point. |
+| `HookKind` | `string?` | Lifecycle hook classification (e.g. install, build). |
+| `TaskLabel` | `string?` | Task label for VS Code folderOpen tasks. |
 
 ---
 
@@ -555,6 +567,12 @@ graph TD
 | `Ecosystem` | `string` | The package ecosystem (e.g. nuget, npm, maven, pip, go). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `Archetype` | `ProjectArchetype` | The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
+| `DependencyScope` | `string?` | Dependency scope (e.g. runtime, dev, test, build). |
+| `RawVersion` | `string?` | Raw version or URL specifier from manifest. |
+| `IsExternalTarball` | `bool?` | Whether the dependency is fetched from an external tarball or git URL. |
+| `Publisher` | `string?` | Publisher identifier for internal packages. |
+| `HasVsCodeEngine` | `bool?` | Whether the package targets the VS Code extension engine. |
+| `ActivationEvents` | `string?` | Comma-separated VS Code extension activation events. |
 | `IsExternal` | `bool` | Whether this package is an external third-party dependency. |
 
 ---
@@ -610,6 +628,23 @@ graph TD
 | `SecondaryRoles` | `string?` | Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']). |
 | `AllRoles` | `string?` | All architectural roles detected in the project. |
 | `Framework` | `string?` | Detected primary framework of the project. |
+| `EntityType` | `string?` | Normalized semantic entity type (app, service, worker, cli, test, library). |
+| `ExternalApis` | `string?` | Comma-separated external APIs or SDKs used by this project. |
+| `PackageName` | `string?` | Package name declared in the project manifest. |
+| `PackageVersion` | `string?` | Package version declared in the project manifest. |
+| `Publisher` | `string?` | Publisher identifier declared in the project manifest. |
+| `MainFile` | `string?` | Main entry file declared in the project manifest. |
+| `ModuleFile` | `string?` | ESM module entry file declared in the project manifest. |
+| `Description` | `string?` | Project description from manifest. |
+| `HasBin` | `bool?` | Whether the project manifest declares CLI binary entrypoints. |
+| `HasContributes` | `bool?` | Whether the project manifest declares VS Code extension contributions. |
+| `HasVsCodeEngine` | `bool?` | Whether the project manifest targets the VS Code extension engine. |
+| `KeywordsJson` | `string?` | JSON array of keywords from the project manifest. |
+| `ExtensionDependenciesJson` | `string?` | JSON array of VS Code extension dependencies. |
+| `ActivationEvents` | `string?` | Comma-separated VS Code extension activation events. |
+| `IsBuildOrchestrator` | `bool?` | Indicates whether this project is a root build orchestrator wrapping child projects. |
+| `ExcludedSubpaths` | `string?` | JSON array of excluded asset subpaths within the project directory. |
+| `AbsorbedSubpaths` | `string?` | JSON array of absorbed technical subpaths within the project directory. |
 | `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
 | `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `SubKind` | `ProjectEntitySubKind` | Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli). |
@@ -748,12 +783,19 @@ graph TD
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
 | `IsTest` | `bool` | Indicates whether the function is declared within test code. |
+| `TestFramework` | `string?` | Detected test runner or framework (e.g. xunit, nunit, mstest, jest, pytest, go-test, junit). |
 | `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this function. |
 | `IsExported` | `bool?` | Indicates whether the function is publicly exported from its module. |
 | `IsModuleInit` | `bool?` | Indicates whether this node represents top-level module initialization code. |
+| `IsAsync` | `bool?` | Indicates whether the function is asynchronous. |
+| `IsUnsafe` | `bool?` | Indicates whether the function uses unsafe code blocks or modifiers. |
+| `Visibility` | `string?` | Declared visibility or access modifier of the function (e.g. public, private, remote). |
+| `GraphqlOperation` | `string?` | GraphQL client operation name or flag. |
+| `OperationType` | `string?` | Operation type for GraphQL or RPC operations. |
+| `GraphqlFields` | `string?` | Comma-separated GraphQL root selection fields. |
 
 ---
 
@@ -902,6 +944,7 @@ graph TD
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this type declaration. |
 | `IsExported` | `bool?` | Indicates whether the type is publicly exported from its module. |
+| `Extends` | `string?` | Declared base type or component inherited by this type. |
 
 ---
 

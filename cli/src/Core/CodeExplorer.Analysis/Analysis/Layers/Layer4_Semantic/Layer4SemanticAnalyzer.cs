@@ -216,8 +216,7 @@ public partial class Layer4SemanticParser
                     semanticRelationships.Add(new Relationship(
                         project.Id,
                         ep.Id,
-                        OntologyConstants.Relationships.HasEntrypoint,
-                        new Dictionary<string, object>()));
+                        OntologyConstants.Relationships.HasEntrypoint));
                 }
 
                 if (existingRelKeys.Add((ep.Id, project.Id, OntologyConstants.Relationships.BelongsTo)))
@@ -225,8 +224,7 @@ public partial class Layer4SemanticParser
                     semanticRelationships.Add(new Relationship(
                         ep.Id,
                         project.Id,
-                        OntologyConstants.Relationships.BelongsTo,
-                        new Dictionary<string, object>()));
+                        OntologyConstants.Relationships.BelongsTo));
                 }
 
                 if (parentMap.TryGetValue(ep.Id, out var parentId) &&

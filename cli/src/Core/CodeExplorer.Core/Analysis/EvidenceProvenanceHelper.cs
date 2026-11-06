@@ -109,6 +109,43 @@ public static class EvidenceProvenanceHelper
     }
 
     public static void MergeProvenance(
+        Relationship target,
+        Relationship? source,
+        int cap = DefaultEvidenceCap)
+    {
+        if (source is null) return;
+        if (target.HasMaterializedProperties || source.HasMaterializedProperties)
+        {
+            MergeProvenance(target.Properties, source.Properties, cap);
+            return;
+        }
+
+        if (source.EvidenceIds is not { Count: > 0 }) return;
+        target.EvidenceIds ??= new List<string>(source.EvidenceIds.Count);
+        var targetTotal = Math.Max(target.EvidenceIds.Count, target.EvidenceCount);
+        var sourceTotal = Math.Max(source.EvidenceIds.Count, source.EvidenceCount);
+        var added = 0;
+
+        foreach (var id in source.EvidenceIds)
+        {
+            if (target.EvidenceIds.Contains(id, StringComparer.OrdinalIgnoreCase)) continue;
+            added++;
+            if (target.EvidenceIds.Count < cap)
+            {
+                target.EvidenceIds.Add(id);
+            }
+        }
+
+        var extraBeyondListed = Math.Max(0, sourceTotal - source.EvidenceIds.Count);
+        var newTotal = targetTotal + added + extraBeyondListed;
+        target.EvidenceCount = newTotal;
+        if (newTotal > cap || source.EvidenceTruncated)
+        {
+            target.EvidenceTruncated = true;
+        }
+    }
+
+    public static void MergeProvenance(
         Dictionary<string, object> targetProperties,
         IReadOnlyDictionary<string, object>? sourceProperties,
         int cap = DefaultEvidenceCap)
@@ -325,6 +362,46 @@ public static class EvidenceProvenanceHelper
 
             if (target.Hops == 0 && source.Hops > 0) target.Hops = source.Hops;
             target.TargetSinkClassification ??= source.TargetSinkClassification;
+            if (target.LineEnd == 0 && source.LineEnd > 0) target.LineEnd = source.LineEnd;
+            target.FilePath ??= source.FilePath;
+            target.Operation ??= source.Operation;
+            target.EvidenceKind ??= source.EvidenceKind;
+            target.DependencyType ??= source.DependencyType;
+            target.Category ??= source.Category;
+            target.IsSemantic ??= source.IsSemantic;
+            if (!target.IsCanonical && source.IsCanonical) target.IsCanonical = true;
+            if (!target.IsSemanticLifted && source.IsSemanticLifted) target.IsSemanticLifted = true;
+            if (!target.IsExternal && source.IsExternal) target.IsExternal = true;
+            target.IsInternal ??= source.IsInternal;
+            if (!target.IsOrm && source.IsOrm) target.IsOrm = true;
+            if (!target.FromConfig && source.FromConfig) target.FromConfig = true;
+            target.Scope ??= source.Scope;
+            target.BrokerType ??= source.BrokerType;
+            target.MessagingDirection ??= source.MessagingDirection;
+            target.ViaLibrary ??= source.ViaLibrary;
+            target.CallChain ??= source.CallChain;
+            target.ConfigKey ??= source.ConfigKey;
+            target.Url ??= source.Url;
+            target.ServiceName ??= source.ServiceName;
+            target.ServiceKey ??= source.ServiceKey;
+            target.ResourceRole ??= source.ResourceRole;
+            target.Asset ??= source.Asset;
+            target.TargetFile ??= source.TargetFile;
+            target.Via ??= source.Via;
+            target.Provider ??= source.Provider;
+            target.Schema ??= source.Schema;
+            target.Engine ??= source.Engine;
+            target.DbType ??= source.DbType;
+            if (!target.IsImplicitSchema && source.IsImplicitSchema) target.IsImplicitSchema = true;
+            target.Protocols ??= source.Protocols;
+            if (source.CustomProperties is { Count: > 0 })
+            {
+                target.CustomProperties ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (k, v) in source.CustomProperties)
+                {
+                    target.CustomProperties.TryAdd(k, v);
+                }
+            }
             return;
         }
 

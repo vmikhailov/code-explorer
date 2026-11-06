@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using NUnit.Framework;
 
@@ -88,21 +89,10 @@ public class SemanticLiftingTests
     [Test]
     public void LiftTransitiveSemanticRelations_SkipsLibraryTopicsFromModulesUnreachableByWorkload()
     {
-        var server = new ProjectNode("ws:p:bins/server.rs:", "server", "bins/server.rs", "rust", "Service", false)
-        {
-            Extensions = new()
-            {
-                [OntologyConstants.PropertyNames.SourceReachability] =
-                    """{"core":["core/src/server.rs","core/src/services/batch.rs"]}"""
-            }
-        };
-        var client = new ProjectNode("ws:p:bins/client.rs:", "client", "bins/client.rs", "rust", "CliTool", false)
-        {
-            Extensions = new()
-            {
-                [OntologyConstants.PropertyNames.SourceReachability] = """{"core":["core/src/client/e2e.rs"]}"""
-            }
-        };
+        var server = new ProjectNode("ws:p:bins/server.rs:", "server", "bins/server.rs", "rust", "Service", false);
+        server.Signals().SourceReachability = """{"core":["core/src/server.rs","core/src/services/batch.rs"]}""";
+        var client = new ProjectNode("ws:p:bins/client.rs:", "client", "bins/client.rs", "rust", "CliTool", false);
+        client.Signals().SourceReachability = """{"core":["core/src/client/e2e.rs"]}""";
         var core = new ProjectNode("ws:p:core:", "core", "core", "rust", "SharedLibrary", true);
         const string requests = "ws:top:sqs:requests-queue";
         const string requestTopic = "ws:top:sns:request-topic";

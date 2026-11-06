@@ -141,8 +141,8 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         var scopeClause = !string.IsNullOrWhiteSpace(projectScope)
             ? "WHERE (p.id = $scope OR p.name = $scope)"
             : "";
-        var paramsDict = !string.IsNullOrWhiteSpace(projectScope)
-            ? new Dictionary<string, object?> { ["scope"] = projectScope }
+        object? queryParams = !string.IsNullOrWhiteSpace(projectScope)
+            ? new { scope = projectScope }
             : null;
 
         // Query Types and Functions
@@ -152,18 +152,13 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             RETURN t.id AS id, t.name AS name, t.sub_kind AS sub_kind, t.path AS path, t.is_test AS is_test
         ";
 
-        var json = await db.ExecuteQueryAsync(typesQuery, paramsDict, ct);
-        using var doc = JsonDocument.Parse(json);
+        var typeRows = await db.QueryAsync<(string Id, string Name, string SubKind, string Path, bool IsTest)>(typesQuery, queryParams, ct);
 
         var classesByName = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var elem in doc.RootElement.EnumerateArray())
+        foreach (var (id, name, rawSubKind, path, isTest) in typeRows)
         {
-            var id = elem.GetStringProp(OntologyConstants.PropertyNames.Id);
-            var name = elem.GetStringProp(OntologyConstants.PropertyNames.Name);
-            var subKind = elem.GetStringProp(OntologyConstants.PropertyNames.SubKind, OntologyConstants.PropertyNames.DefaultSubKind);
-            var path = elem.GetStringProp(OntologyConstants.PropertyNames.Path);
-            var isTest = elem.GetBoolProp(OntologyConstants.PropertyNames.IsTest);
+            var subKind = string.IsNullOrEmpty(rawSubKind) ? OntologyConstants.PropertyNames.DefaultSubKind : rawSubKind;
 
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name)) continue;
             if (excludeTests && isTest) continue;
@@ -208,12 +203,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         ";
         try
         {
-            var funcJson = await db.ExecuteQueryAsync(funcQuery, paramsDict, ct);
-            using var funcDoc = JsonDocument.Parse(funcJson);
-            foreach (var elem in funcDoc.RootElement.EnumerateArray())
+            var funcRows = await db.QueryAsync<(string FnId, string TypeName)>(funcQuery, queryParams, ct);
+            foreach (var (fnId, typeName) in funcRows)
             {
-                var fnId = elem.GetStringProp(OntologyConstants.PropertyNames.FnId);
-                var typeName = elem.GetStringProp(OntologyConstants.PropertyNames.TypeName);
                 if (!string.IsNullOrEmpty(fnId) && !string.IsNullOrEmpty(typeName))
                 {
                     var clean = typeName;
@@ -236,12 +228,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         ";
         try
         {
-            var implJson = await db.ExecuteQueryAsync(implQuery, null, ct);
-            using var implDoc = JsonDocument.Parse(implJson);
-            foreach (var elem in implDoc.RootElement.EnumerateArray())
+            var implRows = await db.QueryAsync<(string ImplName, string IfaceName)>(implQuery, null, ct);
+            foreach (var (implName, ifaceName) in implRows)
             {
-                var implName = elem.GetStringProp(OntologyConstants.PropertyNames.ImplName);
-                var ifaceName = elem.GetStringProp(OntologyConstants.PropertyNames.IfaceName);
                 if (!string.IsNullOrEmpty(implName) && !string.IsNullOrEmpty(ifaceName))
                 {
                     interfaceImplementors[$"type:{ifaceName}"] = $"type:{implName}";
@@ -261,16 +250,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         ";
         try
         {
-            var epJson = await db.ExecuteQueryAsync(epQuery, paramsDict, ct);
-            using var epDoc = JsonDocument.Parse(epJson);
-            foreach (var elem in epDoc.RootElement.EnumerateArray())
+            var epRows = await db.QueryAsync<(string Id, string Name, string Route, string Method, string Path)>(epQuery, queryParams, ct);
+            foreach (var (id, name, route, method, path) in epRows)
             {
-                var id = elem.GetStringProp(OntologyConstants.PropertyNames.Id);
-                var name = elem.GetStringProp(OntologyConstants.PropertyNames.Name);
-                var route = elem.GetStringProp(OntologyConstants.PropertyNames.Route);
-                var method = elem.GetStringProp(OntologyConstants.PropertyNames.Method);
-                var path = elem.GetStringProp(OntologyConstants.PropertyNames.Path);
-
                 if (string.IsNullOrEmpty(id)) continue;
                 var epLabel = !string.IsNullOrEmpty(route) ? $"{method} {route}".Trim() : name;
 
@@ -306,14 +288,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         ";
         try
         {
-            var resJson = await db.ExecuteQueryAsync(resQuery, paramsDict, ct);
-            using var resDoc = JsonDocument.Parse(resJson);
-            foreach (var elem in resDoc.RootElement.EnumerateArray())
+            var resRows = await db.QueryAsync<(string Id, string KindStr, string Name)>(resQuery, queryParams, ct);
+            foreach (var (id, kindStr, name) in resRows)
             {
-                var id = elem.GetStringProp(OntologyConstants.PropertyNames.Id);
-                var kindStr = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
-                var name = elem.GetStringProp(OntologyConstants.PropertyNames.Name);
-
                 if (string.IsNullOrEmpty(id)) continue;
                 var kind = EnumExtensions.ParseNodeKind(kindStr);
 
@@ -351,8 +328,8 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         var scopeClause = !string.IsNullOrWhiteSpace(projectScope)
             ? "WHERE (p.id = $scope OR p.name = $scope)"
             : "";
-        var paramsDict = !string.IsNullOrWhiteSpace(projectScope)
-            ? new Dictionary<string, object?> { ["scope"] = projectScope }
+        object? queryParams = !string.IsNullOrWhiteSpace(projectScope)
+            ? new { scope = projectScope }
             : null;
 
         var kinds = string.Join("|", ClassLiftedKinds);
@@ -366,17 +343,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
 
         try
         {
-            var json = await db.ExecuteQueryAsync(query, paramsDict, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var elem in doc.RootElement.EnumerateArray())
+            var rows = await db.QueryAsync<(string Source, string Target, string Kind, string? SrcPath, string? TgtPath, int? Line)>(query, queryParams, ct);
+            foreach (var (src, tgt, kind, srcFile, tgtFile, line) in rows)
             {
-                var src = elem.GetStringProp(OntologyConstants.PropertyNames.Source);
-                var tgt = elem.GetStringProp(OntologyConstants.PropertyNames.Target);
-                var kind = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
-                var srcFile = elem.GetStringProp(OntologyConstants.PropertyNames.SrcPath);
-                var tgtFile = elem.GetStringProp(OntologyConstants.PropertyNames.TgtPath);
-                var line = elem.GetNullableIntProp(OntologyConstants.PropertyNames.Line);
-
                 if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                 {
                     rawEdges.Add((src, tgt, kind, srcFile, tgtFile, line));
@@ -393,13 +362,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             ";
             try
             {
-                var sJson = await db.ExecuteQueryAsync(simpleQuery, paramsDict, ct);
-                using var sDoc = JsonDocument.Parse(sJson);
-                foreach (var elem in sDoc.RootElement.EnumerateArray())
+                var simpleRows = await db.QueryAsync<(string Source, string Target, string Kind)>(simpleQuery, queryParams, ct);
+                foreach (var (src, tgt, kind) in simpleRows)
                 {
-                    var src = elem.GetStringProp(OntologyConstants.PropertyNames.Source);
-                    var tgt = elem.GetStringProp(OntologyConstants.PropertyNames.Target);
-                    var kind = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
                     if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                     {
                         rawEdges.Add((src, tgt, kind, null, null, null));

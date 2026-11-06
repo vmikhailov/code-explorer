@@ -27,11 +27,11 @@ public record CatchClauseNode(
     bool IsTest,
     ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public CatchClauseNode(string id, string name, string exceptionType, string filePath, int line, int column, bool isEmpty, bool hasComment, int statementCount, Dictionary<string, string>? extensions = null)
-        : this(id, name, exceptionType, filePath, line, column, isEmpty, hasComment, statementCount, false, null, null, extensions)
+    public CatchClauseNode(string id, string name, string exceptionType, string filePath, int line, int column, bool isEmpty, bool hasComment, int statementCount, Dictionary<string, string>? customProperties = null)
+        : this(id, name, exceptionType, filePath, line, column, isEmpty, hasComment, statementCount, false, null, null, customProperties)
     {
     }
 

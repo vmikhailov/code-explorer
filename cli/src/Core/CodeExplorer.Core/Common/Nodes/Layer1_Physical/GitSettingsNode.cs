@@ -20,8 +20,8 @@ public record GitSettingsNode(
     [property: OntologyProperty("The git user name.")] string UserName,
     [property: OntologyProperty("The git user email address.")] string UserEmail,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     [JsonPropertyName("commit_hash"), OntologyProperty("Current Git HEAD commit hash.")]
     public string? CommitHash { get; set; }

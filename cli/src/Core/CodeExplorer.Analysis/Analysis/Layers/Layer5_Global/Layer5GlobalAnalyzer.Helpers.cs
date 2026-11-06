@@ -455,11 +455,9 @@ public partial class Layer5AnalysisParser
                 return false;
             }
 
-            if (ext.Service.Extensions != null &&
-                ext.Service.Extensions.TryGetValue("operation_type", out var extOp) &&
-                !string.IsNullOrEmpty(extOp) &&
+            if (!string.IsNullOrEmpty(ext.Service.OperationType) &&
                 ep.Endpoint.OperationType != null &&
-                !string.Equals(extOp, ep.Endpoint.OperationType.Value.ToCanonicalString(), StringComparison.OrdinalIgnoreCase))
+                !string.Equals(ext.Service.OperationType, ep.Endpoint.OperationType.Value.ToCanonicalString(), StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }

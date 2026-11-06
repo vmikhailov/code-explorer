@@ -11,6 +11,10 @@ public sealed class WorkspaceAnalysisSignals
     public bool HasNativeNode { get; set; }
     public bool HasNativeAddon { get; set; }
     public bool HasDotNetDll { get; set; }
+    public string? VsCodeFolderOpenTasksJson { get; set; }
+    public string? NuspecId { get; set; }
+    public string? NuspecVersion { get; set; }
+    public string? ComposeParticipants { get; set; }
 }
 
 public sealed class FileAnalysisSignals
@@ -57,6 +61,8 @@ public sealed class ProjectAnalysisSignals
     public string? GitRepo { get; set; }
     public string? SourceReachability { get; set; }
     public string? ParentProjectId { get; set; }
+    public string? CargoManifestDir { get; set; }
+    public Dictionary<string, string>? ManifestHints { get; set; }
 }
 
 public sealed class FunctionAnalysisSignals

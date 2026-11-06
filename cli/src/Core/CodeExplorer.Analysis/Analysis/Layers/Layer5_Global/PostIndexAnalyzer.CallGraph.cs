@@ -25,16 +25,23 @@ public partial class PostIndexAnalyzer
             edgeLookup.TryAdd((existing.From, existing.To, existing.Kind), existing);
         }
 
-        void AddMaterialized(string fromId, string toId, string relKind, Dictionary<string, object> properties, Relationship? contributingRel = null)
+        void AddMaterialized(string fromId, string toId, string relKind, Action<Relationship> configure, Relationship? contributingRel = null)
         {
-            if (contributingRel != null)
+            Relationship CreateCandidate(string f, string t, bool forceSemantic)
             {
-                EvidenceProvenanceHelper.MergeProvenance(properties, contributingRel.Properties);
-                if (!string.Equals(contributingRel.From, fromId, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(contributingRel.To, toId, StringComparison.OrdinalIgnoreCase))
+                var rel = new Relationship(f, t, relKind);
+                configure(rel);
+                if (forceSemantic) rel.IsSemantic = true;
+                if (contributingRel != null)
                 {
-                    EvidenceProvenanceHelper.RecordContributingEdge(properties, contributingRel);
+                    EvidenceProvenanceHelper.MergeProvenance(rel, contributingRel);
+                    if (!string.Equals(contributingRel.From, fromId, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(contributingRel.To, toId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        EvidenceProvenanceHelper.RecordContributingEdge(rel, contributingRel);
+                    }
                 }
+                return rel;
             }
 
             if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(fromId, out var semFrom) && semFrom != null)
@@ -42,33 +49,29 @@ public partial class PostIndexAnalyzer
                 var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
                 if (semFrom != semTo)
                 {
-                    var semProps = new Dictionary<string, object>(properties)
-                    {
-                        ["is_semantic"] = "true"
-                    };
+                    var candidateSem = CreateCandidate(semFrom, semTo, forceSemantic: true);
                     if (existingEdges.Add((semFrom, semTo, relKind)))
                     {
-                        var createdSem = new Relationship(semFrom, semTo, relKind, semProps);
-                        materializedRels.Add(createdSem);
-                        edgeLookup[(semFrom, semTo, relKind)] = createdSem;
+                        materializedRels.Add(candidateSem);
+                        edgeLookup[(semFrom, semTo, relKind)] = candidateSem;
                     }
                     else if (edgeLookup.TryGetValue((semFrom, semTo, relKind), out var existingSemRel))
                     {
-                        EvidenceProvenanceHelper.MergeProvenance(existingSemRel.Properties, semProps);
+                        EvidenceProvenanceHelper.MergeProvenance(existingSemRel, candidateSem);
                     }
                 }
                 return;
             }
 
+            var candidate = CreateCandidate(fromId, toId, forceSemantic: false);
             if (existingEdges.Add((fromId, toId, relKind)))
             {
-                var created = new Relationship(fromId, toId, relKind, properties);
-                materializedRels.Add(created);
-                edgeLookup[(fromId, toId, relKind)] = created;
+                materializedRels.Add(candidate);
+                edgeLookup[(fromId, toId, relKind)] = candidate;
             }
             else if (edgeLookup.TryGetValue((fromId, toId, relKind), out var existingRel))
             {
-                EvidenceProvenanceHelper.MergeProvenance(existingRel.Properties, properties);
+                EvidenceProvenanceHelper.MergeProvenance(existingRel, candidate);
             }
         }
 
@@ -120,7 +123,7 @@ public partial class PostIndexAnalyzer
                     }
                 }
 
-                if (pass == 0 && (rel.Kind == OntologyConstants.Relationships.CalledBy || rel.Kind == "CALLED_BY"))
+                if (pass == 0 && rel.RelationshipKind == RelationshipKind.CalledBy)
                 {
                     if (!callersByExtService.TryGetValue(rel.From, out var list))
                     {
@@ -173,11 +176,11 @@ public partial class PostIndexAnalyzer
                             owner.Id,
                             targetDbId,
                             OntologyConstants.Relationships.UsesDb,
-                            new Dictionary<string, object>
+                            r =>
                             {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true",
-                                ["is_canonical"] = "true"
+                                r.DependencyType = "database";
+                                r.IsSemantic = true;
+                                r.IsCanonical = true;
                             },
                             rel
                         );
@@ -202,8 +205,8 @@ public partial class PostIndexAnalyzer
                     // and are NOT materialized as macro cross-service project dependencies.
                     var isInternal = topicId.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
                                      topicId.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(rel.Properties?.GetValueOrDefault("is_internal")?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(rel.Properties?.GetValueOrDefault("scope")?.ToString(), "internal", StringComparison.OrdinalIgnoreCase);
+                                     rel.IsInternal == true ||
+                                     string.Equals(rel.Scope, "internal", StringComparison.OrdinalIgnoreCase);
 
                     if (!isInternal)
                     {
@@ -214,11 +217,11 @@ public partial class PostIndexAnalyzer
                                 owner.Id,
                                 topicId,
                                 OntologyConstants.Relationships.PublishesTo,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true",
-                                    ["category"] = "messaging"
+                                    r.DependencyType = "messaging";
+                                    r.IsSemantic = true;
+                                    r.Category = "messaging";
                                 },
                                 rel
                             );
@@ -245,8 +248,8 @@ public partial class PostIndexAnalyzer
                     // and are NOT materialized as macro cross-service project dependencies.
                     var isInternal = topicId.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
                                      topicId.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(rel.Properties?.GetValueOrDefault("is_internal")?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(rel.Properties?.GetValueOrDefault("scope")?.ToString(), "internal", StringComparison.OrdinalIgnoreCase);
+                                     rel.IsInternal == true ||
+                                     string.Equals(rel.Scope, "internal", StringComparison.OrdinalIgnoreCase);
 
                     if (!isInternal)
                     {
@@ -257,11 +260,11 @@ public partial class PostIndexAnalyzer
                                 owner.Id,
                                 topicId,
                                 OntologyConstants.Relationships.SubscribesTo,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true",
-                                    ["category"] = "messaging"
+                                    r.DependencyType = "messaging";
+                                    r.IsSemantic = true;
+                                    r.Category = "messaging";
                                 },
                                 rel
                             );
@@ -295,10 +298,10 @@ public partial class PostIndexAnalyzer
                                 callerOwner.Id,
                                 targetOwner.Id,
                                 OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true"
+                                    r.DependencyType = "service_call";
+                                    r.IsSemantic = true;
                                 },
                                 rel
                             );
@@ -318,11 +321,11 @@ public partial class PostIndexAnalyzer
                         callerOwner.Id,
                         targetProj.Id,
                         OntologyConstants.Relationships.ServiceCall,
-                        new Dictionary<string, object>
+                        r =>
                         {
-                            ["dependency_type"] = "service_call",
-                            ["is_semantic"] = "true",
-                            ["service_name"] = serviceKey
+                            r.DependencyType = "service_call";
+                            r.IsSemantic = true;
+                            r.ServiceName = serviceKey;
                         },
                         rel
                     );
@@ -333,7 +336,6 @@ public partial class PostIndexAnalyzer
                      kind == OntologyConstants.Relationships.UsesApi ||
                      kind == OntologyConstants.Relationships.UsesCloud ||
                      kind == OntologyConstants.Relationships.CalledBy ||
-                     kind == "CALLED_BY" ||
                      kind == OntologyConstants.Relationships.Calls ||
                      kind == OntologyConstants.Relationships.TransitivelyCalls)
             {
@@ -370,10 +372,10 @@ public partial class PostIndexAnalyzer
                                 callerOwner.Id,
                                 internalTargetProj.Id,
                                 OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true"
+                                    r.DependencyType = "service_call";
+                                    r.IsSemantic = true;
                                 },
                                 rel
                             );
@@ -384,10 +386,10 @@ public partial class PostIndexAnalyzer
                                 callerOwner.Id,
                                 extId,
                                 OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
+                                r =>
                                 {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true"
+                                    r.DependencyType = "service_call";
+                                    r.IsSemantic = true;
                                 },
                                 rel
                             );
@@ -413,11 +415,11 @@ public partial class PostIndexAnalyzer
                             owner.Id,
                             targetDbId,
                             OntologyConstants.Relationships.UsesDb,
-                            new Dictionary<string, object>
+                            r =>
                             {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true",
-                                ["is_canonical"] = "true"
+                                r.DependencyType = "database";
+                                r.IsSemantic = true;
+                                r.IsCanonical = true;
                             },
                             rel
                         );
@@ -429,10 +431,10 @@ public partial class PostIndexAnalyzer
                         owner.Id,
                         to,
                         OntologyConstants.Relationships.PublishesTo,
-                        new Dictionary<string, object>
+                        r =>
                         {
-                            ["dependency_type"] = "messaging",
-                            ["is_semantic"] = "true"
+                            r.DependencyType = "messaging";
+                            r.IsSemantic = true;
                         },
                         rel
                     );

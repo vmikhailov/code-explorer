@@ -47,8 +47,7 @@ public class ReleaseV14613BugFixTests
 
         var dbNode = container.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
-        dbNode!.Extensions.Should().ContainKey("engine");
-        dbNode.Extensions["engine"].Should().Be("PostgreSQL");
+        dbNode!.Engine.Should().Be("PostgreSQL");
         dbNode.Name.Should().Be("customers");
         dbNode.DbType.Should().Be(DatabaseType.Relational);
     }

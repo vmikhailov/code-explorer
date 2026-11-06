@@ -233,8 +233,8 @@ public class ParserValidationTests
         dbNode.Should().NotBeNull();
         dbNode!.Name.Should().Be("BigQuery.calculation_history");
         dbNode.DbType.Should().Be(DatabaseType.Analytics);
-        dbNode.Extensions!["engine"].Should().Be("BigQuery");
-        dbNode.Extensions!["schema"].Should().Be("calculation_history");
+        dbNode.Engine.Should().Be("BigQuery");
+        dbNode.Schema.Should().Be("calculation_history");
         dbNode.Name.Contains('[').Should().BeFalse("DatabaseNode name must not contain bracket '['");
 
         var datasetNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault();
@@ -622,10 +622,10 @@ public class ParserValidationTests
         fileNode.Should().NotBeNull();
 
         // Check Repository.cs extensions (file-level extensions are removed)
-        if (fileNode.Extensions != null)
+        if (fileNode.CustomProperties != null)
         {
-            fileNode.Extensions.ContainsKey("db_type").Should().BeFalse();
-            fileNode.Extensions.ContainsKey("cloud_service").Should().BeFalse();
+            fileNode.CustomProperties.ContainsKey("db_type").Should().BeFalse();
+            fileNode.CustomProperties.ContainsKey("cloud_service").Should().BeFalse();
         }
 
         // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)

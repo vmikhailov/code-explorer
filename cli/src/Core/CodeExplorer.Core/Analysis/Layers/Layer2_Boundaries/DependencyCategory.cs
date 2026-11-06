@@ -48,4 +48,14 @@ public static class DependencyCategoryExtensions
             _ => DependencyCategory.UnidentifiedDependency
         };
     }
+
+    public static CodeExplorer.Cypher.Common.GraphEdgeCategory ToGraphEdgeCategory(this DependencyCategory category) => category switch
+    {
+        DependencyCategory.Library => CodeExplorer.Cypher.Common.GraphEdgeCategory.Library,
+        DependencyCategory.ServiceCall => CodeExplorer.Cypher.Common.GraphEdgeCategory.ServiceCall,
+        DependencyCategory.Database => CodeExplorer.Cypher.Common.GraphEdgeCategory.Database,
+        DependencyCategory.Messaging => CodeExplorer.Cypher.Common.GraphEdgeCategory.Messaging,
+        DependencyCategory.Configuration => CodeExplorer.Cypher.Common.GraphEdgeCategory.Configuration,
+        _ => CodeExplorer.Cypher.Common.GraphEdgeCategory.UnidentifiedDependency
+    };
 }

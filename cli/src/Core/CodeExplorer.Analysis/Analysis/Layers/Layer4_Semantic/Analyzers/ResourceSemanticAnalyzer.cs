@@ -11,6 +11,8 @@ namespace CodeExplorer.Core.Parser;
 
 public partial class ResourceSemanticAnalyzer
 {
+    private const string OpCall = "CALL";
+
     private static readonly ConcurrentDictionary<IProjectParser, (IReadOnlyList<ISemanticExtension> Extensions, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
     private static readonly ConcurrentDictionary<string, string?> _projectFrameworkCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -112,9 +114,8 @@ public partial class ResourceSemanticAnalyzer
         if (ctx.SemanticStructure != null)
         {
             var match = ctx.SemanticStructure.Children.FirstOrDefault(c =>
-                c.Extensions != null &&
-                c.Extensions.TryGetValue("project_id", out var pid) &&
-                string.Equals(pid, projectNode.Id, StringComparison.OrdinalIgnoreCase));
+                c is CompositeNode comp &&
+                string.Equals(comp.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase));
             if (match != null) return match.Id;
         }
 
@@ -130,10 +131,28 @@ public partial class ResourceSemanticAnalyzer
         string resourceId,
         FileNode fileNode,
         int usageLine,
-        Dictionary<string, string>? ext,
+        string? operation,
+        string? evidenceKind,
+        string? via,
+        string? provider,
+        string? schema,
+        bool isImplicitSchema,
+        bool isOrm,
         ParsingContext ctx)
     {
-        var declaredRel = Relationship.FromRelationship(new DeclaredInRelationship(resourceId, fileNode.Id, ext));
+        var declaredRel = Relationship.FromRelationship(new DeclaredInRelationship(resourceId, fileNode.Id)
+        {
+            FilePath = fileNode.Path,
+            Operation = operation,
+            EvidenceKind = evidenceKind,
+            Via = via,
+            Provider = provider,
+            Schema = schema,
+            IsImplicitSchema = isImplicitSchema,
+            IsOrm = isOrm,
+            Line = usageLine > 0 ? usageLine : 0,
+            LineEnd = usageLine > 0 ? usageLine : 0
+        });
         ctx.AddGlobalProjectDependency(declaredRel);
 
         Relationship primaryGroundingRel = declaredRel;
@@ -168,7 +187,19 @@ public partial class ResourceSemanticAnalyzer
 
         foreach (var sym in targetSymbols)
         {
-            var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(resourceId, sym.Id, ext));
+            var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(resourceId, sym.Id)
+            {
+                FilePath = fileNode.Path,
+                Operation = operation,
+                EvidenceKind = evidenceKind,
+                Via = via,
+                Provider = provider,
+                Schema = schema,
+                IsImplicitSchema = isImplicitSchema,
+                IsOrm = isOrm,
+                Line = usageLine > 0 ? usageLine : 0,
+                LineEnd = usageLine > 0 ? usageLine : 0
+            });
             ctx.AddGlobalProjectDependency(accessedRel);
             primaryGroundingRel = accessedRel;
         }
@@ -203,7 +234,7 @@ public partial class ResourceSemanticAnalyzer
 
         if (frameworkParser != null || cachedFwName != null)
         {
-            projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, frameworkParser?.Name ?? cachedFwName!);
+            projectNode.Framework = frameworkParser?.Name ?? cachedFwName!;
         }
 
         var fileNode = _syntaxTree.FileNode;
@@ -225,7 +256,7 @@ public partial class ResourceSemanticAnalyzer
                     frameworkParser = match;
                     cachedFwName = match.Name;
                     _projectFrameworkCache[projectNode.Id] = match.Name;
-                    projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, match.Name);
+                    projectNode.Framework = match.Name;
                 }
             }
         }
@@ -247,7 +278,7 @@ public partial class ResourceSemanticAnalyzer
 
         if (frameworkParser != null)
         {
-            projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, frameworkParser.Name);
+            projectNode.Framework = frameworkParser.Name;
         }
 
         foreach (var parser in matchedParsers)
@@ -278,7 +309,7 @@ public partial class ResourceSemanticAnalyzer
                         var apiNode = new ApiInUseNode(ormApiId, parser.Name, fileNode.Path);
                         semanticNode.Children.Add(apiNode);
                     }
-                    EmitGroundingEdges(ormApiId, fileNode, 0, null, ctx);
+                    EmitGroundingEdges(ormApiId, fileNode, 0, null, null, null, null, null, false, false, ctx);
                     var ormUsesApiRel = new UsesApiRelationship(workloadId, ormApiId);
                     ctx.AddGlobalProjectDependency(Relationship.FromRelationship(ormUsesApiRel));
 
@@ -493,34 +524,6 @@ public partial class ResourceSemanticAnalyzer
 
                         var dbId = resForSchema?.Id ?? ResourceNamingHelper.BuildCanonicalDatabaseId(ctx.WorkspaceId, dbType, canonicalDbName);
 
-                        var extensions = new Dictionary<string, string>
-                        {
-                            ["name"] = canonicalDbName,
-                            ["engine"] = targetEngine,
-                            ["provider"] = parser.Name
-                        };
-                        if (!string.IsNullOrEmpty(currentSchema))
-                        {
-                            extensions["schema"] = currentSchema;
-                        }
-                        if (isExplicitSchema)
-                        {
-                            extensions["is_explicit_schema"] = "true";
-                        }
-                        else if (!string.IsNullOrEmpty(currentSchema))
-                        {
-                            extensions["is_implicit_schema"] = "true";
-                        }
-                        if (projectNode.IsTest || WorkspaceConventions.IsTestFilePath(fileNode.Path))
-                        {
-                            extensions["is_test"] = "true";
-                            extensions["role"] = "Test";
-                        }
-                        if (isOrm)
-                        {
-                            extensions["is_orm"] = "true";
-                        }
-
                         var semanticNodeForDb = ctx.SemanticStructure;
                         if (semanticNodeForDb != null)
                         {
@@ -528,47 +531,58 @@ public partial class ResourceSemanticAnalyzer
 
                             if (!semanticNodeForDb.Children.Any(c => c.Id == dbId))
                             {
-                                var dbNode = new DatabaseNode(dbId, canonicalDbName, fileNode.Path, dbType, extensions);
+                                var isTestDb = projectNode.IsTest || WorkspaceConventions.IsTestFilePath(fileNode.Path);
+                                var dbNode = new DatabaseNode(dbId, canonicalDbName, fileNode.Path, dbType)
+                                {
+                                    Engine = targetEngine,
+                                    Provider = parser.Name,
+                                    Schema = !string.IsNullOrEmpty(currentSchema) ? currentSchema : null,
+                                    IsExplicitSchema = isExplicitSchema ? true : null,
+                                    IsImplicitSchema = (!isExplicitSchema && !string.IsNullOrEmpty(currentSchema)) ? true : null,
+                                    IsTest = isTestDb ? true : null,
+                                    Role = isTestDb ? "Test" : null,
+                                    IsOrm = isOrm ? true : null
+                                };
                                 semanticNodeForDb.Children.Add(dbNode);
                                 ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, canonicalDbName, dbId);
                             }
                         }
 
-                        var relExt = new Dictionary<string, string>
-                        {
-                            ["via"] = parser.Name,
-                            ["provider"] = parser.Id,
-                            ["file_path"] = fileNode.Path
-                        };
-                        if (!string.IsNullOrEmpty(currentSchema))
-                        {
-                            relExt["schema"] = currentSchema;
-                            if (!isExplicitSchema)
-                            {
-                                relExt["is_implicit_schema"] = "true";
-                            }
-                        }
-                        if (isOrm)
-                        {
-                            relExt["is_orm"] = "true";
-                        }
-                        relExt[OntologyConstants.PropertyNames.Operation] = isOrm ? "ORM" : "SQL";
-                        relExt[OntologyConstants.PropertyNames.EvidenceKind] = isOrm
+                        var opStr = isOrm ? "ORM" : "SQL";
+                        var evKind = isOrm
                             ? OntologyConstants.EvidenceKinds.Orm
                             : OntologyConstants.EvidenceKinds.Query;
-
+                        var isImpSchema = !string.IsNullOrEmpty(currentSchema) && !isExplicitSchema;
                         var usageLine = FindDatabaseUsageLine(fileNode, currentSchema, parser.Id);
-                        if (usageLine > 0)
-                        {
-                            relExt[OntologyConstants.PropertyNames.Line] = usageLine.ToString();
-                            relExt[OntologyConstants.PropertyNames.LineEnd] = usageLine.ToString();
-                        }
 
-                        var groundingRel = EmitGroundingEdges(dbId, fileNode, usageLine, relExt, ctx);
+                        var groundingRel = EmitGroundingEdges(
+                            dbId,
+                            fileNode,
+                            usageLine,
+                            opStr,
+                            evKind,
+                            parser.Name,
+                            parser.Id,
+                            currentSchema,
+                            isImpSchema,
+                            isOrm,
+                            ctx);
                         if (projectNode.IsTest || !WorkspaceConventions.IsTestFilePath(fileNode.Path))
                         {
-                            var workloadUsesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId, relExt));
-                            EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesDbRel.Properties, groundingRel);
+                            var workloadUsesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId)
+                            {
+                                Via = parser.Name,
+                                Provider = parser.Id,
+                                FilePath = fileNode.Path,
+                                Schema = currentSchema,
+                                IsImplicitSchema = isImpSchema,
+                                IsOrm = isOrm,
+                                Operation = opStr,
+                                EvidenceKind = evKind,
+                                Line = usageLine > 0 ? usageLine : 0,
+                                LineEnd = usageLine > 0 ? usageLine : 0
+                            });
+                            EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesDbRel, groundingRel);
                             ctx.AddGlobalProjectDependency(workloadUsesDbRel);
                         }
                     }
@@ -583,15 +597,25 @@ public partial class ResourceSemanticAnalyzer
                     semanticNodeForApi.Children.Add(apiNode);
                 }
 
-                var apiExt = new Dictionary<string, string>
+                var apiGroundingRel = EmitGroundingEdges(
+                    apiId,
+                    fileNode,
+                    0,
+                    OpCall,
+                    OntologyConstants.EvidenceKinds.LibraryCall,
+                    null,
+                    null,
+                    null,
+                    false,
+                    false,
+                    ctx);
+                var workloadUsesApiRel = Relationship.FromRelationship(new UsesApiRelationship(workloadId, apiId)
                 {
-                    [OntologyConstants.PropertyNames.FilePath] = fileNode.Path,
-                    [OntologyConstants.PropertyNames.Operation] = "CALL",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.LibraryCall
-                };
-                var apiGroundingRel = EmitGroundingEdges(apiId, fileNode, 0, apiExt, ctx);
-                var workloadUsesApiRel = Relationship.FromRelationship(new UsesApiRelationship(workloadId, apiId, apiExt));
-                EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesApiRel.Properties, apiGroundingRel);
+                    FilePath = fileNode.Path,
+                    Operation = OpCall,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.LibraryCall
+                });
+                EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesApiRel, apiGroundingRel);
                 ctx.AddGlobalProjectDependency(workloadUsesApiRel);
             }
             else if (parser.Type == SemanticExtensionType.Cloud)
@@ -605,15 +629,25 @@ public partial class ResourceSemanticAnalyzer
                     semanticNodeForCloud.Children.Add(cloudNode);
                 }
 
-                var cloudExt = new Dictionary<string, string>
+                var cloudGroundingRel = EmitGroundingEdges(
+                    cloudId,
+                    fileNode,
+                    0,
+                    OpCall,
+                    OntologyConstants.EvidenceKinds.HttpCall,
+                    null,
+                    null,
+                    null,
+                    false,
+                    false,
+                    ctx);
+                var workloadUsesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId)
                 {
-                    [OntologyConstants.PropertyNames.FilePath] = fileNode.Path,
-                    [OntologyConstants.PropertyNames.Operation] = "CALL",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.HttpCall
-                };
-                var cloudGroundingRel = EmitGroundingEdges(cloudId, fileNode, 0, cloudExt, ctx);
-                var workloadUsesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId, cloudExt));
-                EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesCloudRel.Properties, cloudGroundingRel);
+                    FilePath = fileNode.Path,
+                    Operation = OpCall,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
+                });
+                EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesCloudRel, cloudGroundingRel);
                 ctx.AddGlobalProjectDependency(workloadUsesCloudRel);
             }
         }
@@ -633,7 +667,7 @@ public partial class ResourceSemanticAnalyzer
         foreach (var r in fileNode.References)
         {
             if (r.Line > 0 &&
-                (r.Kind == "USES_DB" ||
+                (r.RelationshipKind == RelationshipKind.UsesDb ||
                  (!string.IsNullOrWhiteSpace(parserId) && r.TargetName.Contains(parserId, StringComparison.OrdinalIgnoreCase))))
             {
                 return r.Line;

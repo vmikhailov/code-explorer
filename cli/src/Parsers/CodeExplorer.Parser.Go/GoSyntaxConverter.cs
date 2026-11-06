@@ -46,30 +46,27 @@ public sealed class GoSyntaxConverter : TreeSitterSyntaxConverterBase
                 new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "selector_expression" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "index_expression" or "slice_expression" => new IndexOrSliceExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "index_expression" or "slice_expression" => new IndexExprSyntax { Span = span, RawGrammarKind = rawKind },
             "binary_expression" => new BinaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "unary_expression" => new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "assignment_statement" => new AssignmentExprSyntax { Span = span, RawGrammarKind = rawKind },
             "func_literal" => new LambdaExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "composite_literal" => new CollectionExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "block" => new BlockStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "if_statement" => new IfStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "expression_switch_statement" or "type_switch_statement" =>
-                new SwitchOrMatchStmtSyntax { Span = span, RawGrammarKind = rawKind, IsChannelSelect = false },
-            "select_statement" =>
-                new SwitchOrMatchStmtSyntax { Span = span, RawGrammarKind = rawKind, IsChannelSelect = true },
-            "for_statement" => new LoopStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "defer_statement" => new DeferOrGoStmtSyntax { Span = span, RawGrammarKind = rawKind, IsGoroutine = false },
-            "go_statement" => new DeferOrGoStmtSyntax { Span = span, RawGrammarKind = rawKind, IsGoroutine = true },
-            "return_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "if_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.If },
+            "expression_switch_statement" or "type_switch_statement" or "select_statement" =>
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Switch },
+            "for_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Loop },
+            "defer_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Defer },
+            "go_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Goroutine },
+            "return_statement" => new ReturnStmtSyntax { Span = span, RawGrammarKind = rawKind },
             "break_statement" or "continue_statement" or "goto_statement" or "fallthrough_statement" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
+                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Branch },
 
             "qualified_type" or "generic_type" or "pointer_type" or "slice_type" or "array_type" or "map_type" or "channel_type" or "function_type" =>
                 new TypeRefSyntax { Span = span, RawGrammarKind = rawKind },
 
-            "expression_statement" => new ExprStmtSyntax { Span = span, RawGrammarKind = rawKind },
+            "expression_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Expression },
 
             _ => new UnmappedSyntax { Span = span, RawGrammarKind = rawKind }
         };

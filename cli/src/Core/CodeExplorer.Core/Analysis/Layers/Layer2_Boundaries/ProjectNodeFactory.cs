@@ -1,4 +1,6 @@
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -9,6 +11,19 @@ namespace CodeExplorer.Core.Analysis;
 /// </summary>
 public static class ProjectNodeFactory
 {
+    private const string KeyPrimaryRole = "primary_role";
+    private const string KeySecondaryRoles = "secondary_roles";
+    private const string KeyAllRoles = "all_roles";
+    private const string KeyEntityKind = "entity_kind";
+    private const string KeySubKind = "sub_kind";
+    private const string KeyFramework = "framework";
+    private const string KeyIsBuildOrchestrator = "is_build_orchestrator";
+    private const string KeyExcludedSubpaths = "excluded_subpaths";
+    private const string KeyAbsorbedSubpaths = "absorbed_subpaths";
+    private const string KeyArchetype = "archetype";
+    private const string KeyCargoManifestDir = "cargo_manifest_dir";
+    private const string BoolTrueStr = "true";
+
     public static ProjectNode Create(
         string id,
         string projectName,
@@ -17,9 +32,9 @@ public static class ProjectNodeFactory
         string directoryPath,
         string[] filesInDirectory,
         IReadOnlyList<string>? externalPackages = null,
-        Dictionary<string, string>? extensions = null)
+        Dictionary<string, string>? manifestProps = null)
     {
-        extensions ??= new Dictionary<string, string>();
+        manifestProps ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var (role, isLibrary, classification) = ProjectRoleDetector.Detect(
             directoryPath,
@@ -28,11 +43,7 @@ public static class ProjectNodeFactory
             projectName,
             projectType,
             externalPackages,
-            extensions);
-
-        var kindStr = classification.Kind != ProjectEntityKind.Unknown
-            ? classification.Kind.ToString()
-            : role.ToString();
+            manifestProps);
 
         var entityType = classification.Kind switch
         {
@@ -44,64 +55,71 @@ public static class ProjectNodeFactory
             ProjectEntityKind.Library => "library",
             _ => role switch
             {
-                ProjectRole.FrontendApp => "app",
-                ProjectRole.Worker => "worker",
-                ProjectRole.CliTool or ProjectRole.ScriptProject or ProjectRole.DatabaseMigration => "cli",
-                ProjectRole.Test => "test",
-                ProjectRole.SharedLibrary => "library",
+                CodeExplorer.Core.Common.ProjectRole.FrontendApp => "app",
+                CodeExplorer.Core.Common.ProjectRole.Worker => "worker",
+                CodeExplorer.Core.Common.ProjectRole.CliTool or CodeExplorer.Core.Common.ProjectRole.ScriptProject or CodeExplorer.Core.Common.ProjectRole.DatabaseMigration => "cli",
+                CodeExplorer.Core.Common.ProjectRole.Test => "test",
+                CodeExplorer.Core.Common.ProjectRole.SharedLibrary => "library",
                 _ => isLibrary ? "library" : "service"
             }
         };
 
-        extensions["name"] = projectName;
-        extensions["role"] = role.ToString();
-        extensions["is_library"] = isLibrary ? "true" : "false";
-        extensions["entity_type"] = entityType;
-        extensions["entity_kind"] = kindStr;
-        extensions["kind"] = kindStr;
-        extensions["sub_kind"] = classification.SubKind.ToString();
-        extensions["language"] = projectType;
-        extensions["project_type"] = projectType;
-
-        var canonicalPrimaryRole = NormalizeRoleName(extensions.GetValueOrDefault("primary_role"))
+        var canonicalPrimaryRole = NormalizeRoleName(manifestProps.GetValueOrDefault(KeyPrimaryRole))
             ?? NormalizeRoleName(classification.Kind.ToString())
             ?? NormalizeRoleName(role.ToString())
             ?? (isLibrary ? "Library" : "Service");
 
-        extensions["primary_role"] = canonicalPrimaryRole;
-
         var secRolesList = new List<string>();
-        if (extensions.TryGetValue("secondary_roles", out var secJson) && !string.IsNullOrWhiteSpace(secJson))
+        if (manifestProps.TryGetValue(KeySecondaryRoles, out var secJson) && !string.IsNullOrWhiteSpace(secJson))
         {
-            try
+            foreach (var item in CodeExplorer.Core.Database.CypherValue.TryParseJsonText(secJson).AsStringList())
             {
-                using var sDoc = System.Text.Json.JsonDocument.Parse(secJson);
-                if (sDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                var norm = NormalizeRoleName(item);
+                if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
                 {
-                    foreach (var item in sDoc.RootElement.EnumerateArray())
-                    {
-                        var norm = NormalizeRoleName(item.GetString());
-                        if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
-                        {
-                            secRolesList.Add(norm);
-                        }
-                    }
+                    secRolesList.Add(norm);
                 }
-            }
-            catch
-            {
-                // Fallback
             }
         }
 
-        extensions["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secRolesList);
-        extensions["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct());
+        var secondaryRolesJson = System.Text.Json.JsonSerializer.Serialize(secRolesList);
+        var allRolesJson = System.Text.Json.JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct());
 
-        return new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions)
+        manifestProps[KeyPrimaryRole] = canonicalPrimaryRole;
+        manifestProps[KeySecondaryRoles] = secondaryRolesJson;
+        manifestProps[KeyAllRoles] = allRolesJson;
+        manifestProps[KeyEntityKind] = (classification.Kind != ProjectEntityKind.Unknown ? classification.Kind.ToString() : role.ToString());
+        if (classification.SubKind != ProjectEntitySubKind.None)
+        {
+            manifestProps[KeySubKind] = classification.SubKind.ToString();
+        }
+
+        var projectNode = new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary)
         {
             EntityKind = classification.Kind,
-            SubKind = classification.SubKind
+            SubKind = classification.SubKind,
+            EntityType = entityType,
+            PrimaryRole = canonicalPrimaryRole,
+            SecondaryRoles = secondaryRolesJson,
+            AllRoles = allRolesJson,
+            Framework = manifestProps.GetValueOrDefault(KeyFramework),
+            IsBuildOrchestrator = string.Equals(manifestProps.GetValueOrDefault(KeyIsBuildOrchestrator), BoolTrueStr, StringComparison.OrdinalIgnoreCase) ? true : null,
+            ExcludedSubpaths = manifestProps.GetValueOrDefault(KeyExcludedSubpaths),
+            AbsorbedSubpaths = manifestProps.GetValueOrDefault(KeyAbsorbedSubpaths)
         };
+
+        if (manifestProps.TryGetValue(KeyArchetype, out var archStr) && !string.IsNullOrWhiteSpace(archStr))
+        {
+            projectNode.Archetype = TaxonomyEnumExtendedExtensions.ParseProjectArchetype(archStr);
+        }
+
+        if (manifestProps.TryGetValue(KeyCargoManifestDir, out var cargoDir))
+        {
+            projectNode.Signals().CargoManifestDir = cargoDir;
+        }
+
+        projectNode.Signals().ManifestHints = manifestProps;
+        return projectNode;
     }
 
     public static string? NormalizeRoleName(string? r) => r switch

@@ -25,9 +25,27 @@ public record QueryNode(
     string Path,
     int StartLine = 0,
     int EndLine = 0,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
+    [JsonPropertyName("verb")]
+    public string? Verb { get; set; }
+
+    [JsonPropertyName("operation")]
+    public string? Operation { get; set; }
+
+    [JsonPropertyName("evidence_kind")]
+    public string? EvidenceKind { get; set; }
+
+    [JsonPropertyName("file_path")]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("line")]
+    public int? Line { get; set; }
+
+    [JsonPropertyName("line_end")]
+    public int? LineEnd { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Query;
 }

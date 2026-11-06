@@ -270,7 +270,52 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     }
 
     public async Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var result = await ExecuteCypherAsync(query, parameters, cancellationToken);
+        return result.ToJson(indented: true);
+    }
 
+    public async Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteCompiledReaderAsync(
+            query,
+            parameters,
+            static (reader, ct) => DbRowMaterializer.ReadDynamicResultAsync(reader, ct),
+            cancellationToken);
+    }
+
+    public async Task<List<T>> QueryAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteCompiledReaderAsync(
+            query,
+            parameters,
+            static (reader, ct) => DbRowMaterializer.ReadListAsync<T>(reader, ct),
+            cancellationToken);
+    }
+
+    public async Task<T?> QueryFirstOrDefaultAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteCompiledReaderAsync(
+            query,
+            parameters,
+            static (reader, ct) => DbRowMaterializer.ReadFirstOrDefaultAsync<T>(reader, ct),
+            cancellationToken);
+    }
+
+    public async Task<T?> QueryScalarAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteCompiledReaderAsync(
+            query,
+            parameters,
+            static (reader, ct) => DbRowMaterializer.ReadScalarAsync<T>(reader, ct),
+            cancellationToken);
+    }
+
+    private async Task<TResult> ExecuteCompiledReaderAsync<TResult>(
+        string query,
+        object? parameters,
+        Func<SqliteDataReader, CancellationToken, Task<TResult>> readerFunc,
+        CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         ValidateQuerySecurity(query);
@@ -296,7 +341,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             await using var cmd = _conn.CreateCommand();
-
             cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.CommandText = sql;
 
@@ -306,14 +350,13 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            var rows = await ReadRowsAsync(reader, cancellationToken);
+            var result = await readerFunc(reader, cancellationToken);
             sw.Stop();
 
-            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
-                sw.Elapsed.TotalMilliseconds, rows.Count, GetQueryPreview(query));
+            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms: {QueryPreview}",
+                sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
 
-            return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
+            return result;
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
@@ -348,13 +391,13 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-            var rows = await ReadRowsAsync(reader, ct);
+            var result = await DbRowMaterializer.ReadDynamicResultAsync(reader, ct);
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
-                sw.Elapsed.TotalMilliseconds, rows.Count);
+                sw.Elapsed.TotalMilliseconds, result.Count);
 
-            return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
+            return result.ToJson(indented: true);
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
@@ -430,21 +473,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         return singleLine.Length > 80 ? singleLine[..77] + "..." : singleLine;
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ReadRowsAsync(SqliteDataReader reader, CancellationToken cancellationToken = default)
-    {
-        var rows = new List<Dictionary<string, object?>>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            for (var i = 0; i < reader.FieldCount; i++)
-            {
-                row[reader.GetName(i)] = FormatSqliteValue(reader.GetValue(i));
-            }
-            rows.Add(row);
-        }
-        return rows;
-    }
-
     /// <summary>
     /// Executes a custom operation directly against the underlying SQLite connection under the client lock.
     /// </summary>
@@ -498,24 +526,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             _lock.Release();
         }
-    }
-
-    private static object? FormatSqliteValue(object val)
-    {
-        if (val is DBNull) return null;
-        if (val is string s && !string.IsNullOrWhiteSpace(s) && (s.StartsWith('{') || s.StartsWith('[')))
-        {
-            try
-            {
-                return JsonDocument.Parse(s).RootElement.Clone();
-            }
-            catch
-            {
-                // Not valid JSON, return as string
-            }
-        }
-
-        return val;
     }
 
     private static Dictionary<string, object?> ExtractParameters(object? parameters)

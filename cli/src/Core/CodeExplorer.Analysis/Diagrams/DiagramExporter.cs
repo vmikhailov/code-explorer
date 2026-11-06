@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 
 namespace CodeExplorer.Core.Diagrams;
 
@@ -59,46 +58,21 @@ public static class DiagramExporter
 
         // 1. Query Projects
         var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework, labels(p) AS labels, p.role AS role, p.is_library AS is_library";
-        var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
-
-        using var projDoc = JsonDocument.Parse(projJson);
+        var projRows = await client.QueryAsync<(string Id, string Name, string? Framework, List<string> Labels, string? Role, bool IsLibrary)>(projQuery, null, cancellationToken);
 
         var serviceNodes = new List<(string id, string label)>();
         var libNodes = new List<(string id, string label)>();
 
-        foreach (var row in projDoc.RootElement.EnumerateArray())
+        foreach (var row in projRows)
         {
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "proj");
-            var name = row.GetProperty("name").GetString() ?? "Project";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "proj");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Project";
+            var label = string.IsNullOrEmpty(row.Framework) ? name : $"{name}\\n({row.Framework})";
 
-            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String
-                ? f.GetString()
-                : null;
-            var label = string.IsNullOrEmpty(framework) ? name : $"{name}\\n({framework})";
-
-            var role = row.TryGetProperty("role", out var r) && r.ValueKind == JsonValueKind.String
-                ? r.GetString()
-                : null;
-            var isLibStr = row.TryGetProperty("is_library", out var il) && il.ValueKind == JsonValueKind.String
-                ? il.GetString()
-                : null;
-
-            bool isLib = string.Equals(isLibStr, "true", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(role, "SharedLibrary", StringComparison.OrdinalIgnoreCase);
-
-            if (!isLib && row.TryGetProperty("labels", out var lbls) && lbls.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var lbl in lbls.EnumerateArray())
-                {
-                    var l = lbl.GetString();
-                    if (string.Equals(l, "Library", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(l, "SharedLibrary", StringComparison.OrdinalIgnoreCase))
-                    {
-                        isLib = true;
-                        break;
-                    }
-                }
-            }
+            var isLib = row.IsLibrary ||
+                        string.Equals(row.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+                        row.Labels.Any(l => string.Equals(l, "Library", StringComparison.OrdinalIgnoreCase) ||
+                                            string.Equals(l, "SharedLibrary", StringComparison.OrdinalIgnoreCase));
 
             if (isLib)
             {
@@ -138,28 +112,21 @@ public static class DiagramExporter
         // 2. Query Databases
         var dbQuery =
             "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine";
-        var dbJson = await client.ExecuteQueryAsync(dbQuery, null, cancellationToken);
-
-        using var dbDoc = JsonDocument.Parse(dbJson);
+        var dbRows = await client.QueryAsync<(string Id, string Name, string? DbType, string? Engine)>(dbQuery, null, cancellationToken);
 
         var hasDbs = false;
         var dbSb = new StringBuilder();
         dbSb.AppendLine("  subgraph Databases [Data Storage]");
 
-        foreach (var row in dbDoc.RootElement.EnumerateArray())
+        foreach (var row in dbRows)
         {
             hasDbs = true;
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "db");
-            var name = row.GetProperty("name").GetString() ?? "Database";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "db");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Database";
             allNodes.Add(id);
 
-            var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String
-                ? dt.GetString()
-                : "Database";
-
-            var engine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String
-                ? eg.GetString()
-                : null;
+            var dbType = !string.IsNullOrEmpty(row.DbType) ? row.DbType : "Database";
+            var engine = row.Engine;
 
             var label = !string.IsNullOrEmpty(engine) &&
                         !engine.Equals(name, StringComparison.OrdinalIgnoreCase)
@@ -174,24 +141,20 @@ public static class DiagramExporter
         // 3. Query Topics / Message Brokers
         var topicQuery =
             "MATCH (t:Topic) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true') RETURN t.id AS id, t.name AS name, t.broker_type AS broker";
-        var topicJson = await client.ExecuteQueryAsync(topicQuery, null, cancellationToken);
-
-        using var topicDoc = JsonDocument.Parse(topicJson);
+        var topicRows = await client.QueryAsync<(string Id, string Name, string? Broker)>(topicQuery, null, cancellationToken);
 
         var hasTopics = false;
         var topicSb = new StringBuilder();
         topicSb.AppendLine("  subgraph MessageBrokers [Event & Message Brokers]");
 
-        foreach (var row in topicDoc.RootElement.EnumerateArray())
+        foreach (var row in topicRows)
         {
             hasTopics = true;
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "topic");
-            var name = row.GetProperty("name").GetString() ?? "Topic";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "topic");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Topic";
             allNodes.Add(id);
 
-            var broker = row.TryGetProperty("broker", out var b) && b.ValueKind == JsonValueKind.String
-                ? b.GetString()
-                : "Queue";
+            var broker = !string.IsNullOrEmpty(row.Broker) ? row.Broker : "Queue";
             topicSb.AppendLine($"    {id}{{\"{name}\\n[{broker}]\"}}");
         }
 
@@ -201,19 +164,17 @@ public static class DiagramExporter
         // 4. Query External Services / Cloud
         var extQuery =
             "MATCH (s:ExternalService) RETURN s.id AS id, s.name AS name UNION MATCH (c:CloudService) RETURN c.id AS id, c.name AS name";
-        var extJson = await client.ExecuteQueryAsync(extQuery, null, cancellationToken);
-
-        using var extDoc = JsonDocument.Parse(extJson);
+        var extRows = await client.QueryAsync<(string Id, string Name)>(extQuery, null, cancellationToken);
 
         var hasExt = false;
         var extSb = new StringBuilder();
         extSb.AppendLine("  subgraph ExternalServices [External & Cloud Services]");
 
-        foreach (var row in extDoc.RootElement.EnumerateArray())
+        foreach (var row in extRows)
         {
             hasExt = true;
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "ext");
-            var name = row.GetProperty("name").GetString() ?? "Service";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "ext");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Service";
             allNodes.Add(id);
             extSb.AppendLine($"    {id}[\"{name}\"]");
         }
@@ -232,17 +193,15 @@ public static class DiagramExporter
                         MATCH (t:Topic)-[:SUBSCRIBED_BY]->(consumer) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true')
                         RETURN t.id AS from_id, consumer.id AS to_id, 'SUBSCRIBES_TO' AS rel_type
                         """;
-        var relsJson = await client.ExecuteQueryAsync(relsQuery, null, cancellationToken);
-
-        using var relsDoc = JsonDocument.Parse(relsJson);
+        var relsRows = await client.QueryAsync<(string FromId, string ToId, string RelType)>(relsQuery, null, cancellationToken);
 
         var addedEdges = new HashSet<string>();
 
-        foreach (var row in relsDoc.RootElement.EnumerateArray())
+        foreach (var row in relsRows)
         {
-            var from = SanitizeId(row.GetProperty("from_id").GetString() ?? "");
-            var to = SanitizeId(row.GetProperty("to_id").GetString() ?? "");
-            var rel = row.GetProperty("rel_type").GetString() ?? "USES";
+            var from = SanitizeId(row.FromId);
+            var to = SanitizeId(row.ToId);
+            var rel = !string.IsNullOrEmpty(row.RelType) ? row.RelType : "USES";
 
             if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) continue;
             if (!allNodes.Contains(from) || !allNodes.Contains(to)) continue;
@@ -273,42 +232,18 @@ public static class DiagramExporter
 
         // 1. Containers (Projects)
         var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework, labels(p) AS labels, p.role AS role, p.is_library AS is_library";
-        var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
+        var projRows = await client.QueryAsync<(string Id, string Name, string? Framework, List<string> Labels, string? Role, bool IsLibrary)>(projQuery, null, cancellationToken);
 
-        using var projDoc = JsonDocument.Parse(projJson);
-
-        foreach (var row in projDoc.RootElement.EnumerateArray())
+        foreach (var row in projRows)
         {
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "proj");
-            var name = row.GetProperty("name").GetString() ?? "Project";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "proj");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Project";
+            var framework = !string.IsNullOrEmpty(row.Framework) ? row.Framework : "Application";
 
-            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String
-                ? f.GetString()
-                : "Application";
-
-            var role = row.TryGetProperty("role", out var r) && r.ValueKind == JsonValueKind.String
-                ? r.GetString()
-                : null;
-            var isLibStr = row.TryGetProperty("is_library", out var il) && il.ValueKind == JsonValueKind.String
-                ? il.GetString()
-                : null;
-
-            bool isLib = string.Equals(isLibStr, "true", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(role, "SharedLibrary", StringComparison.OrdinalIgnoreCase);
-
-            if (!isLib && row.TryGetProperty("labels", out var lbls) && lbls.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var lbl in lbls.EnumerateArray())
-                {
-                    var l = lbl.GetString();
-                    if (string.Equals(l, "Library", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(l, "SharedLibrary", StringComparison.OrdinalIgnoreCase))
-                    {
-                        isLib = true;
-                        break;
-                    }
-                }
-            }
+            var isLib = row.IsLibrary ||
+                        string.Equals(row.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+                        row.Labels.Any(l => string.Equals(l, "Library", StringComparison.OrdinalIgnoreCase) ||
+                                            string.Equals(l, "SharedLibrary", StringComparison.OrdinalIgnoreCase));
 
             if (isLib && !includeLibraries)
             {
@@ -323,57 +258,43 @@ public static class DiagramExporter
         // 2. Databases
         var dbQuery =
             "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine";
-        var dbJson = await client.ExecuteQueryAsync(dbQuery, null, cancellationToken);
+        var dbRows = await client.QueryAsync<(string Id, string Name, string? DbType, string? Engine)>(dbQuery, null, cancellationToken);
 
-        using var dbDoc = JsonDocument.Parse(dbJson);
-
-        foreach (var row in dbDoc.RootElement.EnumerateArray())
+        foreach (var row in dbRows)
         {
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "db");
-            var name = row.GetProperty("name").GetString() ?? "Database";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "db");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Database";
             allNodes.Add(id);
 
-            var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String
-                ? dt.GetString()
-                : "Database";
-
-            var engine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String
-                ? eg.GetString()
-                : null;
-            var tech = !string.IsNullOrEmpty(engine) ? engine : dbType;
+            var dbType = !string.IsNullOrEmpty(row.DbType) ? row.DbType : "Database";
+            var tech = !string.IsNullOrEmpty(row.Engine) ? row.Engine : dbType;
             sb.AppendLine($"  ContainerDb({id}, \"{name}\", \"{tech}\", \"Data storage\")");
         }
 
         // 3. Topics / Queues
         var topicQuery =
             "MATCH (t:Topic) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true') RETURN t.id AS id, t.name AS name, t.broker_type AS broker";
-        var topicJson = await client.ExecuteQueryAsync(topicQuery, null, cancellationToken);
+        var topicRows = await client.QueryAsync<(string Id, string Name, string? Broker)>(topicQuery, null, cancellationToken);
 
-        using var topicDoc = JsonDocument.Parse(topicJson);
-
-        foreach (var row in topicDoc.RootElement.EnumerateArray())
+        foreach (var row in topicRows)
         {
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "topic");
-            var name = row.GetProperty("name").GetString() ?? "Topic";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "topic");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "Topic";
             allNodes.Add(id);
 
-            var broker = row.TryGetProperty("broker", out var b) && b.ValueKind == JsonValueKind.String
-                ? b.GetString()
-                : "Queue";
+            var broker = !string.IsNullOrEmpty(row.Broker) ? row.Broker : "Queue";
             sb.AppendLine($"  ContainerQueue({id}, \"{name}\", \"{broker}\", \"Message / Event Broker\")");
         }
 
         // 4. External Services
         var extQuery =
             "MATCH (s:ExternalService) RETURN s.id AS id, s.name AS name UNION MATCH (c:CloudService) RETURN c.id AS id, c.name AS name";
-        var extJson = await client.ExecuteQueryAsync(extQuery, null, cancellationToken);
+        var extRows = await client.QueryAsync<(string Id, string Name)>(extQuery, null, cancellationToken);
 
-        using var extDoc = JsonDocument.Parse(extJson);
-
-        foreach (var row in extDoc.RootElement.EnumerateArray())
+        foreach (var row in extRows)
         {
-            var id = SanitizeId(row.GetProperty("id").GetString() ?? "ext");
-            var name = row.GetProperty("name").GetString() ?? "External Service";
+            var id = SanitizeId(!string.IsNullOrEmpty(row.Id) ? row.Id : "ext");
+            var name = !string.IsNullOrEmpty(row.Name) ? row.Name : "External Service";
             allNodes.Add(id);
             sb.AppendLine($"  System_Ext({id}, \"{name}\", \"External / Cloud Service\")");
         }
@@ -391,17 +312,15 @@ public static class DiagramExporter
                         MATCH (t:Topic)-[:SUBSCRIBED_BY]->(consumer) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true')
                         RETURN t.id AS from_id, consumer.id AS to_id, 'Subscribes from' AS rel_type
                         """;
-        var relsJson = await client.ExecuteQueryAsync(relsQuery, null, cancellationToken);
-
-        using var relsDoc = JsonDocument.Parse(relsJson);
+        var relsRows = await client.QueryAsync<(string FromId, string ToId, string RelType)>(relsQuery, null, cancellationToken);
 
         var addedEdges = new HashSet<string>();
 
-        foreach (var row in relsDoc.RootElement.EnumerateArray())
+        foreach (var row in relsRows)
         {
-            var from = SanitizeId(row.GetProperty("from_id").GetString() ?? "");
-            var to = SanitizeId(row.GetProperty("to_id").GetString() ?? "");
-            var rel = row.GetProperty("rel_type").GetString() ?? "Uses";
+            var from = SanitizeId(row.FromId);
+            var to = SanitizeId(row.ToId);
+            var rel = !string.IsNullOrEmpty(row.RelType) ? row.RelType : "Uses";
 
             if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) continue;
             if (!allNodes.Contains(from) || !allNodes.Contains(to)) continue;
@@ -429,20 +348,18 @@ public static class DiagramExporter
         MATCH (t:Table)-[:IMPLEMENTED_BY]->(entity:Type)
         RETURN entity.id AS entity_id, entity.name AS entity_name, t.id AS table_id, t.name AS table_name
         """;
-        var lineageJson = await client.ExecuteQueryAsync(lineageQuery, null, cancellationToken);
-
-        using var doc = JsonDocument.Parse(lineageJson);
+        var lineageRows = await client.QueryAsync<(string EntityId, string EntityName, string TableId, string TableName)>(lineageQuery, null, cancellationToken);
 
         var tables = new Dictionary<string, string>();
         var entities = new Dictionary<string, string>();
         var edges = new List<(string From, string To)>();
 
-        foreach (var row in doc.RootElement.EnumerateArray())
+        foreach (var row in lineageRows)
         {
-            var entityId = SanitizeId(row.GetProperty("entity_id").GetString() ?? "");
-            var entityName = row.GetProperty("entity_name").GetString() ?? "Entity";
-            var tableId = SanitizeId(row.GetProperty("table_id").GetString() ?? "");
-            var tableName = row.GetProperty("table_name").GetString() ?? "Table";
+            var entityId = SanitizeId(row.EntityId);
+            var entityName = !string.IsNullOrEmpty(row.EntityName) ? row.EntityName : "Entity";
+            var tableId = SanitizeId(row.TableId);
+            var tableName = !string.IsNullOrEmpty(row.TableName) ? row.TableName : "Table";
 
             entities[entityId] = entityName;
             tables[tableId] = tableName;
@@ -484,9 +401,7 @@ public static class DiagramExporter
         MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
         RETURN pub.id AS pub_id, pub.name AS pub_name, topic.id AS topic_id, topic.name AS topic_name, topic.broker_type AS broker, sub.id AS sub_id, sub.name AS sub_name
         """;
-        var cqrsJson = await client.ExecuteQueryAsync(cqrsQuery, null, cancellationToken);
-
-        using var doc = JsonDocument.Parse(cqrsJson);
+        var cqrsRows = await client.QueryAsync<(string PubId, string PubName, string TopicId, string TopicName, string? Broker, string SubId, string SubName)>(cqrsQuery, null, cancellationToken);
 
         var producers = new Dictionary<string, string>();
         var topics = new Dictionary<string, (string Name, string Broker)>();
@@ -494,15 +409,15 @@ public static class DiagramExporter
         var pubEdges = new HashSet<(string, string)>();
         var subEdges = new HashSet<(string, string)>();
 
-        foreach (var row in doc.RootElement.EnumerateArray())
+        foreach (var row in cqrsRows)
         {
-            var pubId = SanitizeId(row.GetProperty("pub_id").GetString() ?? "");
-            var pubName = row.GetProperty("pub_name").GetString() ?? "Producer";
-            var topicId = SanitizeId(row.GetProperty("topic_id").GetString() ?? "");
-            var topicName = row.GetProperty("topic_name").GetString() ?? "Message";
-            var broker = row.GetProperty("broker").GetString() ?? "Event";
-            var subId = SanitizeId(row.GetProperty("sub_id").GetString() ?? "");
-            var subName = row.GetProperty("sub_name").GetString() ?? "Consumer";
+            var pubId = SanitizeId(row.PubId);
+            var pubName = !string.IsNullOrEmpty(row.PubName) ? row.PubName : "Producer";
+            var topicId = SanitizeId(row.TopicId);
+            var topicName = !string.IsNullOrEmpty(row.TopicName) ? row.TopicName : "Message";
+            var broker = !string.IsNullOrEmpty(row.Broker) ? row.Broker : "Event";
+            var subId = SanitizeId(row.SubId);
+            var subName = !string.IsNullOrEmpty(row.SubName) ? row.SubName : "Consumer";
 
             producers[pubId] = pubName;
             topics[topicId] = (topicName, broker);

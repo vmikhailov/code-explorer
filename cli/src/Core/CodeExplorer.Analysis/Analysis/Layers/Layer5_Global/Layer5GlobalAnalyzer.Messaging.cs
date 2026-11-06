@@ -662,14 +662,17 @@ public partial class Layer5AnalysisParser
         if (!createdTopicIds.Contains(topicId))
         {
             createdTopicIds.Add(topicId);
-            var topicExt = new Dictionary<string, string>
+            var topicNode = new TopicNode(
+                topicId,
+                topicName,
+                "",
+                brokerType)
             {
-                ["is_internal"] = isInternal ? "true" : "false",
-                ["scope"] = isInternal ? "internal" : "external",
-                ["message_type"] = isInternal ? "internal" : "external",
-                ["is_semantic_entity"] = isInternal ? "false" : "true"
+                IsInternal = isInternal,
+                Scope = isInternal ? "internal" : "external",
+                MessageType = isInternal ? "internal" : "external",
+                IsSemanticEntity = !isInternal
             };
-            var topicNode = new TopicNode(topicId, topicName, "", brokerType, topicExt);
             newTopicNodes.Add(topicNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
         }
@@ -679,28 +682,20 @@ public partial class Layer5AnalysisParser
             : OntologyConstants.Relationships.SubscribedBy;
         var isPublish = refItem.Kind == OntologyConstants.Relationships.PublishesTo;
 
-        var relProps = new Dictionary<string, object>
+        referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind)
         {
-            ["is_internal"] = isInternal ? "true" : "false",
-            ["scope"] = isInternal ? "internal" : "external",
-            ["category"] = "messaging",
-            ["dependency_type"] = "messaging",
-            ["broker_type"] = brokerType,
-            [OntologyConstants.PropertyNames.Operation] = isPublish ? "PUBLISH" : "SUBSCRIBE",
-            [OntologyConstants.PropertyNames.EvidenceKind] = isPublish
+            IsInternal = isInternal,
+            Scope = isInternal ? "internal" : "external",
+            Category = "messaging",
+            DependencyType = "messaging",
+            BrokerType = brokerType,
+            Operation = isPublish ? "PUBLISH" : "SUBSCRIBE",
+            EvidenceKind = isPublish
                 ? OntologyConstants.EvidenceKinds.Publish
-                : OntologyConstants.EvidenceKinds.Subscribe
-        };
-        if (!string.IsNullOrEmpty(scopeFilePath))
-        {
-            relProps[OntologyConstants.PropertyNames.FilePath] = scopeFilePath;
-        }
-        if (isInternal)
-        {
-            relProps["is_semantic"] = "false";
-        }
-
-        referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, new Dictionary<string, object>(relProps)));
+                : OntologyConstants.EvidenceKinds.Subscribe,
+            FilePath = !string.IsNullOrEmpty(scopeFilePath) ? scopeFilePath : null,
+            IsSemantic = isInternal ? false : null
+        });
     }
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);

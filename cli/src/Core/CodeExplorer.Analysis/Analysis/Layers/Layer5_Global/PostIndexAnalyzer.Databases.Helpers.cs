@@ -415,26 +415,23 @@ public partial class PostIndexAnalyzer
 
             if (effectiveFrom != target && seen.Add((effectiveFrom, target)))
             {
-                var props = new Dictionary<string, object>
-                {
-                    ["dependency_type"] = "database",
-                    ["is_semantic"] = "true",
-                    ["is_canonical"] = "true"
-                };
-
+                Dictionary<string, object>? dict = null;
                 if (propsElem.ValueKind == JsonValueKind.Object)
                 {
+                    dict = new Dictionary<string, object>();
                     foreach (var jp in propsElem.EnumerateObject())
                     {
-                        if (!props.ContainsKey(jp.Name))
-                        {
-                            props[jp.Name] = jp.Value.ToString();
-                        }
+                        dict[jp.Name] = jp.Value.ToString();
                     }
                 }
+                var created = new Relationship(effectiveFrom, target, OntologyConstants.Relationships.UsesDb, dict)
+                {
+                    DependencyType = "database",
+                    IsSemantic = true,
+                    IsCanonical = true
+                };
 
-                relationshipsToUpload.Add(new Relationship(effectiveFrom, target,
-                    OntologyConstants.Relationships.UsesDb, props));
+                relationshipsToUpload.Add(created);
             }
         }
 

@@ -470,8 +470,9 @@ export class Product {
             };
             await db.UploadRelationshipsAsync(rels);
 
+            var ctx = new ParsingContext("", "");
             var analyzer = new PostIndexAnalyzer(db);
-            await analyzer.RunAsync("workspace");
+            await analyzer.RunAsync("workspace", ctx);
 
             // 1. Verify canonical database nodes exist in the graph
             var canonicalDb = await db.ExecuteQueryAsync(

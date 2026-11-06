@@ -57,33 +57,9 @@ public class ParsingContext
     public Layer3Logger Layer3Log => new(_logger);
     public Layer4Logger Layer4Log => new(_logger);
     public Layer5Logger Layer5Log => new(_logger);
+    public PostIndexLogger PostIndexLog => new(_logger);
+    public IntentLogger IntentLog => new(_logger);
     public PipelineLogger PipelineLog => new(_logger);
-
-    public void Log(string message)
-    {
-        _logger.LogInformation("{Message}", message);
-    }
-
-    public void LogDebug(string message)
-    {
-        _logger.LogDebug("{Message}", message);
-    }
-
-    public void LogWarning(string message, Exception? ex = null)
-    {
-        if (ex != null)
-            _logger.LogWarning(ex, "{Message}", message);
-        else
-            _logger.LogWarning("{Message}", message);
-    }
-
-    public void LogError(string message, Exception? ex = null)
-    {
-        if (ex != null)
-            _logger.LogError(ex, "{Message}", message);
-        else
-            _logger.LogError("{Message}", message);
-    }
 
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
     public Dictionary<SymbolKey, string> GlobalSymbolKeys { get; } = new();
@@ -205,7 +181,7 @@ public class ParsingContext
         var now = Environment.TickCount64;
         if (_nodesPersisted - _lastReportedNodes >= 10000)
         {
-            Log($"[Database   ] Persisted {_nodesPersisted:N0} nodes to database...");
+            PipelineLog.PersistedNodesProgress(_nodesPersisted);
             _lastReportedNodes = _nodesPersisted;
             _lastNodeReportTicks = now;
         }
@@ -216,7 +192,7 @@ public class ParsingContext
         var now = Environment.TickCount64;
         if (_relsPersisted - _lastReportedRels >= 10000)
         {
-            Log($"[Database   ] Persisted {_relsPersisted:N0} relationships to database...");
+            PipelineLog.PersistedRelationshipsProgress(_relsPersisted);
             _lastReportedRels = _relsPersisted;
             _lastRelReportTicks = now;
         }
@@ -227,13 +203,13 @@ public class ParsingContext
         var now = Environment.TickCount64;
         if (_nodesPersisted > _lastReportedNodes)
         {
-            LogDebug($"[Database   ] Persisted {_nodesPersisted:N0} nodes to database.");
+            PipelineLog.PersistedNodesFinal(_nodesPersisted);
             _lastReportedNodes = _nodesPersisted;
             _lastNodeReportTicks = now;
         }
         if (_relsPersisted > _lastReportedRels)
         {
-            LogDebug($"[Database   ] Persisted {_relsPersisted:N0} relationships to database.");
+            PipelineLog.PersistedRelationshipsFinal(_relsPersisted);
             _lastReportedRels = _relsPersisted;
             _lastRelReportTicks = now;
         }
@@ -520,11 +496,11 @@ public class ParsingContext
                     _ => "[ScanIssue  ]"
                 });
                 var locSuffix = startLine.HasValue ? $":{startLine.Value}{(startCol.HasValue ? $":{startCol.Value}" : "")}" : "";
-                var logMsg = $"{tag} [{category}] '{relPath}{locSuffix}': {message}";
+                var location = $"{relPath}{locSuffix}";
                 if (string.Equals(severity, "error", StringComparison.OrdinalIgnoreCase))
-                    LogError(logMsg, exception);
+                    PipelineLog.ScanIssueError(tag, category, location, message, exception);
                 else
-                    LogWarning(logMsg, exception);
+                    PipelineLog.ScanIssueWarning(tag, category, location, message, exception);
             }
         }
 

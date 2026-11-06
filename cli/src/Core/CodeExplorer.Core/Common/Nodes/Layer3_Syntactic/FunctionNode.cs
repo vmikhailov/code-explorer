@@ -33,16 +33,19 @@ public record FunctionNode(
     string? ProjectName = null,
     int? StageOrder = null,
     int? Loc = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public FunctionNode(string id, string name, string symbol, string filePath, string path, int startLine, int endLine, int startCol, int endCol, Dictionary<string, string>? extensions = null)
-        : this(id, name, symbol, filePath, path, startLine, endLine, startCol, endCol, false, null, null, null, null, extensions)
+    public FunctionNode(string id, string name, string symbol, string filePath, string path, int startLine, int endLine, int startCol, int endCol, Dictionary<string, string>? customProperties = null)
+        : this(id, name, symbol, filePath, path, startLine, endLine, startCol, endCol, false, null, null, null, null, customProperties)
     {
     }
 
     [JsonPropertyName("is_test"), OntologyProperty("Indicates whether the function is declared within test code.")]
     public bool IsTest { get; set; } = IsTest;
+
+    [JsonPropertyName("test_framework"), OntologyProperty("Detected test runner or framework (e.g. xunit, nunit, mstest, jest, pytest, go-test, junit).")]
+    public string? TestFramework { get; set; }
 
     [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
     public ProjectEntityKind? ProjectKind { get; set; } = ProjectKind;
@@ -61,6 +64,24 @@ public record FunctionNode(
 
     [JsonPropertyName("is_module_init"), OntologyProperty("Indicates whether this node represents top-level module initialization code.")]
     public bool? IsModuleInit { get; set; }
+
+    [JsonPropertyName("is_async"), OntologyProperty("Indicates whether the function is asynchronous.")]
+    public bool? IsAsync { get; set; }
+
+    [JsonPropertyName("is_unsafe"), OntologyProperty("Indicates whether the function uses unsafe code blocks or modifiers.")]
+    public bool? IsUnsafe { get; set; }
+
+    [JsonPropertyName("visibility"), OntologyProperty("Declared visibility or access modifier of the function (e.g. public, private, remote).")]
+    public string? Visibility { get; set; }
+
+    [JsonPropertyName("graphql_operation"), OntologyProperty("GraphQL client operation name or flag.")]
+    public string? GraphqlOperation { get; set; }
+
+    [JsonPropertyName("operation_type"), OntologyProperty("Operation type for GraphQL or RPC operations.")]
+    public string? OperationType { get; set; }
+
+    [JsonPropertyName("graphql_fields"), OntologyProperty("Comma-separated GraphQL root selection fields.")]
+    public string? GraphqlFields { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Function;

@@ -38,9 +38,8 @@ public static class StatusCommandHandler
                     wsName = wsNode.Name;
                 }
 
-                if (wsNode.Extensions != null &&
-                    wsNode.Extensions.TryGetValue(OntologyConstants.ExtensionKeys.IndexedAt, out var indexedAtStr) &&
-                    DateTime.TryParse(indexedAtStr, out var dt))
+                if (!string.IsNullOrWhiteSpace(wsNode.IndexedAt) &&
+                    DateTime.TryParse(wsNode.IndexedAt, out var dt))
                 {
                     lastIndexedAt = dt.ToLocalTime();
                 }

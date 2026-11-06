@@ -1,0 +1,26 @@
+id: SIG-C-C-003
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Contract
+name: "Core Ontology Dynamic Property Purity"
+severity: Error
+description: "Ontology nodes and relationships in Core, Analysis, and built-in Parsers must use strongly-typed properties. Dynamic 'Extensions' dictionaries and SetExtension/TryGetExtension helpers are forbidden; 'CustomProperties' is reserved strictly for user-supplied parser extensions."
+remediation: "Promote dynamic extension attributes to strongly-typed [OntologyProperty] properties on the appropriate IOntologyNode or IOntologyRelationship record, or use AnalysisSignalStore for transient pipeline signals."
+query: |
+  MATCH (t:Type)-[:CONTAINS]->(m)
+  WHERE NOT coalesce(t.is_test, false)
+    AND (
+      (m.name IN ['Extensions', 'Properties'] AND (t.file_path CONTAINS 'Common/Nodes/' OR t.file_path CONTAINS 'Common/Relationships/' OR t.name = 'Relationship'))
+      OR (m.name IN ['SetExtension', 'TryGetExtension'] AND t.name = 'OntologyNodeExtensions')
+    )
+  RETURN
+    coalesce(m.file_path, t.file_path, 'unknown') AS file,
+    coalesce(m.start_line, t.start_line, 1) AS line,
+    coalesce(m.start_col, t.start_col, 1) AS column,
+    m.name AS symbol,
+    t.name AS target,
+    'Core ontology dynamic property violation: ' + t.name + '.' + m.name + ' reintroduces untyped dynamic properties into core ontology.' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-C-003.json

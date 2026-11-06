@@ -62,17 +62,12 @@ public static class SqliteCypherFunctions
         conn.CreateFunction("keys", (string? propsJson) =>
         {
             if (string.IsNullOrEmpty(propsJson)) return "[]";
-            try
+            var parsed = CypherValue.TryParseJsonText(propsJson);
+            if (parsed.Kind == CypherValueKind.Object)
             {
-                using var doc = JsonDocument.Parse(propsJson);
-
-                if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                {
-                    var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
-                    return JsonSerializer.Serialize(keys);
-                }
+                var keys = parsed.AsObject().Select(p => p.Key).ToList();
+                return JsonSerializer.Serialize(keys);
             }
-            catch { }
             return "[]";
         });
     }
@@ -88,35 +83,24 @@ public static class SqliteCypherFunctions
     private static string? SafeListElement(string? jsonList, bool isLast)
     {
         if (string.IsNullOrEmpty(jsonList)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(jsonList);
+        var parsed = CypherValue.TryParseJsonText(jsonList);
+        if (parsed.Kind != CypherValueKind.Array) return null;
 
-            if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
+        var items = parsed.AsArray();
+        if (items.Count == 0) return null;
 
-            var len = doc.RootElement.GetArrayLength();
-            if (len == 0) return null;
-
-            return (isLast ? doc.RootElement[len - 1] : doc.RootElement[0]).ToString();
-        }
-        catch { }
-        return null;
+        return (isLast ? items[^1] : items[0]).AsNullableString();
     }
 
     private static string SafeListTail(string? jsonList)
     {
         if (string.IsNullOrEmpty(jsonList)) return "[]";
-        try
+        var parsed = CypherValue.TryParseJsonText(jsonList);
+        if (parsed.Kind == CypherValueKind.Array)
         {
-            using var doc = JsonDocument.Parse(jsonList);
-
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                var items = doc.RootElement.EnumerateArray().Skip(1).Select(x => x.ToString()).ToList();
-                return JsonSerializer.Serialize(items);
-            }
+            var items = parsed.AsArray().Skip(1).Select(x => x.AsString()).ToList();
+            return JsonSerializer.Serialize(items);
         }
-        catch { }
         return "[]";
     }
 

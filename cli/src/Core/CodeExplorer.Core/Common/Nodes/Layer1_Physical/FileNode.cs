@@ -23,11 +23,11 @@ public record FileNode(
     string? ProjectName = null,
     int? LineCount = null,
     long? SizeBytes = null,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public FileNode(string id, string name, string path, string fullPath, Dictionary<string, string>? extensions = null)
-        : this(id, name, path, fullPath, false, null, null, null, null, extensions)
+    public FileNode(string id, string name, string path, string fullPath, Dictionary<string, string>? customProperties = null)
+        : this(id, name, path, fullPath, false, null, null, null, null, customProperties)
     {
     }
 

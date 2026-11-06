@@ -115,8 +115,7 @@ public class ColdFusionParserTests
         var component = fileNode!.Children.OfType<TypeNode>().FirstOrDefault();
         component.Should().NotBeNull();
         component!.Name.Should().Be("UserService");
-        component.Extensions.Should().NotBeNull();
-        component.Extensions!["extends"].Should().Be("BaseService");
+        component.Extends.Should().Be("BaseService");
 
         // 2. Verify Function under Component
         var getUserFunc = component.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "getUser");

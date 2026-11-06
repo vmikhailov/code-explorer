@@ -599,8 +599,8 @@ public partial class Layer5AnalysisParser
         {
             foreach (var proj in inMemoryProjects)
             {
-                var pkgName = proj.Extensions?.GetValueOrDefault(OntologyConstants.ExtensionKeys.PackageName);
-                var mainFile = proj.Extensions?.GetValueOrDefault(OntologyConstants.ExtensionKeys.MainFile) ?? proj.Extensions?.GetValueOrDefault(OntologyConstants.ExtensionKeys.ModuleFile);
+                var pkgName = proj.PackageName;
+                var mainFile = proj.MainFile ?? proj.ModuleFile;
                 var normProjPath = proj.Path.Replace('\\', '/');
                 if (!string.IsNullOrEmpty(pkgName))
                 {
@@ -639,21 +639,23 @@ public partial class Layer5AnalysisParser
         if (found && targetTableId != null)
         {
             var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-            var ext = new Dictionary<string, string>
-            {
-                [OntologyConstants.PropertyNames.Operation] = "SELECT",
-                [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
-            };
-            if (!string.IsNullOrEmpty(filePath))
-            {
-                ext[OntologyConstants.PropertyNames.FilePath] = filePath;
-            }
+            var cleanFilePath = !string.IsNullOrEmpty(filePath) ? filePath : null;
 
             referenceRelationships.Add(
-                Relationship.FromRelationship(new AccessedByRelationship(targetTableId, refItem.ScopeSymbolId, ext)));
+                Relationship.FromRelationship(new AccessedByRelationship(targetTableId, refItem.ScopeSymbolId)
+                {
+                    Operation = "SELECT",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Query,
+                    FilePath = cleanFilePath
+                }));
             if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Query}:") || refItem.ScopeSymbolId.Contains(":query:"))
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId, ext)));
+                referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)
+                {
+                    Operation = "SELECT",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Query,
+                    FilePath = cleanFilePath
+                }));
             }
         }
     }
@@ -678,22 +680,24 @@ public partial class Layer5AnalysisParser
             if (tid != targetTableId)
             {
                 var filePath = ExtractFilePathFromSymbolId(tid);
-                var ext = new Dictionary<string, string>
-                {
-                    [OntologyConstants.PropertyNames.Operation] = "ORM",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Orm
-                };
-                if (!string.IsNullOrEmpty(filePath))
-                {
-                    ext[OntologyConstants.PropertyNames.FilePath] = filePath;
-                }
+                var cleanFilePath = !string.IsNullOrEmpty(filePath) ? filePath : null;
                 if (!referenceRelationships.Any(r => r.From == targetTableId && r.To == tid && r.Kind == OntologyConstants.Relationships.ImplementedBy))
                 {
-                    referenceRelationships.Add(Relationship.FromRelationship(new ImplementedByRelationship(targetTableId, tid, ext)));
+                    referenceRelationships.Add(Relationship.FromRelationship(new ImplementedByRelationship(targetTableId, tid)
+                    {
+                        Operation = "ORM",
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Orm,
+                        FilePath = cleanFilePath
+                    }));
                 }
                 if (!referenceRelationships.Any(r => r.From == targetTableId && r.To == tid && r.Kind == OntologyConstants.Relationships.AccessedBy))
                 {
-                    referenceRelationships.Add(Relationship.FromRelationship(new AccessedByRelationship(targetTableId, tid, ext)));
+                    referenceRelationships.Add(Relationship.FromRelationship(new AccessedByRelationship(targetTableId, tid)
+                    {
+                        Operation = "ORM",
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Orm,
+                        FilePath = cleanFilePath
+                    }));
                 }
             }
         }

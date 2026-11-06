@@ -429,25 +429,22 @@ public static class NestedSqlParser
 
         var queryName = !string.IsNullOrEmpty(customQueryName) ? customQueryName : $"{firstWord} Query";
         var verb = (firstWord ?? "SELECT").ToUpperInvariant();
-        var queryExt = new Dictionary<string, string>
-        {
-            ["verb"] = verb,
-            [OntologyConstants.PropertyNames.Operation] = verb,
-            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query,
-            [OntologyConstants.PropertyNames.FilePath] = filePath
-        };
-        if (startLine > 0) queryExt[OntologyConstants.PropertyNames.Line] = startLine.ToString();
-        if (endLine > 0) queryExt[OntologyConstants.PropertyNames.LineEnd] = endLine.ToString();
-
         var queryNode = new QueryNode(
             id,
             queryName,
             cleanedSql,
             filePath,
             startLine,
-            endLine,
-            queryExt
-        );
+            endLine
+        )
+        {
+            Verb = verb,
+            Operation = verb,
+            EvidenceKind = OntologyConstants.EvidenceKinds.Query,
+            FilePath = filePath,
+            Line = startLine > 0 ? startLine : null,
+            LineEnd = endLine > 0 ? endLine : null
+        };
 
         BuildSqlHierarchy(cleanedSql, rawText, queryNode, filePath, ctx, verb, startLine, endLine);
 
@@ -780,29 +777,21 @@ public static class NestedSqlParser
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
-                var extensions = new Dictionary<string, string>
+                var isTestFile = WorkspaceConventions.IsTestFilePath(filePath);
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, targetDbType)
                 {
-                    ["name"] = fullDbName,
-                    ["engine"] = targetEngine,
-                    ["schema"] = schemaName,
-                    ["db_type"] = targetDbType
+                    Engine = targetEngine,
+                    Schema = schemaName,
+                    IsImplicitSchema = isImplicitSchema ? true : null,
+                    IsTest = isTestFile ? true : null,
+                    Role = isTestFile ? "Test" : null
                 };
-                if (isImplicitSchema)
-                {
-                    extensions["is_implicit_schema"] = "true";
-                }
-                if (WorkspaceConventions.IsTestFilePath(filePath))
-                {
-                    extensions["is_test"] = "true";
-                    extensions["role"] = "Test";
-                }
-                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, targetDbType, extensions);
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
-            else if (!isImplicitSchema && dbNode.Extensions != null)
+            else if (!isImplicitSchema && dbNode.IsImplicitSchema == true)
             {
-                dbNode.Extensions.Remove("is_implicit_schema");
+                dbNode.IsImplicitSchema = null;
             }
 
             var schemaKey = $"{dbKey}:{schemaName.ToLowerInvariant()}";
@@ -826,15 +815,14 @@ public static class NestedSqlParser
                 var relKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE"
                     ? OntologyConstants.Relationships.WritesTo
                     : OntologyConstants.Relationships.ReadsFrom;
-                var relProps = new Dictionary<string, object>
+                ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, tableNodeId, relKind)
                 {
-                    [OntologyConstants.PropertyNames.FilePath] = filePath,
-                    [OntologyConstants.PropertyNames.Operation] = verb,
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
-                };
-                if (startLine > 0) relProps[OntologyConstants.PropertyNames.Line] = startLine;
-                if (endLine > 0) relProps[OntologyConstants.PropertyNames.LineEnd] = endLine;
-                ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, tableNodeId, relKind, relProps));
+                    FilePath = filePath,
+                    Operation = verb,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Query,
+                    Line = startLine > 0 ? startLine : 0,
+                    LineEnd = endLine > 0 ? endLine : 0
+                });
             }
         }
 
@@ -875,29 +863,21 @@ public static class NestedSqlParser
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
-                var extensions = new Dictionary<string, string>
+                var isTestFile = WorkspaceConventions.IsTestFilePath(filePath);
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational")
                 {
-                    ["name"] = fullDbName,
-                    ["engine"] = targetEngine,
-                    ["schema"] = schemaName,
-                    ["db_type"] = "relational"
+                    Engine = targetEngine,
+                    Schema = schemaName,
+                    IsImplicitSchema = isImplicitSchema ? true : null,
+                    IsTest = isTestFile ? true : null,
+                    Role = isTestFile ? "Test" : null
                 };
-                if (isImplicitSchema)
-                {
-                    extensions["is_implicit_schema"] = "true";
-                }
-                if (WorkspaceConventions.IsTestFilePath(filePath))
-                {
-                    extensions["is_test"] = "true";
-                    extensions["role"] = "Test";
-                }
-                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational", extensions);
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
-            else if (!isImplicitSchema && dbNode.Extensions != null)
+            else if (!isImplicitSchema && dbNode.IsImplicitSchema == true)
             {
-                dbNode.Extensions.Remove("is_implicit_schema");
+                dbNode.IsImplicitSchema = null;
             }
 
             var schemaKey = $"{dbKey}:{schemaName.ToLowerInvariant()}";
@@ -918,15 +898,14 @@ public static class NestedSqlParser
 
             if (ctx != null)
             {
-                var relProps = new Dictionary<string, object>
+                ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, procNodeId, OntologyConstants.Relationships.Calls)
                 {
-                    [OntologyConstants.PropertyNames.FilePath] = filePath,
-                    [OntologyConstants.PropertyNames.Operation] = "EXEC",
-                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Procedure
-                };
-                if (startLine > 0) relProps[OntologyConstants.PropertyNames.Line] = startLine;
-                if (endLine > 0) relProps[OntologyConstants.PropertyNames.LineEnd] = endLine;
-                ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, procNodeId, OntologyConstants.Relationships.Calls, relProps));
+                    FilePath = filePath,
+                    Operation = "EXEC",
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Procedure,
+                    Line = startLine > 0 ? startLine : 0,
+                    LineEnd = endLine > 0 ? endLine : 0
+                });
             }
         }
     }

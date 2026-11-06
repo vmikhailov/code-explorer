@@ -22,8 +22,8 @@ public record PackageNode(
     [property: OntologyProperty("The package ecosystem (e.g. nuget, npm, maven, pip, go).")] string Ecosystem,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path = "",
     [property: OntologyProperty("The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon).")] ProjectArchetype Archetype = ProjectArchetype.Unclassified,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
     public PackageNode(
         string Id,
@@ -33,10 +33,28 @@ public record PackageNode(
         string Ecosystem,
         string Path,
         string Archetype,
-        Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Version, IsInternal, Ecosystem, Path, TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Archetype), Extensions)
+        Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Version, IsInternal, Ecosystem, Path, TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Archetype), CustomProperties)
     {
     }
+
+    [JsonPropertyName("dependency_scope"), OntologyProperty("Dependency scope (e.g. runtime, dev, test, build).")]
+    public string? DependencyScope { get; set; }
+
+    [JsonPropertyName("raw_version"), OntologyProperty("Raw version or URL specifier from manifest.")]
+    public string? RawVersion { get; set; }
+
+    [JsonPropertyName("is_external_tarball"), OntologyProperty("Whether the dependency is fetched from an external tarball or git URL.")]
+    public bool? IsExternalTarball { get; set; }
+
+    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier for internal packages.")]
+    public string? Publisher { get; set; }
+
+    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the package targets the VS Code extension engine.")]
+    public bool? HasVsCodeEngine { get; set; }
+
+    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.")]
+    public string? ActivationEvents { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Package;

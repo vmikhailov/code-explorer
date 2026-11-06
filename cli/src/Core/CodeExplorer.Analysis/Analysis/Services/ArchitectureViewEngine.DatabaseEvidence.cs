@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -370,7 +371,7 @@ public partial class ArchitectureViewEngine
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = qId ?? "",
-                        Kind = OntologyConstants.EvidenceKinds.Query,
+                        Kind = EvidenceKind.Query,
                         Title = title,
                         Operation = verb,
                         FilePath = qPath ?? "",
@@ -460,7 +461,7 @@ public partial class ArchitectureViewEngine
                             items.Add(new ArchitectureEvidenceItemDto
                             {
                                 Id = srcId,
-                                Kind = OntologyConstants.EvidenceKinds.Query,
+                                Kind = EvidenceKind.Query,
                                 Title = $"{verb} in {Path.GetFileName(srcPath)}",
                                 Operation = verb,
                                 FilePath = srcPath,
@@ -494,12 +495,13 @@ public partial class ArchitectureViewEngine
                         srcPath.Contains("Model", StringComparison.OrdinalIgnoreCase) ||
                         srcPath.Contains("Repository", StringComparison.OrdinalIgnoreCase));
 
-                    string itemKind = !string.IsNullOrEmpty(relEvKind)
-                        ? relEvKind
-                        : (isMigration ? OntologyConstants.EvidenceKinds.Migration
-                            : isConfig ? OntologyConstants.EvidenceKinds.Config
-                            : isOrm ? OntologyConstants.EvidenceKinds.Orm
-                            : OntologyConstants.EvidenceKinds.Table);
+                    var parsedRelEvKind = TaxonomyViewEnumExtensions.ParseEvidenceKind(relEvKind);
+                    var itemKind = parsedRelEvKind != EvidenceKind.Unspecified
+                        ? parsedRelEvKind
+                        : (isMigration ? EvidenceKind.Migration
+                            : isConfig ? EvidenceKind.Config
+                            : isOrm ? EvidenceKind.Orm
+                            : EvidenceKind.Table);
                     string operation = !string.IsNullOrEmpty(relOp)
                         ? relOp
                         : (isMigration ? "MIGRATION" : isConfig ? "CONFIG" : isOrm ? "ORM" : "TABLE");
@@ -585,19 +587,20 @@ public partial class ArchitectureViewEngine
                         var isProcedure = obj.Label == OntologyConstants.NodeLabels.Procedure;
                         var explicitSqlVerb = InferSqlVerb(relOp, null) ?? InferSqlVerb(srcVerb, queryText, srcName);
 
+                        var parsedObjEvKind = TaxonomyViewEnumExtensions.ParseEvidenceKind(relEvKind);
                         var (kind, operation) = relKind switch
                         {
-                            "PERSISTED_IN" or "DECLARED_IN" => (OntologyConstants.EvidenceKinds.Orm, !string.IsNullOrEmpty(relOp) ? relOp : "ORM"),
-                            "ACCESSED_BY" when string.Equals(relEvKind, OntologyConstants.EvidenceKinds.Orm, StringComparison.OrdinalIgnoreCase) || row.GetStringProp("src_kind") == "Type" =>
-                                (OntologyConstants.EvidenceKinds.Orm, !string.IsNullOrEmpty(relOp) ? relOp : "ORM"),
+                            "PERSISTED_IN" or "DECLARED_IN" => (EvidenceKind.Orm, !string.IsNullOrEmpty(relOp) ? relOp : "ORM"),
+                            "ACCESSED_BY" when parsedObjEvKind == EvidenceKind.Orm || row.GetStringProp("src_kind") == "Type" =>
+                                (EvidenceKind.Orm, !string.IsNullOrEmpty(relOp) ? relOp : "ORM"),
                             "WRITES_TO" => (
-                                !string.IsNullOrEmpty(relEvKind) ? relEvKind : OntologyConstants.EvidenceKinds.Query,
+                                parsedObjEvKind != EvidenceKind.Unspecified ? parsedObjEvKind : EvidenceKind.Query,
                                 explicitSqlVerb ?? "INSERT"),
                             "READS_FROM" or "QUERIED_BY" or "ACCESSED_BY" or "DEPENDS_ON" => (
-                                !string.IsNullOrEmpty(relEvKind) ? relEvKind : OntologyConstants.EvidenceKinds.Query,
+                                parsedObjEvKind != EvidenceKind.Unspecified ? parsedObjEvKind : EvidenceKind.Query,
                                 explicitSqlVerb ?? "SELECT"),
                             _ => (
-                                !string.IsNullOrEmpty(relEvKind) ? relEvKind : (isProcedure ? OntologyConstants.EvidenceKinds.Procedure : OntologyConstants.EvidenceKinds.Query),
+                                parsedObjEvKind != EvidenceKind.Unspecified ? parsedObjEvKind : (isProcedure ? EvidenceKind.Procedure : EvidenceKind.Query),
                                 explicitSqlVerb ?? (isProcedure ? "EXEC" : "SELECT"))
                         };
 
@@ -638,7 +641,7 @@ public partial class ArchitectureViewEngine
                 items.Add(new ArchitectureEvidenceItemDto
                 {
                     Id = resolvedDbId ?? databaseId,
-                    Kind = OntologyConstants.EvidenceKinds.Config,
+                    Kind = EvidenceKind.Config,
                     Title = $"{Path.GetFileName(dbDeclPath)} (CONFIG)",
                     Operation = "CONFIG",
                     FilePath = dbDeclPath,
@@ -655,11 +658,11 @@ public partial class ArchitectureViewEngine
         response.Items = items
             .OrderBy(i => i.Kind switch
             {
-                "query" or "procedure" => 0,
-                "orm" => 1,
-                "table" => 2,
-                "config" => 3,
-                "migration" => 4,
+                EvidenceKind.Query or EvidenceKind.Procedure => 0,
+                EvidenceKind.Orm => 1,
+                EvidenceKind.Table => 2,
+                EvidenceKind.Config => 3,
+                EvidenceKind.Migration => 4,
                 _ => 5
             })
             .ThenBy(i => i.FilePath)

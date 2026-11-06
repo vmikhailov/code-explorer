@@ -16,7 +16,7 @@ public partial class PostIndexAnalyzer
         {
             foreach (var wl in l4Result.SemanticStructure.Children)
             {
-                var projId = wl.Extensions?.GetValueOrDefault("project_id");
+                var projId = (wl as CompositeNode)?.ProjectId;
                 var proj = !string.IsNullOrEmpty(projId) ? projects.FirstOrDefault(p => p.Id == projId) : null;
                 if (proj != null)
                 {
@@ -175,7 +175,7 @@ public partial class PostIndexAnalyzer
             if (rawToCanonical.TryGetValue(relDbId, out var canonicalTarget))
             {
                 var owner = resolveOwner(relCallerId);
-                var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
+                var relFilePath = rel.FilePath;
                 if (owner != null && !isTestSource(owner.Id, owner.Path) && !isTestSource(relCallerId, relFilePath))
                 {
                     if (!dbOwners.TryGetValue(canonicalTarget, out var owners))
@@ -199,21 +199,21 @@ public partial class PostIndexAnalyzer
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var implicitSchemaIds = canonicalDbNodes.Values
-            .Where(n => n.IsImplicitSchema == true || n.Flags.HasFlag(SymbolFlags.IsImplicitSchema) || n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true")
+            .Where(n => n.IsImplicitSchema == true || n.Flags.HasFlag(SymbolFlags.IsImplicitSchema))
             .Select(n => n.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var concreteEnginesCount = canonicalDbNodes.Values
             .Where(n => {
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
-                var isImplicit = n.IsImplicitSchema == true || n.Flags.HasFlag(SymbolFlags.IsImplicitSchema) || n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
+                var s = n.Schema ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var isImplicit = n.IsImplicitSchema == true || n.Flags.HasFlag(SymbolFlags.IsImplicitSchema);
                 var isMultiDomainLibDb = multiDomainSharedLibDbIds.Contains(n.Id);
                 return !string.IsNullOrWhiteSpace(s) &&
                        !s.Equals("default", StringComparison.OrdinalIgnoreCase) &&
                        !isImplicit &&
                        !isMultiDomainLibDb;
             })
-            .GroupBy(n => n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(n => n.Engine ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
         var serviceOwnDomainConcreteEngines = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -246,11 +246,11 @@ public partial class PostIndexAnalyzer
             var owner = resolveOwner(relCallerId);
             if (owner == null || owner.Id == canonicalTarget) continue;
 
-            var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
+            var relFilePath = rel.FilePath;
             if (isTestSource(owner.Id, owner.Path) || isTestSource(relCallerId, relFilePath)) continue;
 
             var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(relDbId)) ||
-                                    (rel.Properties != null && rel.Properties.TryGetValue("is_implicit_schema", out var impObj) && impObj?.ToString() == "true") ||
+                                    rel.IsImplicitSchema == true ||
                                     relDbId.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
             if (isRawImplicitEdge || implicitSchemaIds.Contains(canonicalTarget) || multiDomainSharedLibs.Contains(owner.Id))
             {
@@ -259,8 +259,8 @@ public partial class PostIndexAnalyzer
 
             if (canonicalDbNodes.TryGetValue(canonicalTarget, out var cNode))
             {
-                var eng = cNode.Extensions?.GetValueOrDefault("engine") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
-                var sch = cNode.Extensions?.GetValueOrDefault("schema") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
+                var eng = cNode.Engine ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
+                var sch = cNode.Schema ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
                 if (!string.IsNullOrWhiteSpace(sch) && !sch.Equals("default", StringComparison.OrdinalIgnoreCase) && !sch.Equals(eng, StringComparison.OrdinalIgnoreCase))
                 {
                     RecordOwnConcreteEngine(owner.Id, eng);
@@ -278,7 +278,7 @@ public partial class PostIndexAnalyzer
         {
             foreach (var wl in l4Result.SemanticStructure.Children)
             {
-                var projId = wl.Extensions?.GetValueOrDefault("project_id");
+                var projId = (wl as CompositeNode)?.ProjectId;
                 if (!string.IsNullOrEmpty(projId))
                 {
                     projectToWorkloadMap[projId] = wl.Id;

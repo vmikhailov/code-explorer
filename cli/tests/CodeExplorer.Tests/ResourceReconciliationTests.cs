@@ -204,7 +204,7 @@ public class ResourceReconciliationTests
         var dbNode1 = q1!.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode1.Should().NotBeNull();
         dbNode1!.Name.Should().Be("BigQuery.default");
-        dbNode1.Extensions!["schema"].Should().Be("default");
+        dbNode1.Schema.Should().Be("default");
 
         // 2. NestedSqlParser in BigQuery context with explicit 'default.' stays 'default'
         var q2 = NestedSqlParser.ParseNestedSql("SELECT * FROM default.networks", "ws:q:2", "bq-calc/src/repo.ts");
@@ -212,7 +212,7 @@ public class ResourceReconciliationTests
         var dbNode2 = q2!.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode2.Should().NotBeNull();
         dbNode2!.Name.Should().Be("BigQuery.default");
-        dbNode2.Extensions!["schema"].Should().Be("default");
+        dbNode2.Schema.Should().Be("default");
 
         // 3. NestedSqlParser in BigQuery context with explicit 'defaults.' stays 'defaults'
         var q3 = NestedSqlParser.ParseNestedSql("SELECT * FROM defaults.networks", "ws:q:3", "bq-calc/src/repo.ts");
@@ -220,7 +220,7 @@ public class ResourceReconciliationTests
         var dbNode3 = q3!.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode3.Should().NotBeNull();
         dbNode3!.Name.Should().Be("BigQuery.defaults");
-        dbNode3.Extensions!["schema"].Should().Be("defaults");
+        dbNode3.Schema.Should().Be("defaults");
 
         // 4. PostIndexAnalyzer CanonicalizeDatabase BigQuery.default -> BigQuery.default
         var (cName1, _, cKey1) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery", "analytics", rawSchema: "default");

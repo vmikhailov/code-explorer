@@ -20,13 +20,19 @@ public record CloudServiceNode(
     [property: OntologyProperty("The name of the entity.")] string Name,
     [property: OntologyProperty("The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService).")] CloudResourceType ResourceType,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public CloudServiceNode(string Id, string Name, string ResourceType, string Path, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, TaxonomyEnumExtensions.ParseCloudResourceType(ResourceType), Path, Extensions)
+    public CloudServiceNode(string Id, string Name, string ResourceType, string Path, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, TaxonomyEnumExtensions.ParseCloudResourceType(ResourceType), Path, CustomProperties)
     {
     }
+
+    [JsonPropertyName("provider")]
+    public string? Provider { get; set; }
+
+    [JsonPropertyName("resource_role")]
+    public string? ResourceRole { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.CloudService;

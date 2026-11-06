@@ -358,23 +358,23 @@ public partial class ArchitectureViewEngine
                 continue;
             }
 
-            string cat;
+            GraphEdgeCategory cat;
             string label;
 
             var isTopicEdge = topicNodes.ContainsKey(tgtDomain) || topicNodes.ContainsKey(srcDomain);
 
-            if (dbNodes.ContainsKey(tgtDomain) || edge.Category == "database" || edge.Kind == "USES_DB")
+            if (dbNodes.ContainsKey(tgtDomain) || edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb)
             {
-                cat = "database";
+                cat = GraphEdgeCategory.Database;
                 label = "USES_DB";
                 if (!dbUsage.ContainsKey(srcDomain)) dbUsage[srcDomain] = new(StringComparer.OrdinalIgnoreCase);
                 dbUsage[srcDomain].Add(tgtDomain);
             }
             else if (isTopicEdge)
             {
-                cat = "messaging";
-                var isPub = edge.Kind is "PUBLISHES_TO" or "PUBLISHED_BY" or "PUBLISHES";
-                var isSub = !isPub && (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "SUBSCRIBES" || (topicNodes.ContainsKey(srcDomain) && !topicNodes.ContainsKey(tgtDomain)));
+                cat = GraphEdgeCategory.Messaging;
+                var isPub = edge.Kind is RelationshipKind.PublishesTo or RelationshipKind.PublishedBy or RelationshipKind.Publishes;
+                var isSub = !isPub && (edge.Kind is RelationshipKind.SubscribesTo or RelationshipKind.SubscribedBy or RelationshipKind.Subscribes || (topicNodes.ContainsKey(srcDomain) && !topicNodes.ContainsKey(tgtDomain)));
                 if (isSub)
                 {
                     label = "SUBSCRIBES";
@@ -396,21 +396,21 @@ public partial class ArchitectureViewEngine
             }
             else if (extNodes.ContainsKey(tgtDomain))
             {
-                cat = "external";
+                cat = GraphEdgeCategory.External;
                 label = "CALLS";
             }
-            else if (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
+            else if (edge.Kind is RelationshipKind.SubscribesTo or RelationshipKind.SubscribedBy or RelationshipKind.PublishesTo or RelationshipKind.PublishedBy)
             {
                 // Direct pub/sub chord between services without a topic node is a phantom artifact; ignore it
                 continue;
             }
-            else if (edge.Kind is "TESTS" or "tests" || edge.Category == "test")
+            else if (edge.Kind == RelationshipKind.Tests || edge.Category is GraphEdgeCategory.Test or GraphEdgeCategory.Testing)
             {
-                cat = "test";
+                cat = GraphEdgeCategory.Test;
                 label = "TESTS";
             }
-            else if (edge.Kind is "LIBRARY" or "library" || edge.Category == "library" ||
-                     (edge.Kind is "DEPENDS_ON" or "DependsOn" && edge.Category != "service_call"))
+            else if (edge.Kind == RelationshipKind.Library || edge.Category == GraphEdgeCategory.Library ||
+                     (edge.Kind == RelationshipKind.DependsOn && edge.Category != GraphEdgeCategory.ServiceCall))
             {
                 var isTgtLib = tgtDomain.StartsWith("library:", StringComparison.OrdinalIgnoreCase) ||
                                (domainPrimaryMap.TryGetValue(tgtDomain, out var tgtPrim) && IsLibraryProject(tgtPrim));
@@ -418,22 +418,22 @@ public partial class ArchitectureViewEngine
                 {
                     continue;
                 }
-                cat = "library";
+                cat = GraphEdgeCategory.Library;
                 label = "DEPENDS_ON";
             }
             else
             {
-                cat = "service_call";
+                cat = GraphEdgeCategory.ServiceCall;
                 label = "CALLS";
             }
 
-            if (cat == "service_call")
+            if (cat == GraphEdgeCategory.ServiceCall)
             {
                 outCalls[srcDomain] = outCalls.GetValueOrDefault(srcDomain, 0) + 1;
                 inCalls[tgtDomain] = inCalls.GetValueOrDefault(tgtDomain, 0) + 1;
             }
 
-            var edgeKey = $"{srcDomain}->{tgtDomain}:{cat}";
+            var edgeKey = $"{srcDomain}->{tgtDomain}:{cat.ToCanonicalString()}";
             if (macroEdges.TryGetValue(edgeKey, out var existing))
             {
                 existing.Count++;
@@ -667,8 +667,8 @@ public partial class ArchitectureViewEngine
         var filteredEdges = macroEdges.Values.Where(e => validNodeIds.Contains(e.Source) && validNodeIds.Contains(e.Target)).ToList();
 
         stats.TotalDomains = nodes.Count(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.App or NodeKind.CliTool or NodeKind.Worker or NodeKind.Library);
-        stats.ServiceCalls = filteredEdges.Where(e => e.Category == "service_call").Sum(e => e.Count);
-        stats.Messages = filteredEdges.Where(e => e.Category == "messaging").Sum(e => e.Count);
+        stats.ServiceCalls = filteredEdges.Where(e => e.Category == GraphEdgeCategory.ServiceCall).Sum(e => e.Count);
+        stats.Messages = filteredEdges.Where(e => e.Category == GraphEdgeCategory.Messaging).Sum(e => e.Count);
 
         result.Nodes = nodes;
         result.Edges = filteredEdges;
@@ -910,13 +910,13 @@ public partial class ArchitectureViewEngine
                 Id = e.Id,
                 Source = e.Source,
                 Target = e.Target,
-                Kind = e.Label,
+                Kind = EnumExtensions.ParseRelationshipKind(e.Label),
                 Category = e.Category,
                 Properties = new Dictionary<string, string>
                 {
                     ["count"] = e.Count.ToString(),
                     ["label"] = e.Label,
-                    ["category"] = e.Category
+                    ["category"] = e.Category.ToCanonicalString()
                 }
             });
         }
@@ -926,7 +926,7 @@ public partial class ArchitectureViewEngine
             var dbInDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var edge in graph.Edges)
             {
-                if (edge.Category == "database" || edge.Kind == "USES_DB")
+                if (edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb)
                 {
                     dbInDegree[edge.Target] = dbInDegree.GetValueOrDefault(edge.Target) + 1;
                 }

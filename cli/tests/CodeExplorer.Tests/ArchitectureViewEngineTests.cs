@@ -170,7 +170,7 @@ public class ArchitectureViewEngineTests
         view.Edges.Should().Contain(edge =>
             edge.Source == "ws:project:order-service:" &&
             edge.Target == "ws:cloud:aws-sdk-s3" &&
-            edge.Kind == "USES_CLOUD");
+            edge.Kind == RelationshipKind.UsesCloud);
     }
 
     [Test]
@@ -217,15 +217,15 @@ public class ArchitectureViewEngineTests
         view.Edges.Should().Contain(edge =>
             edge.Source == "ws:project:order-service:" &&
             edge.Target == meshId &&
-            edge.Kind == "COORDINATES_WITH");
+            edge.Kind == RelationshipKind.CoordinatesWith);
         view.Edges.Should().Contain(edge =>
             edge.Source == "ws:project:order-service:" &&
             edge.Target == bucketId &&
-            edge.Kind == "READS_FROM");
+            edge.Kind == RelationshipKind.ReadsFrom);
         view.Edges.Should().Contain(edge =>
             edge.Source == "ws:project:order-service:" &&
             edge.Target == bucketId &&
-            edge.Kind == "WRITES_TO");
+            edge.Kind == RelationshipKind.WritesTo);
     }
 
     [Test]
@@ -288,14 +288,14 @@ public class ArchitectureViewEngineTests
         {
             foreach (var category in layer.Categories)
             {
-                category.Kind.Should().NotBe("Counter", "Counter should be filtered out from layers");
-                category.Kind.Should().NotBe("FilesStructure", "FilesStructure should be filtered out from layers");
-                category.Kind.Should().NotBe("ProjectsStructure", "ProjectsStructure should be filtered out from layers");
-                category.Kind.Should().NotBe("SyntaxStructure", "SyntaxStructure should be filtered out from layers");
-                category.Kind.Should().NotBe("SemanticStructure", "SemanticStructure should be filtered out from layers");
-                category.Kind.Should().NotBe("LogicalStructure", "LogicalStructure should be filtered out from layers");
-                category.Kind.Should().NotBe("DataSet", "DataSet should be filtered out from layers (Databases & Storage is used instead)");
-                category.Kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase).Should().BeFalse($"No structure nodes should be in category list: {category.Kind}");
+                category.Kind.Should().NotBe(NodeKind.Counter, "Counter should be filtered out from layers");
+                category.Kind.Should().NotBe(NodeKind.FilesStructure, "FilesStructure should be filtered out from layers");
+                category.Kind.Should().NotBe(NodeKind.ProjectsStructure, "ProjectsStructure should be filtered out from layers");
+                category.Kind.Should().NotBe(NodeKind.SyntaxStructure, "SyntaxStructure should be filtered out from layers");
+                category.Kind.Should().NotBe(NodeKind.SemanticStructure, "SemanticStructure should be filtered out from layers");
+                category.Kind.Should().NotBe(NodeKind.LogicalStructure, "LogicalStructure should be filtered out from layers");
+                category.Kind.Should().NotBe(NodeKind.DataSet, "DataSet should be filtered out from layers (Databases & Storage is used instead)");
+                category.Kind.ToCypherLabel().EndsWith("Structure", StringComparison.OrdinalIgnoreCase).Should().BeFalse($"No structure nodes should be in category list: {category.Kind}");
             }
         }
     }
@@ -363,19 +363,19 @@ public class ArchitectureViewEngineTests
             var l4 = layers.Layers.FirstOrDefault(l => l.LayerId == 4);
             l4.Should().NotBeNull();
 
-            var appCat = l4!.Categories.FirstOrDefault(c => c.Kind == "App");
+            var appCat = l4!.Categories.FirstOrDefault(c => c.Kind == NodeKind.App);
             appCat.Should().NotBeNull();
             appCat!.Count.Should().Be(1);
 
-            var svcCat = l4.Categories.FirstOrDefault(c => c.Kind == "Service");
+            var svcCat = l4.Categories.FirstOrDefault(c => c.Kind == NodeKind.Service);
             svcCat.Should().NotBeNull();
             svcCat!.Count.Should().Be(1);
 
-            var workerCat = l4.Categories.FirstOrDefault(c => c.Kind == "Worker");
+            var workerCat = l4.Categories.FirstOrDefault(c => c.Kind == NodeKind.Worker);
             workerCat.Should().NotBeNull();
             workerCat!.Count.Should().Be(1);
 
-            var cliCat = l4.Categories.FirstOrDefault(c => c.Kind == "CliTool");
+            var cliCat = l4.Categories.FirstOrDefault(c => c.Kind == NodeKind.CliTool);
             cliCat.Should().NotBeNull();
             cliCat!.Count.Should().Be(1);
         }
@@ -702,8 +702,8 @@ public class ArchitectureViewEngineTests
         // and flow from Topic (source) to Service (target)
         var edge = graph.Edges.FirstOrDefault(e => e.Source == "ws:res:topic:gcp:impression-topic" && e.Target == "ws:service:cpm-aggregator");
         edge.Should().NotBeNull();
-        edge!.Kind.Should().Be("SUBSCRIBES_TO");
-        edge.Category.Should().Be("messaging");
+        edge!.Kind.Should().Be(RelationshipKind.SubscribesTo);
+        edge.Category.Should().Be(GraphEdgeCategory.Messaging);
 
         // Verify there is NO phantom outbound edge from the service to the topic
         graph.Edges.Any(e => e.Source == "ws:service:cpm-aggregator" && e.Target == "ws:res:topic:gcp:impression-topic").Should().BeFalse();
@@ -915,7 +915,7 @@ public class ArchitectureViewEngineTests
 
             var edge = view.Edges.FirstOrDefault(e => e.Source == "ws:project:catalog-service:" && e.Target == "ws:res:db:relational:catalog_db");
             edge.Should().NotBeNull("Transitive database relation must be lifted to catalog-service even when includeLibraries is false");
-            edge!.Kind.Should().Be("USES_DB");
+            edge!.Kind.Should().Be(RelationshipKind.UsesDb);
             edge.IsInferred.Should().BeTrue();
             edge.Properties?.GetValueOrDefault("semantic_lifted").Should().Be("true");
         }
@@ -960,7 +960,7 @@ public class ArchitectureViewEngineTests
 
             var edge = view.Edges.FirstOrDefault(e => e.Source == "ws:suite:core.tests" && e.Target == "ws:lib:core.library");
             edge.Should().NotBeNull();
-            edge!.Kind.Should().Be("TESTS", "TESTS relationship must not be converted to LIBRARY");
+            edge!.Kind.Should().Be(RelationshipKind.Tests, "TESTS relationship must not be converted to LIBRARY");
             edge.Properties?.GetValueOrDefault("category").Should().Be("test");
         }
         finally

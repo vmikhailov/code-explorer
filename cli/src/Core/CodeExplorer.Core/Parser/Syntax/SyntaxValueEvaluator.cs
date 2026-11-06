@@ -162,7 +162,6 @@ public static class SyntaxValueEvaluator
             Span = hostExpr.Span,
             RawGrammarKind = "embedded_sql",
             FieldRole = "embedded_sql",
-            IsNamed = true,
             Document = doc,
             Parent = hostExpr,
             Operation = opKind,

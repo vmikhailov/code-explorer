@@ -26,28 +26,61 @@ public static class CallSiteContextExtractor
         {
             switch (curr)
             {
-                case AwaitOrTryExprSyntax { IsTryPropagate: false }:
+                case UnaryExprSyntax { IsAwait: true }:
                     flags |= CallExecutionFlags.IsAwaited;
                     break;
 
-                case LoopStmtSyntax loop:
-                    if (prev != loop.Init && prev != loop.Collection)
+                case ControlFlowStmtSyntax cf:
+                    switch (cf.Kind)
                     {
-                        loopDepth++;
-                        flags |= CallExecutionFlags.InLoop;
-                        if (loopDepth >= 2) flags |= CallExecutionFlags.InNestedLoop;
+                        case ControlFlowKind.Loop:
+                            if (prev?.FieldRole is not (SyntaxFields.Right or SyntaxFields.Value or SyntaxFields.Initializer))
+                            {
+                                loopDepth++;
+                                flags |= CallExecutionFlags.InLoop;
+                                if (loopDepth >= 2) flags |= CallExecutionFlags.InNestedLoop;
+                            }
+                            break;
+
+                        case ControlFlowKind.If:
+                            if (!ReferenceEquals(prev, cf.Condition) && prev?.FieldRole != SyntaxFields.Condition)
+                            {
+                                condDepth++;
+                                flags |= CallExecutionFlags.IsConditional;
+                            }
+                            break;
+
+                        case ControlFlowKind.Switch:
+                            condDepth++;
+                            flags |= CallExecutionFlags.IsConditional;
+                            break;
+
+                        case ControlFlowKind.Try:
+                            if (ReferenceEquals(prev, cf.Alternative) || prev?.FieldRole is "finalizer" or "finally_clause")
+                                flags |= CallExecutionFlags.InFinallyBlock;
+                            else if (prev is not CatchClauseSyntax)
+                                flags |= CallExecutionFlags.InTryBlock;
+                            break;
+
+                        case ControlFlowKind.Lock:
+                            flags |= CallExecutionFlags.InLockBlock;
+                            break;
+
+                        case ControlFlowKind.Using:
+                            flags |= CallExecutionFlags.InUsingResource;
+                            break;
+
+                        case ControlFlowKind.Defer:
+                            flags |= CallExecutionFlags.InFinallyBlock;
+                            break;
+
+                        case ControlFlowKind.Goroutine:
+                            flags |= CallExecutionFlags.IsConcurrentSpawn;
+                            break;
                     }
                     break;
 
-                case IfStmtSyntax ifStmt:
-                    if (prev != ifStmt.Init && prev != ifStmt.Condition)
-                    {
-                        condDepth++;
-                        flags |= CallExecutionFlags.IsConditional;
-                    }
-                    break;
-
-                case SwitchOrMatchStmtSyntax or MatchExprSyntax or ConditionalExprSyntax:
+                case ConditionalExprSyntax:
                     condDepth++;
                     flags |= CallExecutionFlags.IsConditional;
                     break;
@@ -58,29 +91,8 @@ public static class CallSiteContextExtractor
                     flags |= CallExecutionFlags.IsConditional;
                     break;
 
-                case TryStmtSyntax tryStmt:
-                    if (ReferenceEquals(prev, tryStmt.FinallyBody) || prev?.FieldRole is "finalizer" or "finally_clause")
-                        flags |= CallExecutionFlags.InFinallyBlock;
-                    else if (prev is not CatchClauseSyntax)
-                        flags |= CallExecutionFlags.InTryBlock;
-                    break;
-
                 case CatchClauseSyntax:
                     flags |= CallExecutionFlags.InCatchBlock | CallExecutionFlags.IsConditional;
-                    break;
-
-                case LockStmtSyntax:
-                    flags |= CallExecutionFlags.InLockBlock;
-                    break;
-
-                case UsingOrWithStmtSyntax:
-                    flags |= CallExecutionFlags.InUsingResource;
-                    break;
-
-                case DeferOrGoStmtSyntax deferGo:
-                    flags |= deferGo.IsGoroutine
-                        ? CallExecutionFlags.IsConcurrentSpawn
-                        : CallExecutionFlags.InFinallyBlock;
                     break;
 
                 case LambdaExprSyntax:

@@ -76,7 +76,11 @@ public class ProjectClassifierItem
     public string? FilePath { get; init; }
     public string? Framework { get; init; }
     public string? Role { get; set; }
+    public string? PrimaryRole { get; set; }
+    public ProjectEntityKind EntityKind { get; set; }
+    public ProjectEntitySubKind SubKind { get; set; }
     public bool IsLibrary { get; set; }
+    public bool IsTestProject { get; set; }
     public int EndpointsCount { get; init; }
     public IReadOnlyList<EntryPointNode> EntryPoints { get; init; } = [];
     public int ExternalServicesCount { get; init; }
@@ -109,7 +113,7 @@ public static class ProjectLayerClassifier
             incomingCount[p.Id] = 0;
             outgoingCount[p.Id] = 0;
 
-            if (string.IsNullOrEmpty(p.Role) && (p.Extensions == null || !p.Extensions.ContainsKey("entity_kind")))
+            if (string.IsNullOrEmpty(p.Role) && p.EntityKind == ProjectEntityKind.Unknown && (p.Extensions == null || !p.Extensions.ContainsKey("entity_kind")))
             {
                 var extDict = p.Extensions != null
                     ? new Dictionary<string, string>(p.Extensions)
@@ -126,6 +130,8 @@ public static class ProjectLayerClassifier
 
                 p.Role = detectedRole.ToString();
                 p.IsLibrary = isLib;
+                p.EntityKind = detectedClassification.Kind;
+                p.SubKind = detectedClassification.SubKind;
                 extDict["entity_kind"] = detectedClassification.Kind.ToString();
                 if (detectedClassification.SubKind != ProjectEntitySubKind.None)
                 {
@@ -192,7 +198,9 @@ public static class ProjectLayerClassifier
     public static bool IsTest(ProjectClassifierItem p)
     {
         var name = p.Name ?? "";
-        return string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
+        return p.IsTestProject ||
+               p.EntityKind == ProjectEntityKind.Test ||
+               string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase) ||
                p.Extensions?.GetValueOrDefault("is_test_project") == "true" ||
                p.Extensions?.GetValueOrDefault("manifest_type") == "test" ||
@@ -227,7 +235,8 @@ public static class ProjectLayerClassifier
         // Explicit library role or flag
         if (p.IsLibrary) return true;
 
-        if (string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+        if (p.EntityKind is ProjectEntityKind.Library or ProjectEntityKind.DatabaseMigration ||
+            string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Role, "Library", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Role, "DatabaseMigration", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Library", StringComparison.OrdinalIgnoreCase) ||
@@ -274,7 +283,8 @@ public static class ProjectLayerClassifier
         if (IsWorkerOrScheduler(p) && !IsCli(p)) return false;
 
         // 1. Frontend Apps (End-user UI Web Applications, Desktop Apps, VS Code Extensions)
-        if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+        if (p.EntityKind == ProjectEntityKind.App && p.SubKind != ProjectEntitySubKind.Cli ||
+            string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "App", StringComparison.OrdinalIgnoreCase) ||
@@ -359,7 +369,8 @@ public static class ProjectLayerClassifier
     {
         if (IsInternalToolOrUtility(p)) return false;
 
-        return string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+        return p.SubKind == ProjectEntitySubKind.Cli ||
+               string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(p.Role, "CliApp", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
                p.Extensions?.GetValueOrDefault("manifest_type") == "cli" ||
@@ -369,7 +380,7 @@ public static class ProjectLayerClassifier
 
     public static bool IsWorkerOrScheduler(ProjectClassifierItem p)
     {
-        var primaryRole = p.Extensions?.GetValueOrDefault("primary_role");
+        var primaryRole = p.PrimaryRole ?? p.Extensions?.GetValueOrDefault("primary_role");
         if (!string.IsNullOrEmpty(primaryRole))
         {
             if (string.Equals(primaryRole, "Scheduler", StringComparison.OrdinalIgnoreCase) ||
@@ -386,7 +397,8 @@ public static class ProjectLayerClassifier
             }
         }
 
-        if (string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase) ||
+        if (p.EntityKind == ProjectEntityKind.Worker ||
+            string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Worker", StringComparison.OrdinalIgnoreCase))
         {
             return true;

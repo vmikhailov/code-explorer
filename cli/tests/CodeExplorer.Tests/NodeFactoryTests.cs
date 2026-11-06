@@ -37,9 +37,9 @@ public class NodeFactoryTests
             }
         }
 
-        if (node.Extensions != null)
+        if (node.CustomProperties != null)
         {
-            foreach (var kvp in node.Extensions)
+            foreach (var kvp in node.CustomProperties)
             {
                 if (int.TryParse(kvp.Value, out var intVal) &&
                     (kvp.Key.EndsWith("_line") || kvp.Key.EndsWith("_col") || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order" or "loc" or "line_count" or "statement_count"))

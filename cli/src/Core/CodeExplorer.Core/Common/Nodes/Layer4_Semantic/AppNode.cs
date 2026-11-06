@@ -36,13 +36,31 @@ public record AppNode(
     [property: OntologyProperty("The application name.")] string Name,
     [property: OntologyProperty("The path of the application directory relative to the workspace.")] string Path,
     [property: OntologyProperty("The project type or language.")] ProjectLanguage ProjectType,
-    Dictionary<string, string>? Extensions = null
-) : CompositeNode(Id, Extensions)
+    Dictionary<string, string>? CustomProperties = null
+) : CompositeNode(Id, CustomProperties)
 {
-    public AppNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? Extensions = null)
-        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), Extensions)
+    public AppNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? CustomProperties = null)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), CustomProperties)
     {
     }
+
+    [JsonPropertyName("role")]
+    public string? Role { get; set; }
+
+    [JsonPropertyName("is_library")]
+    public bool? IsLibrary { get; set; }
+
+    [JsonPropertyName("primary_role")]
+    public string? PrimaryRole { get; set; }
+
+    [JsonPropertyName("secondary_roles")]
+    public string? SecondaryRoles { get; set; }
+
+    [JsonPropertyName("all_roles")]
+    public string? AllRoles { get; set; }
+
+    [JsonPropertyName("framework")]
+    public string? Framework { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.App;

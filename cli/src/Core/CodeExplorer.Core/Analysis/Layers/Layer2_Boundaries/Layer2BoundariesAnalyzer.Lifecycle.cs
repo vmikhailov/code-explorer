@@ -21,16 +21,13 @@ public partial class Layer2ProjectParser
         "build", "prepare", "prepack", "compile"
     };
 
-    private static Dictionary<string, string> BuildExternalPackageExtensions(ProducedPackageInfo extPack)
+    private static void ApplyExternalPackageMetadata(PackageNode pkgNode, ProducedPackageInfo extPack)
     {
-        var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["dependency_scope"] = string.IsNullOrEmpty(extPack.Scope) ? "runtime" : extPack.Scope
-        };
+        pkgNode.DependencyScope = string.IsNullOrEmpty(extPack.Scope) ? "runtime" : extPack.Scope;
         var ver = extPack.Version ?? string.Empty;
         if (!string.IsNullOrEmpty(ver))
         {
-            ext["raw_version"] = ver;
+            pkgNode.RawVersion = ver;
         }
         if (ver.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             ver.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
@@ -38,9 +35,8 @@ public partial class Layer2ProjectParser
             ver.StartsWith("github:", StringComparison.OrdinalIgnoreCase) ||
             ver.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase))
         {
-            ext["is_external_tarball"] = "true";
+            pkgNode.IsExternalTarball = true;
         }
-        return ext;
     }
 
     private static void PopulatePackageLifecycleAndEntryPoints(Layer1Result l1Result, List<ProjectNode> projects, List<PackageNode> packages, List<Relationship> dependencies, ParsingContext ctx)
@@ -93,12 +89,11 @@ public partial class Layer2ProjectParser
                             Id: entryId,
                             Name: script.Name,
                             Path: relManifestPath,
-                            EntryType: entryType,
-                            Extensions: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                            {
-                                ["command"] = cmd,
-                                ["hook_kind"] = isInstallHook ? "install" : "build"
-                            });
+                            EntryType: entryType)
+                        {
+                            Command = cmd,
+                            HookKind = isInstallHook ? "install" : "build"
+                        };
 
                         project.Children.Add(entryNode);
                         dependencies.Add(new Relationship(project.Id, entryId, OntologyConstants.Relationships.Contains));
@@ -232,8 +227,7 @@ public partial class Layer2ProjectParser
 
     private static void PopulatePackageJsonProjectExtensions(ProjectNode project, JsonElement root)
     {
-        project.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var ext = project.Extensions;
+        var hints = project.Signals().ManifestHints ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         string? pkgName = null;
         if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
@@ -241,7 +235,8 @@ public partial class Layer2ProjectParser
             pkgName = nameProp.GetString();
             if (!string.IsNullOrWhiteSpace(pkgName))
             {
-                ext[OntologyConstants.ExtensionKeys.PackageName] = pkgName;
+                project.PackageName = pkgName;
+                hints[OntologyConstants.ExtensionKeys.PackageName] = pkgName;
             }
         }
 
@@ -250,7 +245,8 @@ public partial class Layer2ProjectParser
             var ver = verProp.GetString();
             if (!string.IsNullOrWhiteSpace(ver))
             {
-                ext[OntologyConstants.ExtensionKeys.PackageVersion] = ver;
+                project.PackageVersion = ver;
+                hints[OntologyConstants.ExtensionKeys.PackageVersion] = ver;
             }
         }
 
@@ -265,7 +261,8 @@ public partial class Layer2ProjectParser
         }
         if (!string.IsNullOrWhiteSpace(publisher))
         {
-            ext[OntologyConstants.ExtensionKeys.Publisher] = publisher;
+            project.Publisher = publisher;
+            hints[OntologyConstants.ExtensionKeys.Publisher] = publisher;
         }
 
         if (root.TryGetProperty(OntologyConstants.ManifestFields.Main, out var mainProp) && mainProp.ValueKind == JsonValueKind.String)
@@ -273,7 +270,8 @@ public partial class Layer2ProjectParser
             var mainVal = mainProp.GetString();
             if (!string.IsNullOrWhiteSpace(mainVal))
             {
-                ext[OntologyConstants.ExtensionKeys.MainFile] = mainVal;
+                project.MainFile = mainVal;
+                hints[OntologyConstants.ExtensionKeys.MainFile] = mainVal;
             }
         }
 
@@ -282,7 +280,8 @@ public partial class Layer2ProjectParser
             var modVal = modProp.GetString();
             if (!string.IsNullOrWhiteSpace(modVal))
             {
-                ext[OntologyConstants.ExtensionKeys.ModuleFile] = modVal;
+                project.ModuleFile = modVal;
+                hints[OntologyConstants.ExtensionKeys.ModuleFile] = modVal;
             }
         }
 
@@ -291,7 +290,8 @@ public partial class Layer2ProjectParser
             var desc = descProp.GetString();
             if (!string.IsNullOrWhiteSpace(desc))
             {
-                ext[OntologyConstants.ExtensionKeys.Description] = desc;
+                project.Description = desc;
+                hints[OntologyConstants.ExtensionKeys.Description] = desc;
             }
         }
 
@@ -299,18 +299,21 @@ public partial class Layer2ProjectParser
             ((binProp.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(binProp.GetString())) ||
              (binProp.ValueKind == JsonValueKind.Object && binProp.EnumerateObject().Any())))
         {
-            ext[OntologyConstants.ExtensionKeys.HasBin] = OntologyConstants.ExtensionKeys.TrueValue;
+            project.HasBin = true;
+            hints[OntologyConstants.ExtensionKeys.HasBin] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
         if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contribProp) && contribProp.ValueKind == JsonValueKind.Object)
         {
-            ext[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
+            project.HasContributes = true;
+            hints[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
         if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var engProp) && engProp.ValueKind == JsonValueKind.Object &&
             engProp.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
         {
-            ext[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
+            project.HasVsCodeEngine = true;
+            hints[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
         if (root.TryGetProperty(OntologyConstants.ManifestFields.Keywords, out var kwProp) && kwProp.ValueKind == JsonValueKind.Array)
@@ -322,7 +325,9 @@ public partial class Layer2ProjectParser
                 .ToArray();
             if (kws.Length > 0)
             {
-                ext[OntologyConstants.ExtensionKeys.KeywordsJson] = JsonSerializer.Serialize(kws);
+                var kwJson = JsonSerializer.Serialize(kws);
+                project.KeywordsJson = kwJson;
+                hints[OntologyConstants.ExtensionKeys.KeywordsJson] = kwJson;
             }
         }
 
@@ -343,7 +348,9 @@ public partial class Layer2ProjectParser
         }
         if (extDeps.Count > 0)
         {
-            ext["extension_dependencies_json"] = JsonSerializer.Serialize(extDeps);
+            var extDepsJson = JsonSerializer.Serialize(extDeps);
+            project.ExtensionDependenciesJson = extDepsJson;
+            hints["extension_dependencies_json"] = extDepsJson;
         }
 
         string? activationJoined = null;
@@ -357,16 +364,16 @@ public partial class Layer2ProjectParser
             if (acts.Length > 0)
             {
                 activationJoined = string.Join(",", acts);
-                ext["activation_events"] = activationJoined;
+                project.ActivationEvents = activationJoined;
+                hints["activation_events"] = activationJoined;
             }
         }
 
         foreach (var pkgNode in project.Children.OfType<PackageNode>().Where(p => p.IsInternal))
         {
-            pkgNode.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(publisher)) pkgNode.Extensions[OntologyConstants.ExtensionKeys.Publisher] = publisher;
-            if (ext.TryGetValue(OntologyConstants.ExtensionKeys.HasVsCodeEngine, out var vsc)) pkgNode.Extensions[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = vsc;
-            if (!string.IsNullOrWhiteSpace(activationJoined)) pkgNode.Extensions["activation_events"] = activationJoined;
+            if (!string.IsNullOrWhiteSpace(publisher)) pkgNode.Publisher = publisher;
+            if (project.HasVsCodeEngine == true) pkgNode.HasVsCodeEngine = true;
+            if (!string.IsNullOrWhiteSpace(activationJoined)) pkgNode.ActivationEvents = activationJoined;
         }
     }
 
@@ -381,7 +388,8 @@ public partial class Layer2ProjectParser
         List<Relationship> dependencies,
         ParsingContext ctx)
     {
-        var wsExt = l1Result.Workspace.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var ws = l1Result.Workspace;
+        var wsSignals = ws.Signals();
 
         // 1. Root package.json fallback on WorkspaceNode (when no ProjectNode exists or for root package lookup)
         var rootPkgPath = Path.Combine(ctx.AbsoluteWorkspacePath, "package.json");
@@ -393,19 +401,19 @@ public partial class Layer2ProjectParser
                 using var doc = JsonDocument.Parse(rootPkgText, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
                 var root = doc.RootElement;
                 if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var n) && n.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(n.GetString()))
-                    wsExt[OntologyConstants.ExtensionKeys.PackageName] = n.GetString()!;
+                    ws.PackageName = n.GetString()!;
                 if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
-                    wsExt[OntologyConstants.ExtensionKeys.PackageVersion] = v.GetString()!;
+                    ws.PackageVersion = v.GetString()!;
                 if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pub) && pub.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pub.GetString()))
-                    wsExt[OntologyConstants.ExtensionKeys.Publisher] = pub.GetString()!;
+                    ws.Publisher = pub.GetString()!;
                 if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var eng) && eng.ValueKind == JsonValueKind.Object && eng.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
-                    wsExt[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
+                    ws.HasVsCodeEngine = true;
                 if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contrib) && contrib.ValueKind == JsonValueKind.Object)
-                    wsExt[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
+                    ws.HasContributes = true;
                 if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var act) && act.ValueKind == JsonValueKind.Array)
                 {
                     var acts = act.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-                    if (acts.Length > 0) wsExt["activation_events"] = string.Join(",", acts);
+                    if (acts.Length > 0) ws.ActivationEvents = string.Join(",", acts);
                 }
             }
             catch
@@ -446,13 +454,12 @@ public partial class Layer2ProjectParser
                                 Id: entryId,
                                 Name: $"vscode.tasks.folderOpen:{label}",
                                 Path: OntologyConstants.ManifestFields.TasksJsonRelPath,
-                                EntryType: OntologyConstants.ManifestFields.FolderOpenTaskType,
-                                Extensions: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                {
-                                    [OntologyConstants.ManifestFields.Command] = cmd,
-                                    ["hook_kind"] = "install",
-                                    ["task_label"] = label
-                                });
+                                EntryType: OntologyConstants.ManifestFields.FolderOpenTaskType)
+                            {
+                                Command = cmd,
+                                HookKind = "install",
+                                TaskLabel = label
+                            };
                             rootProj.Children.Add(entryNode);
                             dependencies.Add(new Relationship(rootProj.Id, entryId, OntologyConstants.Relationships.Contains));
                             dependencies.Add(new Relationship(entryId, rootProj.Id, OntologyConstants.Relationships.BelongsTo));
@@ -460,7 +467,7 @@ public partial class Layer2ProjectParser
                     }
                     if (folderOpenTasks.Count > 0)
                     {
-                        wsExt["vscode_folder_open_tasks_json"] = JsonSerializer.Serialize(folderOpenTasks);
+                        wsSignals.VsCodeFolderOpenTasksJson = JsonSerializer.Serialize(folderOpenTasks);
                     }
                 }
             }
@@ -484,8 +491,8 @@ public partial class Layer2ProjectParser
                 var nuspecId = metadata?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("id", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
                 var nuspecVer = metadata?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("version", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
 
-                if (!string.IsNullOrEmpty(nuspecId)) wsExt["nuspec_id"] = nuspecId;
-                if (!string.IsNullOrEmpty(nuspecVer)) wsExt["nuspec_version"] = nuspecVer;
+                if (!string.IsNullOrEmpty(nuspecId)) wsSignals.NuspecId = nuspecId;
+                if (!string.IsNullOrEmpty(nuspecVer)) wsSignals.NuspecVersion = nuspecVer;
 
                 var ownerProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
                 foreach (var depElem in xdoc.Descendants().Where(e => e.Name.LocalName.Equals("dependency", StringComparison.OrdinalIgnoreCase)))
@@ -504,12 +511,11 @@ public partial class Layer2ProjectParser
                             IsInternal: false,
                             Ecosystem: OntologyConstants.ManifestFields.NuGetEcosystem,
                             Path: string.Empty,
-                            Archetype: OntologyConstants.Archetypes.PureUtility,
-                            Extensions: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                            {
-                                ["dependency_scope"] = "runtime",
-                                ["raw_version"] = depVer
-                            });
+                            Archetype: OntologyConstants.Archetypes.PureUtility)
+                        {
+                            DependencyScope = "runtime",
+                            RawVersion = depVer
+                        };
                         packages.Add(pkgNode);
                         if (ownerProj != null)
                         {
@@ -597,7 +603,7 @@ public partial class Layer2ProjectParser
         }
         if (participants.Count > 0)
         {
-            wsExt["compose_participants"] = string.Join(",", participants);
+            wsSignals.ComposeParticipants = string.Join(",", participants);
         }
 
         // 6. Pre-compute project database drivers from Layer 1/2 manifests & packages

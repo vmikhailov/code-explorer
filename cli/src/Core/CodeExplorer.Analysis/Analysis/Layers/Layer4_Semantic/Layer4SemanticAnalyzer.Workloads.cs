@@ -26,55 +26,34 @@ public partial class Layer4SemanticParser
         var rawProjectNames = allProjects.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var project in allProjects)
         {
-            var extensions = new Dictionary<string, string>(project.Extensions ?? new())
-            {
-                ["project_id"] = project.Id,
-                ["role"] = project.Role,
-                ["is_library"] = project.IsLibrary ? "true" : "false"
-            };
-
             var cleanName = WorkspaceConventions.NormalizeServiceName(project.Name);
             if (string.IsNullOrEmpty(cleanName)) cleanName = project.Name;
             if (!cleanName.Equals(project.Name, StringComparison.OrdinalIgnoreCase) && rawProjectNames.Contains(cleanName))
             {
                 cleanName = project.Name.Trim().ToLowerInvariant();
             }
-            extensions["raw_name"] = project.Name;
-            extensions["clean_name"] = cleanName;
 
             var isTestProject = project.Role == OntologyConstants.ProjectRoles.Test ||
                                 project.IsTest ||
-                                string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "TestFramework", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "Test", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(project.Extensions?.GetValueOrDefault("is_test_project"), "true", StringComparison.OrdinalIgnoreCase);
+                                string.Equals(project.PrimaryRole, "TestFramework", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(project.PrimaryRole, "Test", StringComparison.OrdinalIgnoreCase);
 
             var canonicalPrimaryRole = isTestProject
                 ? "Test"
-                : (ProjectNodeFactory.NormalizeRoleName(extensions.GetValueOrDefault("primary_role"))
+                : (ProjectNodeFactory.NormalizeRoleName(project.PrimaryRole)
                    ?? ProjectNodeFactory.NormalizeRoleName(project.Role)
                    ?? (project.IsLibrary ? "Library" : "Service"));
 
             var secRolesList = new List<string>();
-            if (extensions.TryGetValue("secondary_roles", out var secJson) && !string.IsNullOrWhiteSpace(secJson))
+            if (!string.IsNullOrWhiteSpace(project.SecondaryRoles))
             {
-                try
+                foreach (var item in CodeExplorer.Core.Database.CypherValue.TryParseJsonText(project.SecondaryRoles).AsStringList())
                 {
-                    using var sDoc = System.Text.Json.JsonDocument.Parse(secJson);
-                    if (sDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    var norm = ProjectNodeFactory.NormalizeRoleName(item);
+                    if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
                     {
-                        foreach (var item in sDoc.RootElement.EnumerateArray())
-                        {
-                            var norm = ProjectNodeFactory.NormalizeRoleName(item.GetString());
-                            if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
-                            {
-                                secRolesList.Add(norm);
-                            }
-                        }
+                        secRolesList.Add(norm);
                     }
-                }
-                catch
-                {
-                    // Fallback
                 }
             }
 
@@ -102,72 +81,139 @@ public partial class Layer4SemanticParser
 
             secRolesList.Remove(canonicalPrimaryRole);
 
-            extensions["primary_role"] = canonicalPrimaryRole;
-            extensions["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secRolesList);
-            extensions["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct().ToList());
+            var secRolesJson = System.Text.Json.JsonSerializer.Serialize(secRolesList);
+            var allRolesJson = System.Text.Json.JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct().ToList());
 
-            if (project.Extensions != null)
-            {
-                project.Extensions["primary_role"] = canonicalPrimaryRole;
-                project.Extensions["secondary_roles"] = extensions["secondary_roles"];
-                project.Extensions["all_roles"] = extensions["all_roles"];
-            }
+            project.PrimaryRole = canonicalPrimaryRole;
+            project.SecondaryRoles = secRolesJson;
+            project.AllRoles = allRolesJson;
+            project.RawName = project.Name;
+            project.CleanName = cleanName;
 
-            IOntologyNode workloadNode = isTestProject
+            CompositeNode workloadNode = isTestProject
                 ? new TestSuiteNode(
                     $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
                     cleanName,
                     project.Path,
-                    project.ProjectType,
-                    extensions)
+                    project.ProjectType)
+                {
+                    Role = project.Role,
+                    IsLibrary = project.IsLibrary,
+                    PrimaryRole = canonicalPrimaryRole,
+                    SecondaryRoles = secRolesJson,
+                    AllRoles = allRolesJson,
+                    Framework = project.Framework
+                }
                 : canonicalPrimaryRole switch
                 {
                     "App" => new AppNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.App}:{cleanName}",
                         cleanName,
                         project.Path,
-                        project.ProjectType,
-                        extensions),
+                        project.ProjectType)
+                    {
+                        Role = project.Role,
+                        IsLibrary = project.IsLibrary,
+                        PrimaryRole = canonicalPrimaryRole,
+                        SecondaryRoles = secRolesJson,
+                        AllRoles = allRolesJson,
+                        Framework = project.Framework
+                    },
 
                     "Service" => new ServiceNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}",
                         cleanName,
                         project.Path,
-                        project.ProjectType,
-                        extensions),
+                        project.ProjectType)
+                    {
+                        Role = project.Role,
+                        IsLibrary = project.IsLibrary,
+                        PrimaryRole = canonicalPrimaryRole,
+                        SecondaryRoles = secRolesJson,
+                        AllRoles = allRolesJson,
+                        Framework = project.Framework
+                    },
 
                     "Worker" => new WorkerNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Worker}:{cleanName}",
                         cleanName,
                         project.Path,
-                        project.ProjectType,
-                        extensions),
+                        project.ProjectType)
+                    {
+                        Role = project.Role,
+                        IsLibrary = project.IsLibrary,
+                        PrimaryRole = canonicalPrimaryRole,
+                        SecondaryRoles = secRolesJson,
+                        AllRoles = allRolesJson,
+                        Framework = project.Framework
+                    },
 
                     "Library" => new LibraryNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}",
                         cleanName,
                         project.Path,
-                        project.ProjectType,
-                        extensions),
+                        project.ProjectType)
+                    {
+                        Role = project.Role,
+                        IsLibrary = project.IsLibrary,
+                        PrimaryRole = canonicalPrimaryRole,
+                        SecondaryRoles = secRolesJson,
+                        AllRoles = allRolesJson,
+                        Framework = project.Framework
+                    },
 
                     "CliTool" => new CliToolNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
                         cleanName,
                         project.Path,
-                        project.ProjectType,
-                        extensions),
+                        project.ProjectType)
+                    {
+                        Role = project.Role,
+                        IsLibrary = project.IsLibrary,
+                        PrimaryRole = canonicalPrimaryRole,
+                        SecondaryRoles = secRolesJson,
+                        AllRoles = allRolesJson,
+                        Framework = project.Framework
+                    },
 
                     "Test" => new TestSuiteNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
                         cleanName,
                         project.Path,
-                        project.ProjectType,
-                        extensions),
+                        project.ProjectType)
+                    {
+                        Role = project.Role,
+                        IsLibrary = project.IsLibrary,
+                        PrimaryRole = canonicalPrimaryRole,
+                        SecondaryRoles = secRolesJson,
+                        AllRoles = allRolesJson,
+                        Framework = project.Framework
+                    },
 
                     _ => project.IsLibrary
-                        ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
-                        : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
+                        ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}", cleanName, project.Path, project.ProjectType)
+                        {
+                            Role = project.Role,
+                            IsLibrary = project.IsLibrary,
+                            PrimaryRole = canonicalPrimaryRole,
+                            SecondaryRoles = secRolesJson,
+                            AllRoles = allRolesJson,
+                            Framework = project.Framework
+                        }
+                        : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType)
+                        {
+                            Role = project.Role,
+                            IsLibrary = project.IsLibrary,
+                            PrimaryRole = canonicalPrimaryRole,
+                            SecondaryRoles = secRolesJson,
+                            AllRoles = allRolesJson,
+                            Framework = project.Framework
+                        }
                 };
+
+            workloadNode.ProjectId = project.Id;
+            workloadNode.RawName = project.Name;
+            workloadNode.CleanName = cleanName;
 
             if (semanticStructureChildIds.Add(workloadNode.Id))
             {
@@ -181,7 +227,7 @@ public partial class Layer4SemanticParser
 
             if (existingRelKeys.Add((workloadNode.Id, project.Id, OntologyConstants.Relationships.ImplementedBy)))
             {
-                semanticRelationships.Add(new Relationship(workloadNode.Id, project.Id, OntologyConstants.Relationships.ImplementedBy, new Dictionary<string, object>()));
+                semanticRelationships.Add(new Relationship(workloadNode.Id, project.Id, OntologyConstants.Relationships.ImplementedBy));
             }
 
             workloadByProjectId[project.Id] = workloadNode.Id;
@@ -240,7 +286,7 @@ public partial class Layer4SemanticParser
             }
             else
             {
-                var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
+                var projectDirectory = project.TryGetSignals()?.CargoManifestDir;
                 var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
                     ? projectDirectory.NormalizeFullPath()
                     : Path.Combine(ctx.AbsoluteWorkspacePath, project.Path).NormalizeFullPath();
@@ -316,7 +362,7 @@ public partial class Layer4SemanticParser
             var codeFirstGqlFields = projectSemanticNodes
                 .OfType<EndpointNode>()
                 .Where(ep => string.Equals(ep.Protocol, "GraphQL", StringComparison.OrdinalIgnoreCase) &&
-                             (ep.Extensions == null || !ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) || isSdl != "true"))
+                             ep.IsGraphqlSdl != true)
                 .Select(ep => ($"{ep.OperationType?.ToCanonicalString() ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -324,9 +370,7 @@ public partial class Layer4SemanticParser
             {
                 var duplicateSdlIds = projectSemanticNodes
                     .OfType<EndpointNode>()
-                    .Where(ep => ep.Extensions != null &&
-                                 ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) &&
-                                 isSdl == "true" &&
+                    .Where(ep => ep.IsGraphqlSdl == true &&
                                  codeFirstGqlFields.Contains($"{ep.OperationType?.ToCanonicalString() ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
                     .Select(ep => ep.Id)
                     .ToHashSet(StringComparer.Ordinal);
@@ -342,16 +386,15 @@ public partial class Layer4SemanticParser
             }
 
             if (!project.IsLibrary && projectSemanticNodes.OfType<EndpointNode>().Any() &&
-                workloadNode.Extensions != null &&
-                workloadNode.Extensions.TryGetValue("primary_role", out var primRole) &&
-                primRole is "App" or "Worker" or "CliTool")
+                project.PrimaryRole is "App" or "Worker" or "CliTool")
             {
+                var primRole = project.PrimaryRole;
                 var secRolesList = new List<string>();
-                if (workloadNode.Extensions.TryGetValue("secondary_roles", out var secJson) && !string.IsNullOrWhiteSpace(secJson))
+                if (!string.IsNullOrWhiteSpace(project.SecondaryRoles))
                 {
                     try
                     {
-                        secRolesList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(secJson) ?? [];
+                        secRolesList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(project.SecondaryRoles) ?? [];
                     }
                     catch { }
                 }
@@ -360,12 +403,22 @@ public partial class Layer4SemanticParser
                     secRolesList.Add("Service");
                     var newSecJson = System.Text.Json.JsonSerializer.Serialize(secRolesList);
                     var newAllJson = System.Text.Json.JsonSerializer.Serialize(new[] { primRole }.Concat(secRolesList).Distinct().ToList());
-                    workloadNode.Extensions["secondary_roles"] = newSecJson;
-                    workloadNode.Extensions["all_roles"] = newAllJson;
-                    if (project.Extensions != null)
+                    project.SecondaryRoles = newSecJson;
+                    project.AllRoles = newAllJson;
+                    switch (workloadNode)
                     {
-                        project.Extensions["secondary_roles"] = newSecJson;
-                        project.Extensions["all_roles"] = newAllJson;
+                        case AppNode app:
+                            app.SecondaryRoles = newSecJson;
+                            app.AllRoles = newAllJson;
+                            break;
+                        case WorkerNode wrk:
+                            wrk.SecondaryRoles = newSecJson;
+                            wrk.AllRoles = newAllJson;
+                            break;
+                        case CliToolNode cli:
+                            cli.SecondaryRoles = newSecJson;
+                            cli.AllRoles = newAllJson;
+                            break;
                     }
                 }
             }
@@ -398,8 +451,7 @@ public partial class Layer4SemanticParser
                         semanticRelationships.Add(new Relationship(
                             semNode.Id,
                             project.Id,
-                            OntologyConstants.Relationships.DeclaredIn,
-                            new Dictionary<string, object>()));
+                            OntologyConstants.Relationships.DeclaredIn));
                     }
                     if (semNode is ExternalServiceNode es)
                     {
@@ -408,12 +460,11 @@ public partial class Layer4SemanticParser
                             semanticRelationships.Add(new Relationship(
                                 workloadNode.Id,
                                 es.Id,
-                                OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true"
-                                }));
+                                OntologyConstants.Relationships.ServiceCall)
+                            {
+                                DependencyType = "service_call",
+                                IsSemantic = true
+                            });
                         }
                     }
                 }
@@ -458,13 +509,12 @@ public partial class Layer4SemanticParser
                             semanticRelationships.Add(new Relationship(
                                 sourceWorkloadId,
                                 targetWorkloadId,
-                                OntologyConstants.Relationships.Tests,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "tests",
-                                    ["category"] = "test",
-                                    ["is_semantic"] = "true"
-                                }));
+                                OntologyConstants.Relationships.Tests)
+                            {
+                                DependencyType = "tests",
+                                Category = "test",
+                                IsSemantic = true
+                            });
                         }
                     }
                     else
@@ -475,13 +525,12 @@ public partial class Layer4SemanticParser
                             semanticRelationships.Add(new Relationship(
                                 sourceWorkloadId,
                                 targetWorkloadId,
-                                OntologyConstants.Relationships.DependsOn,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = depType,
-                                    ["category"] = depType,
-                                    ["is_semantic"] = "true"
-                                }));
+                                OntologyConstants.Relationships.DependsOn)
+                            {
+                                DependencyType = depType,
+                                Category = depType,
+                                IsSemantic = true
+                            });
                         }
                     }
                 }
@@ -493,13 +542,12 @@ public partial class Layer4SemanticParser
                         semanticRelationships.Add(new Relationship(
                             sourceWorkloadId,
                             dep.To,
-                            OntologyConstants.Relationships.DependsOn,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "package",
-                                ["category"] = "library",
-                                ["is_semantic"] = "true"
-                            }));
+                            OntologyConstants.Relationships.DependsOn)
+                        {
+                            DependencyType = "package",
+                            Category = "library",
+                            IsSemantic = true
+                        });
                     }
                 }
             }

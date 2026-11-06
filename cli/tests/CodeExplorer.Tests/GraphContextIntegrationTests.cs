@@ -18,40 +18,40 @@ public class GraphContextIntegrationTests
         {
             Node.FromNode(new ServiceNode("ws:s:bff", "bff", "services/bff", "typescript")
             {
-                Extensions = new() { ["framework"] = "nestjs", ["role"] = "Service", ["is_library"] = "false" }
+                CustomProperties = new() { ["framework"] = "nestjs", ["role"] = "Service", ["is_library"] = "false" }
             }),
             Node.FromNode(new ServiceNode("ws:s:billing", "billing", "services/billing", "csharp")
             {
-                Extensions = new() { ["framework"] = "aspnetcore", ["role"] = "Service", ["is_library"] = "false" }
+                CustomProperties = new() { ["framework"] = "aspnetcore", ["role"] = "Service", ["is_library"] = "false" }
             }),
             Node.FromNode(new ServiceNode("ws:s:inventory", "inventory", "services/inventory", "csharp")
             {
-                Extensions = new() { ["framework"] = "aspnetcore", ["role"] = "Service", ["is_library"] = "false" }
+                CustomProperties = new() { ["framework"] = "aspnetcore", ["role"] = "Service", ["is_library"] = "false" }
             }),
             Node.FromNode(new AppNode("ws:app:portal", "web-portal", "apps/portal", "react")
             {
-                Extensions = new() { ["app_type"] = "spa" }
+                CustomProperties = new() { ["app_type"] = "spa" }
             }),
             Node.FromNode(new WorkerNode("ws:w:jobs", "job-runner", "workers/jobs", "dotnet")
             {
-                Extensions = new() { ["queue_type"] = "rabbitmq" }
+                CustomProperties = new() { ["queue_type"] = "rabbitmq" }
             }),
             Node.FromNode(new CliToolNode("ws:cli:ce", "ce", "src/cli", "csharp")
             {
-                Extensions = new() { ["command_name"] = "ce" }
+                CustomProperties = new() { ["command_name"] = "ce" }
             }),
             Node.FromNode(new DatabaseNode("ws:db:main", "main_postgres", "databases/main", "relational")
             {
-                Extensions = new() { ["engine"] = "postgresql" }
+                CustomProperties = new() { ["engine"] = "postgresql" }
             }),
             Node.FromNode(new TopicNode("ws:top:events", "events-topic", "kafka/events", "kafka")),
             Node.FromNode(new ExternalServiceNode("ws:ext:stripe", "stripe", "https", "stripe.com", "")
             {
-                Extensions = new() { ["category"] = "Payment" }
+                CustomProperties = new() { ["category"] = "Payment" }
             }),
             Node.FromNode(new LibraryNode("ws:lib:ui", "ui-kit", "libs/ui-kit", "typescript")
             {
-                Extensions = new() { ["is_library"] = "true" }
+                CustomProperties = new() { ["is_library"] = "true" }
             }),
             Node.FromNode(new EndpointNode("ws:ep:orders", "CreateOrder", "controllers/Orders.cs", "POST", "/orders"))
         };
