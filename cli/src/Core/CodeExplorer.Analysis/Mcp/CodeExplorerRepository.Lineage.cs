@@ -4,6 +4,21 @@ namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
+    private const string ColProject = "project";
+    private const string ColDependency = "dependency";
+    private const string ColOutgoingDependencies = "outgoingDependencies";
+    private const string ColIncomingDependencies = "incomingDependencies";
+    private const string ColType = "type";
+    private const string ColName = "name";
+    private const string ColStartLine = "startLine";
+    private const string ColEndLine = "endLine";
+    private const string DefaultSymbolType = "Symbol";
+    private const string ColFromLabel = "fromLabel";
+    private const string ColRelType = "relType";
+    private const string ColToLabel = "toLabel";
+    private const string ColLabel = "label";
+    private const string ColKey = "key";
+
     private static string SanitizeMermaidId(string text)
     {
         return text.Replace(".", "_").Replace("-", "_").Replace(":", "_").Replace("/", "_").Replace(" ", "_");
@@ -37,8 +52,8 @@ public partial class CodeExplorerRepository
 
             foreach (var item in res.Rows)
             {
-                var proj = item.GetStringProp("project");
-                var dep = item.GetStringProp("dependency");
+                var proj = item.GetStringProp(ColProject);
+                var dep = item.GetStringProp(ColDependency);
 
                 if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
                 {
@@ -70,8 +85,8 @@ public partial class CodeExplorerRepository
 
         foreach (var item in res.Rows)
         {
-            var proj = item.GetStringProp("project");
-            var dep = item.GetStringProp("dependency");
+            var proj = item.GetStringProp(ColProject);
+            var dep = item.GetStringProp(ColDependency);
 
             if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
             {
@@ -129,8 +144,8 @@ public partial class CodeExplorerRepository
         if (res.Count > 0)
         {
             var row = res.Rows[0];
-            outgoing = row.GetStringListProp("outgoingDependencies").Where(x => !string.IsNullOrEmpty(x)).ToList();
-            incoming = row.GetStringListProp("incomingDependencies").Where(x => !string.IsNullOrEmpty(x)).ToList();
+            outgoing = row.GetStringListProp(ColOutgoingDependencies).Where(x => !string.IsNullOrEmpty(x)).ToList();
+            incoming = row.GetStringListProp(ColIncomingDependencies).Where(x => !string.IsNullOrEmpty(x)).ToList();
         }
 
         if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
@@ -239,10 +254,10 @@ public partial class CodeExplorerRepository
 
         foreach (var item in res.Rows)
         {
-            var type = item.GetStringProp("type", "Symbol");
-            var name = item.GetStringProp("name");
-            var startLine = item.GetLongProp("startLine");
-            var endLine = item.GetLongProp("endLine");
+            var type = item.GetStringProp(ColType, DefaultSymbolType);
+            var name = item.GetStringProp(ColName);
+            var startLine = item.GetLongProp(ColStartLine);
+            var endLine = item.GetLongProp(ColEndLine);
 
             var linesStr = startLine > 0
                 ? (endLine > startLine ? $" (L{startLine}-{endLine})" : $" (L{startLine})")
@@ -335,16 +350,16 @@ public partial class CodeExplorerRepository
         var res = await client.ExecuteCypherAsync(query, null, cancellationToken);
         var parsedTriplets = res.Rows.Select(r => new Dictionary<string, string>
         {
-            ["fromLabel"] = r.GetStringProp("fromLabel"),
-            ["relType"] = r.GetStringProp("relType"),
-            ["toLabel"] = r.GetStringProp("toLabel")
+            [ColFromLabel] = r.GetStringProp(ColFromLabel),
+            [ColRelType] = r.GetStringProp(ColRelType),
+            [ColToLabel] = r.GetStringProp(ColToLabel)
         }).ToList();
 
         var propRes = await client.ExecuteCypherAsync(propQuery, null, cancellationToken);
         var parsedProperties = propRes.Rows.Select(r => new Dictionary<string, string>
         {
-            ["label"] = r.GetStringProp("label"),
-            ["key"] = r.GetStringProp("key")
+            [ColLabel] = r.GetStringProp(ColLabel),
+            [ColKey] = r.GetStringProp(ColKey)
         }).ToList();
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);

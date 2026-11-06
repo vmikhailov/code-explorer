@@ -45,10 +45,11 @@ public class AngularComponentParser : IComponentLibraryParser
         {
             try
             {
+                const string propNgPackage = "ngPackage";
                 var content = PhysicalFileStore.ReadAllText(packageJsonPath);
                 var root = CypherValue.TryParseJsonText(content);
                 if (root.Kind == CypherValueKind.Object &&
-                    root.TryGetProperty("ngPackage", out _))
+                    root.TryGetProperty(propNgPackage, out _))
                 {
                     props["manifest_type"] = "library";
                     props["framework_type"] = "frontend";
@@ -70,9 +71,10 @@ public class AngularComponentParser : IComponentLibraryParser
             {
                 try
                 {
+                    const string propProjects = "projects";
                     var json = PhysicalFileStore.ReadAllText(ancestorAngularJson);
                     var angRoot = CypherValue.TryParseJsonText(json);
-                    if (angRoot.TryGetProperty("projects", out var projectsObj) &&
+                    if (angRoot.TryGetProperty(propProjects, out var projectsObj) &&
                         projectsObj.Kind == CypherValueKind.Object)
                     {
                         foreach (var pProp in projectsObj.AsObject())
@@ -137,9 +139,10 @@ public class AngularComponentParser : IComponentLibraryParser
 
         try
         {
+            const string propProjects = "projects";
             var json = PhysicalFileStore.ReadAllText(manifestPath);
             var root = CypherValue.TryParseJsonText(json);
-            if (!root.TryGetProperty("projects", out var projectsObj) ||
+            if (!root.TryGetProperty(propProjects, out var projectsObj) ||
                 projectsObj.Kind != CypherValueKind.Object)
             {
                 return;

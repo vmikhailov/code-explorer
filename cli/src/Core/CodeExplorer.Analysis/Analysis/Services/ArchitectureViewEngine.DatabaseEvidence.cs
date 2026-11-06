@@ -70,6 +70,7 @@ public partial class ArchitectureViewEngine
 
             if (tRes.Rows.Count > 0)
             {
+                const string colLine = "line";
                 var first = tRes.Rows[0];
                 response.TargetId = first.GetStringProp("id", nodeId);
                 response.TargetName = first.GetStringProp("name", nodeId);
@@ -77,7 +78,7 @@ public partial class ArchitectureViewEngine
                 targetName = response.TargetName;
                 targetKind = response.TargetKind.ToCypherLabel();
                 declFile = first.GetStringProp("file_path");
-                declLine = first.GetNullableIntProp("line");
+                declLine = first.GetNullableIntProp(colLine);
             }
         }
         catch { }
@@ -128,7 +129,8 @@ public partial class ArchitectureViewEngine
                     service = row.GetStringProp("project_id");
                 }
 
-                var line = row.GetNullableIntProp("line");
+                const string colLine = "line";
+                var line = row.GetNullableIntProp(colLine);
 
                 var key = $"{srcId}:{relKind}:{filePath}:{line}";
                 if (!seenKeys.Add(key)) continue;

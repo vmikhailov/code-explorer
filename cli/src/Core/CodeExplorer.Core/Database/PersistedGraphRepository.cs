@@ -37,12 +37,17 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
         return nodes.Count > 0 ? NodeFactory.ToWorkspaceNode(nodes[0]) : null;
     }
 
+    private const string QueryNodeById = "MATCH (n) WHERE n.id = $id RETURN n LIMIT 1";
+    private const string QueryNodesByKind = "MATCH (n) WHERE n.kind = $kind RETURN n";
+    private const string QueryAllNodes = "MATCH (n) RETURN n";
+    private const string QueryAllRelationships = "MATCH ()-[r]->() RETURN r";
+
     public async ValueTask<Node?> GetNodeByIdAsync(string id, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(id)) return null;
 
         return await _client.QueryFirstOrDefaultAsync<Node>(
-            "MATCH (n) WHERE n.id = $id RETURN n LIMIT 1",
+            QueryNodeById,
             new { id },
             ct);
     }
@@ -52,7 +57,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
         if (string.IsNullOrEmpty(kind)) return [];
 
         return await _client.QueryAsync<Node>(
-            "MATCH (n) WHERE n.kind = $kind RETURN n",
+            QueryNodesByKind,
             new { kind },
             ct);
     }
@@ -66,7 +71,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     public async ValueTask<IReadOnlyList<Node>> GetAllNodesAsync(CancellationToken ct = default)
     {
         return await _client.QueryAsync<Node>(
-            "MATCH (n) RETURN n",
+            QueryAllNodes,
             null,
             ct);
     }
@@ -74,7 +79,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     public async ValueTask<IReadOnlyList<Relationship>> GetAllRelationshipsAsync(CancellationToken ct = default)
     {
         return await _client.QueryAsync<Relationship>(
-            "MATCH ()-[r]->() RETURN r",
+            QueryAllRelationships,
             null,
             ct);
     }

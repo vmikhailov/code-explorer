@@ -5,6 +5,23 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.71.0] - 2026-11-06
+
+### Added
+- **Strongly-Typed & Tabular Graph Query API (`IGraphClient`)**:
+  - Added `QueryAsync<T>`, `QueryFirstOrDefaultAsync<T>`, `QueryScalarAsync<T>`, and `ExecuteCypherAsync` (returning `CypherQueryResult`, `CypherRow`, and `CypherValue` structs) to `IGraphClient`, `SqliteGraphClient`, and `InMemoryGraphRepository`.
+  - Introduced `DbRowMaterializer` and `CypherValueParser` for direct SQLite `SqliteDataReader` and binary JSONB materialization without intermediate JSON string serialization.
+- **Semantic Invariant Gates `SIG-S-B-003` & `SIG-C-C-003`**:
+  - Added `SIG-S-B-003` (*Disallow Untyped Graph Query JSON Parsing*) prohibiting `JsonDocument.Parse`, `ExecuteQueryAsync`, and `ExecuteRawAsync` across production code.
+  - Added `SIG-C-C-003` (*Core Ontology Dynamic Property Purity*) enforcing strongly-typed ontology node and relationship properties without untyped `Dictionary<string, object>` bags.
+
+### Removed
+- **Eliminated Untyped Graph Query & `JsonDocument.Parse` APIs**:
+  - Removed `IGraphClient.ExecuteQueryAsync` and `ExecuteRawAsync` along with legacy `JsonHelper` and `JsonElementExtensions`.
+  - Replaced all 256+ `JsonDocument.Parse` usages across CLI, analysis engines, parsers, MCP server, WebSocket handlers, and test suites with strongly-typed DTOs, `QueryAsync<T>`, and `CypherQueryResult`.
+
+---
+
 ## [1.70.1] - 2026-11-05
 
 ### Changed

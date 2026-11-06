@@ -156,27 +156,29 @@ public partial class PostIndexAnalyzer
     {
         // 1. Query architectural/macro nodes to determine kind and whether project is library
         var nodeMap = new Dictionary<string, (string Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
-        var nodesRes = await db.ExecuteCypherAsync(
-            "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
-            null, cancellationToken);
+        const string nodesQuery = "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role";
+        const string colLbl = "lbl";
+        const string colIsLib = "is_lib";
+        const string defaultNodeKind = "Node";
+        var nodesRes = await db.ExecuteCypherAsync(nodesQuery, null, cancellationToken);
         foreach (var row in nodesRes.Rows)
         {
-            var id = row.GetStringProp("id");
+            var id = row.GetStringProp(ColId);
             if (string.IsNullOrEmpty(id)) continue;
-            var kind = "Node";
-            if (row.TryGetProperty("lbl", out var lblProp))
+            var kind = defaultNodeKind;
+            if (row.TryGetProperty(colLbl, out var lblProp))
             {
                 if (lblProp.Kind == CypherValueKind.Array && lblProp.AsArray() is { Count: > 0 } arr)
                 {
-                    kind = arr[0].AsString("Node");
+                    kind = arr[0].AsString(defaultNodeKind);
                 }
                 else if (lblProp.Kind == CypherValueKind.String && lblProp.AsStringList() is { Count: > 0 } strList)
                 {
                     kind = strList[0];
                 }
             }
-            var isLib = kind is "Package" or "Library" || row.GetBoolProp("is_lib");
-            var role = row.GetStringProp("role");
+            var isLib = kind is "Package" or "Library" || row.GetBoolProp(colIsLib);
+            var role = row.GetStringProp(ColRole);
             if (role is "SharedLibrary" or "Test") isLib = true;
 
             nodeMap[id] = (kind, isLib);
@@ -191,9 +193,9 @@ public partial class PostIndexAnalyzer
 
         foreach (var row in edgesRes.Rows)
         {
-            var src = row.GetStringProp("source");
-            var tgt = row.GetStringProp("target");
-            var rawKind = row.GetStringProp("kind");
+            var src = row.GetStringProp(ColSource);
+            var tgt = row.GetStringProp(ColTarget);
+            var rawKind = row.GetStringProp(ColKind);
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
             nodeMap.TryGetValue(src, out var srcInfo);
@@ -489,17 +491,22 @@ public partial class PostIndexAnalyzer
         var extRes = await db.ExecuteCypherAsync(extQuery, null, cancellationToken);
 
         var idsToDelete = new List<string>();
+        const string colDomain = "domain";
+        const string colInferredFromPath = "inferred_from_path";
+        const string colIsRelativePath = "is_relative_path";
+        const string colIsExt = "is_ext";
+        const string colInferredFromIdent = "inferred_from_ident";
 
         foreach (var row in extRes.Rows)
         {
-            var id = row.GetStringProp("id");
-            var name = row.GetStringProp("name");
-            var domain = row.GetStringProp("domain");
-            var path = row.GetStringProp("path");
-            var inferredFromPath = row.GetStringProp("inferred_from_path");
-            var isRelativePath = row.GetStringProp("is_relative_path");
-            var isExt = row.GetStringProp("is_ext");
-            var inferredFromIdent = row.GetStringProp("inferred_from_ident");
+            var id = row.GetStringProp(ColId);
+            var name = row.GetStringProp(ColName);
+            var domain = row.GetStringProp(colDomain);
+            var path = row.GetStringProp(ColPath);
+            var inferredFromPath = row.GetStringProp(colInferredFromPath);
+            var isRelativePath = row.GetStringProp(colIsRelativePath);
+            var isExt = row.GetStringProp(colIsExt);
+            var inferredFromIdent = row.GetStringProp(colInferredFromIdent);
 
             var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);

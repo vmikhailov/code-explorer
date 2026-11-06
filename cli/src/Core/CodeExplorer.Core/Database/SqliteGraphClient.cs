@@ -314,7 +314,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         string sql;
         IReadOnlyDictionary<string, object?> sqlParams;
 
-        if (query.TrimStart().StartWithIC("SELECT"))
+        const string selectKeyword = "SELECT";
+        if (query.TrimStart().StartWithIC(selectKeyword))
         {
             sql = query;
             sqlParams = paramDict;

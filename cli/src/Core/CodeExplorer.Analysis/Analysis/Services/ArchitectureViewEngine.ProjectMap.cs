@@ -125,6 +125,8 @@ public partial class ArchitectureViewEngine
     {
         const string query =
             "MATCH (p:Project)-[:CONTAINS]->(f:File) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, coalesce(p.kind, p.role, '') AS kind, count(f) AS files";
+        const string colIsTest = "is_test";
+        const string colIsBuildOrch = "is_build_orch";
         var res = await db.ExecuteCypherAsync(query, null, ct);
 
         var list = res.Rows
@@ -132,9 +134,9 @@ public partial class ArchitectureViewEngine
                 e.GetStringProp("id"),
                 e.GetStringProp("name"),
                 e.GetStringProp("path"),
-                e.GetBoolProp("is_test"),
+                e.GetBoolProp(colIsTest),
                 e.GetNullableIntProp("files") ?? 0,
-                e.GetBoolProp("is_build_orch"),
+                e.GetBoolProp(colIsBuildOrch),
                 e.GetStringProp("excluded_subpaths"),
                 e.GetStringProp("kind")))
             .Where(p => !string.IsNullOrEmpty(p.Id))
@@ -156,9 +158,9 @@ public partial class ArchitectureViewEngine
                         id,
                         e.GetStringProp("name"),
                         e.GetStringProp("path"),
-                        e.GetBoolProp("is_test"),
+                        e.GetBoolProp(colIsTest),
                         e.GetNullableIntProp("sub_count") ?? 1,
-                        e.GetBoolProp("is_build_orch"),
+                        e.GetBoolProp(colIsBuildOrch),
                         e.GetStringProp("excluded_subpaths"),
                         e.GetStringProp("kind")));
                 }
@@ -236,10 +238,11 @@ public partial class ArchitectureViewEngine
     {
         const string query =
             "MATCH (p:Project)-[:CONTAINS]->(f:File) WHERE p.id = $pid RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
+        const string colIsTest = "is_test";
         var res = await db.ExecuteCypherAsync(query, new { pid = projectId }, ct);
 
         return res.Rows
-            .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp("is_test"), e.GetNullableIntProp("line_count")))
+            .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
             .Where(f => f.Path.Length > 0)
             .ToList();
     }

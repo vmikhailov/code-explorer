@@ -254,6 +254,26 @@ public partial class SqliteGraphClient
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
+            const string propName = "name";
+            const string propPath = "path";
+            const string propFilePath = "file_path";
+            const string propHttpMethod = "http_method";
+            const string propRouteTemplate = "route_template";
+            const string propRoute = "route";
+            const string propEntryType = "entry_type";
+            const string propType = "type";
+            const string propProtocol = "protocol";
+            const string propServiceType = "service_type";
+            const string propDomainOrService = "domain_or_service";
+            const string propDomain = "domain";
+            const string propService = "service";
+            const string propTargetPath = "target_path";
+            const string propProjectType = "project_type";
+            const string propLanguage = "language";
+            const string propRole = "role";
+            const string defaultRoleService = "Service";
+            const string propIsLibrary = "is_library";
+
             while (await reader.ReadAsync(cancellationToken))
             {
                 var id = reader.GetString(0);
@@ -263,34 +283,34 @@ public partial class SqliteGraphClient
 
                 if (kind == "Endpoint")
                 {
-                    var name = root.GetStringProp("name");
-                    var filePath = root.GetStringProp("path", root.GetStringProp("file_path"));
-                    var httpMethod = root.GetStringProp("http_method");
-                    var route = root.GetStringProp("route_template", root.GetStringProp("route"));
+                    var name = root.GetStringProp(propName);
+                    var filePath = root.GetStringProp(propPath, root.GetStringProp(propFilePath));
+                    var httpMethod = root.GetStringProp(propHttpMethod);
+                    var route = root.GetStringProp(propRouteTemplate, root.GetStringProp(propRoute));
                     endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route));
                 }
                 else if (kind == "EntryPoint")
                 {
-                    var name = root.GetStringProp("name");
-                    var path = root.GetStringProp("path", root.GetStringProp("file_path"));
-                    var type = root.GetStringProp("entry_type", root.GetStringProp("type"));
+                    var name = root.GetStringProp(propName);
+                    var path = root.GetStringProp(propPath, root.GetStringProp(propFilePath));
+                    var type = root.GetStringProp(propEntryType, root.GetStringProp(propType));
                     entryPoints.Add(new EntryPointNode(id, name, path, type));
                 }
                 else if (kind == "ExternalService")
                 {
-                    var name = root.GetStringProp("name");
-                    var protocol = root.GetStringProp("protocol", root.GetStringProp("service_type"));
-                    var domain = root.GetStringProp("domain_or_service", root.GetStringProp("domain", root.GetStringProp("service")));
-                    var path = root.GetStringProp("path", root.GetStringProp("target_path"));
+                    var name = root.GetStringProp(propName);
+                    var protocol = root.GetStringProp(propProtocol, root.GetStringProp(propServiceType));
+                    var domain = root.GetStringProp(propDomainOrService, root.GetStringProp(propDomain, root.GetStringProp(propService)));
+                    var path = root.GetStringProp(propPath, root.GetStringProp(propTargetPath));
                     externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path));
                 }
                 else if (kind == "Project")
                 {
-                    var name = root.GetStringProp("name");
-                    var path = root.GetStringProp("path");
-                    var projectType = root.GetStringProp("project_type", root.GetStringProp("language"));
-                    var role = root.GetStringProp("role", "Service");
-                    var isLib = root.GetBoolProp("is_library");
+                    var name = root.GetStringProp(propName);
+                    var path = root.GetStringProp(propPath);
+                    var projectType = root.GetStringProp(propProjectType, root.GetStringProp(propLanguage));
+                    var role = root.GetStringProp(propRole, defaultRoleService);
+                    var isLib = root.GetBoolProp(propIsLibrary);
                     projects.Add(new ProjectNode(id, name, path, projectType, role, isLib));
                 }
             }

@@ -1,0 +1,19 @@
+id: SIG-S-B-003
+category: Architectural
+platform: dotnet
+scope: Service
+dimension: Boundaries
+name: Disallow Untyped Graph Query JSON Parsing
+severity: Error
+description: Business, analysis, and server layers must not call JsonDocument.Parse or untyped ExecuteQueryAsync to parse graph query results. Use IGraphClient.QueryAsync<T>, QueryScalarAsync<T>, or ExecuteCypherAsync (CypherQueryResult / CypherValue).
+remediation: Replace JsonDocument.Parse / ExecuteQueryAsync with strongly-typed IGraphClient.QueryAsync<T>, QueryScalarAsync<T>, or ExecuteCypherAsync.
+target: "{callee.name}"
+message: "Method {caller.name} calls forbidden untyped JSON/Graph API {callee.name}"
+query: |
+  MATCH (caller:Function)-[:CALLS]->(callee:Function)
+  WHERE (callee.name IN ['ExecuteQueryAsync', 'ExecuteRawAsync'] OR (callee.name = 'Parse' AND callee.symbol CONTAINS 'JsonDocument'))
+    AND NOT coalesce(caller.is_test, false)
+  RETURN caller, callee
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-S-B-003.json

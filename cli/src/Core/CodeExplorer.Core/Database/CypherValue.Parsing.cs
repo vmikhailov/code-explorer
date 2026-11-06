@@ -7,29 +7,35 @@ namespace CodeExplorer.Core.Database;
 
 public readonly partial struct CypherValue
 {
+    public static CypherValue FromSqliteObject(object? val) => CypherValueParser.FromSqliteObject(val);
+    public static CypherValue TryParseJsonText(string json) => CypherValueParser.TryParseJsonText(json);
+}
+
+internal static class CypherValueParser
+{
     public static CypherValue FromSqliteObject(object? val)
     {
         return val switch
         {
-            null or DBNull => Null,
+            null or DBNull => CypherValue.Null,
             CypherValue cv => cv,
-            bool b => FromBool(b),
-            long l => FromInt64(l),
-            int i => FromInt64(i),
-            short s => FromInt64(s),
-            byte b8 => FromInt64(b8),
-            double d => FromFloat64(d),
-            float f => FromFloat64(f),
-            decimal dec => FromFloat64((double)dec),
+            bool b => CypherValue.FromBool(b),
+            long l => CypherValue.FromInt64(l),
+            int i => CypherValue.FromInt64(i),
+            short s => CypherValue.FromInt64(s),
+            byte b8 => CypherValue.FromInt64(b8),
+            double d => CypherValue.FromFloat64(d),
+            float f => CypherValue.FromFloat64(f),
+            decimal dec => CypherValue.FromFloat64((double)dec),
             byte[] bytes => ReadFromJsonb(bytes),
             string str => FromPotentialJsonString(str),
-            _ => FromString(val.ToString())
+            _ => CypherValue.FromString(val.ToString())
         };
     }
 
     public static CypherValue FromPotentialJsonString(string? str)
     {
-        if (str is null) return Null;
+        if (str is null) return CypherValue.Null;
         if (str.Length >= 2)
         {
             var first = str[0];
@@ -40,12 +46,12 @@ public readonly partial struct CypherValue
                 if (!parsed.IsNull) return parsed;
             }
         }
-        return FromString(str);
+        return CypherValue.FromString(str);
     }
 
     public static CypherValue TryParseJsonText(string json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return Null;
+        if (string.IsNullOrWhiteSpace(json)) return CypherValue.Null;
         var bytes = Encoding.UTF8.GetBytes(json);
         return TryParseUtf8Json(bytes);
     }
@@ -59,12 +65,12 @@ public readonly partial struct CypherValue
                 AllowTrailingCommas = true,
                 CommentHandling = JsonCommentHandling.Skip
             });
-            if (!reader.Read()) return Null;
+            if (!reader.Read()) return CypherValue.Null;
             return ReadFromJsonReader(ref reader);
         }
         catch (JsonException)
         {
-            return Null;
+            return CypherValue.Null;
         }
     }
 
@@ -73,17 +79,17 @@ public readonly partial struct CypherValue
         switch (reader.TokenType)
         {
             case JsonTokenType.Null:
-                return Null;
+                return CypherValue.Null;
             case JsonTokenType.True:
-                return FromBool(true);
+                return CypherValue.FromBool(true);
             case JsonTokenType.False:
-                return FromBool(false);
+                return CypherValue.FromBool(false);
             case JsonTokenType.Number:
-                if (reader.TryGetInt64(out var l)) return FromInt64(l);
-                if (reader.TryGetDouble(out var d)) return FromFloat64(d);
-                return Null;
+                if (reader.TryGetInt64(out var l)) return CypherValue.FromInt64(l);
+                if (reader.TryGetDouble(out var d)) return CypherValue.FromFloat64(d);
+                return CypherValue.Null;
             case JsonTokenType.String:
-                return FromString(reader.GetString());
+                return CypherValue.FromString(reader.GetString());
             case JsonTokenType.StartArray:
             {
                 var list = new List<CypherValue>();
@@ -91,7 +97,7 @@ public readonly partial struct CypherValue
                 {
                     list.Add(ReadFromJsonReader(ref reader));
                 }
-                return FromArray(list);
+                return CypherValue.FromArray(list);
             }
             case JsonTokenType.StartObject:
             {
@@ -104,16 +110,16 @@ public readonly partial struct CypherValue
                     var val = ReadFromJsonReader(ref reader);
                     props.Add(new KeyValuePair<string, CypherValue>(key, val));
                 }
-                return FromObject(props);
+                return CypherValue.FromObject(props);
             }
             default:
-                return Null;
+                return CypherValue.Null;
         }
     }
 
     public static CypherValue ReadFromJsonb(ReadOnlySpan<byte> jsonb)
     {
-        if (jsonb.IsEmpty) return Null;
+        if (jsonb.IsEmpty) return CypherValue.Null;
         var cursor = 0;
         return ReadJsonbElement(jsonb, ref cursor);
     }
@@ -122,20 +128,20 @@ public readonly partial struct CypherValue
     {
         if (!SqliteJsonbReader.TryReadElement(buffer, ref cursor, out var elemType, out var payload))
         {
-            return Null;
+            return CypherValue.Null;
         }
 
         return elemType switch
         {
-            0 => Null,
-            1 => FromBool(true),
-            2 => FromBool(false),
-            3 or 4 => Utf8Parser.TryParse(payload, out long l, out _) ? FromInt64(l) : FromString(Encoding.UTF8.GetString(payload)),
-            5 or 6 => Utf8Parser.TryParse(payload, out double d, out _) ? FromFloat64(d) : FromString(Encoding.UTF8.GetString(payload)),
-            7 or 8 or 9 or 10 => FromString(payload.IsEmpty ? string.Empty : Encoding.UTF8.GetString(payload)),
+            0 => CypherValue.Null,
+            1 => CypherValue.FromBool(true),
+            2 => CypherValue.FromBool(false),
+            3 or 4 => Utf8Parser.TryParse(payload, out long l, out _) ? CypherValue.FromInt64(l) : CypherValue.FromString(Encoding.UTF8.GetString(payload)),
+            5 or 6 => Utf8Parser.TryParse(payload, out double d, out _) ? CypherValue.FromFloat64(d) : CypherValue.FromString(Encoding.UTF8.GetString(payload)),
+            7 or 8 or 9 or 10 => CypherValue.FromString(payload.IsEmpty ? string.Empty : Encoding.UTF8.GetString(payload)),
             11 => ReadJsonbArray(payload),
             12 => ReadJsonbObject(payload),
-            _ => Null
+            _ => CypherValue.Null
         };
     }
 
@@ -147,7 +153,7 @@ public readonly partial struct CypherValue
         {
             list.Add(ReadJsonbElement(payload, ref cursor));
         }
-        return FromArray(list);
+        return CypherValue.FromArray(list);
     }
 
     private static CypherValue ReadJsonbObject(ReadOnlySpan<byte> payload)
@@ -161,6 +167,6 @@ public readonly partial struct CypherValue
             var val = ReadJsonbElement(payload, ref cursor);
             props.Add(new KeyValuePair<string, CypherValue>(key, val));
         }
-        return FromObject(props);
+        return CypherValue.FromObject(props);
     }
 }

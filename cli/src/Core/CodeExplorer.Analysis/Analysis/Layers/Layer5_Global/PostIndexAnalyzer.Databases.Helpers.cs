@@ -5,6 +5,24 @@ namespace CodeExplorer.Core.Parser;
 
 public partial class PostIndexAnalyzer
 {
+    private const string ColId = "id";
+    private const string ColName = "name";
+    private const string ColDbType = "db_type";
+    private const string ColEngine = "engine";
+    private const string ColSchema = "schema";
+    private const string ColPath = "path";
+    private const string ColIsTest = "is_test";
+    private const string ColRole = "role";
+    private const string ColIsImplicitSchema = "is_implicit_schema";
+    private const string ColIsExplicitSchema = "is_explicit_schema";
+    private const string ColFromConfig = "from_config";
+    private const string ColEntityKind = "entity_kind";
+    private const string ColSource = "source";
+    private const string ColTarget = "target";
+    private const string ColKind = "kind";
+    private const string DefaultRelational = "relational";
+    private const string DefaultDatabase = "Database";
+
     internal static bool IsGenericOrLibraryDbIdStatic(
         string targetId,
         Dictionary<string, (string Name, string DbType, string Key, string Engine)> canonicalNodes,
@@ -49,17 +67,17 @@ public partial class PostIndexAnalyzer
 
         foreach (var row in dbRes.Rows)
         {
-            var dt = row.GetStringProp("db_type", "relational");
-            if (!string.Equals(dt, "relational", StringComparison.OrdinalIgnoreCase)) continue;
+            var dt = row.GetStringProp(ColDbType, DefaultRelational);
+            if (!string.Equals(dt, DefaultRelational, StringComparison.OrdinalIgnoreCase)) continue;
 
-            var eng = row.GetStringProp("engine");
-            var nm = row.GetStringProp("name");
-            var candidate = !string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
+            var eng = row.GetStringProp(ColEngine);
+            var nm = row.GetStringProp(ColName);
+            var candidate = !string.IsNullOrWhiteSpace(eng) && !eng.Equals(DefaultDatabase, StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
                 ? eng
                 : (nm.Contains('.') ? nm.Split('.', 2)[0] : nm);
 
             if (!string.IsNullOrWhiteSpace(candidate) &&
-                !candidate.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                !candidate.Equals(DefaultDatabase, StringComparison.OrdinalIgnoreCase) &&
                 !candidate.Equals("default", StringComparison.OrdinalIgnoreCase) &&
                 !ResourceReconciliationService.IsGenericConfigKey(candidate) &&
                 IsRelationalEngine(candidate))
@@ -71,15 +89,15 @@ public partial class PostIndexAnalyzer
 
         foreach (var row in dbRes.Rows)
         {
-            var id = row.GetStringProp("id");
-            var name = row.GetStringProp("name", id);
-            var rawEngine = row.TryGetProperty("engine", out var eg) && eg.Kind == CypherValueKind.String ? eg.AsNullableString() : null;
+            var id = row.GetStringProp(ColId);
+            var name = row.GetStringProp(ColName, id);
+            var rawEngine = row.TryGetProperty(ColEngine, out var eg) && eg.Kind == CypherValueKind.String ? eg.AsNullableString() : null;
             if (!IsLikelyDatabaseName(name, rawEngine) && !IsLikelyDatabaseName(id, rawEngine)) continue;
 
-            var dPath = row.TryGetProperty("path", out var dp) && dp.Kind == CypherValueKind.String ? dp.AsNullableString() : null;
+            var dPath = row.TryGetProperty(ColPath, out var dp) && dp.Kind == CypherValueKind.String ? dp.AsNullableString() : null;
             var isDeclaredInProduction = !string.IsNullOrEmpty(dPath) && !WorkspaceConventions.IsTestFilePath(dPath);
-            var isExplicitTest = row.GetBoolProp("is_test") ||
-                                 string.Equals(row.GetStringProp("role"), "Test", StringComparison.OrdinalIgnoreCase) ||
+            var isExplicitTest = row.GetBoolProp(ColIsTest) ||
+                                 string.Equals(row.GetStringProp(ColRole), "Test", StringComparison.OrdinalIgnoreCase) ||
                                  WorkspaceConventions.IsTestFilePath(dPath);
 
             var hasNonTestAccess = (!isExplicitTest && isDeclaredInProduction) || nonTestAccessedTargets.Contains(id);
@@ -88,16 +106,16 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            var dbType = row.GetStringProp("db_type", "Database");
-            var rawSchema = row.TryGetProperty("schema", out var sc) && sc.Kind == CypherValueKind.String ? sc.AsNullableString() : null;
+            var dbType = row.GetStringProp(ColDbType, DefaultDatabase);
+            var rawSchema = row.TryGetProperty(ColSchema, out var sc) && sc.Kind == CypherValueKind.String ? sc.AsNullableString() : null;
 
             var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType, rawEngine, rawSchema, primaryRelationalEngine);
             var canonicalId = BuildCanonicalDatabaseId(id, cType, cKey, widPrefix);
             rawToCanonical[id] = canonicalId;
             nonTestAccessedTargets.Add(canonicalId);
 
-            var isRawImplicit = row.GetBoolProp("is_implicit_schema");
-            var isRawExplicit = row.GetBoolProp("is_explicit_schema") || row.GetBoolProp("from_config");
+            var isRawImplicit = row.GetBoolProp(ColIsImplicitSchema);
+            var isRawExplicit = row.GetBoolProp(ColIsExplicitSchema) || row.GetBoolProp(ColFromConfig);
 
             if (isRawImplicit && !isRawExplicit)
             {
@@ -604,12 +622,12 @@ public partial class PostIndexAnalyzer
         var projectList = new List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)>();
         foreach (var row in projsRes.Rows)
         {
-            var pId = row.GetStringProp("id");
-            var pName = row.GetStringProp("name");
-            var pPath = row.TryGetProperty("path", out var pt) && pt.Kind == CypherValueKind.String ? pt.AsNullableString() : null;
-            var pRole = row.GetStringProp("role");
-            var isTestProp = row.GetStringProp("is_test");
-            var entityKind = row.GetStringProp("entity_kind");
+            var pId = row.GetStringProp(ColId);
+            var pName = row.GetStringProp(ColName);
+            var pPath = row.TryGetProperty(ColPath, out var pt) && pt.Kind == CypherValueKind.String ? pt.AsNullableString() : null;
+            var pRole = row.GetStringProp(ColRole);
+            var isTestProp = row.GetStringProp(ColIsTest);
+            var entityKind = row.GetStringProp(ColEntityKind);
 
             var isTest = string.Equals(pRole, "Test", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(pRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
@@ -642,9 +660,9 @@ public partial class PostIndexAnalyzer
         var nonTestAccessedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in edgesRes.Rows)
         {
-            var src = row.GetStringProp("source");
-            var tgt = row.GetStringProp("target");
-            var kind = row.GetStringProp("kind");
+            var src = row.GetStringProp(ColSource);
+            var tgt = row.GetStringProp(ColTarget);
+            var kind = row.GetStringProp(ColKind);
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
             var isReverse = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||

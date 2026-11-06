@@ -263,11 +263,10 @@ public partial class CodeExplorerRepository
         var sizeMb = fileInfo.Length / (1024.0 * 1024.0);
         var client = await ResolveClientAsync(ws.RootDirectory);
 
-        var projRes = await client.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path", null, cancellationToken);
-
-        var countRes = await client.ExecuteCypherAsync(
-            "MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC", null,
-            cancellationToken);
+        const string projectsStatusQuery = "MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path";
+        const string nodeCountsQuery = "MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC";
+        var projRes = await client.ExecuteCypherAsync(projectsStatusQuery, null, cancellationToken);
+        var countRes = await client.ExecuteCypherAsync(nodeCountsQuery, null, cancellationToken);
 
         var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
             ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length

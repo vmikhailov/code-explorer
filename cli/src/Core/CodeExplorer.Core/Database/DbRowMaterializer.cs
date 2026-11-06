@@ -197,7 +197,7 @@ public static class DbRowMaterializer
         var dict = new Dictionary<string, object>(StringComparer.Ordinal);
         if (val.Kind == CypherValueKind.String)
         {
-            val = CypherValue.FromPotentialJsonString(val.AsNullableString());
+            val = CypherValueParser.FromPotentialJsonString(val.AsNullableString());
         }
 
         if (val.Kind != CypherValueKind.Object) return dict;

@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-I-001",
-  "allowedViolations": 3769,
+  "allowedViolations": 3603,
   "entries": [
     {
       "fingerprint": "e588532558828927e0bae696ab29c3f67b9ce8e8753310237148c06d781f7671",
@@ -823,126 +823,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "a4415f7ec24e859391ed14f01633cac8daa40a8c08808799596fcbd8df132ae2",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 498,
-      "column": 41,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "61f7c124f02420b560f932d80eccf41d0d5e9c94a2380bc6cb392ff97e8038af",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 507,
-      "column": 50,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "7704493d813fd906c4a124570537ba6b4ba639dea098fa47027bce0c6a792a61",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 507,
-      "column": 96,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "actProp.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "cd0536d51f7dee621806e805ba4e43b4a0ab2d5c29ab191480c9986e1b515e77",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 511,
-      "column": 50,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "dc1afde45a2e704c2299e7b982c729c638bf90f3df12afe58747cdecf5e2b364",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 512,
-      "column": 51,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e2ac1d37f08c032d355c77adde0927b7f9bce61edea3056c98f13e4803389e06",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 513,
-      "column": 101,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "domp.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "7f4fdc866db7ab85d0a67fe766fef212c6b3ac901abb86d66613a132168a0b91",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 513,
-      "column": 51,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4d043141c429cd1fdce79884b9787624b645c81426ac1388eb5e77900cab79f1",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 519,
-      "column": 45,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "9b2efc7b3f963551cd0c0d36dd8c765b784b0e262cbeb21e90ac167ea50eca99",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 535,
-      "column": 56,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "9be38b6c25d9e421ea44bb442e640e11ee183e8747ce883c04a7ef47dbc43eff",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 536,
-      "column": 52,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "56fd937de778eaae269481da6bf4b6718c7605897f314bbfdbf22d2710e747a1",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 538,
-      "column": 104,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "args.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "cd654d56e4e31bb9be1e539ed7002250c4f99ebe7eb45cf2c9b636e0ee7b049b",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
-      "line": 539,
-      "column": 104,
-      "symbol": "PredictProjectBoundedContextAgenticAsync",
-      "target": "args.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
       "fingerprint": "e0561b3fb5a47c7ea823470a15bf4aad1f78d84d588a542dfe1d78705c436129",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
       "line": 399,
@@ -1553,26 +1433,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "37712ac07ffc4a1787755ca70d168e915faf76f6d23edcf2470397f22e56146e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 100,
-      "column": 49,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "828fa8a74e8e73492a209763ebf5fc99c2f8c29fafffd24a983962bfcb8ba535",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 100,
-      "column": 90,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "a4033b2f717d04f1df3061ad3f8634c6d25380fbddf8e6d7f6e3a8910d9a6442",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
       "line": 145,
@@ -1581,236 +1441,6 @@
       "target": "CanonicalizeDatabase",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "b3747db3a62252863fffdd741a7fcec84d7917ffd8c5b347ff8229de227014d9",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 52,
-      "column": 40,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "bd951ff7c0d5523b260f09f5cba731ac32a6da144ad37a13b36e68fad683682d",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 52,
-      "column": 51,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4a71090067ee1762ade93536452eed41a045430ed18fe5711ea3e9abd89f8539",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 55,
-      "column": 41,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "40cc05b51a02d46d9fc02d03a783ce6950dfca3c51ce1f86a6e66e5c89107fee",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 56,
-      "column": 40,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4b7c68d8902e8f42ef32489f2718e071fa4f6d9718d14249df3c2e4825490e3d",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 74,
-      "column": 40,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "d37f5e7c579e2f216e456dde0578156854340c8012f5013473f3f71c236cf577",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 75,
-      "column": 42,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e5459f20de4c838d9f301c2cb6091070df9543fac75e7e617a95de847b8196e1",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 100,
-      "column": 57,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "2b45cf03df88bc97edf0e1f74cb2f5b27ca5e0bd28b90acc692ff886c391427b",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 101,
-      "column": 57,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "c0fa7da3445543bcdca4122cc33da6db7e1583e1aa9f5b11240ba509193819ca",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 81,
-      "column": 50,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "f23783ca239db35ba0df7b4bfc9a2eca6ab08a57fdbb704c8a42760c287a16a0",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 82,
-      "column": 66,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6ea54cb52375aa8b65e5d94cea0bd383b0cfd66bb7a3217f72091d5c266790fd",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 91,
-      "column": 44,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6fb1f2736c8af709750b06734f4edcc3a576261fe360e011f01ef5a1e3de838f",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 91,
-      "column": 55,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "206bfe19de567fa639c45be1e9cbe3c2e3215c274945c30a91ad3bb21cffd17a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 52,
-      "column": 45,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "1092acc7775724261f8ad0dd8cfc5926271752ead13854ec9ba12f63de7fcbfe",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 99,
-      "column": 49,
-      "symbol": "QueryDatabasesAndBuildCanonicalNodesAsync",
-      "target": "row.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "370f384225445674debe69305a8d31aa0fd9e9aab4125e4a81c19007a0ac621e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 645,
-      "column": 41,
-      "symbol": "QueryNonTestAccessedTargetsAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "5bb66d85432b911d18cc9949a416fa64e85b799af2f01137b8bdc2d3d4908225",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 646,
-      "column": 41,
-      "symbol": "QueryNonTestAccessedTargetsAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "c1161e266a2f41b3923106037a8f86f518c86de740b7b24014279296fddc92c5",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 647,
-      "column": 42,
-      "symbol": "QueryNonTestAccessedTargetsAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "61bfff8ff0eafe3a66e4909bce01d29ad23d673fdde2eb7b8a97bd32fdda3466",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 607,
-      "column": 41,
-      "symbol": "QueryProjectsForCanonicalizationAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "ffbb1aff27bdd90eeb4b4d3b2e0b78115f90bc1f27a7fa4b7451b67a7cdd0d7d",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 608,
-      "column": 43,
-      "symbol": "QueryProjectsForCanonicalizationAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b26a5e08ab85222078f1e6f1f252551fce673108569ece23d9dae0822776b053",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 595,
-      "column": 48,
-      "symbol": "QueryProjectsForCanonicalizationAsync",
-      "target": "row.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "7f157628e5383be3aa64f8ee1f60075511fca733b6adf5f47647e4385ff99f2a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 610,
-      "column": 43,
-      "symbol": "QueryProjectsForCanonicalizationAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "5a8eaa1ce3e27ce1cbe1889e4857e0fbb317c78ca97b0e5a774c9b9ce49e6c6a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 611,
-      "column": 48,
-      "symbol": "QueryProjectsForCanonicalizationAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "ef62b350a7b0a949960f73f1a6fed6293608ba65531146463c6b2e65591e9555",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 612,
-      "column": 48,
-      "symbol": "QueryProjectsForCanonicalizationAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "56fc1bb5390118c4c5b3c3ad57994a2a474f7e73c6b153ffb46f459adfb41245",
@@ -2283,99 +1913,9 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "60d3d868c46768d63eec994d97246f4cee9c9f282a688721f7da29aeab8e81f0",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 160,
-      "column": 13,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "db.ExecuteCypherAsync",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "14b91ae0877d69f3035f60e5c0a5389d4983faacbfdf662724c32e7ffe13d924",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 164,
-      "column": 40,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "16f8c90697995d24e7f7753bdcc65ee6f51b95ed3b64de3afb67302bc6206508",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
       "line": 169,
-      "column": 40,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "77bd3d8b50a83a0304091cce5b1588e28776f5f3d8288b91ae33ad13299b4ca9",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 171,
-      "column": 44,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "arr[0].AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "d4a07ff3751ee57d7b7a100c74cbe8c5bada53b98311d45c9f7bc50bb56e355e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 178,
-      "column": 75,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "fbbbf679a554a8cf17a91a40d576a3bfc1f821e4a39f0b59a7bd806dd514ce73",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 179,
-      "column": 42,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "2b3cbfccaa82d7538f317eb50421444b2920fd9c9aaf2121ab3f2f825c6a6814",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 194,
-      "column": 41,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "bbb7e22e198b13cb1dd9a062c2143fd83c06b86b7659c07ef60a5f0f19c4c1ad",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 195,
-      "column": 41,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "448ff0561a53d684f9e9c086ea5fe943469cafe1054f3d678cdab696092a9635",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 196,
-      "column": 45,
-      "symbol": "NormalizeEdgesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "15a5c69689915962814700382091b1a9e1d89314842da741e6d494e128406feb",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 174,
       "column": 40,
       "symbol": "NormalizeEdgesAsync",
       "target": "row.TryGetProperty",
@@ -2411,86 +1951,6 @@
       "target": "props.GetValueOrDefault",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "277d89ff10a6d3cc064154ad396964ff37d3dc61578ac0be5e53a95aeee4fa22",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 495,
-      "column": 40,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b94f87b71b8558b21588dc0027f70ef28e5031241e60d780d7556b2210f56f1d",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 496,
-      "column": 42,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "7e8031fca176290726cc42aa78b0ea873049565583d845bdec018392dca6c55a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 497,
-      "column": 44,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "1bf8cce4e31ad353700be5e788dc49fa706caf324da2fd8c2b82855b86921bab",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 498,
-      "column": 42,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "ea5850deb239573115a13c574ea82fdf01e9e96050c82cf2caa9bb530af38711",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 499,
-      "column": 54,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "8994017de91826262d74ae85b726ae9fcd520120f3fe22a2a6aa723f402a9c6c",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 500,
-      "column": 52,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "59e81d5992c4e99ef42ab53870afe65fe99d7e131527b3f4921f0b7369206276",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 501,
-      "column": 43,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "9b1b292f9d69a48e6bfc9b1038db4a6eaf36ee04a739c9c2e883d9c42ffd21c9",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
-      "line": 502,
-      "column": 55,
-      "symbol": "PurgePhantomExternalServicesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "fc977e20123757743e72efe01da54b2c9d93493a98d69e243d681f94556b3d1b",
@@ -4183,16 +3643,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "cb344469dfe91f274f64bb79bd960bbe4ad2f3e428ae51009b44c167b453ce8e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
-      "line": 131,
-      "column": 51,
-      "symbol": "GetNodeUsagesAsync",
-      "target": "row.GetNullableIntProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "dcaad0e1f65b5f7a63d0008825d2aa97c748a66a60bd546bb23e6e23939a45ca",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
       "line": 77,
@@ -4231,16 +3681,6 @@
       "target": "first.GetStringProp",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "f10af2347ea377409ba94a5f241d0d7324a7b6c2efeef8dde5ffa27e40a67bc7",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
-      "line": 80,
-      "column": 53,
-      "symbol": "GetNodeUsagesAsync",
-      "target": "first.GetNullableIntProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "6296b3712b8a2352b9090fb683379a80de77d5919a7df388334b69faba738647",
@@ -6683,16 +6123,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "cf5f6758f02bbd3fbfac87257145a5093e9bfa8255a9ad793c3312db736924b1",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
-      "line": 474,
-      "column": 55,
-      "symbol": "GetNodesAsync",
-      "target": "row.GetNullableIntProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "2811d260a20dc794b5c9d7e063b298f9612f138c5c144e535508e4a4a9b430c5",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
       "line": 720,
@@ -6731,16 +6161,6 @@
       "target": "row.GetStringProp",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "47600b7d9e6fd431d5d663b8fa9175129cd80b4788894ec4a71af20e5af8fd1e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
-      "line": 658,
-      "column": 51,
-      "symbol": "GetNodesAsync",
-      "target": "row.GetNullableIntProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "8d945ab5f3ea2ccaf3c9f9eec309664efe9fbb3aaa3f418f62b6a7308d97dca3",
@@ -6901,26 +6321,6 @@
       "target": "row.GetStringProp",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "82d420ce569461612945dd74b360b7c2997beecc11727317685b5954c4f773c7",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
-      "line": 443,
-      "column": 50,
-      "symbol": "GetServiceCapabilitiesAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b73fc572bcffb73f5e5364fd4dc28879d63ec66e88a9e1b60433adb4c4bde1a2",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
-      "line": 444,
-      "column": 51,
-      "symbol": "GetServiceCapabilitiesAsync",
-      "target": "row.GetNullableIntProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "9ade1223ef1708eca58c1ca83721e5372dc570f4b052f89e6f375e2417751cd0",
@@ -7563,16 +6963,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "43135b9fab0c0f2da86d61c821dcba1dceedec00e4613fd39d53cc8f70bc8c14",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
-      "line": 242,
-      "column": 103,
-      "symbol": "LoadProjectMapFilesAsync",
-      "target": "e.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "de835fae1070c6396be6dcbd33043ab4fbb141155781e94f109eb7416f2688eb",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
       "line": 232,
@@ -7623,16 +7013,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "83ab140b605fbeb4287808f8978efe20af58651b4008142445884492c8e3f265",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
-      "line": 135,
-      "column": 31,
-      "symbol": "LoadProjectMapProjectsAsync",
-      "target": "e.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "239575545c69365d1b077f0846883b89f7ad66b3793e1538ea3d20894f835cc6",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
       "line": 123,
@@ -7641,16 +7021,6 @@
       "target": "e.GetNullableIntProp",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "dc2e5bd371d24f787f54e83cd5708b9e103d62cac79375fbb19123f51a17e893",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
-      "line": 137,
-      "column": 31,
-      "symbol": "LoadProjectMapProjectsAsync",
-      "target": "e.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "65fd25c17ffb9f2cf856128aa09867c7c4330b925da0c59f338f2c97904a13a0",
@@ -7703,16 +7073,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "0e310d1db2e219d03521be9b010573bf45b92ac822c90f88c94b9e73ec7e96e1",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
-      "line": 159,
-      "column": 39,
-      "symbol": "LoadProjectMapProjectsAsync",
-      "target": "e.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "131a274d177b67a2fe3b5b785ea43b35129b1bd2b1a0aafa050259e03f099869",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
       "line": 148,
@@ -7721,16 +7081,6 @@
       "target": "e.GetNullableIntProp",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "9a9cdb2b6d2b21a42c882c75b2dd14780eac15a722825568d03b5dc6a5a23b6b",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectMap.cs",
-      "line": 161,
-      "column": 39,
-      "symbol": "LoadProjectMapProjectsAsync",
-      "target": "e.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "6b5167f3ebee191c3191732481b099db97095be96e8a6b0cce6aa2d670e7a67f",
@@ -10413,116 +9763,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "c189636655a8ec625d6cf314e91164225e8656e4d6fae05749a2e742d7170006",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 40,
-      "column": 47,
-      "symbol": "FormatDependenciesAll",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "8ac098a34e672afa23a6daf8131f5c9ab4ca6815145f8c8c9027e237c4b0208d",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 41,
-      "column": 46,
-      "symbol": "FormatDependenciesAll",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b5019fb73b815356aaeae86f85a27504b2acf248554a62002be8b6de14b48a46",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 73,
-      "column": 43,
-      "symbol": "FormatDependenciesAll",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "fe5a16d6bf6c862e401cacc7895142275844b9f9eacfbd07e81431024f927bd7",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 74,
-      "column": 42,
-      "symbol": "FormatDependenciesAll",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "a14f99a16b4369a741c0cf18aa4ca103c80d5f77342f791b60c994a657785a4e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 132,
-      "column": 46,
-      "symbol": "FormatDependenciesFiltered",
-      "target": "row.GetStringListProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4812e41c048c7b8038eb898e7a35e84d55dec197297af61469fecc07d5696c73",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 133,
-      "column": 46,
-      "symbol": "FormatDependenciesFiltered",
-      "target": "row.GetStringListProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "38ac07e82b263dd0df10bae37f3acb032057351960e784c1c14dcbb450de869f",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 242,
-      "column": 43,
-      "symbol": "FormatFileOutline",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "99f0be362aadaab727e650b6950040e83a19b0477645fd6c1d7e4a1412a2b95c",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 242,
-      "column": 51,
-      "symbol": "FormatFileOutline",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "2c069e77e14583b70d98b0b0337eb9452ba6862c4bd55d16e46eaaa76172e2e1",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 243,
-      "column": 43,
-      "symbol": "FormatFileOutline",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "d4b1cb2d37ad3dcacffadb7a73579f27503378e54c3c506f661e50ecba6e0dfa",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 244,
-      "column": 46,
-      "symbol": "FormatFileOutline",
-      "target": "item.GetLongProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4fc49965fc7e3c21aa08ff05fab01b1f86bf9068301e7ad75101116987ffc26c",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 245,
-      "column": 44,
-      "symbol": "FormatFileOutline",
-      "target": "item.GetLongProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "277dab093c77556fadc499b2200912e8164daedf2a10993b21fb660b112d6381",
       "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
       "line": 306,
@@ -10581,56 +9821,6 @@
       "target": "Queries.Get",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "6e3c5814d229e17d169db0021bf1dc06d3dcead494edee716abdec6439a8a5b3",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 338,
-      "column": 45,
-      "symbol": "GetTaxonomyAsync",
-      "target": "r.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "740d913b28e8d7057ba6e90cfdc949699eeb3a67c4249e8fe977319d205653e4",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 339,
-      "column": 43,
-      "symbol": "GetTaxonomyAsync",
-      "target": "r.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "285ce0578f6a964c7d72c255196bd884d00daf8356de46ba947345c560a3f386",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 340,
-      "column": 43,
-      "symbol": "GetTaxonomyAsync",
-      "target": "r.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b275e20c77a8941b9d768725a033ce04c1032aadffa1d94ff36e4c6ce1cc5d91",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 346,
-      "column": 41,
-      "symbol": "GetTaxonomyAsync",
-      "target": "r.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "2afd2c2b75f3c562f5d303ab5cace41ea5795cccc52f35c9efe984735c6fba75",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs",
-      "line": 347,
-      "column": 39,
-      "symbol": "GetTaxonomyAsync",
-      "target": "r.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "ce84c42c5fe7c28c75f73b5e8fdb74108ba7a5b37c731db80d4fd325396c7a9f",
@@ -10721,26 +9911,6 @@
       "target": "Queries.Get",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "b3618ea0b0baa0a1774439e3f7ac09d37de13247431eee8097bb06c72f6daf57",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Queries.cs",
-      "line": 266,
-      "column": 55,
-      "symbol": "GetWorkspaceStatusAsync",
-      "target": "client.ExecuteCypherAsync",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b91d012d46b81f73b767a2c09821b9b50425ef9e9069ce9456d143e0c849a3a9",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Queries.cs",
-      "line": 269,
-      "column": 13,
-      "symbol": "GetWorkspaceStatusAsync",
-      "target": "client.ExecuteCypherAsync",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "2c449fffa26cb71272c7ef95c7abdabc24bd1edba8625e3c695d11ab95fdd208",
@@ -10933,16 +10103,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "9f6cf55f392c88e33d7a0bdea7874778dfa81e55ec80e6ff72ecf8325cc07108",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 210,
-      "column": 88,
-      "symbol": "FormatCallChain",
-      "target": "n.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "4e9ff2d407ab1ecb2ecfd401d153db71b9ff1dd3a56960a78f170e6b3dd13a73",
       "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
       "line": 222,
@@ -10961,196 +10121,6 @@
       "target": "node.TryGetProperty",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "e71e664683ac8185ee0590042c6608d8c9327a001be615e91265a7faf9a86fb5",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 224,
-      "column": 56,
-      "symbol": "FormatCallChain",
-      "target": "node.TryGetProperty",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "142a7bca2c062a1523a9c38c825978ee9bf29dd8fe7ce281eeebb16363c7fe6b",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 222,
-      "column": 49,
-      "symbol": "FormatCallChain",
-      "target": "node.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "86e8fefaf56fd7b1aaa2371e9ae5d15fdcb1bfa887c544dbda01d0a07533a7c0",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 503,
-      "column": 49,
-      "symbol": "FormatCallersMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6ff20aab859d5fc469299b75739aad2fcdb0f03fc5dab78acaa983e112bfcda0",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 504,
-      "column": 49,
-      "symbol": "FormatCallersMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "f981a542f1a5820ef153cc105b8188cf1a586aa0efe7957e3b837936d4efbce4",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 505,
-      "column": 49,
-      "symbol": "FormatCallersMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "26e01a194ffd20b0172f9fb235d025c9c1bd3fbc32ef9ee684e98f827939ca56",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 506,
-      "column": 46,
-      "symbol": "FormatCallersMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "d304327efe1be2c05f17d0ce167559d730777f2e89d619c63d8e2e4b2f02cf4a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 507,
-      "column": 46,
-      "symbol": "FormatCallersMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "23f848e5f3d8eb5608e2e05d1a620d74a11f8015d8d8768ef33079f428f9c9b5",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 508,
-      "column": 42,
-      "symbol": "FormatCallersMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "1d0887f1257888d414aff3c2ecfec3c764657ff94234e317af25c1acf0ef9d5f",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 39,
-      "column": 43,
-      "symbol": "FormatFindSymbol",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "2b0f80dec4604b1cd730d22fa7a9785a148164d92411f0040e2825c5d1dd123f",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 40,
-      "column": 46,
-      "symbol": "FormatFindSymbol",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "dc3f59840cabc9fa2fb747a2acf0063021edfb2a8d100acd2b8253bada47b7e2",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 41,
-      "column": 47,
-      "symbol": "FormatFindSymbol",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6a3fbcb59f25d6e1e9785f179d2770420dfae19d1bcdbabcd642442616add048",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 42,
-      "column": 47,
-      "symbol": "FormatFindSymbol",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "58d10d502418bd5db2deddb65381b5191017ec75a684cfb62a435edd818c6605",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 43,
-      "column": 46,
-      "symbol": "FormatFindSymbol",
-      "target": "item.GetLongProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "1adb692aeb2acb06104ca37a64d41c3022151d3ce889b5f20ac7efc0118fe11b",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 44,
-      "column": 44,
-      "symbol": "FormatFindSymbol",
-      "target": "item.GetLongProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "2389fac295963cd37b73f26549e725ba454095cfd4f4d3314200701027d5d3ed",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 531,
-      "column": 46,
-      "symbol": "FormatImpactMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e6618005e04eeb8a01410828f8f9ec561bb87f556a4a63234cb7d6304e2e5f69",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 532,
-      "column": 46,
-      "symbol": "FormatImpactMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "97258b52563fcee6f887b1bba8702cae5ec3d8263833cd3a7d45d6917aeb29f6",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 533,
-      "column": 42,
-      "symbol": "FormatImpactMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "a2bfcbfb08fe834c8500f13d77d42fd78777ba57ac0ed1ab69bcfb90cf10ca8a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 534,
-      "column": 42,
-      "symbol": "FormatImpactMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6528b80d1c57f5ae17f948b44f5869e50f879f2cf5c5d5fc936769e27d4ae28d",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 535,
-      "column": 42,
-      "symbol": "FormatImpactMarkdown",
-      "target": "item.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "f4f387dd8d1e5db6793b15bc0bd4f42ed532c9298151cbae8066968a97b2f672",
@@ -11183,46 +10153,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "5ca31cb78e6ff6be53bb94e7de2ac2a506b7fdbd3505c863b65c916ef44fdc35",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 264,
-      "column": 17,
-      "symbol": "ResolveFunctionSymbolAsync",
-      "target": "client.QueryFirstOrDefaultAsync\u003Cstring\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "43913c0a2bb60a4ce2381d62c1ebc69ef7816d719b61d1541ff8131e8f0abf91",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 271,
-      "column": 17,
-      "symbol": "ResolveFunctionSymbolAsync",
-      "target": "client.QueryAsync\u003Cstring\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "cf0123fd8ab00700be60863c101138622de4f88b8a72f0d5dd3f61ebad36ff0a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 303,
-      "column": 21,
-      "symbol": "ResolveFunctionSymbolAsync",
-      "target": "client.QueryFirstOrDefaultAsync\u003Cstring\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "cfe74bc51f7685af555686c655759ec7699a90b97c2089c5c18449b819b6ed46",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Symbols.cs",
-      "line": 311,
-      "column": 17,
-      "symbol": "ResolveFunctionSymbolAsync",
-      "target": "client.QueryFirstOrDefaultAsync\u003Cstring\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "cdfdd4e6feae46c37930f93b9439551246738220f9dc82be3380f3483f6a4b71",
       "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
       "line": 301,
@@ -11243,16 +10173,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "e3d8a4f6b4465f8e044a41b679fb4cbfca8c3367d037a89d47d4ac5c0976bae4",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 269,
-      "column": 39,
-      "symbol": "GetArchitectureMapAsync",
-      "target": "parsed.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "65ce7a366f15e928528a0bba6d731a45a30bb4ddc9af6468793f76302fc4beb9",
       "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
       "line": 140,
@@ -11261,66 +10181,6 @@
       "target": "Queries.Get",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "4993e3964bc0d058a52b14b2f8607195e669d144cfe91c401051dfe32d9d69f2",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 139,
-      "column": 62,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "client.QueryScalarAsync\u003Clong\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e6c419be6e519262fb70beeb8c098e76b8d16107d3f1cd7409cfbef91457df46",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 145,
-      "column": 62,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "client.QueryScalarAsync\u003Clong\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "22b8f7783805981e2e164164ef05d9c8633e61993ee41585a26929c2dcf6598e",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 151,
-      "column": 61,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "client.QueryScalarAsync\u003Clong\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "5a439022ca86df995f099f4c7c26db5c540a4b424eddeb536e73d5326f157213",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 161,
-      "column": 40,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "16ebf796053247b14a8d7e45cdbfe7600d1a395224769adde51cad495942fb13",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 161,
-      "column": 53,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "8b39fcbc0e4ea8f0dfa5098a150bfbb609d12dca391b00be3de182c3500ad725",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 162,
-      "column": 40,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "row.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "45c60b81edd377f9451b4e80b550555017b6ad0addf20f13f07e4d3438fe68dc",
@@ -11361,36 +10221,6 @@
       "target": "p.TryGetProperty",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "81c7a9a4bc0e4bc236ed64544cc41545e646b3af3b49f356d7fbd446ba9a3943",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 200,
-      "column": 47,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "row.GetStringListProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e8f14c489e489c6a8896af050f6427b94c1c1b99e5e1338553f1d95182ee409c",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 201,
-      "column": 54,
-      "symbol": "GetArchitectureOverviewAsync",
-      "target": "row.GetStringListProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "0b4c57551754c86639f586bcb855b17ffc3b73c349b53172ee6b8b19321aae92",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 67,
-      "column": 59,
-      "symbol": "IsEmptyStandbyAsync",
-      "target": "client.QueryScalarAsync\u003Clong\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "45a4ce992164e1d0a3f0430aa300f7b4f8f10bccafe78384f5ac9c395775c073",
@@ -11681,16 +10511,6 @@
       "target": "root.TryGetProperty",
       "acknowledgedAt": "2026-11-02T10:17:44.2067263+00:00",
       "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
-    },
-    {
-      "fingerprint": "7c2a0c86fb3a0dc0f8f08d5ab17d1f609fa46a6993afaaaa4581ab07de5c3bcb",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Lifecycle.cs",
-      "line": 433,
-      "column": 125,
-      "symbol": "PopulateWorkspaceManifestsAndDrivers",
-      "target": "lbl.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "5b86bdfc2c0ba1d629967341fa0a864353a04246889d8c2b8cf48da16995d08d",
@@ -14883,46 +13703,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "2299085c656424bd255cf9a49efbd66e9b19f03da3b7dd7188ef3c6559ef3871",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/PersistedGraphRepository.cs",
-      "line": 69,
-      "column": 13,
-      "symbol": "GetAllNodesAsync",
-      "target": "_client.QueryAsync\u003CNode\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b7106ac2a720632f0941fcae56e5a1ae58346115a940bdfff5eb4e36f9b12e0a",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/PersistedGraphRepository.cs",
-      "line": 77,
-      "column": 13,
-      "symbol": "GetAllRelationshipsAsync",
-      "target": "_client.QueryAsync\u003CRelationship\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "380919aa0354787a0af3f4f7b1c7f072ca1a038e8abef3c00a5ee7d7c0563c92",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/PersistedGraphRepository.cs",
-      "line": 45,
-      "column": 13,
-      "symbol": "GetNodeByIdAsync",
-      "target": "_client.QueryFirstOrDefaultAsync\u003CNode\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "cf677c52b4e3c972415d360e288b2bd02127dbde3ead0ae01630c7551afda4eb",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/PersistedGraphRepository.cs",
-      "line": 55,
-      "column": 13,
-      "symbol": "GetNodesByKindAsync",
-      "target": "_client.QueryAsync\u003CNode\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "3428fff2abd6df3ed6a9088646ea1608a73731967962ca3779d995b96a45660a",
       "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
       "line": 82,
@@ -15633,266 +14413,6 @@
       "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
     },
     {
-      "fingerprint": "766369ed7d40706318f048a13e6262edbe54dae71285e47e920f8cf4624308c7",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 266,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "7381eca330da9a40f37e358ffaf6bc2577d51c515ab291b8d2c30f19cb52a18d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 267,
-      "column": 55,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e0e02fa19b7e9d4822b9da2daa62587b0e11cde87671009fc4015799c465bbc8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 267,
-      "column": 82,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "b429433d678cd378a4bf920d4bc6d48991df759b8d0a2d707b989e7f089ae933",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 268,
-      "column": 57,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "7cfc17e72cfc263d0cc3b3b24327e894e09071ce5ce9ac8010191b65c2e7e4d7",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 269,
-      "column": 52,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "1eccba1dca5b75ed35ea327715a89eead24795e6fdc063c5984b76f2ab391674",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 269,
-      "column": 89,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "082fab1f833a244564c82ba4a66294fc1efabb1ff0fc79499aee8e8b433c38a4",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 274,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "182a0c0186076c932f0b46048e090ca04400b597595aa469d0b230ab59785fc0",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 275,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "d7557eaf90ac2d17e75eeec90dd883a392ff38a7e977e507e5cdff2be5673cf4",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 275,
-      "column": 78,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "33d6dc64a9da2325059ad79232ad6d449bff7cf2463a5338f9df4fea0835d34c",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 276,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "77830cf21998d69a6cae4deebd287d5e97337273bc8ac1c738b3c90fb45628ff",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 276,
-      "column": 84,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6812965512b7b21515c33d73701b61905c1021e59b25dca3e5d8a58c22b84e87",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 281,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "f5dd67da4734ae7a7845e5f90c980451dee9d06d5c79c1751c7b54c4581051c0",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 282,
-      "column": 55,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "cc89892f05969ae54b731732b74c4fb32df88526d7f09d4c542edb893b5be3ad",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 282,
-      "column": 86,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4c5b818d4ba4a0917b5429feadeb5bb97de01569154fbfb6a5d5cc90e6c4f8ea",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 283,
-      "column": 122,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "9ed9f6cc9276ccd1579aa0b41b85e450e4bbf49f601f67dae1a60c27a60227d0",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 283,
-      "column": 53,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "14b5f104b69ab1aaa1e9f966c106bea21181d4d26e42ee565b6f5b54b14e895f",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 283,
-      "column": 93,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "a79114cc592ab9b4cdf65585e1f9aa87b471eb610c027bc6f0b36fdf62dce320",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 284,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "068899d9fb8b36110b2888c5d2069405237607a893bea6d7f44c38abf9ea65e8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 284,
-      "column": 78,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "43f1649b53c67711471cd877787ab83d450064264dbf222b7e00b889c578bff5",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 289,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "a9fca10f30e6b9d21e3a4b0eb593ce7e8934e5057a0aadde4443c325bf18eec5",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 290,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "3094485589525aeadfc2f83ddde25c63d8d00f5bfaf54ed6ef4589c65ee299b0",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 291,
-      "column": 58,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "4570ac578819eeefd7f9e1182b68ecffdfafa1b05dafa50f1627c47adc6f3158",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 291,
-      "column": 93,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "e9d26152d3305fbfebb2689b7bd6680fb8c2bd04fa7940a11a16c7ad09f35b2d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 292,
-      "column": 51,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "109ad037347085cab2eed8cee26add2520a51a852f9529c17fc80ac4741eaad9",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 292,
-      "column": 59,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetStringProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "99470483c8b0d2b6c49aa7951a6ca2f91e7d5927525aa6a942cb62137ada81be",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 293,
-      "column": 50,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "root.GetBoolProp",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "0b2f4fdd6a760dfa7f1573f46babcf971a16c0aa2e76769b06f6f40aeff15736",
       "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
       "line": 399,
@@ -16111,16 +14631,6 @@
       "target": "updCmd.Parameters.Add",
       "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
       "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "389ebf3fb8efbd0092c101671ccb1e934578dc3c12d24c51a6c52e52f8604bce",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 317,
-      "column": 43,
-      "symbol": "ExecuteCompiledReaderAsync",
-      "target": "query.TrimStart().StartWithIC",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "4f3f2f9e19b01d344efc37b034cd6aff4c12383da867a5d8ec04e92c95683037",
@@ -24713,26 +23223,6 @@
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
-      "fingerprint": "d7e1a2ef0485980a36f8f05be2ae4aef87858694a318bce326c9475adf7a5052",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Shared/ConfigurationFileParsers.cs",
-      "line": 123,
-      "column": 52,
-      "symbol": "TraverseValue",
-      "target": "new ConfigValue",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "2bbb06ed0d0ec700eddb00189897a26ac15a282725f2378a6e5b04064b43d447",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Shared/ConfigurationFileParsers.cs",
-      "line": 126,
-      "column": 52,
-      "symbol": "TraverseValue",
-      "target": "new ConfigValue",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "622af9655336d14552c53c2a35a5f3b7dc1aab9b96e1008794f7f57eec4109d8",
       "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Components/AngularComponentParser.cs",
       "line": 33,
@@ -24783,26 +23273,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "710ba8e9ccd46ed9dac47c096ea09c4dc9d5b73865deda4548fb49f6ba2818c0",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Components/AngularComponentParser.cs",
-      "line": 51,
-      "column": 41,
-      "symbol": "EnrichManifestProperties",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6c1fc79b23798730ec271bc5c2b39f635fc5516dcbfde6ac038d5bc041170e2d",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Components/AngularComponentParser.cs",
-      "line": 75,
-      "column": 48,
-      "symbol": "EnrichManifestProperties",
-      "target": "angRoot.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "da4933405bd134fdbde4f50b59011e516a70c7b385676185c29c1eff95323c28",
       "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Components/AngularComponentParser.cs",
       "line": 80,
@@ -24821,16 +23291,6 @@
       "target": "projVal.TryGetProperty",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "739e6c2b87036c39a17bc649bcb7c0da63d497d45ae5ba9374b067662ff5a9a2",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Components/AngularComponentParser.cs",
-      "line": 142,
-      "column": 38,
-      "symbol": "ExtractDeclarativeSubProjects",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "ef869ece86d736af8df2f81bdf31e49ad4f14d48dd6c3f2c164849a63cf9605a",
@@ -25263,16 +23723,6 @@
       "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
     },
     {
-      "fingerprint": "b330f9a68aa8f5242874d99d67399b1b37692278f536cecbbba0e18dbe3ae774",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/JavaScriptParser.cs",
-      "line": 141,
-      "column": 52,
-      "symbol": "GetProducedPackageAsync",
-      "target": "versionProp.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "d310da04baa932a171cdb3b840eced6c3c4f9ce3925f8d134d98f9746dad4d09",
       "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/JavaScriptParser.cs",
       "line": 78,
@@ -25281,16 +23731,6 @@
       "target": "new ProducedPackageInfo",
       "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
       "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "7f531514c21522c4b087c7b9bfd762033e38d6a428746f14da514ad26daf02af",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/JavaScriptParser.cs",
-      "line": 181,
-      "column": 66,
-      "symbol": "ParseDependenciesAsync",
-      "target": "prop.Value.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "8ffd5ca5ba1e2956e0a5fddfe52490db130d8181c197db6d63aeeadd64920a55",
@@ -28033,16 +26473,6 @@
       "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
     },
     {
-      "fingerprint": "f704f08f29ad94d267d0140cb53cb2343ab62094bd82a0c51ebcdddbf0c7eaad",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.Manifest.cs",
-      "line": 226,
-      "column": 42,
-      "symbol": "ExtractManifestProperties",
-      "target": "pRoot.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "d04f7e0edd26631fdbc2bc9b14ee8177a6b7e599756e2003d53097f4db85d263",
       "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.Manifest.cs",
       "line": 264,
@@ -28131,16 +26561,6 @@
       "target": "root.TryGetProperty",
       "acknowledgedAt": "2026-11-02T10:17:44.2067263+00:00",
       "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
-    },
-    {
-      "fingerprint": "abd6f77b5bc83d4d63a115159e2c7171d403a20197fbdd357d86aa7c2bb4b2ae",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.Manifest.cs",
-      "line": 339,
-      "column": 62,
-      "symbol": "ExtractManifestProperties",
-      "target": "s.Key.StartWithIC",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "b28afb9bde78182ac29bde765eb67dae263bae67ddb67e3f0b6b5f4d7e591c8c",
@@ -28413,16 +26833,6 @@
       "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
     },
     {
-      "fingerprint": "bff7147df07d4727d0519841b217b82da8ee4e71bd8b038c41b449d8ec8e083c",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.cs",
-      "line": 602,
-      "column": 52,
-      "symbol": "GetProducedPackageAsync",
-      "target": "versionProp.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
       "fingerprint": "225631caef553902e6cba43da425685a58d538742e24d32291d2943f87c24e7a",
       "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.cs",
       "line": 453,
@@ -28431,16 +26841,6 @@
       "target": "new ProducedPackageInfo",
       "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
       "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "956d2644d9232f7b9f64adce104b11886b009b3192002a697e4c7f00f34ea77b",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.cs",
-      "line": 451,
-      "column": 41,
-      "symbol": "GetProjectName",
-      "target": "root.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "9e247bdfed16551df6023ee36236e5e17b4b5af100559f5a62d983e5d9d5f861",
@@ -28461,16 +26861,6 @@
       "target": "Directory.EnumerateFiles",
       "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "4ad924fc44cd435b90c13ae125d2f75c3477d0c1ce0f24f1d7bf6728a2c8be40",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.cs",
-      "line": 350,
-      "column": 87,
-      "symbol": "IsInsideParentProject",
-      "target": "pRoot.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "0c30a47c63d8d8f1049f5967b20f8936b26cb3f8a1f1a51eb077ebd722036b92",
@@ -28571,16 +26961,6 @@
       "target": "root.TryGetProperty",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "884e334a2e4c9428a903305a1f9d0693e775546937d5bd272abdbc2d460e83d6",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.cs",
-      "line": 642,
-      "column": 66,
-      "symbol": "ParseDependenciesAsync",
-      "target": "prop.Value.AsString",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "334501bfe9d879234683ba47e3c2f07c99ddf7a6d959d00b2d481a1971ac9801",
@@ -28951,46 +27331,6 @@
       "target": "context.Response.WriteAsync",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "34a37dbe263a1a1359fd9f667bd495c8a1ecb6fbaa6668ffa26d6df8b2d397ac",
-      "file": "cli/src/Server/CodeExplorer.Server/WebSocketServerHandler.Endpoints.cs",
-      "line": 95,
-      "column": 68,
-      "symbol": "HandleHandshakeAsync",
-      "target": "_graphClient.QueryScalarAsync\u003Clong\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "6343591d8842cf164000998ed591c65ffce33d421408b175d964be8f0591666f",
-      "file": "cli/src/Server/CodeExplorer.Server/WebSocketServerHandler.Endpoints.cs",
-      "line": 96,
-      "column": 68,
-      "symbol": "HandleHandshakeAsync",
-      "target": "_graphClient.QueryScalarAsync\u003Clong\u003E",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "dd1d021e331b90a71c22a696897fdc1bd3d1531fea11a136e18c07c0588c382d",
-      "file": "cli/src/Server/CodeExplorer.Server/WebSocketServerHandler.Endpoints.cs",
-      "line": 497,
-      "column": 44,
-      "symbol": "TestGateQueryAsync",
-      "target": "val.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
-    },
-    {
-      "fingerprint": "c200ad377bb61edeefd0b4d0b99799c52b5f36dd181866f32a12e402aedf465e",
-      "file": "cli/src/Server/CodeExplorer.Server/WebSocketServerHandler.Endpoints.cs",
-      "line": 498,
-      "column": 44,
-      "symbol": "TestGateQueryAsync",
-      "target": "val.TryGetProperty",
-      "acknowledgedAt": "2026-11-06T01:53:54.7368256+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:53:54"
     },
     {
       "fingerprint": "530eba3b03f77350dec20848da1d1bb076db0b84091e242cf784a980ebd2edc3",

@@ -120,11 +120,17 @@ public sealed class JsonConfigurationParser : ISharedFileParser
                 values.Add(new ConfigValue(prefix, System.Text.Encoding.UTF8.GetString(reader.ValueSpan)));
                 break;
             case System.Text.Json.JsonTokenType.True:
-                values.Add(new ConfigValue(prefix, "True"));
+            {
+                const string trueConfigVal = "True";
+                values.Add(new ConfigValue(prefix, trueConfigVal));
                 break;
+            }
             case System.Text.Json.JsonTokenType.False:
-                values.Add(new ConfigValue(prefix, "False"));
+            {
+                const string falseConfigVal = "False";
+                values.Add(new ConfigValue(prefix, falseConfigVal));
                 break;
+            }
         }
     }
 }

@@ -471,7 +471,8 @@ public partial class ArchitectureViewEngine
                     var srcName = row.GetStringProp("srcName");
                     var tgtName = row.GetStringProp("tgtName");
                     var filePath = row.GetStringProp("file_path");
-                    var line = row.GetNullableIntProp("line");
+                    const string colLine = "line";
+                    var line = row.GetNullableIntProp(colLine);
 
                     var dto = new GraphNodeDto
                     {
@@ -655,7 +656,8 @@ public partial class ArchitectureViewEngine
                     filePath = row.GetStringProp("path");
                 }
 
-                var line = row.GetNullableIntProp("line");
+                const string colLine = "line";
+                var line = row.GetNullableIntProp(colLine);
 
                 var role = row.GetStringProp("role");
                 string nodeKind = safeKind ?? "";

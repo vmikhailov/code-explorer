@@ -64,7 +64,8 @@ public partial class CodeExplorerRepository
         if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath)) return false;
         try
         {
-            var cnt = await client.QueryScalarAsync<long>("MATCH (n) RETURN count(n) AS cnt LIMIT 1;");
+            const string countOneQuery = "MATCH (n) RETURN count(n) AS cnt LIMIT 1;";
+            var cnt = await client.QueryScalarAsync<long>(countOneQuery);
             return cnt == 0;
         }
         catch { }
@@ -133,22 +134,29 @@ public partial class CodeExplorerRepository
         long totalNodes = 0;
         long totalFiles = 0;
         long totalRels = 0;
+        const string totalNodesQuery = "MATCH (n) RETURN count(n) AS cnt;";
+        const string totalFilesQuery = "MATCH (f:File) RETURN count(f) AS cnt;";
+        const string totalRelsQuery = "MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;";
+        const string colWorkspace = "workspace";
+        const string colPath = "path";
+        const string colDatabases = "databases";
+        const string colExternalServices = "externalServices";
 
         try
         {
-            totalNodes = await client.QueryScalarAsync<long>("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
+            totalNodes = await client.QueryScalarAsync<long>(totalNodesQuery, null, cancellationToken);
         }
         catch { }
 
         try
         {
-            totalFiles = await client.QueryScalarAsync<long>("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
+            totalFiles = await client.QueryScalarAsync<long>(totalFilesQuery, null, cancellationToken);
         }
         catch { }
 
         try
         {
-            totalRels = await client.QueryScalarAsync<long>("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
+            totalRels = await client.QueryScalarAsync<long>(totalRelsQuery, null, cancellationToken);
         }
         catch { }
 
@@ -158,8 +166,8 @@ public partial class CodeExplorerRepository
         }
 
         var row = overviewRes.Rows[0];
-        var wsName = row.GetStringProp("workspace", "workspace");
-        var wsPath = row.GetStringProp("path");
+        var wsName = row.GetStringProp(colWorkspace, colWorkspace);
+        var wsPath = row.GetStringProp(colPath);
 
         var rawProjects = new List<Dictionary<string, string>>();
 
@@ -197,8 +205,8 @@ public partial class CodeExplorerRepository
             return new { layer, count = items.Count, projects = items };
         }).Where(g => g.count > 0).ToList();
 
-        var databases = row.GetStringListProp("databases").Where(s => !string.IsNullOrEmpty(s)).ToList();
-        var externalServices = row.GetStringListProp("externalServices").Where(s => !string.IsNullOrEmpty(s)).ToList();
+        var databases = row.GetStringListProp(colDatabases).Where(s => !string.IsNullOrEmpty(s)).ToList();
+        var externalServices = row.GetStringListProp(colExternalServices).Where(s => !string.IsNullOrEmpty(s)).ToList();
 
         var overviewResult = new
         {
@@ -265,8 +273,9 @@ public partial class CodeExplorerRepository
             var savedQueries = _queryManager.ListQueries(effectiveWsPath);
             if (savedQueries.Count > 0)
             {
+                const string propResults = "results";
                 var parsed = CypherValue.TryParseJsonText(resultJson);
-                parsed.TryGetProperty("results", out var resultsVal);
+                parsed.TryGetProperty(propResults, out var resultsVal);
 
                 var formatted = JsonSerializer.Serialize(
                     new

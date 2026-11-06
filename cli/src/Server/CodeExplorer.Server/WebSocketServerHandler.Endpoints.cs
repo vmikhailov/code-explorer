@@ -92,8 +92,10 @@ public partial class WebSocketServerHandler
         long edgesCount = 0;
         try
         {
-            nodesCount = await _graphClient.QueryScalarAsync<long>("MATCH (n) RETURN count(n) AS cnt", null, cancellationToken);
-            edgesCount = await _graphClient.QueryScalarAsync<long>("MATCH ()-[r]->() RETURN count(r) AS cnt", null, cancellationToken);
+            const string countNodesQuery = "MATCH (n) RETURN count(n) AS cnt";
+            const string countEdgesQuery = "MATCH ()-[r]->() RETURN count(r) AS cnt";
+            nodesCount = await _graphClient.QueryScalarAsync<long>(countNodesQuery, null, cancellationToken);
+            edgesCount = await _graphClient.QueryScalarAsync<long>(countEdgesQuery, null, cancellationToken);
         }
         catch
         {
@@ -489,13 +491,15 @@ public partial class WebSocketServerHandler
             {
                 var first = cypherResult.Rows[0];
                 var colCount = Math.Min(first.Columns.Count, first.Values.Count);
+                const string propProperties = "properties";
+                const string propId = "id";
                 for (var i = 0; i < colCount; i++)
                 {
                     projectedCols.Add(first.Columns[i]);
                     var val = first.Values[i];
                     if (val.Kind == CypherValueKind.Object &&
-                        val.TryGetProperty("properties", out _) &&
-                        val.TryGetProperty("id", out _))
+                        val.TryGetProperty(propProperties, out _) &&
+                        val.TryGetProperty(propId, out _))
                     {
                         hasGraphNode = true;
                     }

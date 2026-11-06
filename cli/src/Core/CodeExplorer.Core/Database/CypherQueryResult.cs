@@ -119,7 +119,7 @@ public readonly partial struct CypherValue
             CypherValueKind.Boolean => _int64 != 0 ? TrueLiteral : FalseLiteral,
             CypherValueKind.Int64 => _int64.ToString(CultureInfo.InvariantCulture),
             CypherValueKind.Float64 => _float64.ToString(CultureInfo.InvariantCulture),
-            _ => ToJsonString()
+            _ => CypherValueExtensions.ToJsonString(this)
         };
     }
 
@@ -130,31 +130,6 @@ public readonly partial struct CypherValue
 
     public IReadOnlyList<KeyValuePair<string, CypherValue>> AsObject() =>
         Kind == CypherValueKind.Object && _refValue is IReadOnlyList<KeyValuePair<string, CypherValue>> props ? props : [];
-
-    public IReadOnlyList<string> AsStringList()
-    {
-        if (Kind == CypherValueKind.Array && _refValue is IReadOnlyList<CypherValue> items)
-        {
-            var result = new List<string>(items.Count);
-            for (var i = 0; i < items.Count; i++)
-            {
-                var s = items[i].AsNullableString();
-                if (!string.IsNullOrEmpty(s)) result.Add(s);
-            }
-            return result;
-        }
-
-        if (Kind == CypherValueKind.String && _refValue is string raw && raw.StartsWith('['))
-        {
-            var parsed = TryParseJsonText(raw);
-            if (parsed.Kind == CypherValueKind.Array)
-            {
-                return parsed.AsStringList();
-            }
-        }
-
-        return [];
-    }
 
     public CypherValue this[string propName] => TryGetProperty(propName, out var v) ? v : Null;
 
@@ -177,96 +152,6 @@ public readonly partial struct CypherValue
         return false;
     }
 
-    public string GetStringProp(string propName, string fallback = "") =>
-        TryGetProperty(propName, out var v) && !v.IsNull ? v.AsString(fallback) : fallback;
-
-    public int? GetNullableIntProp(string propName) =>
-        TryGetProperty(propName, out var v) ? v.AsNullableInt32() : null;
-
-    public int GetIntProp(string propName, int fallback = 0) =>
-        GetNullableIntProp(propName) ?? fallback;
-
-    public long GetLongProp(string propName, long fallback = 0L) =>
-        TryGetProperty(propName, out var v) ? v.AsInt64(fallback) : fallback;
-
-    public bool GetBoolProp(string propName, bool fallback = false) =>
-        TryGetProperty(propName, out var v) ? v.AsBool(fallback) : fallback;
-
-    public Dictionary<string, string> ExtractStringMap()
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (Kind == CypherValueKind.Object && _refValue is IReadOnlyList<KeyValuePair<string, CypherValue>> props)
-        {
-            for (var i = 0; i < props.Count; i++)
-            {
-                var valStr = props[i].Value.AsNullableString();
-                if (valStr is not null)
-                {
-                    result[props[i].Key] = valStr;
-                }
-            }
-        }
-        else if (Kind == CypherValueKind.String && _refValue is string raw && raw.StartsWith('{'))
-        {
-            var parsed = TryParseJsonText(raw);
-            if (parsed.Kind == CypherValueKind.Object)
-            {
-                return parsed.ExtractStringMap();
-            }
-        }
-        return result;
-    }
-
-    public void WriteTo(Utf8JsonWriter writer)
-    {
-        switch (Kind)
-        {
-            case CypherValueKind.Null:
-                writer.WriteNullValue();
-                break;
-            case CypherValueKind.Boolean:
-                writer.WriteBooleanValue(_int64 != 0);
-                break;
-            case CypherValueKind.Int64:
-                writer.WriteNumberValue(_int64);
-                break;
-            case CypherValueKind.Float64:
-                writer.WriteNumberValue(_float64);
-                break;
-            case CypherValueKind.String:
-                writer.WriteStringValue(_refValue as string);
-                break;
-            case CypherValueKind.Array:
-                writer.WriteStartArray();
-                var arr = AsArray();
-                for (var i = 0; i < arr.Count; i++)
-                {
-                    arr[i].WriteTo(writer);
-                }
-                writer.WriteEndArray();
-                break;
-            case CypherValueKind.Object:
-                writer.WriteStartObject();
-                var obj = AsObject();
-                for (var i = 0; i < obj.Count; i++)
-                {
-                    writer.WritePropertyName(obj[i].Key);
-                    obj[i].Value.WriteTo(writer);
-                }
-                writer.WriteEndObject();
-                break;
-        }
-    }
-
-    public string ToJsonString(bool indented = false)
-    {
-        var buffer = new ArrayBufferWriter<byte>(256);
-        using var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = indented });
-        WriteTo(writer);
-        writer.Flush();
-        return Encoding.UTF8.GetString(buffer.WrittenSpan);
-    }
-
     public override string ToString() => AsNullableString() ?? NullLiteral;
 
     private static bool ParseBoolString(string s, bool fallback)
@@ -277,10 +162,130 @@ public readonly partial struct CypherValue
     }
 }
 
+public static class CypherValueExtensions
+{
+    public static IReadOnlyList<string> AsStringList(this CypherValue value)
+    {
+        if (value.Kind == CypherValueKind.Array)
+        {
+            var items = value.AsArray();
+            var result = new List<string>(items.Count);
+            for (var i = 0; i < items.Count; i++)
+            {
+                var s = items[i].AsNullableString();
+                if (!string.IsNullOrEmpty(s)) result.Add(s);
+            }
+            return result;
+        }
+
+        if (value.Kind == CypherValueKind.String && value.AsNullableString() is string raw && raw.StartsWith('['))
+        {
+            var parsed = CypherValue.TryParseJsonText(raw);
+            if (parsed.Kind == CypherValueKind.Array)
+            {
+                return parsed.AsStringList();
+            }
+        }
+
+        return [];
+    }
+
+    public static string GetStringProp(this CypherValue value, string propName, string fallback = "") =>
+        value.TryGetProperty(propName, out var v) && !v.IsNull ? v.AsString(fallback) : fallback;
+
+    public static int? GetNullableIntProp(this CypherValue value, string propName) =>
+        value.TryGetProperty(propName, out var v) ? v.AsNullableInt32() : null;
+
+    public static int GetIntProp(this CypherValue value, string propName, int fallback = 0) =>
+        value.GetNullableIntProp(propName) ?? fallback;
+
+    public static long GetLongProp(this CypherValue value, string propName, long fallback = 0L) =>
+        value.TryGetProperty(propName, out var v) ? v.AsInt64(fallback) : fallback;
+
+    public static bool GetBoolProp(this CypherValue value, string propName, bool fallback = false) =>
+        value.TryGetProperty(propName, out var v) ? v.AsBool(fallback) : fallback;
+
+    public static Dictionary<string, string> ExtractStringMap(this CypherValue value)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (value.Kind == CypherValueKind.Object)
+        {
+            var props = value.AsObject();
+            for (var i = 0; i < props.Count; i++)
+            {
+                var valStr = props[i].Value.AsNullableString();
+                if (valStr is not null)
+                {
+                    result[props[i].Key] = valStr;
+                }
+            }
+        }
+        else if (value.Kind == CypherValueKind.String && value.AsNullableString() is string raw && raw.StartsWith('{'))
+        {
+            var parsed = CypherValue.TryParseJsonText(raw);
+            if (parsed.Kind == CypherValueKind.Object)
+            {
+                return parsed.ExtractStringMap();
+            }
+        }
+        return result;
+    }
+
+    public static void WriteTo(this CypherValue value, Utf8JsonWriter writer)
+    {
+        switch (value.Kind)
+        {
+            case CypherValueKind.Null:
+                writer.WriteNullValue();
+                break;
+            case CypherValueKind.Boolean:
+                writer.WriteBooleanValue(value.AsBool());
+                break;
+            case CypherValueKind.Int64:
+                writer.WriteNumberValue(value.AsInt64());
+                break;
+            case CypherValueKind.Float64:
+                writer.WriteNumberValue(value.AsDouble());
+                break;
+            case CypherValueKind.String:
+                writer.WriteStringValue(value.AsNullableString());
+                break;
+            case CypherValueKind.Array:
+                writer.WriteStartArray();
+                var arr = value.AsArray();
+                for (var i = 0; i < arr.Count; i++)
+                {
+                    arr[i].WriteTo(writer);
+                }
+                writer.WriteEndArray();
+                break;
+            case CypherValueKind.Object:
+                writer.WriteStartObject();
+                var obj = value.AsObject();
+                for (var i = 0; i < obj.Count; i++)
+                {
+                    writer.WritePropertyName(obj[i].Key);
+                    obj[i].Value.WriteTo(writer);
+                }
+                writer.WriteEndObject();
+                break;
+        }
+    }
+
+    public static string ToJsonString(this CypherValue value, bool indented = false)
+    {
+        var buffer = new ArrayBufferWriter<byte>(256);
+        using var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = indented });
+        value.WriteTo(writer);
+        writer.Flush();
+        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
+}
+
 public sealed class CypherValueJsonConverter : JsonConverter<CypherValue>
 {
     public override CypherValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        CypherValue.ReadFromJsonReader(ref reader);
+        CypherValueParser.ReadFromJsonReader(ref reader);
 
     public override void Write(Utf8JsonWriter writer, CypherValue value, JsonSerializerOptions options) =>
         value.WriteTo(writer);
@@ -372,7 +377,7 @@ public sealed class CypherRowJsonConverter : JsonConverter<CypherRow>
 {
     public override CypherRow Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var val = CypherValue.ReadFromJsonReader(ref reader);
+        var val = CypherValueParser.ReadFromJsonReader(ref reader);
         if (val.Kind == CypherValueKind.Object)
         {
             var props = val.AsObject();

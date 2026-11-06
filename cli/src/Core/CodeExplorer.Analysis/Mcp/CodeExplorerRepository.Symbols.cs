@@ -36,12 +36,14 @@ public partial class CodeExplorerRepository
         {
             if (count++ >= limit) break;
 
-            var type = item.GetStringProp("type");
-            var symName = item.GetStringProp("name");
-            var fullName = item.GetStringProp("fullName");
-            var filePath = item.GetStringProp("filePath");
-            var startLine = item.GetLongProp("startLine");
-            var endLine = item.GetLongProp("endLine");
+            const string colFullName = "fullName";
+            const string colFilePath = "filePath";
+            var type = item.GetStringProp(ColType);
+            var symName = item.GetStringProp(ColName);
+            var fullName = item.GetStringProp(colFullName);
+            var filePath = item.GetStringProp(colFilePath);
+            var startLine = item.GetLongProp(ColStartLine);
+            var endLine = item.GetLongProp(ColEndLine);
 
             var linesStr = startLine > 0
                 ? (endLine > startLine ? $"L{startLine}-{endLine}" : $"L{startLine}")
@@ -201,13 +203,14 @@ public partial class CodeExplorerRepository
 
             if (row.TryGetProperty("chain", out var chainProp) && chainProp.Kind == CypherValueKind.Array)
             {
+                const string defaultFuncLabel = "Function";
                 var step = 1;
 
                 foreach (var node in chainProp.AsArray())
                 {
                     if (node.Kind == CypherValueKind.Object)
                     {
-                        var name = node.TryGetProperty("name", out var n) ? n.AsString("Function") : "Function";
+                        var name = node.TryGetProperty(ColName, out var n) ? n.AsString(defaultFuncLabel) : defaultFuncLabel;
                         var symbol = node.TryGetProperty("symbol", out var s) ? s.AsNullableString() : null;
                         var file = node.TryGetProperty("file_path", out var f) ? f.AsNullableString() : null;
                         var line = node.TryGetProperty("start_line", out var l) ? l.AsNullableString() : null;
@@ -219,7 +222,7 @@ public partial class CodeExplorerRepository
                     }
                     else if (node.Kind == CypherValueKind.String)
                     {
-                        var str = node.AsString("Function");
+                        var str = node.AsString(defaultFuncLabel);
                         md.AppendLine($"{step++}. `{str}`");
                     }
                 }
@@ -259,16 +262,21 @@ public partial class CodeExplorerRepository
 
         try
         {
+            const string directSymQuery = "MATCH (n:Function) WHERE n.id = $id OR n.symbol = $id RETURN n.symbol AS symbol LIMIT 1";
+            const string nameMatchesQuery = "MATCH (n:Function) WHERE n.name = $name OR n.graphql_field = $name OR n.graphql_operation = $name RETURN n.symbol AS symbol LIMIT 5";
+            const string dotSymQuery = "MATCH (n:Function) WHERE (n.name = $mName OR n.symbol CONTAINS $mName) AND (n.symbol CONTAINS $cName OR n.file_path CONTAINS $cName) RETURN n.symbol AS symbol LIMIT 5";
+            const string fuzzySymQuery = "MATCH (n:Function) WHERE n.name CONTAINS $name OR n.symbol CONTAINS $name RETURN n.symbol AS symbol LIMIT 5";
+
             // 1. Direct match by id or symbol
             var directSym = await client.QueryFirstOrDefaultAsync<string>(
-                "MATCH (n:Function) WHERE n.id = $id OR n.symbol = $id RETURN n.symbol AS symbol LIMIT 1",
+                directSymQuery,
                 new Dictionary<string, string> { ["id"] = funcIdentifier },
                 cancellationToken);
             if (!string.IsNullOrEmpty(directSym)) return directSym;
 
             // 2. Exact match by name, graphql_field, or graphql_operation
             var nameMatches = await client.QueryAsync<string>(
-                "MATCH (n:Function) WHERE n.name = $name OR n.graphql_field = $name OR n.graphql_operation = $name RETURN n.symbol AS symbol LIMIT 5",
+                nameMatchesQuery,
                 new Dictionary<string, string> { ["name"] = funcIdentifier },
                 cancellationToken);
             if (nameMatches.Count == 1 && !string.IsNullOrEmpty(nameMatches[0]))
@@ -300,7 +308,7 @@ public partial class CodeExplorerRepository
                     dotClass = dotClass[(dotClass.LastIndexOf('.') + 1)..];
                 }
                 var dotSym = await client.QueryFirstOrDefaultAsync<string>(
-                    "MATCH (n:Function) WHERE (n.name = $mName OR n.symbol CONTAINS $mName) AND (n.symbol CONTAINS $cName OR n.file_path CONTAINS $cName) RETURN n.symbol AS symbol LIMIT 5",
+                    dotSymQuery,
                     new Dictionary<string, string> { ["mName"] = dotMethod, ["cName"] = dotClass },
                     cancellationToken);
                 if (!string.IsNullOrEmpty(dotSym)) return dotSym;
@@ -308,7 +316,7 @@ public partial class CodeExplorerRepository
 
             // 4. Fallback search via contains on name or symbol
             var fuzzySym = await client.QueryFirstOrDefaultAsync<string>(
-                "MATCH (n:Function) WHERE n.name CONTAINS $name OR n.symbol CONTAINS $name RETURN n.symbol AS symbol LIMIT 5",
+                fuzzySymQuery,
                 new Dictionary<string, string> { ["name"] = funcIdentifier },
                 cancellationToken);
             if (!string.IsNullOrEmpty(fuzzySym)) return fuzzySym;
@@ -498,14 +506,21 @@ public partial class CodeExplorerRepository
         sb.AppendLine("| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |");
         sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
 
+        const string colTargetName = "targetName";
+        const string colCallerName = "callerName";
+        const string colCallerKind = "callerKind";
+        const string colRelKind = "relKind";
+        const string colProjectName = "projectName";
+        const string colLocation = "location";
+
         foreach (var item in res.Rows)
         {
-            var targetName = item.GetStringProp("targetName", target);
-            var callerName = item.GetStringProp("callerName");
-            var callerKind = item.GetStringProp("callerKind");
-            var relKind = item.GetStringProp("relKind");
-            var project = item.GetStringProp("projectName");
-            var loc = item.GetStringProp("location");
+            var targetName = item.GetStringProp(colTargetName, target);
+            var callerName = item.GetStringProp(colCallerName);
+            var callerKind = item.GetStringProp(colCallerKind);
+            var relKind = item.GetStringProp(colRelKind);
+            var project = item.GetStringProp(colProjectName);
+            var loc = item.GetStringProp(colLocation);
 
             sb.AppendLine($"| `{targetName}` | `{callerName}` | {callerKind} | {relKind} | {project} | `{loc}` |");
         }
@@ -526,13 +541,19 @@ public partial class CodeExplorerRepository
         sb.AppendLine("| Kind | Dependent | Relationship | Location (File:Line) | Symbol |");
         sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
 
+        const string colDependentType = "dependentType";
+        const string colDependentName = "dependentName";
+        const string colRelationship = "relationship";
+        const string colFilePath = "filePath";
+        const string colDependentSymbol = "dependentSymbol";
+
         foreach (var item in res.Rows)
         {
-            var depType = item.GetStringProp("dependentType");
-            var depName = item.GetStringProp("dependentName");
-            var rel = item.GetStringProp("relationship");
-            var loc = item.GetStringProp("filePath");
-            var sym = item.GetStringProp("dependentSymbol");
+            var depType = item.GetStringProp(colDependentType);
+            var depName = item.GetStringProp(colDependentName);
+            var rel = item.GetStringProp(colRelationship);
+            var loc = item.GetStringProp(colFilePath);
+            var sym = item.GetStringProp(colDependentSymbol);
 
             sb.AppendLine($"| {depType} | `{depName}` | {rel} | `{loc}` | `{sym}` |");
         }

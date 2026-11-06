@@ -440,8 +440,10 @@ public partial class ArchitectureViewEngine
                 var method = row.GetStringProp("method");
                 var route = row.GetStringProp("route");
                 var protocol = row.GetStringProp("protocol", "REST");
-                var filePath = row.GetStringProp("file_path");
-                var line = row.GetNullableIntProp("line");
+                const string colFilePath = "file_path";
+                const string colLine = "line";
+                var filePath = row.GetStringProp(colFilePath);
+                var line = row.GetNullableIntProp(colLine);
 
                 epGroup.Items.Add(new ServiceCapabilityItemDto
                 {

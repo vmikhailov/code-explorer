@@ -424,13 +424,14 @@ public partial class Layer2ProjectParser
                     foreach (var task in tasksArr.AsArray())
                     {
                         if (task.Kind != CypherValueKind.Object) continue;
+                        const string folderOpenLiteral = "folderOpen";
                         var isFolderOpen = task.TryGetProperty(OntologyConstants.ManifestFields.RunOptions, out var ro) &&
                                            ro.Kind == CypherValueKind.Object &&
                                            ro.TryGetProperty(OntologyConstants.ManifestFields.RunOn, out var runOn) &&
-                                           string.Equals(runOn.AsNullableString(), "folderOpen", StringComparison.OrdinalIgnoreCase);
+                                           string.Equals(runOn.AsNullableString(), folderOpenLiteral, StringComparison.OrdinalIgnoreCase);
                         if (!isFolderOpen) continue;
 
-                        var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl) ? lbl.AsString("folderOpen") : "folderOpen";
+                        var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl) ? lbl.AsString(folderOpenLiteral) : folderOpenLiteral;
                         var cmd = task.TryGetProperty(OntologyConstants.ManifestFields.Command, out var c) ? c.AsString() : "";
                         folderOpenTasks.Add(new Dictionary<string, string> { [OntologyConstants.ManifestFields.Label] = label, [OntologyConstants.ManifestFields.Command] = cmd });
 

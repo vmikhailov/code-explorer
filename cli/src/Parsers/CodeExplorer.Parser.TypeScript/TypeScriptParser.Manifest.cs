@@ -220,10 +220,11 @@ public partial class TypeScriptParser
         {
             try
             {
+                const string propProjectType = "projectType";
                 var content = PhysicalFileStore.ReadAllText(projectJsonPath);
                 var pRoot = CypherValue.TryParseJsonText(content);
 
-                if (pRoot.TryGetProperty("projectType", out var ptProp) &&
+                if (pRoot.TryGetProperty(propProjectType, out var ptProp) &&
                     ptProp.Kind == CypherValueKind.String)
                 {
                     var pt = ptProp.AsNullableString()?.ToLowerInvariant();
@@ -333,10 +334,11 @@ public partial class TypeScriptParser
                                             projDirName.Contains("consumer") || pkgName.Contains("worker") ||
                                             pkgName.Contains("scheduler") || pkgName.Contains("consumer");
 
+                const string workerScriptPrefix = "worker:";
                 var hasWorkerScripts = root.TryGetProperty("scripts", out var scrObj) &&
                                        scrObj.Kind == CypherValueKind.Object &&
                                        scrObj.AsObject().Any(s =>
-                                           s.Key.StartWithIC("worker:") ||
+                                           s.Key.StartWithIC(workerScriptPrefix) ||
                                            s.Key.Contains("wrangler", StringComparison.OrdinalIgnoreCase) ||
                                            s.Value.AsString().Contains("wrangler", StringComparison.OrdinalIgnoreCase));
 

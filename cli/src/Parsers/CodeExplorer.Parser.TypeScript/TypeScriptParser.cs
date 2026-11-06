@@ -345,9 +345,10 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
                 var parentPkgJson = Path.Combine(parentDir, "package.json");
                 if (File.Exists(parentPkgJson))
                 {
+                    const string propWorkspaces = "workspaces";
                     var content = PhysicalFileStore.ReadAllText(parentPkgJson);
                     var pRoot = CypherValue.TryParseJsonText(content);
-                    if (pRoot.Kind == CypherValueKind.Object && !pRoot.TryGetProperty("workspaces", out _))
+                    if (pRoot.Kind == CypherValueKind.Object && !pRoot.TryGetProperty(propWorkspaces, out _))
                     {
                         return true;
                     }
@@ -445,10 +446,11 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         {
             try
             {
+                const string propName = "name";
                 var content = PhysicalFileStore.ReadAllText(packageJsonPath);
                 var root = CypherValue.TryParseJsonText(content);
 
-                if (root.TryGetProperty("name", out var nameProp) &&
+                if (root.TryGetProperty(propName, out var nameProp) &&
                     nameProp.Kind == CypherValueKind.String)
                 {
                     var rawName = nameProp.AsNullableString();
@@ -594,12 +596,13 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
                 var name = nameProp.AsNullableString();
                 if (string.IsNullOrEmpty(name)) return null;
 
-                var version = "1.0.0";
+                const string defaultVersion = "1.0.0";
+                var version = defaultVersion;
 
                 if (root.TryGetProperty("version", out var versionProp) &&
                     versionProp.Kind == CypherValueKind.String)
                 {
-                    version = versionProp.AsString("1.0.0");
+                    version = versionProp.AsString(defaultVersion);
                 }
 
                 return new ProducedPackageInfo(name, version, "npm");
@@ -636,10 +639,11 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
                 if (root.TryGetProperty(propName, out var depsObj) &&
                     depsObj.Kind == CypherValueKind.Object)
                 {
+                    const string defaultUnknownVersion = "unknown";
                     foreach (var prop in depsObj.AsObject())
                     {
                         var packageName = prop.Key;
-                        var packageVersion = prop.Value.AsString("unknown");
+                        var packageVersion = prop.Value.AsString(defaultUnknownVersion);
 
                         // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
                         if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
