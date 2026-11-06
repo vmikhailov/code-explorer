@@ -50,6 +50,7 @@ public class JavaParser : IProjectParser, IFileParser
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
+        new Libraries.DubboLibraryParser(),
         new Libraries.GrpcJavaLibraryParser(),
         new Libraries.HttpClientJavaLibraryParser(),
         new Libraries.JdbcTemplateLibraryParser(),

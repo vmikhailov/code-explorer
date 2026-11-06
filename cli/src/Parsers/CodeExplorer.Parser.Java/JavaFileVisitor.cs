@@ -17,7 +17,7 @@ public class JavaFileVisitor : BaseParserVisitor
         // Ensure core route and HTTP client extensions are active even for snippet tests without explicit import statements
         foreach (var ext in parser.SemanticExtensions)
         {
-            if (ext.Id is "spring-web" or "java-http" or "quarkus-jaxrs" or "quarkus-panache" or "quarkus-messaging" or "micronaut" && !SemanticExtensions.Contains(ext))
+            if (ext.Id is "spring-web" or "java-http" or "quarkus-jaxrs" or "quarkus-panache" or "quarkus-messaging" or "micronaut" or "dubbo" && !SemanticExtensions.Contains(ext))
             {
                 SemanticExtensions.Add(ext);
             }

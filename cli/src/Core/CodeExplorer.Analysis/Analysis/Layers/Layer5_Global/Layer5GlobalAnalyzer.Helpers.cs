@@ -468,7 +468,15 @@ public partial class Layer5AnalysisParser
             return string.Equals(ext.ServicePathNorm, ep.RouteNorm, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (ep.TargetProj != null && !ext.IsPathSegment && !ext.IsGenericHostOrService)
+        var isRpc = string.Equals(ext.Service.Protocol, "grpc", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext.Service.Protocol, "dubbo", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext.Service.Protocol, "tri", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ep.Endpoint.Protocol, "gRPC", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ep.Endpoint.Protocol, "dubbo", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ep.Endpoint.Protocol, "tri", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ep.Endpoint.Protocol, "RPC", StringComparison.OrdinalIgnoreCase);
+
+        if (ep.TargetProj != null && !isRpc && !ext.IsPathSegment && !ext.IsGenericHostOrService)
         {
             if (!projectMatcher(ep.TargetProj, ext.Service.DomainOrService))
             {
@@ -505,22 +513,28 @@ public partial class Layer5AnalysisParser
             return true;
         }
 
-        if ((string.Equals(ext.Service.Protocol, "grpc", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(ep.Endpoint.Protocol, "gRPC", StringComparison.OrdinalIgnoreCase)) &&
-            ext.Segments.Length > 0 && ep.Segments.Length > 0)
+        var isExtRpc = string.Equals(ext.Service.Protocol, "grpc", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(ext.Service.Protocol, "dubbo", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(ext.Service.Protocol, "tri", StringComparison.OrdinalIgnoreCase);
+        var isEpRpc = string.Equals(ep.Endpoint.Protocol, "gRPC", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(ep.Endpoint.Protocol, "dubbo", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(ep.Endpoint.Protocol, "tri", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(ep.Endpoint.Protocol, "RPC", StringComparison.OrdinalIgnoreCase);
+
+        if ((isExtRpc || isEpRpc) && ext.Segments.Length > 0 && ep.Segments.Length > 0)
         {
             var extMethod = ext.Segments[^1];
             var epMethod = ep.Segments[^1];
+            var extServiceStem = ext.Segments.Length > 1 ? ext.Segments[^2] : ext.RawDomain;
+            var epServiceStem = ep.Segments.Length > 1 ? ep.Segments[^2] : (ep.Segments.Length == 1 ? ep.Segments[0] : "");
+
+            var cleanExtStem = extServiceStem.Replace("-", "").Replace("_", "").ToLowerInvariant();
+            var cleanEpStem = epServiceStem.Replace("-", "").Replace("_", "").ToLowerInvariant();
+            if (cleanExtStem.EndsWith("service", StringComparison.Ordinal)) cleanExtStem = cleanExtStem[..^7];
+            if (cleanEpStem.EndsWith("service", StringComparison.Ordinal)) cleanEpStem = cleanEpStem[..^7];
+
             if (string.Equals(extMethod, epMethod, StringComparison.OrdinalIgnoreCase))
             {
-                var extServiceStem = ext.Segments.Length > 1 ? ext.Segments[^2] : ext.RawDomain;
-                var epServiceStem = ep.Segments.Length > 1 ? ep.Segments[^2] : "";
-
-                var cleanExtStem = extServiceStem.Replace("-", "").Replace("_", "").ToLowerInvariant();
-                var cleanEpStem = epServiceStem.Replace("-", "").Replace("_", "").ToLowerInvariant();
-                if (cleanExtStem.EndsWith("service", StringComparison.Ordinal)) cleanExtStem = cleanExtStem[..^7];
-                if (cleanEpStem.EndsWith("service", StringComparison.Ordinal)) cleanEpStem = cleanEpStem[..^7];
-
                 if (!string.IsNullOrEmpty(cleanExtStem) && !string.IsNullOrEmpty(cleanEpStem) &&
                     (cleanExtStem == cleanEpStem || cleanExtStem.TrimEnd('s') == cleanEpStem.TrimEnd('s')))
                 {
@@ -528,6 +542,14 @@ public partial class Layer5AnalysisParser
                 }
 
                 if (string.IsNullOrEmpty(epServiceStem) && ep.TargetProj != null && projectMatcher(ep.TargetProj, ext.Service.DomainOrService ?? ""))
+                {
+                    return true;
+                }
+            }
+            else if (ext.Segments.Length == 1 || ext.ServicePathNorm.Equals("/" + extServiceStem, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrEmpty(cleanExtStem) && !string.IsNullOrEmpty(cleanEpStem) &&
+                    (cleanExtStem == cleanEpStem || cleanExtStem.TrimEnd('s') == cleanEpStem.TrimEnd('s')))
                 {
                     return true;
                 }

@@ -22,6 +22,8 @@ public static class EndpointSemanticAnalyzer
     private const string SchemeWsColon = "ws:";
     private const string SchemeGrpcColon = "grpc:";
     private const string SchemeRpcColon = "rpc:";
+    private const string SchemeDubboColon = "dubbo:";
+    private const string SchemeTriColon = "tri:";
 
     public static void Enrich(
         SyntaxTree syntaxTree,
@@ -696,7 +698,9 @@ public static class EndpointSemanticAnalyzer
                                 domainOrService.StartWithIC("ws:") ||
                                 domainOrService.StartWithIC("wss:") ||
                                 domainOrService.StartWithIC("grpc:") ||
-                                domainOrService.StartWithIC("rpc:");
+                                domainOrService.StartWithIC("rpc:") ||
+                                domainOrService.StartWithIC("dubbo:") ||
+                                domainOrService.StartWithIC("tri:");
 
         if (domainOrService.Contains("://"))
         {
@@ -731,11 +735,23 @@ public static class EndpointSemanticAnalyzer
             protocol = "grpc";
             domainOrService = domainOrService[4..];
         }
+        else if (domainOrService.StartWithIC(SchemeDubboColon))
+        {
+            hasExplicitScheme = true;
+            protocol = "dubbo";
+            domainOrService = domainOrService[6..];
+        }
+        else if (domainOrService.StartWithIC(SchemeTriColon))
+        {
+            hasExplicitScheme = true;
+            protocol = "tri";
+            domainOrService = domainOrService[4..];
+        }
         else if (domainOrService.Contains(':'))
         {
             var idx = domainOrService.IndexOf(':');
             var candidateProto = domainOrService[..idx].ToLowerInvariant();
-            if (candidateProto is "http" or "https" or "ws" or "wss" or "grpc" or "rpc")
+            if (candidateProto is "http" or "https" or "ws" or "wss" or "grpc" or "rpc" or "dubbo" or "tri")
             {
                 hasExplicitScheme = true;
                 protocol = candidateProto;
@@ -746,7 +762,7 @@ public static class EndpointSemanticAnalyzer
         var hadExplicitPath = domainOrService.Contains('/');
         var path = "/";
         var slashIdx = domainOrService.IndexOf('/');
-        if (protocol == "grpc")
+        if (protocol is "grpc" or "dubbo" or "tri")
         {
             var grpcSegments = domainOrService.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
             domainOrService = grpcSegments.Length > 0 ? grpcSegments[0] : domainOrService.Trim('/');
