@@ -283,5 +283,20 @@
     "projectType": "rust",
     "entityKind": "Test",
     "isLibrary": true
+  },
+  "terraform/reusable-module": {
+    "projectType": "terraform",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "terraform/root-stack": {
+    "projectType": "terraform",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "terraform/terragrunt-unit": {
+    "projectType": "terraform",
+    "entityKind": "Library",
+    "isLibrary": true
   }
 }
