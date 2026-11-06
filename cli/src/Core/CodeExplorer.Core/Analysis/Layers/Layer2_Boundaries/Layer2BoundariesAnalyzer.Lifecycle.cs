@@ -633,7 +633,7 @@ public partial class Layer2ProjectParser
                 return ("Oracle", "relational");
             if (pLower.Contains("mongodb"))
                 return ("MongoDB", "document");
-            if (pLower is "redis" or "ioredis" || pLower.Contains("stackexchange.redis"))
+            if (pLower is "redis" or "ioredis" || pLower.Contains("redis") || pLower.Contains("stackexchange"))
                 return ("Redis", "cache");
         }
 

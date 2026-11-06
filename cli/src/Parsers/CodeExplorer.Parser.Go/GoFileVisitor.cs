@@ -294,7 +294,12 @@ public class GoFileVisitor : BaseParserVisitor
         var routeVal = "/";
         if (args.IsValid() && args.Children.Count > 0)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.Identifier));
+            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(
+                TreeSitterSyntax.Go.InterpretedStringLiteral,
+                TreeSitterSyntax.Go.StringLiteral,
+                TreeSitterSyntax.Go.RawStringLiteral,
+                TreeSitterSyntax.Go.Identifier,
+                TreeSitterSyntax.Common.BinaryExpression));
             if (firstArg.IsValid())
             {
                 var resolved = GoAstHelper.ResolveStringOrVariable(firstArg);
@@ -303,6 +308,14 @@ public class GoFileVisitor : BaseParserVisitor
                     routeVal = resolved.Trim('"', '`');
                 }
             }
+        }
+
+        // Check if chained with .Methods(...) in gorilla/mux
+        // e.g. r.HandleFunc(...).Methods(http.MethodGet, http.MethodHead)
+        var outerMethod = FindChainedMethods(callNode);
+        if (!string.IsNullOrEmpty(outerMethod))
+        {
+            method = outerMethod;
         }
 
         if (!string.IsNullOrEmpty(routeVal))
@@ -337,6 +350,52 @@ public class GoFileVisitor : BaseParserVisitor
         routeVal = GoAstHelper.CombineRoutes(prefix, routeVal);
 
         return $"{method}:{routeVal}";
+    }
+
+    private static string? FindChainedMethods(Node callNode)
+    {
+        var parent = callNode.Parent;
+        while (parent.IsValid())
+        {
+            if (parent.Is(TreeSitterSyntax.Go.SelectorExpression))
+            {
+                var field = parent.GetChildForField(TreeSitterSyntax.Fields.Field);
+                if (field.IsValid() && field.Text == "Methods")
+                {
+                    var outerCall = parent.Parent;
+                    if (outerCall.IsValid() && outerCall.Is(TreeSitterSyntax.Go.CallExpression))
+                    {
+                        var mArgs = outerCall.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+                        if (mArgs.IsValid() && mArgs.Children.Count > 0)
+                        {
+                            var methods = new List<string>();
+                            foreach (var mArg in mArgs.Children)
+                            {
+                                var txt = mArg.Text.Trim('"', '`');
+                                if (txt.StartsWith("http.Method", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    methods.Add(txt["http.Method".Length..].ToUpperInvariant());
+                                }
+                                else if (!string.IsNullOrEmpty(txt) && !txt.Contains('(') && !txt.Contains(','))
+                                {
+                                    methods.Add(txt.ToUpperInvariant());
+                                }
+                            }
+                            if (methods.Count > 0)
+                            {
+                                return methods[0];
+                            }
+                        }
+                    }
+                }
+            }
+            if (parent.Is("expression_statement") || parent.Is(TreeSitterSyntax.Go.Block))
+            {
+                break;
+            }
+            parent = parent.Parent;
+        }
+        return null;
     }
 
     private static bool IsGoHttpClientCall(Node node)

@@ -39,6 +39,7 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.ElasticsearchPythonLibraryParser(),
         new Libraries.FastApiLibraryParser(),
         new Libraries.FlaskLibraryParser(),
+        new Libraries.GrpcPythonLibraryParser(),
         new Libraries.HttpxPythonLibraryParser(),
         new Libraries.MysqlConnectorPythonLibraryParser(),
         new Libraries.PeeweeLibraryParser(),
@@ -122,9 +123,10 @@ public class PythonParser : IProjectParser, IFileParser
 
         var text = allText.ToString().ToLowerInvariant();
 
-        // Check for Web frameworks
+        // Check for Web / RPC frameworks
         if (text.Contains("fastapi") || text.Contains("flask") || text.Contains("django") ||
-            text.Contains("uvicorn") || text.Contains("gunicorn") || text.Contains("tornado") || text.Contains("sanic"))
+            text.Contains("uvicorn") || text.Contains("gunicorn") || text.Contains("tornado") ||
+            text.Contains("sanic") || text.Contains("grpcio") || text.Contains("grpc"))
         {
             props["manifest_type"] = "application";
             props["framework_type"] = "web";

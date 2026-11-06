@@ -22,42 +22,8 @@ public partial class PostIndexAnalyzer
         "ef-core", "dapper", "typeorm", "prisma", "hibernate", "nhibernate", "sequelize", "drizzle"
     };
 
-    public static bool IsAbstractEngineOnlyDatabase(string? name, string? schema, string? dbType, string? id)
-    {
-        if (!string.IsNullOrEmpty(name))
-        {
-            var trimmedName = name.Trim();
-            if (AbstractEngineNames.Contains(trimmedName)) return true;
-        }
-
-        if (!string.IsNullOrEmpty(schema))
-        {
-            var trimmedSchema = schema.Trim();
-            if (trimmedSchema.Equals("default", StringComparison.OrdinalIgnoreCase) ||
-                AbstractEngineNames.Contains(trimmedSchema))
-            {
-                return true;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(id))
-        {
-            if (id.EndsWith(":relational:postgresql", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":relational:sqlserver", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":relational:mysql", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":relational:sqlite", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":cache:redis", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":keyvalue:redis", StringComparison.OrdinalIgnoreCase) ||
-                id.EndsWith(":default:default", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    public static bool IsAbstractEngineOnlyDatabase(string? name, string? schema, string? dbType, string? id) =>
+        ResourceNamingHelper.IsAbstractEngineOnlyDatabase(name, schema, dbType, id);
 
     private static readonly HashSet<string> SystemCatalogTables = new(StringComparer.OrdinalIgnoreCase)
     {

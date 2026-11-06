@@ -7,7 +7,14 @@ public class StackExchangeRedisLibraryParser : ISemanticExtension
     public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
     public string Name => "Redis";
     public string Id => "redis";
-    public IReadOnlyList<string> SupportedPatterns => ["StackExchange.Redis", "StackExchange.Redis.*"];
+    public IReadOnlyList<string> SupportedPatterns =>
+    [
+        "StackExchange.Redis",
+        "StackExchange.Redis.*",
+        "Microsoft.Extensions.Caching.StackExchangeRedis",
+        "Microsoft.Extensions.Caching.StackExchangeRedis.*",
+        "Microsoft.Extensions.Caching.Distributed"
+    ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
@@ -18,7 +25,9 @@ public class StackExchangeRedisLibraryParser : ISemanticExtension
         "StringIncrement", "StringIncrementAsync", "StringDecrement", "StringDecrementAsync",
         "HashGet", "HashGetAsync", "HashSet", "HashSetAsync", "HashDelete", "HashDeleteAsync",
         "ListLeftPush", "ListLeftPushAsync", "ListRightPop", "ListRightPopAsync",
-        "Publish", "PublishAsync"
+        "Publish", "PublishAsync",
+        "AddStackExchangeRedisCache",
+        "Get", "GetAsync", "Set", "SetAsync", "Refresh", "RefreshAsync", "Remove", "RemoveAsync"
     };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
@@ -67,6 +76,17 @@ public class StackExchangeRedisLibraryParser : ISemanticExtension
             var name = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
             if (!string.IsNullOrEmpty(name) && RedisMethods.Contains(name))
             {
+                if (name is "Get" or "GetAsync" or "Set" or "SetAsync" or "Refresh" or "RefreshAsync" or "Remove" or "RemoveAsync")
+                {
+                    var expr = func.GetChildFieldText(TreeSitterSyntax.Fields.Expression);
+                    if (string.IsNullOrEmpty(expr) ||
+                        (!expr.Contains("cache", StringComparison.OrdinalIgnoreCase) &&
+                         !expr.Contains("redis", StringComparison.OrdinalIgnoreCase) &&
+                         !expr.Contains("store", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return false;
+                    }
+                }
                 methodName = name;
                 return true;
             }

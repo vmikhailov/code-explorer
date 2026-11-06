@@ -79,6 +79,14 @@ public static class ResourceNamingHelper
 
     public static bool IsAbstractEngineOnlyDatabase(string? name, string? schema, string? dbType, string? id)
     {
+        // Concrete KeyValue / Cache databases (like Redis) are valid database entities, not abstract relational placeholders
+        if (string.Equals(dbType, "cache", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(dbType, "keyvalue", StringComparison.OrdinalIgnoreCase) ||
+            (name != null && name.StartsWith("Redis", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrEmpty(name))
         {
             var trimmedName = name.Trim();

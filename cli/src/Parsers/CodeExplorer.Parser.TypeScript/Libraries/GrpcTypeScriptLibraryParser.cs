@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -103,7 +104,9 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
         }
 
         var root = GetFileRoot(node);
-        var rootKey = root.Id.ToString();
+        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
+            ? node.Document.FilePath
+            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
         var clientMap = FileClientMapCache.GetOrAdd(rootKey, _ => BuildFileClientMap(root));
 
         if (clientMap.TryGetValue(objText, out var mappedService))
@@ -137,7 +140,10 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
         methodName = "";
 
         // Check if node is a property in an object literal passed to server.addService(serviceDef, { charge: handler })
-        if (!node.Is(TreeSitterSyntax.TypeScript.Pair) && !node.Is(TreeSitterSyntax.TypeScript.MethodDefinition)) return false;
+        if (!node.Is(TreeSitterSyntax.TypeScript.Pair) &&
+            !node.Is(TreeSitterSyntax.TypeScript.MethodDefinition) &&
+            !node.Is("shorthand_property_identifier") &&
+            !node.Is(TreeSitterSyntax.TypeScript.Identifier)) return false;
 
         var objLit = node.Parent;
         if (!objLit.IsValid() || !objLit.Is(TreeSitterSyntax.TypeScript.Object)) return false;
@@ -157,20 +163,21 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
         if (args.Count < 2) return false;
 
         var sDefArg = args[0].Text;
-        var sMatch = ServiceDefRegex.Match(sDefArg);
         var sName = "Service";
+        var parts = sDefArg.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var serviceToken = parts.FirstOrDefault(p => p.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                           ?? (parts.Length >= 2 && parts[^1].Equals("service", StringComparison.OrdinalIgnoreCase) ? parts[^2] : parts[^1]);
+        var sMatch = ServiceDefRegex.Match(serviceToken);
         if (sMatch.Success)
         {
             var raw = sMatch.Groups[1].Value;
             var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
             sName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
         }
-        else if (sDefArg.Contains("Service"))
+        else
         {
-            var idx = sDefArg.IndexOf("Service", StringComparison.Ordinal);
-            var start = sDefArg.LastIndexOf('.', idx);
-            var raw = start >= 0 ? sDefArg.Substring(start + 1, idx + "Service".Length - start - 1) : sDefArg[..(idx + "Service".Length)];
-            sName = raw;
+            var clean = char.ToUpperInvariant(serviceToken[0]) + serviceToken[1..];
+            sName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
         }
 
         var propName = "";
@@ -184,11 +191,15 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
             var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
             if (nameNode.IsValid()) propName = nameNode.Text;
         }
+        else if (node.Is("shorthand_property_identifier") || node.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            propName = node.Text;
+        }
 
         if (!string.IsNullOrEmpty(propName))
         {
             serviceName = sName;
-            methodName = propName;
+            methodName = char.ToUpperInvariant(propName[0]) + propName[1..];
             return true;
         }
 

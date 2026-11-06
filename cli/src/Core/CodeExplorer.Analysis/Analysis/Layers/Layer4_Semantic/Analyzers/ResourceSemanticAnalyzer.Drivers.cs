@@ -82,7 +82,7 @@ public partial class ResourceSemanticAnalyzer
                 _projectDriverCache[cacheKey] = res;
                 return res;
             }
-            if (pLower is "redis" or "ioredis" || pLower.Contains("stackexchange.redis"))
+            if (pLower is "redis" or "ioredis" || pLower.Contains("redis") || pLower.Contains("stackexchange"))
             {
                 var res = ("Redis", "cache");
                 _projectDriverCache[cacheKey] = res;

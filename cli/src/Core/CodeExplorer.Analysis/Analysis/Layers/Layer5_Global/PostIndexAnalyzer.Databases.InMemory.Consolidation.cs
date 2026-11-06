@@ -117,7 +117,7 @@ public partial class PostIndexAnalyzer
                         vEngines.Add("MongoDB");
                         vDbTypes.Add("document");
                     }
-                    if (pkgLower.Contains("redis") || pkgLower.Contains("stackexchange.redis"))
+                    if (pkgLower.Contains("redis") || pkgLower.Contains("stackexchange"))
                     {
                         vEngines.Add("Redis");
                         vDbTypes.Add("cache");

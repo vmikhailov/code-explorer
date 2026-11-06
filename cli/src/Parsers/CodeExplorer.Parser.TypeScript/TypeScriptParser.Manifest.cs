@@ -417,7 +417,12 @@ public partial class TypeScriptParser
                 else if (hasWebFramework)
                 {
                     props["framework_type"] = "web";
-                    if (!props.ContainsKey("manifest_type"))
+                    if (!hasPublishConfig && !hasPublishScript)
+                    {
+                        props["manifest_type"] = isDedicatedWorkerName && hasWorkerDeps ? "worker" : "application";
+                        props.Remove("is_library");
+                    }
+                    else if (!props.ContainsKey("manifest_type"))
                     {
                         props["manifest_type"] = isDedicatedWorkerName && hasWorkerDeps ? "worker" : "application";
                     }

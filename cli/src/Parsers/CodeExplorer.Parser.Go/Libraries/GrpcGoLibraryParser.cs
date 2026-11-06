@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
@@ -21,9 +22,10 @@ public class GrpcGoLibraryParser : ISemanticExtension
     private const string ResultFieldName = "result";
     private const string ReceiverFieldName = "receiver";
     private static readonly ConcurrentDictionary<string, Dictionary<string, string>> ReceiverToServiceMapCache = new();
-    private static readonly Regex UnimplementedServerRegex = new(@"(?:pb\.)?(?:Unimplemented)?([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
-    private static readonly Regex RegisterServerRegex = new(@"(?:pb\.)?Register([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
+    private static readonly Regex UnimplementedServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?(?:Unimplemented)?([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
+    private static readonly Regex RegisterServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?Register([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
     private static readonly Regex ClientTypeRegex = new(@"([A-Za-z0-9_]+?)(?:Svc|Service)?Client", RegexOptions.Compiled);
+    private static readonly Regex NewClientRegex = new(@"(?:[A-Za-z0-9_]+\.)?New([A-Za-z0-9_]+?)(?:Svc|Service)?Client\b", RegexOptions.Compiled);
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
@@ -92,7 +94,7 @@ public class GrpcGoLibraryParser : ISemanticExtension
 
         var paramTypes = paramsField.Children
             .Where(c => c.Is(TreeSitterSyntax.Go.ParameterDeclaration))
-            .Select(p => p.GetChildForField(TreeSitterSyntax.Fields.Type)?.Text ?? "")
+            .Select(p => p.GetChildForField(TreeSitterSyntax.Fields.Type)?.Text ?? p.Text)
             .ToList();
 
         if (paramTypes.Count < 2) return false;
@@ -117,6 +119,8 @@ public class GrpcGoLibraryParser : ISemanticExtension
             }
         }
 
+        if (receiverTypeName.StartsWith("Unimplemented", StringComparison.OrdinalIgnoreCase)) return false;
+
         // Check HealthCheck special-case
         if (paramTypes.Any(p => p.Contains("HealthCheckRequest") || p.Contains("Health_WatchServer")))
         {
@@ -127,7 +131,9 @@ public class GrpcGoLibraryParser : ISemanticExtension
 
         // Look up receiver struct mapping from file AST cache
         var root = GetFileRoot(node);
-        var rootKey = root.Id.ToString();
+        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
+            ? node.Document.FilePath
+            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
         var map = ReceiverToServiceMapCache.GetOrAdd(rootKey, _ => BuildReceiverMap(root));
 
         if (!string.IsNullOrEmpty(receiverTypeName) && map.TryGetValue(receiverTypeName, out var mappedService))
@@ -189,37 +195,87 @@ public class GrpcGoLibraryParser : ISemanticExtension
             return false;
         }
 
-        var isClient = opText.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
-                       opText.Contains("SvcClient", StringComparison.OrdinalIgnoreCase) ||
-                       opText.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ||
-                       opText.Contains("ServiceClient", StringComparison.OrdinalIgnoreCase);
-
-        if (!isClient) return false;
-
-        var args = GoAstHelper.GetCallArguments(node);
-        if (args.Count < 2) return false;
-
-        // First argument is typically ctx (context.Context)
-        var firstArg = args[0].Text;
-        if (!firstArg.Contains("ctx", StringComparison.OrdinalIgnoreCase) &&
-            !firstArg.Contains("context", StringComparison.OrdinalIgnoreCase) &&
-            !firstArg.Contains("Context"))
+        var directMatch = NewClientRegex.Match(opText);
+        if (directMatch.Success)
         {
-            return false;
-        }
-
-        // Derive Service Name from client variable name (e.g. cartSvcClient -> CartService)
-        var leafOp = opText.Contains('.') ? opText.Split('.')[^1] : opText;
-        var match = ClientTypeRegex.Match(leafOp);
-        if (match.Success)
-        {
-            var raw = match.Groups[1].Value;
+            var raw = directMatch.Groups[1].Value;
             var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
             serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
             methodName = method;
-            return true;
+            return VerifyGrpcCallArguments(node);
         }
 
+        var leafOp = opText.Contains('.') ? opText.Split('.')[^1] : opText;
+        var clientVarMatch = ClientTypeRegex.Match(leafOp);
+        if (clientVarMatch.Success)
+        {
+            var raw = clientVarMatch.Groups[1].Value;
+            var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
+            serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+            methodName = method;
+            return VerifyGrpcCallArguments(node);
+        }
+
+        if (TryResolveClientFromScope(node, opText, out var resolvedService))
+        {
+            serviceName = resolvedService;
+            methodName = method;
+            return VerifyGrpcCallArguments(node);
+        }
+
+        return false;
+    }
+
+    private static bool VerifyGrpcCallArguments(Node node)
+    {
+        var args = GoAstHelper.GetCallArguments(node);
+        if (args.Count == 0) return true;
+
+        var firstArg = args[0].Text;
+        return firstArg.Contains("ctx", StringComparison.OrdinalIgnoreCase) ||
+               firstArg.Contains("context", StringComparison.OrdinalIgnoreCase) ||
+               firstArg.Contains("Context");
+    }
+
+    private static bool TryResolveClientFromScope(Node node, string varName, out string serviceName)
+    {
+        serviceName = "";
+        if (string.IsNullOrWhiteSpace(varName)) return false;
+
+        var curr = node.Parent;
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.Go.FunctionDeclaration) ||
+                curr.Is(TreeSitterSyntax.Go.MethodDeclaration) ||
+                curr.Is("func_literal"))
+            {
+                foreach (var desc in curr.Descendants())
+                {
+                    if (desc.Is(TreeSitterSyntax.Go.ShortVarDeclaration) || desc.Is("assignment_statement"))
+                    {
+                        var left = desc.GetChildForField(TreeSitterSyntax.Fields.Left) ?? (desc.Children.Count >= 2 ? desc.Children[0] : null);
+                        var right = desc.GetChildForField(TreeSitterSyntax.Fields.Right) ?? (desc.Children.Count >= 2 ? desc.Children[^1] : null);
+                        if (left.IsValid() && right.IsValid())
+                        {
+                            var varMatches = left.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                            if (varMatches.Contains(varName, StringComparer.Ordinal))
+                            {
+                                var match = NewClientRegex.Match(right.Text);
+                                if (match.Success)
+                                {
+                                    var raw = match.Groups[1].Value;
+                                    var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
+                                    serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            curr = curr.Parent;
+        }
         return false;
     }
 
