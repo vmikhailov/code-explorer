@@ -132,6 +132,33 @@ public partial class KotlinFileParser
             var funEnd = funCloseBrace > funOpenBrace ? funCloseBrace : fm.Index + fm.Length;
             funSpans.Add((fm.Index, funEnd, funcNode));
 
+            if (enclosingClass?.RepositoryEntity != null)
+            {
+                if (funName.StartsWith("find", StringComparison.OrdinalIgnoreCase) ||
+                    funName.StartsWith("get", StringComparison.OrdinalIgnoreCase) ||
+                    funName.StartsWith("exists", StringComparison.OrdinalIgnoreCase) ||
+                    funName.StartsWith("count", StringComparison.OrdinalIgnoreCase) ||
+                    funName.StartsWith("read", StringComparison.OrdinalIgnoreCase) ||
+                    funName.StartsWith("query", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileNode.References.Add(new Reference(funcNode.Id, enclosingClass.RepositoryEntity, OntologyConstants.Relationships.ReadsFrom, funLine, funCol));
+                    fileNode.References.Add(new Reference(enclosingClass.Node.Id, enclosingClass.RepositoryEntity, OntologyConstants.Relationships.ReadsFrom, funLine, funCol));
+                }
+                else if (funName.StartsWith("delete", StringComparison.OrdinalIgnoreCase) ||
+                         funName.StartsWith("remove", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileNode.References.Add(new Reference(funcNode.Id, enclosingClass.RepositoryEntity, OntologyConstants.Relationships.WritesTo, funLine, funCol));
+                    fileNode.References.Add(new Reference(enclosingClass.Node.Id, enclosingClass.RepositoryEntity, OntologyConstants.Relationships.WritesTo, funLine, funCol));
+                }
+                else if (funName.StartsWith("save", StringComparison.OrdinalIgnoreCase) ||
+                         funName.StartsWith("insert", StringComparison.OrdinalIgnoreCase) ||
+                         funName.StartsWith("update", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileNode.References.Add(new Reference(funcNode.Id, enclosingClass.RepositoryEntity, OntologyConstants.Relationships.WritesTo, funLine, funCol));
+                    fileNode.References.Add(new Reference(enclosingClass.Node.Id, enclosingClass.RepositoryEntity, OntologyConstants.Relationships.WritesTo, funLine, funCol));
+                }
+            }
+
             if (enclosingClass?.IsGrpcService == true &&
                 !funName.StartsWith('<') && funName != "equals" && funName != "hashCode" && funName != "toString")
             {
@@ -271,6 +298,35 @@ public partial class KotlinFileParser
                         var epId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{httpMethod}:{fullRoute}";
                         var epName = $"{httpMethod} {fullRoute}";
 
+                        string? reqPayload = null;
+                        var sigSnippet = content.Substring(fm.Index, Math.Min(content.Length - fm.Index, fm.Length + 400));
+                        var rbMatch = Regex.Match(sigSnippet, @"@RequestBody\s+(?:(?:val|var)\s+)?(?:[a-zA-Z0-9_]+:\s*)?([A-Z][a-zA-Z0-9_<>, ]*)");
+                        if (rbMatch.Success)
+                        {
+                            reqPayload = rbMatch.Groups[1].Value.Trim();
+                            if (reqPayload.Contains(',')) reqPayload = reqPayload.Split(',')[0].Trim();
+                            if (reqPayload.Contains(')')) reqPayload = reqPayload.Split(')')[0].Trim();
+                        }
+
+                        string? retCandidate = null;
+                        var funParenOpen = sigSnippet.IndexOf('(');
+                        var parenClose = funParenOpen >= 0 ? FindMatchingParen(sigSnippet, funParenOpen) : -1;
+                        if (parenClose >= 0)
+                        {
+                            var colonIdx = sigSnippet.IndexOf(':', parenClose);
+                            if (colonIdx >= 0)
+                            {
+                                var stopIdx = sigSnippet.IndexOfAny(['{', '=', '\n'], colonIdx);
+                                var candidate = stopIdx > colonIdx
+                                    ? sigSnippet[(colonIdx + 1)..stopIdx].Trim()
+                                    : sigSnippet[(colonIdx + 1)..].Trim();
+                                if (!string.IsNullOrWhiteSpace(candidate) && char.IsLetter(candidate[0]))
+                                {
+                                    retCandidate = candidate;
+                                }
+                            }
+                        }
+
                         var epNode = new EndpointNode(
                             epId,
                             epName,
@@ -286,7 +342,9 @@ public partial class KotlinFileParser
                             Line = funLine,
                             LineEnd = funLine,
                             Operation = httpMethod,
-                            EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint
+                            EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint,
+                            RequestType = reqPayload,
+                            ResponseType = retCandidate
                         };
                         epNode.CustomProperties ??= new();
                         epNode.CustomProperties["path"] = fullRoute;
@@ -295,93 +353,53 @@ public partial class KotlinFileParser
                         epNode.CustomProperties["method"] = httpMethod;
                         epNode.CustomProperties["http_method"] = httpMethod;
                         epNode.CustomProperties["file_path"] = relativePath;
+                        if (!string.IsNullOrEmpty(reqPayload))
+                        {
+                            epNode.CustomProperties["request_type"] = reqPayload;
+                        }
+                        if (!string.IsNullOrEmpty(retCandidate))
+                        {
+                            epNode.CustomProperties["response_type"] = retCandidate;
+                        }
+
                         fileNode.Children.Add(epNode);
 
                         fileNode.References.Add(new Reference(epId, funcNode.Id, OntologyConstants.Relationships.ExposedBy, funLine, funCol));
                     }
                 }
-
-                if (ann.Name.Equals("Query", StringComparison.OrdinalIgnoreCase))
-                {
-                    var sqlCandidate = ExtractQuerySql(ann.Args);
-                    if (!string.IsNullOrWhiteSpace(sqlCandidate))
-                    {
-                        var cleanSql = NestedSqlParser.CleanQueryText(sqlCandidate);
-                        var verb = "SELECT";
-                        if (NestedSqlParser.TryParseSql(cleanSql, out var firstWord, out _) && !string.IsNullOrEmpty(firstWord))
-                        {
-                            verb = firstWord.ToUpperInvariant();
-                        }
-
-                        var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
-                        var qName = $"SQL Query: {(cleanSql.Length > 40 ? cleanSql[..40] + "..." : cleanSql)}";
-
-                        var queryNode = NestedSqlParser.ParseNestedSql(cleanSql, qId, relativePath, null, qName, funLine, funLine) ??
-                                        new QueryNode(qId, qName, cleanSql, relativePath, funLine, funLine)
-                                        {
-                                            Verb = verb,
-                                            Operation = verb,
-                                            EvidenceKind = OntologyConstants.EvidenceKinds.Query,
-                                            FilePath = relativePath,
-                                            Line = funLine,
-                                            LineEnd = funLine
-                                        };
-                        queryNode.CustomProperties ??= new();
-                        queryNode.CustomProperties["file_path"] = relativePath;
-                        fileNode.Children.Add(queryNode);
-
-                        fileNode.References.Add(new Reference(queryNode.Id, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
-
-                        var relKind = verb is "INSERT" or "UPDATE" or "DELETE"
-                            ? OntologyConstants.Relationships.WritesTo
-                            : OntologyConstants.Relationships.ReadsFrom;
-
-                        var tableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        CollectTables(queryNode, tableNames);
-                        if (tableNames.Count == 0)
-                        {
-                            ExtractTablesFromSql(cleanSql, tableNames);
-                        }
-                        foreach (var tbl in tableNames)
-                        {
-                            fileNode.References.Add(new Reference(queryNode.Id, tbl, relKind, funLine, funCol));
-                        }
-                    }
-                }
             }
 
-            var crudAnn = annotations.FirstOrDefault(a =>
+            var sqlAnn = annotations.FirstOrDefault(a =>
+                a.Name.Equals("Select", StringComparison.OrdinalIgnoreCase) ||
                 a.Name.Equals("Insert", StringComparison.OrdinalIgnoreCase) ||
-                a.Name.Equals("Upsert", StringComparison.OrdinalIgnoreCase) ||
                 a.Name.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
-                a.Name.Equals("Delete", StringComparison.OrdinalIgnoreCase));
+                a.Name.Equals("Delete", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Upsert", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("SelectProvider", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("InsertProvider", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("UpdateProvider", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("DeleteProvider", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Query", StringComparison.OrdinalIgnoreCase));
 
-            if (crudAnn != null && !annotations.Any(a => a.Name.Equals("Query", StringComparison.OrdinalIgnoreCase)))
+            if (sqlAnn != null)
             {
-                var verb = crudAnn.Name.ToUpperInvariant();
-                var sigSnippet = content.Substring(fm.Index, Math.Min(content.Length - fm.Index, fm.Length + 250));
-                var entityMatch = Regex.Match(sigSnippet, @"(?:<|:\s*)([A-Z][a-zA-Z0-9_]*Entity|[A-Z][a-zA-Z0-9_]*CrossRef|[A-Z][a-zA-Z0-9_]+)>?");
-                var targetEntity = entityMatch.Success ? entityMatch.Groups[1].Value : enclosingClass?.Name ?? "Entity";
-
-                var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
-                var qName = $"Room {verb}: {funName}";
-                var sqlText = verb == "DELETE" ? $"DELETE FROM {targetEntity}" : $"{verb} INTO {targetEntity}";
-
-                var queryNode = new QueryNode(qId, qName, sqlText, relativePath, funLine, funLine)
+                var isProvider = sqlAnn.Name.EndsWith("Provider", StringComparison.OrdinalIgnoreCase);
+                if (isProvider)
                 {
-                    Verb = verb,
-                    Operation = verb,
-                    EvidenceKind = OntologyConstants.EvidenceKinds.Orm,
-                    FilePath = relativePath,
-                    Line = funLine,
-                    LineEnd = funLine
-                };
-                queryNode.CustomProperties ??= new();
-                queryNode.CustomProperties["file_path"] = relativePath;
-                fileNode.Children.Add(queryNode);
-
-                fileNode.References.Add(new Reference(queryNode.Id, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
-                fileNode.References.Add(new Reference(queryNode.Id, targetEntity, OntologyConstants.Relationships.WritesTo, funLine, funCol));
+                    ParseMyBatisProvider(sqlAnn, funcNode, enclosingClass, fileNode, workspaceId, relativePath, funLine, funCol);
+                }
+                else
+                {
+                    var sqlCandidate = ExtractMyBatisOrQuerySql(sqlAnn.Args);
+                    if (!string.IsNullOrWhiteSpace(sqlCandidate))
+                    {
+                        ParseMyBatisOrQuerySql(sqlAnn, sqlCandidate, funcNode, enclosingClass, fileNode, workspaceId, relativePath, funLine, funCol);
+                    }
+                    else if (sqlAnn.Name is "Insert" or "Upsert" or "Update" or "Delete")
+                    {
+                        ParseRoomDaoCrud(sqlAnn, fm, content, funcNode, enclosingClass, fileNode, workspaceId, relativePath, funLine, funCol);
+                    }
+                }
             }
         }
 
@@ -849,13 +867,211 @@ public partial class KotlinFileParser
 
     private static void ExtractTablesFromSql(string sql, HashSet<string> tableNames)
     {
-        var matches = Regex.Matches(sql, @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+([a-zA-Z0-9_]+)", RegexOptions.IgnoreCase);
+        var matches = Regex.Matches(sql, @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+[`""']?([a-zA-Z0-9_]+)[`""']?", RegexOptions.IgnoreCase);
         foreach (Match m in matches)
         {
             var tbl = m.Groups[1].Value.Trim();
             if (!NestedSqlParser.IsSqlKeyword(tbl))
             {
                 tableNames.Add(tbl);
+            }
+        }
+    }
+
+    private static void ParseMyBatisProvider(
+        AnnotationInfo ann,
+        FunctionNode funcNode,
+        ClassScope? enclosingClass,
+        FileNode fileNode,
+        string workspaceId,
+        string relativePath,
+        int funLine,
+        int funCol)
+    {
+        var (providerClass, providerMethod) = ExtractProviderInfo(ann.Args);
+        var op = ann.Name.ToUpperInvariant() switch
+        {
+            "INSERTPROVIDER" => OpInsert,
+            "UPDATEPROVIDER" => OpUpdate,
+            "DELETEPROVIDER" => OpDelete,
+            _ => OpSelect
+        };
+        var edgeKind = op == OpSelect
+            ? OntologyConstants.Relationships.ReadsFrom
+            : OntologyConstants.Relationships.WritesTo;
+
+        var provSummary = !string.IsNullOrEmpty(providerClass)
+            ? $"{providerClass}.{providerMethod ?? "query"}"
+            : "DynamicSqlProvider";
+
+        var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
+        var qName = $"MyBatis: {op} via {provSummary}";
+
+        var queryNode = new QueryNode(qId, qName, $"-- MyBatis Provider: {provSummary}", relativePath, funLine, funLine)
+        {
+            FilePath = relativePath,
+            Line = funLine,
+            LineEnd = funLine,
+            Operation = op,
+            Verb = op,
+            EvidenceKind = OntologyConstants.EvidenceKinds.Query
+        };
+        queryNode.CustomProperties ??= new();
+        queryNode.CustomProperties["file_path"] = relativePath;
+        if (!string.IsNullOrEmpty(providerClass))
+        {
+            queryNode.CustomProperties["provider_class"] = providerClass;
+        }
+        if (!string.IsNullOrEmpty(providerMethod))
+        {
+            queryNode.CustomProperties["provider_method"] = providerMethod;
+        }
+        fileNode.Children.Add(queryNode);
+
+        fileNode.References.Add(new Reference(qId, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+        if (enclosingClass != null)
+        {
+            fileNode.References.Add(new Reference(qId, enclosingClass.Node.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+        }
+
+        if (!string.IsNullOrEmpty(enclosingClass?.RepositoryEntity))
+        {
+            var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{enclosingClass.RepositoryEntity.ToLowerInvariant()}";
+            fileNode.References.Add(new Reference(qId, tableId, edgeKind, funLine, funCol));
+        }
+    }
+
+    private static void ParseMyBatisOrQuerySql(
+        AnnotationInfo ann,
+        string sqlCandidate,
+        FunctionNode funcNode,
+        ClassScope? enclosingClass,
+        FileNode fileNode,
+        string workspaceId,
+        string relativePath,
+        int funLine,
+        int funCol)
+    {
+        var cleanSql = NormalizeMyBatisParameters(NestedSqlParser.CleanQueryText(sqlCandidate));
+        var op = ann.Name.ToUpperInvariant() switch
+        {
+            "INSERT" => OpInsert,
+            "UPDATE" => OpUpdate,
+            "DELETE" => OpDelete,
+            "UPSERT" => OpInsert,
+            "SELECT" => OpSelect,
+            _ => cleanSql.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) ? OpInsert :
+                 cleanSql.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) ? OpUpdate :
+                 cleanSql.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase) ? OpDelete : OpSelect
+        };
+
+        var edgeKind = op == OpSelect
+            ? OntologyConstants.Relationships.ReadsFrom
+            : OntologyConstants.Relationships.WritesTo;
+
+        var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
+        var qName = $"SQL: {(cleanSql.Length > 30 ? cleanSql[..30] + "..." : cleanSql)}";
+
+        var queryNode = new QueryNode(qId, qName, cleanSql, relativePath, funLine, funLine)
+        {
+            FilePath = relativePath,
+            Line = funLine,
+            LineEnd = funLine,
+            Operation = op,
+            Verb = op,
+            EvidenceKind = OntologyConstants.EvidenceKinds.Query
+        };
+        queryNode.CustomProperties ??= new();
+        queryNode.CustomProperties["file_path"] = relativePath;
+        fileNode.Children.Add(queryNode);
+
+        fileNode.References.Add(new Reference(qId, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+        if (enclosingClass != null)
+        {
+            fileNode.References.Add(new Reference(qId, enclosingClass.Node.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+        }
+
+        var tables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ExtractTablesFromSql(cleanSql, tables);
+
+        if (tables.Count == 0 && !string.IsNullOrEmpty(enclosingClass?.RepositoryEntity))
+        {
+            tables.Add(enclosingClass.RepositoryEntity);
+        }
+
+        foreach (var tbl in tables)
+        {
+            var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{tbl.ToLowerInvariant()}";
+            fileNode.References.Add(new Reference(qId, tableId, edgeKind, funLine, funCol));
+            fileNode.References.Add(new Reference(funcNode.Id, tableId, edgeKind, funLine, funCol));
+            if (enclosingClass != null)
+            {
+                fileNode.References.Add(new Reference(enclosingClass.Node.Id, tableId, edgeKind, funLine, funCol));
+            }
+        }
+    }
+
+    private static void ParseRoomDaoCrud(
+        AnnotationInfo ann,
+        Match fm,
+        string content,
+        FunctionNode funcNode,
+        ClassScope? enclosingClass,
+        FileNode fileNode,
+        string workspaceId,
+        string relativePath,
+        int funLine,
+        int funCol)
+    {
+        var op = ann.Name.ToUpperInvariant() switch
+        {
+            "UPSERT" => OpUpsert,
+            "INSERT" => OpInsert,
+            "UPDATE" => OpUpdate,
+            "DELETE" => OpDelete,
+            _ => OpSelect
+        };
+        var edgeKind = op == OpSelect
+            ? OntologyConstants.Relationships.ReadsFrom
+            : OntologyConstants.Relationships.WritesTo;
+
+        var sigSnippet = content.Substring(fm.Index, Math.Min(content.Length - fm.Index, fm.Length + 200));
+        var paramMatch = Regex.Match(sigSnippet, @"\(\s*(?:vararg\s+)?(?:val|var)?\s*[a-zA-Z0-9_]+\s*:\s*(?:(?:List|Set|Collection|Array|Iterable)<([A-Za-z0-9_]+)>|([A-Za-z0-9_]+))");
+        var targetEntity = paramMatch.Success
+            ? (!string.IsNullOrEmpty(paramMatch.Groups[1].Value) ? paramMatch.Groups[1].Value : paramMatch.Groups[2].Value)
+            : enclosingClass?.RepositoryEntity;
+
+        if (!string.IsNullOrWhiteSpace(targetEntity))
+        {
+            var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
+            var qName = $"{op} {targetEntity}";
+            var synthSql = $"{op} {targetEntity}";
+
+            var queryNode = new QueryNode(qId, qName, synthSql, relativePath, funLine, funLine)
+            {
+                FilePath = relativePath,
+                Line = funLine,
+                LineEnd = funLine,
+                Operation = op,
+                Verb = op,
+                EvidenceKind = OntologyConstants.EvidenceKinds.Query
+            };
+            queryNode.CustomProperties ??= new();
+            queryNode.CustomProperties["file_path"] = relativePath;
+            fileNode.Children.Add(queryNode);
+
+            fileNode.References.Add(new Reference(qId, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+            if (enclosingClass != null)
+            {
+                fileNode.References.Add(new Reference(qId, enclosingClass.Node.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+            }
+
+            var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{targetEntity.ToLowerInvariant()}";
+            fileNode.References.Add(new Reference(qId, tableId, edgeKind, funLine, funCol));
+            fileNode.References.Add(new Reference(funcNode.Id, tableId, edgeKind, funLine, funCol));
+            if (enclosingClass != null)
+            {
+                fileNode.References.Add(new Reference(enclosingClass.Node.Id, tableId, edgeKind, funLine, funCol));
             }
         }
     }

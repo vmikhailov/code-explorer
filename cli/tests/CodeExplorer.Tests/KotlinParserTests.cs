@@ -549,4 +549,187 @@ public class KotlinParserTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_KotlinParser_MyBatis_Mapper_And_Queries()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_kt_mybatis_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var mapperPath = Path.Combine(tempDir, "UserMapper.kt");
+            await File.WriteAllTextAsync(mapperPath, """"
+                package io.realworld.infrastructure.mybatis
+
+                import org.apache.ibatis.annotations.Mapper
+                import org.apache.ibatis.annotations.Select
+                import org.apache.ibatis.annotations.Insert
+                import org.apache.ibatis.annotations.Update
+                import org.apache.ibatis.annotations.Delete
+                import org.apache.ibatis.annotations.SelectProvider
+                import org.apache.ibatis.annotations.Param
+
+                @Mapper
+                interface UserMapper {
+                    @Insert("""
+                        INSERT INTO users (id, email, username, password, bio, image)
+                        VALUES (#{user.id}, #{user.email}, #{user.username}, #{user.password}, #{user.bio}, #{user.image})
+                    """)
+                    fun insert(@Param("user") user: User)
+
+                    @Select("SELECT * FROM users WHERE id = #{id}")
+                    fun findById(@Param("id") id: String): User?
+
+                    @Update("UPDATE users SET email = #{user.email}, bio = #{user.bio} WHERE id = #{user.id}")
+                    fun update(@Param("user") user: User)
+
+                    @Delete("DELETE FROM users WHERE id = #{id}")
+                    fun delete(@Param("id") id: String)
+
+                    @SelectProvider(type = UserDynamicSqlProvider::class, method = "findUsers")
+                    fun findUsersDynamic(@Param("filter") filter: UserFilter): List<User>
+                }
+                """");
+
+            var parser = new KotlinFileParser();
+            var tree = await parser.ParseAsync(mapperPath, "ws", "ws", tempDir);
+
+            // 1. Verify mapper type node
+            var types = tree.FileNode.Children.OfType<TypeNode>().ToList();
+            types.Should().Contain(t => t.Name == "UserMapper" && t.CustomProperties != null && t.CustomProperties.GetValueOrDefault("is_mapper") == "true");
+
+            // 2. Verify query nodes
+            var queries = tree.FileNode.Children.OfType<QueryNode>().ToList();
+            queries.Should().HaveCount(5);
+            queries.Should().Contain(q => q.Operation == "INSERT" && q.QueryText.Contains("INSERT INTO users"));
+            queries.Should().Contain(q => q.Operation == "SELECT" && q.QueryText.Contains("SELECT * FROM users"));
+            queries.Should().Contain(q => q.Operation == "UPDATE" && q.QueryText.Contains("UPDATE users SET"));
+            queries.Should().Contain(q => q.Operation == "DELETE" && q.QueryText.Contains("DELETE FROM users"));
+            queries.Should().Contain(q => q.Operation == "SELECT" && q.CustomProperties != null && q.CustomProperties.ContainsKey("provider_class"));
+
+            // 3. Verify relationships
+            var readsFrom = tree.FileNode.References.Where(r => r.Kind == "READS_FROM").ToList();
+            readsFrom.Should().NotBeEmpty();
+            readsFrom.Should().Contain(r => r.TargetName.Contains("users"));
+
+            var writesTo = tree.FileNode.References.Where(r => r.Kind == "WRITES_TO").ToList();
+            writesTo.Should().NotBeEmpty();
+            writesTo.Should().Contain(r => r.TargetName.Contains("users"));
+
+            var accessedBy = tree.FileNode.References.Where(r => r.Kind == "ACCESSED_BY").ToList();
+            accessedBy.Should().NotBeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_KotlinParser_SpringWeb_Controllers_And_Endpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_kt_springweb_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var controllerPath = Path.Combine(tempDir, "ArticleController.kt");
+            await File.WriteAllTextAsync(controllerPath, """
+                package io.realworld.web
+
+                import org.springframework.web.bind.annotation.*
+                import org.springframework.http.ResponseEntity
+
+                @RestController
+                @RequestMapping("/articles")
+                class ArticleController(private val articleService: ArticleService) {
+
+                    @GetMapping
+                    fun getArticles(): ResponseEntity<ArticleListResponse> {
+                        return ResponseEntity.ok(articleService.list())
+                    }
+
+                    @PostMapping
+                    fun createArticle(@RequestBody request: NewArticleRequest): ResponseEntity<ArticleResponse> {
+                        return ResponseEntity.ok(articleService.create(request))
+                    }
+
+                    @GetMapping("/{slug}")
+                    fun getArticle(@PathVariable("slug") slug: String): ArticleResponse {
+                        return articleService.getBySlug(slug)
+                    }
+
+                    @DeleteMapping("/{slug}")
+                    fun deleteArticle(@PathVariable slug: String) {
+                        articleService.delete(slug)
+                    }
+                }
+                """);
+
+            var parser = new KotlinFileParser();
+            var tree = await parser.ParseAsync(controllerPath, "ws", "ws", tempDir);
+
+            // 1. Verify controller type node
+            var types = tree.FileNode.Children.OfType<TypeNode>().ToList();
+            types.Should().Contain(t => t.Name == "ArticleController" && t.CustomProperties != null && t.CustomProperties.GetValueOrDefault("role") == "Controller");
+
+            // 2. Verify endpoint nodes
+            var endpoints = tree.FileNode.Children.OfType<EndpointNode>().ToList();
+            endpoints.Should().HaveCount(4);
+            endpoints.Should().Contain(e => e.Operation == "GET" && e.RouteTemplate == "/articles");
+            endpoints.Should().Contain(e => e.Operation == "POST" && e.RouteTemplate == "/articles" && e.RequestType == "NewArticleRequest");
+            endpoints.Should().Contain(e => e.Operation == "GET" && e.RouteTemplate == "/articles/{slug}" && e.ResponseType == "ArticleResponse");
+            endpoints.Should().Contain(e => e.Operation == "DELETE" && e.RouteTemplate == "/articles/{slug}");
+
+            // 3. Verify EXPOSED_BY references
+            var exposedBy = tree.FileNode.References.Where(r => r.Kind == "EXPOSED_BY").ToList();
+            exposedBy.Should().HaveCount(4);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_KotlinParser_DatabaseDetection_H2_And_MySQL()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_kt_db_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var h2ConfPath = Path.Combine(tempDir, "H2Config.kt");
+            await File.WriteAllTextAsync(h2ConfPath, """
+                package io.realworld.config
+
+                import org.springframework.context.annotation.Configuration
+                import org.springframework.context.annotation.Bean
+                import javax.sql.DataSource
+                import org.springframework.jdbc.datasource.DriverManagerDataSource
+
+                @Configuration
+                class DatabaseConfiguration {
+                    @Bean
+                    fun dataSource(): DataSource {
+                        val ds = DriverManagerDataSource()
+                        ds.setDriverClassName("org.h2.Driver")
+                        ds.url = "jdbc:h2:mem:realworld;DB_CLOSE_DELAY=-1"
+                        return ds
+                    }
+                }
+                """);
+
+            var parser = new KotlinFileParser();
+            var tree = await parser.ParseAsync(h2ConfPath, "ws", "ws", tempDir);
+
+            var dbs = tree.FileNode.Children.OfType<DatabaseNode>().ToList();
+            dbs.Should().Contain(d => d.Engine == "H2");
+
+            var usesDb = tree.FileNode.References.Where(r => r.Kind == "USES_DB").ToList();
+            usesDb.Should().NotBeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

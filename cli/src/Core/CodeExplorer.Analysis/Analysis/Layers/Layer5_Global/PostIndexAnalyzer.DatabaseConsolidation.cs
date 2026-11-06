@@ -6,7 +6,7 @@ public partial class PostIndexAnalyzer
 {
     public static readonly HashSet<string> KnownDbEnginesAndNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3",
+        "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3", "h2",
         "clickhouse", "bigquery", "redis", "mongodb", "mongo",
         "sqlserver", "mssql", "sql server", "oracle", "cassandra",
         "elasticsearch", "neo4j", "dynamodb", "firestore", "cosmosdb",
@@ -17,7 +17,7 @@ public partial class PostIndexAnalyzer
 
     public static readonly HashSet<string> AbstractEngineNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite",
+        "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite", "h2",
         "mongodb", "mongo", "oracle", "database", "db", "default", "relational", "redis", "cache",
         "ef-core", "dapper", "typeorm", "prisma", "hibernate", "nhibernate", "sequelize", "drizzle"
     };
@@ -328,6 +328,7 @@ public partial class PostIndexAnalyzer
                lower.Contains("sqlite") ||
                lower.Contains("oracle") ||
                lower.Contains("clickhouse") ||
+               lower.Contains("h2") ||
                lower.Contains("bigquery");
     }
 
@@ -370,6 +371,8 @@ public partial class PostIndexAnalyzer
             case "sqlite":
             case "sqlite3":
                 return ("SQLite", "relational", "sqlite");
+            case "h2":
+                return ("H2", "relational", "h2");
             case "mongodb":
             case "mongo":
                 return ("MongoDB", "document", "mongodb");

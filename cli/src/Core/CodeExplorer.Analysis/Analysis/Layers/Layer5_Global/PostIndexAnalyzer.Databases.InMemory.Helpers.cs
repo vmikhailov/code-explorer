@@ -12,6 +12,8 @@ public partial class PostIndexAnalyzer
         HashSet<string> multiDomainSharedLibDbIds)
     {
         if (targetId.EndsWith(":relational:postgresql", StringComparison.OrdinalIgnoreCase) ||
+            targetId.EndsWith(":relational:mysql", StringComparison.OrdinalIgnoreCase) ||
+            targetId.EndsWith(":relational:h2", StringComparison.OrdinalIgnoreCase) ||
             targetId.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
             targetId.EndsWith(":keyvalue:redis", StringComparison.OrdinalIgnoreCase) ||
             targetId.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||

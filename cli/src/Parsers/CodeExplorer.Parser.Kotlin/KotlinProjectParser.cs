@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Parser.Android;
+using CodeExplorer.Parser.Shared.Configuration;
 
 [assembly: ParserAssembly]
 
@@ -29,7 +30,10 @@ public class KotlinProjectParser : IProjectParser
                !lower.StartsWith("gradle") && !lower.StartsWith(".travis");
     }
 
-    public IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors => [];
+    public IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors =>
+    [
+        new SpringFrameworkConfigurationDescriptor()
+    ];
 
     public IReadOnlyList<PackageDescriptor> Packages => [];
 

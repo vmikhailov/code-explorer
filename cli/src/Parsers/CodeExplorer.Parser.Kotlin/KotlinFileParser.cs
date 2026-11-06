@@ -180,7 +180,9 @@ public partial class KotlinFileParser : IFileParser
         bool IsGrpcService = false,
         bool IsClient = false,
         bool IsDao = false,
-        bool IsRoomDatabase = false
+        bool IsRoomDatabase = false,
+        bool IsMapper = false,
+        string? RepositoryEntity = null
     );
 
     private sealed record AnnotationInfo(string Name, string Args);
@@ -260,28 +262,25 @@ public partial class KotlinFileParser : IFileParser
         var funIdx = maskedCandidate.LastIndexOf("fun ", StringComparison.Ordinal);
         if (funIdx > stopIdx)
         {
-            var eqIdx = maskedCandidate.IndexOf('=', funIdx);
-            if (eqIdx >= 0)
+            var openParen = maskedCandidate.IndexOf('(', funIdx);
+            if (openParen >= 0)
             {
-                var nlIdx = maskedCandidate.IndexOf('\n', eqIdx);
-                if (nlIdx >= 0 && nlIdx > stopIdx)
+                var closeParen = FindMatchingParen(maskedCandidate, openParen);
+                if (closeParen > openParen)
                 {
-                    stopIdx = nlIdx;
-                }
-            }
-            else
-            {
-                var openParen = maskedCandidate.IndexOf('(', funIdx);
-                if (openParen >= 0)
-                {
-                    var closeParen = FindMatchingParen(maskedCandidate, openParen);
-                    if (closeParen > openParen)
+                    var eqIdx = maskedCandidate.IndexOf('=', closeParen);
+                    var nextNl = maskedCandidate.IndexOf('\n', closeParen);
+                    if (eqIdx >= 0 && (nextNl < 0 || eqIdx < nextNl))
                     {
-                        var nlIdx = maskedCandidate.IndexOf('\n', closeParen);
+                        var nlIdx = maskedCandidate.IndexOf('\n', eqIdx);
                         if (nlIdx >= 0 && nlIdx > stopIdx)
                         {
                             stopIdx = nlIdx;
                         }
+                    }
+                    else if (nextNl >= 0 && nextNl > stopIdx)
+                    {
+                        stopIdx = nextNl;
                     }
                 }
             }
@@ -544,25 +543,81 @@ public partial class KotlinFileParser : IFileParser
         return fallbackClassName;
     }
 
-    private static string? ExtractQuerySql(string queryAnnotationArgs)
+    private static string? ExtractMyBatisOrQuerySql(string queryAnnotationArgs)
     {
         if (string.IsNullOrWhiteSpace(queryAnnotationArgs)) return null;
 
-        var tripleMatch = Regex.Match(queryAnnotationArgs, @"(?:(?:value)\s*=\s*)?""\""\""([\s\S]*?)""\""\""");
-        if (tripleMatch.Success) return tripleMatch.Groups[1].Value.Trim();
-
-        var valueMatch = Regex.Match(queryAnnotationArgs, @"\bvalue\s*=\s*""((?:\\.|[^""\\])*)""");
-        if (valueMatch.Success) return valueMatch.Groups[1].Value.Trim();
-
-        var firstArg = queryAnnotationArgs.Split(',')[0].Trim();
-        if (!firstArg.Contains('='))
+        var tripleMatches = Regex.Matches(queryAnnotationArgs, "\"\"\"([\\s\\S]*?)\"\"\"");
+        if (tripleMatches.Count > 0)
         {
-            var strMatch = Regex.Match(firstArg, @"['""]((?:\\.|[^""'\\])*)['""]");
-            if (strMatch.Success) return strMatch.Groups[1].Value.Trim();
+            var parts = new List<string>();
+            foreach (Match tm in tripleMatches)
+            {
+                var val = tm.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(val)) parts.Add(val);
+            }
+            if (parts.Count > 0) return string.Join(" ", parts);
         }
 
-        var anyMatch = Regex.Match(queryAnnotationArgs, @"['""]((?:\\.|[^""'\\])*)['""]");
-        return anyMatch.Success ? anyMatch.Groups[1].Value.Trim() : null;
+        var strMatches = Regex.Matches(queryAnnotationArgs, @"(?<![a-zA-Z0-9_])""((?:\\.|[^""\\])*)""");
+        if (strMatches.Count > 0)
+        {
+            var parts = new List<string>();
+            foreach (Match sm in strMatches)
+            {
+                var strVal = sm.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(strVal)) parts.Add(strVal);
+            }
+            if (parts.Count > 0) return string.Join(" ", parts);
+        }
+
+        return null;
+    }
+
+    private static string NormalizeMyBatisParameters(string sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql)) return sql;
+        sql = Regex.Replace(sql, @"#\{[^}]+\}", "@p");
+        sql = Regex.Replace(sql, @"\$\{[^}]+\}", "@p");
+        return sql;
+    }
+
+    private static (string? ProviderClass, string? ProviderMethod) ExtractProviderInfo(string args)
+    {
+        if (string.IsNullOrWhiteSpace(args)) return (null, null);
+
+        string? providerClass = null;
+        string? providerMethod = null;
+
+        var typeMatch = Regex.Match(args, @"(?:type|value)\s*=\s*([A-Za-z0-9_]+)(?:::class|\.class)?");
+        if (typeMatch.Success)
+        {
+            providerClass = typeMatch.Groups[1].Value;
+        }
+        else
+        {
+            var firstClassMatch = Regex.Match(args, @"([A-Za-z0-9_]+)(?:::class|\.class)");
+            if (firstClassMatch.Success)
+            {
+                providerClass = firstClassMatch.Groups[1].Value;
+            }
+        }
+
+        var methodMatch = Regex.Match(args, @"method\s*=\s*[""']([A-Za-z0-9_]+)[""']");
+        if (methodMatch.Success)
+        {
+            providerMethod = methodMatch.Groups[1].Value;
+        }
+        else
+        {
+            var secondStrMatch = Regex.Match(args, @",\s*[""']([A-Za-z0-9_]+)[""']");
+            if (secondStrMatch.Success)
+            {
+                providerMethod = secondStrMatch.Groups[1].Value;
+            }
+        }
+
+        return (providerClass, providerMethod);
     }
 
     private static List<ClassScope> ParseClassesAndTypes(
@@ -615,11 +670,13 @@ public partial class KotlinFileParser : IFileParser
             };
             fileNode.Children.Add(typeNode);
 
+            string? repoEntity = null;
             if (!string.IsNullOrEmpty(cleanBase) &&
                 (cleanBase.Contains("PanacheRepository<", StringComparison.OrdinalIgnoreCase) ||
                  cleanBase.Contains("CrudRepository<", StringComparison.OrdinalIgnoreCase) ||
                  cleanBase.Contains("PageableRepository<", StringComparison.OrdinalIgnoreCase) ||
                  cleanBase.Contains("GenericRepository<", StringComparison.OrdinalIgnoreCase) ||
+                 cleanBase.Contains("JpaRepository<", StringComparison.OrdinalIgnoreCase) ||
                  cleanBase.Contains("JdbcRepository<", StringComparison.OrdinalIgnoreCase)))
             {
                 var repoKeyword = cleanBase.Contains("PanacheRepository<", StringComparison.OrdinalIgnoreCase)
@@ -630,7 +687,9 @@ public partial class KotlinFileParser : IFileParser
                             ? "PageableRepository<"
                             : cleanBase.Contains("GenericRepository<", StringComparison.OrdinalIgnoreCase)
                                 ? "GenericRepository<"
-                                : "JdbcRepository<";
+                                : cleanBase.Contains("JpaRepository<", StringComparison.OrdinalIgnoreCase)
+                                    ? "JpaRepository<"
+                                    : "JdbcRepository<";
                 var idx = cleanBase.IndexOf(repoKeyword, StringComparison.OrdinalIgnoreCase);
                 var open = cleanBase.IndexOf('<', idx);
                 var close = open > 0 ? cleanBase.IndexOf('>', open) : -1;
@@ -641,12 +700,34 @@ public partial class KotlinFileParser : IFileParser
                     if (comma > 0) entityName = entityName[..comma].Trim();
                     if (!string.IsNullOrEmpty(entityName))
                     {
+                        repoEntity = entityName;
                         fileNode.References.Add(new Reference(typeNode.Id, entityName, OntologyConstants.Relationships.AccessedBy, startLine, startCol));
                     }
                 }
             }
 
             var annotations = ExtractPrecedingAnnotations(commentMasked, masked, cm.Index);
+
+            var isMapper = annotations.Any(a =>
+                a.Name.Equals("Mapper", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.EndsWith("Mapper", StringComparison.OrdinalIgnoreCase) ||
+                (a.Name.Equals("Repository", StringComparison.OrdinalIgnoreCase) && className.EndsWith("Mapper", StringComparison.OrdinalIgnoreCase)));
+
+            if (isMapper)
+            {
+                typeNode.CustomProperties ??= new();
+                typeNode.CustomProperties["is_mapper"] = "true";
+                typeNode.CustomProperties["role"] = "DataMapper";
+            }
+
+            var isController = annotations.Any(a =>
+                a.Name.Equals("RestController", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Controller", StringComparison.OrdinalIgnoreCase));
+            if (isController)
+            {
+                typeNode.CustomProperties ??= new();
+                typeNode.CustomProperties["role"] = "Controller";
+            }
 
             var tableAnn = annotations.FirstOrDefault(a =>
                 a.Name.Equals("Table", StringComparison.OrdinalIgnoreCase) ||
@@ -750,9 +831,13 @@ public partial class KotlinFileParser : IFileParser
 
             string? routePrefix = null;
             var reqMapAnn = annotations.FirstOrDefault(a =>
-                a.Name.Equals("RequestMapping", StringComparison.OrdinalIgnoreCase) ||
-                a.Name.Equals("Path", StringComparison.OrdinalIgnoreCase) ||
-                a.Name.Equals("Controller", StringComparison.OrdinalIgnoreCase));
+                (a.Name.Equals("RequestMapping", StringComparison.OrdinalIgnoreCase) ||
+                 a.Name.Equals("Path", StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace(a.Args))
+                ?? annotations.FirstOrDefault(a =>
+                    a.Name.Equals("RequestMapping", StringComparison.OrdinalIgnoreCase) ||
+                    a.Name.Equals("RestController", StringComparison.OrdinalIgnoreCase) ||
+                    a.Name.Equals("Path", StringComparison.OrdinalIgnoreCase) ||
+                    a.Name.Equals("Controller", StringComparison.OrdinalIgnoreCase));
             if (reqMapAnn != null)
             {
                 var prefixes = ExtractRoutePathsFromAnnotation(reqMapAnn.Args);
@@ -769,7 +854,7 @@ public partial class KotlinFileParser : IFileParser
                 fileNode.References.Add(new Reference(typeNode.Id, ifaceName, OntologyConstants.Relationships.Calls, startLine, startCol));
             }
 
-            classScopes.Add(new ClassScope(className, kind, typeNode, cm.Index, openBrace, closeBrace, routePrefix, isGrpcService, isClient, isDao, isRoomDb));
+            classScopes.Add(new ClassScope(className, kind, typeNode, cm.Index, openBrace, closeBrace, routePrefix, isGrpcService, isClient, isDao, isRoomDb, isMapper, repoEntity));
         }
 
         return classScopes;
@@ -1041,6 +1126,45 @@ public partial class KotlinFileParser : IFileParser
                     Engine = "PostgreSQL",
                     Technology = "PostgreSQL",
                     Provider = "PostgreSQL",
+                    IsOrm = true
+                };
+                fileNode.Children.Add(dbNode);
+                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
+                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
+            }
+        }
+
+        if (content.Contains("org.h2.Driver", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("jdbc:h2:", StringComparison.OrdinalIgnoreCase))
+        {
+            var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:h2";
+            if (!fileNode.Children.Any(c => c.Id == dbId))
+            {
+                var dbNode = new DatabaseNode(dbId, "H2", relativePath, "relational")
+                {
+                    Engine = "H2",
+                    Technology = "H2",
+                    Provider = "H2",
+                    IsOrm = true
+                };
+                fileNode.Children.Add(dbNode);
+                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
+                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
+            }
+        }
+
+        if (content.Contains("com.mysql.cj.jdbc.Driver", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("com.mysql.jdbc.Driver", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("jdbc:mysql:", StringComparison.OrdinalIgnoreCase))
+        {
+            var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:mysql";
+            if (!fileNode.Children.Any(c => c.Id == dbId))
+            {
+                var dbNode = new DatabaseNode(dbId, "MySQL", relativePath, "relational")
+                {
+                    Engine = "MySQL",
+                    Technology = "MySQL",
+                    Provider = "MySQL",
                     IsOrm = true
                 };
                 fileNode.Children.Add(dbNode);

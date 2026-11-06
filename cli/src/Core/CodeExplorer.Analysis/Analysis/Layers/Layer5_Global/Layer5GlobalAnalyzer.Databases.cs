@@ -866,7 +866,36 @@ public partial class Layer5AnalysisParser
                     ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, shortTableId))
                     : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, shortTableId));
                 referenceRelationships.Add(rel);
+                return;
             }
+        }
+
+        // Plural / singular table name matching (e.g. articles <-> article, users <-> user)
+        string? candidateTableId = null;
+        if (targetName.EndsWith("s", StringComparison.OrdinalIgnoreCase))
+        {
+            symbols.TableSymbols.TryGetValue(targetName[..^1], out candidateTableId);
+            if (candidateTableId == null && targetName.EndsWith("es", StringComparison.OrdinalIgnoreCase))
+            {
+                symbols.TableSymbols.TryGetValue(targetName[..^2], out candidateTableId);
+            }
+        }
+        else
+        {
+            symbols.TableSymbols.TryGetValue(targetName + "s", out candidateTableId);
+            if (candidateTableId == null)
+            {
+                symbols.TableSymbols.TryGetValue(targetName + "es", out candidateTableId);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(candidateTableId) && refItem.ScopeSymbolId != candidateTableId)
+        {
+            var isWrite = refItem.Kind == OntologyConstants.Relationships.WritesTo;
+            var rel = isWrite
+                ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, candidateTableId))
+                : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, candidateTableId));
+            referenceRelationships.Add(rel);
         }
     }
 }

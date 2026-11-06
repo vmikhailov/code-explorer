@@ -94,9 +94,15 @@ public static class ConfigurationParser
 
         var isMySql = lower.StartsWith("mysql://") ||
                       lower.StartsWith("jdbc:mysql://") ||
+                      lower.Contains("com.mysql.cj.jdbc.driver") ||
+                      lower.Contains("com.mysql.jdbc.driver") ||
                       lowerName.Contains("mysql") ||
                       lower.Contains("port=3306") ||
                       lower.Contains("uid=root");
+
+        var isH2 = lower.StartsWith("jdbc:h2:") ||
+                   lower.Contains("org.h2.driver") ||
+                   lowerName.Contains("h2");
 
         if (isPostgres)
         {
@@ -129,6 +135,10 @@ public static class ConfigurationParser
         else if (isMySql)
         {
             CreateDatabaseNode("MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+        }
+        else if (isH2)
+        {
+            CreateDatabaseNode("H2", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.Contains("data source=") || lower.Contains("server=") || lower.StartsWith("jdbc:sqlserver://") || lowerName.Contains("sqlserver") || lowerName.Contains("mssql"))
         {
@@ -169,6 +179,18 @@ public static class ConfigurationParser
                 var fullPath = sqliteMatch.Groups[1].Value.Trim().Trim('"', '\'');
                 var fileName = Path.GetFileNameWithoutExtension(fullPath);
                 if (!string.IsNullOrWhiteSpace(fileName) && IsValidCatalogName(fileName)) return fileName;
+            }
+        }
+
+        // 4. H2: jdbc:h2:mem:AZ;... or jdbc:h2:file:... or jdbc:h2:tcp://...
+        if (engine.Equals("H2", StringComparison.OrdinalIgnoreCase) || connStr.Contains("jdbc:h2:", StringComparison.OrdinalIgnoreCase))
+        {
+            var h2Match = Regex.Match(connStr, @"jdbc:h2:(?:mem:|file:|tcp://[^/]+/|ssl://[^/]+/)?([^;?#\s]+)", RegexOptions.IgnoreCase);
+            if (h2Match.Success)
+            {
+                var rawDb = h2Match.Groups[1].Value.Trim().Trim('"', '\'');
+                var dbName = Path.GetFileNameWithoutExtension(rawDb);
+                if (!string.IsNullOrWhiteSpace(dbName) && IsValidCatalogName(dbName)) return dbName;
             }
         }
 

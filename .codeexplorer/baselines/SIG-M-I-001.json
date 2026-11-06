@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-I-001",
-  "allowedViolations": 3600,
+  "allowedViolations": 3581,
   "entries": [
     {
       "fingerprint": "e588532558828927e0bae696ab29c3f67b9ce8e8753310237148c06d781f7671",
@@ -19673,36 +19673,6 @@
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
-      "fingerprint": "f2f1c38bdc32eccb0662e20b9ba4af502f52466164de537ebcab345dd3cdefc7",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoFileVisitor.cs",
-      "line": 69,
-      "column": 98,
-      "symbol": "CollectCustomReferencesForSymbol",
-      "target": "new SyntacticSymbol",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "702dd9492b2e966fb42b24b4a6434c8ce802b19ddfe37f5de4ed16f81e088261",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoFileVisitor.cs",
-      "line": 290,
-      "column": 46,
-      "symbol": "IsGoEntryPoint",
-      "target": "routeVal.StartWithIC",
-      "acknowledgedAt": "2026-11-06T06:43:31.5088915+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 06:43:31"
-    },
-    {
-      "fingerprint": "7d9334d5b4b05e930ade2b8e886aa1d6d1602851996a1d895a13f2eb6a7c98f7",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoFileVisitor.cs",
-      "line": 291,
-      "column": 46,
-      "symbol": "IsGoEntryPoint",
-      "target": "routeVal.StartWithIC",
-      "acknowledgedAt": "2026-11-06T06:43:31.5088915+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 06:43:31"
-    },
-    {
       "fingerprint": "0450a53a2a4ab90835dd9382f88d08b3b18f5393a1591f67f13736fd4152bf6b",
       "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoParser.cs",
       "line": 169,
@@ -26053,146 +26023,6 @@
       "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
     },
     {
-      "fingerprint": "643950bfa7c83fba0b007488614a9b83dbcd683f1a250abd70af45b4e63bf5f6",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 537,
-      "column": 43,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "node.FindChildOfType",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "ea8a8f010d8770a8a910cce08dc7924ee137269dba0b209c78ec2643105d13e3",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 544,
-      "column": 68,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "new ImportSpecifier",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "af253c5724a53e8da4a85185acae495eb40fa5ef57198f0cb0853c8e69371a4a",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 546,
-      "column": 35,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "child.Is",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "bfd5cf5212a1ce3bc17c7c87ab4d8e1929e35c74758c6237583bfa076dd25b98",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 551,
-      "column": 69,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "new ImportSpecifier",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "92695714b37aea17185b7dd3f1d6acd85580e6378d81673bfd3b90727e5fe953",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 554,
-      "column": 35,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "child.Is",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "c39a63468cf961bd818950dd1229022916c915e695620e8e407b5c8465304c2d",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 556,
-      "column": 67,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "child.FindChildrenOfType",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "079719fe6aa94335df62712763d3e8e0ea2b065a314a536ef156d55946ae8e1f",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 559,
-      "column": 55,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "spec.GetField",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "73ce9598f585b4b7f4c57e6f906fb07cbb37cf1bab82f104e9106dcae97a2ed1",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 586,
-      "column": 46,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "node.FindChildOfType",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "9220110f1f40bf720696e4f5ed9d51a12658c9043654529918e2f3b14c918210",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 592,
-      "column": 61,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "new ImportSpecifier",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "1f481c20e770685b14ca570a5ff972bf276db0897abb2f89292d29ee257e7150",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 598,
-      "column": 49,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "node.FindChildOfType",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "2faa7a8384d950fb3d8e4d2f2933cbc8bd27933c7d08183d8593820c210eeb43",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 601,
-      "column": 66,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "exportClause.FindChildrenOfType",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "715b5da2040e5f98eef72e780f9bf79b255ade1fd907473247238a83850a665c",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 604,
-      "column": 47,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "spec.GetField",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "4bb6ae19c5742f67cfa35fe773913c00b2b636041deff1ee40be52021c6ee22d",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 631,
-      "column": 48,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "new ImportSpecifier",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "10ebb155f9e2c07311b15f9a4dfdbfc46d3661749e8bbb9d134c11e78f991dcc",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 631,
-      "column": 53,
-      "symbol": "ExtractImportSpecifiers",
-      "target": "new ImportSpecifier",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
       "fingerprint": "213f25d5662dda12675ad01e9936ceeeb1d94d9fb873caa0634b44a085a7342c",
       "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
       "line": 465,
@@ -26299,26 +26129,6 @@
       "column": 96,
       "symbol": "FindOwningDeclarationName",
       "target": "",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "96f10e7db6af8492682407e133682368097da7247dcb23c7292ec0739c088521",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 61,
-      "column": 84,
-      "symbol": "TypeScriptFileVisitor",
-      "target": "new ImportSpecifier",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "ff84f68781003c4cc2aacfe261f889232249ff173d093d85c10e4dd5a0892b60",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptFileVisitor.cs",
-      "line": 65,
-      "column": 83,
-      "symbol": "TypeScriptFileVisitor",
-      "target": "nameField.FindChildrenOfType",
       "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
       "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
     },

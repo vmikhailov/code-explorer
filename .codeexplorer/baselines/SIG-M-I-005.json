@@ -273,6 +273,46 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
+      "fingerprint": "ef3666ef19d2fa76f6d64cc8f8dc8c3a455a2932ee290f2da623bc626883e8ff",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
+      "line": 530,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5561e889c7a3132dfbcbb05952d71ef1fff13ca6e689d34823aed29e35525abf",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
+      "line": 650,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ebebf0c24b4b1dbd311c01956aca56f069a08fb25a6d5ca57a9c05cf892b98a0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
+      "line": 714,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "b686eb2a71ad3d92a773f9cf9e8f8920bbff935a022d6a1e1d0cd9d681cee09b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer3_Syntactic/RouteDictionaryRegistry.cs",
+      "line": 683,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
       "fingerprint": "2a341776b9a43f18a9a981c08dc953c3569db81feeebaeabed616e993aeca3f5",
       "file": "cli/src/Parsers/CodeExplorer.Parser.CSharp/CSharpParser.Manifest.cs",
       "line": 333,
@@ -291,6 +331,16 @@
       "target": "catch",
       "acknowledgedAt": "2026-11-02T10:17:44.2312712+00:00",
       "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+    },
+    {
+      "fingerprint": "c21c6d92567319b6ebe6a00b69d639c50ee9627225011075d0264a950d2aff7a",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoParser.cs",
+      "line": 210,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
       "fingerprint": "29057c41940ff6c9abe5bb3e6d4a7b51cd89b59b106b4486c0cd1e6569e37073",
@@ -336,6 +386,26 @@
       "fingerprint": "38d9747f0259772c0c889a832bb80401ca0872c2680f1720e247b2e5d4dd708a",
       "file": "cli/src/Parsers/CodeExplorer.Parser.Java/JavaParser.cs",
       "line": 538,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6f4d041a301abd6c2b075e6c2f9febad880c998b04d8bf86bf9915303db584bd",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "line": 73,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "aafce4a72d75b6312422a215e9f7aae3135fb765548bb51fa1cefbd671fd2f65",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "line": 259,
       "column": 0,
       "symbol": "Exception",
       "target": "catch",
@@ -1231,76 +1301,6 @@
       "target": "catch",
       "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "ef3666ef19d2fa76f6d64cc8f8dc8c3a455a2932ee290f2da623bc626883e8ff",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
-      "line": 530,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "5561e889c7a3132dfbcbb05952d71ef1fff13ca6e689d34823aed29e35525abf",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
-      "line": 650,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "ebebf0c24b4b1dbd311c01956aca56f069a08fb25a6d5ca57a9c05cf892b98a0",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
-      "line": 714,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "b686eb2a71ad3d92a773f9cf9e8f8920bbff935a022d6a1e1d0cd9d681cee09b",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer3_Syntactic/RouteDictionaryRegistry.cs",
-      "line": 683,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "c21c6d92567319b6ebe6a00b69d639c50ee9627225011075d0264a950d2aff7a",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoParser.cs",
-      "line": 210,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "6f4d041a301abd6c2b075e6c2f9febad880c998b04d8bf86bf9915303db584bd",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
-      "line": 73,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "aafce4a72d75b6312422a215e9f7aae3135fb765548bb51fa1cefbd671fd2f65",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
-      "line": 259,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     }
   ]
 }
