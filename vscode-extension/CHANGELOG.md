@@ -5,6 +5,39 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.73.0] - 2026-11-07
+
+### Added
+- **Polyglot Ecosystem Library Expansion (59 New Framework & Library Parsers Across C#, Java, Kotlin, TypeScript, Python, and Go)**:
+  - **Phase 1 — Task Queues, Schedulers & Message Brokers (15 Parsers)**:
+    - **Python**: `CeleryLibraryParser` (`@app.task`, `@shared_task`, `.delay()`, `.apply_async()`), `DramatiqLibraryParser` (`@dramatiq.actor`, `.send()`), `RqRedisStreamsLibraryParser` (`Queue.enqueue()`, `xadd()`, `xreadgroup()`).
+    - **C#**: `HangfireLibraryParser` (`BackgroundJob.Enqueue`, `RecurringJob.AddOrUpdate`), `QuartzNetLibraryParser` (`IJob`, `AddJob<T>`), `WolverineLibraryParser` (`IMessageBus.InvokeAsync`, `PublishAsync`), `CapLibraryParser` (`[CapSubscribe]`, `ICapPublisher.PublishAsync`), `MassTransitSagaLibraryParser` (`MassTransitStateMachine<T>`, `Event<T>`).
+    - **TypeScript**: `InngestLibraryParser` (`inngest.createFunction`, `inngest.send`), `BullLegacyLibraryParser` (`queue.process`, `queue.add`).
+    - **Go**: `WatermillLibraryParser` (`router.AddHandler`, `publisher.Publish`), `AsynqLibraryParser` (`mux.HandleFunc`, `asynq.NewTask`).
+    - **Java**: `ApacheCamelLibraryParser` (`RouteBuilder.from(...).to(...)`), `ApachePulsarLibraryParser` (`@PulsarListener`, `PulsarTemplate.send`), `AxonFrameworkLibraryParser` (`@CommandHandler`, `@EventHandler`, `@SagaEventHandler`, `CommandGateway.send`).
+    - Extended `DeclarativeSemanticExtension` (`MessagingBrokerRule`) to support C# `invocation_expression` (`argument` unwrapping and receiver expression resolution) and Python `call` nodes.
+  - **Phase 2 — Web, RPC, Serverless & Modular Kotlin Extensions (16 Parsers)**:
+    - **TypeScript**: `TrpcLibraryParser` (`publicProcedure`/`protectedProcedure` `.query()` / `.mutation()`), `HonoLibraryParser` (`app.get`/`post`/`put`/`delete`/`patch`), `RemixLibraryParser` (`export async function loader` / `action`), `GraphQlYogaApolloLibraryParser` (`createYoga`, `ApolloServer`, resolver maps).
+    - **Python**: `LitestarLibraryParser` (`@get`, `@post`, `@put`, `@delete`, `@patch`), `StrawberryGraphQlLibraryParser` (`@strawberry.type`, `@strawberry.field`, `@strawberry.mutation`).
+    - **Go**: `GoZeroLibraryParser` (`rest.WithMiddlewares`, `server.AddRoutes`), `GqlGenLibraryParser` (`Mutation()` / `Query()` resolver bindings), `CentrifugeWebSocketGoLibraryParser` (`centrifuge.New`, `gorilla/websocket.Upgrader`, `nhooyr.io/websocket.Accept`).
+    - **Java**: `OpenFeignRetrofitLibraryParser` (`@FeignClient`, Retrofit `@GET`/`@POST`/`@PUT`/`@DELETE`).
+    - **C#**: `AzureFunctionsLibraryParser` (`[Function]`, `[FunctionName]`, `[HttpTrigger]`, `[ServiceBusTrigger]`, `[QueueTrigger]`, `[TimerTrigger]`).
+    - **Kotlin**: Extracted modular `ISemanticExtension` parsers (`KtorServerLibraryParser`, `KtorClientLibraryParser`, `MicronautKotlinLibraryParser`, `GraphQlKotlinLibraryParser`, `SpringCloudStreamKotlinLibraryParser`).
+  - **Phase 3 — Modern ORMs & SQL Mappers (12 Parsers)**:
+    - **Kotlin**: `ExposedLibraryParser` (`Table`, `IntIdTable`, `LongIdTable`, `UUIDTable`, DSL CRUD operations), `KtormLibraryParser` (`Table<T>`, `database.from()`).
+    - **Python**: `TortoiseOrmLibraryParser` (`models.Model`, `Meta.table`), `MotorMongoLibraryParser` (`AsyncIOMotorClient`, `db["collection"]` operations).
+    - **Go**: `SqlxGoLibraryParser` (`db.Select`, `db.Get`, `db.NamedExec`), `EntGoLibraryParser` (`ent.Schema`, client entity CRUD), `BunGoLibraryParser` (`bun.BaseModel`, `db.NewSelect().Model(...)`).
+    - **Java**: `MyBatisLibraryParser` (`@Mapper`, `@Select`, `@Insert`, `@Update`, `@Delete`), `JdbiLibraryParser` (`@SqlQuery`, `@SqlUpdate`), `R2dbcLibraryParser` (`ReactiveCrudRepository`, `@Table`, `@Query`).
+    - **C#**: `MartenLibraryParser` (`IDocumentSession.Query<T>()`, `Store()`, `Events.Append()`).
+    - **TypeScript**: `MikroOrmKyselyLibraryParser` (MikroORM `@Entity` and Kysely `.selectFrom()` / `.insertInto()` / `.updateTable()` / `.deleteFrom()`).
+  - **Phase 4 — Cloud SDKs, Resilience, Observability, DI & Testing (11 Parsers)**:
+    - **Cloud SDKs**: `AwsSdkDotNetLibraryParser` (C# `IAmazonS3`, `IAmazonSQS`, `IAmazonStepFunctions`), `AwsSdkJavaLibraryParser` (Java `S3Client`, `SqsClient`, `SnsClient`, `DynamoDbClient`), `AwsSdkGoLibraryParser` (Go `s3.NewFromConfig`, `sqs.NewFromConfig`, `dynamodb.NewFromConfig`), `Boto3LibraryParser` (Python `boto3.client(...)`, `boto3.resource(...)`).
+    - **Resilience & Observability**: `PollyResilienceLibraryParser` (C#), `OpenTelemetryDotNetLibraryParser` (C# `ActivitySource.StartActivity`), `Resilience4jLibraryParser` (Java `@CircuitBreaker`, `@Retry`, `@RateLimiter`, `@Bulkhead`).
+    - **Kotlin & TypeScript Ecosystem**: `KoinLibraryParser` (`module { single / factory / viewModel }`), `ArrowKotlinLibraryParser` (`either`, `Raise<E>`), `KotlinxSerializationLibraryParser` (`@Serializable`, `@SerialName`), `TestingLibraryParser` (React Testing Library / MSW).
+  - **Phase 5 — Distributed Workflows (Temporal) & AI SDKs (6 Parsers)**:
+    - **Temporal**: `TemporalTypeScriptLibraryParser` (`proxyActivities`, `executeChild`, `defineSignal`, `defineQuery`), `TemporalPythonLibraryParser` (`@workflow.defn`, `@activity.defn`, `workflow.execute_activity`), `TemporalGoLibraryParser` (`workflow.ExecuteActivity`, `workflow.ExecuteChildWorkflow`), `TemporalJavaLibraryParser` (`@WorkflowInterface`, `@WorkflowMethod`, `@ActivityInterface`, `@ActivityMethod`).
+    - **AI / LLM SDKs**: `AiSdkTypeScriptLibraryParser` (Vercel AI SDK `generateText`, `streamText`, `generateObject`, OpenAI, LangChain), `AiSdkPythonLibraryParser` (OpenAI, Anthropic, LangChain, LlamaIndex).
+
 ## [1.72.1] - 2026-11-06
 
 ### Fixed & Optimized
