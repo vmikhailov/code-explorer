@@ -10,14 +10,14 @@ twenty,Part 1,c7,cbm,20,4,20,250,INHERITS+IMPLEMENTS: 250
 twenty,Part 2,c3-producers,ce,19,19,100,165,PUBLISHED_BY edges: 165
 twenty,Part 2,c3-consumers,ce,19,19,100,192,SUBSCRIBED_BY handler methods: 192
 twenty,Part 2,c4,ce,17,17,100,169,Table nodes: 169
-twenty,Part 2,c5,ce,18,18,100,17383,READS_FROM/WRITES_TO edges: 17383
+twenty,Part 2,c5,ce,18,18,100,17378,READS_FROM/WRITES_TO edges: 17378
 twenty,Part 2,c8-topics,ce,20,20,100,357,Resolved enum topics (producer+consumer links): 357
 twenty,Part 2,c9-services,ce,8,8,100,46,Project nodes: 46
 twenty,Part 2,c10-schema,ce,17,9,53,1486,Entity+Member links via IMPLEMENTED_BY: 1486
-twenty,Part 2,c11-queries,ce,6,5,83,56,5/6 expressible & executed in single Cypher query
+twenty,Part 2,c11-queries,ce,6,6,100,76,6/6 expressible & executed in single Cypher query
 immich,Part 1,c1,ce,20,20,100,321,EXPOSED_BY endpoints: 321
 immich,Part 1,c1,cbm,20,18,90,271,HANDLES->Route: 271
-immich,Part 1,c2,ce,6,1,17,13,ExternalService nodes: 13
+immich,Part 1,c2,ce,6,0,0,13,ExternalService nodes: 13
 immich,Part 1,c2,cbm,6,0,0,48,HTTP_CALLS edges: 48
 immich,Part 1,c6,ce,20,17,85,119,CALLS for target methods: 119
 immich,Part 1,c6,cbm,20,12,60,97,CALLS for target methods: 97
@@ -26,7 +26,7 @@ immich,Part 1,c7,cbm,20,3,15,564,INHERITS+IMPLEMENTS: 564
 immich,Part 2,c3-producers,ce,20,19,95,101,PUBLISHED_BY edges: 101
 immich,Part 2,c3-consumers,ce,17,17,100,135,SUBSCRIBED_BY handler methods: 135
 immich,Part 2,c4,ce,18,18,100,99,Table nodes: 99
-immich,Part 2,c5,ce,10,10,100,1156,READS_FROM/WRITES_TO edges: 1156
+immich,Part 2,c5,ce,10,10,100,1162,READS_FROM/WRITES_TO edges: 1162
 immich,Part 2,c8-topics,ce,19,19,100,236,Resolved enum topics (producer+consumer links): 236
 immich,Part 2,c9-services,ce,7,7,100,21,Project nodes: 21
 immich,Part 2,c10-schema,ce,20,19,95,595,Entity+Member links via IMPLEMENTED_BY: 595

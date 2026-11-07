@@ -34,8 +34,8 @@
 
 | Benchmark Dimension | **`ce` (`v1.73.0`)** | **`CBM` (`v0.12.1`)** | Objective Assessment |
 | :--- | :---: | :---: | :--- |
-| **Cold Indexing Speed (`twenty` + `immich`)** | `267.6 s` (~4.5 min) | **`120.2 s` (~2.0 min)** | **Tie on `immich` (`22.3 s` vs. `20.6 s`)**; **`CBM` is 2.5× faster** on `twenty` (`99.6 s` vs. `245.3 s`) |
-| **Peak RAM / DB Size (`twenty`)** | `4,953 MB` / `2,321 MB` | **`2,087 MB` / `843 MB`** | **`CBM` uses less RAM** and produces a **2.8× smaller SQLite DB** on `twenty` (`ce` DB is **2.0× smaller on `immich`**: `143.4 MB` vs. `282.0 MB`) |
+| **Cold Indexing Speed (`twenty` + `immich`)** | `254.9 s` (~4.2 min) | **`120.2 s` (~2.0 min)** | **Tie on `immich` (`21.3 s` vs. `20.6 s`)**; **`CBM` is 2.3× faster** on `twenty` (`99.6 s` vs. `233.6 s`) |
+| **Peak RAM / DB Size (`twenty`)** | `4,953 MB` / `1,875 MB` | **`2,087 MB` / `843 MB`** | **`CBM` uses less RAM** and produces a **2.2× smaller SQLite DB** on `twenty` (`ce` DB is **2.4× smaller on `immich`**: `117.2 MB` vs. `282.0 MB`) |
 | **Part 1: Head-to-Head Matched (`C1, C2, C6, C7`)** | **86 / 130** | 49 / 130 | Direct competition on Endpoints, Outbound HTTP, Call Graph, and Inheritance |
 | **Part 1: Head-to-Head Micro-Recall (`0–100`)** | **66** | 38 | **`immich`: `62` vs. `50`** (`41/66` vs. `33/66`); **`twenty`: `70` vs. `25`** (`45/64` vs. `16/64`) |
 | **Part 1: Head-to-Head Macro-Recall (`0–100`)** | **60** | 36 | Unweighted average across the 8 head-to-head evaluations |
@@ -54,22 +54,22 @@ Both tools were executed from a cold state (`Remove-Item .codeexplorer/graph.db*
 | Metric | `twenty` — **`ce`** | `twenty` — **`CBM`** | `immich` — **`ce`** | `immich` — **`CBM`** |
 | :--- | :---: | :---: | :---: | :---: |
 | **Repository Scale** | 24,527 tracked (`36,644` physical files) | 24,527 files (~2.49M LOC) | 3,205 tracked (`1,485` code files) | 3,205 files (~461k LOC) |
-| **Cold Index Wall Time** | `245.3 s` (4.1 min) | **`99.6 s` (1.7 min)** | `22.3 s` | **`20.6 s`** |
+| **Cold Index Wall Time** | `233.6 s` (3.9 min) | **`99.6 s` (1.7 min)** | `21.3 s` | **`20.6 s`** |
 | **Peak Working Set (RAM)** | `4,953 MB` | **`2,087 MB`** | `894 MB` | **`648 MB`** |
-| **SQLite DB Size on Disk** | `2,321.4 MB` | **`842.5 MB`** | **`143.4 MB`** | `282.0 MB` |
-| **Graph Nodes Extracted** | `458,869` | `251,750` | `53,408` | `164,125` (incl. 141k `Variable` nodes) |
-| **Graph Edges Extracted** | `1,019,010` | `914,479` | `113,430` | `246,561` |
+| **SQLite DB Size on Disk** | `1,874.8 MB` | **`842.5 MB`** | **`117.2 MB`** | `282.0 MB` |
+| **Graph Nodes Extracted** | `458,947` | `251,750` | `53,439` | `164,125` (incl. 141k `Variable` nodes) |
+| **Graph Edges Extracted** | `965,625` | `914,479` | `113,823` | `246,561` |
 | **Parse / Analysis Warnings** | **5** (`ScanIssue` nodes) | 209 `parse_partial`, 1 `unusable` | **0** | 4 `parse_partial` |
 
 **Analysis of Indexing Performance (`ce` Phase Breakdown):**
-- On medium-sized repositories (`immich`), both indexers finish at virtually the same speed (**`20.6 s` vs. `22.3 s`**), and `ce` produces a **2.0× smaller database** (`143.4 MB` vs. `282.0 MB` because `CBM` indexes 141,286 local `Variable` nodes and `ce` builds B-Tree indices bottom-up after bulk load with zero page-split fragmentation).
-- On large monorepos (`twenty`), **`CBM` is 2.5× faster (`99.6 s` vs. `245.3 s`)**, uses less RAM, and creates a **2.8× smaller SQLite file** (`842.5 MB` vs. `2,321.4 MB`). Breaking down `ce`'s `245.3 s` cold run on `twenty` shows where the time is spent:
-  - **Layer 1 & 2 (Physical topology & 46 project boundaries across 36,644 files):** `24 s`
-  - **Layer 3 Pass 1 (Tree-sitter C-API parse + UAST construction for 36,644 files):** `41 s`
-  - **Layer 3 Pass 2 (AST visitors + declarative semantic extensions + in-memory bulk buffering):** `83 s`
+- On medium-sized repositories (`immich`), both indexers finish at virtually the same speed (**`20.6 s` vs. `21.3 s`**), and `ce` produces a **2.4× smaller database** (`117.2 MB` vs. `282.0 MB` because `CBM` indexes 141,286 local `Variable` nodes and `ce` Schema v5 builds compact partial/unique B-Tree indices bottom-up after bulk load with zero page-split fragmentation).
+- On large monorepos (`twenty`), **`CBM` is 2.3× faster (`99.6 s` vs. `233.6 s`)**, uses less RAM, and creates a **2.2× smaller SQLite file** (`842.5 MB` vs. `1,874.8 MB`). Breaking down `ce`'s `233.6 s` cold run on `twenty` shows where the time is spent:
+  - **Layer 1 & 2 (Physical topology & 46 project boundaries across 36,644 files):** `21 s`
+  - **Layer 3 Pass 1 (Tree-sitter C-API parse + UAST construction for 36,644 files):** `42 s`
+  - **Layer 3 Pass 2 (AST visitors + declarative semantic extensions + in-memory bulk buffering):** `82 s`
   - **Layer 4 (Semantic enrichment across 46 projects / 36,340 syntax trees):** **`5 s`**
-  - **Layer 5 (Resolving 578,152 global cross-references + late-binding 5,092 `ExternalService` calls):** `18 s`
-  - **Single-Transaction Unindexed Bulk Flush + Bottom-Up B-Tree Index Build + `PostIndexAnalyzer` & Incremental AST Snapshots:** `74 s` (`38.3 s` for bulk flush + index creation of 458.9k nodes and 1.04M edges)
+  - **Layer 5 (Resolving 578,143 global cross-references + late-binding 5,092 `ExternalService` calls):** `19 s`
+  - **Single-Transaction Unindexed Bulk Flush + Bottom-Up B-Tree Index Build + `PostIndexAnalyzer` & Incremental AST Snapshots:** `64 s` (`28.4 s` for bulk flush + index creation of 458.9k nodes and 1.04M edges)
 
 ---
 

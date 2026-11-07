@@ -105,6 +105,6 @@ public class StatusCommandTests
         exitCode.Should().Be(0);
         var output = sw.ToString();
 
-        output.Should().Contain("Schema:    v2 (outdated, current is v4 - run 'ce scan --clear' to upgrade)");
+        output.Should().Contain($"Schema:    v2 (outdated, current is v{SqliteGraphClient.CurrentSchemaVersion} - run 'ce scan --clear' to upgrade)");
     }
 }

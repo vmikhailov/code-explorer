@@ -89,7 +89,7 @@ public partial class SqliteGraphClient
 
     public bool TryRunSchemaMigrator(int fromVersion, int toVersion)
     {
-        if (toVersion > 4)
+        if (toVersion > CurrentSchemaVersion)
         {
             // Unknown future schema version: force full rebuild via IsSchemaOutdated = true
             return false;
@@ -151,9 +151,28 @@ public partial class SqliteGraphClient
                     """);
             }
 
+            if (fromVersion < 5)
+            {
+                sb.AppendLine("""
+                    DROP INDEX IF EXISTS idx_nodes_kind;
+                    DROP INDEX IF EXISTS idx_nodes_kind_path;
+                    DROP INDEX IF EXISTS idx_nodes_kind_file_path;
+                    DROP INDEX IF EXISTS idx_nodes_kind_symbol;
+                    DROP INDEX IF EXISTS idx_nodes_kind_lower_path;
+                    DROP INDEX IF EXISTS idx_edges_from_kind_to;
+                    DROP INDEX IF EXISTS idx_edges_unique;
+                    UPDATE nodes SET properties = jsonb_remove(properties, '$.id') WHERE json_type(properties, '$.id') IS NOT NULL;
+                    """);
+            }
+
             sb.AppendLine($"PRAGMA user_version = {toVersion};");
             migrateCmd.CommandText = sb.ToString();
             migrateCmd.ExecuteNonQuery();
+
+            if (fromVersion < 5)
+            {
+                CreateGraphSecondaryIndices();
+            }
 
             _logger.LogInformation("Database schema successfully upgraded to v{To}.", toVersion);
             Console.Error.WriteLine($"[CodeExplorer] Database schema successfully upgraded to v{toVersion}.");
@@ -285,18 +304,19 @@ public partial class SqliteGraphClient
         using var cmd = _conn.CreateCommand();
         cmd.CommandTimeout = 0;
         cmd.CommandText = """
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path'));
+                          DROP INDEX IF EXISTS idx_nodes_kind;
+                          DROP INDEX IF EXISTS idx_edges_unique;
+
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path')) WHERE json_extract(properties, '$.path') IS NOT NULL;
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path')) WHERE json_extract(properties, '$.file_path') IS NOT NULL;
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
                           CREATE INDEX IF NOT EXISTS idx_nodes_name_kind ON nodes(json_extract(properties, '$.name'), kind);
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path')));
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol')) WHERE json_extract(properties, '$.symbol') IS NOT NULL;
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path'))) WHERE lower(json_extract(properties, '$.path')) IS NOT NULL;
 
-                          CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
+                          CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
                           CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
                           CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
-                          CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind);
                           """;
         cmd.ExecuteNonQuery();
     }

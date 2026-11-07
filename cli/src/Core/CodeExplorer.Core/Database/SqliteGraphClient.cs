@@ -42,7 +42,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     public GraphContext Graph => _graph ??= new(this);
     public IGraphRepository AsRepository() => _repository ??= new PersistedGraphRepository(this);
 
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
     public int SchemaVersion { get; private set; }
     public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
     public bool WasMigratedOnOpen { get; private set; }

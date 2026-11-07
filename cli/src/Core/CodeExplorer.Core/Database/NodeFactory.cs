@@ -123,7 +123,6 @@ public static class NodeFactory
         {
             var ont = dbNode.OntologyNode;
             writer.WriteStartObject();
-            writer.WriteString(IdPropName, ont.Id);
 
             var jsonWriter = JsonWriters.GetOrAdd(ont.GetType(), CreateJsonWriter);
             jsonWriter(ont, writer);
@@ -134,8 +133,14 @@ public static class NodeFactory
         }
 
         var props = dbNode.Properties;
-        props[IdPropName] = dbNode.Id;
-        JsonSerializer.Serialize(writer, props);
+        writer.WriteStartObject();
+        foreach (var kvp in props)
+        {
+            if (string.Equals(kvp.Key, IdPropName, StringComparison.Ordinal)) continue;
+            writer.WritePropertyName(kvp.Key);
+            JsonSerializer.Serialize(writer, kvp.Value);
+        }
+        writer.WriteEndObject();
     }
 
     private static void WriteJsonCustomProperties(IOntologyNode node, Utf8JsonWriter writer)

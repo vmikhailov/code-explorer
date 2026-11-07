@@ -148,6 +148,10 @@ public static class DbRowMaterializer
         var props = row.TryGetProperty(PropProperties, out var propVal)
             ? ConvertObjectToLegacyDictionary(propVal)
             : new Dictionary<string, object>(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(id) && !props.ContainsKey(PropId))
+        {
+            props[PropId] = id;
+        }
 
         return new Node(id, kind, props);
     }
@@ -159,6 +163,10 @@ public static class DbRowMaterializer
         var props = val.TryGetProperty(PropProperties, out var propVal)
             ? ConvertObjectToLegacyDictionary(propVal)
             : new Dictionary<string, object>(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(id) && !props.ContainsKey(PropId))
+        {
+            props[PropId] = id;
+        }
 
         return new Node(id, kind, props);
     }

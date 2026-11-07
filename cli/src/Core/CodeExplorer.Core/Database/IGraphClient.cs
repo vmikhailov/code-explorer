@@ -183,7 +183,7 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    const int CurrentSchemaVersion = 4;
+    const int CurrentSchemaVersion = 5;
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     bool WasMigratedOnOpen => false;

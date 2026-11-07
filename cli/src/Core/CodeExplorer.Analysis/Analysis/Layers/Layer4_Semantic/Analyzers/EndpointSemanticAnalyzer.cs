@@ -25,6 +25,9 @@ public static class EndpointSemanticAnalyzer
     private const string SchemeRpcColon = "rpc:";
     private const string SchemeDubboColon = "dubbo:";
     private const string SchemeTriColon = "tri:";
+    private const char CharLf = '\n';
+    private const char CharCr = '\r';
+    private const char CharSpace = ' ';
 
     public static void Enrich(
         SyntaxTree syntaxTree,
@@ -34,7 +37,7 @@ public static class EndpointSemanticAnalyzer
     {
         if (syntaxTree.SemanticSymbols == null || syntaxTree.SemanticSymbols.Count == 0) return;
 
-        var relativePath = syntaxTree.FilePath;
+        var relativePath = !string.IsNullOrEmpty(syntaxTree.RelativePath) ? syntaxTree.RelativePath : syntaxTree.FilePath;
         var workspaceId = ctx?.WorkspaceId ?? "";
         var projectName = project?.Name ?? syntaxTree.FileNode?.ProjectName;
         var projectKind = (project?.EntityKind != ProjectEntityKind.Unknown ? project?.EntityKind : null) ?? syntaxTree.FileNode?.ProjectKind;
@@ -74,7 +77,8 @@ public static class EndpointSemanticAnalyzer
         var node = syntactic.Node;
         var kind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(syntactic.Kind);
         var name = syntactic.Name;
-        var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{kind}:{name}";
+        var idName = (name.Length > 80 || name.AsSpan().IndexOfAny(CharLf, CharCr) >= 0) ? $"{name[..Math.Min(48, name.Length)].Replace(CharLf, CharSpace).Replace(CharCr, CharSpace).Trim()}_{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name))[..6])}" : name;
+        var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{kind}:{idName}";
 
         IOntologyNode? typedNode = null;
         if (kind == OntologyConstants.NodeLabels.Query)
