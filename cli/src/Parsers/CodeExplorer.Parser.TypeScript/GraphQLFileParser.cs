@@ -94,6 +94,12 @@ public class GraphQLFileParser : IFileParser
             return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
         }
 
+        // Test fixtures (e.g. __tests__/**/fixture/schema.graphql) describe no real API surface or client calls.
+        if (WorkspaceConventions.IsTestFilePath(relativePath))
+        {
+            return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
+        }
+
         var (operations, sdlFields) = GraphQLDocumentExtractor.ParseDocument(content);
 
         foreach (var op in operations)
@@ -300,7 +306,10 @@ public static class GraphQLDocumentExtractor
                 }
             }
             // 2. Shorthand anonymous query `{ fieldA { id } }`
-            else if (tok.Text == "{")
+            // Only valid at document start or right after a preceding top-level block. A '{' that follows a
+            // name or keyword opens an SDL block (input/enum/interface/union/schema/fragment) and must not be
+            // read as a query; otherwise 'id: UUID' is misread as an aliased root field named 'UUID'.
+            else if (tok.Text == "{" && (i == 0 || tokens[i - 1].Text == "}"))
             {
                 var startLine = tok.Line;
                 var rootFields = new List<string>();

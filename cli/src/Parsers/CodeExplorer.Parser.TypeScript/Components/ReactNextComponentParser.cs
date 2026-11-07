@@ -16,8 +16,39 @@ public class ReactNextComponentParser : IComponentLibraryParser
         "react", "react-dom", "next", "vue", "nuxt", "svelte", "solid-js", "preact", "react-native", "expo"
     };
 
+    // Server frameworks: a project depending on one of these is a backend even if it also pulls in
+    // react/react-dom (server-side rendering of emails, PDFs, OG images ...).
+    private static readonly HashSet<string> BackendFrameworks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "@nestjs/core", "express", "fastify", "koa", "@hapi/hapi", "@adonisjs/core", "@feathersjs/feathers"
+    };
+
+    // Signals that the project actually builds and serves a browser/mobile UI.
+    private static readonly HashSet<string> FrontendBuildSignals = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "next", "nuxt", "vite", "react-scripts", "@vitejs/plugin-react", "@vitejs/plugin-react-swc", "@vitejs/plugin-vue",
+        "webpack-dev-server", "parcel", "@remix-run/react", "gatsby", "astro", "@sveltejs/kit", "react-native", "expo"
+    };
+
+    /// <summary>
+    /// True when the project is a server application that merely uses a UI library for server-side rendering.
+    /// Such projects must not be classified as frontend apps or UI component libraries.
+    /// </summary>
+    internal static bool IsBackendWithServerSideRendering(ProjectContext context)
+    {
+        var hasBackendFramework = context.Dependencies.Any(d => BackendFrameworks.Contains(d)) ||
+                                  context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("nest-cli.json", StringComparison.OrdinalIgnoreCase));
+        if (!hasBackendFramework) return false;
+
+        var hasFrontendBuild = context.Dependencies.Any(d => FrontendBuildSignals.Contains(d)) ||
+                               context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
+        return !hasFrontendBuild;
+    }
+
     public bool CanHandle(ProjectContext context)
     {
+        if (IsBackendWithServerSideRendering(context)) return false;
+
         return context.Dependencies.Any(d => FrontendFrameworks.Contains(d)) ||
                context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase)) ||
                context.ManifestProperties.GetValueOrDefault("is_vscode_extension") == "true" ||

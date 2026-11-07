@@ -90,6 +90,7 @@ public static class ProjectEntityClassifierRegistry
                             normRelPath.Contains("/test/") || normRelPath.Contains("/tests/") ||
                             normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
                             normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/") ||
+                            normRelPath.Contains("/fixtures/") || normRelPath.Contains("/__fixtures__/") ||
                             normRelPath.Contains("/qa/"));
 
         if (isTestProject)

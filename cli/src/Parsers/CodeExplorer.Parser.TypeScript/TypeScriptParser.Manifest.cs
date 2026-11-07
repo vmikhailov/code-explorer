@@ -326,6 +326,24 @@ public partial class TypeScriptParser
                     ((IProjectParser)this).HasPackageWithRole(allDeps, LibraryRole.FrontendFramework) ||
                     allDeps.Any(d => d is "solid-js" or "nuxt");
 
+                // Monorepo root manifest (npm/yarn "workspaces" or pnpm/Nx/Lerna/Turbo workspace files): it orchestrates
+                // member packages and is never itself a deployable service.
+                var isWorkspaceRoot = root.TryGetProperty("workspaces", out _) ||
+                                      filesInDirectory.Any(f => Path.GetFileName(f) is "pnpm-workspace.yaml" or "lerna.json" or "turbo.json" or "nx.json");
+                if (isWorkspaceRoot && !Directory.Exists(Path.Combine(directoryPath, "src")))
+                {
+                    props["is_orchestrator"] = "true";
+                }
+
+                // End-to-end / browser test suites (Playwright, Cypress ...) without a server or UI of their own are test
+                // projects, even when an Nx project.json marks them as "application".
+                var hasE2eRunner = allDeps.Any(d => d is "@playwright/test" or "playwright" or "cypress" or "testcafe" or "webdriverio" or "@wdio/cli" or "nightwatch");
+                if (hasE2eRunner && !hasWebFramework && !hasFrontendDeps && !isWorkspaceRoot)
+                {
+                    props["manifest_type"] = "test";
+                    props["is_test_project"] = "true";
+                }
+
                 var pkgName =
                     root.TryGetProperty("name", out var np) && np.Kind == CypherValueKind.String
                         ? np.AsString().ToLowerInvariant()

@@ -32,7 +32,7 @@ public class NestJsLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (_decoratorEntryPointSelector.Matches(node) || IsNestFactoryCreate(node)) return OntologyConstants.NodeLabels.EntryPoint;
+        if ((_decoratorEntryPointSelector.Matches(node) && !IsParameterDecorator(node)) || IsNestFactoryCreate(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
     }
 
@@ -52,7 +52,7 @@ public class NestJsLibraryParser : ISemanticExtension
             return "Nest:Bootstrap";
         }
 
-        if (_decoratorEntryPointSelector.Matches(node))
+        if (_decoratorEntryPointSelector.Matches(node) && !IsParameterDecorator(node))
         {
             var func = _decoratorCallFunctionSelector.Select(node);
             if (!func.IsValid()) return null;
@@ -322,6 +322,16 @@ public class NestJsLibraryParser : ISemanticExtension
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// True for decorators applied to a method parameter (e.g. NestJS `@Query('mode') mode: string`).
+    /// Their names collide with handler decorators (`@Query`, `@Get` ...) but they never declare an endpoint.
+    /// </summary>
+    private static bool IsParameterDecorator(Node decorator)
+    {
+        var parent = decorator.Parent;
+        return parent.IsValid() && parent.IsAny(TreeSitterSyntax.TypeScript.RequiredParameter, TreeSitterSyntax.TypeScript.OptionalParameter);
     }
 
     private static List<Node> GetPrecedingDecorators(Node node)
