@@ -174,15 +174,17 @@ Libraries that require state-machine compilation, generic type arguments, or mul
 
 ---
 
-## 5. Phased Delivery Roadmap
+## 5. Phased Implementation Plan (Commit-Per-Phase, Consolidated Release)
 
-| Phase | Milestone Target | Target Scope |
+All phases are delivered via incremental commits and shipped together in a single consolidated release (`v1.73.0`):
+
+| Phase | Delivery Unit | Target Scope |
 | :---: | :--- | :--- |
-| **Phase 1: Task Queues & Schedulers** | `v1.73.0` | **Celery** (Python), **Hangfire** & **Quartz.NET** (C#), **Bull** (TS), **Asynq** (Go). |
-| **Phase 2: Modern Web Frameworks & Routers** | `v1.74.0` | **tRPC** & **Hono** (TS), **Ktor Server** (Kotlin, refactor to typed UAST), **Litestar** (Python), **Go-Zero** (Go). |
-| **Phase 3: Modern ORMs & SQL Mappers** | `v1.75.0` | **Exposed** (Kotlin), **Tortoise ORM** (Python), **SQLX** & **Ent** (Go), **MyBatis** (Java), **Marten** (C#). |
-| **Phase 4: Cloud SDKs & Resilience** | `v1.76.0` | **AWS SDK v2** (Go, Java, .NET), **Polly** (C#), **Resilience4j** (Java), **Watermill** (Go). |
-| **Phase 5: Distributed Workflows & AI Sinks** | `v1.77.0` | **Temporal SDKs** (Go, TS, Python, Java), **OpenAI / LangChain SDKs** (TS, Python). |
+| **Phase 1: Task Queues & Schedulers** | Commit 1 | **Celery** & **Dramatiq** & **RQ** (Python), **Hangfire** & **Quartz.NET** & **Wolverine** & **CAP** (C#), **Bull** & **Inngest** (TS), **Asynq** & **Watermill** (Go), **Apache Camel** & **Apache Pulsar** & **Axon** (Java). |
+| **Phase 2: Modern Web Frameworks & RPC** | Commit 2 | **tRPC**, **Hono**, **Remix**, **GraphQL Yoga** (TS), **Litestar** & **Strawberry GraphQL** (Python), **Go-Zero**, **GQLGen**, **Centrifuge** (Go), **OpenFeign / Retrofit** (Java), **Ktor Server/Client** & **Micronaut** & **GraphQL** (Kotlin), **Azure Functions** (C#). |
+| **Phase 3: Modern ORMs & SQL Mappers** | Commit 3 | **Exposed** & **Ktorm** (Kotlin), **Tortoise ORM** & **Motor** (Python), **SQLX**, **Ent**, **Bun** (Go), **MyBatis**, **JDBI**, **R2DBC** (Java), **Marten** (C#), **MikroORM / Kysely** (TS). |
+| **Phase 4: Cloud SDKs, Resilience & DI** | Commit 4 | **AWS SDK v2** (Go, Java, .NET), **Boto3** (Python), **Polly** & **OpenTelemetry** (C#), **Resilience4j** (Java), **Koin** & **Arrow** & **Kotlinx.Serialization** (Kotlin), **Testing Library** (TS). |
+| **Phase 5: Distributed Workflows & AI Sinks** | Commit 5 | **Temporal SDKs** (Go, TS, Python, Java), **MassTransit Sagas** (C#), **OpenAI / LangChain / Vercel AI SDKs** (TS, Python). |
 
 ---
 

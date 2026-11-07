@@ -33,6 +33,9 @@ public class PythonParser : IProjectParser, IFileParser
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.AioHttpPythonLibraryParser(),
+        new Libraries.CeleryLibraryParser(),
+        new Libraries.DramatiqLibraryParser(),
+        new Libraries.RqRedisStreamsLibraryParser(),
         new Libraries.ChromaDbLibraryParser(),
         new Libraries.CouchDbPythonLibraryParser(),
         new Libraries.DjangoLibraryParser(),

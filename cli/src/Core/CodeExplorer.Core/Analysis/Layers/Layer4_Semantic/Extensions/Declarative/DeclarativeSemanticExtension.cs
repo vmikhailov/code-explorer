@@ -24,7 +24,7 @@ public sealed record OutboundHttpRule
 {
     public FrozenSet<string> CallMethodNames { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> ClientAnnotationSuffixes { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression" }.ToFrozenSet();
+    public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression", "invocation_expression", "call" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
     public string FallbackTarget { get; init; } = "http:unknown-service";
 }
@@ -38,7 +38,7 @@ public sealed record SqlSinkRule
     public FrozenSet<string> QueryAnnotationSuffixes { get; init; } = FrozenSet<string>.Empty;
     public bool RequireExtractableSqlOnCall { get; init; } = true;
     public string FallbackQueryPrefix { get; init; } = "SQL Query";
-    public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression" }.ToFrozenSet();
+    public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression", "invocation_expression", "call" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
 }
 
@@ -76,7 +76,7 @@ public sealed record MessagingBrokerRule
     public FrozenSet<string> SubscribeMethodNames { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> SubscribeReceiverSubstrings { get; init; } = FrozenSet<string>.Empty;
 
-    public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression" }.ToFrozenSet();
+    public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression", "invocation_expression", "call" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
 }
 

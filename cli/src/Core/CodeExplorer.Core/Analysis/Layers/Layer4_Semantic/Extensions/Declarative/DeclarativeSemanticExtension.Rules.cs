@@ -299,10 +299,7 @@ public partial class DeclarativeSemanticExtension
 
         if (rule.PublishReceiverSubstrings.Count > 0)
         {
-            var objNode = callNode.GetField(SyntaxFields.Object)
-                          ?? callNode.GetField(SyntaxFields.Operand)
-                          ?? callNode.GetField("scope");
-            var objText = objNode.IsValid() ? objNode.Text : "";
+            var objText = GetCallReceiverText(callNode);
             if (!rule.PublishReceiverSubstrings.Any(sub => objText.Contains(sub, StringComparison.OrdinalIgnoreCase)))
             {
                 return;
@@ -360,10 +357,7 @@ public partial class DeclarativeSemanticExtension
 
         if (rule.SubscribeReceiverSubstrings.Count > 0)
         {
-            var objNode = callNode.GetField(SyntaxFields.Object)
-                          ?? callNode.GetField(SyntaxFields.Operand)
-                          ?? callNode.GetField("scope");
-            var objText = objNode.IsValid() ? objNode.Text : "";
+            var objText = GetCallReceiverText(callNode);
             if (!rule.SubscribeReceiverSubstrings.Any(sub => objText.Contains(sub, StringComparison.OrdinalIgnoreCase)))
             {
                 return;
@@ -383,8 +377,31 @@ public partial class DeclarativeSemanticExtension
         }
     }
 
+    private static string GetCallReceiverText(Node callNode)
+    {
+        var objNode = callNode.GetField(SyntaxFields.Object)
+                      ?? callNode.GetField(SyntaxFields.Operand)
+                      ?? callNode.GetField("scope");
+        if (!objNode.IsValid())
+        {
+            var funcNode = callNode.GetField(SyntaxFields.Function);
+            if (funcNode.IsValid())
+            {
+                objNode = funcNode.GetField(SyntaxFields.Expression)
+                          ?? funcNode.GetField(SyntaxFields.Object)
+                          ?? funcNode.GetField(SyntaxFields.Operand);
+            }
+        }
+        return objNode.IsValid() ? objNode.Text : "";
+    }
+
     private static string? CleanPublishTargetArg(Node argNode)
     {
+        if (argNode.Type == "argument" && argNode.Children.Count > 0)
+        {
+            argNode = argNode.Children[^1];
+        }
+
         if (IsStringLiteral(argNode))
         {
             return argNode.Text.Trim('"', '\'');

@@ -183,6 +183,8 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.RabbitMqLibraryParser(),
         new Libraries.KafkaJsLibraryParser(),
         new Libraries.BullMqLibraryParser(),
+        new Libraries.BullLegacyLibraryParser(),
+        new Libraries.InngestLibraryParser(),
         new Libraries.NestJsLibraryParser(),
         new Libraries.NestJsCqrsLibraryParser(),
         new Libraries.RoutingControllersLibraryParser(),

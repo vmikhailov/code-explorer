@@ -28,6 +28,8 @@ public class GoParser : IProjectParser, IFileParser
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.BigQueryGoLibraryParser(),
+        new Libraries.WatermillLibraryParser(),
+        new Libraries.AsynqLibraryParser(),
         new Libraries.ClickHouseGoLibraryParser(),
         new Libraries.ElasticsearchGoLibraryParser(),
         new Libraries.GinLibraryParser(),
