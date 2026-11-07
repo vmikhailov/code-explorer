@@ -8,6 +8,8 @@ public class DramatiqLibraryParser : ISemanticExtension
     private const string ActorDecorator = "actor";
     private const string SendMethod = "send";
     private const string SendWithOptionsMethod = "send_with_options";
+    private const string ActorNameKeyword = "actor_name";
+    private const string QueueNameKeyword = "queue_name";
 
     public string Name => "Dramatiq";
     public string Id => "dramatiq";
@@ -73,8 +75,8 @@ public class DramatiqLibraryParser : ISemanticExtension
 
         if (call.IsValid())
         {
-            var explicitName = PythonAstHelper.ResolveCallArgument(call, -1, "actor_name") ??
-                               PythonAstHelper.ResolveCallArgument(call, -1, "queue_name");
+            var explicitName = PythonAstHelper.ResolveCallArgument(call, -1, ActorNameKeyword) ??
+                               PythonAstHelper.ResolveCallArgument(call, -1, QueueNameKeyword);
             if (!string.IsNullOrEmpty(explicitName))
             {
                 actorName = explicitName;

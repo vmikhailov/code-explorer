@@ -6,6 +6,12 @@ public class RqRedisStreamsLibraryParser : ISemanticExtension
 {
     private const string RqPrefix = "rq:";
     private const string RedisStreamPrefix = "redis-stream:";
+    private const string FuncArgKeyword = "f";
+    private const string NameKeyword = "name";
+    private const string StreamsKeyword = "streams";
+    private const string QueueKeyword = "queue";
+    private const string DictionaryNodeType = "dictionary";
+    private const string PairNodeType = "pair";
 
     public string Name => "RQ & Redis Streams";
     public string Id => "rq-redis-streams";
@@ -46,7 +52,7 @@ public class RqRedisStreamsLibraryParser : ISemanticExtension
 
         if (EnqueueMethods.Contains(methodName))
         {
-            var fnArg = PythonAstHelper.ResolveCallArgument(node, 0, "f");
+            var fnArg = PythonAstHelper.ResolveCallArgument(node, 0, FuncArgKeyword);
             if (!string.IsNullOrEmpty(fnArg))
             {
                 var leaf = ExtractLeafIdentifier(fnArg);
@@ -55,7 +61,7 @@ public class RqRedisStreamsLibraryParser : ISemanticExtension
         }
         else if (methodName == "xadd")
         {
-            var stream = PythonAstHelper.ResolveCallArgument(node, 0, "name");
+            var stream = PythonAstHelper.ResolveCallArgument(node, 0, NameKeyword);
             if (!string.IsNullOrEmpty(stream))
             {
                 references.Add(new Reference(scopeSymbolId, RedisStreamPrefix + stream, OntologyConstants.Relationships.PublishesTo));
@@ -73,23 +79,23 @@ public class RqRedisStreamsLibraryParser : ISemanticExtension
 
     private static string? ExtractStreamKeyFromReadCall(Node callNode)
     {
-        var streamsArg = PythonAstHelper.GetKeywordArgument(callNode, "streams");
+        var streamsArg = PythonAstHelper.GetKeywordArgument(callNode, StreamsKeyword);
         if (!streamsArg.IsValid())
         {
             var args = PythonAstHelper.GetCallArguments(callNode);
-            streamsArg = args.FirstOrDefault(a => a.Is("dictionary"));
+            streamsArg = args.FirstOrDefault(a => a.Is(DictionaryNodeType));
         }
 
-        if (streamsArg.IsValid() && streamsArg.Is("dictionary"))
+        if (streamsArg.IsValid() && streamsArg.Is(DictionaryNodeType))
         {
-            var pair = streamsArg.FindChildOfType("pair");
+            var pair = streamsArg.FindChildOfType(PairNodeType);
             if (pair.IsValid() && pair.Children.Count > 0)
             {
                 return PythonAstHelper.ResolveStringOrVariable(pair.Children[0]);
             }
         }
 
-        return PythonAstHelper.ResolveCallArgument(callNode, 0, "streams");
+        return PythonAstHelper.ResolveCallArgument(callNode, 0, StreamsKeyword);
     }
 
     private static bool IsRqJobDecorator(Node node, out string jobName)
@@ -112,7 +118,7 @@ public class RqRedisStreamsLibraryParser : ISemanticExtension
         var nameNode = fn.IsValid() ? fn.GetChildForField(TreeSitterSyntax.Fields.Name) : default;
         jobName = nameNode.IsValid() && !string.IsNullOrEmpty(nameNode.Text)
             ? nameNode.Text
-            : (PythonAstHelper.ResolveCallArgument(call, 0, "queue") ?? "default");
+            : (PythonAstHelper.ResolveCallArgument(call, 0, QueueKeyword) ?? "default");
         return true;
     }
 

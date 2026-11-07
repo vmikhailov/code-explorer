@@ -377,11 +377,13 @@ public partial class DeclarativeSemanticExtension
         }
     }
 
+    private const string ScopeFieldName = "scope";
+
     private static string GetCallReceiverText(Node callNode)
     {
         var objNode = callNode.GetField(SyntaxFields.Object)
                       ?? callNode.GetField(SyntaxFields.Operand)
-                      ?? callNode.GetField("scope");
+                      ?? callNode.GetField(ScopeFieldName);
         if (!objNode.IsValid())
         {
             var funcNode = callNode.GetField(SyntaxFields.Function);

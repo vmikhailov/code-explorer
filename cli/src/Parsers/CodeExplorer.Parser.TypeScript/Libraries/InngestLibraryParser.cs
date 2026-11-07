@@ -8,6 +8,9 @@ public class InngestLibraryParser : ISemanticExtension
     private const string CreateFunctionMethod = "createFunction";
     private const string SendMethod = "send";
     private const string SendEventMethod = "sendEvent";
+    private const string EventPropKey = "event";
+    private const string IdPropKey = "id";
+    private const string NamePropKey = "name";
 
     public string Name => "Inngest";
     public string Id => "inngest";
@@ -55,8 +58,8 @@ public class InngestLibraryParser : ISemanticExtension
         if (args.Count < 2) return false;
 
         var triggerArg = args[1];
-        var extracted = ExtractPropertyString(triggerArg, "event") ??
-                        ExtractPropertyString(args[0], "id") ??
+        var extracted = ExtractPropertyString(triggerArg, EventPropKey) ??
+                        ExtractPropertyString(args[0], IdPropKey) ??
                         AstHelper.ExtractFirstStringArgument(node);
 
         if (string.IsNullOrEmpty(extracted)) return false;
@@ -77,7 +80,7 @@ public class InngestLibraryParser : ISemanticExtension
         var args = AstHelper.GetCallArguments(node);
         foreach (var arg in args)
         {
-            var nameProp = ExtractPropertyString(arg, "name");
+            var nameProp = ExtractPropertyString(arg, NamePropKey);
             if (!string.IsNullOrEmpty(nameProp))
             {
                 eventName = nameProp;

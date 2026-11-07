@@ -10,6 +10,8 @@ public class CeleryLibraryParser : ISemanticExtension
     private const string DelayMethod = "delay";
     private const string ApplyAsyncMethod = "apply_async";
     private const string SendTaskMethod = "send_task";
+    private const string NameKeyword = "name";
+    private const string QueueKeyword = "queue";
 
     public string Name => "Celery";
     public string Id => "celery";
@@ -55,7 +57,7 @@ public class CeleryLibraryParser : ISemanticExtension
             }
             else if (methodName == SendTaskMethod)
             {
-                var taskName = PythonAstHelper.ResolveCallArgument(node, 0, "name");
+                var taskName = PythonAstHelper.ResolveCallArgument(node, 0, NameKeyword);
                 if (!string.IsNullOrEmpty(taskName))
                 {
                     references.Add(new Reference(scopeSymbolId, CeleryPrefix + NormalizeTaskName(taskName), OntologyConstants.Relationships.PublishesTo));
@@ -85,8 +87,8 @@ public class CeleryLibraryParser : ISemanticExtension
 
         if (call.IsValid())
         {
-            var explicitName = PythonAstHelper.ResolveCallArgument(call, -1, "name") ??
-                               PythonAstHelper.ResolveCallArgument(call, -1, "queue");
+            var explicitName = PythonAstHelper.ResolveCallArgument(call, -1, NameKeyword) ??
+                               PythonAstHelper.ResolveCallArgument(call, -1, QueueKeyword);
             if (!string.IsNullOrEmpty(explicitName))
             {
                 taskName = NormalizeTaskName(explicitName);
