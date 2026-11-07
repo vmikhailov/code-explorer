@@ -1,0 +1,8 @@
+from_service,to_service,via,evidence
+immich-server,immich-machine-learning,http:GET /ping,server/src/repositories/machine-learning.repository.ts:133 -> machine-learning/immich_ml/main.py:160
+immich-server,immich-machine-learning,http:POST /predict,server/src/repositories/machine-learning.repository.ts:171 -> machine-learning/immich_ml/main.py:165
+immich-server,immich-microservices-worker,queue:QueueName,server/src/repositories/job.repository.ts -> @OnJob handlers across 19 QueueName queues
+immich-web,immich-server,http:/api/*,web/src -> open-api/typescript-sdk -> server/src/controllers
+immich-mobile,immich-server,http:/api/*,mobile/lib -> server/src/controllers
+immich-cli,immich-server,http:/api/*,cli/src -> open-api/typescript-sdk -> server/src/controllers
+immich-server,postgres-db,db:Kysely,docker/docker-compose.yml & server/src/schema/tables/*.table.ts

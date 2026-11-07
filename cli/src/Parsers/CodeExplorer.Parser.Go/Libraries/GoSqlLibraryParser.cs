@@ -1,52 +1,39 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoSqlLibraryParser : ISemanticExtension
+public class GoSqlLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "SQL";
-    public string Id => "sql";
-    public IReadOnlyList<string> SupportedPatterns => ["database/sql*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> SqlMethods = new[]
     {
-        if (GoSqlHelper.IsSqlCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "Query", "QueryRow", "Exec",
+        "QueryContext", "QueryRowContext", "ExecContext"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public GoSqlLibraryParser()
     {
-        if (GoSqlHelper.IsSqlCall(node, out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "sql";
+        Name = "SQL";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["database/sql*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"SQL: {clean}";
+                CallMethodNames = SqlMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "SQL"
             }
-            return $"SQL: {method ?? "Query"}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (GoSqlHelper.IsSqlCall(node, out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
             {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
+                CallMethodNames = SqlMethods,
+                StaticTargetName = "database"
             }
-            references.Add(new Reference(scopeSymbolId, "database", OntologyConstants.Relationships.UsesDb));
-        }
+        ];
     }
 }

@@ -1,48 +1,38 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class Psycopg2LibraryParser : ISemanticExtension
+public class Psycopg2LibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "PostgreSQL";
-    public string Id => "postgres";
-    public IReadOnlyList<string> SupportedPatterns => ["psycopg2", "psycopg", "psycopg2.*", "psycopg.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> ExecMethods = new[]
     {
-        if (DbApiHelper.IsDbApiCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "execute", "executemany", "executescript", "execute_sql", "raw", "fetch", "fetchrow", "fetchval"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public Psycopg2LibraryParser()
     {
-        if (DbApiHelper.IsDbApiCall(node, out var sqlText, out var method))
-        {
-            return DbApiHelper.FormatQueryIdentifier("PostgreSQL", sqlText, method);
-        }
-        return null;
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
-    {
-        DbApiHelper.EnrichDbApiSymbol(node, symbol);
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (DbApiHelper.IsDbApiCall(node, out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "postgres";
+        Name = "PostgreSQL";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["psycopg2", "psycopg", "psycopg2.*", "psycopg.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
+                CallMethodNames = ExecMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "PostgreSQL"
             }
-            references.Add(new Reference(scopeSymbolId, "postgres", OntologyConstants.Relationships.UsesDb));
-        }
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
+            {
+                CallMethodNames = ExecMethods,
+                StaticTargetName = "postgres"
+            }
+        ];
     }
 }

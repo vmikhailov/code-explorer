@@ -1,44 +1,30 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class EntGoLibraryParser : ISemanticExtension
+public sealed class EntGoLibraryParser : DeclarativeSemanticExtension
 {
-    private const string EntTargetPrefix = "ent:";
-
-    public string Name => "Ent (Go ORM)";
-    public string Id => "ent-go";
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public IReadOnlyList<string> SupportedPatterns => ["entgo.io/ent*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    private static readonly HashSet<string> EntTerminalMethods = new(StringComparer.Ordinal)
+    public EntGoLibraryParser()
     {
-        "All", "First", "Only", "Count", "Save", "SaveX", "Exec", "ExecX"
-    };
-
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid() || !func.Is(TreeSitterSyntax.Go.SelectorExpression)) return;
-
-        var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
-        var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
-        if (!field.IsValid() || !operand.IsValid()) return;
-
-        if (EntTerminalMethods.Contains(field.Text) &&
-            (operand.Text.Contains(".Create(", StringComparison.Ordinal) ||
-             operand.Text.Contains(".Query(", StringComparison.Ordinal) ||
-             operand.Text.Contains(".Update(", StringComparison.Ordinal) ||
-             operand.Text.Contains(".Delete(", StringComparison.Ordinal)))
-        {
-            references.Add(new Reference(scopeSymbolId, EntTargetPrefix + field.Text.ToLowerInvariant(), OntologyConstants.Relationships.UsesDb));
-        }
+        Id = "ent-go";
+        Name = "Ent (Go ORM)";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["entgo.io/ent*"];
+        ServiceCallSinkRules =
+        [
+            new ServiceCallSinkRule
+            {
+                CallMethodNames = new[]
+                {
+                    "All", "First", "Only", "Count", "Save", "SaveX", "Exec", "ExecX"
+                }.ToFrozenSet(),
+                ReceiverSubstrings = new[] { ".Create(", ".Query(", ".Update(", ".Delete(" }.ToFrozenSet(),
+                TargetRelation = OntologyConstants.Relationships.UsesDb,
+                TargetPrefix = "ent:",
+                UseMethodNameAsTarget = true,
+                LowercaseMethodNameTarget = true
+            }
+        ];
     }
 }

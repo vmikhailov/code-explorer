@@ -1,51 +1,33 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class SystemDataSqlClientLibraryParser : ISemanticExtension
+public class SystemDataSqlClientLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "SQL Server (Legacy)";
-    public string Id => "mssql-legacy";
-    public IReadOnlyList<string> SupportedPatterns => ["System.Data.SqlClient", "System.Data.SqlClient.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> SqlMethods = new[]
     {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "SqlCommand", out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "SqlCommand",
+        "ExecuteReader", "ExecuteReaderAsync",
+        "ExecuteNonQuery", "ExecuteNonQueryAsync",
+        "ExecuteScalar", "ExecuteScalarAsync"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public SystemDataSqlClientLibraryParser()
     {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "SqlCommand", out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "mssql-legacy";
+        Name = "SQL Server (Legacy)";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["System.Data.SqlClient", "System.Data.SqlClient.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"SQL Server: {clean}";
+                CallMethodNames = SqlMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "SQL Server"
             }
-            return $"SQL Server: {method ?? "Command"}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "SqlCommand", out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
-            }
-        }
+        ];
     }
 }

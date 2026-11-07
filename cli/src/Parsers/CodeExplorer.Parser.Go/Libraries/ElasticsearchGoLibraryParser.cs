@@ -1,65 +1,38 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class ElasticsearchGoLibraryParser : ISemanticExtension
+public sealed class ElasticsearchGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.SearchDb;
-    public string Name => "Elasticsearch";
-    public string Id => "elasticsearch";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/elastic/go-elasticsearch", "github.com/elastic/go-elasticsearch/*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> EsMethods = new[]
     {
         "Search", "Index", "Update", "Delete", "Get", "Count"
-    };
+    }.ToFrozenSet();
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ElasticsearchGoLibraryParser()
     {
-        if (IsEsCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsEsCall(node, out var method))
-        {
-            return $"Elasticsearch: {method}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsEsCall(node, out _))
-        {
-            references.Add(new Reference(scopeSymbolId, "elasticsearch", OntologyConstants.Relationships.UsesDb));
-        }
-    }
-
-    private static bool IsEsCall(Node node, out string? methodName)
-    {
-        methodName = null;
-        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return false;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return false;
-
-        var funcText = func.Text;
-        foreach (var m in EsMethods)
-        {
-            if (funcText.EndsWith("." + m, StringComparison.Ordinal) || funcText == m)
+        Id = "elasticsearch";
+        Name = "Elasticsearch";
+        Type = SemanticExtensionType.SearchDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["github.com/elastic/go-elasticsearch", "github.com/elastic/go-elasticsearch/*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                methodName = m;
-                return true;
+                CallMethodNames = EsMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "Elasticsearch"
             }
-        }
-
-        return false;
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
+            {
+                CallMethodNames = EsMethods,
+                StaticTargetName = "elasticsearch"
+            }
+        ];
     }
 }

@@ -15,8 +15,27 @@ public static class OntologyUploader
         var collectedRelationships = new List<Relationship>();
         var visitedNodeIds = new HashSet<string>();
         var visitedRelKeys = new HashSet<(string From, string To, string Kind)>();
+        var nodesWithRefs = new List<IOntologyNode>();
 
-        CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+        CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
+
+        for (var n = 0; n < nodesWithRefs.Count; n++)
+        {
+            var refList = nodesWithRefs[n].References;
+            for (var r = 0; r < refList.Count; r++)
+            {
+                var refItem = refList[r];
+                if (refItem.Kind == OntologyConstants.Relationships.Calls && !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
+                {
+                    continue;
+                }
+                if (refItem.Kind == OntologyConstants.Relationships.UsesType && !ctx.IsKnownWorkspaceType(refItem.TargetName))
+                {
+                    continue;
+                }
+                ctx.GlobalReferences.Add(refItem);
+            }
+        }
 
         // Store all tree relationships in ctx for post-indexing and layer 5 analysis
         ctx.TreeRelationships.AddRange(collectedRelationships);
@@ -48,7 +67,8 @@ public static class OntologyUploader
         List<Node> collectedNodes,
         List<Relationship> collectedRelationships,
         HashSet<string> visitedNodeIds,
-        HashSet<(string From, string To, string Kind)> visitedRelKeys)
+        HashSet<(string From, string To, string Kind)> visitedRelKeys,
+        List<IOntologyNode> nodesWithRefs)
     {
         var isDuplicate = visitedNodeIds.Contains(node.Id);
 
@@ -264,13 +284,13 @@ public static class OntologyUploader
             // 4. Collect unresolved references/dependencies
             if (node.References.Count > 0)
             {
-                ctx.AddGlobalReferences(node.References);
+                nodesWithRefs.Add(node);
             }
 
             // 5. Recursively collect all children
             foreach (var child in node.Children)
             {
-                CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+                CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
             }
         }
         else if (node is DatabaseNode or DataSetNode)
@@ -279,7 +299,7 @@ public static class OntologyUploader
             // each holding its own TableNode/ProcedureNode children. Always traverse children of duplicate DB/DataSet containers.
             foreach (var child in node.Children)
             {
-                CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+                CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
             }
         }
     }

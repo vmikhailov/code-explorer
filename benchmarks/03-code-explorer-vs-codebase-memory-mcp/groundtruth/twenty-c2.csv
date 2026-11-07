@@ -1,0 +1,13 @@
+id,file,line,symbol,detail
+twenty-c2-S01,packages/twenty-server/src/engine/core-modules/application/application-marketplace/marketplace.service.ts,68,MarketplaceService.fetchManifestFromRegistryCdn,"url, {"
+twenty-c2-S02,packages/twenty-server/src/engine/core-modules/application/application-marketplace/marketplace.service.ts,177,MarketplaceService.fetchRegistrySearchPage,
+twenty-c2-S03,packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration-claim.service.ts,346,ApplicationRegistrationClaimService.fetchLatestVersion,"`${registryUrl}/${encodedName}/latest`, {"
+twenty-c2-S04,packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration-claim.service.ts,415,ApplicationRegistrationClaimService.assertGithubOwnership,"'https://api.github.com/user', {"
+twenty-c2-S05,packages/twenty-server/src/engine/core-modules/captcha/drivers/google-recaptcha.driver.ts,33,GoogleRecaptchaDriver.validate,"'', formData)"
+twenty-c2-S06,packages/twenty-server/src/engine/core-modules/emailing-domain/drivers/resend/services/resend-api-client.service.ts,69,ResendApiClientService.downloadRawEmail,downloadUrl)
+twenty-c2-S07,packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts,314,EnterprisePlanService.refreshValidityToken,"validateUrl, {"
+twenty-c2-S08,packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts,452,EnterprisePlanService.releaseServerBinding,"releaseUrl, {"
+twenty-c2-S09,packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts,575,EnterprisePlanService.requestPortalUrlWithKey,"portalUrl, {"
+twenty-c2-S10,packages/twenty-server/src/engine/core-modules/frontend/frontend.service.ts,78,FrontendService.getTemplate,"this.indexUrl, {"
+twenty-c2-S11,packages/twenty-server/src/modules/calendar/calendar-event-import-manager/drivers/caldav/lib/auth/create-basic-digest-auth-fetch.ts,26,UnknownClass.unknownMethod,"input, {"
+twenty-c2-S12,packages/twenty-server/src/modules/messaging-webhooks/drivers/aws-ses/services/sns-subscription-confirmer.service.ts,28,SnsSubscriptionConfirmerService.confirm,subscribeUrl)

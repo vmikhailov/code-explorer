@@ -13,6 +13,93 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeExplorer.Core.Parser;
 
+public enum SymbolVisibility : byte
+{
+    Private = 0,
+    FilePrivate = 1,
+    Protected = 2,
+    Internal = 3,
+    Public = 4
+}
+
+public readonly record struct SymbolScopeInfo(
+    string SymbolId,
+    string FilePath,
+    string? ProjectName,
+    string? Namespace,
+    string? EnclosingTypeName,
+    SymbolVisibility Visibility,
+    bool IsTest = false);
+
+public static class WorkspaceSymbolScopeExtensions
+{
+    public static void RegisterKnownCallableName(this ParsingContext ctx, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        ctx.KnownWorkspaceCallableNames.TryAdd(name, 0);
+        var lastDot = name.LastIndexOf('.');
+        if (lastDot >= 0 && lastDot + 1 < name.Length)
+        {
+            ctx.KnownWorkspaceCallableNames.TryAdd(name[(lastDot + 1)..], 0);
+        }
+    }
+
+    public static void RegisterKnownTypeName(this ParsingContext ctx, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        ctx.KnownWorkspaceTypeNames.TryAdd(name, 0);
+        ctx.KnownWorkspaceCallableNames.TryAdd(name, 0);
+        var lastDot = name.LastIndexOf('.');
+        if (lastDot >= 0 && lastDot + 1 < name.Length)
+        {
+            var shortName = name[(lastDot + 1)..];
+            ctx.KnownWorkspaceTypeNames.TryAdd(shortName, 0);
+            ctx.KnownWorkspaceCallableNames.TryAdd(shortName, 0);
+        }
+    }
+
+    public static bool IsKnownWorkspaceCallable(this ParsingContext ctx, string? targetName)
+    {
+        if (string.IsNullOrWhiteSpace(targetName)) return false;
+        if (!ctx.HasWorkspaceSymbolFilter || ctx.IsSubtreeScan) return true;
+        if (ctx.KnownWorkspaceCallableNames.ContainsKey(targetName)) return true;
+        var lastDot = targetName.LastIndexOf('.');
+        if (lastDot >= 0 && lastDot + 1 < targetName.Length)
+        {
+            var lookup = ctx.KnownWorkspaceCallableNames.GetAlternateLookup<ReadOnlySpan<char>>();
+            if (lookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
+        }
+        return false;
+    }
+
+    public static bool IsKnownWorkspaceType(this ParsingContext ctx, string? targetName)
+    {
+        if (string.IsNullOrWhiteSpace(targetName)) return false;
+        if (!ctx.HasWorkspaceSymbolFilter || ctx.IsSubtreeScan) return true;
+        if (ctx.KnownWorkspaceTypeNames.ContainsKey(targetName)) return true;
+        var lastDot = targetName.LastIndexOf('.');
+        if (lastDot >= 0 && lastDot + 1 < targetName.Length)
+        {
+            var lookup = ctx.KnownWorkspaceTypeNames.GetAlternateLookup<ReadOnlySpan<char>>();
+            if (lookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
+        }
+        return false;
+    }
+
+    internal static void RegisterSymbolByKind(this ParsingContext ctx, string kind, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        if (kind is OntologyConstants.NodeLabels.Type or "Class" or "Interface" or "Struct" or "Enum")
+        {
+            ctx.RegisterKnownTypeName(name);
+        }
+        else if (kind is OntologyConstants.NodeLabels.Function or OntologyConstants.NodeLabels.Procedure or OntologyConstants.NodeLabels.Endpoint or OntologyConstants.NodeLabels.EntryPoint)
+        {
+            ctx.RegisterKnownCallableName(name);
+        }
+    }
+}
+
 public class ParsingContext
 {
     public string AbsoluteWorkspacePath { get; }
@@ -68,6 +155,13 @@ public class ParsingContext
     public List<Relationship> GlobalProjectDependencies { get; }
     public List<Relationship> TreeRelationships { get; } = [];
 
+    public System.Collections.Concurrent.ConcurrentDictionary<string, SymbolScopeInfo> SymbolScopes { get; } = new(StringComparer.Ordinal);
+    public System.Collections.Concurrent.ConcurrentDictionary<string, string> FileNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> FileImportedNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public System.Collections.Concurrent.ConcurrentDictionary<string, byte> KnownWorkspaceCallableNames { get; } = new(StringComparer.Ordinal);
+    public System.Collections.Concurrent.ConcurrentDictionary<string, byte> KnownWorkspaceTypeNames { get; } = new(StringComparer.Ordinal);
+    public bool HasWorkspaceSymbolFilter { get; set; }
+
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
     public List<RawTypeBinding> RawTypeBindings { get; } = [];
@@ -111,23 +205,29 @@ public class ParsingContext
     {
         GlobalSymbols[(kind, name)] = id;
         GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+        this.RegisterSymbolByKind(kind, name);
     }
 
     public void AddGlobalSymbol(NodeKind kind, string name, string id)
     {
-        GlobalSymbols[(kind.ToCypherLabel(), name)] = id;
+        var label = kind.ToCypherLabel();
+        GlobalSymbols[(label, name)] = id;
         GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+        this.RegisterSymbolByKind(label, name);
     }
 
     public void AddGlobalSymbol(SymbolKey key, string id)
     {
-        GlobalSymbols[(key.Kind.ToCypherLabel(), key.Name)] = id;
+        var label = key.Kind.ToCypherLabel();
+        GlobalSymbols[(label, key.Name)] = id;
         GlobalSymbolKeys[key] = id;
+        this.RegisterSymbolByKind(label, key.Name);
     }
 
     public void AddFileScopedSymbol(string filePath, string kind, string name, string id)
     {
         FileScopedSymbols[(filePath, kind, name)] = id;
+        this.RegisterSymbolByKind(kind, name);
     }
 
     public void AddGlobalReferences(IEnumerable<Reference> references)

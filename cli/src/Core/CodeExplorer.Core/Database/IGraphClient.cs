@@ -9,6 +9,8 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     GraphContext Graph => new(this);
     IGraphRepository AsRepository() => this is IGraphRepository repo ? repo : new PersistedGraphRepository(this);
 
+    Task BeginBulkLoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    Task CommitBulkLoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     Task CreateIndicesAsync();
     Task ClearDatabaseAsync();
     Task<bool> ClearWorkspaceAsync(string workspacePath);
@@ -231,6 +233,9 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 
     Task<(int NodesCount, int RelationshipsCount)> GetGraphCountsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult((0, 0));
+
+    Task<string?> GetTaxonomyJsonAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }
 
 public record ProjectSignature(

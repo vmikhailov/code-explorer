@@ -1,68 +1,38 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class Neo4jDriverLibraryParser : ISemanticExtension
+public sealed class Neo4jDriverLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GraphDb;
-    public string Name => "Neo4j";
-    public string Id => "neo4j";
-    public IReadOnlyList<string> SupportedPatterns => ["Neo4j.Driver", "Neo4j.Driver.*", "Neo4j.Driver.Simple"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    private static readonly HashSet<string> Neo4jMethods = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> Neo4jMethods = new[]
     {
         "Run", "RunAsync", "ExecuteReadAsync", "ExecuteWriteAsync"
-    };
+    }.ToFrozenSet();
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public Neo4jDriverLibraryParser()
     {
-        if (IsNeo4jCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsNeo4jCall(node, out var method))
-        {
-            var query = AdoNetCommandHelper.ExtractSqlFromArguments(node);
-            if (!string.IsNullOrEmpty(query))
+        Id = "neo4j";
+        Name = "Neo4j";
+        Type = SemanticExtensionType.GraphDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["Neo4j.Driver", "Neo4j.Driver.*", "Neo4j.Driver.Simple"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(query);
-                return $"Neo4j: {clean}";
+                CallMethodNames = Neo4jMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "Neo4j"
             }
-            return $"Neo4j: {method}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsNeo4jCall(node, out _))
-        {
-            references.Add(new Reference(scopeSymbolId, "neo4j", OntologyConstants.Relationships.UsesDb));
-        }
-    }
-
-    private static bool IsNeo4jCall(Node node, out string? methodName)
-    {
-        methodName = null;
-        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
-
-        var func = node.GetFunctionNode();
-        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
-        {
-            var name = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
-            if (!string.IsNullOrEmpty(name) && Neo4jMethods.Contains(name))
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
             {
-                methodName = name;
-                return true;
+                CallMethodNames = Neo4jMethods,
+                StaticTargetName = "neo4j"
             }
-        }
-        return false;
+        ];
     }
 }

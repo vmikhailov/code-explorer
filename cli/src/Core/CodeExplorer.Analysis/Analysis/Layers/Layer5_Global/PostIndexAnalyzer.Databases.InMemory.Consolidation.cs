@@ -332,6 +332,11 @@ public partial class PostIndexAnalyzer
         HashSet<string>? rawImplicitDbIds = null)
     {
         var workloadToProject = BuildWorkloadToProjectMap(l4Result, projects);
+        var projectsById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var pr in projects)
+        {
+            projectsById.TryAdd(pr.Id, pr);
+        }
         var resolvedOwnersCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
 
         ProjectNode? ResolveOwner(string id)
@@ -348,11 +353,20 @@ public partial class PostIndexAnalyzer
                 resolvedOwnersCache[id] = fp;
                 return fp;
             }
-            var p = projects.FirstOrDefault(pr => pr.Id == id || id.StartWithIC(pr.Id));
-            if (p != null)
+            if (projectsById.TryGetValue(id, out var exactProj))
             {
-                resolvedOwnersCache[id] = p;
-                return p;
+                resolvedOwnersCache[id] = exactProj;
+                return exactProj;
+            }
+            if (id.Contains(":p:", StringComparison.OrdinalIgnoreCase) ||
+                id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = projects.FirstOrDefault(pr => id.StartWithIC(pr.Id));
+                if (p != null)
+                {
+                    resolvedOwnersCache[id] = p;
+                    return p;
+                }
             }
             var found = FindOwningProjectForId(id, projects, fileToProject);
             resolvedOwnersCache[id] = found;

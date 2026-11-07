@@ -1,69 +1,24 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class Mysql2LibraryParser : ISemanticExtension
+public sealed class Mysql2LibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "MySQL";
-    public string Id => "mysql";
-    public IReadOnlyList<string> SupportedPatterns => ["mysql2", "mysql", "@types/mysql", "@types/mysql2"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public Mysql2LibraryParser()
     {
-        if (IsMysqlQuery(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsMysqlQuery(node))
-        {
-            var sqlText = ExtractSqlArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "mysql";
+        Name = "MySQL";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["mysql2", "mysql", "@types/mysql", "@types/mysql2"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"MySQL Query: {clean}";
+                CallMethodNames = new[] { "query", "execute" }.ToFrozenSet(),
+                RequireExtractableSqlOnCall = false,
+                FallbackQueryPrefix = "MySQL Query"
             }
-            return "MySQL Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsMysqlQuery(node))
-        {
-            var sqlText = ExtractSqlArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
-            }
-        }
-    }
-
-    private static bool IsMysqlQuery(Node node)
-    {
-        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
-
-        if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
-        {
-            return propName is "query" or "execute";
-        }
-        return false;
-    }
-
-    private static string? ExtractSqlArgument(Node node)
-    {
-        return AstHelper.ExtractFirstStringArgument(node);
+        ];
     }
 }

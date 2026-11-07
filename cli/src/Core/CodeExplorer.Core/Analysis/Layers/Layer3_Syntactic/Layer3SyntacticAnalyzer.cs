@@ -340,6 +340,8 @@ public partial class Layer3SyntacticParser
             projectPass1List.Add((project, projectSyntaxNode, projectFiles, parsedResults));
         }
 
+        Layer3ScopeVisibilityPass.PopulatePass1WorkspaceSymbolIndex(projectPass1List, ctx);
+
         var parallelOptionsPass2 = new ParallelOptions
         {
             CancellationToken = ctx.CancellationToken,
@@ -583,6 +585,8 @@ public partial class Layer3SyntacticParser
             Type = fileParser.ResolveImportType(ri.Path, relativePath, absoluteWorkspacePath)
         }).ToList();
 
+        Layer3ScopeVisibilityPass.RegisterFileRawImports(ctx, relativePath, rawImports);
+
         var rawVariables = mainVisitor.RawVariables.Select(rv => rv with { FilePath = relativePath }).ToList();
         var rawTypeBindings = mainVisitor.RawTypeBindings.Select(rt => rt with { FilePath = relativePath }).ToList();
 
@@ -631,6 +635,13 @@ public partial class Layer3SyntacticParser
                 effectiveIsTest,
                 effectiveProjectKind,
                 effectiveProjectName);
+            Layer3ScopeVisibilityPass.PopulateSymbolScopeMetadata(
+                syntaxTree.FileNode,
+                syntaxTree.Document,
+                relativePath,
+                effectiveProjectName,
+                effectiveIsTest,
+                ctx);
         }
 
         SemanticPostProcessor?.Invoke(syntaxTree, ctx);

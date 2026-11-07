@@ -1,0 +1,9 @@
+service,root_path,kind,evidence
+twenty-server,packages/twenty-server,service,packages/twenty-docker/docker-compose.yml (service: server) & packages/twenty-server/src/main.ts
+twenty-worker,packages/twenty-server,worker,packages/twenty-docker/docker-compose.yml (service: worker command: yarn worker:prod) & packages/twenty-server/src/queue-worker/queue-worker.ts
+twenty-front,packages/twenty-front,frontend,packages/twenty-front/package.json
+twenty-emails,packages/twenty-emails,library,packages/twenty-emails/package.json
+twenty-shared,packages/twenty-shared,library,packages/twenty-shared/package.json
+twenty-ui,packages/twenty-ui,library,packages/twenty-ui/package.json
+twenty-sdk,packages/twenty-sdk,library,packages/twenty-sdk/package.json
+twenty-client-sdk,packages/twenty-client-sdk,library,packages/twenty-client-sdk/package.json

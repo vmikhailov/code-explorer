@@ -1,81 +1,53 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PythonRedisLibraryParser : ISemanticExtension
+public sealed class PythonRedisLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
-    public string Name => "Redis";
-    public string Id => "redis";
-    public IReadOnlyList<string> SupportedPatterns => ["redis", "redis.*", "aioredis", "aioredis.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    private static readonly HashSet<string> RedisMethods = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> DbRedisMethods = new[]
     {
         "get", "set", "delete", "mget", "mset", "incr", "decr", "exists",
         "hget", "hset", "hdel", "hgetall",
-        "lpush", "rpush", "lpop", "rpop",
-        "publish", "subscribe"
-    };
+        "lpush", "rpush", "lpop", "rpop"
+    }.ToFrozenSet();
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> AllRedisMethods =
+        DbRedisMethods.Concat(["publish", "subscribe"]).ToFrozenSet();
+
+    public PythonRedisLibraryParser()
     {
-        if (IsRedisCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsRedisCall(node, out var method, out _))
-        {
-            return $"Redis: {method}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsRedisCall(node, out var method, out var target))
-        {
-            if (method == "publish")
+        Id = "redis";
+        Name = "Redis";
+        Type = SemanticExtensionType.KeyValueDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["redis", "redis.*", "aioredis", "aioredis.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
-                references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.PublishesTo));
+                CallMethodNames = AllRedisMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "Redis"
             }
-            else if (method == "subscribe")
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
             {
-                var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
-                references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.SubscribesTo));
+                CallMethodNames = DbRedisMethods,
+                StaticTargetName = "redis"
             }
-            else
+        ];
+        MessagingBrokerRules =
+        [
+            new MessagingBrokerRule
             {
-                references.Add(new Reference(scopeSymbolId, "redis", OntologyConstants.Relationships.UsesDb));
+                Protocol = "redis",
+                FallbackTopicName = "redis",
+                PublishMethodNames = new[] { "publish" }.ToFrozenSet(),
+                SubscribeMethodNames = new[] { "subscribe" }.ToFrozenSet()
             }
-        }
-    }
-
-    private static bool IsRedisCall(Node node, out string? methodName, out string? targetInfo)
-    {
-        methodName = null;
-        targetInfo = null;
-
-        if (PythonAstHelper.TryGetMemberAccess(node, out _, out methodName))
-        {
-            if (methodName != null && RedisMethods.Contains(methodName))
-            {
-                var args = PythonAstHelper.GetCallArguments(node);
-                if (args.Count > 0)
-                {
-                    targetInfo = PythonAstHelper.ResolveStringOrVariable(args[0]);
-                }
-                return true;
-            }
-        }
-
-        return false;
+        ];
     }
 }

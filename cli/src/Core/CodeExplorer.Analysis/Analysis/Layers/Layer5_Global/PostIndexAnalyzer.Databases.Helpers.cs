@@ -492,28 +492,19 @@ public partial class PostIndexAnalyzer
         {
             if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
             {
-                await db.ExecuteWriteAsync(
-                    "UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;",
-                    new { canonicalId, rawId }, cancellationToken);
-
-                await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId },
-                    cancellationToken);
-
-                await db.ExecuteWriteAsync(
-                    "UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;",
-                    new { canonicalId, rawId }, cancellationToken);
-
-                await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId },
-                    cancellationToken);
-
-                await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId },
-                    cancellationToken);
+                await db.ExecuteWriteAsync("""
+                    UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;
+                    DELETE FROM edges WHERE to_id = @rawId;
+                    UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;
+                    DELETE FROM edges WHERE from_id = @rawId;
+                    DELETE FROM nodes WHERE id = @rawId;
+                    """, new { canonicalId, rawId }, cancellationToken);
             }
         }
 
         // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
         await db.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
+            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND kind = 'CONTAINS' AND from_id NOT LIKE '%semantic_structure%';",
             null, cancellationToken);
 
         // Purge any remaining phantom Database nodes that were not canonicalized
@@ -526,25 +517,17 @@ public partial class PostIndexAnalyzer
             for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
 
             await db.ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
+                $"DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
                 paramDict, cancellationToken);
-
-            await db.ExecuteWriteAsync(
-                $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});", paramDict,
-                cancellationToken);
         }
         else
         {
-            await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');", null, cancellationToken);
-            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';", null, cancellationToken);
+            await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM nodes WHERE kind = 'Database';", null, cancellationToken);
         }
 
         // Purge any invalid Table nodes (e.g. containing spaces like 'ordering api')
         await db.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %');",
-            null, cancellationToken);
-        await db.ExecuteWriteAsync(
-            "DELETE FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %';",
+            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %'); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %'); DELETE FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %';",
             null, cancellationToken);
 
         // Link orphaned DDL tables (e.g. created via .sql schema files without explicit CREATE DATABASE) to canonical database

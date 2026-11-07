@@ -48,7 +48,16 @@ public class KotlinProjectParser : IProjectParser
         new Libraries.KtormLibraryParser(),
         new Libraries.KoinLibraryParser(),
         new Libraries.ArrowKotlinLibraryParser(),
-        new Libraries.KotlinxSerializationLibraryParser()
+        new Libraries.KotlinxSerializationLibraryParser(),
+        new Libraries.CoroutinesFlowChannelLibraryParser(),
+        new Libraries.Http4kLibraryParser(),
+        new Libraries.GrpcKotlinLibraryParser(),
+        new Libraries.ApolloKotlinLibraryParser(),
+        new Libraries.SqlDelightLibraryParser(),
+        new Libraries.SupabaseFirebaseKotlinLibraryParser(),
+        new Libraries.DaggerHiltKodeinLibraryParser(),
+        new Libraries.KotestMockkLibraryParser(),
+        new Libraries.ComposeNavigationKotlinLibraryParser()
     ];
 
     public KotlinProjectParser()

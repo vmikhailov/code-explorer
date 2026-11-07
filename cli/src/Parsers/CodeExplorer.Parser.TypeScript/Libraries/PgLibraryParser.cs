@@ -1,69 +1,27 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class PgLibraryParser : ISemanticExtension
+public sealed class PgLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "PostgreSQL";
-    public string Id => "postgres";
-    public IReadOnlyList<string> SupportedPatterns => ["pg", "pg-promise", "@types/pg"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public PgLibraryParser()
     {
-        if (IsPgQuery(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsPgQuery(node))
-        {
-            var sqlText = ExtractSqlArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "postgres";
+        Name = "PostgreSQL";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["pg", "pg-promise", "@types/pg"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
+                CallMethodNames = new[]
                 {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"PostgreSQL Query: {clean}";
+                    "query", "any", "one", "oneOrNone", "many", "none", "multi"
+                }.ToFrozenSet(),
+                RequireExtractableSqlOnCall = false,
+                FallbackQueryPrefix = "PostgreSQL Query"
             }
-            return "PostgreSQL Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsPgQuery(node))
-        {
-            var sqlText = ExtractSqlArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
-            }
-        }
-    }
-
-    private static bool IsPgQuery(Node node)
-    {
-        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
-
-        if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
-        {
-            return propName is "query" or "any" or "one" or "oneOrNone" or "many" or "none" or "multi";
-        }
-        return false;
-    }
-
-    private static string? ExtractSqlArgument(Node node)
-    {
-        return AstHelper.ExtractFirstStringArgument(node);
+        ];
     }
 }

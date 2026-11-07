@@ -12,16 +12,18 @@ public partial class Layer5AnalysisParser
         public readonly string TypeName;
         public readonly string? ScopeMarker;
         public readonly string? ScopeId;
+        public readonly string? FilePath;
 
-        public IndexedBinding(string typeName, string? scopeId)
+        public IndexedBinding(string typeName, string? scopeId, string? filePath = null)
         {
             TypeName = typeName.TrimEnd('?');
             ScopeId = string.IsNullOrWhiteSpace(scopeId) ? null : scopeId;
             ScopeMarker = ScopeId != null ? $":{ScopeId}:" : null;
+            FilePath = string.IsNullOrWhiteSpace(filePath) ? null : filePath;
         }
     }
 
-    private static string? ExtractSymbolNameFromId(string symbolId)
+    internal static string? ExtractSymbolNameFromId(string symbolId)
     {
         if (Urn.TryParse(symbolId, out var urn) && !string.IsNullOrEmpty(urn.Name))
         {
@@ -122,7 +124,7 @@ public partial class Layer5AnalysisParser
         ctx.Layer5Log.PreloadedTargetedSymbols(addedCount);
     }
 
-    private record SymbolLookups(
+    internal record SymbolLookups(
         Dictionary<string, string> TypeSymbols,
         Dictionary<string, string> FunctionSymbols,
         Dictionary<(string FilePath, string FuncName), string> FunctionSymbolsByFile,
@@ -134,10 +136,18 @@ public partial class Layer5AnalysisParser
         Dictionary<string, string> EndpointSymbols,
         Dictionary<string, string> EntryPointSymbols,
         Dictionary<string, Dictionary<string, List<string>>>? FunctionsByProject = null,
-        List<string>? ProjectsSortedByLengthDesc = null)
+        List<string>? ProjectsSortedByLengthDesc = null,
+        Dictionary<string, List<string>>? TypesByName = null,
+        Dictionary<string, HashSet<string>>? ReachableProjects = null,
+        HashSet<string>? ProjectsInDepGraph = null,
+        HashSet<(string From, string To)>? InheritanceRels = null)
     {
         public Dictionary<string, Dictionary<string, List<string>>> FunctionsByProject { get; init; } = FunctionsByProject ?? new(StringComparer.OrdinalIgnoreCase);
         public List<string> ProjectsSortedByLengthDesc { get; init; } = ProjectsSortedByLengthDesc ?? [];
+        public Dictionary<string, List<string>> TypesByName { get; init; } = TypesByName ?? new(StringComparer.Ordinal);
+        public Dictionary<string, HashSet<string>> ReachableProjects { get; init; } = ReachableProjects ?? new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ProjectsInDepGraph { get; init; } = ProjectsInDepGraph ?? new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<(string From, string To)> InheritanceRels { get; init; } = InheritanceRels ?? [];
     }
 
     private record ImportedSymbolEntry(
@@ -168,6 +178,7 @@ public partial class Layer5AnalysisParser
     private static SymbolLookups BuildSymbolLookups(ParsingContext ctx, Layer4Result? l4Result = null)
     {
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var typesByName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbolsByFile = new Dictionary<(string FilePath, string FuncName), string>();
         var functionsByName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -179,44 +190,69 @@ public partial class Layer5AnalysisParser
         var endpointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var entryPointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
 
+        void RegisterFileInProject(string? projKey, string normFile)
+        {
+            if (string.IsNullOrEmpty(projKey)) return;
+            if (!filesByProject.TryGetValue(projKey, out var pFiles))
+            {
+                pFiles = [];
+                filesByProject[projKey] = pFiles;
+            }
+            if (!pFiles.Contains(normFile)) pFiles.Add(normFile);
+        }
+
+        void RegisterFunctionInProject(string? projKey, string fnName, string fnId)
+        {
+            if (string.IsNullOrEmpty(projKey)) return;
+            if (!functionsByProject.TryGetValue(projKey, out var projFns))
+            {
+                projFns = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                functionsByProject[projKey] = projFns;
+            }
+            if (!projFns.TryGetValue(fnName, out var pfnList))
+            {
+                pfnList = [];
+                projFns[fnName] = pfnList;
+            }
+            if (!pfnList.Contains(fnId))
+            {
+                pfnList.Add(fnId);
+            }
+        }
+
         foreach (var ((filePath, kind, name), id) in ctx.FileScopedSymbols)
         {
             var normFuncFile = filePath.Replace('\\', '/');
             knownFiles.Add(normFuncFile);
 
             var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
-            if (proj != null)
+            RegisterFileInProject(proj, normFuncFile);
+            string? scopeProj = null;
+            if (ctx.SymbolScopes.TryGetValue(id, out var scopeInfo) &&
+                !string.IsNullOrEmpty(scopeInfo.ProjectName) &&
+                !string.Equals(scopeInfo.ProjectName, proj, StringComparison.OrdinalIgnoreCase))
             {
-                if (!filesByProject.TryGetValue(proj, out var pFiles))
-                {
-                    pFiles = [];
-                    filesByProject[proj] = pFiles;
-                }
-                if (!pFiles.Contains(normFuncFile)) pFiles.Add(normFuncFile);
+                scopeProj = scopeInfo.ProjectName;
+                RegisterFileInProject(scopeProj, normFuncFile);
             }
 
-            if (kind == OntologyConstants.NodeLabels.Function)
+            if (kind == OntologyConstants.NodeLabels.Type || kind is "Class" or "Interface" or "Struct" or "Enum" or "Record")
+            {
+                typeSymbols[name] = id;
+                if (!typesByName.TryGetValue(name, out var tList))
+                {
+                    tList = [];
+                    typesByName[name] = tList;
+                }
+                if (!tList.Contains(id)) tList.Add(id);
+            }
+            else if (kind == OntologyConstants.NodeLabels.Function)
             {
                 functionSymbolsByFile[(normFuncFile, name)] = id;
                 if (!string.Equals(name, "<module_init>", StringComparison.Ordinal))
                 {
-                    if (proj != null)
-                    {
-                        if (!functionsByProject.TryGetValue(proj, out var projFns))
-                        {
-                            projFns = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-                            functionsByProject[proj] = projFns;
-                        }
-                        if (!projFns.TryGetValue(name, out var pfnList))
-                        {
-                            pfnList = [];
-                            projFns[name] = pfnList;
-                        }
-                        if (!pfnList.Contains(id))
-                        {
-                            pfnList.Add(id);
-                        }
-                    }
+                    RegisterFunctionInProject(proj, name, id);
+                    RegisterFunctionInProject(scopeProj, name, id);
 
                     if (!functionsByName.TryGetValue(name, out var fnList))
                     {
@@ -237,6 +273,12 @@ public partial class Layer5AnalysisParser
             {
                 case OntologyConstants.NodeLabels.Type:
                     typeSymbols[key.Name] = id;
+                    if (!typesByName.TryGetValue(key.Name, out var tList))
+                    {
+                        tList = [];
+                        typesByName[key.Name] = tList;
+                    }
+                    if (!tList.Contains(id)) tList.Add(id);
                     break;
                 case OntologyConstants.NodeLabels.Function:
                     if (!string.Equals(key.Name, "<module_init>", StringComparison.Ordinal))
@@ -261,32 +303,20 @@ public partial class Layer5AnalysisParser
                         knownFiles.Add(normFuncFile);
 
                         var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
-                        if (proj != null)
+                        RegisterFileInProject(proj, normFuncFile);
+                        string? scopeProj = null;
+                        if (ctx.SymbolScopes.TryGetValue(id, out var scopeInfo) &&
+                            !string.IsNullOrEmpty(scopeInfo.ProjectName) &&
+                            !string.Equals(scopeInfo.ProjectName, proj, StringComparison.OrdinalIgnoreCase))
                         {
-                            if (!filesByProject.TryGetValue(proj, out var pFiles))
-                            {
-                                pFiles = [];
-                                filesByProject[proj] = pFiles;
-                            }
-                            if (!pFiles.Contains(normFuncFile)) pFiles.Add(normFuncFile);
+                            scopeProj = scopeInfo.ProjectName;
+                            RegisterFileInProject(scopeProj, normFuncFile);
+                        }
 
-                            if (!string.Equals(key.Name, "<module_init>", StringComparison.Ordinal))
-                            {
-                                if (!functionsByProject.TryGetValue(proj, out var projFns))
-                                {
-                                    projFns = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-                                    functionsByProject[proj] = projFns;
-                                }
-                                if (!projFns.TryGetValue(key.Name, out var pfnList))
-                                {
-                                    pfnList = [];
-                                    projFns[key.Name] = pfnList;
-                                }
-                                if (!pfnList.Contains(id))
-                                {
-                                    pfnList.Add(id);
-                                }
-                            }
+                        if (!string.Equals(key.Name, "<module_init>", StringComparison.Ordinal))
+                        {
+                            RegisterFunctionInProject(proj, key.Name, id);
+                            RegisterFunctionInProject(scopeProj, key.Name, id);
                         }
                     }
                     break;
@@ -322,6 +352,7 @@ public partial class Layer5AnalysisParser
             CollectTableSymbols(l4Result.SemanticStructure, tableSymbols);
         }
 
+        var (reachableProjects, projectsInDepGraph) = Layer5SymbolVisibilityResolver.BuildProjectReachabilityMatrix(ctx, l4Result);
         var projectsSortedByLengthDesc = filesByProject.Keys.OrderByDescending(k => k.Length).ToList();
 
         return new SymbolLookups(
@@ -336,7 +367,10 @@ public partial class Layer5AnalysisParser
             endpointSymbols,
             entryPointSymbols,
             functionsByProject,
-            projectsSortedByLengthDesc);
+            projectsSortedByLengthDesc,
+            typesByName,
+            reachableProjects,
+            projectsInDepGraph);
     }
 
     private static void CollectTableSymbols(IOntologyNode node, Dictionary<string, string> tableSymbols)
@@ -367,7 +401,8 @@ public partial class Layer5AnalysisParser
                 if (refItem.Kind == OntologyConstants.Relationships.Implements ||
                     refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
                 {
-                    if (symbols.TypeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId) && refItem.ScopeSymbolId != targetNodeId)
+                    var targetNodeId = Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(refItem.TargetName, refItem.ScopeSymbolId, ctx, symbols);
+                    if (targetNodeId != null && refItem.ScopeSymbolId != targetNodeId)
                     {
                         if (refItem.Kind == OntologyConstants.Relationships.Implements)
                         {
@@ -381,6 +416,7 @@ public partial class Layer5AnalysisParser
                         }
 
                         inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
+                        symbols.InheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
                     }
                     else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                     {
@@ -394,6 +430,7 @@ public partial class Layer5AnalysisParser
                             referenceRelationships.Add(
                                 Relationship.FromRelationship(new ImplementedByRelationship(targetEpId, refItem.ScopeSymbolId)));
                             inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
+                            symbols.InheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
                         }
                     }
 
@@ -432,7 +469,7 @@ public partial class Layer5AnalysisParser
                 list = new List<IndexedBinding>(1);
                 bindingsLookup[key] = list;
             }
-            var ib = new IndexedBinding(b.TypeName, b.ScopeId);
+            var ib = new IndexedBinding(b.TypeName, b.ScopeId, normPath);
             list.Add(ib);
 
             if (!globalBindingsLookup.TryGetValue(b.VariableName, out var gList))
@@ -782,11 +819,13 @@ public partial class Layer5AnalysisParser
 
     private static void ResolveUsesTypeReference(
         Reference refItem,
+        ParsingContext ctx,
         SymbolLookups symbols,
         List<Relationship> referenceRelationships)
     {
         var targetName = refItem.TargetName;
-        if (symbols.TypeSymbols.TryGetValue(targetName, out var targetTypeId) && refItem.ScopeSymbolId != targetTypeId)
+        var targetTypeId = Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(targetName, refItem.ScopeSymbolId, ctx, symbols);
+        if (targetTypeId != null && refItem.ScopeSymbolId != targetTypeId)
         {
             referenceRelationships.Add(Relationship.CreateWithCallSite(
                 refItem.ScopeSymbolId,
@@ -803,7 +842,8 @@ public partial class Layer5AnalysisParser
         {
             var dotIdx = targetName.LastIndexOf('.');
             var shortName = targetName[(dotIdx + 1)..];
-            if (symbols.TypeSymbols.TryGetValue(shortName, out var shortTypeId) && refItem.ScopeSymbolId != shortTypeId)
+            var shortTypeId = Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(shortName, refItem.ScopeSymbolId, ctx, symbols);
+            if (shortTypeId != null && refItem.ScopeSymbolId != shortTypeId)
             {
                 referenceRelationships.Add(Relationship.CreateWithCallSite(
                     refItem.ScopeSymbolId,
@@ -957,5 +997,173 @@ public partial class Layer5AnalysisParser
                 : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, candidateTableId));
             referenceRelationships.Add(rel);
         }
+    }
+}
+
+internal static partial class Layer5SymbolVisibilityResolver
+{
+    internal static string? ResolveVisibleTypeSymbol(
+        string typeName,
+        string callerSymbolId,
+        ParsingContext ctx,
+        Layer5AnalysisParser.SymbolLookups symbols)
+    {
+        if (string.IsNullOrEmpty(typeName)) return null;
+
+        if (symbols.TypesByName.TryGetValue(typeName, out var candidates) && candidates.Count > 0)
+        {
+            return SelectVisibleSymbolCandidate(
+                candidates,
+                callerSymbolId,
+                Layer5AnalysisParser.ExtractFilePathFromSymbolId(callerSymbolId),
+                hasExplicitReceiver: false,
+                receiverTypeName: null,
+                symbols,
+                ctx);
+        }
+
+        if (symbols.TypeSymbols.TryGetValue(typeName, out var singleId))
+        {
+            var callerFile = Layer5AnalysisParser.ExtractFilePathFromSymbolId(callerSymbolId);
+            if (IsSymbolVisibleToCaller(callerSymbolId, callerFile, singleId, hasExplicitReceiver: false, receiverTypeName: null, symbols, ctx))
+            {
+                return singleId;
+            }
+        }
+
+        return null;
+    }
+
+    internal static (Dictionary<string, HashSet<string>> Reachable, HashSet<string> ProjectsInDepGraph) BuildProjectReachabilityMatrix(
+        ParsingContext ctx,
+        Layer4Result? l4Result)
+    {
+        var reachable = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var projectsInDepGraph = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (ctx.GlobalProjectDependencies.Count == 0)
+        {
+            return (reachable, projectsInDepGraph);
+        }
+
+        var projectKeysById = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
+        if (inMemoryProjects != null)
+        {
+            foreach (var p in inMemoryProjects)
+            {
+                var keys = new List<string>(2);
+                if (!string.IsNullOrWhiteSpace(p.Name)) keys.Add(p.Name);
+                var extracted = ConstantRegistry.ExtractProjectName(p.Path);
+                if (!string.IsNullOrWhiteSpace(extracted) && !keys.Contains(extracted, StringComparer.OrdinalIgnoreCase))
+                {
+                    keys.Add(extracted);
+                }
+                if (keys.Count > 0)
+                {
+                    projectKeysById[p.Id] = keys;
+                    foreach (var k in keys)
+                    {
+                        projectsInDepGraph.Add(k);
+                    }
+                }
+            }
+        }
+
+        static List<string>? ResolveProjectIdKeys(string nodeId, Dictionary<string, List<string>> map)
+        {
+            if (map.TryGetValue(nodeId, out var existing)) return existing;
+            if (nodeId.Contains(":pkg:", StringComparison.OrdinalIgnoreCase) ||
+                nodeId.Contains(":package:", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            var markerIdx = nodeId.IndexOf(":proj:", StringComparison.OrdinalIgnoreCase);
+            var prefixLen = 6;
+            if (markerIdx < 0)
+            {
+                markerIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
+                prefixLen = 9;
+            }
+            if (markerIdx >= 0)
+            {
+                var raw = nodeId[(markerIdx + prefixLen)..];
+                var colonIdx = raw.IndexOf(':');
+                var projName = colonIdx > 0 ? raw[..colonIdx] : raw;
+                if (!string.IsNullOrWhiteSpace(projName))
+                {
+                    var list = new List<string> { projName };
+                    var ext = ConstantRegistry.ExtractProjectName(projName);
+                    if (!string.IsNullOrWhiteSpace(ext) && !list.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                    {
+                        list.Add(ext);
+                    }
+                    map[nodeId] = list;
+                    return list;
+                }
+            }
+            return null;
+        }
+
+        var directEdges = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        void AddDirectEdge(string fromKey, string toKey)
+        {
+            if (!directEdges.TryGetValue(fromKey, out var set))
+            {
+                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                directEdges[fromKey] = set;
+            }
+            set.Add(toKey);
+        }
+
+        var hasAnyProjectToProjectEdge = false;
+        foreach (var rel in ctx.GlobalProjectDependencies)
+        {
+            if (rel.Kind != OntologyConstants.Relationships.DependsOn) continue;
+            var fromKeys = ResolveProjectIdKeys(rel.From, projectKeysById);
+            var toKeys = ResolveProjectIdKeys(rel.To, projectKeysById);
+            if (fromKeys == null || toKeys == null) continue;
+
+            hasAnyProjectToProjectEdge = true;
+            foreach (var fk in fromKeys)
+            {
+                projectsInDepGraph.Add(fk);
+                foreach (var tk in toKeys)
+                {
+                    projectsInDepGraph.Add(tk);
+                    AddDirectEdge(fk, tk);
+                }
+            }
+        }
+
+        if (!hasAnyProjectToProjectEdge)
+        {
+            projectsInDepGraph.Clear();
+            return (reachable, projectsInDepGraph);
+        }
+
+        foreach (var startProj in projectsInDepGraph)
+        {
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { startProj };
+            var queue = new Queue<string>();
+            queue.Enqueue(startProj);
+            while (queue.Count > 0)
+            {
+                var curr = queue.Dequeue();
+                if (directEdges.TryGetValue(curr, out var neighbors))
+                {
+                    foreach (var next in neighbors)
+                    {
+                        if (visited.Add(next))
+                        {
+                            queue.Enqueue(next);
+                        }
+                    }
+                }
+            }
+            reachable[startProj] = visited;
+        }
+
+        return (reachable, projectsInDepGraph);
     }
 }

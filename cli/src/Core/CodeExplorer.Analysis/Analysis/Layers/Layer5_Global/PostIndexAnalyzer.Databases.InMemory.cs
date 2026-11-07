@@ -84,6 +84,12 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        var projectsById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var pr in projects)
+        {
+            projectsById.TryAdd(pr.Id, pr);
+        }
+
         var testSourceCache = new Dictionary<(string Id, string Path), bool>();
         bool IsTestSource(string fromId, string? fromPath)
         {
@@ -101,7 +107,9 @@ public partial class PostIndexAnalyzer
             if (!string.IsNullOrEmpty(fromPath) && WorkspaceConventions.IsTestFilePath(fromPath))
                 return true;
 
-            if (fileToProject.TryGetValue(fromId, out var p) || workloadToProject.TryGetValue(fromId, out p))
+            if (fileToProject.TryGetValue(fromId, out var p) ||
+                workloadToProject.TryGetValue(fromId, out p) ||
+                projectsById.TryGetValue(fromId, out p))
             {
                 if (p.IsTest || string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                     WorkspaceConventions.IsTestFilePath(p.Path))
@@ -110,11 +118,13 @@ public partial class PostIndexAnalyzer
                 }
             }
 
-            var matchingProj = projects.FirstOrDefault(pr => pr.Id == fromId || fromId.StartWithIC(pr.Id));
-            if (matchingProj != null)
+            if (fromId.Contains(":p:", StringComparison.OrdinalIgnoreCase) ||
+                fromId.Contains(":project:", StringComparison.OrdinalIgnoreCase))
             {
-                if (matchingProj.IsTest || string.Equals(matchingProj.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
-                    WorkspaceConventions.IsTestFilePath(matchingProj.Path))
+                var matchingProj = projects.FirstOrDefault(pr => fromId.StartWithIC(pr.Id));
+                if (matchingProj != null &&
+                    (matchingProj.IsTest || string.Equals(matchingProj.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
+                     WorkspaceConventions.IsTestFilePath(matchingProj.Path)))
                 {
                     return true;
                 }

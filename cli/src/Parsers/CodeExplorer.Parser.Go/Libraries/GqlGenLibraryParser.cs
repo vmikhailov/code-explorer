@@ -1,39 +1,39 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GqlGenLibraryParser : ISemanticExtension
+public class GqlGenLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "gqlgen";
-    public string Id => "gqlgen";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/99designs/gqlgen*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GqlGenLibraryParser()
     {
-        return IsGqlGenServerCall(node) ? OntologyConstants.NodeLabels.EntryPoint : null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsGqlGenServerCall(node) ? "GRAPHQL:/graphql" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-    }
-
-    private static bool IsGqlGenServerCall(Node node)
-    {
-        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return false;
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return false;
-
-        var text = func.Text;
-        return text.EndsWith("handler.NewDefaultServer", StringComparison.Ordinal) ||
-               text.EndsWith("handler.New", StringComparison.Ordinal) ||
-               text.EndsWith("playground.Handler", StringComparison.Ordinal);
+        Id = "gqlgen";
+        Name = "gqlgen";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["github.com/99designs/gqlgen*"];
+        InboundRouteCallRules =
+        [
+            new InboundRouteCallRule
+            {
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["NewDefaultServer"] = "",
+                    ["New"] = ""
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "handler" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                StaticRoute = "GRAPHQL:/graphql",
+                EmitEntryPointNode = true
+            },
+            new InboundRouteCallRule
+            {
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["Handler"] = ""
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "playground" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                StaticRoute = "GRAPHQL:/graphql",
+                EmitEntryPointNode = true
+            }
+        ];
     }
 }

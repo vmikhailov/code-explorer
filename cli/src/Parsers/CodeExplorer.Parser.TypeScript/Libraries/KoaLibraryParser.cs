@@ -1,65 +1,34 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class KoaLibraryParser : ISemanticExtension
+public class KoaLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Koa";
-    public string Id => "koa";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["@koa/router", "koa-router", "koa"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
+    public KoaLibraryParser()
     {
-        "get", "post", "put", "delete", "patch", "options", "head", "all"
-    };
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsKoaRouteCall(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (!IsKoaRouteCall(node)) return null;
-
-        if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
-        {
-            if (propName != null && HttpMethods.Contains(propName))
+        Id = "koa";
+        Name = "Koa";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["@koa/router", "koa-router", "koa"];
+        InboundRouteCallRules =
+        [
+            new InboundRouteCallRule
             {
-                var method = propName.ToUpperInvariant();
-                var routeVal = AstHelper.ExtractFirstStringArgument(node) ?? "/";
-                return $"{method}:{routeVal}";
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["get"] = "GET",
+                    ["post"] = "POST",
+                    ["put"] = "PUT",
+                    ["delete"] = "DELETE",
+                    ["patch"] = "PATCH",
+                    ["options"] = "OPTIONS",
+                    ["head"] = "HEAD",
+                    ["all"] = "ALL"
+                }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
+                ReceiverSubstrings = new[] { "router", "app" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                EmitEntryPointNode = true
             }
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
-
-    private static bool IsKoaRouteCall(Node node)
-    {
-        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
-
-        if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
-        {
-            if (propName == null || !HttpMethods.Contains(propName)) return false;
-
-            if (objNode.IsValid())
-            {
-                var objText = objNode.Text;
-                return objText.Contains("router", StringComparison.OrdinalIgnoreCase) ||
-                       objText.Contains("app", StringComparison.OrdinalIgnoreCase);
-            }
-        }
-
-        return false;
+        ];
     }
 }

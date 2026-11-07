@@ -1,0 +1,17 @@
+cbm-twenty	wall_s=0.1	exit=1
+cbm-twenty	wall_s=106.9	exit=0
+ce-twenty-server	wall_s=223.1	exit=0
+ce-fix1-twenty-server	wall_s=231.5	exit=0
+ce-immich	wall_s=24.9	peak_ram_mb=656	state=Completed
+ce-twenty	wall_s=238.5	peak_ram_mb=3,669	state=Completed
+cbm-immich	wall_s=20.6	peak_ram_mb=648	state=Completed
+cbm-twenty	wall_s=99.6	peak_ram_mb=2,087	state=Completed
+ce-immich	wall_s=27.4	peak_ram_mb=675	state=Completed
+ce-twenty	wall_s=282.1	peak_ram_mb=3,676	state=Completed
+ce-immich	wall_s=26.4	peak_ram_mb=674	state=Completed
+ce-1.73.0-twenty	wall_s=284.3	peak_ram_mb=3,671	db_mb=2,535.6	state=Completed
+ce-1.73.0-immich	wall_s=27.0	peak_ram_mb=693	db_mb=188.5	state=Completed
+ce-immich-bulk	wall_s=30.0	peak_ram_mb=749	state=Completed
+ce-twenty-bulk	wall_s=16.7	peak_ram_mb=301	state=Completed
+ce-immich-bulk2	wall_s=22.3	peak_ram_mb=894	state=Completed
+ce-twenty-bulk2	wall_s=245.3	peak_ram_mb=4,953	state=Completed

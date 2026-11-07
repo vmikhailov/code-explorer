@@ -1,51 +1,33 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class OracleDataAccessLibraryParser : ISemanticExtension
+public class OracleDataAccessLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "Oracle";
-    public string Id => "oracle";
-    public IReadOnlyList<string> SupportedPatterns => ["Oracle.ManagedDataAccess", "Oracle.ManagedDataAccess.*", "Oracle.DataAccess", "Oracle.DataAccess.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> SqlMethods = new[]
     {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "OracleCommand", out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "OracleCommand",
+        "ExecuteReader", "ExecuteReaderAsync",
+        "ExecuteNonQuery", "ExecuteNonQueryAsync",
+        "ExecuteScalar", "ExecuteScalarAsync"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public OracleDataAccessLibraryParser()
     {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "OracleCommand", out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "oracle";
+        Name = "Oracle";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["Oracle.ManagedDataAccess", "Oracle.ManagedDataAccess.*", "Oracle.DataAccess", "Oracle.DataAccess.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"Oracle: {clean}";
+                CallMethodNames = SqlMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "Oracle"
             }
-            return $"Oracle: {method ?? "Command"}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "OracleCommand", out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
-            }
-        }
+        ];
     }
 }

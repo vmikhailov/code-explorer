@@ -1,52 +1,39 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class LibPqLibraryParser : ISemanticExtension
+public class LibPqLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "PostgreSQL (lib/pq)";
-    public string Id => "lib-pq";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/lib/pq*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> SqlMethods = new[]
     {
-        if (GoSqlHelper.IsSqlCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "Query", "QueryRow", "Exec",
+        "QueryContext", "QueryRowContext", "ExecContext"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public LibPqLibraryParser()
     {
-        if (GoSqlHelper.IsSqlCall(node, out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "lib-pq";
+        Name = "PostgreSQL (lib/pq)";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["github.com/lib/pq*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"PostgreSQL: {clean}";
+                CallMethodNames = SqlMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "PostgreSQL"
             }
-            return $"PostgreSQL: {method ?? "Query"}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (GoSqlHelper.IsSqlCall(node, out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
             {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
+                CallMethodNames = SqlMethods,
+                StaticTargetName = "postgres"
             }
-            references.Add(new Reference(scopeSymbolId, "postgres", OntologyConstants.Relationships.UsesDb));
-        }
+        ];
     }
 }

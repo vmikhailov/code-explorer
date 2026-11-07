@@ -1,62 +1,40 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class ElasticsearchNetLibraryParser : ISemanticExtension
+public sealed class ElasticsearchNetLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.SearchDb;
-    public string Name => "Elasticsearch (Low Level)";
-    public string Id => "elasticsearch-net";
-    public IReadOnlyList<string> SupportedPatterns => ["Elasticsearch.Net", "Elasticsearch.Net.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> EsMethods = new[]
     {
-        "Search", "SearchAsync", "Index", "IndexAsync", "Update", "UpdateAsync", "Delete", "DeleteAsync", "Count", "CountAsync", "Get", "GetAsync", "PerformRequest", "PerformRequestAsync"
-    };
+        "Search", "SearchAsync", "Index", "IndexAsync", "Update", "UpdateAsync",
+        "Delete", "DeleteAsync", "Count", "CountAsync", "Get", "GetAsync",
+        "PerformRequest", "PerformRequestAsync"
+    }.ToFrozenSet();
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ElasticsearchNetLibraryParser()
     {
-        if (IsEsCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsEsCall(node, out var method))
-        {
-            return $"Elasticsearch: {method}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsEsCall(node, out _))
-        {
-            references.Add(new Reference(scopeSymbolId, "elasticsearch", OntologyConstants.Relationships.UsesDb));
-        }
-    }
-
-    private static bool IsEsCall(Node node, out string? methodName)
-    {
-        methodName = null;
-        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
-
-        var func = node.GetFunctionNode();
-        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
-        {
-            var name = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
-            if (!string.IsNullOrEmpty(name) && EsMethods.Contains(name))
+        Id = "elasticsearch-net";
+        Name = "Elasticsearch (Low Level)";
+        Type = SemanticExtensionType.SearchDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["Elasticsearch.Net", "Elasticsearch.Net.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                methodName = name;
-                return true;
+                CallMethodNames = EsMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "Elasticsearch"
             }
-        }
-        return false;
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
+            {
+                CallMethodNames = EsMethods,
+                StaticTargetName = "elasticsearch"
+            }
+        ];
     }
 }

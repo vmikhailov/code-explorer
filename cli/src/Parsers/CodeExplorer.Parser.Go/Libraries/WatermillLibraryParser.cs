@@ -1,67 +1,48 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class WatermillLibraryParser : ISemanticExtension
+public class WatermillLibraryParser : DeclarativeSemanticExtension
 {
     private const string WatermillPrefix = "watermill:";
 
-    public string Name => "Watermill";
-    public string Id => "watermill";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/ThreeDotsLabs/watermill*",
-        "*watermill*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    public WatermillLibraryParser()
     {
-        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return;
-
-        var funcText = func.Text;
-        var args = GoAstHelper.GetCallArguments(node);
-
-        // router.AddHandler(handlerName, subscribeTopic, subscriber, publishTopic, publisher, handlerFunc)
-        if (funcText.EndsWith(".AddHandler", StringComparison.Ordinal) && args.Count >= 4)
-        {
-            var subTopic = GoAstHelper.ResolveStringOrVariable(args[1]);
-            var pubTopic = GoAstHelper.ResolveStringOrVariable(args[3]);
-            if (!string.IsNullOrEmpty(subTopic))
+        Id = "watermill";
+        Name = "Watermill";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns =
+        [
+            "github.com/ThreeDotsLabs/watermill*",
+            "*watermill*"
+        ];
+        ServiceCallSinkRules =
+        [
+            new ServiceCallSinkRule
             {
-                references.Add(new Reference(scopeSymbolId, WatermillPrefix + subTopic, OntologyConstants.Relationships.SubscribesTo));
-            }
-            if (!string.IsNullOrEmpty(pubTopic))
+                CallMethodNames = new[] { "AddHandler", "AddNoPublisherHandler" }.ToFrozenSet(StringComparer.Ordinal),
+                TargetPrefix = WatermillPrefix,
+                TargetRelation = OntologyConstants.Relationships.SubscribesTo,
+                AllowIdentifierArgument = true,
+                TargetArgumentIndex = 1
+            },
+            new ServiceCallSinkRule
             {
-                references.Add(new Reference(scopeSymbolId, WatermillPrefix + pubTopic, OntologyConstants.Relationships.PublishesTo));
-            }
-        }
-        // router.AddNoPublisherHandler(handlerName, subscribeTopic, subscriber, handlerFunc)
-        else if (funcText.EndsWith(".AddNoPublisherHandler", StringComparison.Ordinal) && args.Count >= 2)
-        {
-            var subTopic = GoAstHelper.ResolveStringOrVariable(args[1]);
-            if (!string.IsNullOrEmpty(subTopic))
+                CallMethodNames = new[] { "AddHandler" }.ToFrozenSet(StringComparer.Ordinal),
+                TargetPrefix = WatermillPrefix,
+                TargetRelation = OntologyConstants.Relationships.PublishesTo,
+                AllowIdentifierArgument = true,
+                TargetArgumentIndex = 3
+            },
+            new ServiceCallSinkRule
             {
-                references.Add(new Reference(scopeSymbolId, WatermillPrefix + subTopic, OntologyConstants.Relationships.SubscribesTo));
+                CallMethodNames = new[] { "Publish" }.ToFrozenSet(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "pub" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                TargetPrefix = WatermillPrefix,
+                TargetRelation = OntologyConstants.Relationships.PublishesTo,
+                AllowIdentifierArgument = true
             }
-        }
-        else if (funcText.EndsWith(".Publish", StringComparison.Ordinal) &&
-                 funcText.Contains("pub", StringComparison.OrdinalIgnoreCase) &&
-                 args.Count >= 1)
-        {
-            var topic = GoAstHelper.ResolveStringOrVariable(args[0]);
-            if (!string.IsNullOrEmpty(topic))
-            {
-                references.Add(new Reference(scopeSymbolId, WatermillPrefix + topic, OntologyConstants.Relationships.PublishesTo));
-            }
-        }
+        ];
     }
 }

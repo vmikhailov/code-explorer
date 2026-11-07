@@ -31,7 +31,7 @@ public partial class Layer5AnalysisParser
         var isExternalStaticClass = false;
         var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
                          ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
-        var normCallerFile = callerFile?.Replace('\\', '/');
+        var normCallerFile = Layer5SymbolVisibilityResolver.NormalizeWorkspaceRelativeFilePath(callerFile, ctx);
         var hasExplicitReceiver = false;
 
         if (targetName.Contains('.'))
@@ -84,6 +84,7 @@ public partial class Layer5AnalysisParser
                         if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
                             (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
                              refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                             refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
                              refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
                              refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
                         {
@@ -106,6 +107,7 @@ public partial class Layer5AnalysisParser
                         if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
                             (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
                              refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                             refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
                              refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
                              refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
                         {
@@ -114,7 +116,10 @@ public partial class Layer5AnalysisParser
                         }
                     }
 
-                    targetTypeName ??= globalCandidates[0].TypeName;
+                    if (targetTypeName == null && (normCallerFile == null || string.IsNullOrEmpty(globalCandidates[0].FilePath)))
+                    {
+                        targetTypeName = globalCandidates[0].TypeName;
+                    }
                 }
 
                 if (targetTypeName != null)
@@ -123,10 +128,12 @@ public partial class Layer5AnalysisParser
                 }
                 else if (symbols.TypeSymbols.ContainsKey(varName))
                 {
+                    targetTypeName = varName;
                     targetName = $"{varName}.{methodName}";
                 }
                 else if (symbols.TypeSymbols.ContainsKey(cleanVar))
                 {
+                    targetTypeName = cleanVar;
                     targetName = $"{cleanVar}.{methodName}";
                 }
                 else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
@@ -149,9 +156,36 @@ public partial class Layer5AnalysisParser
         var callAdded = false;
         string? targetNodeId = null;
         var isCallbackArg = string.Equals(refItem.ArgFlow, "callback_arg", StringComparison.Ordinal);
+        var callerScope = Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(refItem.ScopeSymbolId, normCallerFile, ctx);
+
+        // 0. If unqualified call inside an enclosing type, prefer same-type method first
+        if (!hasExplicitReceiver && !targetName.Contains('.') && !string.IsNullOrEmpty(callerScope.EnclosingTypeName))
+        {
+            var qualifiedInType = $"{callerScope.EnclosingTypeName}.{targetName}";
+            if (normCallerFile != null &&
+                (ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, qualifiedInType), out var enclosedLocalId) ||
+                 symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, qualifiedInType), out enclosedLocalId)))
+            {
+                if (!isCallbackArg || enclosedLocalId != refItem.ScopeSymbolId)
+                {
+                    referenceRelationships.Add(CreateCallRel(refItem, enclosedLocalId));
+                    callAdded = true;
+                    targetNodeId = enclosedLocalId;
+                }
+            }
+            else if (!isCallbackArg && normCallerFile != null &&
+                     (enclosedLocalId = ResolveSameProjectFunctionFallback(normCallerFile, qualifiedInType, refItem.ScopeSymbolId, hasExplicitReceiver, targetTypeName, symbols, ctx)) != null)
+            {
+                referenceRelationships.Add(CreateCallRel(refItem, enclosedLocalId));
+                callAdded = true;
+                targetNodeId = enclosedLocalId;
+            }
+        }
 
         // 1. Same file
-        if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
+        if (!callAdded && normCallerFile != null &&
+            ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId) &&
+            Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, localTargetId, hasExplicitReceiver, targetTypeName, symbols, ctx))
         {
             if (!isCallbackArg || localTargetId != refItem.ScopeSymbolId)
             {
@@ -160,7 +194,9 @@ public partial class Layer5AnalysisParser
                 targetNodeId = localTargetId;
             }
         }
-        else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, targetName), out localTargetId))
+        else if (!callAdded && normCallerFile != null &&
+                 symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, targetName), out localTargetId) &&
+                 Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, localTargetId, hasExplicitReceiver, targetTypeName, symbols, ctx))
         {
             if (!isCallbackArg || localTargetId != refItem.ScopeSymbolId)
             {
@@ -170,28 +206,29 @@ public partial class Layer5AnalysisParser
             }
         }
         // 2. Through explicit module imports (e.g. import { pluralize } from './plural' or from '@repro/text')
-        else if (normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, targetName, symbols, imports, ctx)) != null)
+        else if (!callAdded && normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, targetName, symbols, imports, ctx)) != null)
         {
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
-        // 3. Same project fallback (when function is defined uniquely in caller's project; skipped for callback_arg to prevent matching local variables to unrelated project functions)
-        else if (!isCallbackArg && normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, symbols)) != null)
+        // 3. Same project fallback (when function is defined in caller's project and visible; skipped for callback_arg)
+        else if (!callAdded && !isCallbackArg && normCallerFile != null &&
+                 (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, refItem.ScopeSymbolId, hasExplicitReceiver, targetTypeName, symbols, ctx)) != null)
         {
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
-        // 4. Globally unambiguous function (only 1 function with this name across entire workspace, or 1 non-graphql function when paired with a .graphql operation)
-        else if (!isCallbackArg &&
+        // 4. Globally unambiguous visible function across reachable workspace projects
+        else if (!callAdded && !isCallbackArg &&
                  symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) &&
-                 (uniqueCandidates.Count == 1 ? uniqueCandidates[0] : SelectPreferredFunctionCandidate(uniqueCandidates)) is { } candidateId)
+                 Layer5SymbolVisibilityResolver.SelectVisibleSymbolCandidate(uniqueCandidates, refItem.ScopeSymbolId, normCallerFile, hasExplicitReceiver, targetTypeName, symbols, ctx) is { } candidateId)
         {
             targetNodeId = candidateId;
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
         // 5. Procedure symbols fallback
-        else if (!isCallbackArg && symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
+        else if (!callAdded && !isCallbackArg && symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
             referenceRelationships.Add(Relationship.CreateWithCallSite(
                 targetProcId,
@@ -209,7 +246,9 @@ public partial class Layer5AnalysisParser
         {
             foreach (var implClass in implementors)
             {
-                if (symbols.FunctionSymbols.TryGetValue($"{implClass}.{methodName}", out var implNodeId) && implNodeId != targetNodeId)
+                if (symbols.FunctionSymbols.TryGetValue($"{implClass}.{methodName}", out var implNodeId) &&
+                    implNodeId != targetNodeId &&
+                    Layer5SymbolVisibilityResolver.IsImplementorVisibleToCaller(callerScope, implNodeId, symbols, ctx))
                 {
                     referenceRelationships.Add(CreateCallRel(refItem, implNodeId));
                     callAdded = true;
@@ -219,10 +258,12 @@ public partial class Layer5AnalysisParser
 
         // If receiver was bound to a known workspace TypeSymbol, check if the method is registered under short name in that type's file
         if (!callAdded && hasExplicitReceiver && targetTypeName != null && methodName != null &&
-            symbols.TypeSymbols.TryGetValue(targetTypeName, out var resolvedTypeId))
+            Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(targetTypeName, refItem.ScopeSymbolId, ctx, symbols) is { } resolvedTypeId)
         {
             var typeFile = ExtractFilePathFromSymbolId(resolvedTypeId);
-            if (typeFile != null && symbols.FunctionSymbolsByFile.TryGetValue((typeFile, methodName), out var typeMethodId))
+            if (typeFile != null &&
+                symbols.FunctionSymbolsByFile.TryGetValue((typeFile, methodName), out var typeMethodId) &&
+                Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, typeMethodId, hasExplicitReceiver, targetTypeName, symbols, ctx))
             {
                 referenceRelationships.Add(CreateCallRel(refItem, typeMethodId));
                 callAdded = true;
@@ -232,11 +273,15 @@ public partial class Layer5AnalysisParser
         // Fallback for methodName (only when there is no explicit receiver, e.g. this.foo() / self.foo() / base.foo())
         if (!callAdded && !isExternalStaticClass && !hasExplicitReceiver && methodName != null)
         {
-            if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
+            if (normCallerFile != null &&
+                ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId) &&
+                Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, localFallbackId, hasExplicitReceiver: false, receiverTypeName: null, symbols, ctx))
             {
                 referenceRelationships.Add(CreateCallRel(refItem, localFallbackId));
             }
-            else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, methodName), out localFallbackId))
+            else if (normCallerFile != null &&
+                     symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, methodName), out localFallbackId) &&
+                     Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, localFallbackId, hasExplicitReceiver: false, receiverTypeName: null, symbols, ctx))
             {
                 referenceRelationships.Add(CreateCallRel(refItem, localFallbackId));
             }
@@ -244,7 +289,8 @@ public partial class Layer5AnalysisParser
             {
                 referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             }
-            else if (!isCallbackArg && normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, methodName, symbols)) != null)
+            else if (!isCallbackArg && normCallerFile != null &&
+                     (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, methodName, refItem.ScopeSymbolId, hasExplicitReceiver: false, receiverTypeName: null, symbols, ctx)) != null)
             {
                 referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             }
@@ -257,7 +303,8 @@ public partial class Layer5AnalysisParser
                         (normCallerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(ConstantRegistry.ExtractProjectName(normCallerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
 
-                    if (isSameProjectOrFile || (normCallerFile == null && targetFile == null))
+                    if ((isSameProjectOrFile || (normCallerFile == null && targetFile == null)) &&
+                        Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, fallbackNodeId, hasExplicitReceiver: false, receiverTypeName: null, symbols, ctx))
                     {
                         referenceRelationships.Add(CreateCallRel(refItem, fallbackNodeId));
                         break;
@@ -267,8 +314,7 @@ public partial class Layer5AnalysisParser
         }
     }
 
-
-    private static bool IsGraphQLDocumentSymbolId(string symbolId)
+    internal static bool IsGraphQLDocumentSymbolId(string symbolId)
     {
         var fp = ExtractFilePathFromSymbolId(symbolId);
         return fp != null &&
@@ -283,15 +329,37 @@ public partial class Layer5AnalysisParser
         return nonGql.Count == 1 ? nonGql[0] : null;
     }
 
-    private static string? ResolveSameProjectFunctionFallback(string callerFile, string targetName, SymbolLookups symbols)
+    private static string? ResolveSameProjectFunctionFallback(
+        string callerFile,
+        string targetName,
+        string callerSymbolId,
+        bool hasExplicitReceiver,
+        string? receiverTypeName,
+        SymbolLookups symbols,
+        ParsingContext ctx)
     {
-        var callerProj = ConstantRegistry.ExtractProjectName(callerFile);
+        var callerScope = Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(callerSymbolId, callerFile, ctx);
+        var callerProj = !string.IsNullOrEmpty(callerScope.ProjectName)
+            ? callerScope.ProjectName
+            : ConstantRegistry.ExtractProjectName(callerFile);
+
         if (callerProj != null &&
             symbols.FunctionsByProject.TryGetValue(callerProj, out var projFns) &&
             projFns.TryGetValue(targetName, out var matchedIds))
         {
-            return SelectPreferredFunctionCandidate(matchedIds);
+            var resolved = Layer5SymbolVisibilityResolver.SelectVisibleSymbolCandidate(matchedIds, callerSymbolId, callerFile, hasExplicitReceiver, receiverTypeName, symbols, ctx);
+            if (resolved != null) return resolved;
         }
+
+        var extProj = ConstantRegistry.ExtractProjectName(callerFile);
+        if (extProj != null &&
+            !string.Equals(extProj, callerProj, StringComparison.OrdinalIgnoreCase) &&
+            symbols.FunctionsByProject.TryGetValue(extProj, out var extProjFns) &&
+            extProjFns.TryGetValue(targetName, out var extMatchedIds))
+        {
+            return Layer5SymbolVisibilityResolver.SelectVisibleSymbolCandidate(extMatchedIds, callerSymbolId, callerFile, hasExplicitReceiver, receiverTypeName, symbols, ctx);
+        }
+
         return null;
     }
 
@@ -779,4 +847,381 @@ public partial class Layer5AnalysisParser
     }
 
     private static string NormalizeGcpTopicName(string raw) => WorkspaceConventions.NormalizeTopicName(raw);
+}
+
+internal static partial class Layer5SymbolVisibilityResolver
+{
+    internal static string? NormalizeWorkspaceRelativeFilePath(string? filePath, ParsingContext ctx)
+    {
+        if (string.IsNullOrEmpty(filePath)) return null;
+        var norm = filePath.Replace('\\', '/');
+        if (!string.IsNullOrEmpty(ctx.AbsoluteWorkspacePath))
+        {
+            var wsNorm = ctx.AbsoluteWorkspacePath.Replace('\\', '/').TrimEnd('/');
+            if (norm.StartsWith(wsNorm + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return norm[(wsNorm.Length + 1)..];
+            }
+        }
+        return norm;
+    }
+
+    internal static SymbolScopeInfo GetOrInferSymbolScope(string symbolId, string? fallbackFilePath, ParsingContext ctx)
+    {
+        if (ctx.SymbolScopes.TryGetValue(symbolId, out var scope))
+        {
+            return scope;
+        }
+
+        var rawFp = Layer5AnalysisParser.ExtractFilePathFromSymbolId(symbolId) ?? fallbackFilePath ?? "";
+        var fp = NormalizeWorkspaceRelativeFilePath(rawFp, ctx) ?? "";
+        var proj = !string.IsNullOrEmpty(fp) ? ConstantRegistry.ExtractProjectName(fp) : null;
+        string? ns = null;
+        if (!string.IsNullOrEmpty(fp))
+        {
+            ctx.FileNamespaces.TryGetValue(fp, out ns);
+        }
+
+        string? enclosingType = null;
+        var symName = Layer5AnalysisParser.ExtractSymbolNameFromId(symbolId);
+        if (!string.IsNullOrEmpty(symName) && !symName.StartsWith('<'))
+        {
+            var dotIdx = symName.LastIndexOf('.');
+            if (dotIdx > 0)
+            {
+                enclosingType = symName[..dotIdx];
+            }
+        }
+
+        return new SymbolScopeInfo(
+            symbolId,
+            fp,
+            proj,
+            ns,
+            enclosingType,
+            SymbolVisibility.Public,
+            !string.IsNullOrEmpty(fp) && WorkspaceConventions.IsTestFilePath(fp));
+    }
+
+    internal static bool IsSameProjectScope(in SymbolScopeInfo callerScope, in SymbolScopeInfo targetScope)
+    {
+        if (!string.IsNullOrEmpty(callerScope.FilePath) &&
+            !string.IsNullOrEmpty(targetScope.FilePath) &&
+            string.Equals(callerScope.FilePath, targetScope.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(callerScope.ProjectName) &&
+            !string.IsNullOrEmpty(targetScope.ProjectName) &&
+            string.Equals(callerScope.ProjectName, targetScope.ProjectName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var callerExtProj = !string.IsNullOrEmpty(callerScope.FilePath) ? ConstantRegistry.ExtractProjectName(callerScope.FilePath) : callerScope.ProjectName;
+        var targetExtProj = !string.IsNullOrEmpty(targetScope.FilePath) ? ConstantRegistry.ExtractProjectName(targetScope.FilePath) : targetScope.ProjectName;
+        if (!string.IsNullOrEmpty(callerExtProj) &&
+            !string.IsNullOrEmpty(targetExtProj) &&
+            string.Equals(callerExtProj, targetExtProj, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.IsNullOrEmpty(callerScope.FilePath) &&
+               string.IsNullOrEmpty(targetScope.FilePath) &&
+               string.IsNullOrEmpty(callerScope.ProjectName) &&
+               string.IsNullOrEmpty(targetScope.ProjectName);
+    }
+
+    private static string? FindDepGraphProjectKey(in SymbolScopeInfo scope, Layer5AnalysisParser.SymbolLookups symbols)
+    {
+        if (!string.IsNullOrEmpty(scope.ProjectName) && symbols.ProjectsInDepGraph.Contains(scope.ProjectName))
+        {
+            return scope.ProjectName;
+        }
+        if (!string.IsNullOrEmpty(scope.FilePath))
+        {
+            var ext = ConstantRegistry.ExtractProjectName(scope.FilePath);
+            if (!string.IsNullOrEmpty(ext) && symbols.ProjectsInDepGraph.Contains(ext))
+            {
+                return ext;
+            }
+        }
+        return null;
+    }
+
+    internal static bool IsProjectReachable(in SymbolScopeInfo callerScope, in SymbolScopeInfo targetScope, Layer5AnalysisParser.SymbolLookups symbols)
+    {
+        if (IsSameProjectScope(callerScope, targetScope))
+        {
+            return true;
+        }
+
+        if (symbols.ProjectsInDepGraph.Count == 0)
+        {
+            return true;
+        }
+
+        var callerKey = FindDepGraphProjectKey(callerScope, symbols);
+        var targetKey = FindDepGraphProjectKey(targetScope, symbols);
+        if (callerKey == null || targetKey == null)
+        {
+            return true;
+        }
+
+        if (string.Equals(callerKey, targetKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (symbols.ReachableProjects.TryGetValue(callerKey, out var reachableSet))
+        {
+            if (reachableSet.Contains(targetKey))
+            {
+                return true;
+            }
+            if (callerScope.IsTest && reachableSet.Count <= 1)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    internal static bool IsImplementorVisibleToCaller(
+        in SymbolScopeInfo callerScope,
+        string implementorSymbolId,
+        Layer5AnalysisParser.SymbolLookups symbols,
+        ParsingContext ctx)
+    {
+        var implScope = GetOrInferSymbolScope(implementorSymbolId, null, ctx);
+        if (IsProjectReachable(callerScope, implScope, symbols))
+        {
+            return true;
+        }
+        return IsProjectReachable(implScope, callerScope, symbols);
+    }
+
+    internal static bool DoesTypeInheritFrom(string derivedTypeName, string baseTypeName, Layer5AnalysisParser.SymbolLookups symbols)
+    {
+        if (string.Equals(derivedTypeName, baseTypeName, StringComparison.Ordinal)) return true;
+        if (symbols.InheritanceRels.Count == 0) return false;
+
+        foreach (var (fromId, toId) in symbols.InheritanceRels)
+        {
+            var fromName = Layer5AnalysisParser.ExtractSymbolNameFromId(fromId);
+            var toName = Layer5AnalysisParser.ExtractSymbolNameFromId(toId);
+            if (string.Equals(fromName, derivedTypeName, StringComparison.Ordinal) &&
+                string.Equals(toName, baseTypeName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal static bool IsSymbolVisibleToCaller(
+        string callerSymbolId,
+        string? normCallerFile,
+        string targetSymbolId,
+        bool hasExplicitReceiver,
+        string? receiverTypeName,
+        Layer5AnalysisParser.SymbolLookups symbols,
+        ParsingContext ctx)
+    {
+        var callerScope = GetOrInferSymbolScope(callerSymbolId, normCallerFile, ctx);
+        var targetScope = GetOrInferSymbolScope(targetSymbolId, null, ctx);
+
+        var sameFile = (!string.IsNullOrEmpty(callerScope.FilePath) &&
+                        !string.IsNullOrEmpty(targetScope.FilePath) &&
+                        string.Equals(callerScope.FilePath, targetScope.FilePath, StringComparison.OrdinalIgnoreCase)) ||
+                       (string.IsNullOrEmpty(callerScope.FilePath) && string.IsNullOrEmpty(targetScope.FilePath));
+
+        var sameProject = sameFile || IsSameProjectScope(callerScope, targetScope);
+
+        switch (targetScope.Visibility)
+        {
+            case SymbolVisibility.FilePrivate:
+                return sameFile;
+
+            case SymbolVisibility.Private:
+                if (!sameProject) return false;
+                if (!string.IsNullOrEmpty(targetScope.EnclosingTypeName))
+                {
+                    if (hasExplicitReceiver &&
+                        !string.IsNullOrEmpty(receiverTypeName) &&
+                        !string.Equals(receiverTypeName, targetScope.EnclosingTypeName, StringComparison.Ordinal))
+                    {
+                        return false;
+                    }
+
+                    if (!string.IsNullOrEmpty(callerScope.EnclosingTypeName))
+                    {
+                        return string.Equals(callerScope.EnclosingTypeName, targetScope.EnclosingTypeName, StringComparison.Ordinal);
+                    }
+
+                    return sameFile && !hasExplicitReceiver;
+                }
+                return sameFile;
+
+            case SymbolVisibility.Protected:
+                if (!string.IsNullOrEmpty(targetScope.EnclosingTypeName) && !string.IsNullOrEmpty(callerScope.EnclosingTypeName))
+                {
+                    if (string.Equals(callerScope.EnclosingTypeName, targetScope.EnclosingTypeName, StringComparison.Ordinal))
+                    {
+                        return sameProject;
+                    }
+                    if (DoesTypeInheritFrom(callerScope.EnclosingTypeName, targetScope.EnclosingTypeName, symbols))
+                    {
+                        return IsProjectReachable(callerScope, targetScope, symbols);
+                    }
+                    return false;
+                }
+                return sameFile;
+
+            case SymbolVisibility.Internal:
+                if (!sameProject && !callerScope.IsTest)
+                {
+                    return false;
+                }
+                return IsProjectReachable(callerScope, targetScope, symbols);
+
+            default:
+                return IsProjectReachable(callerScope, targetScope, symbols);
+        }
+    }
+
+    internal static string? SelectVisibleSymbolCandidate(
+        List<string> candidates,
+        string callerSymbolId,
+        string? normCallerFile,
+        bool hasExplicitReceiver,
+        string? receiverTypeName,
+        Layer5AnalysisParser.SymbolLookups symbols,
+        ParsingContext ctx)
+    {
+        if (candidates.Count == 0) return null;
+
+        if (candidates.Count == 1)
+        {
+            var onlyId = candidates[0];
+            return IsSymbolVisibleToCaller(callerSymbolId, normCallerFile, onlyId, hasExplicitReceiver, receiverTypeName, symbols, ctx)
+                ? onlyId
+                : null;
+        }
+
+        var visible = new List<string>(candidates.Count);
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            var id = candidates[i];
+            if (Layer5AnalysisParser.IsGraphQLDocumentSymbolId(id)) continue;
+            if (!visible.Contains(id) &&
+                IsSymbolVisibleToCaller(callerSymbolId, normCallerFile, id, hasExplicitReceiver, receiverTypeName, symbols, ctx))
+            {
+                visible.Add(id);
+            }
+        }
+
+        if (visible.Count == 0)
+        {
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                var id = candidates[i];
+                if (!visible.Contains(id) &&
+                    IsSymbolVisibleToCaller(callerSymbolId, normCallerFile, id, hasExplicitReceiver, receiverTypeName, symbols, ctx))
+                {
+                    visible.Add(id);
+                }
+            }
+        }
+
+        if (visible.Count == 0) return null;
+        if (visible.Count == 1) return visible[0];
+
+        var callerScope = GetOrInferSymbolScope(callerSymbolId, normCallerFile, ctx);
+
+        if (!string.IsNullOrEmpty(callerScope.EnclosingTypeName))
+        {
+            string? matchedByType = null;
+            var typeMatchCount = 0;
+            for (var i = 0; i < visible.Count; i++)
+            {
+                var candScope = GetOrInferSymbolScope(visible[i], null, ctx);
+                if (string.Equals(candScope.EnclosingTypeName, callerScope.EnclosingTypeName, StringComparison.Ordinal))
+                {
+                    matchedByType = visible[i];
+                    typeMatchCount++;
+                }
+            }
+            if (typeMatchCount == 1) return matchedByType;
+        }
+
+        if (!string.IsNullOrEmpty(callerScope.FilePath))
+        {
+            string? matchedByFile = null;
+            var fileMatchCount = 0;
+            for (var i = 0; i < visible.Count; i++)
+            {
+                var candScope = GetOrInferSymbolScope(visible[i], null, ctx);
+                if (string.Equals(candScope.FilePath, callerScope.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedByFile = visible[i];
+                    fileMatchCount++;
+                }
+            }
+            if (fileMatchCount == 1) return matchedByFile;
+        }
+
+        var sameProjList = new List<string>();
+        for (var i = 0; i < visible.Count; i++)
+        {
+            var candScope = GetOrInferSymbolScope(visible[i], null, ctx);
+            if (IsSameProjectScope(callerScope, candScope))
+            {
+                sameProjList.Add(visible[i]);
+            }
+        }
+        if (sameProjList.Count == 1) return sameProjList[0];
+
+        var pool = sameProjList.Count > 1 ? sameProjList : visible;
+
+        if (!string.IsNullOrEmpty(callerScope.Namespace))
+        {
+            string? matchedByNs = null;
+            var nsMatchCount = 0;
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var candScope = GetOrInferSymbolScope(pool[i], null, ctx);
+                if (string.Equals(candScope.Namespace, callerScope.Namespace, StringComparison.Ordinal))
+                {
+                    matchedByNs = pool[i];
+                    nsMatchCount++;
+                }
+            }
+            if (nsMatchCount == 1) return matchedByNs;
+        }
+
+        if (!string.IsNullOrEmpty(callerScope.FilePath) &&
+            ctx.FileImportedNamespaces.TryGetValue(callerScope.FilePath, out var importedNamespaces) &&
+            importedNamespaces.Count > 0)
+        {
+            string? matchedByImportNs = null;
+            var importNsCount = 0;
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var candScope = GetOrInferSymbolScope(pool[i], null, ctx);
+                if (!string.IsNullOrEmpty(candScope.Namespace) && importedNamespaces.Contains(candScope.Namespace))
+                {
+                    matchedByImportNs = pool[i];
+                    importNsCount++;
+                }
+            }
+            if (importNsCount == 1) return matchedByImportNs;
+        }
+
+        return null;
+    }
 }

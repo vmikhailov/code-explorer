@@ -1,65 +1,50 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoZeroLibraryParser : ISemanticExtension
+public class GoZeroLibraryParser : DeclarativeSemanticExtension
 {
     private const string ZrpcClientTarget = "zrpc:client";
 
-    public string Name => "go-zero";
-    public string Id => "go-zero";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/zeromicro/go-zero*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GoZeroLibraryParser()
     {
-        return TryExtractGoZeroServerCall(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractGoZeroServerCall(node, out var id) ? id : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return;
-
-        var funcText = func.Text;
-        if (funcText.EndsWith("zrpc.MustNewClient", StringComparison.Ordinal) ||
-            funcText.EndsWith("zrpc.NewClient", StringComparison.Ordinal))
-        {
-            references.Add(new Reference(scopeSymbolId, ZrpcClientTarget, OntologyConstants.Relationships.Calls));
-        }
-    }
-
-    private static bool TryExtractGoZeroServerCall(Node node, out string identifier)
-    {
-        identifier = string.Empty;
-        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return false;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return false;
-
-        var funcText = func.Text;
-        if (funcText.EndsWith(".AddRoutes", StringComparison.Ordinal) ||
-            funcText.EndsWith(".AddRoute", StringComparison.Ordinal))
-        {
-            identifier = "REST:/go-zero/routes";
-            return true;
-        }
-
-        if (funcText.EndsWith("zrpc.MustNewServer", StringComparison.Ordinal))
-        {
-            identifier = "gRPC:/zrpc";
-            return true;
-        }
-
-        return false;
+        Id = "go-zero";
+        Name = "go-zero";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["github.com/zeromicro/go-zero*"];
+        InboundRouteCallRules =
+        [
+            new InboundRouteCallRule
+            {
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["AddRoutes"] = "",
+                    ["AddRoute"] = ""
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                StaticRoute = "REST:/go-zero/routes",
+                EmitEntryPointNode = true
+            },
+            new InboundRouteCallRule
+            {
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["MustNewServer"] = ""
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "zrpc" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                StaticRoute = "gRPC:/zrpc",
+                EmitEntryPointNode = true
+            }
+        ];
+        ServiceCallSinkRules =
+        [
+            new ServiceCallSinkRule
+            {
+                CallMethodNames = new[] { "MustNewClient", "NewClient" }.ToFrozenSet(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "zrpc" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                StaticTargetName = ZrpcClientTarget,
+                TargetRelation = OntologyConstants.Relationships.Calls
+            }
+        ];
     }
 }

@@ -26,6 +26,77 @@ public static class NodeFactory
 
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Dictionary<string, object>>> Converters = new();
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Utf8JsonWriter>> JsonWriters = new();
+    private static readonly ConcurrentDictionary<Type, string[]> SchemaPropertyKeys = new();
+    private static readonly Lazy<IReadOnlyDictionary<string, string[]>> DefaultPropertiesByKind = new(BuildDefaultPropertiesByKind);
+
+    public static string[] GetSchemaPropertyKeys(Type type) =>
+        SchemaPropertyKeys.GetOrAdd(type, ExtractSchemaPropertyKeys);
+
+    public static IReadOnlyDictionary<string, string[]> GetDefaultPropertiesByKind() =>
+        DefaultPropertiesByKind.Value;
+
+    private static string[] ExtractSchemaPropertyKeys(Type t)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal) { IdPropName };
+        var props = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.GetIndexParameters().Length == 0);
+
+        foreach (var prop in props)
+        {
+            if (prop.GetCustomAttribute<JsonIgnoreAttribute>(inherit: false) != null)
+                continue;
+
+            var propType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+            if (!IsSupportedJsonPropertyType(propType))
+                continue;
+
+            var jsonPropAttr = prop.GetCustomAttribute<JsonPropertyNameAttribute>();
+            var key = jsonPropAttr != null && !string.IsNullOrEmpty(jsonPropAttr.Name)
+                ? jsonPropAttr.Name
+                : JsonNamingPolicy.SnakeCaseLower.ConvertName(prop.Name);
+
+            keys.Add(key);
+        }
+
+        return [.. keys.OrderBy(k => k, StringComparer.Ordinal)];
+    }
+
+    private static bool IsSupportedJsonPropertyType(Type propType) =>
+        propType == typeof(string) ||
+        propType == typeof(int) ||
+        propType == typeof(long) ||
+        propType == typeof(double) ||
+        propType == typeof(bool) ||
+        propType.IsEnum;
+
+    private static IReadOnlyDictionary<string, string[]> BuildDefaultPropertiesByKind()
+    {
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var nodeTypes = typeof(IOntologyNode).Assembly.GetTypes()
+            .Where(t => typeof(IOntologyNode).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+        foreach (var type in nodeTypes)
+        {
+            if (type.GetCustomAttribute<OntologyNodeAttribute>() == null) continue;
+            var instance = (IOntologyNode)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type);
+            var kind = instance.Kind.ToCypherLabel();
+            if (!map.TryGetValue(kind, out var set))
+            {
+                set = new HashSet<string>(StringComparer.Ordinal);
+                map[kind] = set;
+            }
+
+            foreach (var key in GetSchemaPropertyKeys(type))
+            {
+                set.Add(key);
+            }
+        }
+
+        return map.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.OrderBy(k => k, StringComparer.Ordinal).ToArray(),
+            StringComparer.OrdinalIgnoreCase);
+    }
 
     public static Node Create(IOntologyNode node)
     {

@@ -9,7 +9,7 @@ public partial class DeclarativeSemanticExtension
 {
     #region SQL Sink & ORM Table Helpers
 
-    private static bool MatchesSqlSink(Node node, SqlSinkRule rule)
+    internal static bool MatchesSqlSink(Node node, SqlSinkRule rule)
     {
         if ((node is AnnotationSyntax || rule.AnnotationNodeTypes.Contains(node.Type)) && rule.QueryAnnotationSuffixes.Count > 0)
         {
@@ -21,10 +21,10 @@ public partial class DeclarativeSemanticExtension
             }
         }
 
-        if (node is CallExprSyntax || rule.CallNodeTypes.Contains(node.Type))
+        if (DeclarativeUniversalRuleEvaluator.IsCallNode(node, rule.CallNodeTypes))
         {
-            var methodName = GetCallMethodName(node);
-            if (!string.IsNullOrEmpty(methodName) && rule.CallMethodNames.Contains(methodName))
+            var methodSpan = GetCallMethodSpan(node);
+            if (!methodSpan.IsEmpty && rule.CallMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
             {
                 if (!rule.RequireExtractableSqlOnCall) return true;
                 return !string.IsNullOrEmpty(ExtractSqlText(node));
@@ -34,7 +34,7 @@ public partial class DeclarativeSemanticExtension
         return false;
     }
 
-    private static string? ExtractSqlText(Node node)
+    internal static string? ExtractSqlText(Node node)
     {
         if (node is AnnotationSyntax || node.Type == "attribute_group")
         {
@@ -62,23 +62,69 @@ public partial class DeclarativeSemanticExtension
             if (f >= 0 && l > f) return text[(f + 1)..l].Trim();
         }
 
-        var argList = FindArgumentsNode(node);
-        if (argList.IsValid())
+        var direct = DeclarativeUniversalRuleEvaluator.ExtractStringArgAtOrFirst(node, 0);
+        if (!string.IsNullOrEmpty(direct))
         {
-            var firstStr = argList.Children.FirstOrDefault(IsStringLiteral);
-            if (firstStr.IsValid())
+            return direct;
+        }
+
+        if (node is CallExprSyntax { Arguments.Count: > 0 } callExpr)
+        {
+            var maxArgs = Math.Min(callExpr.Arguments.Count, 3);
+            for (var i = 0; i < maxArgs; i++)
             {
-                return firstStr.Text.Trim('"', '\'').Trim();
+                var resolved = TryResolveSqlArgumentNode(callExpr.Arguments[i]);
+                if (!string.IsNullOrEmpty(resolved)) return resolved;
+            }
+        }
+        else
+        {
+            var argList = FindArgumentsNode(node);
+            if (argList.IsValid())
+            {
+                var checkedCount = 0;
+                for (var i = 0; i < argList.Children.Count && checkedCount < 3; i++)
+                {
+                    var child = argList.Children[i];
+                    if (child.Type is "(" or ")" or ",") continue;
+                    checkedCount++;
+                    var resolved = TryResolveSqlArgumentNode(child);
+                    if (!string.IsNullOrEmpty(resolved)) return resolved;
+                }
             }
         }
 
         return null;
     }
 
+    private static string? TryResolveSqlArgumentNode(Node argNode)
+    {
+        if (!argNode.IsValid()) return null;
+        if (argNode is ArgumentSyntax { Value: { } argVal })
+        {
+            argNode = argVal;
+        }
+        var rawSpan = argNode.AsSpan().Trim();
+        if (rawSpan.Equals("ctx", StringComparison.OrdinalIgnoreCase) ||
+            rawSpan.StartsWith("context.", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        if (AstValueResolver.TryResolveString(argNode, null, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved.Trim('"', '\'', '`').Trim();
+        }
+        if (ConstantRegistry.TryResolve(null, rawSpan.ToString(), out var constVal) && !string.IsNullOrWhiteSpace(constVal))
+        {
+            return constVal.Trim('"', '\'', '`').Trim();
+        }
+        return null;
+    }
+
     private const string NameEntity = "Entity";
     private const string NameDocument = "Document";
 
-    private static bool MatchesOrmTableAnnotation(Node node, OrmTableRule rule)
+    internal static bool MatchesOrmTableAnnotation(Node node, OrmTableRule rule)
     {
         if (!rule.AnnotationNodeTypes.Contains(node.Type)) return false;
         var name = GetShortAnnotationName(node);
@@ -113,7 +159,7 @@ public partial class DeclarativeSemanticExtension
                !tableName.Equals(NameDocument, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? ExtractOrmTableName(Node annotNode, OrmTableRule rule)
+    internal static string? ExtractOrmTableName(Node annotNode, OrmTableRule rule)
     {
         var name = ExtractNamedOrFirstStringFromAnnotation(annotNode, rule.NameArgumentKeys);
         if (!string.IsNullOrEmpty(name)) return name;
@@ -145,7 +191,7 @@ public partial class DeclarativeSemanticExtension
 
     #region Messaging Helpers
 
-    private static bool MatchesMessagingListenerAnnotation(Node node, MessagingBrokerRule rule)
+    internal static bool MatchesMessagingListenerAnnotation(Node node, MessagingBrokerRule rule)
     {
         if (rule.ListenerAnnotationNames.Count == 0 || !rule.AnnotationNodeTypes.Contains(node.Type))
             return false;
@@ -154,7 +200,7 @@ public partial class DeclarativeSemanticExtension
         return !string.IsNullOrEmpty(name) && rule.ListenerAnnotationNames.Contains(name);
     }
 
-    private static bool MatchesMessagingProducerAnnotation(Node node, MessagingBrokerRule rule)
+    internal static bool MatchesMessagingProducerAnnotation(Node node, MessagingBrokerRule rule)
     {
         if (rule.ProducerAnnotationNames.Count == 0 || !rule.AnnotationNodeTypes.Contains(node.Type))
             return false;
@@ -163,7 +209,7 @@ public partial class DeclarativeSemanticExtension
         return !string.IsNullOrEmpty(name) && rule.ProducerAnnotationNames.Contains(name);
     }
 
-    private static bool MatchesMessagingChannelAnnotation(Node node, MessagingBrokerRule rule)
+    internal static bool MatchesMessagingChannelAnnotation(Node node, MessagingBrokerRule rule)
     {
         if (rule.ChannelAnnotationNames.Count == 0 || !rule.AnnotationNodeTypes.Contains(node.Type))
             return false;
@@ -172,7 +218,7 @@ public partial class DeclarativeSemanticExtension
         return !string.IsNullOrEmpty(name) && rule.ChannelAnnotationNames.Contains(name);
     }
 
-    private static bool MatchesMethodLevelEventListener(Node node, MessagingBrokerRule rule)
+    internal static bool MatchesMethodLevelEventListener(Node node, MessagingBrokerRule rule)
     {
         if (rule.MethodLevelEventAnnotations.Count == 0 || node is not FunctionDeclSyntax)
             return false;
@@ -185,7 +231,7 @@ public partial class DeclarativeSemanticExtension
         });
     }
 
-    private static List<string> ExtractMessagingTopics(Node annotNode, MessagingBrokerRule rule)
+    internal static List<string> ExtractMessagingTopics(Node annotNode, MessagingBrokerRule rule)
     {
         var list = new List<string>();
 
@@ -287,126 +333,226 @@ public partial class DeclarativeSemanticExtension
         return null;
     }
 
-    private static void TryCollectMessagingPublishReferences(
+    internal static void TryCollectMessagingPublishReferences(
         Node callNode,
+        ReadOnlySpan<char> methodSpan,
         string scopeSymbolId,
         List<Reference> references,
         MessagingBrokerRule rule)
     {
-        var methodName = GetCallMethodName(callNode);
-        if (string.IsNullOrEmpty(methodName) || !rule.PublishMethodNames.Contains(methodName))
+        if (rule.PublishMethodNames.Count == 0) return;
+
+        if (methodSpan.IsEmpty) methodSpan = GetCallMethodSpan(callNode);
+        if (methodSpan.IsEmpty || !rule.PublishMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
             return;
 
         if (rule.PublishReceiverSubstrings.Count > 0)
         {
-            var objText = GetCallReceiverText(callNode);
-            if (!rule.PublishReceiverSubstrings.Any(sub => objText.Contains(sub, StringComparison.OrdinalIgnoreCase)))
+            var objSpan = GetCallReceiverSpan(callNode);
+            if (!DeclarativeUniversalRuleEvaluator.SpanContainsAny(objSpan, rule.PublishReceiverSubstrings))
             {
                 return;
             }
         }
 
+        if (!rule.ExtractEventTypeFromObjectCreationArg && callNode is CallExprSyntax { Arguments.Count: > 0 } callExpr)
+        {
+            var directCount = callExpr.Arguments.Count;
+            string? directTarget = null;
+            if (rule.PublishTopicArgumentIndex > 0 && directCount > rule.PublishTopicArgumentIndex)
+            {
+                directTarget = CleanPublishTargetArg(callExpr.Arguments[rule.PublishTopicArgumentIndex]);
+            }
+            else if (rule.PreferSecondArgWhenThreeOrMoreArgs && directCount >= 3)
+            {
+                directTarget = CleanPublishTargetArg(callExpr.Arguments[1]) ?? CleanPublishTargetArg(callExpr.Arguments[0]);
+            }
+            else
+            {
+                directTarget = CleanPublishTargetArg(callExpr.Arguments[0]);
+            }
+
+            directTarget ??= rule.StaticPublishTopic;
+            if (!string.IsNullOrEmpty(directTarget))
+            {
+                references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, directTarget), OntologyConstants.Relationships.PublishesTo));
+            }
+            return;
+        }
+
         var argList = FindArgumentsNode(callNode);
-        if (!argList.IsValid()) return;
+        if (!argList.IsValid())
+        {
+            if (!string.IsNullOrEmpty(rule.StaticPublishTopic))
+            {
+                references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, rule.StaticPublishTopic), OntologyConstants.Relationships.PublishesTo));
+            }
+            return;
+        }
 
         if (rule.ExtractEventTypeFromObjectCreationArg)
         {
-            var objCreation = argList.Children.FirstOrDefault(c => c is CallExprSyntax { CallKind: CallSyntaxKind.Constructor } || c.Type == "object_creation_expression");
+            var objCreation = argList.Children.FirstOrDefault(c => c is CallExprSyntax { CallKind: CallSyntaxKind.Constructor } || c.Type == ObjectCreationExprKind);
             if (objCreation.IsValid())
             {
                 var typeNode = objCreation.GetField(SyntaxFields.Type)
                                ?? objCreation.Children.FirstOrDefault(c => c is IdentifierExprSyntax or TypeRefSyntax);
                 if (typeNode.IsValid())
                 {
-                    references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{typeNode.Text}", OntologyConstants.Relationships.PublishesTo));
+                    references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, typeNode.Text), OntologyConstants.Relationships.PublishesTo));
                 }
             }
             return;
         }
 
-        var args = argList.Children.Where(c => c.Type is not "(" and not ")" and not ",").ToList();
-        if (args.Count == 0) return;
+        Node? arg0 = null;
+        Node? arg1 = null;
+        Node? argAtTargetIdx = null;
+        var argCount = 0;
+        for (var i = 0; i < argList.Children.Count; i++)
+        {
+            var c = argList.Children[i];
+            if (c.Type is "(" or ")" or ",") continue;
+            if (argCount == 0) arg0 = c;
+            else if (argCount == 1) arg1 = c;
+            if (argCount == rule.PublishTopicArgumentIndex) argAtTargetIdx = c;
+            argCount++;
+        }
+
+        if (argCount == 0)
+        {
+            if (!string.IsNullOrEmpty(rule.StaticPublishTopic))
+            {
+                references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, rule.StaticPublishTopic), OntologyConstants.Relationships.PublishesTo));
+            }
+            return;
+        }
 
         string? target = null;
-        if (rule.PreferSecondArgWhenThreeOrMoreArgs && args.Count >= 3)
+        if (rule.PublishTopicArgumentIndex > 0 && argAtTargetIdx != null)
         {
-            target = CleanPublishTargetArg(args[1]) ?? CleanPublishTargetArg(args[0]);
+            target = CleanPublishTargetArg(argAtTargetIdx);
         }
-        else
+        else if (rule.PreferSecondArgWhenThreeOrMoreArgs && argCount >= 3 && arg1 != null && arg0 != null)
         {
-            target = CleanPublishTargetArg(args[0]);
+            target = CleanPublishTargetArg(arg1) ?? CleanPublishTargetArg(arg0);
+        }
+        else if (arg0 != null)
+        {
+            target = CleanPublishTargetArg(arg0);
         }
 
+        target ??= rule.StaticPublishTopic;
         if (!string.IsNullOrEmpty(target))
         {
-            references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{target}", OntologyConstants.Relationships.PublishesTo));
+            references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, target), OntologyConstants.Relationships.PublishesTo));
         }
     }
 
-    private static void TryCollectMessagingSubscribeReferences(
+    internal static void TryCollectMessagingSubscribeReferences(
         Node callNode,
+        ReadOnlySpan<char> methodSpan,
         string scopeSymbolId,
         List<Reference> references,
         MessagingBrokerRule rule)
     {
         if (rule.SubscribeMethodNames.Count == 0) return;
 
-        var methodName = GetCallMethodName(callNode);
-        if (string.IsNullOrEmpty(methodName) || !rule.SubscribeMethodNames.Contains(methodName))
+        if (methodSpan.IsEmpty) methodSpan = GetCallMethodSpan(callNode);
+        if (methodSpan.IsEmpty || !rule.SubscribeMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
             return;
 
         if (rule.SubscribeReceiverSubstrings.Count > 0)
         {
-            var objText = GetCallReceiverText(callNode);
-            if (!rule.SubscribeReceiverSubstrings.Any(sub => objText.Contains(sub, StringComparison.OrdinalIgnoreCase)))
+            var objSpan = GetCallReceiverSpan(callNode);
+            if (!DeclarativeUniversalRuleEvaluator.SpanContainsAny(objSpan, rule.SubscribeReceiverSubstrings))
             {
                 return;
             }
         }
 
+        if (callNode is CallExprSyntax { Arguments.Count: > 0 } subCallExpr)
+        {
+            var directSubTarget = CleanPublishTargetArg(subCallExpr.Arguments[0]);
+            if (!string.IsNullOrEmpty(directSubTarget))
+            {
+                references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, directSubTarget), OntologyConstants.Relationships.SubscribesTo));
+            }
+            return;
+        }
+
         var argList = FindArgumentsNode(callNode);
         if (!argList.IsValid()) return;
 
-        var args = argList.Children.Where(c => c.Type is not "(" and not ")" and not ",").ToList();
-        if (args.Count == 0) return;
+        Node? firstArg = null;
+        for (var i = 0; i < argList.Children.Count; i++)
+        {
+            var c = argList.Children[i];
+            if (c.Type is "(" or ")" or ",") continue;
+            firstArg = c;
+            break;
+        }
+        if (firstArg == null) return;
 
-        var target = CleanPublishTargetArg(args[0]);
+        var target = CleanPublishTargetArg(firstArg);
         if (!string.IsNullOrEmpty(target))
         {
-            references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{target}", OntologyConstants.Relationships.SubscribesTo));
+            references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, target), OntologyConstants.Relationships.SubscribesTo));
         }
     }
 
     private const string ScopeFieldName = "scope";
+    private const string MemberFieldName = "member";
+    private const string PropertyFieldName = "property";
+    private const string AttributeFieldName = "attribute";
+    private const string ObjectCreationExprKind = "object_creation_expression";
+    private const char DotChar = '.';
 
-    private static string GetCallReceiverText(Node callNode)
+    internal static ReadOnlySpan<char> GetCallReceiverSpan(Node callNode)
     {
+        if (callNode is CallExprSyntax { Receiver: { } recv })
+        {
+            return recv.AsSpan();
+        }
+
         var objNode = callNode.GetField(SyntaxFields.Object)
                       ?? callNode.GetField(SyntaxFields.Operand)
                       ?? callNode.GetField(ScopeFieldName);
         if (!objNode.IsValid())
         {
-            var funcNode = callNode.GetField(SyntaxFields.Function);
+            var funcNode = callNode.GetField(SyntaxFields.Function) ?? (callNode.Children.Count > 0 ? callNode.Children[0] : null);
             if (funcNode.IsValid())
             {
                 objNode = funcNode.GetField(SyntaxFields.Expression)
                           ?? funcNode.GetField(SyntaxFields.Object)
                           ?? funcNode.GetField(SyntaxFields.Operand);
+                if (!objNode.IsValid())
+                {
+                    var span = funcNode.AsSpan();
+                    var dot = span.LastIndexOf(DotChar);
+                    if (dot > 0) return span[..dot].Trim();
+                }
             }
         }
-        return objNode.IsValid() ? objNode.Text : "";
+        return objNode.IsValid() ? objNode.AsSpan() : ReadOnlySpan<char>.Empty;
     }
+
+    internal static string GetCallReceiverText(Node callNode) => GetCallReceiverSpan(callNode).ToString();
 
     private static string? CleanPublishTargetArg(Node argNode)
     {
-        if (argNode.Type == "argument" && argNode.Children.Count > 0)
+        if (argNode is ArgumentSyntax { Value: { } argVal })
+        {
+            argNode = argVal;
+        }
+        else if (argNode.Type == "argument" && argNode.Children.Count > 0)
         {
             argNode = argNode.Children[^1];
         }
 
         if (IsStringLiteral(argNode))
         {
-            return argNode.Text.Trim('"', '\'');
+            return argNode.AsSpan().Trim("\"'`").ToString();
         }
 
         if (argNode is CallExprSyntax { CallKind: CallSyntaxKind.Constructor } || argNode.Type == "object_creation_expression")
@@ -485,25 +631,41 @@ public partial class DeclarativeSemanticExtension
         return name;
     }
 
-    private static string? GetCallMethodName(Node callNode)
+    internal static ReadOnlySpan<char> GetCallMethodSpan(Node callNode)
     {
+        if (callNode is CallExprSyntax { MethodNameSlice.Length: > 0 } callExpr)
+        {
+            return DeclarativeUniversalRuleEvaluator.StripGenericTypeSuffixSpan(callExpr.MethodNameSpan);
+        }
+
         var nameNode = callNode.GetField(SyntaxFields.Name)
                        ?? callNode.GetField(SyntaxFields.Field)
-                       ?? callNode.GetField("member");
-        if (nameNode.IsValid()) return nameNode.Text;
+                       ?? callNode.GetField(MemberFieldName)
+                       ?? callNode.GetField(SyntaxFields.Constructor)
+                       ?? callNode.GetField(SyntaxFields.Type);
+        if (nameNode.IsValid()) return DeclarativeUniversalRuleEvaluator.ExtractLeafMethodSpan(nameNode.AsSpan());
 
         var funcNode = callNode.GetField(SyntaxFields.Function);
         if (funcNode.IsValid())
         {
-            var field = funcNode.GetField(SyntaxFields.Field) ?? funcNode.GetField(SyntaxFields.Name);
-            if (field.IsValid()) return field.Text;
-            return funcNode.Text;
+            var field = funcNode.GetField(SyntaxFields.Field)
+                        ?? funcNode.GetField(SyntaxFields.Name)
+                        ?? funcNode.GetField(PropertyFieldName)
+                        ?? funcNode.GetField(AttributeFieldName);
+            if (field.IsValid()) return DeclarativeUniversalRuleEvaluator.StripGenericTypeSuffixSpan(field.AsSpan());
+            return DeclarativeUniversalRuleEvaluator.ExtractLeafMethodSpan(funcNode.AsSpan());
         }
 
-        return null;
+        return ReadOnlySpan<char>.Empty;
     }
 
-    private static Node? FindArgumentsNode(Node callNode)
+    internal static string? GetCallMethodName(Node callNode)
+    {
+        var span = GetCallMethodSpan(callNode);
+        return span.IsEmpty ? null : span.ToString();
+    }
+
+    internal static Node? FindArgumentsNode(Node callNode)
     {
         return callNode.GetField(SyntaxFields.Arguments)
                ?? callNode.FindChildOfType("argument_list")
@@ -511,7 +673,7 @@ public partial class DeclarativeSemanticExtension
                ?? callNode.Children.FirstOrDefault(c => c.Type.Contains("argument", StringComparison.Ordinal));
     }
 
-    private static bool IsStringLiteral(Node node)
+    internal static bool IsStringLiteral(Node node)
     {
         return node.IsValid() &&
                (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
@@ -665,7 +827,7 @@ public partial class DeclarativeSemanticExtension
         }
     }
 
-    private static string? FindEnclosingMethodName(Node annotNode)
+    internal static string? FindEnclosingMethodName(Node annotNode)
     {
         var current = annotNode.Parent;
         while (current.IsValid())
@@ -686,7 +848,7 @@ public partial class DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractFirstParameterType(Node methodNode)
+    internal static string? ExtractFirstParameterType(Node methodNode)
     {
         if (methodNode is FunctionDeclSyntax { Parameters.Count: > 0 } fn && fn.Parameters[0].ParameterType is { } pt)
         {

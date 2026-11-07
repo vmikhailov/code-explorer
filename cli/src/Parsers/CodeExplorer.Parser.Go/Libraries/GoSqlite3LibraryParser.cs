@@ -1,52 +1,39 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoSqlite3LibraryParser : ISemanticExtension
+public class GoSqlite3LibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "SQLite3";
-    public string Id => "sqlite3";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/mattn/go-sqlite3*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> SqlMethods = new[]
     {
-        if (GoSqlHelper.IsSqlCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "Query", "QueryRow", "Exec",
+        "QueryContext", "QueryRowContext", "ExecContext"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public GoSqlite3LibraryParser()
     {
-        if (GoSqlHelper.IsSqlCall(node, out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "sqlite3";
+        Name = "SQLite3";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["github.com/mattn/go-sqlite3*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"SQLite: {clean}";
+                CallMethodNames = SqlMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "SQLite"
             }
-            return $"SQLite: {method ?? "Query"}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (GoSqlHelper.IsSqlCall(node, out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
             {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
+                CallMethodNames = SqlMethods,
+                StaticTargetName = "sqlite"
             }
-            references.Add(new Reference(scopeSymbolId, "sqlite", OntologyConstants.Relationships.UsesDb));
-        }
+        ];
     }
 }

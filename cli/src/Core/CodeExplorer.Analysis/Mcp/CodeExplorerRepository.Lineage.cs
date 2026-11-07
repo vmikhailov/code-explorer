@@ -344,6 +344,13 @@ public partial class CodeExplorerRepository
             return StandbyMessageJson;
         }
 
+        var fastTaxonomyJson = await client.GetTaxonomyJsonAsync(cancellationToken);
+        if (!string.IsNullOrEmpty(fastTaxonomyJson))
+        {
+            _macroCache[cacheKey] = fastTaxonomyJson;
+            return fastTaxonomyJson;
+        }
+
         var query = Queries.Get("get_taxonomy_nodes");
         var propQuery = Queries.Get("get_taxonomy_properties");
 

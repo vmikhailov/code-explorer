@@ -62,6 +62,16 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.Boto3LibraryParser(),
         new Libraries.TemporalPythonLibraryParser(),
         new Libraries.AiSdkPythonLibraryParser(),
+        new Libraries.FastStreamLibraryParser(),
+        new Libraries.KafkaPythonLibraryParser(),
+        new Libraries.PikaRabbitMqLibraryParser(),
+        new Libraries.SchedulerOrchestrationPythonLibraryParser(),
+        new Libraries.AsyncWebPythonLibraryParser(),
+        new Libraries.AsyncPgPsycopg3LibraryParser(),
+        new Libraries.ClickHousePythonLibraryParser(),
+        new Libraries.VectorDbPythonLibraryParser(),
+        new Libraries.AgenticAiPythonLibraryParser(),
+        new Libraries.DiContainerPythonLibraryParser(),
         Libraries.PythonTestLibraryParser.Instance
     ];
 

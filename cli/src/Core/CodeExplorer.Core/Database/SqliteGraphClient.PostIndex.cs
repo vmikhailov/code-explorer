@@ -29,6 +29,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
             await using var cmdInit = _conn.CreateCommand();
             cmdInit.CommandTimeout = CommandTimeoutSeconds;
             cmdInit.Parameters.AddWithValue("@namesJson", namesJson);
@@ -145,6 +146,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
             await using var cmdInit = _conn.CreateCommand();
             cmdInit.CommandTimeout = CommandTimeoutSeconds;
             cmdInit.Parameters.AddWithValue("@typesJson", typesJson);
@@ -232,6 +234,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
             await using var cmd = _conn.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
 
@@ -328,6 +331,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync();
             // 1. Sinks (ExternalService, DB, Database, Query, CloudService)
             var sinks = new Dictionary<string, string>();
             var sinkDomains = new Dictionary<string, string?>();
@@ -505,6 +509,41 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading)
+            {
+                if (!_bulkIsFreshDb)
+                {
+                    var toRemove = _bulkRelationships.Keys
+                        .Where(k => k.Kind is RelTransitivelyCalls or RelAttributedTo &&
+                                    (string.IsNullOrEmpty(widPrefix) || k.From.StartsWith(widPrefix, StringComparison.Ordinal)))
+                        .ToList();
+                    foreach (var k in toRemove)
+                    {
+                        _bulkRelationships.Remove(k);
+                    }
+                }
+
+                foreach (var rel in result.TransitivelyCalls)
+                {
+                    _bulkRelationships[(rel.From, rel.To, RelTransitivelyCalls)] = $"{{\"hops\":{rel.Hops}}}";
+                }
+
+                foreach (var rel in result.AttributedTo)
+                {
+                    _bulkRelationships[(rel.EpId, rel.SinkId, RelAttributedTo)] =
+                        JsonSerializer.Serialize(new { hops = rel.Hops, sink_kind = rel.SinkKind });
+                }
+
+                foreach (var (projId, domains) in result.ProjectExternalApis)
+                {
+                    _bulkProjectExternalApis[projId] = domains;
+                }
+
+                _bulkDropIdentifierIndex = true;
+                RecordPostIndexInTaxonomy(result);
+                return;
+            }
+
             // 1. Delete old TRANSITIVELY_CALLS and ATTRIBUTED_TO for workspace
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
@@ -595,6 +634,7 @@ public partial class SqliteGraphClient
             }
 
             await tx.CommitAsync();
+            RecordPostIndexInTaxonomy(result);
             sw.Stop();
 
             _logger.LogDebug(
@@ -626,6 +666,15 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading)
+            {
+                foreach (var (projId, domains) in projectExternalApis)
+                {
+                    _bulkProjectExternalApis[projId] = domains;
+                }
+                return;
+            }
+
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             await using var updCmd = _conn.CreateCommand();

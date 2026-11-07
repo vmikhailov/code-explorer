@@ -389,17 +389,19 @@ public partial class PostIndexAnalyzer
         {
             if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
             {
-                await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId });
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId });
-                await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId });
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId });
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
+                await ctx.DbClient.ExecuteWriteAsync("""
+                    UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;
+                    DELETE FROM edges WHERE to_id = @rawId;
+                    UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;
+                    DELETE FROM edges WHERE from_id = @rawId;
+                    DELETE FROM nodes WHERE id = @rawId;
+                    """, new { canonicalId, rawId });
             }
         }
 
         // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
         await ctx.DbClient.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
+            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND kind = 'CONTAINS' AND from_id NOT LIKE '%semantic_structure%';");
 
         // Purge any remaining phantom Database nodes that were not canonicalized
         var validIds = canonicalDbNodes.Keys.ToList();
@@ -410,16 +412,12 @@ public partial class PostIndexAnalyzer
             for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
 
             await ctx.DbClient.ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
-                paramDict);
-            await ctx.DbClient.ExecuteWriteAsync(
-                $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
+                $"DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
                 paramDict);
         }
         else
         {
-            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');");
-            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';");
+            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM nodes WHERE kind = 'Database';");
         }
 
         // Link orphaned DDL tables (e.g. created via .sql schema files without explicit CREATE DATABASE) to canonical database
@@ -480,10 +478,10 @@ public partial class PostIndexAnalyzer
                 INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
                 SELECT p.id, t.id, 'DEFINES', '{}'
                 FROM nodes t
-                JOIN edges e1 ON e1.to_id = t.id AND e1.kind = 'CONTAINS'
-                JOIN nodes f ON e1.from_id = f.id AND f.kind = 'File'
-                JOIN edges e2 ON e2.to_id = f.id AND e2.kind = 'CONTAINS'
-                JOIN nodes p ON e2.from_id = p.id AND p.kind = 'Project'
+                CROSS JOIN edges e1 ON e1.to_id = t.id AND e1.kind = 'CONTAINS'
+                CROSS JOIN nodes f ON e1.from_id = f.id AND f.kind = 'File'
+                CROSS JOIN edges e2 ON e2.to_id = f.id AND e2.kind = 'CONTAINS'
+                CROSS JOIN nodes p ON e2.from_id = p.id AND p.kind = 'Project'
                 WHERE t.kind = 'Table'
                   AND NOT EXISTS (
                     SELECT 1 FROM edges ep WHERE ep.from_id = p.id AND ep.to_id = t.id AND ep.kind = 'DEFINES'

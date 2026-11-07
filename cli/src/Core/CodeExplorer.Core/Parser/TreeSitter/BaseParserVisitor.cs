@@ -7,6 +7,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 {
     protected readonly List<ISemanticExtension> SemanticExtensions;
     protected List<ISemanticExtension> LibraryParsers => SemanticExtensions;
+    private readonly List<DeclarativeSemanticExtension> _declarativeExtensions = [];
+    private readonly List<ISemanticExtension> _imperativeExtensions = [];
+    private DeclarativeSemanticExtension? _fusedDeclarative;
     protected readonly LanguageSyntaxProfile Profile;
 
     public string RelativePath { get; }
@@ -18,15 +21,44 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     public ParsingContext? Context { get; set; }
     public bool IsTestFile { get; set; }
 
+    protected void RegisterActiveExtension(ISemanticExtension ext)
+    {
+        if (!ext.IsImplemented || SemanticExtensions.Contains(ext)) return;
+        SemanticExtensions.Add(ext);
+        if (ext is DeclarativeSemanticExtension dec)
+        {
+            _declarativeExtensions.Add(dec);
+            _fusedDeclarative = CompiledDeclarativeRuleIndex.GetOrCreateFused(_declarativeExtensions);
+        }
+        else
+        {
+            _imperativeExtensions.Add(ext);
+        }
+    }
+
     public void ResolveAndInjectExtension(string importPath)
     {
         var matches = ExtensionRegistry.MatchAll(importPath);
+        var decChanged = false;
         foreach (var match in matches)
         {
             if (match.IsImplemented && !SemanticExtensions.Contains(match))
             {
                 SemanticExtensions.Add(match);
+                if (match is DeclarativeSemanticExtension dec)
+                {
+                    _declarativeExtensions.Add(dec);
+                    decChanged = true;
+                }
+                else
+                {
+                    _imperativeExtensions.Add(match);
+                }
             }
+        }
+        if (decChanged)
+        {
+            _fusedDeclarative = CompiledDeclarativeRuleIndex.GetOrCreateFused(_declarativeExtensions);
         }
     }
 
@@ -51,6 +83,18 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         SemanticExtensionRegistry extensionRegistry)
     {
         SemanticExtensions = semanticExtensions;
+        for (var i = 0; i < semanticExtensions.Count; i++)
+        {
+            if (semanticExtensions[i] is DeclarativeSemanticExtension dec)
+            {
+                _declarativeExtensions.Add(dec);
+            }
+            else
+            {
+                _imperativeExtensions.Add(semanticExtensions[i]);
+            }
+        }
+        _fusedDeclarative = CompiledDeclarativeRuleIndex.GetOrCreateFused(_declarativeExtensions);
         RelativePath = relativePath;
         AbsoluteWorkspacePath = absoluteWorkspacePath;
         FileParser = fileParser;
@@ -439,16 +483,26 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             if (LibraryParsers.Count > 0 && MayContainSymbolsOrReferences(node))
             {
-                foreach (var libParser in LibraryParsers)
+                var enclosingFunc = currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query
+                    ? SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+                    : null;
+
+                if (_fusedDeclarative != null)
                 {
-                    libParser.CollectReferences(node, "", currentScope.References, Context!);
-                    if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query)
+                    _fusedDeclarative.CollectReferences(node, "", currentScope.References, Context!);
+                    if (enclosingFunc != null)
                     {
-                        var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
-                        if (enclosingFunc != null)
-                        {
-                            libParser.CollectReferences(node, "", enclosingFunc.References, Context!);
-                        }
+                        _fusedDeclarative.CollectReferences(node, "", enclosingFunc.References, Context!);
+                    }
+                }
+
+                for (var i = 0; i < _imperativeExtensions.Count; i++)
+                {
+                    var libParser = _imperativeExtensions[i];
+                    libParser.CollectReferences(node, "", currentScope.References, Context!);
+                    if (enclosingFunc != null)
+                    {
+                        libParser.CollectReferences(node, "", enclosingFunc.References, Context!);
                     }
                 }
             }
@@ -535,8 +589,15 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? MapNodeTypeUsingLibraries(Node node)
     {
-        foreach (var lp in LibraryParsers)
+        if (_fusedDeclarative != null)
         {
+            var decKind = _fusedDeclarative.MapNodeType(node, Context!);
+            if (decKind != null) return decKind;
+        }
+
+        for (var i = 0; i < _imperativeExtensions.Count; i++)
+        {
+            var lp = _imperativeExtensions[i];
             foreach (var kvp in lp.Selectors)
             {
                 if (kvp.Value.Matches(node))
@@ -554,8 +615,15 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? ExtractIdentifierUsingLibraries(Node node, string kind)
     {
-        foreach (var lp in LibraryParsers)
+        if (_fusedDeclarative != null && _fusedDeclarative.MapNodeType(node, Context!) == kind)
         {
+            var decName = _fusedDeclarative.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
+            if (decName != null) return decName;
+        }
+
+        for (var i = 0; i < _imperativeExtensions.Count; i++)
+        {
+            var lp = _imperativeExtensions[i];
             var isMatch = false;
             if (lp.Selectors.TryGetValue(kind, out var sel))
             {
@@ -645,9 +713,10 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (kind == OntologyConstants.NodeLabels.ExternalService)
         {
-            foreach (var libParser in LibraryParsers)
+            _fusedDeclarative?.EnrichSymbol(node, syntacticNode, Context!);
+            for (var i = 0; i < _imperativeExtensions.Count; i++)
             {
-                libParser.EnrichSymbol(node, syntacticNode, Context!);
+                _imperativeExtensions[i].EnrichSymbol(node, syntacticNode, Context!);
             }
             // External services represent target endpoints/hosts (leaf nodes).
             // Any inner calls or expressions within the call arguments belong to the enclosing function/scope (parent).
@@ -659,8 +728,14 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         PushedNodeIds.Push(node.Id);
 
         // Collect references for the symbol node itself (library references & SQL dependencies)
-        foreach (var libParser in LibraryParsers)
+        if (_fusedDeclarative != null)
         {
+            _fusedDeclarative.CollectReferences(node, "", syntacticNode.References, Context!);
+            _fusedDeclarative.EnrichSymbol(node, syntacticNode, Context!);
+        }
+        for (var i = 0; i < _imperativeExtensions.Count; i++)
+        {
+            var libParser = _imperativeExtensions[i];
             libParser.CollectReferences(node, "", syntacticNode.References, Context!);
             libParser.EnrichSymbol(node, syntacticNode, Context!);
         }
@@ -668,8 +743,14 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         if (!string.IsNullOrEmpty(extraEntryPointName) && extraEntryPointName != name)
         {
             var epChild = new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, extraEntryPointName, node);
-            foreach (var libParser in LibraryParsers)
+            if (_fusedDeclarative != null)
             {
+                _fusedDeclarative.CollectReferences(node, "", epChild.References, Context!);
+                _fusedDeclarative.EnrichSymbol(node, epChild, Context!);
+            }
+            for (var i = 0; i < _imperativeExtensions.Count; i++)
+            {
+                var libParser = _imperativeExtensions[i];
                 libParser.CollectReferences(node, "", epChild.References, Context!);
                 libParser.EnrichSymbol(node, epChild, Context!);
             }
@@ -679,8 +760,14 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         if (!string.IsNullOrEmpty(extraExternalServiceName) && extraExternalServiceName != name)
         {
             var extChild = new SyntacticSymbol(OntologyConstants.NodeLabels.ExternalService, extraExternalServiceName, node);
-            foreach (var libParser in LibraryParsers)
+            if (_fusedDeclarative != null)
             {
+                _fusedDeclarative.CollectReferences(node, "", extChild.References, Context!);
+                _fusedDeclarative.EnrichSymbol(node, extChild, Context!);
+            }
+            for (var i = 0; i < _imperativeExtensions.Count; i++)
+            {
+                var libParser = _imperativeExtensions[i];
                 libParser.CollectReferences(node, "", extChild.References, Context!);
                 libParser.EnrichSymbol(node, extChild, Context!);
             }
@@ -690,8 +777,14 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         if (!string.IsNullOrEmpty(extraTableName))
         {
             var tblChild = new SyntacticSymbol(OntologyConstants.NodeLabels.Table, extraTableName, node);
-            foreach (var libParser in LibraryParsers)
+            if (_fusedDeclarative != null)
             {
+                _fusedDeclarative.CollectReferences(node, "", tblChild.References, Context!);
+                _fusedDeclarative.EnrichSymbol(node, tblChild, Context!);
+            }
+            for (var i = 0; i < _imperativeExtensions.Count; i++)
+            {
+                var libParser = _imperativeExtensions[i];
                 libParser.CollectReferences(node, "", tblChild.References, Context!);
                 libParser.EnrichSymbol(node, tblChild, Context!);
             }

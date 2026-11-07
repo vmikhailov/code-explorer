@@ -1,0 +1,13 @@
+id,file,line,symbol,detail
+twenty-c6-S01,packages/twenty-server/src/database/clickhouse/clickhouse.service.ts,73,ClickHouseService.connectToClient,calls ClickHouseService.createAndInitializeClient
+twenty-c6-S02,packages/twenty-server/src/engine/core-modules/billing/reminders/services/billing-reminder.service.ts,135,BillingReminderService.processTrialReminders,calls BillingReminderService.sendReminderIfNotAlreadySent
+twenty-c6-S03,packages/twenty-server/src/engine/core-modules/cloudflare/services/dns-cloudflare.service.ts,27,DnsCloudflareService.checkHostname,calls PublicDomainService.findByDomain
+twenty-c6-S04,packages/twenty-server/src/engine/core-modules/event-logs/event-logs.service.ts,194,EventLogsService.validateAccess,calls ClickHouseService.getMainClient
+twenty-c6-S05,packages/twenty-server/src/engine/core-modules/jwt/services/jwt-key-manager.service.ts,82,JwtKeyManagerService.rotateCurrent,calls JwtKeyManagerService.generateEcP256KeyPair
+twenty-c6-S06,packages/twenty-server/src/engine/core-modules/two-factor-authentication/services/two-factor-authentication-recovery.service.ts,400,TwoFactorAuthenticationRecoveryService.redeemRecoveryCode,calls TwoFactorAuthenticationRecoveryService.sendTwoFactorAuthenticationResetEmail
+twenty-c6-S07,packages/twenty-server/src/engine/dataloaders/dataloader.service.ts,221,DataloaderService.createLoaders,calls DataloaderService.createViewSortsByViewIdLoader
+twenty-c6-S08,packages/twenty-server/src/engine/metadata-modules/ai/ai-chat/services/agent-chat-streaming.service.ts,170,AgentChatStreamingService.retryLastFailedTurn,calls AgentTurnRecorderService.markRunning
+twenty-c6-S09,packages/twenty-server/src/engine/metadata-modules/page-layout/services/page-layout-update.service.ts,940,PageLayoutUpdateService.collectOrphanedViewIdsFromRemovedWidgets,calls PageLayoutUpdateService.getViewIdFromFieldsWidget
+twenty-c6-S10,packages/twenty-server/src/engine/metadata-modules/page-layout/services/page-layout-update.service.ts,1004,PageLayoutUpdateService.collectOrphanedViewIdsFromRemovedWidgets,calls PageLayoutUpdateService.getViewIdFromFieldsWidget
+twenty-c6-S11,packages/twenty-server/src/engine/workspace-manager/workspace-manager.service.ts,90,WorkspaceManagerService.init,calls WorkspaceManagerService.setupDefaultRoles
+twenty-c6-S12,packages/twenty-server/src/modules/emailing/services/message-campaign-batch-delivery.service.ts,484,MessageCampaignBatchDeliveryService.settleDeliveredBatch,calls MessageCampaignBatchDeliveryService.recordSentMessage

@@ -611,7 +611,7 @@ public partial class PostIndexAnalyzer
                 return p;
             }));
 
-            var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}) OR to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
+            var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}); DELETE FROM edges WHERE to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
             await db.ExecuteWriteAsync(sql, paramDict, cancellationToken);
         }
     }
@@ -665,7 +665,7 @@ public partial class PostIndexAnalyzer
                     return p;
                 }));
 
-                var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}) OR to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
+                var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}); DELETE FROM edges WHERE to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
                 await db.ExecuteWriteAsync(sql, paramDict, cancellationToken);
             }
         }

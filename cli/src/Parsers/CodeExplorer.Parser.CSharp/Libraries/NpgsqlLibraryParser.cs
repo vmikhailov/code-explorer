@@ -1,51 +1,33 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class NpgsqlLibraryParser : ISemanticExtension
+public class NpgsqlLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "PostgreSQL";
-    public string Id => "postgres";
-    public IReadOnlyList<string> SupportedPatterns => ["Npgsql", "Npgsql.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly FrozenSet<string> SqlMethods = new[]
     {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "NpgsqlCommand", out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
+        "NpgsqlCommand",
+        "ExecuteReader", "ExecuteReaderAsync",
+        "ExecuteNonQuery", "ExecuteNonQueryAsync",
+        "ExecuteScalar", "ExecuteScalarAsync"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public NpgsqlLibraryParser()
     {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "NpgsqlCommand", out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "postgres";
+        Name = "PostgreSQL";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["Npgsql", "Npgsql.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"PostgreSQL: {clean}";
+                CallMethodNames = SqlMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "PostgreSQL"
             }
-            return $"PostgreSQL: {method ?? "Command"}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (AdoNetCommandHelper.IsAdoNetCall(node, "NpgsqlCommand", out var sqlText, out _))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
-            }
-        }
+        ];
     }
 }

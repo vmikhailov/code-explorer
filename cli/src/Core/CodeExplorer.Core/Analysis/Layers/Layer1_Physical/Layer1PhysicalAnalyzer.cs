@@ -27,7 +27,7 @@ public class Layer1PhysicalParser
         if (string.IsNullOrEmpty(folderName)) folderName = normalizedHostPath;
 
         var workspaceName = folderName;
-        if (ctx.PersistToGraphDb && ctx.DbClient != null)
+        if (!ctx.Clear && ctx.PersistToGraphDb && ctx.DbClient != null)
         {
             try
             {

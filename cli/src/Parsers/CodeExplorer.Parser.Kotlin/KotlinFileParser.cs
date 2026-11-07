@@ -44,7 +44,16 @@ public partial class KotlinFileParser : IFileParser
         new Libraries.KtormLibraryParser(),
         new Libraries.KoinLibraryParser(),
         new Libraries.ArrowKotlinLibraryParser(),
-        new Libraries.KotlinxSerializationLibraryParser()
+        new Libraries.KotlinxSerializationLibraryParser(),
+        new Libraries.CoroutinesFlowChannelLibraryParser(),
+        new Libraries.Http4kLibraryParser(),
+        new Libraries.GrpcKotlinLibraryParser(),
+        new Libraries.ApolloKotlinLibraryParser(),
+        new Libraries.SqlDelightLibraryParser(),
+        new Libraries.SupabaseFirebaseKotlinLibraryParser(),
+        new Libraries.DaggerHiltKodeinLibraryParser(),
+        new Libraries.KotestMockkLibraryParser(),
+        new Libraries.ComposeNavigationKotlinLibraryParser()
     ];
 
     public bool CanParse(string fileExtension)
@@ -158,6 +167,16 @@ public partial class KotlinFileParser : IFileParser
 
         // 8. Relational database configuration detection (e.g. PostgreSQL driver)
         KotlinDatabaseSqlExtractor.DetectDatabaseConfiguration(content, fileNode, workspaceId, relativePath);
+
+        Libraries.CoroutinesFlowChannelLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.Http4kLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.GrpcKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.ApolloKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.SqlDelightLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.SupabaseFirebaseKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.DaggerHiltKodeinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.KotestMockkLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.ComposeNavigationKotlinLibraryParser.AnalyzeSource(content, fileNode);
 
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         doc.PackageOrNamespace = packageName;

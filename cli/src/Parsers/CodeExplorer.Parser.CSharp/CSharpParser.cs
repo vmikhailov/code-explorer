@@ -300,8 +300,17 @@ public partial class CSharpParser : IProjectParser, IFileParser
         new Libraries.StripeLibraryParser(),
         new Libraries.MartenLibraryParser(),
         new Libraries.AwsSdkDotNetLibraryParser(),
+        new Libraries.AzureSdkDotNetLibraryParser(),
         new Libraries.PollyResilienceLibraryParser(),
         new Libraries.OpenTelemetryDotNetLibraryParser(),
+        new Libraries.NServiceBusLibraryParser(),
+        new Libraries.RebusLibraryParser(),
+        new Libraries.DaprDotNetLibraryParser(),
+        new Libraries.FastEndpointsLibraryParser(),
+        new Libraries.CarterLibraryParser(),
+        new Libraries.YarpReverseProxyLibraryParser(),
+        new Libraries.Linq2DbNHibernateLibraryParser(),
+        new Libraries.SemanticKernelAiDotNetLibraryParser(),
         Libraries.DotNetTestLibraryParser.Instance
     ];
 

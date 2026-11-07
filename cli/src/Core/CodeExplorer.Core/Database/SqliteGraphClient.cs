@@ -20,6 +20,12 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private readonly SemaphoreSlim _lock = new(1, 1);
     private ILogger _logger;
     private bool _isDisposed;
+    private bool _isBulkLoading;
+    private bool _bulkIsFreshDb;
+    private bool _bulkDropIdentifierIndex;
+    private readonly Dictionary<string, (string Kind, string PropsJson)> _bulkNodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string From, string To, string Kind), string> _bulkRelationships = new();
+    private readonly Dictionary<string, List<string>> _bulkProjectExternalApis = new(StringComparer.Ordinal);
 
     public ILogger Logger
     {
@@ -79,11 +85,244 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
 
 
+    public async Task BeginBulkLoadAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_isBulkLoading) return;
+
+            var hasNodes = await _conn.ExecuteScalarAsync<int>("SELECT count(*) FROM nodes LIMIT 1;") > 0;
+            var hasEdges = await _conn.ExecuteScalarAsync<int>("SELECT count(*) FROM edges LIMIT 1;") > 0;
+            _bulkIsFreshDb = !hasNodes && !hasEdges;
+
+            _bulkNodes.Clear();
+            _bulkRelationships.Clear();
+            _bulkProjectExternalApis.Clear();
+            _bulkDropIdentifierIndex = false;
+            _isBulkLoading = true;
+
+            if (_bulkIsFreshDb)
+            {
+                ResetTaxonomyInMemory();
+                DropGraphSecondaryIndices();
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task CommitBulkLoadAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_isBulkLoading) return;
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_isBulkLoading)
+            {
+                await CommitBulkLoadUnlockedAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private void ResetBulkLoadStateUnlocked()
+    {
+        var wasFresh = _isBulkLoading && _bulkIsFreshDb;
+        _isBulkLoading = false;
+        _bulkIsFreshDb = false;
+        _bulkDropIdentifierIndex = false;
+        _bulkNodes.Clear();
+        _bulkRelationships.Clear();
+        _bulkProjectExternalApis.Clear();
+        if (wasFresh)
+        {
+            CreateGraphSecondaryIndices();
+        }
+    }
+
+    private async Task CommitBulkLoadUnlockedAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_isBulkLoading) return;
+        _isBulkLoading = false;
+        var isFresh = _bulkIsFreshDb;
+        _bulkIsFreshDb = false;
+        var dropIdIdx = _bulkDropIdentifierIndex;
+        _bulkDropIdentifierIndex = false;
+
+        var sw = Stopwatch.StartNew();
+        var nodesCount = _bulkNodes.Count;
+        var relsCount = _bulkRelationships.Count;
+
+        try
+        {
+            if (nodesCount > 0 || relsCount > 0 || _bulkProjectExternalApis.Count > 0)
+            {
+                await using (var pragmaCmd = _conn.CreateCommand())
+                {
+                    pragmaCmd.CommandText = """
+                                            PRAGMA synchronous = OFF;
+                                            PRAGMA wal_autocheckpoint = 0;
+                                            PRAGMA cache_size = -256000;
+                                            """;
+                    await pragmaCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
+
+                if (!isFresh && dropIdIdx)
+                {
+                    await using var delCmd = _conn.CreateCommand();
+                    delCmd.CommandTimeout = 0;
+                    delCmd.Transaction = tx;
+                    delCmd.CommandText = "DELETE FROM edges WHERE kind IN ('TRANSITIVELY_CALLS', 'ATTRIBUTED_TO');";
+                    await delCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                const string paramI = "@i";
+                const string paramK = "@k";
+                const string paramP = "@p";
+                const string paramDomains = "@domains";
+                const string paramId = "@id";
+                const string paramF = "@f";
+                const string paramT = "@t";
+
+                if (nodesCount > 0)
+                {
+                    await using var nodeCmd = _conn.CreateCommand();
+                    nodeCmd.CommandTimeout = 0;
+                    nodeCmd.Transaction = tx;
+                    nodeCmd.CommandText = isFresh
+                        ? "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p));"
+                        : "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p)) ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;";
+                    var pId = nodeCmd.Parameters.Add(paramI, SqliteType.Text);
+                    var pKind = nodeCmd.Parameters.Add(paramK, SqliteType.Text);
+                    var pProps = nodeCmd.Parameters.Add(paramP, SqliteType.Text);
+                    nodeCmd.Prepare();
+
+                    foreach (var (id, (kind, propsJson)) in _bulkNodes)
+                    {
+                        pId.Value = id;
+                        pKind.Value = kind;
+                        pProps.Value = propsJson;
+                        nodeCmd.ExecuteNonQuery();
+                    }
+                }
+
+                if (_bulkProjectExternalApis.Count > 0)
+                {
+                    await using var updCmd = _conn.CreateCommand();
+                    updCmd.CommandTimeout = 0;
+                    updCmd.Transaction = tx;
+                    updCmd.CommandText =
+                        "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
+                    var pDomains = updCmd.Parameters.Add(paramDomains, SqliteType.Text);
+                    var pId = updCmd.Parameters.Add(paramId, SqliteType.Text);
+                    updCmd.Prepare();
+
+                    foreach (var (projId, domains) in _bulkProjectExternalApis)
+                    {
+                        pId.Value = projId;
+                        pDomains.Value = JsonSerializer.Serialize(domains);
+                        updCmd.ExecuteNonQuery();
+                    }
+                }
+
+                if (relsCount > 0)
+                {
+                    await using var relCmd = _conn.CreateCommand();
+                    relCmd.CommandTimeout = 0;
+                    relCmd.Transaction = tx;
+                    relCmd.CommandText = isFresh
+                        ? "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p));"
+                        : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
+                    var pFrom = relCmd.Parameters.Add(paramF, SqliteType.Text);
+                    var pTo = relCmd.Parameters.Add(paramT, SqliteType.Text);
+                    var pKind = relCmd.Parameters.Add(paramK, SqliteType.Text);
+                    var pProps = relCmd.Parameters.Add(paramP, SqliteType.Text);
+                    relCmd.Prepare();
+
+                    foreach (var ((fromId, toId, kind), propsJson) in _bulkRelationships)
+                    {
+                        pFrom.Value = fromId;
+                        pTo.Value = toId;
+                        pKind.Value = kind;
+                        pProps.Value = propsJson;
+                        relCmd.ExecuteNonQuery();
+                    }
+                }
+
+                await tx.CommitAsync(cancellationToken);
+            }
+
+            if (dropIdIdx)
+            {
+                try
+                {
+                    await using var dropIdxCmd = _conn.CreateCommand();
+                    dropIdxCmd.CommandTimeout = CommandTimeoutSeconds;
+                    dropIdxCmd.CommandText = "DROP TABLE IF EXISTS identifier_index; DROP TABLE IF EXISTS identifier_fts;";
+                    await dropIdxCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[Database   ] Failed to invalidate identifier vector index: {Message}", ex.Message);
+                }
+            }
+        }
+        finally
+        {
+            _bulkNodes.Clear();
+            _bulkRelationships.Clear();
+            _bulkProjectExternalApis.Clear();
+
+            if (isFresh)
+            {
+                CreateGraphSecondaryIndices();
+            }
+
+            try
+            {
+                await using var restoreCmd = _conn.CreateCommand();
+                restoreCmd.CommandText = """
+                                         PRAGMA synchronous = NORMAL;
+                                         PRAGMA wal_autocheckpoint = 1000;
+                                         PRAGMA cache_size = -64000;
+                                         """;
+                await restoreCmd.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Best effort restore
+            }
+        }
+
+        sw.Stop();
+        if (nodesCount > 0 || relsCount > 0)
+        {
+            _logger.LogInformation("[Database   ] Bulk-flushed {Nodes:N0} nodes and {Rels:N0} relationships (with index build) in {ElapsedMs:N0}ms.",
+                nodesCount, relsCount, sw.Elapsed.TotalMilliseconds);
+            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+        }
+    }
+
     public async Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath)
     {
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading)
+            {
+                foreach (var (id, (kind, _)) in _bulkNodes)
+                {
+                    if (kind == "Workspace") return id;
+                }
+            }
             var existing = await _conn.ExecuteScalarAsync<string>("SELECT id FROM nodes WHERE kind = 'Workspace' LIMIT 1;");
             return existing ?? "ws";
         }
@@ -101,11 +340,43 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading)
+            {
+                if (_bulkNodes.TryGetValue(id, out var existingWs))
+                {
+                    using var doc = JsonDocument.Parse(existingWs.PropsJson);
+                    var dict = new Dictionary<string, object?>(StringComparer.Ordinal);
+                    foreach (var p in doc.RootElement.EnumerateObject())
+                    {
+                        dict[p.Name] = p.Value.Clone();
+                    }
+                    dict["path"] = normalized;
+                    _bulkNodes[id] = (existingWs.Kind, JsonSerializer.Serialize(dict));
+                }
+                else
+                {
+                    string? existingName = null;
+                    if (!_bulkIsFreshDb)
+                    {
+                        existingName = await _conn.ExecuteScalarAsync<string?>(
+                            "SELECT json_extract(properties, '$.name') FROM nodes WHERE id = @id LIMIT 1;",
+                            new { id });
+                    }
+
+                    _bulkNodes[id] = ("Workspace", !string.IsNullOrWhiteSpace(existingName)
+                        ? JsonSerializer.Serialize(new { id, name = existingName, path = normalized })
+                        : propsJson);
+                }
+                RecordWorkspaceNodeInTaxonomy(id);
+                return;
+            }
+
             const string sql = """
                 INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', jsonb(@props))
                 ON CONFLICT(id) DO UPDATE SET properties = jsonb_set(properties, '$.path', @path);
                 """;
             await _conn.ExecuteAsync(sql, new { id, props = propsJson, path = normalized });
+            RecordWorkspaceNodeInTaxonomy(id);
         }
         finally
         {
@@ -121,9 +392,28 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
-
             var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
+
+            var bufferWriter = new ArrayBufferWriter<byte>(1024);
+            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
+
+            if (_isBulkLoading)
+            {
+                for (var i = 0; i < distinctNodes.Count; i++)
+                {
+                    var node = distinctNodes[i];
+                    bufferWriter.Clear();
+                    jsonWriter.Reset(bufferWriter);
+                    NodeFactory.WriteJsonProperties(node, jsonWriter);
+                    jsonWriter.Flush();
+                    _bulkNodes[node.Id] = (node.Kind, Encoding.UTF8.GetString(bufferWriter.WrittenSpan));
+                }
+
+                RecordNodesInTaxonomy(distinctNodes);
+                return;
+            }
+
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             await using var cmd = _conn.CreateCommand();
             cmd.Transaction = tx;
@@ -133,9 +423,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
             var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
             cmd.Prepare();
-
-            var bufferWriter = new ArrayBufferWriter<byte>(1024);
-            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
 
             var lastReport = Stopwatch.GetTimestamp();
             for (var i = 0; i < distinctNodes.Count; i++)
@@ -161,6 +448,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             await tx.CommitAsync();
+            RecordNodesInTaxonomy(distinctNodes);
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Uploaded {Count} nodes in {ElapsedMs:F0}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
@@ -180,10 +468,38 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
-
             const string emptyPropsJson = "{}";
             var distinctRels = DeduplicateAndMergeRelationships(rels);
+
+            var bufferWriter = new ArrayBufferWriter<byte>(512);
+            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
+
+            if (_isBulkLoading)
+            {
+                for (var i = 0; i < distinctRels.Count; i++)
+                {
+                    var rel = distinctRels[i];
+                    string propsJson;
+                    if (!rel.HasTelemetry)
+                    {
+                        propsJson = emptyPropsJson;
+                    }
+                    else
+                    {
+                        bufferWriter.Clear();
+                        jsonWriter.Reset(bufferWriter);
+                        rel.WriteJsonProperties(jsonWriter);
+                        jsonWriter.Flush();
+                        propsJson = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
+                    }
+                    _bulkRelationships[(rel.From, rel.To, rel.Kind)] = propsJson;
+                }
+
+                RecordRelationshipsInTaxonomy(distinctRels);
+                return;
+            }
+
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             await using var cmd = _conn.CreateCommand();
             cmd.Transaction = tx;
@@ -194,9 +510,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
             var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
             cmd.Prepare();
-
-            var bufferWriter = new ArrayBufferWriter<byte>(512);
-            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
 
             var lastReport = Stopwatch.GetTimestamp();
 
@@ -230,6 +543,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             await tx.CommitAsync();
+            RecordRelationshipsInTaxonomy(distinctRels);
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Uploaded {Count} relationships in {ElapsedMs:F0}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
@@ -331,6 +645,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (HasPendingBulkMutations)
+            {
+                await CommitBulkLoadUnlockedAsync(cancellationToken);
+            }
+
             await using var cmd = _conn.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.CommandText = sql;
@@ -362,11 +681,15 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    private bool HasPendingBulkMutations =>
+        _isBulkLoading && (_bulkNodes.Count > 1 || _bulkRelationships.Count > 0 || _bulkProjectExternalApis.Count > 0);
+
     public async Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
         try
         {
+            if (HasPendingBulkMutations) await CommitBulkLoadUnlockedAsync(ct);
             return await DbEntityMaterializer.ExecuteScalarCountAsync(_conn, query, parameters, CommandTimeoutSeconds, ct);
         }
         finally
@@ -380,6 +703,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(ct);
         try
         {
+            if (HasPendingBulkMutations) await CommitBulkLoadUnlockedAsync(ct);
             return await DbEntityMaterializer.ExecuteScalarAnyAsync(_conn, query, parameters, CommandTimeoutSeconds, ct);
         }
         finally
@@ -393,6 +717,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(ct);
         try
         {
+            if (HasPendingBulkMutations) await CommitBulkLoadUnlockedAsync(ct);
             return await DbEntityMaterializer.ExecuteReaderListAsync<TElement>(_conn, query, parameters, CommandTimeoutSeconds, ct);
         }
         finally
@@ -406,6 +731,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(ct);
         try
         {
+            if (HasPendingBulkMutations) await CommitBulkLoadUnlockedAsync(ct);
             return await DbEntityMaterializer.ExecuteReaderFirstOrDefaultAsync<TElement>(_conn, query, parameters, CommandTimeoutSeconds, ct);
         }
         finally
@@ -430,6 +756,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
             return await action(_conn);
         }
         finally
@@ -446,6 +773,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading)
+            {
+                await CommitBulkLoadUnlockedAsync(cancellationToken);
+            }
+
             await using var cmd = _conn.CreateCommand();
 
             cmd.CommandTimeout = CommandTimeoutSeconds;
@@ -502,6 +834,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
             const string sql = "SELECT kind, count(*) AS count FROM nodes GROUP BY kind ORDER BY count(*) DESC;";
             var rows = await _conn.QueryAsync<(string kind, int count)>(new CommandDefinition(sql, cancellationToken: cancellationToken));
             return rows.ToDictionary(r => r.kind, r => r.count, StringComparer.OrdinalIgnoreCase);
@@ -517,6 +850,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
             const string sql = "SELECT (SELECT count(*) FROM nodes) AS NodesCount, (SELECT count(*) FROM edges) AS RelationshipsCount;";
             return await _conn.QuerySingleOrDefaultAsync<(int, int)>(new CommandDefinition(sql, cancellationToken: cancellationToken));
         }
@@ -535,6 +869,17 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        if (_isBulkLoading)
+        {
+            try
+            {
+                await CommitBulkLoadUnlockedAsync();
+            }
+            catch
+            {
+                // Best effort flush on dispose
+            }
+        }
         await _conn.CloseAsync();
         await _conn.DisposeAsync();
         SqliteConnection.ClearPool(_conn);
@@ -546,6 +891,17 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        if (_isBulkLoading)
+        {
+            try
+            {
+                CommitBulkLoadUnlockedAsync().GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // Best effort flush on dispose
+            }
+        }
         _conn.Close();
         _conn.Dispose();
         SqliteConnection.ClearPool(_conn);

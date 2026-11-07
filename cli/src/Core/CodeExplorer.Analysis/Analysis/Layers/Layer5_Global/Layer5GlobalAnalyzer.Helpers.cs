@@ -607,7 +607,7 @@ public partial class Layer5AnalysisParser
         return false;
     }
 
-    private static string? ExtractFilePathFromSymbolId(string scopeSymbolId)
+    internal static string? ExtractFilePathFromSymbolId(string scopeSymbolId)
     {
         if (Urn.TryParse(scopeSymbolId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {

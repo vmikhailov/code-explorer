@@ -184,6 +184,12 @@ public partial class SqliteGraphClient
 
     private void CreateIndices()
     {
+        CreateTablesAndAuxiliaryIndices();
+        CreateGraphSecondaryIndices();
+    }
+
+    private void CreateTablesAndAuxiliaryIndices()
+    {
         using var cmd = _conn.CreateCommand();
 
         cmd.CommandText = """
@@ -192,13 +198,6 @@ public partial class SqliteGraphClient
                               kind TEXT NOT NULL,
                               properties JSONB NOT NULL
                           );
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_name_kind ON nodes(json_extract(properties, '$.name'), kind);
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path')));
 
                           CREATE TABLE IF NOT EXISTS edges (
                               from_id TEXT NOT NULL,
@@ -206,10 +205,6 @@ public partial class SqliteGraphClient
                               kind TEXT NOT NULL,
                               properties JSONB NOT NULL
                           );
-                          CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
-                          CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
-                          CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
-                          CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind);
 
                           CREATE TABLE IF NOT EXISTS file_registry (
                               relative_path TEXT PRIMARY KEY,
@@ -285,12 +280,59 @@ public partial class SqliteGraphClient
         }
     }
 
+    private void CreateGraphSecondaryIndices()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandTimeout = 0;
+        cmd.CommandText = """
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path'));
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
+                          CREATE INDEX IF NOT EXISTS idx_nodes_name_kind ON nodes(json_extract(properties, '$.name'), kind);
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol'));
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path')));
+
+                          CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
+                          CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
+                          CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
+                          CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind);
+                          """;
+        cmd.ExecuteNonQuery();
+    }
+
+    private void DropGraphSecondaryIndices()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandTimeout = 0;
+        cmd.CommandText = """
+                          DROP INDEX IF EXISTS idx_nodes_kind;
+                          DROP INDEX IF EXISTS idx_nodes_kind_path;
+                          DROP INDEX IF EXISTS idx_nodes_kind_file_path;
+                          DROP INDEX IF EXISTS idx_nodes_kind_name;
+                          DROP INDEX IF EXISTS idx_nodes_name_kind;
+                          DROP INDEX IF EXISTS idx_nodes_kind_symbol;
+                          DROP INDEX IF EXISTS idx_nodes_kind_lower_path;
+
+                          DROP INDEX IF EXISTS idx_edges_from_kind_to;
+                          DROP INDEX IF EXISTS idx_edges_to_kind_from;
+                          DROP INDEX IF EXISTS idx_edges_kind_from_to;
+                          DROP INDEX IF EXISTS idx_edges_unique;
+                          """;
+        cmd.ExecuteNonQuery();
+    }
+
     public async Task CreateIndicesAsync()
     {
-        CreateIndices();
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading)
+            {
+                await CommitBulkLoadUnlockedAsync();
+            }
+            CreateIndices();
+            await FlushOrPersistTaxonomyUnlockedAsync();
             await using var cmd = _conn.CreateCommand();
             cmd.CommandText = "PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;";
             await cmd.ExecuteNonQueryAsync();
@@ -310,6 +352,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
+            ResetBulkLoadStateUnlocked();
             using var tx = _conn.BeginTransaction();
             try
             {
@@ -320,6 +363,7 @@ public partial class SqliteGraphClient
                     DELETE FROM metadata;
                     """, transaction: tx);
                 tx.Commit();
+                ResetTaxonomyInMemory();
             }
             catch
             {
@@ -345,6 +389,11 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
+            if (_isBulkLoading)
+            {
+                await CommitBulkLoadUnlockedAsync();
+            }
+            await InvalidateTaxonomySnapshotUnlockedAsync();
             var totalWorkspaces = await _conn.ExecuteScalarAsync<int>("SELECT count(DISTINCT id) FROM nodes WHERE kind = 'Workspace';");
 
             var wsId = await FindWorkspaceIdByIdOrPathAsync(raw, normalized);
@@ -456,6 +505,7 @@ public partial class SqliteGraphClient
 
     private async Task WipeDatabaseFastAsync()
     {
+        ResetBulkLoadStateUnlocked();
         using var tx = _conn.BeginTransaction();
         try
         {
@@ -463,8 +513,10 @@ public partial class SqliteGraphClient
                 DELETE FROM edges;
                 DELETE FROM nodes;
                 DELETE FROM file_registry;
+                DELETE FROM metadata;
                 """, transaction: tx);
             tx.Commit();
+            ResetTaxonomyInMemory();
         }
         catch
         {

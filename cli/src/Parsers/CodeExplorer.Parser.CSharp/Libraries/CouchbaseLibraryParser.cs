@@ -1,80 +1,39 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class CouchbaseLibraryParser : ISemanticExtension
+public class CouchbaseLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
-    public string Name => "Couchbase";
-    public string Id => "couchbase";
-    public IReadOnlyList<string> SupportedPatterns => ["Couchbase", "Couchbase.NetClient", "Couchbase.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    private static readonly HashSet<string> CouchbaseMethods = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> CouchbaseMethods = new[]
     {
-        "GetAsync", "InsertAsync", "UpsertAsync", "ReplaceAsync", "RemoveAsync", "QueryAsync", "Get", "Insert", "Upsert", "Replace", "Remove", "Query"
-    };
+        "GetAsync", "InsertAsync", "UpsertAsync", "ReplaceAsync", "RemoveAsync", "QueryAsync",
+        "Get", "Insert", "Upsert", "Replace", "Remove", "Query"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public CouchbaseLibraryParser()
     {
-        if (IsCouchbaseCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsCouchbaseCall(node, out var method))
-        {
-            if (method is "QueryAsync" or "Query")
+        Id = "couchbase";
+        Name = "Couchbase";
+        Type = SemanticExtensionType.DocumentDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["Couchbase", "Couchbase.NetClient", "Couchbase.*"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var queryText = AdoNetCommandHelper.ExtractSqlFromArguments(node);
-                if (!string.IsNullOrEmpty(queryText))
-                {
-                    var clean = NestedSqlParser.CleanQueryText(queryText);
-                    return $"Couchbase N1QL: {clean}";
-                }
+                CallMethodNames = CouchbaseMethods,
+                RequireExtractableSqlOnCall = false,
+                AppendMethodNameWhenNoSql = true,
+                FallbackQueryPrefix = "Couchbase"
             }
-            return $"Couchbase: {method}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsCouchbaseCall(node, out var method))
-        {
-            if (method is "QueryAsync" or "Query")
+        ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
             {
-                var queryText = AdoNetCommandHelper.ExtractSqlFromArguments(node);
-                if (!string.IsNullOrEmpty(queryText))
-                {
-                    NestedSqlParser.TryDetectSqlDependencies(queryText, scopeSymbolId, references);
-                    return;
-                }
+                CallMethodNames = CouchbaseMethods,
+                StaticTargetName = "couchbase"
             }
-            references.Add(new Reference(scopeSymbolId, "couchbase", OntologyConstants.Relationships.UsesDb));
-        }
-    }
-
-    private static bool IsCouchbaseCall(Node node, out string? methodName)
-    {
-        methodName = null;
-        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
-
-        var func = node.GetFunctionNode();
-        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
-        {
-            var name = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
-            if (!string.IsNullOrEmpty(name) && CouchbaseMethods.Contains(name))
-            {
-                methodName = name;
-                return true;
-            }
-        }
-        return false;
+        ];
     }
 }

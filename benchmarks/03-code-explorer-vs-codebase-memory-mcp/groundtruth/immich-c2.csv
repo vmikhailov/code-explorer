@@ -1,0 +1,7 @@
+id,file,line,symbol,detail
+immich-c2-S01,server/src/maintenance/maintenance-health.repository.ts,48,MaintenanceHealthRepository.checkApiHealth,`http://${HEALTH_CHECK_HOST}:${HEALTH_CHECK_PORT}/api/server
+immich-c2-S02,server/src/repositories/machine-learning.repository.ts,133,MachineLearningRepository.check,"new URL('ping', url), {"
+immich-c2-S03,server/src/repositories/machine-learning.repository.ts,171,MachineLearningRepository.predict,"new URL('predict', url), { method: 'POST', body: formData })"
+immich-c2-S04,server/src/repositories/oauth.repository.ts,139,OAuthRepository.getProfilePicture,url)
+immich-c2-S05,server/src/repositories/server-info.repository.ts,72,ServerInfoRepository.getLatestRelease,url)
+immich-c2-S06,server/src/services/workflow-execution.service.ts,101,WorkflowExecutionService.onPluginLoad,...args)

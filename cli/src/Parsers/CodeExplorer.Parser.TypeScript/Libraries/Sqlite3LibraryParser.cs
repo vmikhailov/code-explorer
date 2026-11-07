@@ -1,69 +1,27 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class Sqlite3LibraryParser : ISemanticExtension
+public sealed class Sqlite3LibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "SQLite";
-    public string Id => "sqlite";
-    public IReadOnlyList<string> SupportedPatterns => ["sqlite3", "better-sqlite3", "@types/better-sqlite3"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public Sqlite3LibraryParser()
     {
-        if (IsSqliteQuery(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsSqliteQuery(node))
-        {
-            var sqlText = ExtractSqlArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
+        Id = "sqlite";
+        Name = "SQLite";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["sqlite3", "better-sqlite3", "@types/better-sqlite3"];
+        SqlSinkRules =
+        [
+            new SqlSinkRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
+                CallMethodNames = new[]
                 {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"SQLite Query: {clean}";
+                    "prepare", "run", "all", "get", "exec", "each"
+                }.ToFrozenSet(),
+                RequireExtractableSqlOnCall = false,
+                FallbackQueryPrefix = "SQLite Query"
             }
-            return "SQLite Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsSqliteQuery(node))
-        {
-            var sqlText = ExtractSqlArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
-            }
-        }
-    }
-
-    private static bool IsSqliteQuery(Node node)
-    {
-        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
-
-        if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
-        {
-            return propName is "prepare" or "run" or "all" or "get" or "exec" or "each";
-        }
-        return false;
-    }
-
-    private static string? ExtractSqlArgument(Node node)
-    {
-        return AstHelper.ExtractFirstStringArgument(node);
+        ];
     }
 }

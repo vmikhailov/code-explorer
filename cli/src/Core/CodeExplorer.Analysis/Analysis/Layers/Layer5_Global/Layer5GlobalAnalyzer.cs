@@ -161,7 +161,7 @@ public partial class Layer5AnalysisParser
                         ResolveInstantiatesReference(refItem, ctx, symbols, imports, referenceRelationships);
                         break;
                     case OntologyConstants.Relationships.UsesType:
-                        ResolveUsesTypeReference(refItem, symbols, referenceRelationships);
+                        ResolveUsesTypeReference(refItem, ctx, symbols, referenceRelationships);
                         break;
                     case OntologyConstants.Relationships.AccessedBy:
                     case OntologyConstants.Relationships.ImplementedBy:

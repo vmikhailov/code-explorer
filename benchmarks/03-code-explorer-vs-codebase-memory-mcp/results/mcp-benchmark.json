@@ -1,0 +1,228 @@
+{
+  "immich": {
+    "repo": "immich",
+    "ce_tool_count": 36,
+    "cbm_tool_count": 17,
+    "taxonomy_backfill_ms": 61.4,
+    "operations": {
+      "architecture_overview": {
+        "ce": {
+          "tool": "get_architecture_map",
+          "ms": 295.2,
+          "kb": 4.4
+        },
+        "cbm": {
+          "tool": "get_architecture",
+          "ms": 155.3,
+          "kb": 3.4
+        }
+      },
+      "graph_schema_first_call": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 25.6,
+          "kb": 47.8
+        },
+        "cbm": {
+          "tool": "get_graph_schema",
+          "ms": 44.0,
+          "kb": 1.0
+        }
+      },
+      "graph_schema_cached_call": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 2.8,
+          "kb": 47.8
+        },
+        "cbm": {
+          "tool": "get_graph_schema",
+          "ms": 45.1,
+          "kb": 1.0
+        }
+      },
+      "symbol_search_AuthService": {
+        "ce": {
+          "tool": "find_symbol",
+          "ms": 62.8,
+          "kb": 0.4
+        },
+        "cbm": {
+          "tool": "search_graph",
+          "ms": 63.7,
+          "kb": 1.1
+        }
+      },
+      "inbound_callers_validate": {
+        "ce": {
+          "tool": "get_callers",
+          "ms": 130.8,
+          "kb": 1.2
+        },
+        "cbm": {
+          "tool": "trace_path",
+          "ms": 20.5,
+          "kb": 18.6
+        }
+      },
+      "file_outline": {
+        "ce": {
+          "tool": "get_file_outline",
+          "ms": 16.6,
+          "kb": 0.4
+        },
+        "cbm": {
+          "tool": "get_file_outline",
+          "ms": 20.0,
+          "kb": 4.8
+        }
+      },
+      "cypher_query_limit_10": {
+        "ce": {
+          "tool": "execute_custom_read_cypher",
+          "ms": 4.3,
+          "kb": 1.0
+        },
+        "cbm": {
+          "tool": "query_graph",
+          "ms": 36.5,
+          "kb": 0.4
+        }
+      },
+      "data_lineage_user": {
+        "ce": {
+          "tool": "inspect_data_lineage",
+          "ms": 23.9,
+          "kb": 2.6
+        }
+      },
+      "project_dependencies": {
+        "ce": {
+          "tool": "get_project_dependencies",
+          "ms": 7.1,
+          "kb": 1.0
+        }
+      },
+      "semantic_gates": {
+        "ce": {
+          "tool": "check_semantic_gates",
+          "ms": 10.7,
+          "kb": 0.4
+        }
+      }
+    }
+  },
+  "twenty": {
+    "repo": "twenty",
+    "ce_tool_count": 36,
+    "cbm_tool_count": 17,
+    "taxonomy_backfill_ms": 58.7,
+    "operations": {
+      "architecture_overview": {
+        "ce": {
+          "tool": "get_architecture_map",
+          "ms": 517.7,
+          "kb": 11.0
+        },
+        "cbm": {
+          "tool": "get_architecture",
+          "ms": 311.0,
+          "kb": 6.1
+        }
+      },
+      "graph_schema_first_call": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 25.8,
+          "kb": 52.1
+        },
+        "cbm": {
+          "tool": "get_graph_schema",
+          "ms": 78.5,
+          "kb": 1.0
+        }
+      },
+      "graph_schema_cached_call": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 2.6,
+          "kb": 52.1
+        },
+        "cbm": {
+          "tool": "get_graph_schema",
+          "ms": 80.0,
+          "kb": 1.0
+        }
+      },
+      "symbol_search_AuthService": {
+        "ce": {
+          "tool": "find_symbol",
+          "ms": 602.8,
+          "kb": 1.1
+        },
+        "cbm": {
+          "tool": "search_graph",
+          "ms": 105.3,
+          "kb": 0.8
+        }
+      },
+      "inbound_callers_validate": {
+        "ce": {
+          "tool": "get_callers",
+          "ms": 1115.8,
+          "kb": 2.5
+        },
+        "cbm": {
+          "tool": "trace_path",
+          "ms": 8.8,
+          "kb": 45.6
+        }
+      },
+      "file_outline": {
+        "ce": {
+          "tool": "get_file_outline",
+          "ms": 166.2,
+          "kb": 0.9
+        },
+        "cbm": {
+          "tool": "get_file_outline",
+          "ms": 84.4,
+          "kb": 7.8
+        }
+      },
+      "cypher_query_limit_10": {
+        "ce": {
+          "tool": "execute_custom_read_cypher",
+          "ms": 4.2,
+          "kb": 1.0
+        },
+        "cbm": {
+          "tool": "query_graph",
+          "ms": 84.4,
+          "kb": 0.4
+        }
+      },
+      "data_lineage_user": {
+        "ce": {
+          "tool": "inspect_data_lineage",
+          "ms": 12.8,
+          "kb": 5.2
+        }
+      },
+      "project_dependencies": {
+        "ce": {
+          "tool": "get_project_dependencies",
+          "ms": 11.2,
+          "kb": 0.8
+        }
+      },
+      "semantic_gates": {
+        "ce": {
+          "tool": "check_semantic_gates",
+          "ms": 9.5,
+          "kb": 0.4
+        }
+      }
+    }
+  }
+}
