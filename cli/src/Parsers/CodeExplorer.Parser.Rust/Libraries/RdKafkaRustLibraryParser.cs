@@ -63,7 +63,7 @@ public class RdKafkaRustLibraryParser : ISemanticExtension
         topic = string.Empty;
         isProducer = false;
 
-        if (node.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return false;
         }

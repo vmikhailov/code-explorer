@@ -132,7 +132,13 @@ public partial class Layer5AnalysisParser
         Dictionary<string, string> ProcedureSymbols,
         Dictionary<string, string> TableSymbols,
         Dictionary<string, string> EndpointSymbols,
-        Dictionary<string, string> EntryPointSymbols);
+        Dictionary<string, string> EntryPointSymbols,
+        Dictionary<string, Dictionary<string, List<string>>>? FunctionsByProject = null,
+        List<string>? ProjectsSortedByLengthDesc = null)
+    {
+        public Dictionary<string, Dictionary<string, List<string>>> FunctionsByProject { get; init; } = FunctionsByProject ?? new(StringComparer.OrdinalIgnoreCase);
+        public List<string> ProjectsSortedByLengthDesc { get; init; } = ProjectsSortedByLengthDesc ?? [];
+    }
 
     private record ImportedSymbolEntry(
         string ImportPath,
@@ -148,7 +154,11 @@ public partial class Layer5AnalysisParser
         Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry> FileImports,
         Dictionary<string, List<string>> StarImportsByFile,
         Dictionary<string, PackageTargetInfo> WorkspacePackages,
-        Dictionary<string, string> TsConfigPaths);
+        Dictionary<string, string> TsConfigPaths,
+        Dictionary<(string CallerFile, string ImportPath), List<string>>? CandidateCache = null)
+    {
+        public Dictionary<(string CallerFile, string ImportPath), List<string>> CandidateCache { get; init; } = CandidateCache ?? [];
+    }
 
     private record BindingLookups(
         Dictionary<(string FilePath, string VarName), List<IndexedBinding>> BindingsLookup,
@@ -161,6 +171,7 @@ public partial class Layer5AnalysisParser
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbolsByFile = new Dictionary<(string FilePath, string FuncName), string>();
         var functionsByName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var functionsByProject = new Dictionary<string, Dictionary<string, List<string>>>(StringComparer.OrdinalIgnoreCase);
         var knownFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var filesByProject = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var procedureSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -189,6 +200,24 @@ public partial class Layer5AnalysisParser
                 functionSymbolsByFile[(normFuncFile, name)] = id;
                 if (!string.Equals(name, "<module_init>", StringComparison.Ordinal))
                 {
+                    if (proj != null)
+                    {
+                        if (!functionsByProject.TryGetValue(proj, out var projFns))
+                        {
+                            projFns = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                            functionsByProject[proj] = projFns;
+                        }
+                        if (!projFns.TryGetValue(name, out var pfnList))
+                        {
+                            pfnList = [];
+                            projFns[name] = pfnList;
+                        }
+                        if (!pfnList.Contains(id))
+                        {
+                            pfnList.Add(id);
+                        }
+                    }
+
                     if (!functionsByName.TryGetValue(name, out var fnList))
                     {
                         fnList = [];
@@ -240,6 +269,24 @@ public partial class Layer5AnalysisParser
                                 filesByProject[proj] = pFiles;
                             }
                             if (!pFiles.Contains(normFuncFile)) pFiles.Add(normFuncFile);
+
+                            if (!string.Equals(key.Name, "<module_init>", StringComparison.Ordinal))
+                            {
+                                if (!functionsByProject.TryGetValue(proj, out var projFns))
+                                {
+                                    projFns = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                                    functionsByProject[proj] = projFns;
+                                }
+                                if (!projFns.TryGetValue(key.Name, out var pfnList))
+                                {
+                                    pfnList = [];
+                                    projFns[key.Name] = pfnList;
+                                }
+                                if (!pfnList.Contains(id))
+                                {
+                                    pfnList.Add(id);
+                                }
+                            }
                         }
                     }
                     break;
@@ -275,6 +322,8 @@ public partial class Layer5AnalysisParser
             CollectTableSymbols(l4Result.SemanticStructure, tableSymbols);
         }
 
+        var projectsSortedByLengthDesc = filesByProject.Keys.OrderByDescending(k => k.Length).ToList();
+
         return new SymbolLookups(
             typeSymbols,
             functionSymbols,
@@ -285,7 +334,9 @@ public partial class Layer5AnalysisParser
             procedureSymbols,
             tableSymbols,
             endpointSymbols,
-            entryPointSymbols);
+            entryPointSymbols,
+            functionsByProject,
+            projectsSortedByLengthDesc);
     }
 
     private static void CollectTableSymbols(IOntologyNode node, Dictionary<string, string> tableSymbols)
@@ -438,6 +489,11 @@ public partial class Layer5AnalysisParser
         ParsingContext ctx,
         SymbolLookups symbols)
     {
+        if (imports.CandidateCache != null && imports.CandidateCache.TryGetValue((callerFile, importPath), out var cached))
+        {
+            return cached;
+        }
+
         var results = new List<string>();
 
         // Case A: Relative import (./ or ../ or /)
@@ -449,6 +505,7 @@ public partial class Layer5AnalysisParser
                 : $"{callerDir}/{importPath}");
 
             AddFileCandidates(combined, results, symbols);
+            imports.CandidateCache?[(callerFile, importPath)] = results;
             return results;
         }
 
@@ -471,13 +528,18 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        if (results.Count > 0) return results;
+        if (results.Count > 0)
+        {
+            imports.CandidateCache?[(callerFile, importPath)] = results;
+            return results;
+        }
 
         // Case C: Workspace packages (monorepos)
         // Check exact package name
         if (imports.WorkspacePackages.TryGetValue(importPath, out var pkgInfo))
         {
             AddPackageEntryCandidates(pkgInfo, results, symbols);
+            imports.CandidateCache?[(callerFile, importPath)] = results;
             return results;
         }
 
@@ -501,10 +563,12 @@ public partial class Layer5AnalysisParser
                 AddFileCandidates(subCombined, results, symbols);
                 var srcCombined = NormalizeRelativePath($"{subPkgInfo.ProjectPath}/src/{subPath}");
                 AddFileCandidates(srcCombined, results, symbols);
+                imports.CandidateCache?[(callerFile, importPath)] = results;
                 return results;
             }
         }
 
+        imports.CandidateCache?[(callerFile, importPath)] = results;
         return results;
     }
 
@@ -548,19 +612,6 @@ public partial class Layer5AnalysisParser
             if (symbols.KnownFiles.Contains(cand) && !results.Contains(cand))
             {
                 results.Add(cand);
-            }
-        }
-
-        // Case-insensitive fallback against known files
-        if (results.Count == 0)
-        {
-            foreach (var cand in candidates)
-            {
-                var match = symbols.KnownFiles.FirstOrDefault(k => string.Equals(k, cand, StringComparison.OrdinalIgnoreCase));
-                if (match != null && !results.Contains(match))
-                {
-                    results.Add(match);
-                }
             }
         }
     }
@@ -689,7 +740,8 @@ public partial class Layer5AnalysisParser
         Reference refItem,
         ParsingContext ctx,
         SymbolLookups symbols,
-        List<Relationship> referenceRelationships)
+        List<Relationship> referenceRelationships,
+        HashSet<(string From, string To, string Kind)> existingRefRels)
     {
         if (!symbols.TypeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid) &&
             refItem.ScopeSymbolId.Contains(":Type:", StringComparison.Ordinal))
@@ -706,7 +758,7 @@ public partial class Layer5AnalysisParser
             {
                 var filePath = ExtractFilePathFromSymbolId(tid);
                 var cleanFilePath = !string.IsNullOrEmpty(filePath) ? filePath : null;
-                if (!referenceRelationships.Any(r => r.From == targetTableId && r.To == tid && r.Kind == OntologyConstants.Relationships.ImplementedBy))
+                if (existingRefRels.Add((targetTableId, tid, OntologyConstants.Relationships.ImplementedBy)))
                 {
                     referenceRelationships.Add(Relationship.FromRelationship(new ImplementedByRelationship(targetTableId, tid)
                     {
@@ -715,7 +767,7 @@ public partial class Layer5AnalysisParser
                         FilePath = cleanFilePath
                     }));
                 }
-                if (!referenceRelationships.Any(r => r.From == targetTableId && r.To == tid && r.Kind == OntologyConstants.Relationships.AccessedBy))
+                if (existingRefRels.Add((targetTableId, tid, OntologyConstants.Relationships.AccessedBy)))
                 {
                     referenceRelationships.Add(Relationship.FromRelationship(new AccessedByRelationship(targetTableId, tid)
                     {
@@ -886,6 +938,14 @@ public partial class Layer5AnalysisParser
             if (candidateTableId == null)
             {
                 symbols.TableSymbols.TryGetValue(targetName + "es", out candidateTableId);
+            }
+        }
+        if (candidateTableId == null)
+        {
+            var snakeName = System.Text.RegularExpressions.Regex.Replace(targetName, "([a-z0-9])([A-Z])", "$1_$2").ToLowerInvariant();
+            if (snakeName != targetName)
+            {
+                symbols.TableSymbols.TryGetValue(snakeName, out candidateTableId);
             }
         }
 

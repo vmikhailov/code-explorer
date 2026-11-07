@@ -60,7 +60,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         foreach (var declarator in node.Children)
         {
-            if (declarator.IsValid() && Profile.VariableDeclaratorNodeTypes.Contains(declarator.Type))
+            if (declarator.IsValid() &&
+                (declarator is VariableDeclSyntax { IsDeclarator: true } || Profile.VariableDeclaratorNodeTypes.Contains(declarator.Type)))
             {
                 var varName = ExtractProfileIdentifier(declarator);
                 if (!string.IsNullOrEmpty(varName))
@@ -98,7 +99,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             if (!child.IsValid()) continue;
             if (Profile.ConstantModifierKeywords.Contains(child.Text)) return true;
-            if (Profile.AnnotationContainerNodeTypes.Contains(child.Type))
+            if (child is SyntaxList { Kind: SyntaxListKind.Attributes } || Profile.AnnotationContainerNodeTypes.Contains(child.Type))
             {
                 foreach (var mod in child.Children)
                 {
@@ -119,7 +120,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitImportStatement(Node node, int depth)
     {
-        if (Profile.ImportIdentifierChildTypes.Count > 0 && !Profile.PackageDeclarationNodeTypes.Contains(node.Type))
+        if (Profile.ImportIdentifierChildTypes.Count > 0 && node is not NamespaceDeclSyntax)
         {
             CollectProfileImport(node);
         }
@@ -129,13 +130,21 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected virtual void CollectProfileImport(Node node)
     {
         string? importText = null;
-        foreach (var pf in Profile.ImportPathFields)
+        if (node is ImportDeclSyntax { ModulePath: { Length: > 0 } modPath })
         {
-            var fNode = node.GetField(pf);
-            if (fNode.IsValid())
+            importText = CleanStringLiteral(modPath);
+        }
+
+        if (string.IsNullOrEmpty(importText))
+        {
+            foreach (var pf in Profile.ImportPathFields)
             {
-                importText = CleanStringLiteral(fNode.Text);
-                break;
+                var fNode = node.GetField(pf);
+                if (fNode.IsValid())
+                {
+                    importText = CleanStringLiteral(fNode.Text);
+                    break;
+                }
             }
         }
 
@@ -143,7 +152,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             foreach (var child in node.Children)
             {
-                if (child.IsValid() && Profile.ImportIdentifierChildTypes.Contains(child.Type))
+                if (child.IsValid() &&
+                    (child is IdentifierExprSyntax or MemberAccessExprSyntax or LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String } ||
+                     Profile.ImportIdentifierChildTypes.Contains(child.Type)))
                 {
                     importText = CleanStringLiteral(child.Text);
                     break;
@@ -166,7 +177,10 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             foreach (var child in node.Children)
             {
-                if (child.IsValid() && (child.Type.Contains("identifier", StringComparison.Ordinal) || child.Type.Contains("name", StringComparison.Ordinal)))
+                if (child.IsValid() &&
+                    (child is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax or BaseTypeClauseSyntax ||
+                     child.Type.Contains("identifier", StringComparison.Ordinal) ||
+                     child.Type.Contains("name", StringComparison.Ordinal)))
                 {
                     var baseName = child.Text;
                     var refKind = baseName.StartsWith('I') && baseName.Length > 1 && char.IsUpper(baseName[1])
@@ -180,20 +194,26 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-    private static bool MayContainSymbolsOrReferences(Node node)
-    {
-        var type = node.Type;
-        if (type is "identifier" or "type_identifier" or "predefined_type" or "generic_name" or "qualified_name"
-            or "block" or "statement_block" or "argument_list" or "parameter_list" or "type_argument_list"
-            or "variable_declarator" or "return_statement" or "if_statement"
-            or "for_statement" or "foreach_statement" or "while_statement" or "binary_expression"
-            or "parenthesized_expression" or "assignment_expression" or "member_access_expression"
-            or "cast_expression" or "conditional_expression" or "empty_statement")
-        {
-            return false;
-        }
-        return true;
-    }
+    private static bool MayContainSymbolsOrReferences(Node node) =>
+        node is CallExprSyntax
+            or AnnotationSyntax
+            or TypeDeclSyntax
+            or FunctionDeclSyntax
+            or LambdaExprSyntax
+            or ImplDeclSyntax
+            or VariableDeclSyntax
+            or MemberDeclSyntax
+            or MemberAccessExprSyntax
+            or AssignmentExprSyntax
+            or CollectionExprSyntax
+            or KeyValueExprSyntax
+            or ImportDeclSyntax
+            or BaseTypeClauseSyntax
+            or CatchClauseSyntax
+            or InterpolatedStringExprSyntax
+            or LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString }
+            or ControlFlowStmtSyntax { Kind: ControlFlowKind.If or ControlFlowKind.Switch or ControlFlowKind.Loop or ControlFlowKind.Using or ControlFlowKind.Defer or ControlFlowKind.Goroutine }
+            or SyntaxList { Kind: SyntaxListKind.TopLevelStatement };
 
     protected override void VisitDefault(Node node, int depth)
     {
@@ -264,11 +284,6 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         VisitSymbolOrBase(node, depth, () =>
         {
             var currentScope = SymbolStack.Peek();
-
-            foreach (var libParser in LibraryParsers)
-            {
-                libParser.CollectReferences(node, "", currentScope.References, Context!);
-            }
 
             var callName = FindCallName(node);
 
@@ -376,31 +391,39 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         foreach (var child in node.Children)
         {
-            var cType = child.Type;
-            if (cType is "catch_declaration" or "catch_formal_parameter")
+            if (child is SyntaxList { Kind: SyntaxListKind.Clauses } || child.Type is "catch_declaration" or "catch_formal_parameter")
             {
                 foreach (var grandChild in child.Children)
                 {
-                    if (grandChild.Type is "type_identifier" or "identifier" or "qualified_name" or "generic_name")
+                    if (grandChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax)
                     {
                         exType = grandChild.Text;
                         break;
                     }
                 }
             }
-            else if (cType is "block" or "statement_block")
+            else if (child is BlockStmtSyntax)
             {
                 bodyBlock = child;
             }
-            else if (cType is "identifier" && exType == null)
+            else if (child is IdentifierExprSyntax or TypeRefSyntax && exType == null)
             {
                 exType = child.Text;
             }
-            else if (cType is "as_pattern")
+            else if (child is PatternSyntax { Kind: PatternKind.As })
             {
                 var first = child.Children.FirstOrDefault();
                 if (first != null && first.IsValid()) exType = first.Text;
             }
+        }
+
+        if (exType == null && node is CatchClauseSyntax { ExceptionType: { } catchExType })
+        {
+            exType = catchExType.Text;
+        }
+        if (bodyBlock == null && node is CatchClauseSyntax { Body: { } catchBody })
+        {
+            bodyBlock = catchBody;
         }
 
         var statementCount = 0;
@@ -416,20 +439,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             foreach (var child in bodyBlock.Children)
             {
-                var cType = child.Type;
-                if (cType is "{" or "}" or ":" or ";")
-                {
-                    continue;
-                }
-
-                if (cType.Contains("comment"))
-                {
-                    hasComment = true;
-                    continue;
-                }
-
-                // In Python, pass_statement is the syntactical placeholder for an empty block
-                if (cType == "pass_statement")
+                if (child is ControlFlowStmtSyntax { Kind: ControlFlowKind.NoOp })
                 {
                     continue;
                 }
@@ -456,16 +466,11 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected bool IsStringLiteralNode(Node node)
     {
         if (!node.IsValid()) return false;
-        var type = node.Type;
-
-        if (Profile.StringLiterals.Contains(type)) return true;
-
-        if (type is "string_literal" or "verbatim_string_literal" or "raw_string_literal" or "string" or "character_literal")
+        if (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString or LiteralSyntaxKind.Char })
         {
             return true;
         }
-
-        return false;
+        return Profile.StringLiterals.Contains(node.Type);
     }
 
     protected static string CleanStringLiteral(string text)

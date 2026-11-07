@@ -77,9 +77,10 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? MapProfileNodeType(Node node)
     {
-        var type = node.Type;
-
-        if (Profile.StringLiterals.Contains(type) && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+        if ((node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
+             node is InterpolatedStringExprSyntax ||
+             Profile.StringLiterals.Contains(node.Type)) &&
+            !WorkspaceConventions.IsFrontendFilePath(RelativePath))
         {
             if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
                 NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out _, out _))
@@ -88,29 +89,32 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             }
         }
 
-        if (Profile.StructDeclarations.Contains(type))
+        if (node is TypeDeclSyntax td)
         {
-            return CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind);
+            return td.Kind switch
+            {
+                TypeSyntaxKind.Struct => CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind),
+                TypeSyntaxKind.Enum => CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultEnumKind),
+                TypeSyntaxKind.Class or TypeSyntaxKind.Record => "Class",
+                TypeSyntaxKind.Interface or TypeSyntaxKind.Trait => "Interface",
+                TypeSyntaxKind.TypeAlias or TypeSyntaxKind.Union when Profile.StructDeclarations.Count > 0 && Profile.DefaultStructKind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct =>
+                    CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind),
+                _ => null
+            };
         }
 
-        if (Profile.EnumDeclarations.Contains(type))
+        if (node is FunctionDeclSyntax fd)
         {
-            return CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultEnumKind);
-        }
-
-        if (Profile.ClassDeclarations.Contains(type))
-        {
-            return "Class";
-        }
-
-        if (Profile.InterfaceDeclarations.Contains(type))
-        {
-            return "Interface";
-        }
-
-        if (Profile.MethodDeclarations.Contains(type) || Profile.FunctionDeclarations.Contains(type))
-        {
-            return OntologyConstants.NodeLabels.Function;
+            if (fd.Kind is FunctionSyntaxKind.Function or FunctionSyntaxKind.Method)
+            {
+                return OntologyConstants.NodeLabels.Function;
+            }
+            if (fd.Kind == FunctionSyntaxKind.Constructor &&
+                (Profile.MethodDeclarations.Contains("constructor_declaration") ||
+                 Profile.MethodDeclarations.Contains("compact_constructor_declaration")))
+            {
+                return OntologyConstants.NodeLabels.Function;
+            }
         }
 
         return null;
@@ -118,7 +122,10 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? ExtractProfileIdentifier(Node node)
     {
-        if (Profile.StringLiterals.Contains(node.Type) && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+        if ((node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
+             node is InterpolatedStringExprSyntax ||
+             Profile.StringLiterals.Contains(node.Type)) &&
+            !WorkspaceConventions.IsFrontendFilePath(RelativePath))
         {
             if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
                 NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out var firstWord, out _))
@@ -136,9 +143,14 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             }
         }
 
+        if (node is DeclarationSyntax { HasName: true } decl)
+        {
+            return NormalizeIdentifierText(decl.Name);
+        }
+
         foreach (var child in node.Children)
         {
-            if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+            if (child.IsValid() && (child is IdentifierExprSyntax || Profile.IdentifierChildTypes.Contains(child.Type)))
             {
                 return NormalizeIdentifierText(child.Text);
             }
@@ -165,9 +177,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? ExtractProfileCallName(Node callNode)
     {
-        var type = callNode.Type;
-
-        if (Profile.ObjectCreationNodeTypes.Contains(type))
+        if (callNode is CallExprSyntax { CallKind: CallSyntaxKind.Constructor } || Profile.ObjectCreationNodeTypes.Contains(callNode.Type))
         {
             var typeNode = callNode.GetField(SyntaxFields.Type);
             if (typeNode.IsValid())
@@ -177,7 +187,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             foreach (var child in callNode.Children)
             {
-                if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+                if (child.IsValid() && (child is IdentifierExprSyntax or TypeRefSyntax || Profile.IdentifierChildTypes.Contains(child.Type)))
                 {
                     return child.Text;
                 }
@@ -185,7 +195,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             return null;
         }
 
-        if (Profile.ConstructorSelfCallNodeTypes.Contains(type))
+        if (callNode is CallExprSyntax { CallKind: CallSyntaxKind.SuperConstructor or CallSyntaxKind.ThisConstructor } || Profile.ConstructorSelfCallNodeTypes.Contains(callNode.Type))
         {
             return "super";
         }
@@ -227,12 +237,12 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (funcNode.IsValid())
         {
-            if (Profile.IdentifierChildTypes.Contains(funcNode.Type))
+            if (funcNode is IdentifierExprSyntax || Profile.IdentifierChildTypes.Contains(funcNode.Type))
             {
                 return NormalizeIdentifierText(funcNode.Text);
             }
 
-            if (Profile.MemberAccessExpressions.Contains(funcNode.Type))
+            if (funcNode is MemberAccessExprSyntax || Profile.MemberAccessExpressions.Contains(funcNode.Type))
             {
                 string? memberPart = null;
                 foreach (var mf in Profile.CallMethodFields)
@@ -243,6 +253,11 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                         memberPart = NormalizeIdentifierText(fChild.Text);
                         break;
                     }
+                }
+
+                if (string.IsNullOrEmpty(memberPart) && funcNode is MemberAccessExprSyntax { HasExplicitMemberName: true } memSyntax)
+                {
+                    memberPart = NormalizeIdentifierText(memSyntax.MemberName);
                 }
 
                 if (!string.IsNullOrEmpty(memberPart))
@@ -265,7 +280,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         foreach (var child in callNode.Children)
         {
-            if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+            if (child.IsValid() && (child is IdentifierExprSyntax || Profile.IdentifierChildTypes.Contains(child.Type)))
             {
                 return NormalizeIdentifierText(child.Text);
             }
@@ -277,7 +292,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected virtual void CollectProfileSymbolMetadata(Node node, SyntacticSymbol symbolNode)
     {
         // 1. If EntryPoint from an annotation/attribute, connect to the enclosing method/class
-        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint && Profile.AnnotationNodeTypes.Contains(node.Type))
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint &&
+            (node is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(node.Type)))
         {
             var enclosing = FindEnclosingDeclaration(node);
             if (enclosing.IsValid())
@@ -296,36 +312,27 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         // 2. Class/Interface/Struct inheritance, implemented interfaces, and annotations
         if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
         {
-            if (Profile.SuperclassClauseNodeTypes.Count > 0)
+            foreach (var child in node.Children)
             {
-                foreach (var child in node.Children)
+                if (!child.IsValid()) continue;
+                if (child is BaseTypeClauseSyntax { IsImplements: false } && Profile.SuperclassClauseNodeTypes.Count > 0)
                 {
-                    if (child.IsValid() && Profile.SuperclassClauseNodeTypes.Contains(child.Type))
+                    foreach (var typeChild in child.Children)
                     {
-                        foreach (var typeChild in child.Children)
+                        if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
                         {
-                            if (typeChild.IsValid() && Profile.IdentifierChildTypes.Contains(typeChild.Type))
-                            {
-                                symbolNode.References.Add(new Reference("", typeChild.Text, "INHERITS"));
-                                break;
-                            }
+                            symbolNode.References.Add(new Reference("", typeChild.Text, "INHERITS"));
+                            break;
                         }
                     }
                 }
-            }
-
-            if (Profile.InterfaceClauseNodeTypes.Count > 0)
-            {
-                foreach (var child in node.Children)
+                else if (child is BaseTypeClauseSyntax { IsImplements: true } && Profile.InterfaceClauseNodeTypes.Count > 0)
                 {
-                    if (child.IsValid() && Profile.InterfaceClauseNodeTypes.Contains(child.Type))
+                    foreach (var typeChild in child.Children)
                     {
-                        foreach (var typeChild in child.Children)
+                        if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
                         {
-                            if (typeChild.IsValid() && (Profile.IdentifierChildTypes.Contains(typeChild.Type) || typeChild.Type == "scoped_identifier"))
-                            {
-                                symbolNode.References.Add(new Reference("", typeChild.Text, "IMPLEMENTS"));
-                            }
+                            symbolNode.References.Add(new Reference("", typeChild.Text, "IMPLEMENTS"));
                         }
                     }
                 }
@@ -346,12 +353,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         var current = node.Parent;
         while (current.IsValid())
         {
-            var t = current.Type;
-            if (Profile.MethodDeclarations.Contains(t) ||
-                Profile.FunctionDeclarations.Contains(t) ||
-                Profile.ClassDeclarations.Contains(t) ||
-                Profile.InterfaceDeclarations.Contains(t) ||
-                Profile.StructDeclarations.Contains(t))
+            if (current is FunctionDeclSyntax or TypeDeclSyntax)
             {
                 return current;
             }
@@ -368,15 +370,15 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             if (!child.IsValid()) continue;
 
-            if (Profile.AnnotationNodeTypes.Contains(child.Type))
+            if (child is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(child.Type))
             {
                 AttachAnnotationReference(child, symbolNode);
             }
-            else if (Profile.AnnotationContainerNodeTypes.Contains(child.Type))
+            else if (child is SyntaxList { Kind: SyntaxListKind.Attributes } || Profile.AnnotationContainerNodeTypes.Contains(child.Type))
             {
                 foreach (var grandChild in child.Children)
                 {
-                    if (grandChild.IsValid() && Profile.AnnotationNodeTypes.Contains(grandChild.Type))
+                    if (grandChild.IsValid() && (grandChild is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(grandChild.Type)))
                     {
                         AttachAnnotationReference(grandChild, symbolNode);
                     }
@@ -396,9 +398,13 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? ExtractAnnotationIdentifier(Node annotationNode)
     {
+        if (annotationNode is AnnotationSyntax { HasName: true } annotSyntax)
+        {
+            return annotSyntax.Name;
+        }
         foreach (var child in annotationNode.Children)
         {
-            if (child.IsValid() && (Profile.IdentifierChildTypes.Contains(child.Type) || child.Type is "scoped_identifier" or "qualified_name"))
+            if (child.IsValid() && (child is IdentifierExprSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(child.Type)))
             {
                 return child.Text;
             }
@@ -411,7 +417,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     {
         // TokenSyntax removed: all visited nodes are named AST nodes
 
-        if (Profile.PackageDeclarationNodeTypes.Contains(node.Type))
+        if ((node is NamespaceDeclSyntax && Profile.PackageDeclarationNodeTypes.Count > 0) ||
+            Profile.PackageDeclarationNodeTypes.Contains(node.Type))
         {
             var pkgId = ExtractAnnotationIdentifier(node) ?? ExtractProfileIdentifier(node);
             if (!string.IsNullOrEmpty(pkgId))
@@ -429,18 +436,6 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             // 1. General reference collection
             var currentScope = SymbolStack.Peek();
-
-            if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
-            {
-                if (node is IdentifierExprSyntax || node.IsAny("identifier", "type_identifier"))
-                {
-                    currentScope.References.Add(new Reference("", node.Text,
-                        OntologyConstants.Relationships.PotentialType,
-                        node.StartPosition.Row + 1,
-                        node.StartPosition.Column + 1));
-                }
-            }
-
 
             if (LibraryParsers.Count > 0 && MayContainSymbolsOrReferences(node))
             {
@@ -472,76 +467,70 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected virtual void Dispatch(Node node, int depth)
     {
-        var type = node.Type;
-
-        if (Profile.StringLiterals.Contains(type)
-            || (type.Contains("string") && !Profile.ExcludedStringInterpolations.Contains(type)))
+        switch (node)
         {
-            VisitStringLiteral(node, depth);
-            return;
-        }
+            case LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString }:
+            case InterpolatedStringExprSyntax when Profile.StringLiterals.Contains("template_string") || Profile.StringLiterals.Contains("interpolated_string_expression"):
+                VisitStringLiteral(node, depth);
+                return;
 
-        if (Profile.ClassDeclarations.Contains(type) || Profile.EnumDeclarations.Contains(type) || Profile.StructDeclarations.Contains(type))
-        {
-            VisitClassDeclaration(node, depth);
-            return;
-        }
+            case TypeDeclSyntax { Kind: TypeSyntaxKind.Class or TypeSyntaxKind.Struct or TypeSyntaxKind.Record or TypeSyntaxKind.Enum or TypeSyntaxKind.Union }:
+                VisitClassDeclaration(node, depth);
+                return;
 
-        if (Profile.InterfaceDeclarations.Contains(type))
-        {
-            VisitInterfaceDeclaration(node, depth);
-            return;
-        }
+            case TypeDeclSyntax { Kind: TypeSyntaxKind.Interface or TypeSyntaxKind.Trait }:
+            case TypeDeclSyntax { Kind: TypeSyntaxKind.TypeAlias } when Profile.InterfaceDeclarations.Contains("type_alias_declaration"):
+                VisitInterfaceDeclaration(node, depth);
+                return;
 
-        if (Profile.MethodDeclarations.Contains(type))
-        {
-            VisitMethodDeclaration(node, depth);
-            return;
-        }
+            case FunctionDeclSyntax { Kind: FunctionSyntaxKind.Method or FunctionSyntaxKind.Constructor }:
+                VisitMethodDeclaration(node, depth);
+                return;
 
-        if (Profile.FunctionDeclarations.Contains(type))
-        {
-            VisitFunctionDeclaration(node, depth);
-            return;
-        }
+            case FunctionDeclSyntax { Kind: FunctionSyntaxKind.Function }:
+            case LambdaExprSyntax when Profile.FunctionDeclarations.Contains("arrow_function"):
+                VisitFunctionDeclaration(node, depth);
+                return;
 
-        if (Profile.VariableDeclarations.Contains(type))
-        {
-            VisitVariableDeclaration(node, depth);
-            return;
-        }
+            case VariableDeclSyntax { IsDeclarator: false }:
+            case VariableDeclSyntax { IsDeclarator: true } when Profile.VariableDeclarations.Contains("variable_declarator") || Profile.VariableDeclarations.Contains("var_spec"):
+            case MemberDeclSyntax { Kind: MemberSyntaxKind.Field or MemberSyntaxKind.Constant or MemberSyntaxKind.Property } when Profile.VariableDeclarations.Count > 0:
+            case AssignmentExprSyntax when Profile.VariableDeclarations.Contains("assignment"):
+                VisitVariableDeclaration(node, depth);
+                return;
 
-        if (Profile.Parameters.Contains(type))
-        {
-            VisitParameter(node, depth);
-            return;
-        }
+            case ParameterDeclSyntax:
+                VisitParameter(node, depth);
+                return;
 
-        if (Profile.Imports.Contains(type))
-        {
-            VisitImportStatement(node, depth);
-            return;
-        }
+            case ImportDeclSyntax { IsReExport: false }:
+            case ImportDeclSyntax { IsReExport: true } when Profile.Imports.Contains("export_statement"):
+            case NamespaceDeclSyntax when Profile.Imports.Contains("package_declaration"):
+                VisitImportStatement(node, depth);
+                return;
 
-        if (Profile.Calls.Contains(type))
-        {
-            VisitCallExpression(node, depth);
-            return;
-        }
+            case CallExprSyntax { CallKind: CallSyntaxKind.Method or CallSyntaxKind.Function or CallSyntaxKind.Macro }:
+            case CallExprSyntax { CallKind: CallSyntaxKind.Constructor, MethodNameSlice.Length: > 0 }
+                when Profile.Calls.Contains("new_expression") || Profile.Calls.Contains("object_creation_expression"):
+            case CallExprSyntax { CallKind: CallSyntaxKind.Constructor, Callee: not null }
+                when Profile.Calls.Contains("new_expression") || Profile.Calls.Contains("object_creation_expression"):
+            case CallExprSyntax { CallKind: CallSyntaxKind.SuperConstructor or CallSyntaxKind.ThisConstructor }
+                when Profile.Calls.Contains("new_expression") || Profile.Calls.Contains("object_creation_expression"):
+                VisitCallExpression(node, depth);
+                return;
 
-        if (Profile.Inheritance.Contains(type))
-        {
-            VisitInheritanceClause(node, depth);
-            return;
-        }
+            case BaseTypeClauseSyntax when Profile.Inheritance.Count > 0:
+                VisitInheritanceClause(node, depth);
+                return;
 
-        if (Profile.CatchClauses.Contains(type))
-        {
-            VisitCatchClause(node, depth);
-            return;
-        }
+            case CatchClauseSyntax:
+                VisitCatchClause(node, depth);
+                return;
 
-        VisitDefault(node, depth);
+            default:
+                VisitDefault(node, depth);
+                return;
+        }
     }
 
     protected string? MapNodeTypeUsingLibraries(Node node)
@@ -656,6 +645,10 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (kind == OntologyConstants.NodeLabels.ExternalService)
         {
+            foreach (var libParser in LibraryParsers)
+            {
+                libParser.EnrichSymbol(node, syntacticNode, Context!);
+            }
             // External services represent target endpoints/hosts (leaf nodes).
             // Any inner calls or expressions within the call arguments belong to the enclosing function/scope (parent).
             if (baseVisit != null) baseVisit(); else VisitChildren(node, depth);
@@ -724,7 +717,10 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             {
                 foreach (var r in syntacticNode.References)
                 {
-                    if (r.Kind == OntologyConstants.Relationships.DependsOn && !parent.References.Contains(r))
+                    if (r.Kind is OntologyConstants.Relationships.DependsOn
+                            or OntologyConstants.Relationships.ReadsFrom
+                            or OntologyConstants.Relationships.WritesTo &&
+                        !parent.References.Contains(r))
                     {
                         parent.References.Add(r);
                     }

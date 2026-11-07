@@ -56,7 +56,7 @@ public class SeaOrmLibraryParser : ISemanticExtension
         tableName = string.Empty;
 
         // 1. Target struct_item annotated with DeriveEntityModel or sea_orm
-        if (node.Type == TreeSitterSyntax.Rust.StructItem)
+        if (node.Is(TreeSitterSyntax.Rust.StructItem))
         {
             var text = node.Text;
             var isEntity = text.Contains("DeriveEntityModel", StringComparison.Ordinal) ||
@@ -73,7 +73,7 @@ public class SeaOrmLibraryParser : ISemanticExtension
 
                 // Fallback to struct name
                 var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                               node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.TypeIdentifier);
+                               node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
                 if (nameNode.IsValid())
                 {
                     tableName = nameNode.Text.ToLowerInvariant();
@@ -83,9 +83,9 @@ public class SeaOrmLibraryParser : ISemanticExtension
         }
 
         // 2. Target standalone attribute_item if not inside struct_item
-        if (node.Type == TreeSitterSyntax.Rust.AttributeItem)
+        if (node.Is(TreeSitterSyntax.Rust.AttributeItem))
         {
-            if (node.Parent.IsValid() && node.Parent.Type == TreeSitterSyntax.Rust.StructItem)
+            if (node.Parent.IsValid() && node.Parent.Is(TreeSitterSyntax.Rust.StructItem))
             {
                 return false; // Handled by struct_item
             }

@@ -14,14 +14,12 @@ public static class PythonDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        var type = node.Type;
-
-        if (type is TreeSitterSyntax.Python.Assignment)
+        if (node is CodeExplorer.Core.Parser.Syntax.AssignmentExprSyntax)
         {
             var left = node.GetChildForField(TreeSitterSyntax.Fields.Left) ??
-                       node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Python.Identifier);
+                       node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier));
             var right = node.GetChildForField(TreeSitterSyntax.Fields.Right) ??
-                        node.Children.LastOrDefault(c => c.IsValid() && c.Type != "=" && c.Type != TreeSitterSyntax.Python.Identifier);
+                        node.Children.LastOrDefault(c => c.IsValid() && c.Type != "=" && !c.Is(TreeSitterSyntax.Python.Identifier));
 
             if (left.IsValid() && right.IsValid())
             {
@@ -39,7 +37,7 @@ public static class PythonDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.Python.ClassDefinition)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var className = nameNode.IsValid() ? nameNode.Text : currentScope;

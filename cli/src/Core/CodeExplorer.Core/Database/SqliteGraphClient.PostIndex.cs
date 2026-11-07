@@ -604,12 +604,14 @@ public partial class SqliteGraphClient
 
             try
             {
-                var searchEngine = new IdentifierSearchEngine(_logger);
-                await searchEngine.RebuildIndexAsync(_conn);
+                await using var dropIdxCmd = _conn.CreateCommand();
+                dropIdxCmd.CommandTimeout = CommandTimeoutSeconds;
+                dropIdxCmd.CommandText = "DROP TABLE IF EXISTS identifier_index; DROP TABLE IF EXISTS identifier_fts;";
+                await dropIdxCmd.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[Database   ] Failed to update identifier vector index: {Message}", ex.Message);
+                _logger.LogWarning(ex, "[Database   ] Failed to invalidate identifier vector index: {Message}", ex.Message);
             }
         }
         finally

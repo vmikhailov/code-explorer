@@ -85,7 +85,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         brokerType = string.Empty;
         isPublish = false;
 
-        if (node.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return false;
         }
@@ -105,7 +105,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         while (current.IsValid())
         {
             var unwrapped = RustAstHelper.UnwrapTryAndAwait(current);
-            if (unwrapped.Type != TreeSitterSyntax.Rust.CallExpression)
+            if (!unwrapped.Is(TreeSitterSyntax.Rust.CallExpression))
             {
                 break;
             }
@@ -164,15 +164,15 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         var parent = node.Parent;
         while (parent.IsValid())
         {
-            if (parent.Type is TreeSitterSyntax.Rust.TryExpression or TreeSitterSyntax.Rust.AwaitExpression)
+            if (parent.IsAny(TreeSitterSyntax.Rust.TryExpression, TreeSitterSyntax.Rust.AwaitExpression))
             {
                 parent = parent.Parent;
                 continue;
             }
-            if (parent.Type == TreeSitterSyntax.Rust.FieldExpression)
+            if (parent.Is(TreeSitterSyntax.Rust.FieldExpression))
             {
                 var grandParent = parent.Parent;
-                if (grandParent.IsValid() && grandParent.Type == TreeSitterSyntax.Rust.CallExpression)
+                if (grandParent.IsValid() && grandParent.Is(TreeSitterSyntax.Rust.CallExpression))
                 {
                     return true;
                 }
@@ -262,7 +262,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         var ancestor = usage.Parent;
         while (ancestor.IsValid())
         {
-            if (ancestor.Type == TreeSitterSyntax.Rust.Block)
+            if (ancestor.Is(TreeSitterSyntax.Rust.Block))
             {
                 Node? match = null;
                 foreach (var letDecl in ancestor.FindChildrenOfType(TreeSitterSyntax.Rust.LetDeclaration))
@@ -286,7 +286,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
                 }
             }
 
-            if (ancestor.Type is TreeSitterSyntax.Rust.FunctionItem or TreeSitterSyntax.Rust.ClosureExpression)
+            if (ancestor.IsAny(TreeSitterSyntax.Rust.FunctionItem, TreeSitterSyntax.Rust.ClosureExpression))
             {
                 break;
             }

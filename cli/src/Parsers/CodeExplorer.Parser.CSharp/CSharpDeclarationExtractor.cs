@@ -14,14 +14,10 @@ public static class CSharpDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        var type = node.Type;
-
-        if (type is TreeSitterSyntax.CSharp.ClassDeclaration or
-                    TreeSitterSyntax.CSharp.StructDeclaration or
-                    TreeSitterSyntax.CSharp.RecordDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Struct or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Record } typeDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-            var className = nameNode.IsValid() ? nameNode.Text : currentScope;
+            var className = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(typeDecl.Name) ? typeDecl.Name : currentScope);
 
             foreach (var child in node.Children)
             {
@@ -30,32 +26,30 @@ public static class CSharpDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.CSharp.EnumDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-            var enumName = nameNode.IsValid() ? nameNode.Text : "Enum";
+            var enumName = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(enumDecl.Name) ? enumDecl.Name : "Enum");
 
-            foreach (var child in node.Children)
+            foreach (var child in node.FindDescendantsOfType(TreeSitterSyntax.CSharp.EnumMemberDeclaration))
             {
-                if (child.Type is TreeSitterSyntax.CSharp.EnumMemberDeclaration)
+                var memNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                                  child.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Common.Identifier));
+
+                if (memNameNode.IsValid())
                 {
-                    var memNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                      child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
+                    var memName = memNameNode.Text;
+                    var valNode = child.GetChildForField(TreeSitterSyntax.Fields.Value);
 
-                    if (memNameNode.IsValid())
-                    {
-                        var memName = memNameNode.Text;
-                        var valNode = child.GetChildForField(TreeSitterSyntax.Fields.Value);
-
-                        var keyWithScope = $"{enumName}.{memName}";
-                        register(keyWithScope, valNode, valNode == null ? memName : null);
-                    }
+                    var keyWithScope = $"{enumName}.{memName}";
+                    register(keyWithScope, valNode, valNode == null ? memName : null);
                 }
             }
             return;
         }
 
-        if (type is TreeSitterSyntax.CSharp.FieldDeclaration or TreeSitterSyntax.CSharp.LocalDeclarationStatement)
+        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant } or
+            CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false })
         {
             if (HasAnyModifier(node, "const", "readonly", "static"))
             {
@@ -81,26 +75,23 @@ public static class CSharpDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.CSharp.PropertyDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Property } propDecl)
         {
             if (HasAnyModifier(node, "static"))
             {
                 var arrow = node.FindChildOfType(TreeSitterSyntax.CSharp.ArrowExpressionClause);
-                if (arrow.IsValid())
-                {
-                    var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                   node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
-                    var valNode = arrow.Children.LastOrDefault(c => c.IsValid() && c.Type != "=>");
+                var valNode = propDecl.Initializer ?? arrow?.Children.LastOrDefault(c => c.IsValid());
+                var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                               node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
 
-                    if (nameNode.IsValid() && valNode.IsValid())
+                if (nameNode.IsValid() && valNode.IsValid())
+                {
+                    var name = nameNode.Text;
+                    if (!string.IsNullOrEmpty(currentScope))
                     {
-                        var name = nameNode.Text;
-                        if (!string.IsNullOrEmpty(currentScope))
-                        {
-                            register($"{currentScope}.{name}", valNode, null);
-                        }
-                        register(name, valNode, null);
+                        register($"{currentScope}.{name}", valNode, null);
                     }
+                    register(name, valNode, null);
                 }
             }
             return;

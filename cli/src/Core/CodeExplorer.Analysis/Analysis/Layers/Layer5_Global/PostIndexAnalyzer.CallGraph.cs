@@ -16,13 +16,18 @@ public partial class PostIndexAnalyzer
         IReadOnlyDictionary<string, string>? projectToWorkloadMap = null)
     {
         var materializedRels = new List<Relationship>();
-        var existingEdges = new HashSet<(string From, string To, string Kind)>(
-            allRelationships.Select(r => (r.From, r.To, r.Kind))
-        );
+        var existingEdges = new HashSet<(string From, string To, string Kind)>();
         var edgeLookup = new Dictionary<(string From, string To, string Kind), Relationship>();
         foreach (var existing in allRelationships)
         {
-            edgeLookup.TryAdd((existing.From, existing.To, existing.Kind), existing);
+            if (existing.Kind is OntologyConstants.Relationships.UsesDb
+                or OntologyConstants.Relationships.PublishesTo
+                or OntologyConstants.Relationships.SubscribesTo
+                or OntologyConstants.Relationships.ServiceCall)
+            {
+                existingEdges.Add((existing.From, existing.To, existing.Kind));
+                edgeLookup.TryAdd((existing.From, existing.To, existing.Kind), existing);
+            }
         }
 
         void AddMaterialized(string fromId, string toId, string relKind, Action<Relationship> configure, Relationship? contributingRel = null)
@@ -135,19 +140,37 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        var resolvedProjectCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
         ProjectNode? ResolveOwningProject(string nodeId)
         {
             if (string.IsNullOrEmpty(nodeId)) return null;
             if (nodeToProject.TryGetValue(nodeId, out var p)) return p;
             if (fileToProject.TryGetValue(nodeId, out p)) return p;
+            if (resolvedProjectCache.TryGetValue(nodeId, out p)) return p;
 
             if (nodeId.EndsWith("project_semantic"))
             {
                 var stripped = nodeId.Replace(":project_semantic", ":").Replace("project_semantic", "");
-                if (nodeToProject.TryGetValue(stripped, out p)) return p;
+                if (nodeToProject.TryGetValue(stripped, out p))
+                {
+                    resolvedProjectCache[nodeId] = p;
+                    return p;
+                }
             }
 
-            return FindOwningProjectForId(nodeId, projList, fileToProject);
+            var found = FindOwningProjectForId(nodeId, projList, fileToProject);
+            resolvedProjectCache[nodeId] = found;
+            return found;
+        }
+
+        var matchingServiceCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
+        ProjectNode? GetCachedMatchingServiceProject(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return null;
+            if (matchingServiceCache.TryGetValue(key, out var cached)) return cached;
+            var matched = FindMatchingServiceProject(key, projList);
+            matchingServiceCache[key] = matched;
+            return matched;
         }
 
         foreach (var rel in allRelationships)
@@ -313,7 +336,7 @@ public partial class PostIndexAnalyzer
             else if (to.Contains(":service_target:"))
             {
                 var serviceKey = to.Split(":service_target:", 2)[1];
-                var targetProj = FindMatchingServiceProject(serviceKey, projList);
+                var targetProj = GetCachedMatchingServiceProject(serviceKey);
                 var callerOwner = ResolveOwningProject(from);
                 if (callerOwner != null && targetProj != null && callerOwner.Id != targetProj.Id)
                 {
@@ -364,7 +387,7 @@ public partial class PostIndexAnalyzer
                     if (callerOwner != null && callerOwner.Id != extId)
                     {
                         var extDomain = ExtractDomainFromExternalServiceId(extId);
-                        var internalTargetProj = FindMatchingServiceProject(extDomain, projList);
+                        var internalTargetProj = GetCachedMatchingServiceProject(extDomain);
 
                         if (internalTargetProj != null && callerOwner.Id != internalTargetProj.Id)
                         {
@@ -575,49 +598,66 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        foreach (var callerId in allCallers)
+        // Build reverse adjacency (callee -> callers) so we only traverse backwards from sinks
+        var reverseCallsAdjacency = new Dictionary<string, List<string>>();
+        foreach (var (from, toList) in data.CallsAdjacency)
         {
-            if (!data.CallsAdjacency.ContainsKey(callerId)) continue;
+            foreach (var to in toList)
+            {
+                if (!reverseCallsAdjacency.TryGetValue(to, out var revList))
+                {
+                    revList = [];
+                    reverseCallsAdjacency[to] = revList;
+                }
+                revList.Add(from);
+            }
+        }
+
+        foreach (var sinkId in data.Sinks.Keys)
+        {
+            if (!reverseCallsAdjacency.ContainsKey(sinkId)) continue;
 
             queue.Clear();
             visited.Clear();
-            var cSinks = new Dictionary<string, int>();
 
-            visited.Add(callerId);
-            queue.Enqueue((callerId, 0));
+            visited.Add(sinkId);
+            queue.Enqueue((sinkId, 0));
 
             while (queue.Count > 0)
             {
                 var (curr, depth) = queue.Dequeue();
-                if (depth > 0 && data.Sinks.ContainsKey(curr))
+                if (depth > 0 && allCallers.Contains(curr) && data.CallsAdjacency.ContainsKey(curr))
                 {
-                    cSinks.TryAdd(curr, depth);
+                    if (!callerToSinks.TryGetValue(curr, out var cSinks))
+                    {
+                        cSinks = new Dictionary<string, int>();
+                        callerToSinks[curr] = cSinks;
+                    }
+                    cSinks.TryAdd(sinkId, depth);
                 }
 
                 if (depth >= 15) continue;
 
-                if (data.CallsAdjacency.TryGetValue(curr, out var nextList))
+                if (reverseCallsAdjacency.TryGetValue(curr, out var prevList))
                 {
-                    foreach (var next in nextList)
+                    foreach (var prev in prevList)
                     {
-                        if (visited.Add(next))
+                        if (visited.Add(prev))
                         {
-                            queue.Enqueue((next, depth + 1));
+                            queue.Enqueue((prev, depth + 1));
                         }
                     }
                 }
             }
+        }
 
-            if (cSinks.Count > 0)
+        foreach (var (callerId, cSinks) in callerToSinks)
+        {
+            if (string.IsNullOrEmpty(widPrefix) || callerId.StartsWith(widPrefix, StringComparison.Ordinal))
             {
-                callerToSinks[callerId] = cSinks;
-
-                if (string.IsNullOrEmpty(widPrefix) || callerId.StartsWith(widPrefix, StringComparison.Ordinal))
+                foreach (var (sinkId, hops) in cSinks)
                 {
-                    foreach (var (sinkId, hops) in cSinks)
-                    {
-                        transitivelyCalls.Add((callerId, sinkId, hops));
-                    }
+                    transitivelyCalls.Add((callerId, sinkId, hops));
                 }
             }
         }

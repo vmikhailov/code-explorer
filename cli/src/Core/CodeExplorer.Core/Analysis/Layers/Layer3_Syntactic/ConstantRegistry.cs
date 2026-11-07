@@ -17,6 +17,14 @@ public static class ConstantRegistry
     private static readonly ConcurrentDictionary<string, string> _globalConstants =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Fast O(1) index for unqualified member lookup: leaf name -> (unique value or null if ambiguous, match count)
+    private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _globalConstantsByLeaf =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Fast O(1) index for project-unspecified lookup: key -> (unique value or null if ambiguous, match count)
+    private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _projectConstantsByKey =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static IReadOnlyDictionary<string, string> ProjectConstants => _projectConstants;
     public static IReadOnlyDictionary<string, string> GlobalConstants => _globalConstants;
 
@@ -24,6 +32,8 @@ public static class ConstantRegistry
     {
         _projectConstants.Clear();
         _globalConstants.Clear();
+        _globalConstantsByLeaf.Clear();
+        _projectConstantsByKey.Clear();
     }
 
         private static readonly HashSet<string> TechSuffixes = new(StringComparer.OrdinalIgnoreCase)
@@ -68,6 +78,7 @@ public static class ConstantRegistry
         {
             var pKey = $"{projectName.Trim()}:{cleanKey}";
             _projectConstants[pKey] = cleanVal;
+            IndexProjectKey(cleanKey, cleanVal);
 
             var domain = ExtractDomainNameFromProject(projectName);
             if (!string.IsNullOrWhiteSpace(domain) && !domain.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -102,7 +113,10 @@ public static class ConstantRegistry
                     cleanKey.StartWithIC("default_") ||
                     cleanKey.Contains("schema", StringComparison.OrdinalIgnoreCase))
                 {
-                    _globalConstants.TryAdd(cleanKey, cleanVal);
+                    if (_globalConstants.TryAdd(cleanKey, cleanVal))
+                    {
+                        IndexGlobalLeaf(cleanKey, cleanVal);
+                    }
                 }
             }
         }
@@ -112,8 +126,34 @@ public static class ConstantRegistry
             if (!isBareGeneric)
             {
                 _globalConstants[cleanKey] = cleanVal;
+                IndexGlobalLeaf(cleanKey, cleanVal);
             }
         }
+    }
+
+    private static void IndexGlobalLeaf(string key, string val)
+    {
+        var dotIdx = key.LastIndexOf('.');
+        if (dotIdx >= 0 && dotIdx < key.Length - 1)
+        {
+            var leaf = key[(dotIdx + 1)..];
+            _globalConstantsByLeaf.AddOrUpdate(
+                leaf,
+                _ => (val, 1),
+                (_, existing) => string.Equals(existing.Value, val, StringComparison.OrdinalIgnoreCase)
+                    ? existing
+                    : (null, existing.MatchCount + 1));
+        }
+    }
+
+    private static void IndexProjectKey(string key, string val)
+    {
+        _projectConstantsByKey.AddOrUpdate(
+            key,
+            _ => (val, 1),
+            (_, existing) => string.Equals(existing.Value, val, StringComparison.OrdinalIgnoreCase)
+                ? existing
+                : (null, existing.MatchCount + 1));
     }
 
     /// <summary>Resolves a key against the project's own constants only, never the workspace-global ones.</summary>
@@ -288,23 +328,11 @@ public static class ConstantRegistry
         // 4. Fallback: if key is an unqualified member (e.g. "SourcesPlacementsBlack" instead of "ModelNames.SourcesPlacementsBlack")
         if (!cleanKey.Contains('.'))
         {
-            var suffix = "." + cleanKey;
-            string? matchedVal = null;
-            var matchCount = 0;
-
-            foreach (var kvp in _globalConstants)
+            if (_globalConstantsByLeaf.TryGetValue(cleanKey, out var leafEntry) &&
+                leafEntry.MatchCount == 1 &&
+                !string.IsNullOrEmpty(leafEntry.Value))
             {
-                if (kvp.Key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    matchedVal = kvp.Value;
-                    matchCount++;
-                    if (matchCount > 1) break;
-                }
-            }
-
-            if (matchCount == 1 && !string.IsNullOrEmpty(matchedVal))
-            {
-                value = matchedVal;
+                value = leafEntry.Value;
                 return true;
             }
         }
@@ -312,21 +340,11 @@ public static class ConstantRegistry
         // 5. Fallback: if project is unspecified, search _projectConstants for a matching key
         if (string.IsNullOrWhiteSpace(projectName))
         {
-            var pSuffix = $":{cleanKey}";
-            string? matchedPVal = null;
-            var pMatchCount = 0;
-            foreach (var kvp in _projectConstants)
+            if (_projectConstantsByKey.TryGetValue(cleanKey, out var pEntry) &&
+                pEntry.MatchCount == 1 &&
+                !string.IsNullOrEmpty(pEntry.Value))
             {
-                if (kvp.Key.EndsWith(pSuffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    matchedPVal = kvp.Value;
-                    pMatchCount++;
-                    if (pMatchCount > 1) break;
-                }
-            }
-            if (pMatchCount == 1 && !string.IsNullOrEmpty(matchedPVal))
-            {
-                value = matchedPVal;
+                value = pEntry.Value;
                 return true;
             }
         }

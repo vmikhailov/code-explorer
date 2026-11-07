@@ -17,7 +17,8 @@ public sealed class NetworkEntityValidator
     {
         "serverhttp", "resolvedhttp", "download", "cleanep", "http", "server", "base", "api", "target",
         "request", "full", "ws", "endpoint", "url", "uri", "host", "origin", "client",
-        "post", "get", "put", "delete", "patch", "options", "head", "ep"
+        "post", "get", "put", "delete", "patch", "options", "head", "ep",
+        "page", "response", "subscribe", "registry", "presignedupload", "storybook"
     };
 
     public static readonly HashSet<string> HttpMethodVerbs = new(StringComparer.OrdinalIgnoreCase)
@@ -96,8 +97,23 @@ public sealed class NetworkEntityValidator
             return true;
         }
 
-        // 6. Test and mock domains
-        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower == "test")
+        // 6. Test, mock, and placeholder asset domains
+        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") ||
+            lower is "test" or "0.0.0.0" or "via.placeholder.com" or "picsum.photos")
+        {
+            return true;
+        }
+
+        // 6b. HTTP request/response header names (e.g. request.get('Sec-Fetch-Dest'), req.get('Content-Type'))
+        if (lower.StartsWith("sec-") || lower.StartsWith("x-") ||
+            lower is "accept" or "authorization" or "content-type" or "content-length" or "user-agent" or "referer" or "origin" or "cookie" or "set-cookie" or "cache-control")
+        {
+            return true;
+        }
+
+        // 6c. Unresolved SCREAMING_SNAKE_CASE env var keys (e.g. FRONTEND_INDEX_URL, TWENTY_APP_BASE_URL)
+        if (!lower.Contains('.') && lower.Contains('_') &&
+            (lower.EndsWith("_url") || lower.EndsWith("_uri") || lower.EndsWith("_host") || lower.EndsWith("_base") || lower.EndsWith("_endpoint")))
         {
             return true;
         }

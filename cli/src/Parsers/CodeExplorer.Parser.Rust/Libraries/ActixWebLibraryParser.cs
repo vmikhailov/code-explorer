@@ -62,7 +62,7 @@ public class ActixWebLibraryParser : ISemanticExtension
         handlerName = null;
 
         // 1. Attribute routing: #[get("/path")]
-        if (node.Type == TreeSitterSyntax.Rust.AttributeItem)
+        if (node.Is(TreeSitterSyntax.Rust.AttributeItem))
         {
             var match = ActixAttributeRegex.Match(node.Text);
             if (match.Success)
@@ -71,10 +71,10 @@ public class ActixWebLibraryParser : ISemanticExtension
                 fullRoute = RustAstHelper.CombineRoutes(null, match.Groups[2].Value);
 
                 var parent = node.Parent;
-                if (parent.IsValid() && parent.Type == TreeSitterSyntax.Rust.FunctionItem)
+                if (parent.IsValid() && parent.Is(TreeSitterSyntax.Rust.FunctionItem))
                 {
                     var nameNode = parent.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                   parent.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                                   parent.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
                     if (nameNode.IsValid())
                     {
                         handlerName = nameNode.Text;
@@ -85,7 +85,7 @@ public class ActixWebLibraryParser : ISemanticExtension
         }
 
         // 2. Fluent routing: web::get().to(handler) or .route("/path", web::get().to(handler))
-        if (node.Type == TreeSitterSyntax.Rust.CallExpression)
+        if (node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             if (RustAstHelper.GetMethodCallInfo(node, out var receiver, out var methodName, out var args))
             {

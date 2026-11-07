@@ -17,7 +17,7 @@ public class NodeSelector
 
     public NodeSelector HasType(string type)
     {
-        return new NodeSelector([.. _steps, node => node.IsValid() && node.Type == type ? node : null]);
+        return new NodeSelector([.. _steps, node => CodeExplorer.Core.Parser.Syntax.SyntaxKindResolver.Matches(node, type) ? node : null]);
     }
 
     public NodeSelector FirstChild => new([.. _steps, node =>
@@ -25,7 +25,7 @@ public class NodeSelector
         if (!node.IsValid()) return null;
         foreach (var child in node.Children)
         {
-            if (child.IsValid() && !string.IsNullOrEmpty(child.Type) && (char.IsLetter(child.Type[0]) || child.Type[0] == '_'))
+            if (child.IsValid())
             {
                 return child;
             }

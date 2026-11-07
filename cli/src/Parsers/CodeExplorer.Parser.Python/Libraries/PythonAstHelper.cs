@@ -149,7 +149,9 @@ public static class PythonAstHelper
                             }
                         }
 
-                        var augAssign = child.Type == "augmented_assignment" ? child : child.FindChildOfType("augmented_assignment");
+                        var augAssign = child is CodeExplorer.Core.Parser.Syntax.AssignmentExprSyntax { Operator: not "=" }
+                            ? child
+                            : child.Children.FirstOrDefault(c => c is CodeExplorer.Core.Parser.Syntax.AssignmentExprSyntax { Operator: not "=" });
                         if (augAssign.IsValid() && !IsNodeContainedWithin(node, augAssign))
                         {
                             var left = augAssign.GetField(TreeSitterSyntax.Fields.Left) ??
@@ -191,24 +193,25 @@ public static class PythonAstHelper
         if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         // 1. String literal / f-string
-        if (argNode.IsAny(TreeSitterSyntax.Python.String, TreeSitterSyntax.Python.FormatString, "concatenated_string", "interpolated_string"))
+        if (argNode is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String or CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.RawString }
+            or CodeExplorer.Core.Parser.Syntax.InterpolatedStringExprSyntax)
         {
-            if (argNode.Is(TreeSitterSyntax.Python.FormatString) || argNode.Type == "interpolated_string")
+            if (argNode is CodeExplorer.Core.Parser.Syntax.InterpolatedStringExprSyntax)
             {
                 var sb = new System.Text.StringBuilder();
                 foreach (var child in argNode.Children)
                 {
-                    if (child.Type == "string_content" || child.Type == "escape_sequence")
+                    if (child is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String })
                     {
                         sb.Append(child.Text);
                     }
-                    else if (child.Type == "interpolation" || child.Type == "formatted_expression")
+                    else if (child is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax { IsInterpolation: true })
                     {
                         var expr = child.Children.FirstOrDefault(c => c.Type != "{" && c.Type != "}" && c.Type != "!");
                         if (expr.IsValid())
                         {
                             var resolvedExpr = ResolveStringOrVariable(expr, depth + 1, visitedVars);
-                            sb.Append(resolvedExpr ?? expr.Text);
+                            sb.Append(resolvedExpr ?? $"{{{expr.Text}}}");
                         }
                     }
                 }
@@ -448,7 +451,7 @@ public static class PythonAstHelper
         if (!argList.IsValid()) return null;
         foreach (var child in argList.Children)
         {
-            if (child.Type == TreeSitterSyntax.Python.KeywordArgument)
+            if (child.Is(TreeSitterSyntax.Python.KeywordArgument))
             {
                 var nameNode = child.GetField(TreeSitterSyntax.Fields.Name) ?? (child.Children.Count > 0 ? child.Children[0] : null);
                 if (nameNode.IsValid() && nameNode.Text == argName)
@@ -476,7 +479,7 @@ public static class PythonAstHelper
         if (positionalIndex >= 0 && positionalIndex < args.Count)
         {
             var arg = args[positionalIndex];
-            if (arg.Type == TreeSitterSyntax.Python.KeywordArgument)
+            if (arg.Is(TreeSitterSyntax.Python.KeywordArgument))
             {
                 var valNode = arg.GetField(TreeSitterSyntax.Fields.Value) ?? (arg.Children.Count >= 2 ? arg.Children[^1] : null);
                 var resolved = ResolveStringOrVariable(valNode);

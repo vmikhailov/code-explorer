@@ -71,7 +71,7 @@ public class GrpcJavaLibraryParser : ISemanticExtension
 
             foreach (var param in paramList.Children)
             {
-                if (!param.Type.Contains("formal_parameter")) continue;
+                if (!param.Is(TreeSitterSyntax.Java.FormalParameter)) continue;
                 var pType = param.GetField(TreeSitterSyntax.Fields.Type);
                 if (pType.IsValid())
                 {
@@ -159,7 +159,7 @@ public class GrpcJavaLibraryParser : ISemanticExtension
 
     private static bool HasGrpcClient(Node node)
     {
-        return (node.Type is "annotation" or "marker_annotation") &&
+        return node.IsAny(TreeSitterSyntax.Java.Annotation, TreeSitterSyntax.Java.MarkerAnnotation) &&
                node.Text.Contains("GrpcClient", StringComparison.OrdinalIgnoreCase);
     }
 

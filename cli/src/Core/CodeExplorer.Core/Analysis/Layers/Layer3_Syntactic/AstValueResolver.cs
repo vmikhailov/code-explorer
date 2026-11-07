@@ -69,7 +69,7 @@ public static partial class AstValueResolver
 
         // 1. Direct String Literals (only if it does not contain interpolation substitutions)
         var hasInterpolationChildren = node is InterpolatedStringExprSyntax ||
-                                       node.Children.Any(c => c.IsValid() && c.Type is "interpolation" or "template_substitution");
+                                       node.Children.Any(c => c is ParenthesizedExprSyntax { IsInterpolation: true });
 
         if (!hasInterpolationChildren &&
             (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.Char or LiteralSyntaxKind.RawString } ||
@@ -117,10 +117,10 @@ public static partial class AstValueResolver
         }
 
         // 2c. Initializer value wrapper (e.g. `= expr`): unwrap inner expression
-        if (node.Children.Count > 1 && node.Children[0].Text == "=")
+        if (node.Children.Count > 1 && node.Children[0].AsSpan() is "=")
         {
             var valChild = node.GetField(SyntaxFields.Value) ??
-                           node.Children.LastOrDefault(c => c.IsValid() && c.Text != "=");
+                           node.Children.LastOrDefault(c => c.IsValid() && c.AsSpan() is not "=");
             if (valChild.IsValid() && valChild.Id != node.Id)
             {
                 return TryResolveStringInternal(valChild, contextOrProject, depth + 1, visitedVars, out result);
@@ -159,12 +159,12 @@ public static partial class AstValueResolver
         }
 
         // 3. Parenthesized Expression: unwrap inner
-        if (node.Children.Count >= 3 && node.Children[0].Text == "(" && node.Children[^1].Text == ")")
+        if (node.Children.Count >= 3 && node.Children[0].AsSpan() is "(" && node.Children[^1].AsSpan() is ")")
         {
             for (int i = 1; i < node.Children.Count - 1; i++)
             {
                 var c = node.Children[i];
-                if (c.IsValid() && c.Text is not "(" and not ")")
+                if (c.IsValid() && c.AsSpan() is not "(" and not ")")
                 {
                     return TryResolveStringInternal(c, contextOrProject, depth + 1, visitedVars, out result);
                 }
@@ -185,8 +185,8 @@ public static partial class AstValueResolver
 
         // 6. Format macro invocation (e.g. format!(...))
         if (node is CallExprSyntax { CallKind: CallSyntaxKind.Macro } &&
-            (node.Text.StartsWith("format!", StringComparison.Ordinal) ||
-             (node.Children.Count > 0 && node.Children[0].Text == "format")))
+            (node.AsSpan().StartsWith("format!", StringComparison.Ordinal) ||
+             (node.Children.Count > 0 && node.Children[0].AsSpan() is "format")))
         {
             return TryResolveFormatMacro(node, contextOrProject, depth, visitedVars, out result);
         }
@@ -278,7 +278,7 @@ public static partial class AstValueResolver
         var op = !string.IsNullOrEmpty(bin?.Operator)
             ? bin.Operator
             : (node.GetChildForField(SyntaxFields.Operator)?.Text ??
-               node.Children.FirstOrDefault(c => c.Text is "+" or ".")?.Text);
+               node.Children.FirstOrDefault(c => c.AsSpan() is "+" or ".")?.Text);
 
         if (op == "+" || op == ".")
         {
@@ -332,9 +332,9 @@ public static partial class AstValueResolver
             var cType = child.Type;
             if (cType is "$\"" or "@$\"" or "$@\"" or "\"" or "\"\"\"" or "`" or "f\"" or "f'" or "'" or "f" or "string_start" or "string_end" or "interpolation_start" or "interpolation_quote") continue;
 
-            if (cType is "interpolation" or "template_substitution")
+            if (child is ParenthesizedExprSyntax { IsInterpolation: true } interpChild)
             {
-                var expr = child.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "{" and not "}" and not "${" and not "interpolation_brace");
+                var expr = interpChild.Expression ?? child.Children.FirstOrDefault(c => c.IsValid());
                 if (expr.IsValid() && TryResolveStringInternal(expr, contextOrProject, depth + 1, visitedVars, out var part))
                 {
                     sb.Append(part);
@@ -386,6 +386,7 @@ public static partial class AstValueResolver
     private static bool TryResolveMember(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
     {
         result = string.Empty;
+        if ((node.Span.EndByte - node.Span.StartByte) > 256) return false;
         var rawText = node.Text;
 
         // Direct ConstantRegistry lookup
@@ -396,19 +397,22 @@ public static partial class AstValueResolver
         }
 
         // Environment variables: process.env.KEY
-        var envMatch = Regex.Match(rawText, @"(?:process\.env|env\??)\.([A-Za-z0-9_]+)");
-        if (envMatch.Success)
+        if (rawText.Contains("env", StringComparison.Ordinal))
         {
-            var envKey = envMatch.Groups[1].Value;
-            if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var evVal))
+            var envMatch = Regex.Match(rawText, @"(?:process\.env|env\??)\.([A-Za-z0-9_]+)");
+            if (envMatch.Success)
             {
-                result = evVal;
-                return true;
-            }
-            if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var der))
-            {
-                result = der;
-                return true;
+                var envKey = envMatch.Groups[1].Value;
+                if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var evVal))
+                {
+                    result = evVal;
+                    return true;
+                }
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var der))
+                {
+                    result = der;
+                    return true;
+                }
             }
         }
 
@@ -550,17 +554,29 @@ public static partial class AstValueResolver
     {
         result = string.Empty;
         var func = node.GetFunctionNode();
+        if (func.IsValid() && (func.Span.EndByte - func.Span.StartByte) > 256)
+        {
+            return false;
+        }
         var funcText = func.IsValid() ? func.Text : "";
 
-        var argsList = node.GetChildForField(SyntaxFields.Arguments) ??
-                       node.FindChildOfType("argument_list") ??
-                       node.FindChildOfType("arguments");
+        IReadOnlyList<Node> argChildren;
+        if (node is CallExprSyntax { Arguments.Count: > 0 } ce)
+        {
+            argChildren = ce.Arguments;
+        }
+        else
+        {
+            var argsList = node.GetChildForField(SyntaxFields.Arguments) ??
+                           node.FindChildOfType("argument_list") ??
+                           node.FindChildOfType("arguments");
 
-        var argChildren = argsList.IsValid()
-            ? argsList.Children.Where(c => c.IsValid() && c.Text is not "(" and not ")" and not ",").ToList()
-            : (node is CallExprSyntax { Arguments.Count: > 0 } ce ? ce.Arguments.Cast<Node>().ToList() : []);
+            argChildren = argsList.IsValid()
+                ? argsList.Children.Where(c => c.IsValid() && c.AsSpan() is not "(" and not ")" and not ",").ToList()
+                : [];
+        }
 
-        var firstArg = argChildren.FirstOrDefault();
+        var firstArg = argChildren.Count > 0 ? argChildren[0] : null;
 
         if (TryDecodeConstantCall(func, funcText, argChildren, contextOrProject, depth, visitedVars, out result))
         {

@@ -27,7 +27,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Composite literals with topic fields (Topic, TopicID, TopicName, SubID, WorkerDef)
-        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral or "literal_value")
+        if (node is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
         {
             if (TryExtractTopicFromCompositeLiteral(node, out var topic, out var isPubLiteral, out var isSubLiteral))
             {
@@ -390,7 +390,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
             targetNode = targetNode.Children[1];
         }
 
-        if (targetNode.Type is not (TreeSitterSyntax.Go.CompositeLiteral or "literal_value"))
+        if (targetNode is not CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
         {
             return false;
         }
@@ -489,7 +489,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
         var result = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase);
 
         var container = node;
-        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral)
+        if (node.Is(TreeSitterSyntax.Go.CompositeLiteral))
         {
             var body = node.GetChildForField(TreeSitterSyntax.Fields.Body);
             if (body.IsValid()) container = body;
@@ -503,21 +503,21 @@ public class PubSubGoLibraryParser : ISemanticExtension
         foreach (var rawChild in container.Children)
         {
             var elem = rawChild;
-            if (elem.Type == "literal_element" && elem.Children.Count > 0)
+            if (elem is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && elem.Children.Count > 0)
             {
                 elem = elem.Children[0];
             }
 
-            if (elem.Type is "keyed_element" && elem.Children.Count >= 2)
+            if (elem is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax && elem.Children.Count >= 2)
             {
                 var keyChild = elem.Children[0];
-                if (keyChild.Type == "literal_element" && keyChild.Children.Count > 0)
+                if (keyChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && keyChild.Children.Count > 0)
                 {
                     keyChild = keyChild.Children[0];
                 }
 
                 var valChild = elem.Children[^1];
-                if (valChild.Type == "literal_element" && valChild.Children.Count > 0)
+                if (valChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && valChild.Children.Count > 0)
                 {
                     valChild = valChild.Children[0];
                 }

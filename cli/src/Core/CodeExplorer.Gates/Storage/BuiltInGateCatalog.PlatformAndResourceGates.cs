@@ -150,7 +150,7 @@ public static partial class BuiltInGateCatalog
                     OR coalesce(m.file_path, '') CONTAINS 'Urn.cs'
                     OR coalesce(m.file_path, '') CONTAINS 'Node.cs'
                     OR coalesce(m.file_path, '') CONTAINS 'Relationship.cs'
-                    OR m.name IN ['ReturnType', 'RequestType', 'ResponseType', 'ExceptionType', 'DataType', 'RawGrammarKind', 'ParentGrammarKind', 'ContentType'])
+                    OR m.name IN ['ReturnType', 'RequestType', 'ResponseType', 'ExceptionType', 'DataType', 'ContentType'])
             RETURN m
             """,
         Ratchet = new GateRatchetSettings

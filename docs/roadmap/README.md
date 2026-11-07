@@ -16,6 +16,9 @@ This directory tracks the engineering roadmap, active epic specifications, and a
 | [**`../proposals/project-map-proposal.md`**](../proposals/project-map-proposal.md) | Project Map: C3 internal module view, call lifting, cycle detection | ✅ v1.56.0 (remaining: DDL table linking patch, module-cycle gate) |
 | [**`../proposals/entrypoint-vs-endpoint-ontology-proposal.md`**](../proposals/entrypoint-vs-endpoint-ontology-proposal.md) | Separating Binary `EntryPoint` (Layer 2) from External `Endpoint` Contracts (Layer 4) | 💡 Active Proposal |
 | [**`../proposals/semantic-gates-v2-node-extraction-and-thresholds-proposal.md`**](../proposals/semantic-gates-v2-node-extraction-and-thresholds-proposal.md) | Semantic Gates v2: Node extraction, parameterized messages, call-site coordinates & thresholds | 💡 Active Proposal (Phase 1 in Core; Phases 2–4 Next) |
+| [**`../proposals/uast-performance-and-loop-semantics-proposal.md`**](../proposals/uast-performance-and-loop-semantics-proposal.md) | UAST Performance Engineering, Memory Compaction & Algorithmic Loop Semantics (`SIG-M-P-001/002`) | 💡 Active Proposal (Next Priority) |
+| [**`../proposals/ecosystem-library-expansion-proposal.md`**](../proposals/ecosystem-library-expansion-proposal.md) | Top 10 High-Value Ecosystem Libraries per Language (60 total) & Implementation Proposal | 💡 Active Proposal |
+| [**`../architecture/uast-structure.md`**](../architecture/uast-structure.md) | Canonical UAST Node Hierarchy, Properties & Semantic Engine Reference | 🏛️ Reference Specification |
 
 ---
 

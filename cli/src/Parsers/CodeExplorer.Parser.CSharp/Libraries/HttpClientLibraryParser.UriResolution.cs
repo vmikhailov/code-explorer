@@ -24,11 +24,11 @@ public partial class HttpClientLibraryParser
         var sb = new System.Text.StringBuilder();
         foreach (var child in node.Children)
         {
-            if (child.Type == TreeSitterSyntax.CSharp.StringContent)
+            if (child.Is(TreeSitterSyntax.CSharp.StringContent))
             {
                 sb.Append(child.Text);
             }
-            else if (child.Type == TreeSitterSyntax.CSharp.Interpolation)
+            else if (child.Is(TreeSitterSyntax.CSharp.Interpolation))
             {
                 var expr = child.GetField(TreeSitterSyntax.Fields.Expression)
                            ?? child.Children.FirstOrDefault(c => c.Type is not "interpolation_brace" and not "{" and not "}");
@@ -280,8 +280,7 @@ public partial class HttpClientLibraryParser
             }
         }
 
-        if (expr.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression) ||
-            expr.Type == "implicit_object_creation_expression")
+        if (expr is CodeExplorer.Core.Parser.Syntax.CallExprSyntax { CallKind: CodeExplorer.Core.Parser.Syntax.CallSyntaxKind.Constructor })
         {
             var typeNode = expr.GetField(TreeSitterSyntax.Fields.Type)
                            ?? expr.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));

@@ -375,4 +375,90 @@ public class UastCompletionAndFlowAnalysisTests
         Assert.That(enrichedRef.ArgFlow, Is.Not.Null);
         Assert.That(enrichedRef.ArgFlow, Does.Contain("0<-p0"));
     }
+
+    [Test]
+    public void Uast_CompletePopulation_ParametersLambdasIndexTernaryAndCollections()
+    {
+        var tsCode = """
+                     import { Injectable } from '@nestjs/common';
+
+                     @Injectable({ scope: 'DEFAULT' })
+                     export class BillingService {
+                         private readonly rate: number = 10;
+
+                         public compute(items: string[], fallback: string = 'none'): string {
+                             const mapper = async (x: string) => x;
+                             const first = items[0];
+                             const chosen = items.length > 0 ? first : fallback;
+                             try {
+                                 sendPayload({ item: chosen }, [first]);
+                             } catch (err: Error) {
+                                 logError(err);
+                             }
+                             return chosen;
+                         }
+                     }
+                     """;
+
+        var doc = _tsParser.Parse(tsCode, "typescript", "billing.ts", "billing.ts");
+
+        // 1. ImportDeclSyntax.ModulePath
+        var importDecl = doc.Imports.FirstOrDefault(i => !i.IsReExport);
+        Assert.That(importDecl, Is.Not.Null);
+        Assert.That(importDecl!.ModulePath, Is.EqualTo("@nestjs/common"));
+
+        // 2. AnnotationSyntax.Arguments & CollectionExprSyntax
+        var annotation = doc.DescendantsAndSelf().OfType<AnnotationSyntax>().FirstOrDefault();
+        Assert.That(annotation, Is.Not.Null);
+        Assert.That(annotation!.Arguments.Count, Is.EqualTo(1));
+        Assert.That(annotation.Arguments[0].Value, Is.InstanceOf<CollectionExprSyntax>());
+
+        // 3. MemberDeclSyntax.MemberType
+        var member = doc.AllMembers.FirstOrDefault(m => m.Name == "rate");
+        Assert.That(member, Is.Not.Null);
+        Assert.That(member!.MemberType, Is.Not.Null);
+        Assert.That(member.MemberType!.Name, Is.EqualTo("number"));
+
+        // 4. ParameterDeclSyntax.ParameterType & DefaultValue
+        var fn = doc.AllFunctions.FirstOrDefault(f => f.Name == "compute");
+        Assert.That(fn, Is.Not.Null);
+        Assert.That(fn!.Parameters.Count, Is.EqualTo(2));
+        Assert.That(fn.Parameters[0].ParameterType, Is.Not.Null);
+        Assert.That(fn.Parameters[0].ParameterType!.Kind, Is.EqualTo(TypeRefKind.Array));
+        Assert.That(fn.Parameters[1].ParameterType, Is.Not.Null);
+        Assert.That(fn.Parameters[1].ParameterType!.Name, Is.EqualTo("string"));
+        Assert.That(fn.Parameters[1].DefaultValue, Is.Not.Null);
+
+        // 5. LambdaExprSyntax.Parameters, Body, IsAsync
+        var lambda = doc.DescendantsAndSelf().OfType<LambdaExprSyntax>().FirstOrDefault();
+        Assert.That(lambda, Is.Not.Null);
+        Assert.That(lambda!.IsAsync, Is.True);
+        Assert.That(lambda.Parameters.Count, Is.EqualTo(1));
+        Assert.That(lambda.Parameters[0].Name, Is.EqualTo("x"));
+        Assert.That(lambda.Body, Is.Not.Null);
+
+        // 6. IndexExprSyntax.Target & Index
+        var idx = doc.DescendantsAndSelf().OfType<IndexExprSyntax>().FirstOrDefault();
+        Assert.That(idx, Is.Not.Null);
+        Assert.That(idx!.Target, Is.Not.Null);
+        Assert.That(idx.Target!.Text, Is.EqualTo("items"));
+        Assert.That(idx.Index, Is.Not.Null);
+        Assert.That(idx.Index!.Text, Is.EqualTo("0"));
+
+        // 7. ConditionalExprSyntax.Condition, WhenTrue, WhenFalse + Dataflow propagation through ternary & index
+        var cond = doc.DescendantsAndSelf().OfType<ConditionalExprSyntax>().FirstOrDefault();
+        Assert.That(cond, Is.Not.Null);
+        Assert.That(cond!.Condition, Is.Not.Null);
+        Assert.That(cond.WhenTrue, Is.Not.Null);
+        Assert.That(cond.WhenFalse, Is.Not.Null);
+        Assert.That(fn.DataflowSummary, Is.Not.Null);
+        Assert.That(fn.DataflowSummary!.ReturnOrigins.Any(o => o.Identifier == "p0"), Is.True);
+        Assert.That(fn.DataflowSummary.ReturnOrigins.Any(o => o.Identifier == "p1"), Is.True);
+
+        // 8. CatchClauseSyntax.ExceptionType
+        var catchClause = doc.DescendantsAndSelf().OfType<CatchClauseSyntax>().FirstOrDefault();
+        Assert.That(catchClause, Is.Not.Null);
+        Assert.That(catchClause!.ExceptionType, Is.Not.Null);
+        Assert.That(catchClause.ExceptionType!.Name, Is.EqualTo("Error"));
+    }
 }

@@ -12,81 +12,120 @@ public sealed class JavaSyntaxConverter : TreeSitterSyntaxConverterBase
     protected override SyntaxNode CreateSyntaxNode(string rawKind, TextSpan span, string parentRawKind) =>
         rawKind switch
         {
-            "package_declaration" => new NamespaceDeclSyntax { Span = span, RawGrammarKind = rawKind },
-            "import_declaration" => new ImportDeclSyntax { Span = span, RawGrammarKind = rawKind },
+            "package_declaration" => new NamespaceDeclSyntax { Span = span },
+            "import_declaration" => new ImportDeclSyntax { Span = span },
 
-            "class_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Class },
+            "class_declaration" => new TypeDeclSyntax { Span = span, Kind = TypeSyntaxKind.Class },
             "interface_declaration" or "annotation_type_declaration" =>
-                new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Interface },
-            "record_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Record },
-            "enum_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Enum },
+                new TypeDeclSyntax { Span = span, Kind = TypeSyntaxKind.Interface },
+            "record_declaration" => new TypeDeclSyntax { Span = span, Kind = TypeSyntaxKind.Record },
+            "enum_declaration" => new TypeDeclSyntax { Span = span, Kind = TypeSyntaxKind.Enum },
 
-            "method_declaration" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Method },
+            "method_declaration" => new FunctionDeclSyntax { Span = span, Kind = FunctionSyntaxKind.Method },
             "constructor_declaration" or "compact_constructor_declaration" =>
-                new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Constructor },
+                new FunctionDeclSyntax { Span = span, Kind = FunctionSyntaxKind.Constructor },
 
-            "formal_parameter" or "spread_parameter" or "receiver_parameter" =>
-                new ParameterDeclSyntax { Span = span, RawGrammarKind = rawKind },
+            "formal_parameter" or "receiver_parameter" =>
+                new ParameterDeclSyntax { Span = span },
+            "spread_parameter" =>
+                new ParameterDeclSyntax { Span = span, PassingMode = ParameterPassingMode.VariadicArgs },
 
             "field_declaration" or "annotation_type_element_declaration" =>
-                new MemberDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = MemberSyntaxKind.Field },
+                new MemberDeclSyntax { Span = span, Kind = MemberSyntaxKind.Field },
             "constant_declaration" =>
-                new MemberDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = MemberSyntaxKind.Constant },
+                new MemberDeclSyntax { Span = span, Kind = MemberSyntaxKind.Constant },
             "enum_constant" =>
-                new MemberDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = MemberSyntaxKind.EnumMember },
+                new MemberDeclSyntax { Span = span, Kind = MemberSyntaxKind.EnumMember },
 
-            "variable_declarator" or "local_variable_declaration" =>
-                new VariableDeclSyntax { Span = span, RawGrammarKind = rawKind },
+            "variable_declarator" =>
+                new VariableDeclSyntax { Span = span, IsDeclarator = true },
+            "local_variable_declaration" =>
+                new VariableDeclSyntax { Span = span },
 
-            "annotation" or "marker_annotation" => new AnnotationSyntax { Span = span, RawGrammarKind = rawKind },
+            "annotation" or "marker_annotation" => new AnnotationSyntax { Span = span },
+            "element_value_pair" => new KeyValueExprSyntax { Span = span },
 
-            "method_invocation" => new CallExprSyntax { Span = span, RawGrammarKind = rawKind, CallKind = CallSyntaxKind.Method },
+            "method_invocation" => new CallExprSyntax { Span = span, CallKind = CallSyntaxKind.Method },
             "object_creation_expression" or "explicit_constructor_invocation" or "super_constructor_invocation" =>
-                new CallExprSyntax { Span = span, RawGrammarKind = rawKind, CallKind = CallSyntaxKind.Constructor },
+                new CallExprSyntax
+                {
+                    Span = span,
+                    CallKind = rawKind == "super_constructor_invocation"
+                        ? CallSyntaxKind.SuperConstructor
+                        : rawKind == "explicit_constructor_invocation"
+                            ? CallSyntaxKind.ThisConstructor
+                            : CallSyntaxKind.Constructor
+                },
+
+            "parenthesized_expression" => new ParenthesizedExprSyntax { Span = span },
+            "cast_expression" => new TypeCastExprSyntax { Span = span },
+            "superclass" or "super_interfaces" or "extends_interfaces" or "permits" =>
+                new BaseTypeClauseSyntax { Span = span, IsImplements = rawKind is "super_interfaces" or "extends_interfaces" },
 
             "string_literal" or "text_block" =>
-                new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.String },
+                new LiteralExprSyntax { Span = span, LiteralKind = LiteralSyntaxKind.String },
             "character_literal" =>
-                new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.Char },
+                new LiteralExprSyntax { Span = span, LiteralKind = LiteralSyntaxKind.Char },
             "decimal_integer_literal" or "hex_integer_literal" or "octal_integer_literal" or "binary_integer_literal" =>
-                new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.Integer },
+                new LiteralExprSyntax { Span = span, LiteralKind = LiteralSyntaxKind.Integer },
             "decimal_floating_point_literal" or "hex_floating_point_literal" =>
-                new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.Float },
+                new LiteralExprSyntax { Span = span, LiteralKind = LiteralSyntaxKind.Float },
             "true" or "false" =>
-                new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.Boolean },
+                new LiteralExprSyntax { Span = span, LiteralKind = LiteralSyntaxKind.Boolean },
             "null_literal" =>
-                new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.Null },
+                new LiteralExprSyntax { Span = span, LiteralKind = LiteralSyntaxKind.Null },
 
-            "identifier" or "type_identifier" or "this" or "super" =>
-                new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "array_creation_expression" or "array_initializer" or "element_value_array_initializer" =>
+                new CollectionExprSyntax { Span = span, Kind = CollectionSyntaxKind.Array },
 
-            "field_access" or "scoped_identifier" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "array_access" => new IndexExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "binary_expression" or "instanceof_expression" => new BinaryExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "unary_expression" or "update_expression" => new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "assignment_expression" => new AssignmentExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "ternary_expression" => new ConditionalExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "lambda_expression" => new LambdaExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "identifier" =>
+                new IdentifierExprSyntax { Span = span },
+            "type_identifier" =>
+                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Type },
+            "this" or "super" =>
+                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.SelfOrSuper },
 
-            "block" => new BlockStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "if_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.If },
-            "switch_expression" or "switch_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Switch },
+            "field_access" => new MemberAccessExprSyntax { Span = span },
+            "scoped_identifier" => new MemberAccessExprSyntax { Span = span, Operator = "::" },
+            "array_access" => new IndexExprSyntax { Span = span },
+            "binary_expression" or "instanceof_expression" => new BinaryExprSyntax { Span = span },
+            "unary_expression" or "update_expression" => new UnaryExprSyntax { Span = span },
+            "assignment_expression" => new AssignmentExprSyntax { Span = span },
+            "ternary_expression" => new ConditionalExprSyntax { Span = span },
+            "lambda_expression" => new LambdaExprSyntax { Span = span },
+
+            "block" => new BlockStmtSyntax { Span = span },
+            "if_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.If },
+            "switch_expression" or "switch_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Switch },
             "for_statement" or "enhanced_for_statement" or "while_statement" or "do_statement" =>
-                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Loop },
-            "try_statement" or "try_with_resources_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Try },
-            "catch_clause" => new CatchClauseSyntax { Span = span, RawGrammarKind = rawKind },
-            "return_statement" or "yield_statement" => new ReturnStmtSyntax { Span = span, RawGrammarKind = rawKind },
-            "throw_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Throw },
+                new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Loop },
+            "try_statement" or "try_with_resources_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Try },
+            "catch_clause" => new CatchClauseSyntax { Span = span },
+            "return_statement" or "yield_statement" => new ReturnStmtSyntax { Span = span },
+            "throw_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Throw },
             "break_statement" or "continue_statement" =>
-                new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Branch },
-            "synchronized_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Lock },
+                new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Branch },
+            "synchronized_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Lock },
+            "empty_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.NoOp },
 
-            "generic_type" or "array_type" or "scoped_type_identifier" or "integral_type" or "floating_point_type" or "boolean_type" =>
-                new TypeRefSyntax { Span = span, RawGrammarKind = rawKind },
+            "generic_type" => new TypeRefSyntax { Span = span, Kind = TypeRefKind.Generic },
+            "array_type" => new TypeRefSyntax { Span = span, Kind = TypeRefKind.Array },
+            "scoped_type_identifier" => new TypeRefSyntax { Span = span, Kind = TypeRefKind.Named },
+            "integral_type" or "floating_point_type" or "boolean_type" or "void_type" =>
+                new TypeRefSyntax { Span = span, Kind = TypeRefKind.Predefined },
 
-            "expression_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Expression },
+            "formal_parameters" => new SyntaxList { Span = span, Kind = SyntaxListKind.Parameters },
+            "argument_list" or "annotation_argument_list" => new SyntaxList { Span = span, Kind = SyntaxListKind.Arguments },
+            "type_parameters" => new SyntaxList { Span = span, Kind = SyntaxListKind.TypeParameters },
+            "type_arguments" => new SyntaxList { Span = span, Kind = SyntaxListKind.TypeArguments },
+            "class_body" or "interface_body" or "enum_body" or "annotation_type_body" or "record_declaration_body" or "switch_block" =>
+                new SyntaxList { Span = span, Kind = SyntaxListKind.Declarations },
+            "modifiers" => new SyntaxList { Span = span, Kind = SyntaxListKind.Attributes },
+            "catch_formal_parameter" or "finally_clause" => new SyntaxList { Span = span, Kind = SyntaxListKind.Clauses },
 
-            _ => new UnmappedSyntax { Span = span, RawGrammarKind = rawKind }
+            "expression_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Expression },
+
+            _ => new SyntaxList { Span = span, Kind = SyntaxListKind.General }
         };
 
     protected override void PopulateSyntaxNode(SyntaxNode node, SyntaxDocument doc)

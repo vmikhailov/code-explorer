@@ -19,7 +19,7 @@ public static class RustAstHelper
         var current = node;
         while (current.IsValid())
         {
-            if (current.Type == TreeSitterSyntax.Rust.TryExpression)
+            if (current.Is(TreeSitterSyntax.Rust.TryExpression))
             {
                 var inner = current.Children.FirstOrDefault(c => c.Text != "?");
                 if (inner.IsValid() && inner.Id != current.Id)
@@ -28,7 +28,7 @@ public static class RustAstHelper
                     continue;
                 }
             }
-            else if (current.Type == TreeSitterSyntax.Rust.AwaitExpression)
+            else if (current.Is(TreeSitterSyntax.Rust.AwaitExpression))
             {
                 var inner = current.Children.FirstOrDefault(c => c.Text != "await" && c.Text != ".");
                 if (inner.IsValid() && inner.Id != current.Id)
@@ -48,7 +48,7 @@ public static class RustAstHelper
     public static Node UnwrapCallExpression(Node node)
     {
         var unwrapped = UnwrapTryAndAwait(node);
-        if (unwrapped.Type == TreeSitterSyntax.Rust.GenericFunction)
+        if (unwrapped.Is(TreeSitterSyntax.Rust.GenericFunction))
         {
             var inner = unwrapped.GetChildForField(TreeSitterSyntax.Fields.Function) ??
                         (unwrapped.Children.Count > 0 ? unwrapped.Children[0] : null);
@@ -98,7 +98,7 @@ public static class RustAstHelper
             return CleanRustString(unwrapped.Text);
         }
 
-        if (unwrapped.Type == TreeSitterSyntax.Rust.MacroInvocation)
+        if (unwrapped.Is(TreeSitterSyntax.Rust.MacroInvocation))
         {
             var args = GetCallArguments(unwrapped);
             if (args.Count > 0)
@@ -111,7 +111,7 @@ public static class RustAstHelper
             }
         }
 
-        if (unwrapped.Type == TreeSitterSyntax.Rust.CallExpression)
+        if (unwrapped.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             var args = GetCallArguments(unwrapped);
             if (args.Count > 0)
@@ -142,17 +142,17 @@ public static class RustAstHelper
 
         var targetNode = UnwrapTryAndAwait(callNode);
 
-        if (targetNode.Type != TreeSitterSyntax.Rust.CallExpression && targetNode.Type != TreeSitterSyntax.Rust.MacroInvocation)
+        if (!targetNode.Is(TreeSitterSyntax.Rust.CallExpression) && !targetNode.Is(TreeSitterSyntax.Rust.MacroInvocation))
         {
             return false;
         }
 
         arguments = GetCallArguments(targetNode);
 
-        if (targetNode.Type == TreeSitterSyntax.Rust.MacroInvocation)
+        if (targetNode.Is(TreeSitterSyntax.Rust.MacroInvocation))
         {
             var macroChild = targetNode.GetChildForField("macro") ??
-                             targetNode.Children.FirstOrDefault(c => c.Type is TreeSitterSyntax.Rust.Identifier or TreeSitterSyntax.Rust.ScopedIdentifier);
+                             targetNode.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Rust.Identifier, TreeSitterSyntax.Rust.ScopedIdentifier));
             if (macroChild.IsValid())
             {
                 methodName = macroChild.Text + "!";
@@ -170,17 +170,17 @@ public static class RustAstHelper
 
         func = UnwrapTryAndAwait(func);
 
-        if (func.Type == TreeSitterSyntax.Rust.GenericFunction)
+        if (func.Is(TreeSitterSyntax.Rust.GenericFunction))
         {
             var innerFunc = func.GetChildForField(TreeSitterSyntax.Fields.Function) ??
                             (func.Children.Count > 0 ? func.Children[0] : null);
             if (innerFunc.IsValid()) func = innerFunc;
         }
 
-        if (func.Type == TreeSitterSyntax.Rust.FieldExpression)
+        if (func.Is(TreeSitterSyntax.Rust.FieldExpression))
         {
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field) ??
-                        func.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.FieldIdentifier);
+                        func.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.FieldIdentifier));
             var rec = func.GetChildForField("argument") ??
                       (func.Children.Count > 0 ? func.Children[0] : null);
 
@@ -189,7 +189,7 @@ public static class RustAstHelper
             return !string.IsNullOrEmpty(methodName);
         }
 
-        if (func.Type == TreeSitterSyntax.Rust.ScopedIdentifier || func.Type == TreeSitterSyntax.Rust.Identifier)
+        if (func.Is(TreeSitterSyntax.Rust.ScopedIdentifier) || func.Is(TreeSitterSyntax.Rust.Identifier))
         {
             methodName = func.Text;
             return true;

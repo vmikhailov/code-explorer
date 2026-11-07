@@ -60,7 +60,7 @@ public class RocketLibraryParser : ISemanticExtension
         fullRoute = "/";
         handlerName = null;
 
-        if (node.Type == TreeSitterSyntax.Rust.AttributeItem)
+        if (node.Is(TreeSitterSyntax.Rust.AttributeItem))
         {
             var match = RocketAttributeRegex.Match(node.Text);
             if (match.Success)
@@ -69,10 +69,10 @@ public class RocketLibraryParser : ISemanticExtension
                 fullRoute = RustAstHelper.CombineRoutes(null, match.Groups[2].Value);
 
                 var parent = node.Parent;
-                if (parent.IsValid() && parent.Type == TreeSitterSyntax.Rust.FunctionItem)
+                if (parent.IsValid() && parent.Is(TreeSitterSyntax.Rust.FunctionItem))
                 {
                     var nameNode = parent.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                   parent.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                                   parent.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
                     if (nameNode.IsValid())
                     {
                         handlerName = nameNode.Text;

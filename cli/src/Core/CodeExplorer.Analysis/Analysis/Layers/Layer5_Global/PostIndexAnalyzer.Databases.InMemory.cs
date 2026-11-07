@@ -18,8 +18,11 @@ public partial class PostIndexAnalyzer
 
         // 1. Collect all DatabaseNodes from AST / Semantic tree
         var allDbNodes = new List<DatabaseNode>();
-        void CollectDbNodes(IOntologyNode node)
+        var visitedWalkNodes = new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance);
+        void CollectDbNodes(IOntologyNode? node)
         {
+            if (node == null || !visitedWalkNodes.Add(node))
+                return;
             if (node is DatabaseNode db)
             {
                 var eng = !string.IsNullOrWhiteSpace(db.Engine)
@@ -81,7 +84,19 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        var testSourceCache = new Dictionary<(string Id, string Path), bool>();
         bool IsTestSource(string fromId, string? fromPath)
+        {
+            var key = (fromId ?? "", fromPath ?? "");
+            if (testSourceCache.TryGetValue(key, out var cached))
+                return cached;
+
+            var result = ComputeIsTestSource(fromId ?? "", fromPath);
+            testSourceCache[key] = result;
+            return result;
+        }
+
+        bool ComputeIsTestSource(string fromId, string? fromPath)
         {
             if (!string.IsNullOrEmpty(fromPath) && WorkspaceConventions.IsTestFilePath(fromPath))
                 return true;
@@ -348,9 +363,9 @@ public partial class PostIndexAnalyzer
 
             if (!rawToCanonical.ContainsKey(dbTarget))
             {
+                if (!nonTestAccessedTargets.Contains(dbTarget)) continue;
                 var filePath = rel.FilePath;
                 if (IsTestSource(callerSource, filePath)) continue;
-                if (!nonTestAccessedTargets.Contains(dbTarget)) continue;
 
                 var parts = dbTarget.Split(':');
                 var rawName = parts.Length > 0 ? parts[^1] : "";

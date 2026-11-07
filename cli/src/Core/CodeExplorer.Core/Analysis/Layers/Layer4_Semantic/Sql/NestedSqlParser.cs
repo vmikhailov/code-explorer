@@ -660,6 +660,11 @@ public static class NestedSqlParser
         int startLine = 0,
         int endLine = 0)
     {
+        if (WorkspaceConventions.IsTestFilePath(filePath))
+        {
+            return;
+        }
+
         var tables = new HashSet<(string? Db, string? Schema, string Table)>();
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
 

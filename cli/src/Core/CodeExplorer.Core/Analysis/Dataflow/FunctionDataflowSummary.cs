@@ -304,6 +304,22 @@ public static class FunctionDataflowAnalyzer
                 list.AddRange(ResolveExprOrigins(unary.Operand, varOrigins));
                 break;
 
+            case ConditionalExprSyntax cond:
+                if (cond.WhenTrue != null) list.AddRange(ResolveExprOrigins(cond.WhenTrue, varOrigins));
+                if (cond.WhenFalse != null) list.AddRange(ResolveExprOrigins(cond.WhenFalse, varOrigins));
+                break;
+
+            case IndexExprSyntax idx when idx.Target != null:
+                list.AddRange(ResolveExprOrigins(idx.Target, varOrigins));
+                break;
+
+            case CollectionExprSyntax col:
+                for (int i = 0; i < col.Elements.Count; i++)
+                {
+                    list.AddRange(ResolveExprOrigins(col.Elements[i], varOrigins));
+                }
+                break;
+
             case ArgumentSyntax arg when arg.Value != null:
                 list.AddRange(ResolveExprOrigins(arg.Value, varOrigins));
                 break;

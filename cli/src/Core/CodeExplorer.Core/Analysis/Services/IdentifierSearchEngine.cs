@@ -55,7 +55,7 @@ public class IdentifierSearchEngine
             CREATE VIRTUAL TABLE IF NOT EXISTS identifier_fts USING fts5(
                 name,
                 full_name,
-                path,
+                path UNINDEXED,
                 node_id UNINDEXED,
                 kind UNINDEXED,
                 tokenize='trigram'
@@ -94,7 +94,7 @@ public class IdentifierSearchEngine
             CREATE VIRTUAL TABLE IF NOT EXISTS identifier_fts USING fts5(
                 name,
                 full_name,
-                path,
+                path UNINDEXED,
                 node_id UNINDEXED,
                 kind UNINDEXED,
                 tokenize='trigram'
@@ -108,19 +108,37 @@ public class IdentifierSearchEngine
             """;
         await initCmd.ExecuteNonQueryAsync(ct);
 
+        bool hasNativeColumns = false;
+        await using (var pragmaCmd = conn.CreateCommand())
+        {
+            pragmaCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = 'name';";
+            hasNativeColumns = Convert.ToInt32(await pragmaCmd.ExecuteScalarAsync(ct)) > 0;
+        }
+
         // Extract candidate nodes: Type, Function, Member, Endpoint, Table, Topic, Project, ExternalService
         // Use correlated subquery for owner_name to ensure SQLite uses primary key index lookup on nodes(id)
         // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
-        var candidateQuery = """
-            SELECT n.id, n.kind,
-                   COALESCE(json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
-                   COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
-                   COALESCE(CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
-                   (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
-            FROM nodes n
-            LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
-            WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
-            """;
+        var candidateQuery = hasNativeColumns
+            ? """
+              SELECT n.id, n.kind,
+                     COALESCE(NULLIF(n.name, ''), json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
+                     COALESCE(NULLIF(n.path, ''), json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                     COALESCE(NULLIF(n.start_line, 0), CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
+                     (SELECT COALESCE(NULLIF(o.name, ''), json_extract(o.properties, '$.name')) FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
+              FROM nodes n
+              LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
+              WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
+              """
+            : """
+              SELECT n.id, n.kind,
+                     COALESCE(json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
+                     COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                     COALESCE(CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
+                     (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
+              FROM nodes n
+              LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
+              WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
+              """;
 
         await using var selectCmd = conn.CreateCommand();
         selectCmd.CommandText = candidateQuery;

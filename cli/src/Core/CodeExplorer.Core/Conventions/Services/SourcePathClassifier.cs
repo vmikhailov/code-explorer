@@ -24,6 +24,12 @@ public static class SourcePathClassifier
                normalized.Contains("/e2e/") ||
                normalized.Contains(".integration-spec.") ||
                normalized.Contains(".e2e-spec.") ||
+               normalized.Contains("/__stories__/") ||
+               normalized.Contains("/.storybook/") ||
+               normalized.StartsWith(".storybook/") ||
+               normalized.Contains(".stories.") ||
+               normalized.EndsWith(".env.test") ||
+               normalized.EndsWith(".env.example") ||
                normalized.Contains("/testing/") ||
                normalized.Contains("/specs/") ||
                normalized.Contains("/spec/") ||

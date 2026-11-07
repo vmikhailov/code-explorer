@@ -7,7 +7,18 @@ public class TypeOrmLibraryParser : ISemanticExtension
     public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "TypeORM";
     public string Id => "typeorm";
-    public IReadOnlyList<string> SupportedPatterns => ["typeorm", "typeorm/*"];
+    public IReadOnlyList<string> SupportedPatterns =>
+    [
+        "typeorm",
+        "typeorm/*",
+        "@nestjs/typeorm",
+        "*sql-tools*",
+        "kysely",
+        "kysely/*",
+        "nestjs-kysely",
+        "*twenty-orm*",
+        "*workspace-scoped-repository*"
+    ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
@@ -43,13 +54,19 @@ public class TypeOrmLibraryParser : ISemanticExtension
                 return "TypeORM Query";
             }
 
+            if (IsKyselyQueryCall(node, out var kyselyTable, out _))
+            {
+                AstHelper.TryGetMemberAccess(node, out _, out var kProp);
+                return $"Kysely: {kProp}({kyselyTable}):{node.StartPosition.Row + 1}";
+            }
+
             if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
             {
                 var objText = objNode?.Text ?? "Entity";
-                return $"TypeORM: {objText}.{propName}";
+                return $"TypeORM: {objText}.{propName}:{node.StartPosition.Row + 1}";
             }
 
-            return "TypeORM Query";
+            return $"TypeORM Query:{node.StartPosition.Row + 1}";
         }
         if (IsTypeOrmEntityDecorator(node))
         {
@@ -60,12 +77,25 @@ public class TypeOrmLibraryParser : ISemanticExtension
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        if (IsTypeOrmCall(node) && IsTypeOrmRawQuery(node))
+        if (IsTypeOrmCall(node))
         {
-            var sqlText = AstHelper.ExtractFirstStringArgument(node);
-            if (!string.IsNullOrEmpty(sqlText))
+            if (IsTypeOrmRawQuery(node))
             {
-                NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
+                var sqlText = AstHelper.ExtractFirstStringArgument(node);
+                if (!string.IsNullOrEmpty(sqlText))
+                {
+                    NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
+                }
+            }
+            else if (IsKyselyQueryCall(node, out var kyselyTable, out var isKyselyWrite))
+            {
+                var relKind = isKyselyWrite ? OntologyConstants.Relationships.WritesTo : OntologyConstants.Relationships.ReadsFrom;
+                references.Add(new Reference(scopeSymbolId, kyselyTable, relKind));
+            }
+            else if (TryResolveRepositoryTargetTable(node, out var repoTable, out var isRepoWrite))
+            {
+                var relKind = isRepoWrite ? OntologyConstants.Relationships.WritesTo : OntologyConstants.Relationships.ReadsFrom;
+                references.Add(new Reference(scopeSymbolId, repoTable, relKind));
             }
         }
         else if (IsTypeOrmEntityDecorator(node))
@@ -142,7 +172,9 @@ public class TypeOrmLibraryParser : ISemanticExtension
         if (!node.Is(TreeSitterSyntax.TypeScript.Decorator)) return false;
         var text = node.Text;
         return text.StartWithIC("@Entity") ||
-               text.StartWithIC("@ViewEntity");
+               text.StartWithIC("@ViewEntity") ||
+               text.StartsWith("@Table(", StringComparison.Ordinal) ||
+               text.Equals("@Table", StringComparison.Ordinal);
     }
 
     private static string? ExtractTableNameFromDecorator(Node decoratorNode)
@@ -221,6 +253,11 @@ public class TypeOrmLibraryParser : ISemanticExtension
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
+        if (IsKyselyQueryCall(node, out _, out _))
+        {
+            return true;
+        }
+
         if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
         {
             if (propName == "query")
@@ -233,12 +270,129 @@ public class TypeOrmLibraryParser : ISemanticExtension
             var obj = objNode?.Text?.ToLowerInvariant() ?? "";
             if (obj.Contains("repo") || obj.Contains("repository") || obj.Contains("manager"))
             {
-                return propName is "find" or "findOne" or "findOneBy" or "findAndCount"
-                                   or "save" or "insert" or "update" or "delete" or "remove" or "count";
+                return IsRepositoryReadMethod(propName) || IsRepositoryWriteMethod(propName);
             }
         }
 
         return false;
+    }
+
+    private static bool IsRepositoryReadMethod(string? propName) =>
+        propName is "find" or "findOne" or "findOneBy" or "findBy" or "findAndCount"
+            or "findOneOrFail" or "findOneByOrFail" or "count" or "countBy"
+            or "exist" or "exists" or "existsBy" or "createQueryBuilder";
+
+    private static bool IsRepositoryWriteMethod(string? propName) =>
+        propName is "save" or "insert" or "insertAndReturnOne" or "insertAndReturnMany"
+            or "update" or "updateAndReturnOne" or "delete" or "softDelete" or "restore"
+            or "upsert" or "remove" or "softRemove" or "clear";
+
+    private static bool IsKyselyQueryCall(Node node, out string tableName, out bool isWrite)
+    {
+        tableName = "";
+        isWrite = false;
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
+
+        if (!AstHelper.TryGetMemberAccess(node, out _, out var propName)) return false;
+        if (propName is not ("selectFrom" or "insertInto" or "updateTable" or "deleteFrom")) return false;
+
+        var firstStr = AstHelper.ExtractFirstStringArgument(node);
+        if (string.IsNullOrWhiteSpace(firstStr)) return false;
+
+        var cleanTbl = firstStr.Trim();
+        var spaceIdx = cleanTbl.IndexOf(' ');
+        if (spaceIdx > 0) cleanTbl = cleanTbl[..spaceIdx];
+        if (!WorkspaceConventions.IsValidTopicOrQueueName(cleanTbl)) return false;
+
+        tableName = cleanTbl;
+        isWrite = propName is "insertInto" or "updateTable" or "deleteFrom";
+        return true;
+    }
+
+    private static bool TryResolveRepositoryTargetTable(Node callNode, out string tableName, out bool isWrite)
+    {
+        tableName = "";
+        isWrite = false;
+        if (!AstHelper.TryGetMemberAccess(callNode, out var objNode, out var propName)) return false;
+
+        isWrite = IsRepositoryWriteMethod(propName);
+        if (!isWrite && !IsRepositoryReadMethod(propName)) return false;
+
+        var objText = objNode.IsValid() ? objNode.Text.Trim() : "";
+        var fieldName = objText.StartsWith("this.", StringComparison.Ordinal) ? objText[5..] : objText;
+        if (fieldName.Contains('.')) fieldName = fieldName[(fieldName.LastIndexOf('.') + 1)..];
+
+        var entityOrTable = ResolveEntityFromEnclosingClass(callNode, fieldName);
+        if (string.IsNullOrEmpty(entityOrTable))
+        {
+            entityOrTable = StripRepositorySuffix(fieldName);
+        }
+        else
+        {
+            entityOrTable = StripEntityOrTableSuffix(entityOrTable);
+        }
+
+        if (string.IsNullOrWhiteSpace(entityOrTable) ||
+            entityOrTable.Equals("repository", StringComparison.OrdinalIgnoreCase) ||
+            entityOrTable.Equals("manager", StringComparison.OrdinalIgnoreCase) ||
+            entityOrTable.Equals("entity", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        tableName = char.ToLowerInvariant(entityOrTable[0]) + entityOrTable[1..];
+        return true;
+    }
+
+    private static string? ResolveEntityFromEnclosingClass(Node callNode, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName)) return null;
+
+        var curr = callNode.Parent;
+        while (curr.IsValid() && !curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
+        {
+            curr = curr.Parent;
+        }
+        if (!curr.IsValid()) return null;
+
+        foreach (var dec in curr.FindDescendantsOfType(TreeSitterSyntax.TypeScript.Decorator))
+        {
+            var decCall = dec.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+            if (!decCall.IsValid()) continue;
+
+            var decFunc = decCall.GetFunctionNode();
+            if (!decFunc.IsValid() || !decFunc.Text.Contains("Repository", StringComparison.Ordinal)) continue;
+
+            var paramNode = dec.Parent;
+            if (paramNode.IsValid() && paramNode.Text.Contains(fieldName, StringComparison.Ordinal))
+            {
+                var args = AstHelper.GetCallArguments(decCall);
+                if (args.Count > 0 && args[0].IsValid())
+                {
+                    return args[0].Text.Trim();
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string StripRepositorySuffix(string name)
+    {
+        if (name.EndsWith("Repository", StringComparison.OrdinalIgnoreCase))
+            return name[..^"Repository".Length];
+        if (name.EndsWith("Repo", StringComparison.OrdinalIgnoreCase))
+            return name[..^"Repo".Length];
+        return name;
+    }
+
+    private static string StripEntityOrTableSuffix(string name)
+    {
+        if (name.EndsWith("Entity", StringComparison.Ordinal) && name.Length > "Entity".Length)
+            return name[..^"Entity".Length];
+        if (name.EndsWith("Table", StringComparison.Ordinal) && name.Length > "Table".Length)
+            return name[..^"Table".Length];
+        return name;
     }
 
     private static bool IsTypeOrmRawQuery(Node node)

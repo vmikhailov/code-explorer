@@ -35,12 +35,19 @@ public class GoFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.EntryPoint;
         }
 
-        if (node.Is(TreeSitterSyntax.Go.TypeSpec))
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax td)
         {
-            return node.Children.Any(c => c.Is(TreeSitterSyntax.Go.InterfaceType)) ? "Interface" : "Class";
+            if (td.Parent is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax || !td.HasName)
+            {
+                return null;
+            }
+            return td.Kind == CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface ||
+                   td.Children.Any(c => c is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface })
+                ? "Interface"
+                : "Class";
         }
 
-        if (node.IsAny(TreeSitterSyntax.Go.TypeDeclaration, TreeSitterSyntax.Go.StructType, TreeSitterSyntax.Go.InterfaceType))
+        if (node.Is(TreeSitterSyntax.Go.TypeDeclaration))
         {
             return null;
         }
@@ -669,7 +676,7 @@ public class GoFileVisitor : BaseParserVisitor
         fullRoute = "/";
         handlerName = null;
 
-        if (node.Type is not (TreeSitterSyntax.Go.CompositeLiteral or "literal_value"))
+        if (node is not CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
         {
             return false;
         }
@@ -790,7 +797,7 @@ public class GoFileVisitor : BaseParserVisitor
         var result = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase);
 
         var container = node;
-        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral)
+        if (node.Is(TreeSitterSyntax.Go.CompositeLiteral))
         {
             var body = node.GetChildForField(TreeSitterSyntax.Fields.Body);
             if (body.IsValid()) container = body;
@@ -804,21 +811,21 @@ public class GoFileVisitor : BaseParserVisitor
         foreach (var rawChild in container.Children)
         {
             var elem = rawChild;
-            if (elem.Type == "literal_element" && elem.Children.Count > 0)
+            if (elem is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && elem.Children.Count > 0)
             {
                 elem = elem.Children[0];
             }
 
-            if (elem.Type is "keyed_element" && elem.Children.Count >= 2)
+            if (elem is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax && elem.Children.Count >= 2)
             {
                 var keyChild = elem.Children[0];
-                if (keyChild.Type == "literal_element" && keyChild.Children.Count > 0)
+                if (keyChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && keyChild.Children.Count > 0)
                 {
                     keyChild = keyChild.Children[0];
                 }
 
                 var valChild = elem.Children[^1];
-                if (valChild.Type == "literal_element" && valChild.Children.Count > 0)
+                if (valChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && valChild.Children.Count > 0)
                 {
                     valChild = valChild.Children[0];
                 }
@@ -839,10 +846,10 @@ public class GoFileVisitor : BaseParserVisitor
         var methods = new List<string>();
         if (!methodsNode.IsValid()) return methods;
 
-        if (methodsNode.Type is TreeSitterSyntax.Go.CompositeLiteral or "literal_value")
+        if (methodsNode is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
         {
             var elements = methodsNode.DescendantsAndSelf()
-                .Where(d => d.Type is TreeSitterSyntax.Go.SelectorExpression or TreeSitterSyntax.Go.InterpretedStringLiteral or TreeSitterSyntax.Go.Identifier or TreeSitterSyntax.Go.RawStringLiteral)
+                .Where(d => d.IsAny(TreeSitterSyntax.Go.SelectorExpression, TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.RawStringLiteral))
                 .ToList();
 
             foreach (var elem in elements)

@@ -63,7 +63,7 @@ public class AsyncNatsLibraryParser : ISemanticExtension
         subject = string.Empty;
         isPublish = false;
 
-        if (node.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return false;
         }

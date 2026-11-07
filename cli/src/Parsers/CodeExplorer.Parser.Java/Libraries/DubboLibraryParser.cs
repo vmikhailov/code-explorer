@@ -121,7 +121,7 @@ public class DubboLibraryParser : ISemanticExtension
             {
                 foreach (var param in paramList.Children)
                 {
-                    if (!param.Type.Contains("formal_parameter")) continue;
+                    if (!param.Is(TreeSitterSyntax.Java.FormalParameter)) continue;
                     var pType = param.GetField(TreeSitterSyntax.Fields.Type);
                     if (pType.IsValid() && symbol.RequestType == null)
                     {
@@ -192,7 +192,7 @@ public class DubboLibraryParser : ISemanticExtension
 
         foreach (var child in modifiers.Children)
         {
-            if (child.Type is TreeSitterSyntax.Java.MarkerAnnotation or TreeSitterSyntax.Java.Annotation)
+            if (child.IsAny(TreeSitterSyntax.Java.MarkerAnnotation, TreeSitterSyntax.Java.Annotation))
             {
                 var text = child.Text;
                 if (text.Contains(Constants.DubboService))
@@ -251,7 +251,7 @@ public class DubboLibraryParser : ISemanticExtension
 
         foreach (var child in modifiers.Children)
         {
-            if (child.Type is TreeSitterSyntax.Java.MarkerAnnotation or TreeSitterSyntax.Java.Annotation)
+            if (child.IsAny(TreeSitterSyntax.Java.MarkerAnnotation, TreeSitterSyntax.Java.Annotation))
             {
                 var text = child.Text;
                 if (text.Contains(Constants.DubboReference))
@@ -297,7 +297,8 @@ public class DubboLibraryParser : ISemanticExtension
 
     private static Node? FindClassFieldByName(Node classNode, string variableName)
     {
-        var body = classNode.FindChildOfType("class_body");
+        const string classBodyType = "class_body";
+        var body = classNode.FindChildOfType(classBodyType);
         if (!body.IsValid()) return null;
 
         foreach (var child in body.Children)
@@ -429,7 +430,7 @@ public class DubboLibraryParser : ISemanticExtension
 
         foreach (var annot in modifiers.Children)
         {
-            if (annot.Type == TreeSitterSyntax.Java.Annotation)
+            if (annot.IsAny(TreeSitterSyntax.Java.Annotation, TreeSitterSyntax.Java.MarkerAnnotation))
             {
                 var text = annot.Text;
                 var match = Regex.Match(text, @"(?:interfaceClass\s*=\s*|interfaceName\s*=\s*""?)([A-Za-z0-9_$.]+)");

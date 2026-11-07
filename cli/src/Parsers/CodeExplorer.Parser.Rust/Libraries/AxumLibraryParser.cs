@@ -67,7 +67,7 @@ public class AxumLibraryParser : ISemanticExtension
         fullRoute = "/";
         handlers = [];
 
-        if (node.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return false;
         }
@@ -106,7 +106,7 @@ public class AxumLibraryParser : ISemanticExtension
     private static void ExtractMethodRouters(Node handlerArg, List<(string Method, string HandlerName)> handlers)
     {
         var unwrapped = RustAstHelper.UnwrapCallExpression(handlerArg);
-        if (unwrapped.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!unwrapped.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             var text = CleanHandlerName(unwrapped.Text);
             if (!string.IsNullOrEmpty(text))

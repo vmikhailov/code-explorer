@@ -14,21 +14,21 @@ public static class GoDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        var type = node.Type;
-
-        if (type is TreeSitterSyntax.Go.ConstSpec or TreeSitterSyntax.Go.VarSpec)
+        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant } or
+            CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: true })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Go.Identifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Go.Identifier));
 
             var valNode = node.GetChildForField(TreeSitterSyntax.Fields.Value) ??
-                          node.Children.FirstOrDefault(c => c.Type is TreeSitterSyntax.Go.RawStringLiteral or
-                                                                    TreeSitterSyntax.Go.InterpretedStringLiteral or
-                                                                    TreeSitterSyntax.Go.ExpressionList or
-                                                                    TreeSitterSyntax.Common.BinaryExpression or
-                                                                    TreeSitterSyntax.Common.CallExpression);
+                          node.Children.FirstOrDefault(c => c.IsAny(
+                              TreeSitterSyntax.Go.RawStringLiteral,
+                              TreeSitterSyntax.Go.InterpretedStringLiteral,
+                              TreeSitterSyntax.Go.ExpressionList,
+                              TreeSitterSyntax.Common.BinaryExpression,
+                              TreeSitterSyntax.Common.CallExpression));
 
-            if (valNode.IsValid() && valNode.Type == TreeSitterSyntax.Go.ExpressionList && valNode.Children.Count > 0)
+            if (valNode.IsValid() && valNode.Is(TreeSitterSyntax.Go.ExpressionList) && valNode.Children.Count > 0)
             {
                 valNode = valNode.Children[0];
             }
@@ -40,15 +40,15 @@ public static class GoDeclarationExtractor
             return;
         }
 
-        if (type == "keyed_element" && node.Children.Count >= 2)
+        if (node is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax && node.Children.Count >= 2)
         {
             var keyChild = node.Children[0];
-            if (keyChild.IsValid() && keyChild.Type == "literal_element" && keyChild.Children.Count > 0)
+            if (keyChild.IsValid() && keyChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax && keyChild.Children.Count > 0)
             {
                 keyChild = keyChild.Children[0];
             }
             var valChild = node.Children[^1];
-            if (valChild.IsValid() && valChild.Type == "literal_element" && valChild.Children.Count > 0)
+            if (valChild.IsValid() && valChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax && valChild.Children.Count > 0)
             {
                 valChild = valChild.Children[0];
             }

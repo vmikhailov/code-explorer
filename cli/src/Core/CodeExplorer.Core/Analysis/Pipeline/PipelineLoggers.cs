@@ -90,6 +90,9 @@ public static partial class Layer3LogMessages
 
     [LoggerMessage(EventId = 3007, Level = LogLevel.Information, Message = "[Layer 3    ] Syntactic parsing pass complete. Parsed {SyntaxTreeCount} files.")]
     public static partial void SyntacticScanComplete(ILogger logger, int syntaxTreeCount);
+
+    [LoggerMessage(EventId = 3008, Level = LogLevel.Information, Message = "[Layer 3    ] Analyzing AST semantics and visitors: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
+    public static partial void VisitorProgress(ILogger logger, int completed, int totalFiles, int percentage, string projectName);
 }
 
 public readonly struct Layer3Logger(ILogger logger)
@@ -98,6 +101,7 @@ public readonly struct Layer3Logger(ILogger logger)
     public void ConfigurationIndexRegistered(int count) => Layer3LogMessages.RegisteredConfigurationUrls(logger, count);
     public void ParsingProject(int projectIndex, int totalProjects, string projectPath) => Layer3LogMessages.ParsingProject(logger, projectIndex, totalProjects, projectPath);
     public void ParsingProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.ParsingProgress(logger, completed, totalFiles, percentage, projectName);
+    public void VisitorProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.VisitorProgress(logger, completed, totalFiles, percentage, projectName);
     public void FileParseFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.FileParseError(logger, filePath, errorMessage, ex);
     public void VisitorFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.VisitorProcessingError(logger, filePath, errorMessage, ex);
     public void ScanCompleted(int syntaxTreeCount) => Layer3LogMessages.SyntacticScanComplete(logger, syntaxTreeCount);

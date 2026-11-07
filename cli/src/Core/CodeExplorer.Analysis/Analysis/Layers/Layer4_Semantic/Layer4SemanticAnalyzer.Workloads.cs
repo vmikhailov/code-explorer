@@ -386,6 +386,89 @@ public partial class Layer4SemanticParser
                 }
             }
 
+            // Consolidate unqualified ORM TableNodes ({wid}:tbl:{name}) with schema-qualified SQL TableNodes (...:ds:{schema}:tbl:{name})
+            var qualifiedTables = projectSemanticNodes
+                .OfType<TableNode>()
+                .Where(t => t.Id.Contains(":ds:", StringComparison.OrdinalIgnoreCase) || t.Id.Contains(":dataset:", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (qualifiedTables.Count > 0)
+            {
+                var tableIdRemap = new Dictionary<string, string>(StringComparer.Ordinal);
+                var unqualifiedTables = projectSemanticNodes
+                    .OfType<TableNode>()
+                    .Where(t => !t.Id.Contains(":ds:", StringComparison.OrdinalIgnoreCase) && !t.Id.Contains(":dataset:", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                foreach (var ormTbl in unqualifiedTables)
+                {
+                    TableNode? matchedSqlTbl = null;
+                    if (!string.IsNullOrEmpty(ormTbl.Schema))
+                    {
+                        var schemaToken1 = $":ds:{ormTbl.Schema}:";
+                        var schemaToken2 = $":dataset:{ormTbl.Schema}:";
+                        matchedSqlTbl = qualifiedTables.FirstOrDefault(qt =>
+                            string.Equals(qt.Name, ormTbl.Name, StringComparison.OrdinalIgnoreCase) &&
+                            (qt.Id.Contains(schemaToken1, StringComparison.OrdinalIgnoreCase) ||
+                             qt.Id.Contains(schemaToken2, StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(qt.Schema, ormTbl.Schema, StringComparison.OrdinalIgnoreCase)));
+                    }
+
+                    if (matchedSqlTbl == null)
+                    {
+                        var byName = qualifiedTables
+                            .Where(qt => string.Equals(qt.Name, ormTbl.Name, StringComparison.OrdinalIgnoreCase))
+                            .DistinctBy(qt => qt.Id, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        if (byName.Count == 1)
+                        {
+                            matchedSqlTbl = byName[0];
+                        }
+                        else if (byName.Count > 1)
+                        {
+                            matchedSqlTbl = byName.FirstOrDefault(qt => qt.Id.Contains(":ds:core:", StringComparison.OrdinalIgnoreCase))
+                                            ?? byName[0];
+                        }
+                    }
+
+                    if (matchedSqlTbl != null && matchedSqlTbl.Id != ormTbl.Id)
+                    {
+                        tableIdRemap[ormTbl.Id] = matchedSqlTbl.Id;
+                    }
+                }
+
+                if (tableIdRemap.Count > 0)
+                {
+                    projectSemanticNodes.RemoveAll(n => tableIdRemap.ContainsKey(n.Id));
+                    foreach (var syntaxTree in projectTrees)
+                    {
+                        syntaxTree.FileNode?.Children.RemoveAll(c => tableIdRemap.ContainsKey(c.Id));
+                    }
+
+                    for (var i = 0; i < semanticRelationships.Count; i++)
+                    {
+                        var r = semanticRelationships[i];
+                        var newFrom = tableIdRemap.GetValueOrDefault(r.From, r.From);
+                        var newTo = tableIdRemap.GetValueOrDefault(r.To, r.To);
+                        if (!ReferenceEquals(newFrom, r.From) || !ReferenceEquals(newTo, r.To))
+                        {
+                            semanticRelationships[i] = r with { From = newFrom, To = newTo };
+                        }
+                    }
+
+                    for (var i = 0; i < ctx.GlobalProjectDependencies.Count; i++)
+                    {
+                        var dep = ctx.GlobalProjectDependencies[i];
+                        var newFrom = tableIdRemap.GetValueOrDefault(dep.From, dep.From);
+                        var newTo = tableIdRemap.GetValueOrDefault(dep.To, dep.To);
+                        if (!ReferenceEquals(newFrom, dep.From) || !ReferenceEquals(newTo, dep.To))
+                        {
+                            ctx.GlobalProjectDependencies[i] = dep with { From = newFrom, To = newTo };
+                        }
+                    }
+                }
+            }
+
             if (!project.IsLibrary && projectSemanticNodes.OfType<EndpointNode>().Any() &&
                 project.PrimaryRole is "App" or "Worker" or "CliTool")
             {

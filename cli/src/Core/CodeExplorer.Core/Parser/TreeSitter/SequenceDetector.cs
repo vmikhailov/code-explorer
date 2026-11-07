@@ -138,7 +138,7 @@ public static class SequenceDetectorExtensions
         Action<IReadOnlyList<Node>> callback,
         SequenceMatchStrategy strategy = SequenceMatchStrategy.Suffix)
     {
-        var predicates = nodeTypes.Select(type => new Predicate<Node>(node => node.Type == type));
+        var predicates = nodeTypes.Select(type => new Predicate<Node>(node => node.Is(type)));
         detector.Register(predicates, callback, strategy);
     }
 

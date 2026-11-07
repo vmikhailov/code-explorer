@@ -14,22 +14,22 @@ public static class TypeScriptDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        var type = node.Type;
-
-        if (type is TreeSitterSyntax.TypeScript.EnumDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-            var enumName = nameNode.IsValid() ? nameNode.Text : "Enum";
+            var enumName = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(enumDecl.Name) ? enumDecl.Name : "Enum");
 
-            var body = node.FindChildOfType(TreeSitterSyntax.TypeScript.EnumBody);
+            var body = node.FindChildOfType(TreeSitterSyntax.TypeScript.EnumBody) ?? node;
             if (body.IsValid())
             {
                 foreach (var child in body.Children)
                 {
-                    if (child.Type is TreeSitterSyntax.TypeScript.EnumAssignment or TreeSitterSyntax.TypeScript.PropertyIdentifier)
+                    if (child is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.EnumMember } ||
+                        child.IsAny(TreeSitterSyntax.TypeScript.EnumAssignment, TreeSitterSyntax.TypeScript.PropertyIdentifier))
                     {
                         var prop = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                   child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.TypeScript.PropertyIdentifier);
+                                   child.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.PropertyIdentifier)) ??
+                                   (child.Is(TreeSitterSyntax.TypeScript.PropertyIdentifier) ? child : null);
                         if (prop.IsValid())
                         {
                             var valNode = child.GetChildForField(TreeSitterSyntax.Fields.Value) ??
@@ -44,7 +44,7 @@ public static class TypeScriptDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.TypeScript.LexicalDeclaration or TreeSitterSyntax.TypeScript.VariableDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false })
         {
             var declarators = node.FindChildrenOfType(TreeSitterSyntax.TypeScript.VariableDeclarator);
 
@@ -53,7 +53,7 @@ public static class TypeScriptDeclarationExtractor
                 var nameNode = decl.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                decl.FindChildOfType(TreeSitterSyntax.TypeScript.Identifier);
 
-                if (nameNode.IsValid() && nameNode.Type != "object_pattern")
+                if (nameNode.IsValid() && nameNode is not CodeExplorer.Core.Parser.Syntax.PatternSyntax { Kind: CodeExplorer.Core.Parser.Syntax.PatternKind.Object })
                 {
                     var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value);
                     if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
@@ -66,11 +66,11 @@ public static class TypeScriptDeclarationExtractor
                     if (valNode.IsValid())
                     {
                         // Handle const Objects: const Topics = { OrderCreated: "...", ... }
-                        if (valNode.Type is TreeSitterSyntax.TypeScript.Object)
+                        if (valNode.Is(TreeSitterSyntax.TypeScript.Object))
                         {
                             void FlattenObject(string prefix, Node objNode)
                             {
-                                foreach (var pair in objNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair))
+                                foreach (var pair in objNode.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.Pair)))
                                 {
                                     var keyNode = pair.GetChildForField(TreeSitterSyntax.Fields.Key) ?? pair.Children[0];
                                     var pairValNode = pair.GetChildForField(TreeSitterSyntax.Fields.Value) ?? pair.Children[^1];
@@ -79,7 +79,7 @@ public static class TypeScriptDeclarationExtractor
                                     {
                                         var cleanKey = keyNode.Text.Trim('\'', '"', '`');
                                         var propPath = $"{prefix}.{cleanKey}";
-                                        if (pairValNode.Type is TreeSitterSyntax.TypeScript.Object)
+                                        if (pairValNode.Is(TreeSitterSyntax.TypeScript.Object))
                                         {
                                             FlattenObject(propPath, pairValNode);
                                         }
@@ -104,13 +104,9 @@ public static class TypeScriptDeclarationExtractor
         }
 
         // Do not recurse into local scopes (functions, methods, arrow functions, blocks)
-        if (type is TreeSitterSyntax.TypeScript.FunctionDeclaration or
-                    TreeSitterSyntax.TypeScript.MethodDefinition or
-                    TreeSitterSyntax.TypeScript.ArrowFunction or
-                    TreeSitterSyntax.TypeScript.StatementBlock or
-                    TreeSitterSyntax.TypeScript.Function or
-                    TreeSitterSyntax.TypeScript.GeneratorFunction or
-                    TreeSitterSyntax.TypeScript.Constructor)
+        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax or
+                    CodeExplorer.Core.Parser.Syntax.LambdaExprSyntax or
+                    CodeExplorer.Core.Parser.Syntax.BlockStmtSyntax)
         {
             return;
         }

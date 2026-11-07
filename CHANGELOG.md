@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.72.1] - 2026-11-06
+
+### Fixed & Optimized
+- **Layer 1 Physical Discovery (`--clear` Fast Path)**:
+  - Skipped redundant SHA-256 content hashing for source files during fresh scans (`--clear`), hashing only project manifests for project change tracking (`PhysicalFileStore`, `Layer1PhysicalAnalyzer`).
+- **Layer 3 Syntactic Analysis & Tree-Sitter TypeScript**:
+  - Replaced $O(N)$ linear fallback scans in `ConstantRegistry.TryResolve` with $O(1)$ indexed dictionary lookups (`_globalConstantsByLeaf` and `_projectConstantsByKey`), eliminating severe slowdowns on constants-heavy TypeScript/monorepo projects.
+  - Removed dead `POTENTIAL_TYPE` AST reference emission on every `identifier` / `type_identifier` token in `BaseParserVisitor` and restricted call-context enrichment to `CALLS` references, reducing `GlobalReferences` volume by ~75% on large monorepos.
+  - Suppressed benign Tree-sitter TypeScript grammar errors (`typeof import(...)` and `abstract override readonly`).
+- **Layer 5 Global Cross-Reference Resolution & Post-Index Analysis**:
+  - Added project-scoped function indices (`FunctionsByProject`), target resolution caching (`CandidateCache`), and $O(1)$ relationship deduplication in `Layer5GlobalAnalyzer`.
+  - Replaced 100,000-caller forward BFS with 15-hop backward BFS from sink targets in `PostIndexAnalyzer.CallGraph`, pre-filtered database domain consolidation candidates in `PostIndexAnalyzer.Databases.InMemory`, and skipped pure AST containment edges during transitive lifting.
+  - Deferred `identifier_index` / `identifier_fts` rebuild to lazy initialization on first search (`IdentifierSearchEngine.EnsureIndexAsync`), removing synchronous FTS5 tokenization overhead from `ce scan`.
+
 ## [1.72.0] - 2026-11-06
 
 ### Added

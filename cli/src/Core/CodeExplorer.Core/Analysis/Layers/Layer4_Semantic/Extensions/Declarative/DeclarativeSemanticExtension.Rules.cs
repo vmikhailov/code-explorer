@@ -11,7 +11,7 @@ public partial class DeclarativeSemanticExtension
 
     private static bool MatchesSqlSink(Node node, SqlSinkRule rule)
     {
-        if (rule.AnnotationNodeTypes.Contains(node.Type) && rule.QueryAnnotationSuffixes.Count > 0)
+        if ((node is AnnotationSyntax || rule.AnnotationNodeTypes.Contains(node.Type)) && rule.QueryAnnotationSuffixes.Count > 0)
         {
             var name = GetShortAnnotationName(node);
             if (!string.IsNullOrEmpty(name) &&
@@ -21,7 +21,7 @@ public partial class DeclarativeSemanticExtension
             }
         }
 
-        if (rule.CallNodeTypes.Contains(node.Type))
+        if (node is CallExprSyntax || rule.CallNodeTypes.Contains(node.Type))
         {
             var methodName = GetCallMethodName(node);
             if (!string.IsNullOrEmpty(methodName) && rule.CallMethodNames.Contains(methodName))
@@ -191,11 +191,11 @@ public partial class DeclarativeSemanticExtension
 
         foreach (var child in annotNode.Children)
         {
-            if (child.Type is "annotation_argument_list" or "arguments")
+            if (child is SyntaxList { Kind: SyntaxListKind.Arguments } || child.Type is "annotation_argument_list" or "arguments")
             {
                 foreach (var argChild in child.Children)
                 {
-                    if (argChild.Type == "element_value_pair")
+                    if (argChild is KeyValueExprSyntax || argChild.Type == "element_value_pair")
                     {
                         var keyNode = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax || c.Type == "identifier");
                         if (keyNode.IsValid() && rule.TopicArgumentKeys.Contains(keyNode.Text))
@@ -506,15 +506,15 @@ public partial class DeclarativeSemanticExtension
         foreach (var child in declNode.Children)
         {
             if (!child.IsValid()) continue;
-            if (annotationNodeTypes.Contains(child.Type))
+            if (child is AnnotationSyntax || annotationNodeTypes.Contains(child.Type))
             {
                 result.Add(child);
             }
-            else if (child.Type is "modifiers" or "attribute_list" or "decorator_list")
+            else if (child is SyntaxList { Kind: SyntaxListKind.Attributes } || child.Type is "modifiers" or "attribute_list" or "decorator_list")
             {
                 foreach (var modChild in child.Children)
                 {
-                    if (modChild.IsValid() && annotationNodeTypes.Contains(modChild.Type))
+                    if (modChild.IsValid() && (modChild is AnnotationSyntax || annotationNodeTypes.Contains(modChild.Type)))
                     {
                         result.Add(modChild);
                     }
@@ -528,7 +528,7 @@ public partial class DeclarativeSemanticExtension
     {
         foreach (var child in annotNode.Children)
         {
-            if (child.Type == "element_value_pair")
+            if (child is KeyValueExprSyntax || child.Type == "element_value_pair")
             {
                 var key = child.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                 if (key.IsValid() && acceptedKeys.Contains(key.Text))
@@ -537,11 +537,11 @@ public partial class DeclarativeSemanticExtension
                     if (val.IsValid()) return val.Text.Trim('"', '\'');
                 }
             }
-            else if (child.Type is "annotation_argument_list" or "arguments")
+            else if (child is SyntaxList { Kind: SyntaxListKind.Arguments } || child.Type is "annotation_argument_list" or "arguments")
             {
                 foreach (var argChild in child.Children)
                 {
-                    if (argChild.Type is "element_value_pair" or "argument")
+                    if (argChild is KeyValueExprSyntax or ArgumentSyntax || argChild.Type is "element_value_pair" or "argument")
                     {
                         var key = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax) ?? argChild.GetField(SyntaxFields.Name);
                         if (key.IsValid() && acceptedKeys.Contains(key.Text))
@@ -576,11 +576,11 @@ public partial class DeclarativeSemanticExtension
     {
         foreach (var child in annotNode.Children)
         {
-            if (child.Type is "annotation_argument_list" or "arguments")
+            if (child is SyntaxList { Kind: SyntaxListKind.Arguments } || child.Type is "annotation_argument_list" or "arguments")
             {
                 foreach (var argChild in child.Children)
                 {
-                    if (argChild.Type is "element_value_pair" or "argument")
+                    if (argChild is KeyValueExprSyntax or ArgumentSyntax || argChild.Type is "element_value_pair" or "argument")
                     {
                         var key = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax) ?? argChild.GetField(SyntaxFields.Name);
                         if (key.IsValid() && string.Equals(key.Text, "method", StringComparison.OrdinalIgnoreCase))
@@ -597,7 +597,7 @@ public partial class DeclarativeSemanticExtension
                     }
                 }
             }
-            else if (child.Type == "element_value_pair")
+            else if (child is KeyValueExprSyntax || child.Type == "element_value_pair")
             {
                 var key = child.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                 if (key.IsValid() && string.Equals(key.Text, "method", StringComparison.OrdinalIgnoreCase))

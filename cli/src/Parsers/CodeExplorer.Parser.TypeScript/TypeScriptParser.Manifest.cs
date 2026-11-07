@@ -8,6 +8,10 @@ namespace CodeExplorer.Parser.TypeScript;
 public partial class TypeScriptParser
 {
     private const string PropIsLibrary = "is_library";
+    private const string PropManifestType = "manifest_type";
+    private const string PropTags = "tags";
+    private const string PropActivationEvents = "activationEvents";
+    private const string PropExports = "exports";
 
     private static string? TryExtractWranglerName(string directoryPath, string[] filesInDirectory)
     {
@@ -240,6 +244,21 @@ public partial class TypeScriptParser
                         props["manifest_type"] = "application";
                     }
                 }
+
+                if (pRoot.TryGetProperty(PropTags, out var tagsProp) && tagsProp.Kind == CypherValueKind.Array)
+                {
+                    foreach (var tagItem in tagsProp.AsArray())
+                    {
+                        var tagStr = tagItem.AsNullableString();
+                        if (string.Equals(tagStr, "scope:docs", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(tagStr, "type:docs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            props["is_docs_project"] = "true";
+                            props["is_library"] = "true";
+                            props["manifest_type"] = "library";
+                        }
+                    }
+                }
             }
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
             {
@@ -344,6 +363,20 @@ public partial class TypeScriptParser
                     props["is_test_project"] = "true";
                 }
 
+                var isDocsSite = props.ContainsKey("is_docs_project") ||
+                                 allDeps.Any(d => d is "mintlify" or "@docusaurus/core" or "vitepress" or "nextra" or "vocs" or "rspress" || d.StartsWith("@mdx-js/")) ||
+                                 (root.TryGetProperty("scripts", out var docScrObj) &&
+                                  docScrObj.Kind == CypherValueKind.Object &&
+                                  docScrObj.AsObject().Any(s => s.Key.Equals("mintlify", StringComparison.OrdinalIgnoreCase) ||
+                                                                s.Value.AsString().Contains("mintlify", StringComparison.OrdinalIgnoreCase) ||
+                                                                s.Value.AsString().Contains("docusaurus", StringComparison.OrdinalIgnoreCase) ||
+                                                                s.Value.AsString().Contains("vitepress", StringComparison.OrdinalIgnoreCase)));
+                if (isDocsSite && !hasWebFramework && !isWorkspaceRoot)
+                {
+                    props["is_library"] = "true";
+                    props["manifest_type"] = "library";
+                }
+
                 var pkgName =
                     root.TryGetProperty("name", out var np) && np.Kind == CypherValueKind.String
                         ? np.AsString().ToLowerInvariant()
@@ -408,7 +441,7 @@ public partial class TypeScriptParser
                                          enginesProp.TryGetProperty("vscode", out _)) ||
                                         (root.TryGetProperty("contributes", out var contributesProp) &&
                                          contributesProp.Kind == CypherValueKind.Object) ||
-                                        (root.TryGetProperty("activationEvents", out var actProp) &&
+                                        (root.TryGetProperty(PropActivationEvents, out var actProp) &&
                                          actProp.Kind == CypherValueKind.Array) ||
                                         allDeps.Contains("@types/vscode");
 
@@ -466,13 +499,13 @@ public partial class TypeScriptParser
                     {
                         var isExplicitUiLib = !hasIndexHtml && !allDeps.Contains("next") &&
                                               !allDeps.Contains("nuxt") &&
-                                              root.TryGetProperty("exports", out _);
-                        props["manifest_type"] = isExplicitUiLib ? "library" : "application";
+                                              root.TryGetProperty(PropExports, out _);
+                        props[PropManifestType] = isExplicitUiLib ? "library" : "application";
 
                         if (isExplicitUiLib)
                         {
                             props["is_ui_library"] = "true";
-                            props["is_library"] = "true";
+                            props[PropIsLibrary] = "true";
                         }
                     }
                 }
@@ -483,18 +516,18 @@ public partial class TypeScriptParser
                 }
                 else if (hasPrimaryAppStartScript)
                 {
-                    if (!props.ContainsKey("manifest_type"))
+                    if (!props.ContainsKey(PropManifestType))
                     {
-                        props["manifest_type"] = "application";
+                        props[PropManifestType] = "application";
                         props["framework_type"] = "service";
                     }
                 }
                 else if (hasExplicitExports)
                 {
-                    if (!props.ContainsKey("manifest_type"))
+                    if (!props.ContainsKey(PropManifestType))
                     {
-                        props["manifest_type"] = "library";
-                        props["is_library"] = "true";
+                        props[PropManifestType] = "library";
+                        props[PropIsLibrary] = "true";
                     }
                 }
             }

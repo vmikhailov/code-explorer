@@ -239,53 +239,12 @@ jobs:
             fi
           done
 
-          SHA_OSX_ARM64=$(sha256sum ./dist/ce-osx-arm64.tar.gz | awk '{print $1}')
-          SHA_OSX_X64=$(sha256sum ./dist/ce-osx-x64.tar.gz | awk '{print $1}')
-          SHA_LINUX_ARM64=$(sha256sum ./dist/ce-linux-arm64.tar.gz | awk '{print $1}')
-          SHA_LINUX_X64=$(sha256sum ./dist/ce-linux-x64.tar.gz | awk '{print $1}')
-          BASE_URL="https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}"
           echo "Updating vmikhailov/homebrew-tap formula for ce v${VERSION} (macOS + Linux, arm64 + x64)..."
 
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/vmikhailov/homebrew-tap.git" /tmp/homebrew-tap
+          python3 .github/scripts/generate-homebrew-formula.py "$VERSION" ./dist /tmp/homebrew-tap/Formula/ce.rb
+
           cd /tmp/homebrew-tap
-
-          mkdir -p Formula
-          cat <<EOF > Formula/ce.rb
-          class Ce < Formula
-            desc "Codebase intelligence CLI and knowledge graph engine"
-            homepage "https://github.com/vmikhailov/code-explorer"
-            version "${VERSION}"
-            license "MIT"
-
-            on_macos do
-              if Hardware::CPU.arm?
-                url "${BASE_URL}/ce-osx-arm64.tar.gz"
-                sha256 "${SHA_OSX_ARM64}"
-              else
-                url "${BASE_URL}/ce-osx-x64.tar.gz"
-                sha256 "${SHA_OSX_X64}"
-              end
-            end
-
-            on_linux do
-              if Hardware::CPU.arm?
-                url "${BASE_URL}/ce-linux-arm64.tar.gz"
-                sha256 "${SHA_LINUX_ARM64}"
-              else
-                url "${BASE_URL}/ce-linux-x64.tar.gz"
-                sha256 "${SHA_LINUX_X64}"
-              end
-            end
-
-            def install
-              bin.install "ce"
-            end
-
-            test do
-              assert_match "ce", shell_output("#{bin}/ce --version", 2) rescue nil
-            end
-          end
-          EOF
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

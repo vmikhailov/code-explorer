@@ -29,7 +29,8 @@ public partial class Layer5AnalysisParser
         string? targetTypeName = null;
         string? methodName = null;
         var isExternalStaticClass = false;
-        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
+                         ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
         var normCallerFile = callerFile?.Replace('\\', '/');
         var hasExplicitReceiver = false;
 
@@ -285,16 +286,10 @@ public partial class Layer5AnalysisParser
     private static string? ResolveSameProjectFunctionFallback(string callerFile, string targetName, SymbolLookups symbols)
     {
         var callerProj = ConstantRegistry.ExtractProjectName(callerFile);
-        if (callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var projFiles))
+        if (callerProj != null &&
+            symbols.FunctionsByProject.TryGetValue(callerProj, out var projFns) &&
+            projFns.TryGetValue(targetName, out var matchedIds))
         {
-            var matchedIds = new List<string>();
-            foreach (var pFile in projFiles)
-            {
-                if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, targetName), out var id) && !matchedIds.Contains(id))
-                {
-                    matchedIds.Add(id);
-                }
-            }
             return SelectPreferredFunctionCandidate(matchedIds);
         }
         return null;
@@ -342,15 +337,12 @@ public partial class Layer5AnalysisParser
             foreach (var cand in candidates)
             {
                 var candProj = ConstantRegistry.ExtractProjectName(cand);
-                if (candProj != null && symbols.FilesByProject.TryGetValue(candProj, out var projFiles))
+                if (candProj != null &&
+                    symbols.FunctionsByProject.TryGetValue(candProj, out var projFns) &&
+                    projFns.TryGetValue(importedEntry.ImportedName, out var projFuncIds) &&
+                    projFuncIds.Count > 0)
                 {
-                    foreach (var pFile in projFiles)
-                    {
-                        if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, importedEntry.ImportedName), out var projFuncId))
-                        {
-                            return projFuncId;
-                        }
-                    }
+                    return projFuncIds[0];
                 }
             }
         }
@@ -445,11 +437,13 @@ public partial class Layer5AnalysisParser
     private static void ResolveTriggersReference(
         Reference refItem,
         SymbolLookups symbols,
-        List<Relationship> referenceRelationships)
+        List<Relationship> referenceRelationships,
+        HashSet<(string From, string To, string Kind)> existingRefRels)
     {
         var targetName = refItem.TargetName;
         var shortName = targetName.Contains('.') ? targetName[(targetName.LastIndexOf('.') + 1)..] : targetName;
-        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
+                         ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
         var callerProj = callerFile != null ? ConstantRegistry.ExtractProjectName(callerFile) : ExtractProjectFromScopeId(refItem.ScopeSymbolId, symbols);
 
         string? targetId = null;
@@ -465,15 +459,15 @@ public partial class Layer5AnalysisParser
         }
 
         // 2. Same project lookup
-        if (targetId == null && callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var projFiles))
+        if (targetId == null && callerProj != null && symbols.FunctionsByProject.TryGetValue(callerProj, out var projFns))
         {
-            foreach (var pFile in projFiles)
+            if (projFns.TryGetValue(targetName, out var ids) && ids.Count > 0)
             {
-                if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, targetName), out targetId) ||
-                    symbols.FunctionSymbolsByFile.TryGetValue((pFile, shortName), out targetId))
-                {
-                    break;
-                }
+                targetId = ids[0];
+            }
+            else if (projFns.TryGetValue(shortName, out ids) && ids.Count > 0)
+            {
+                targetId = ids[0];
             }
         }
 
@@ -529,10 +523,16 @@ public partial class Layer5AnalysisParser
 
         if (targetId != null)
         {
-            if (!referenceRelationships.Any(r => r.From == refItem.ScopeSymbolId && r.To == targetId && r.Kind == OntologyConstants.Relationships.Triggers))
+            if (existingRefRels.Add((refItem.ScopeSymbolId, targetId, OntologyConstants.Relationships.Triggers)))
             {
                 referenceRelationships.Add(
                     Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetId)));
+            }
+            if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Endpoint}:", StringComparison.Ordinal) &&
+                existingRefRels.Add((refItem.ScopeSymbolId, targetId, OntologyConstants.Relationships.ExposedBy)))
+            {
+                referenceRelationships.Add(
+                    Relationship.FromRelationship(new ExposedByRelationship(refItem.ScopeSymbolId, targetId)));
             }
         }
     }
@@ -552,7 +552,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        foreach (var proj in symbols.FilesByProject.Keys.OrderByDescending(k => k.Length))
+        foreach (var proj in symbols.ProjectsSortedByLengthDesc)
         {
             if (scopeId.Contains($":{proj}:", StringComparison.OrdinalIgnoreCase))
             {
@@ -585,6 +585,8 @@ public partial class Layer5AnalysisParser
         var brokerType = "event";
         (brokerType, topicName) = topicName switch
         {
+            _ when topicName.StartWithIC("bullmq:") => ("bullmq", topicName["bullmq:".Length..]),
+            _ when topicName.StartWithIC("bull:") => ("bullmq", topicName["bull:".Length..]),
             _ when topicName.StartWithIC("rabbitmq:") => ("rabbitmq", topicName["rabbitmq:".Length..]),
             _ when topicName.StartWithIC("kafka:") => ("kafka", topicName["kafka:".Length..]),
             _ when topicName.StartWithIC("sqs:") => ("sqs", topicName["sqs:".Length..]),
@@ -647,6 +649,8 @@ public partial class Layer5AnalysisParser
             return;
         }
 
+        const string configDotPrefix = "config.";
+        const string thisDotPrefix = "this.";
         if (topicName.StartWithIC("this.config."))
         {
             var prop = topicName["this.config.".Length..];
@@ -659,9 +663,9 @@ public partial class Layer5AnalysisParser
                 topicName = prop;
             }
         }
-        else if (topicName.StartWithIC("config."))
+        else if (topicName.StartWithIC(configDotPrefix))
         {
-            var prop = topicName["config.".Length..];
+            var prop = topicName[configDotPrefix.Length..];
             if (ConstantRegistry.TryResolve(scopeProject, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
             {
                 topicName = resolved;
@@ -671,9 +675,9 @@ public partial class Layer5AnalysisParser
                 topicName = prop;
             }
         }
-        else if (topicName.StartWithIC("this."))
+        else if (topicName.StartWithIC(thisDotPrefix))
         {
-            var prop = topicName["this.".Length..];
+            var prop = topicName[thisDotPrefix.Length..];
             if (ConstantRegistry.TryResolve(scopeProject, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
             {
                 topicName = resolved;
@@ -688,9 +692,10 @@ public partial class Layer5AnalysisParser
 
         string? globalConst = null;
 
-        // Only constant-style names (ORDERS_TOPIC) may resolve workspace-wide. A bare parameter or
-        // field such as `name` must stay within its project, or it picks up an unrelated constant.
-        var isConstantStyle = System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z][A-Z0-9_]*$");
+        // Only constant-style names (ORDERS_TOPIC) or PascalCase enum members (MessageQueue.emailQueue)
+        // may resolve workspace-wide. A bare parameter or field such as `name` must stay within its project,
+        // or it picks up an unrelated constant.
+        var isConstantStyle = System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z][A-Z0-9_]*$|^[A-Z][A-Za-z0-9_]*\.[A-Za-z0-9_]+$");
 
         if (isConstantStyle &&
             bindings.ConstantLookup.TryGetValue(topicName, out var resolvedConst) &&

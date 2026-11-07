@@ -349,3 +349,63 @@ This document tracks active epics, immediate architectural refactoring plans, an
 - [ ] **Compound Clusters in VS Code Webview**:
   - Bounded Context island layout collapsing dense internal service clusters into high-level domain nodes.
   - Transitive inter-cluster edge contraction with live coupling cost indicators.
+
+---
+
+## ⚡ EPIC 9: UAST Performance Engineering, Memory Compaction & Algorithmic Loop Semantics
+
+### 9.1 Algorithmic Loop Bottleneck Detection & Performance Gates
+- [ ] **Loop Bottleneck Flags on `FunctionNode` (`FunctionDataflowAnalyzer`)**:
+  - `has_linear_scan_in_loop`: Detect $O(N)$ linear collection scan calls (`.Contains`, `.IndexOf`, `.Any`, `.FirstOrDefault`, `.includes`, `.indexOf`, `.find`, `slices.Contains`, `in`) inside loop contexts (`in_loop == true`).
+  - `has_alloc_in_loop`: Detect heap allocations (`new`, `make`, `Box::new`, `Vec::new`, `.ToArray`, `.ToList`, `.slice`) inside loops.
+  - `max_access_depth`: Compute maximum nested `MemberAccessExprSyntax` chain depth (`a.b.c.d`) per function.
+- [ ] **Built-In Performance & Maintainability Gates**:
+  - `SIG-M-P-001`: Linear Collection Scan Inside Loop (Hidden $O(N^2)$).
+  - `SIG-M-P-002`: Excessive Member Chain Depth (Law of Demeter Violation).
+
+### 9.2 Post-Layer-4 UAST Lifecycle & Memory Compaction
+- [ ] **`SyntaxDocument.Compact()` / `SyntaxTree.Compact()`**:
+  - Release `FunctionDeclSyntax.Body`, `LambdaExprSyntax.Body`, `UnmappedSyntax` children, and non-constant expression subtrees immediately after Layer 4 semantic analysis completes for a project.
+  - Retain declaration shells, type signatures, `ImportDeclSyntax`, `CallSiteNode`, and `FunctionDataflowSummary` for Layer 5 cross-reference resolution (~75–80% UAST RAM reduction).
+
+### 9.3 Tree-sitter Numeric Field ID Caching & Deterministic AST Budget
+- [ ] **Pre-Resolved Numeric `TSFieldId` Lookup (`GetChildByFieldId`)**:
+  - Cache `ts_language_field_id_for_name` integer IDs (`ushort`) per `LanguageSyntaxProfile` at startup and replace string-based `GetChildByFieldName` lookups in `TreeSitterSyntaxPopulator` / `TreeSitterSyntaxBuilder`.
+- [ ] **Deterministic Node-Visit Budget (`MaxAstNodeBudget`)**:
+  - Enforce a deterministic `5,000,000` visited CST node budget per file instead of wall-clock timeouts, recording `uast_truncated` and `visited_nodes` on `SourceFileNode`.
+
+### 9.4 Direct UAST Type & Import Resolution
+- [ ] **Retire Legacy `RawImports` / `RawVariables` / `RawTypeBindings`**:
+  - Wire `CrossReferenceResolver`, `TypeHierarchyResolver`, and language `ITypeResolver` implementations directly to `SyntaxDocument.Imports`, `SyntaxDocument.AllVariables`, and `SyntaxDocument.AllMembers`.
+
+---
+
+## 🌐 EPIC 10: Polyglot UAST Expansion & Declarative Library Rules
+
+### 10.1 Polyglot `LanguageSyntaxProfile` Onboarding (Full UAST Out-of-the-Box)
+- [ ] **Port & Unify `LanguageSyntaxProfile` Definitions**:
+  - Onboard Kotlin, PHP, Ruby, C, C++, Swift, and Dart on top of `TreeSitterSyntaxBuilder` and `TreeSitterSyntaxPopulator`.
+  - Ensure every onboarded language immediately inherits full UAST node population, `SyntaxValueEvaluator`, `CallSiteContextExtractor` (`in_loop`, `in_lock`, `in_try`), and `FunctionDataflowAnalyzer` (`df_summary`).
+
+### 10.2 Declarative YAML Semantic Projection Engine (`YamlSemanticProjectionEngine`)
+- [ ] **$O(1)$ `FrozenDictionary` Dispatch over UAST**:
+  - Match annotations, base types, method invocations, and config keys across the 5 Semantic Archetypes (`EntryPoint`, `OutboundCall`, `MessageFlow`, `DataAccess`, `DependencyBinding`).
+  - Migrate standard library parsers into declarative `.yaml` rule packs while preserving C# UAST analyzers for complex multi-hop frameworks (DI, generic message bus contracts, ORM fluent builders).
+
+---
+
+## 🏗️ EPIC 11: Infrastructure-as-Code (IaC), API Contracts & Git Test Impact
+
+### 11.1 First-Class API Contracts & IaC Topology (Layers 1–4)
+- [ ] **Declarative API Contract Parsers**:
+  - Parse OpenAPI/Swagger (`.yaml`/`.json`), Protobuf (`.proto`), and GraphQL schemas (`.graphql`) into canonical `Endpoint` contracts and link client/server implementations across services.
+- [ ] **Container & Deployment Manifests**:
+  - Parse `Dockerfile`, `docker-compose.yml`, Kubernetes / Helm manifests, and Terraform (`.tf`) to link deployment units, environment variables (`ConfigStore`), and infrastructure bindings (`Database`, `Topic`, `ExternalService`) to `Project` nodes.
+- [ ] **Architecture Decision Records (ADR) & Markdown Spec Linking**:
+  - Link `docs/**/*.md` and ADR documents to referenced `Project`, `Type`, `Function`, and `Endpoint` nodes.
+
+### 11.2 Git Churn Hotspots & Graph-Driven Test Impact Analysis (`ce test-impact`)
+- [ ] **Git History & Churn Enrichment (Layer 1)**:
+  - Single-pass `git log --numstat` enrichment on `SourceFileNode` (`commit_count`, `churn_30d`, `authors_count`) to compute architectural hotspots (`complexity × churn`).
+- [ ] **Graph-Driven Test Impact Analysis (`ce test-impact --diff <ref>`)**:
+  - Map `git diff` hunks to enclosing `Function` / `Type` / `Config` nodes and traverse `CALLS`, `TESTS`, and `SERVICE_CALL` edges backward to output the minimal set of impacted tests and services for CI/CD.

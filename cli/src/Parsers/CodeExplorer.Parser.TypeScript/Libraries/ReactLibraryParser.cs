@@ -119,7 +119,7 @@ public class ReactLibraryParser : ISemanticExtension
     {
         if (!node.IsValid()) return;
 
-        if (node.Type is "jsx_opening_element" or "jsx_self_closing_element")
+        if (node is CodeExplorer.Core.Parser.Syntax.UiElementSyntax { IsClosing: false, IsFragment: false })
         {
             var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));

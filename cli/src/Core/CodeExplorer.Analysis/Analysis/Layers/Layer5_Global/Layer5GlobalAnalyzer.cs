@@ -113,6 +113,7 @@ public partial class Layer5AnalysisParser
         var resolvedCount = 0;
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
         var newTopicNodes = new List<TopicNode>();
+        var existingRefRels = new HashSet<(string From, string To, string Kind)>();
 
         var lastRefReport = Stopwatch.GetTimestamp();
         foreach (var refItem in ctx.GlobalReferences)
@@ -147,14 +148,14 @@ public partial class Layer5AnalysisParser
                         ResolveDependsOnReference(refItem, symbols, referenceRelationships);
                         break;
                     case OntologyConstants.Relationships.Triggers:
-                        ResolveTriggersReference(refItem, symbols, referenceRelationships);
+                        ResolveTriggersReference(refItem, symbols, referenceRelationships, existingRefRels);
                         break;
                     case OntologyConstants.Relationships.PublishesTo:
                     case OntologyConstants.Relationships.SubscribesTo:
                         ResolveMessagingReference(refItem, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
                         break;
                     case OntologyConstants.Relationships.PersistedIn:
-                        ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships);
+                        ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships, existingRefRels);
                         break;
                     case OntologyConstants.Relationships.Instantiates:
                         ResolveInstantiatesReference(refItem, ctx, symbols, imports, referenceRelationships);

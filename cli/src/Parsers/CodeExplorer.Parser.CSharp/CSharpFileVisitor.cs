@@ -20,7 +20,8 @@ public class CSharpFileVisitor : BaseParserVisitor
 
         if (rootNode.IsValid() && !WorkspaceConventions.IsTestFilePath(relativePath))
         {
-            var firstGlobal = rootNode.Children.FirstOrDefault(c => c.Type == "global_statement");
+            var firstGlobal = rootNode.Children.FirstOrDefault(c =>
+                c is CodeExplorer.Core.Parser.Syntax.SyntaxList { Kind: CodeExplorer.Core.Parser.Syntax.SyntaxListKind.TopLevelStatement });
             if (firstGlobal.IsValid())
             {
                 var fileName = Path.GetFileName(relativePath);
@@ -231,11 +232,11 @@ public class CSharpFileVisitor : BaseParserVisitor
             var sb = new System.Text.StringBuilder();
             foreach (var child in node.Children)
             {
-                if (child.Type == TreeSitterSyntax.CSharp.StringContent)
+                if (child.Is(TreeSitterSyntax.CSharp.StringContent))
                 {
                     sb.Append(child.Text);
                 }
-                else if (child.Type == TreeSitterSyntax.CSharp.Interpolation)
+                else if (child.Is(TreeSitterSyntax.CSharp.Interpolation))
                 {
                     var expr = child.Children.FirstOrDefault(c => c.Text != "{" && c.Text != "}");
                     if (expr.IsValid())

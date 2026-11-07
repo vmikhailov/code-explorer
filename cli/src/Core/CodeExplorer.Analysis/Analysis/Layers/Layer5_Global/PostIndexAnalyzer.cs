@@ -90,8 +90,11 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var entryPointIds = new HashSet<string>();
         var functionIds = new HashSet<string>();
 
-        void CollectNodes(IOntologyNode node)
+        var visitedCollectNodes = new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance);
+        void CollectNodes(IOntologyNode? node)
         {
+            if (node == null || !visitedCollectNodes.Add(node))
+                return;
             if (node is ExternalServiceNode es)
             {
                 sinks[es.Id] = "ExternalService";
@@ -320,6 +323,26 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         // Classify projects and persist layer metadata into SQLite nodes
         ctx.PostIndexLog.ClassifyingArchitecturalLayers(l4Result.Prev.Prev.Projects.Count);
+        var usesDbBySource = new Dictionary<string, int>(StringComparer.Ordinal);
+        var dependencyItems = new List<DependencyItem>();
+        foreach (var r in allCombinedRels)
+        {
+            if (r.Kind == OntologyConstants.Relationships.UsesDb)
+            {
+                usesDbBySource[r.From] = usesDbBySource.GetValueOrDefault(r.From) + 1;
+            }
+            if (r.Kind is OntologyConstants.Relationships.DependsOn
+                or OntologyConstants.Relationships.ServiceCall
+                or OntologyConstants.Relationships.UsesDb)
+            {
+                dependencyItems.Add(new DependencyItem
+                {
+                    SourceId = workloadToProjectMap.GetValueOrDefault(r.From, r.From),
+                    TargetId = workloadToProjectMap.GetValueOrDefault(r.To, r.To)
+                });
+            }
+        }
+
         var classifierItems = l4Result.Prev.Prev.Projects.Select(p =>
         {
             var allChildren = new List<IOntologyNode>();
@@ -347,7 +370,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             var endpointsCount = allChildren.OfType<EndpointNode>().Count();
             var entryPoints = allChildren.OfType<EntryPointNode>().ToList();
             var externalServicesCount = allChildren.OfType<ExternalServiceNode>().Count();
-            var usesDbCount = allCombinedRels.Count(r => (r.From == p.Id || (wlId != null && r.From == wlId)) && r.Kind == OntologyConstants.Relationships.UsesDb);
+            var usesDbCount = usesDbBySource.GetValueOrDefault(p.Id) +
+                              (wlId != null ? usesDbBySource.GetValueOrDefault(wlId) : 0);
 
             return new ProjectClassifierItem
             {
@@ -363,16 +387,6 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                 UsesDbCount = usesDbCount
             };
         });
-
-        var dependencyItems = allCombinedRels
-            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn ||
-                        r.Kind == OntologyConstants.Relationships.ServiceCall ||
-                        r.Kind == OntologyConstants.Relationships.UsesDb)
-            .Select(r => new DependencyItem
-            {
-                SourceId = workloadToProjectMap.GetValueOrDefault(r.From, r.From),
-                TargetId = workloadToProjectMap.GetValueOrDefault(r.To, r.To)
-            });
 
         var layerMap = ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
 
@@ -454,12 +468,25 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var services = projects.Where(p => !p.IsLibrary).ToList();
         var libraries = projects.Where(p => p.IsLibrary).ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
 
-        // Build adjacency
+        // Build adjacency (skip pure AST containment/declaration edges)
         var outEdges = new Dictionary<string, List<Relationship>>(StringComparer.OrdinalIgnoreCase);
         var inEdges = new Dictionary<string, List<Relationship>>(StringComparer.OrdinalIgnoreCase);
+        var existingEdges = new HashSet<(string From, string To, string Kind)>();
 
         foreach (var rel in allRelationships)
         {
+            if (rel.Kind is OntologyConstants.Relationships.Contains
+                or OntologyConstants.Relationships.Declares
+                or OntologyConstants.Relationships.DeclaredIn
+                or OntologyConstants.Relationships.HasMethod
+                or OntologyConstants.Relationships.HasMember
+                or OntologyConstants.Relationships.CalledBy)
+            {
+                continue;
+            }
+
+            existingEdges.Add((rel.From, rel.To, rel.Kind));
+
             if (!outEdges.TryGetValue(rel.From, out var outList))
             {
                 outList = [];
@@ -474,10 +501,6 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
             inList.Add(rel);
         }
-
-        var existingEdges = new HashSet<(string From, string To, string Kind)>(
-            allRelationships.Select(r => (r.From, r.To, r.Kind))
-        );
 
         var topicEvidenceFiles = BuildTopicEvidenceFileIndex(allRelationships);
 

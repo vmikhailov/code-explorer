@@ -92,7 +92,6 @@ public class SqlParser : IProjectParser, IFileParser
         {
             sqlChildren.Add(new SqlStmtSyntax
             {
-                RawGrammarKind = "create_table_statement",
                 Operation = SqlOperationKind.CreateTable,
                 OperationVerb = "CREATE TABLE",
                 Tables = [new SqlTableRefSyntax(kvp.Value.Name, IsWriteTarget: true)],
@@ -103,7 +102,6 @@ public class SqlParser : IProjectParser, IFileParser
         {
             sqlChildren.Add(new SqlStmtSyntax
             {
-                RawGrammarKind = "create_procedure_statement",
                 Operation = SqlOperationKind.CreateProcedure,
                 OperationVerb = "CREATE PROCEDURE",
                 Procedures = [proc.Name],

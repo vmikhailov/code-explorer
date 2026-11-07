@@ -162,7 +162,7 @@ public static class GoAstHelper
         }
 
         // 4. Binary expression: host + "/api/v1/..."
-        if (argNode.Type is TreeSitterSyntax.Common.BinaryExpression)
+        if (argNode.Is(TreeSitterSyntax.Common.BinaryExpression))
         {
             var left = argNode.GetField(TreeSitterSyntax.Fields.Left) ??
                        (argNode.Children.Count > 0 ? argNode.Children[0] : null);
@@ -189,7 +189,7 @@ public static class GoAstHelper
         }
 
         // 5. Index expression / Map lookup: routes["GET_USER"]
-        if (argNode.Type is TreeSitterSyntax.Common.IndexExpression)
+        if (argNode.Is(TreeSitterSyntax.Common.IndexExpression))
         {
             var indexNode = argNode.GetField(TreeSitterSyntax.Fields.Index) ?? (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
 

@@ -14,12 +14,10 @@ public static class JavaDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        var type = node.Type;
-
-        if (type is TreeSitterSyntax.Java.ClassDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class } classDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-            var className = nameNode.IsValid() ? nameNode.Text : currentScope;
+            var className = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(classDecl.Name) ? classDecl.Name : currentScope);
 
             foreach (var child in node.Children)
             {
@@ -28,41 +26,40 @@ public static class JavaDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.Java.EnumDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-            var enumName = nameNode.IsValid() ? nameNode.Text : "Enum";
+            var enumName = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(enumDecl.Name) ? enumDecl.Name : "Enum");
 
-            foreach (var child in node.Children)
+            foreach (var child in node.FindDescendantsOfType(TreeSitterSyntax.Java.EnumConstant))
             {
-                if (child.Type is TreeSitterSyntax.Java.EnumConstant)
-                {
-                    var memNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                      child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
+                var memNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                                  child.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Common.Identifier));
 
-                    if (memNameNode.IsValid())
+                if (memNameNode.IsValid())
+                {
+                    var memName = memNameNode.Text;
+                    var strLiterals = child.FindDescendantsOfType(TreeSitterSyntax.Java.StringLiteral).ToList();
+                    if (strLiterals.Count > 0)
                     {
-                        var memName = memNameNode.Text;
-                        var strLiterals = child.FindDescendantsOfType(TreeSitterSyntax.Java.StringLiteral).ToList();
-                        if (strLiterals.Count > 0)
-                        {
-                            var val = strLiterals.Count >= 2 ? strLiterals[1].Text.Trim('"', '\'') : strLiterals[0].Text.Trim('"', '\'');
-                            register($"{enumName}.{memName}", null, val);
-                            register(memName, null, val);
-                        }
-                        else
-                        {
-                            register($"{enumName}.{memName}", null, memName);
-                        }
+                        var val = strLiterals.Count >= 2 ? strLiterals[1].Text.Trim('"', '\'') : strLiterals[0].Text.Trim('"', '\'');
+                        register($"{enumName}.{memName}", null, val);
+                        register(memName, null, val);
+                    }
+                    else
+                    {
+                        register($"{enumName}.{memName}", null, memName);
                     }
                 }
             }
             return;
         }
 
-        if (type is TreeSitterSyntax.Java.FieldDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant } memDecl)
         {
-            var isStaticFinal = node.FindDescendantsOfType(TreeSitterSyntax.Java.Modifier).Any(m => m.Text is "static" or "final");
+            var isStaticFinal = memDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static) ||
+                                memDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Sealed) ||
+                                memDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const);
             if (isStaticFinal)
             {
                 var declarators = node.FindDescendantsOfType(TreeSitterSyntax.Java.VariableDeclarator);
@@ -75,7 +72,7 @@ public static class JavaDeclarationExtractor
                     {
                         var name = nameNode.Text;
                         var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value) ??
-                                      decl.Children.LastOrDefault(c => c.IsValid() && c.Type != "=" && c.Type != TreeSitterSyntax.Common.Identifier);
+                                      decl.Children.LastOrDefault(c => c.IsValid() && c.Type != "=" && !c.Is(TreeSitterSyntax.Common.Identifier));
 
                         if (valNode.IsValid())
                         {

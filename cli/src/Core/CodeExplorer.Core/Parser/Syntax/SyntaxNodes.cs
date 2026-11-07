@@ -49,8 +49,7 @@ public readonly record struct SyntaxPoint(int Row, int Column);
 public sealed record SyntaxDiagnostic(
     SyntaxDiagnosticKind Kind,
     string Message,
-    TextSpan Span,
-    string? ParentGrammarKind = null
+    TextSpan Span
 );
 
 /// <summary>
@@ -167,7 +166,86 @@ public enum TypeRefKind : byte
     Union,
     Intersection,
     Function,
-    Channel
+    Channel,
+    Annotation,
+    Predefined
+}
+
+public enum IdentifierRole : byte
+{
+    Symbol,
+    Type,
+    Member,
+    SelfOrSuper
+}
+
+public enum PatternKind : byte
+{
+    Binding,
+    Object,
+    Array,
+    Tuple,
+    Rest,
+    As,
+    Pair
+}
+
+public enum SyntaxListKind : byte
+{
+    General,
+    Expressions,
+    Arguments,
+    Parameters,
+    TypeArguments,
+    TypeParameters,
+    Attributes,
+    Declarations,
+    Imports,
+    Exports,
+    SwitchArms,
+    Initializer,
+    Clauses,
+    TopLevelStatement
+}
+
+public enum SyntaxKind : byte
+{
+    Document,
+    NamespaceDeclaration,
+    ImportDeclaration,
+    TypeDeclaration,
+    ImplDeclaration,
+    FunctionDeclaration,
+    ParameterDeclaration,
+    MemberDeclaration,
+    VariableDeclaration,
+    Annotation,
+    BaseTypeClause,
+    TypeReference,
+    BlockStatement,
+    ControlFlowStatement,
+    CatchClause,
+    ReturnStatement,
+    SqlStatement,
+    LiteralExpression,
+    InterpolatedStringExpression,
+    IdentifierExpression,
+    MemberAccessExpression,
+    IndexExpression,
+    Argument,
+    CallExpression,
+    BinaryExpression,
+    UnaryExpression,
+    AssignmentExpression,
+    ConditionalExpression,
+    CollectionExpression,
+    LambdaExpression,
+    KeyValueExpression,
+    TypeCastExpression,
+    UiElement,
+    Pattern,
+    ParenthesizedExpression,
+    SyntaxList
 }
 
 public enum LiteralSyntaxKind : byte
@@ -204,7 +282,8 @@ public enum ControlFlowKind : byte
     Defer,
     Goroutine,
     Branch,
-    Throw
+    Throw,
+    NoOp
 }
 
 public enum SqlOperationKind : byte
@@ -243,10 +322,12 @@ public abstract class SyntaxNode
     public IntPtr Id => (IntPtr)NodeId;
 
     public TextSpan Span { get; set; }
-    public string RawGrammarKind { get; set; } = string.Empty;
-    public string Type => RawGrammarKind;
+    public abstract SyntaxKind SyntaxKind { get; }
+    public virtual string Type => GetCanonicalKindString();
     public string? FieldRole { get; set; }
     public bool IsNamed => true;
+
+    protected virtual string GetCanonicalKindString() => "syntax_node";
 
     public SyntaxDocument? Document { get; set; }
     public SyntaxDocument? Tree => Document;
@@ -297,12 +378,25 @@ public abstract class SyntaxNode
             SyntaxFields.Value when this is VariableDeclSyntax { Initializer: { } varInit } => varInit,
             SyntaxFields.Value when this is MemberDeclSyntax { Initializer: { } memInit } => memInit,
             SyntaxFields.Value when this is ArgumentSyntax { Value: { } argVal } => argVal,
-            SyntaxFields.Value when RawGrammarKind == "arrow_expression_clause" && Children.Count > 0 => Children[^1],
+            SyntaxFields.Value when this is ParameterDeclSyntax { DefaultValue: { } paramDef } => paramDef,
+            SyntaxFields.Value when this is KeyValueExprSyntax { Value: { } kvVal } => kvVal,
+            SyntaxFields.Key when this is KeyValueExprSyntax { Key: { } kvKey } => kvKey,
+            SyntaxFields.Value when this is SyntaxList { Kind: SyntaxListKind.Initializer } && Children.Count > 0 => Children[^1],
             SyntaxFields.Right when this is AssignmentExprSyntax { Right: { } assignRight } => assignRight,
             SyntaxFields.Left when this is AssignmentExprSyntax { Left: { } assignLeft } => assignLeft,
             SyntaxFields.Right when this is BinaryExprSyntax { Right: { } binRight } => binRight,
             SyntaxFields.Left when this is BinaryExprSyntax { Left: { } binLeft } => binLeft,
             SyntaxFields.Condition when this is ControlFlowStmtSyntax { Condition: { } cfCond } => cfCond,
+            SyntaxFields.Condition when this is ConditionalExprSyntax { Condition: { } condExpr } => condExpr,
+            SyntaxFields.Consequence when this is ConditionalExprSyntax { WhenTrue: { } whenTrue } => whenTrue,
+            SyntaxFields.Alternative when this is ConditionalExprSyntax { WhenFalse: { } whenFalse } => whenFalse,
+            SyntaxFields.Object when this is IndexExprSyntax { Target: { } idxTarget } => idxTarget,
+            SyntaxFields.Index or SyntaxFields.Subscript when this is IndexExprSyntax { Index: { } idxVal } => idxVal,
+            SyntaxFields.Type when this is ParameterDeclSyntax { ParameterType: { } paramType } => paramType,
+            SyntaxFields.Type when this is VariableDeclSyntax { VariableType: { } varType } => varType,
+            SyntaxFields.Type when this is MemberDeclSyntax { MemberType: { } memType } => memType,
+            SyntaxFields.Type when this is CatchClauseSyntax { ExceptionType: { } excType } => excType,
+            SyntaxFields.Receiver when this is FunctionDeclSyntax { Receiver: { } fnRecv } => fnRecv,
             "trait" when this is ImplDeclSyntax { ImplementedTrait: { } implTrait } => implTrait,
             SyntaxFields.Type when this is ImplDeclSyntax { TargetType: { } implTarget } => implTarget,
             _ => null
@@ -451,7 +545,7 @@ public abstract class SyntaxNode
     public string? GetFieldNameForChild(int index) =>
         index >= 0 && index < Children.Count ? Children[index].FieldRole : null;
 
-    public override string ToString() => $"{GetType().Name}({RawGrammarKind}) [{Span.StartLine + 1}:{Span.StartColumn + 1}]";
+    public override string ToString() => $"{GetType().Name}({SyntaxKind}) [{Span.StartLine + 1}:{Span.StartColumn + 1}]";
 }
 
 /// <summary>
@@ -503,6 +597,9 @@ public static class SyntaxFields
 /// </summary>
 public sealed class SyntaxDocument : SyntaxNode, IDisposable
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.Document;
+    protected override string GetCanonicalKindString() => "document";
+
     public required string FilePath { get; init; }
     public required string RelativePath { get; init; }
     public required string LanguageName { get; init; }
@@ -611,7 +708,6 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
         {
             NodeId = 1,
             Span = span,
-            RawGrammarKind = "document",
             FilePath = filePath,
             RelativePath = relativePath,
             LanguageName = languageName,
@@ -718,30 +814,56 @@ public abstract class DeclarationSyntax : SyntaxNode
     public SyntaxModifiers Modifiers { get; set; }
 }
 
-public sealed class NamespaceDeclSyntax : DeclarationSyntax;
+public sealed class NamespaceDeclSyntax : DeclarationSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.NamespaceDeclaration;
+    protected override string GetCanonicalKindString() => "namespace_declaration";
+}
 
 public sealed class ImportDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.ImportDeclaration;
     public string ModulePath { get; set; } = string.Empty;
     public string? Alias { get; set; }
     public bool IsWildcard { get; set; }
     public bool IsReExport { get; set; }
     public bool IsStatic { get; set; }
+    protected override string GetCanonicalKindString() => IsReExport ? "export_statement" : "import_statement";
 }
 
 public sealed class TypeDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.TypeDeclaration;
     public TypeSyntaxKind Kind { get; set; } = TypeSyntaxKind.Class;
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        TypeSyntaxKind.Class => "class_declaration",
+        TypeSyntaxKind.Interface => "interface_declaration",
+        TypeSyntaxKind.Struct => "struct_declaration",
+        TypeSyntaxKind.Enum => "enum_declaration",
+        TypeSyntaxKind.Record => "record_declaration",
+        TypeSyntaxKind.Trait => "trait_item",
+        TypeSyntaxKind.Protocol => "protocol_declaration",
+        TypeSyntaxKind.ObjectSingleton => "object_declaration",
+        TypeSyntaxKind.CompanionObject => "companion_object",
+        TypeSyntaxKind.TypeAlias => "type_alias_declaration",
+        TypeSyntaxKind.Union => "union_item",
+        TypeSyntaxKind.GraphQlType => "graphql_type_declaration",
+        _ => "class_declaration"
+    };
 }
 
 public sealed class ImplDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.ImplDeclaration;
     public TypeRefSyntax? TargetType { get; set; }
     public TypeRefSyntax? ImplementedTrait { get; set; }
+    protected override string GetCanonicalKindString() => "impl_item";
 }
 
 public sealed class FunctionDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.FunctionDeclaration;
     public FunctionSyntaxKind Kind { get; set; } = FunctionSyntaxKind.Method;
     public ParameterDeclSyntax? Receiver { get; set; }
     public IReadOnlyList<ParameterDeclSyntax> Parameters { get; set; } = [];
@@ -749,36 +871,78 @@ public sealed class FunctionDeclSyntax : DeclarationSyntax
     public ExprSyntax? ExpressionBody { get; set; }
     public CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowSummary? DataflowSummary { get; set; }
     public bool IsAsync => Modifiers.HasFlag(SyntaxModifiers.Async);
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        FunctionSyntaxKind.Method => "method_declaration",
+        FunctionSyntaxKind.Function => "function_declaration",
+        FunctionSyntaxKind.Constructor => "constructor_declaration",
+        FunctionSyntaxKind.Destructor => "destructor_declaration",
+        FunctionSyntaxKind.Accessor => "accessor_declaration",
+        FunctionSyntaxKind.Operator => "operator_declaration",
+        FunctionSyntaxKind.Macro => "macro_definition",
+        _ => "method_declaration"
+    };
 }
 
 public sealed class ParameterDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.ParameterDeclaration;
     public TypeRefSyntax? ParameterType { get; set; }
     public ExprSyntax? DefaultValue { get; set; }
     public ParameterPassingMode PassingMode { get; set; } = ParameterPassingMode.Value;
+    protected override string GetCanonicalKindString() => PassingMode switch
+    {
+        ParameterPassingMode.Receiver or ParameterPassingMode.MutBorrow => "self_parameter",
+        ParameterPassingMode.VariadicArgs => "rest_pattern",
+        ParameterPassingMode.VariadicKwargs => "dictionary_splat_pattern",
+        _ => "parameter"
+    };
 }
 
 public sealed class MemberDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.MemberDeclaration;
     public MemberSyntaxKind Kind { get; set; } = MemberSyntaxKind.Field;
+    public TypeRefSyntax? MemberType { get; set; }
     public ExprSyntax? Initializer { get; set; }
     public string? ResolvedValue { get; set; }
     public bool IsDecoded { get; set; }
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        MemberSyntaxKind.Field => "field_declaration",
+        MemberSyntaxKind.Property => "property_declaration",
+        MemberSyntaxKind.Event => "event_declaration",
+        MemberSyntaxKind.Constant => "constant_declaration",
+        MemberSyntaxKind.EnumMember => "enum_member_declaration",
+        _ => "field_declaration"
+    };
 }
 
 public sealed class VariableDeclSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.VariableDeclaration;
     public TypeRefSyntax? VariableType { get; set; }
     public ExprSyntax? Initializer { get; set; }
     public bool IsConstant { get; set; }
+    public bool IsDeclarator { get; set; }
     public string Scope { get; set; } = "local";
     public string? ResolvedValue { get; set; }
     public bool IsDecoded { get; set; }
+    protected override string GetCanonicalKindString() => IsDeclarator ? "variable_declarator" : "variable_declaration";
 }
 
 public sealed class AnnotationSyntax : DeclarationSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.Annotation;
     public IReadOnlyList<ArgumentSyntax> Arguments { get; set; } = [];
+    protected override string GetCanonicalKindString() => "attribute";
+}
+
+public sealed class BaseTypeClauseSyntax : SyntaxNode
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.BaseTypeClause;
+    public bool IsImplements { get; set; }
+    protected override string GetCanonicalKindString() => IsImplements ? "implements_clause" : "base_list";
 }
 
 // ============================================================================
@@ -788,6 +952,8 @@ public sealed class AnnotationSyntax : DeclarationSyntax
 public sealed class TypeRefSyntax : SyntaxNode
 {
     private string? _explicitName;
+    public override SyntaxKind SyntaxKind => SyntaxKind.TypeReference;
+    public TypeRefKind Kind { get; set; } = TypeRefKind.Named;
     public SourceSlice NameSlice { get; set; }
 
     public ReadOnlySpan<char> NameSpan =>
@@ -800,6 +966,24 @@ public sealed class TypeRefSyntax : SyntaxNode
         get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : Text);
         set => _explicitName = value;
     }
+
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        TypeRefKind.Generic => "generic_type",
+        TypeRefKind.Array => "array_type",
+        TypeRefKind.Slice => "slice_type",
+        TypeRefKind.Tuple => "tuple_type",
+        TypeRefKind.Pointer => "pointer_type",
+        TypeRefKind.Reference => "reference_type",
+        TypeRefKind.Nullable => "nullable_type",
+        TypeRefKind.Union => "union_type",
+        TypeRefKind.Intersection => "intersection_type",
+        TypeRefKind.Function => "function_type",
+        TypeRefKind.Channel => "channel_type",
+        TypeRefKind.Annotation => "type_annotation",
+        TypeRefKind.Predefined => "predefined_type",
+        _ => "type_identifier"
+    };
 }
 
 // ============================================================================
@@ -810,26 +994,49 @@ public abstract class StatementSyntax : SyntaxNode;
 
 public sealed class BlockStmtSyntax : StatementSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.BlockStatement;
     public bool IsUnsafe { get; set; }
+    protected override string GetCanonicalKindString() => "block";
 }
 
 public sealed class ControlFlowStmtSyntax : StatementSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.ControlFlowStatement;
     public ControlFlowKind Kind { get; set; } = ControlFlowKind.Expression;
     public ExprSyntax? Condition { get; set; }
     public SyntaxNode? Body { get; set; }
     public SyntaxNode? Alternative { get; set; }
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        ControlFlowKind.Expression => "expression_statement",
+        ControlFlowKind.If => "if_statement",
+        ControlFlowKind.Loop => "for_statement",
+        ControlFlowKind.Switch => "switch_statement",
+        ControlFlowKind.Try => "try_statement",
+        ControlFlowKind.Using => "using_statement",
+        ControlFlowKind.Lock => "lock_statement",
+        ControlFlowKind.Defer => "defer_statement",
+        ControlFlowKind.Goroutine => "go_statement",
+        ControlFlowKind.Branch => "break_statement",
+        ControlFlowKind.Throw => "throw_statement",
+        ControlFlowKind.NoOp => "pass_statement",
+        _ => "expression_statement"
+    };
 }
 
 public sealed class CatchClauseSyntax : StatementSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.CatchClause;
     public TypeRefSyntax? ExceptionType { get; set; }
     public BlockStmtSyntax? Body { get; set; }
+    protected override string GetCanonicalKindString() => "catch_clause";
 }
 
 public sealed class ReturnStmtSyntax : StatementSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.ReturnStatement;
     public ExprSyntax? Value { get; set; }
+    protected override string GetCanonicalKindString() => "return_statement";
 }
 
 public sealed record SqlTableRefSyntax(
@@ -841,16 +1048,18 @@ public sealed record SqlTableRefSyntax(
 
 public sealed class SqlStmtSyntax : StatementSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.SqlStatement;
     public SqlOperationKind Operation { get; set; } = SqlOperationKind.Unknown;
     public string OperationVerb { get; set; } = string.Empty;
     public IReadOnlyList<SqlTableRefSyntax> Tables { get; set; } = [];
     public IReadOnlyList<string> Columns { get; set; } = [];
     public IReadOnlyList<string> Procedures { get; set; } = [];
     public string RawSql { get; set; } = string.Empty;
+    protected override string GetCanonicalKindString() => "sql_statement";
 }
 
 // ============================================================================
-// EXPRESSIONS (12 Canonical Node Types)
+// EXPRESSIONS & STRUCTURAL LISTS
 // ============================================================================
 
 public abstract class ExprSyntax : SyntaxNode
@@ -870,6 +1079,7 @@ public abstract class ExprSyntax : SyntaxNode
 public sealed class LiteralExprSyntax : ExprSyntax
 {
     private string? _explicitValueText;
+    public override SyntaxKind SyntaxKind => SyntaxKind.LiteralExpression;
     public LiteralSyntaxKind LiteralKind { get; set; } = LiteralSyntaxKind.String;
     public SourceSlice ValueSlice { get; set; }
     public bool HasEscapeSequences { get; set; }
@@ -898,13 +1108,32 @@ public sealed class LiteralExprSyntax : ExprSyntax
         }
         set => _explicitValueText = value;
     }
+
+    protected override string GetCanonicalKindString() => LiteralKind switch
+    {
+        LiteralSyntaxKind.String => "string_literal",
+        LiteralSyntaxKind.RawString => "raw_string_literal",
+        LiteralSyntaxKind.Char => "character_literal",
+        LiteralSyntaxKind.Integer => "integer_literal",
+        LiteralSyntaxKind.Float => "float_literal",
+        LiteralSyntaxKind.Boolean => "boolean_literal",
+        LiteralSyntaxKind.Null => "null_literal",
+        LiteralSyntaxKind.Regex => "regex",
+        _ => "string_literal"
+    };
 }
 
-public sealed class InterpolatedStringExprSyntax : ExprSyntax;
+public sealed class InterpolatedStringExprSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.InterpolatedStringExpression;
+    protected override string GetCanonicalKindString() => "interpolated_string_expression";
+}
 
 public sealed class IdentifierExprSyntax : ExprSyntax
 {
     private string? _explicitName;
+    public override SyntaxKind SyntaxKind => SyntaxKind.IdentifierExpression;
+    public IdentifierRole Role { get; set; } = IdentifierRole.Symbol;
 
     public ReadOnlySpan<char> NameSpan =>
         _explicitName != null ? _explicitName.AsSpan() : AsSpan();
@@ -914,11 +1143,20 @@ public sealed class IdentifierExprSyntax : ExprSyntax
         get => _explicitName ?? Text;
         set => _explicitName = value;
     }
+
+    protected override string GetCanonicalKindString() => Role switch
+    {
+        IdentifierRole.Type => "type_identifier",
+        IdentifierRole.Member => "property_identifier",
+        IdentifierRole.SelfOrSuper => "this",
+        _ => "identifier"
+    };
 }
 
 public sealed class MemberAccessExprSyntax : ExprSyntax
 {
     private string? _explicitMemberName;
+    public override SyntaxKind SyntaxKind => SyntaxKind.MemberAccessExpression;
     public ExprSyntax? Object { get; set; }
     public SourceSlice MemberNameSlice { get; set; }
     public bool HasExplicitMemberName => _explicitMemberName != null;
@@ -935,17 +1173,22 @@ public sealed class MemberAccessExprSyntax : ExprSyntax
     }
 
     public string Operator { get; set; } = ".";
+
+    protected override string GetCanonicalKindString() => Operator == "::" ? "scoped_identifier" : "member_access_expression";
 }
 
 public sealed class IndexExprSyntax : ExprSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.IndexExpression;
     public ExprSyntax? Target { get; set; }
     public ExprSyntax? Index { get; set; }
+    protected override string GetCanonicalKindString() => "index_expression";
 }
 
 public sealed class ArgumentSyntax : ExprSyntax
 {
     private string? _explicitName;
+    public override SyntaxKind SyntaxKind => SyntaxKind.Argument;
     public SourceSlice NameSlice { get; set; }
 
     public ReadOnlySpan<char> NameSpan =>
@@ -960,11 +1203,14 @@ public sealed class ArgumentSyntax : ExprSyntax
     }
 
     public ExprSyntax? Value { get; set; }
+    public bool IsSpread { get; set; }
+    protected override string GetCanonicalKindString() => IsSpread ? "spread_element" : "argument";
 }
 
 public sealed class CallExprSyntax : ExprSyntax
 {
     private string? _explicitMethodName;
+    public override SyntaxKind SyntaxKind => SyntaxKind.CallExpression;
     public CallSyntaxKind CallKind { get; set; } = CallSyntaxKind.Method;
     public ExprSyntax? Callee { get; set; }
     public ExprSyntax? Receiver { get; set; }
@@ -982,49 +1228,397 @@ public sealed class CallExprSyntax : ExprSyntax
     }
 
     public IReadOnlyList<ArgumentSyntax> Arguments { get; set; } = [];
+
+    protected override string GetCanonicalKindString() => CallKind switch
+    {
+        CallSyntaxKind.Constructor when MethodNameSlice.Length == 0 && Callee == null && _explicitMethodName == null => "implicit_object_creation_expression",
+        CallSyntaxKind.Constructor or CallSyntaxKind.SuperConstructor or CallSyntaxKind.ThisConstructor => "object_creation_expression",
+        CallSyntaxKind.Macro => "macro_invocation",
+        _ => "call_expression"
+    };
 }
 
 public sealed class BinaryExprSyntax : ExprSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.BinaryExpression;
     public ExprSyntax? Left { get; set; }
     public string Operator { get; set; } = string.Empty;
     public ExprSyntax? Right { get; set; }
+    protected override string GetCanonicalKindString() => "binary_expression";
 }
 
 public sealed class UnaryExprSyntax : ExprSyntax
 {
+    private bool _isAwait;
+    private bool _isTryPropagate;
+    public override SyntaxKind SyntaxKind => SyntaxKind.UnaryExpression;
     public string Operator { get; set; } = string.Empty;
     public ExprSyntax? Operand { get; set; }
     public bool IsPrefix { get; set; } = true;
-    public bool IsAwait => Operator == "await" || RawGrammarKind is "await_expression" or "await";
-    public bool IsTryPropagate => Operator == "?" || RawGrammarKind == "try_expression";
+    public bool IsAwait
+    {
+        get => _isAwait || Operator == "await";
+        set => _isAwait = value;
+    }
+    public bool IsTryPropagate
+    {
+        get => _isTryPropagate || Operator == "?";
+        set => _isTryPropagate = value;
+    }
+    protected override string GetCanonicalKindString() =>
+        IsAwait ? "await_expression" : (IsTryPropagate ? "try_expression" : "unary_expression");
 }
 
 public sealed class AssignmentExprSyntax : ExprSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.AssignmentExpression;
     public SyntaxNode? Left { get; set; }
     public string Operator { get; set; } = "=";
     public ExprSyntax? Right { get; set; }
+    protected override string GetCanonicalKindString() => "assignment_expression";
+}
+
+public enum CollectionSyntaxKind : byte
+{
+    Array,
+    Object,
+    Dictionary,
+    Tuple,
+    Set,
+    Initializer
 }
 
 public sealed class ConditionalExprSyntax : ExprSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.ConditionalExpression;
     public ExprSyntax? Condition { get; set; }
+    public ExprSyntax? WhenTrue { get; set; }
+    public ExprSyntax? WhenFalse { get; set; }
+    protected override string GetCanonicalKindString() => "conditional_expression";
+}
+
+public sealed class CollectionExprSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.CollectionExpression;
+    public CollectionSyntaxKind Kind { get; set; } = CollectionSyntaxKind.Array;
+    public IReadOnlyList<ExprSyntax> Elements { get; set; } = [];
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        CollectionSyntaxKind.Array => "array_expression",
+        CollectionSyntaxKind.Object => "object",
+        CollectionSyntaxKind.Dictionary => "dictionary",
+        CollectionSyntaxKind.Tuple => "tuple_expression",
+        CollectionSyntaxKind.Set => "set",
+        CollectionSyntaxKind.Initializer => "composite_literal",
+        _ => "array_expression"
+    };
 }
 
 public sealed class LambdaExprSyntax : ExprSyntax
 {
+    public override SyntaxKind SyntaxKind => SyntaxKind.LambdaExpression;
     public IReadOnlyList<ParameterDeclSyntax> Parameters { get; set; } = [];
     public SyntaxNode? Body { get; set; }
     public bool IsAsync { get; set; }
+    protected override string GetCanonicalKindString() => "lambda_expression";
 }
 
-// ============================================================================
-// UNMAPPED NODES (1 Fallback Node Type)
-// ============================================================================
+public sealed class KeyValueExprSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.KeyValueExpression;
+    public ExprSyntax? Key { get; set; }
+    public SourceSlice KeySlice { get; set; }
+    public ExprSyntax? Value { get; set; }
+
+    public ReadOnlySpan<char> KeySpan =>
+        Document != null && !KeySlice.IsEmpty ? Document.AsSpan(KeySlice) : (Key != null ? Key.AsSpan() : ReadOnlySpan<char>.Empty);
+
+    public string KeyText =>
+        Document != null && !KeySlice.IsEmpty ? Document.GetText(KeySlice) : (Key?.Text ?? string.Empty);
+
+    protected override string GetCanonicalKindString() => "pair";
+}
+
+public sealed class TypeCastExprSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.TypeCastExpression;
+    public ExprSyntax? Operand { get; set; }
+    public TypeRefSyntax? TargetType { get; set; }
+    public bool IsGenericInstantiation { get; set; }
+    protected override string GetCanonicalKindString() => IsGenericInstantiation ? "generic_function" : "cast_expression";
+}
+
+public sealed class UiElementSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.UiElement;
+    public SourceSlice TagNameSlice { get; set; }
+    public bool IsSelfClosing { get; set; }
+    public bool IsClosing { get; set; }
+    public bool IsFragment { get; set; }
+    protected override string GetCanonicalKindString() =>
+        IsSelfClosing ? "jsx_self_closing_element" :
+        IsClosing ? "jsx_closing_element" :
+        IsFragment ? "jsx_fragment" : "jsx_opening_element";
+}
+
+public sealed class PatternSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.Pattern;
+    public PatternKind Kind { get; set; } = PatternKind.Binding;
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        PatternKind.Object => "object_pattern",
+        PatternKind.Array => "array_pattern",
+        PatternKind.Tuple => "tuple_pattern",
+        PatternKind.Rest => "rest_pattern",
+        PatternKind.As => "as_pattern",
+        PatternKind.Pair => "pair_pattern",
+        _ => "assignment_pattern"
+    };
+}
+
+public sealed class ParenthesizedExprSyntax : ExprSyntax
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.ParenthesizedExpression;
+    public ExprSyntax? Expression { get; set; }
+    public bool IsInterpolation { get; set; }
+    protected override string GetCanonicalKindString() => IsInterpolation ? "interpolation" : "parenthesized_expression";
+}
+
+public sealed class SyntaxList : SyntaxNode
+{
+    public override SyntaxKind SyntaxKind => SyntaxKind.SyntaxList;
+    public SyntaxListKind Kind { get; set; } = SyntaxListKind.Expressions;
+    protected override string GetCanonicalKindString() => Kind switch
+    {
+        SyntaxListKind.Arguments => "argument_list",
+        SyntaxListKind.Parameters => "parameter_list",
+        SyntaxListKind.TypeArguments => "type_argument_list",
+        SyntaxListKind.TypeParameters => "type_parameter_list",
+        SyntaxListKind.Attributes => "attribute_list",
+        SyntaxListKind.Declarations => "declaration_list",
+        SyntaxListKind.Imports => "import_clause",
+        SyntaxListKind.Exports => "export_clause",
+        SyntaxListKind.SwitchArms => "switch_section",
+        SyntaxListKind.Initializer => "arrow_expression_clause",
+        SyntaxListKind.Clauses => "finally_clause",
+        SyntaxListKind.TopLevelStatement => "global_statement",
+        SyntaxListKind.Expressions => "expression_list",
+        _ => "syntax_list"
+    };
+}
 
 /// <summary>
-/// Zero-loss fallback for any named grammar node not matched by a more specific *Syntax class.
-/// Preserves RawGrammarKind, FieldRole, Span, and all Children.
+/// Resolves canonical UAST <see cref="SyntaxNode"/> instances against canonical or legacy kind aliases without storing language-specific grammar names on UAST nodes.
 /// </summary>
-public sealed class UnmappedSyntax : SyntaxNode;
+public static class SyntaxKindResolver
+{
+    public static bool Matches(SyntaxNode? node, string expectedKind)
+    {
+        if (node == null || node.Id == IntPtr.Zero || string.IsNullOrEmpty(expectedKind))
+            return false;
+        if (string.Equals(node.Type, expectedKind, StringComparison.Ordinal))
+            return true;
+
+        return expectedKind switch
+        {
+            "call_expression" or "invocation_expression" or "method_invocation" or "call" or "tagged_template_expression" =>
+                node is CallExprSyntax { CallKind: CallSyntaxKind.Method or CallSyntaxKind.Function },
+            "new_expression" or "object_creation_expression" or "implicit_object_creation_expression" or "explicit_constructor_invocation" or "super_constructor_invocation" =>
+                node is CallExprSyntax { CallKind: CallSyntaxKind.Constructor or CallSyntaxKind.SuperConstructor or CallSyntaxKind.ThisConstructor },
+            "macro_invocation" =>
+                node is CallExprSyntax { CallKind: CallSyntaxKind.Macro },
+            "member_expression" or "member_access_expression" or "selector_expression" or "field_access" or "field_expression" =>
+                node is MemberAccessExprSyntax { Operator: not "::" },
+            "scoped_identifier" or "qualified_name" =>
+                node is MemberAccessExprSyntax { Operator: "::" } or MemberAccessExprSyntax,
+            "attribute" =>
+                node is AnnotationSyntax or MemberAccessExprSyntax,
+            "decorator" or "annotation" or "marker_annotation" or "attribute_item" or "inner_attribute_item" =>
+                node is AnnotationSyntax,
+            "class_declaration" or "class_definition" or "class_expression" or "abstract_class_declaration" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Class },
+            "struct_declaration" or "struct_item" or "struct_type" or "type_spec" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Struct },
+            "type_declaration" =>
+                node is TypeDeclSyntax or SyntaxList { Kind: SyntaxListKind.Declarations },
+            "record_declaration" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Record },
+            "interface_declaration" or "interface_type" or "annotation_type_declaration" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface },
+            "enum_declaration" or "enum_item" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Enum },
+            "trait_item" or "trait_declaration" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Trait },
+            "type_alias_declaration" or "type_item" or "delegate_declaration" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.TypeAlias },
+            "union_item" or "union_declaration" =>
+                node is TypeDeclSyntax { Kind: TypeSyntaxKind.Union },
+            "impl_item" =>
+                node is ImplDeclSyntax,
+            "method_declaration" or "method_definition" or "method_signature" =>
+                node is FunctionDeclSyntax { Kind: FunctionSyntaxKind.Method or FunctionSyntaxKind.Constructor },
+            "function_declaration" or "function_definition" or "function_item" or "function_signature_item" or "local_function_statement" or "generator_function_declaration" =>
+                node is FunctionDeclSyntax { Kind: FunctionSyntaxKind.Function or FunctionSyntaxKind.Method },
+            "constructor_declaration" or "compact_constructor_declaration" or "constructor" =>
+                node is FunctionDeclSyntax { Kind: FunctionSyntaxKind.Constructor } || (node is FunctionDeclSyntax fd && fd.NameSpan is "constructor"),
+            "arrow_function" or "function_expression" or "lambda_expression" or "lambda" or "func_literal" or "closure_expression" or "function" or "generator_function" =>
+                node is LambdaExprSyntax,
+            "parameter" or "formal_parameter" or "required_parameter" or "optional_parameter" or "parameter_declaration" or "parameter_property" or "typed_parameter" or "default_parameter" or "typed_default_parameter" or "spread_parameter" or "variadic_parameter" or "variadic_parameter_declaration" or "self_parameter" or "receiver_parameter" =>
+                node is ParameterDeclSyntax,
+            "parameter_list" or "formal_parameters" or "parameters" =>
+                node is SyntaxList { Kind: SyntaxListKind.Parameters },
+            "argument_list" or "arguments" or "attribute_argument_list" or "annotation_argument_list" or "bracketed_argument_list" or "token_tree" =>
+                node is SyntaxList { Kind: SyntaxListKind.Arguments },
+            "argument" or "attribute_argument" or "keyword_argument" or "expression_element" or "spread_element" =>
+                node is ArgumentSyntax,
+            "variable_declaration" or "lexical_declaration" or "local_declaration_statement" or "local_variable_declaration" or "let_declaration" or "var_declaration" or "short_var_declaration" =>
+                node is VariableDeclSyntax { IsDeclarator: false },
+            "const_declaration" =>
+                node is VariableDeclSyntax { IsConstant: true } or MemberDeclSyntax { Kind: MemberSyntaxKind.Constant },
+            "variable_declarator" or "var_spec" =>
+                node is VariableDeclSyntax { IsDeclarator: true },
+            "field_declaration" or "public_field_definition" or "property_definition" or "static_item" =>
+                node is MemberDeclSyntax { Kind: MemberSyntaxKind.Field },
+            "property_declaration" or "property_signature" or "indexer_declaration" =>
+                node is MemberDeclSyntax { Kind: MemberSyntaxKind.Property },
+            "constant_declaration" or "const_spec" or "const_item" =>
+                node is MemberDeclSyntax { Kind: MemberSyntaxKind.Constant } or VariableDeclSyntax { IsConstant: true },
+            "enum_member_declaration" or "enum_assignment" or "enum_constant" or "enum_variant" =>
+                node is MemberDeclSyntax { Kind: MemberSyntaxKind.EnumMember },
+            "string" or "string_literal" or "interpreted_string_literal" or "text_block" or "string_content" or "string_fragment" or "escape_sequence" =>
+                node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString },
+            "raw_string_literal" or "verbatim_string_literal" =>
+                node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.RawString },
+            "template_string" or "interpolated_string_expression" or "format_string" or "concatenated_string" =>
+                node is InterpolatedStringExprSyntax,
+            "integer_literal" or "int_literal" or "integer" or "number" =>
+                node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.Integer or LiteralSyntaxKind.Float },
+            "boolean_literal" or "true" or "false" =>
+                node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.Boolean },
+            "null_literal" or "null" or "nil" or "none" or "undefined" =>
+                node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.Null },
+            "identifier" =>
+                node is IdentifierExprSyntax,
+            "type_identifier" =>
+                node is IdentifierExprSyntax { Role: IdentifierRole.Type } or TypeRefSyntax { Kind: TypeRefKind.Named } or IdentifierExprSyntax,
+            "property_identifier" or "field_identifier" or "shorthand_property_identifier" or "shorthand_property_identifier_pattern" =>
+                node is IdentifierExprSyntax { Role: IdentifierRole.Member } or IdentifierExprSyntax,
+            "pair" or "keyed_element" or "field_initializer" or "element_value_pair" or "jsx_attribute" or "import_specifier" or "export_specifier" or "import_require_clause" =>
+                node is KeyValueExprSyntax,
+            "object" or "struct_expression" =>
+                node is CollectionExprSyntax { Kind: CollectionSyntaxKind.Object },
+            "dictionary" or "dictionary_comprehension" =>
+                node is CollectionExprSyntax { Kind: CollectionSyntaxKind.Dictionary },
+            "array" or "array_expression" or "array_creation_expression" or "array_initializer" or "collection_expression" or "list" or "list_comprehension" or "element_value_array_initializer" =>
+                node is CollectionExprSyntax { Kind: CollectionSyntaxKind.Array },
+            "composite_literal" or "literal_value" or "initializer_expression" =>
+                node is CollectionExprSyntax { Kind: CollectionSyntaxKind.Initializer },
+            "tuple" or "tuple_expression" =>
+                node is CollectionExprSyntax { Kind: CollectionSyntaxKind.Tuple },
+            "subscript_expression" or "element_access_expression" or "index_expression" or "array_access" or "subscript" or "slice_expression" =>
+                node is IndexExprSyntax,
+            "assignment_expression" or "assignment_statement" or "assignment" or "augmented_assignment" or "augmented_assignment_expression" or "compound_assignment_expr" =>
+                node is AssignmentExprSyntax,
+            "binary_expression" or "binary_operator" or "boolean_operator" or "comparison_operator" =>
+                node is BinaryExprSyntax,
+            "unary_expression" or "unary_operator" or "prefix_unary_expression" or "postfix_unary_expression" or "update_expression" or "non_null_expression" =>
+                node is UnaryExprSyntax,
+            "cast_expression" or "as_expression" or "satisfies_expression" or "type_assertion" =>
+                node is TypeCastExprSyntax { IsGenericInstantiation: false } or BinaryExprSyntax,
+            "await_expression" or "await" =>
+                node is UnaryExprSyntax { IsAwait: true },
+            "try_expression" =>
+                node is UnaryExprSyntax { IsTryPropagate: true },
+            "parenthesized_expression" or "literal_element" =>
+                node is ParenthesizedExprSyntax { IsInterpolation: false },
+            "interpolation" or "template_substitution" or "formatted_expression" or "jsx_expression" =>
+                node is ParenthesizedExprSyntax { IsInterpolation: true },
+            "block" or "statement_block" or "statement_list" =>
+                node is BlockStmtSyntax,
+            "declaration_list" or "class_body" or "interface_body" or "enum_body" or "enum_variant_list" or "field_declaration_list" or "annotation_type_body" =>
+                node is SyntaxList { Kind: SyntaxListKind.Declarations } or BlockStmtSyntax { Parent: TypeDeclSyntax or NamespaceDeclSyntax or ImplDeclSyntax },
+            "decorated_definition" =>
+                node is SyntaxList { Kind: SyntaxListKind.Declarations } or FunctionDeclSyntax or TypeDeclSyntax,
+            "attribute_list" or "modifiers" or "decorator_list" =>
+                node is SyntaxList { Kind: SyntaxListKind.Attributes },
+            "type_argument_list" or "type_arguments" =>
+                node is SyntaxList { Kind: SyntaxListKind.TypeArguments },
+            "type_parameter_list" or "type_parameters" =>
+                node is SyntaxList { Kind: SyntaxListKind.TypeParameters },
+            "arrow_expression_clause" or "equals_value_clause" =>
+                node is SyntaxList { Kind: SyntaxListKind.Initializer },
+            "expression_list" =>
+                node is SyntaxList { Kind: SyntaxListKind.Expressions },
+            "import_clause" or "named_imports" or "import_spec_list" =>
+                node is SyntaxList { Kind: SyntaxListKind.Imports },
+            "export_clause" =>
+                node is SyntaxList { Kind: SyntaxListKind.Exports },
+            "global_statement" =>
+                node is SyntaxList { Kind: SyntaxListKind.TopLevelStatement },
+            "base_list" or "class_heritage" =>
+                node is BaseTypeClauseSyntax,
+            "extends_clause" or "extends_type_clause" or "superclass" =>
+                node is BaseTypeClauseSyntax { IsImplements: false },
+            "implements_clause" or "super_interfaces" or "extends_interfaces" or "interfaces" =>
+                node is BaseTypeClauseSyntax { IsImplements: true },
+            "import_statement" or "import_from_statement" or "import_declaration" or "import_spec" or "using_directive" or "use_declaration" or "extern_crate_declaration" =>
+                node is ImportDeclSyntax { IsReExport: false },
+            "export_statement" or "export_declaration" =>
+                node is ImportDeclSyntax { IsReExport: true },
+            "package_clause" or "package_declaration" or "namespace_declaration" or "file_scoped_namespace_declaration" or "mod_item" or "module" =>
+                node is NamespaceDeclSyntax,
+            "return_statement" or "return_expression" or "yield_statement" or "yield_expression" =>
+                node is ReturnStmtSyntax,
+            "expression_statement" =>
+                node is ControlFlowStmtSyntax { Kind: ControlFlowKind.Expression },
+            "if_statement" or "if_expression" =>
+                node is ControlFlowStmtSyntax { Kind: ControlFlowKind.If },
+            "switch_statement" or "switch_expression" or "match_statement" or "match_expression" or "expression_switch_statement" or "type_switch_statement" or "select_statement" =>
+                node is ControlFlowStmtSyntax { Kind: ControlFlowKind.Switch },
+            "for_statement" or "for_in_statement" or "foreach_statement" or "while_statement" or "do_statement" or "enhanced_for_statement" or "loop_expression" or "while_expression" or "for_expression" =>
+                node is ControlFlowStmtSyntax { Kind: ControlFlowKind.Loop },
+            "try_statement" or "try_with_resources_statement" =>
+                node is ControlFlowStmtSyntax { Kind: ControlFlowKind.Try },
+            "using_statement" or "with_statement" =>
+                node is ControlFlowStmtSyntax { Kind: ControlFlowKind.Using },
+            "catch_clause" or "except_clause" =>
+                node is CatchClauseSyntax,
+            "type_annotation" or "type" =>
+                node is TypeRefSyntax { Kind: TypeRefKind.Annotation } or TypeRefSyntax,
+            "generic_type" or "generic_name" =>
+                node is TypeRefSyntax { Kind: TypeRefKind.Generic },
+            "generic_function" or "instantiation_expression" or "expression_with_type_arguments" =>
+                node is TypeCastExprSyntax { IsGenericInstantiation: true } or TypeRefSyntax { Kind: TypeRefKind.Generic },
+            "scoped_type_identifier" or "qualified_type" =>
+                node is TypeRefSyntax,
+            "pointer_type" =>
+                node is TypeRefSyntax { Kind: TypeRefKind.Pointer },
+            "nullable_type" =>
+                node is TypeRefSyntax { Kind: TypeRefKind.Nullable },
+            "predefined_type" or "primitive_type" or "integral_type" or "floating_point_type" or "boolean_type" =>
+                node is TypeRefSyntax { Kind: TypeRefKind.Predefined },
+            "jsx_opening_element" =>
+                node is UiElementSyntax { IsSelfClosing: false, IsClosing: false, IsFragment: false },
+            "jsx_self_closing_element" =>
+                node is UiElementSyntax { IsSelfClosing: true },
+            "jsx_closing_element" =>
+                node is UiElementSyntax { IsClosing: true },
+            "jsx_element" or "jsx_fragment" =>
+                node is UiElementSyntax,
+            "object_pattern" =>
+                node is PatternSyntax { Kind: PatternKind.Object },
+            "array_pattern" =>
+                node is PatternSyntax { Kind: PatternKind.Array },
+            "pair_pattern" =>
+                node is PatternSyntax { Kind: PatternKind.Pair },
+            "as_pattern" =>
+                node is PatternSyntax { Kind: PatternKind.As },
+            "rest_pattern" or "namespace_import" =>
+                node is PatternSyntax { Kind: PatternKind.Rest } or ParameterDeclSyntax { PassingMode: ParameterPassingMode.VariadicArgs } or KeyValueExprSyntax,
+            "compilation_unit" or "program" or "source_file" or "document" =>
+                node is SyntaxDocument,
+            _ => false
+        };
+    }
+}

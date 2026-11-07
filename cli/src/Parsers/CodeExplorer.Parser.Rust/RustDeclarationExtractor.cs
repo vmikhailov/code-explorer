@@ -15,12 +15,10 @@ public static class RustDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        var type = node.Type;
-
-        if (type is TreeSitterSyntax.Rust.ConstItem or TreeSitterSyntax.Rust.StaticItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
 
             var valNode = node.GetChildForField(TreeSitterSyntax.Fields.Value);
             if (!valNode.IsValid())
@@ -52,10 +50,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type == TreeSitterSyntax.Rust.EnumItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.TypeIdentifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
             var enumName = nameNode.IsValid() ? nameNode.Text : "Enum";
 
             register(enumName, node, null);
@@ -64,15 +62,15 @@ public static class RustDeclarationExtractor
                 register($"{currentScope}::{enumName}", node, null);
             }
 
-            var variantList = node.FindChildOfType(TreeSitterSyntax.Rust.EnumVariantList);
+            var variantList = node.FindChildOfType(TreeSitterSyntax.Rust.EnumVariantList) ?? node;
             if (variantList.IsValid())
             {
                 foreach (var child in variantList.Children)
                 {
-                    if (child.Type == TreeSitterSyntax.Rust.EnumVariant)
+                    if (child.Is(TreeSitterSyntax.Rust.EnumVariant))
                     {
                         var varNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                          child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                                          child.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
                         if (varNameNode.IsValid())
                         {
                             var varValNode = child.GetChildForField(TreeSitterSyntax.Fields.Value);
@@ -85,10 +83,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.Rust.StructItem or TreeSitterSyntax.Rust.UnionItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Struct or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Union } structDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.TypeIdentifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
             if (nameNode.IsValid())
             {
                 var name = nameNode.Text;
@@ -98,18 +96,19 @@ public static class RustDeclarationExtractor
                     register($"{currentScope}::{name}", node, null);
                 }
 
-                var isPubStruct = node.Children.Any(c => c.Type == "visibility_modifier");
-                var fieldList = node.FindChildOfType(TreeSitterSyntax.Rust.FieldDeclarationList);
+                var isPubStruct = structDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Public) ||
+                                  structDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Internal);
+                var fieldList = node.FindChildOfType(TreeSitterSyntax.Rust.FieldDeclarationList) ?? node;
                 if (fieldList.IsValid())
                 {
                     Node? lastAttr = null;
                     foreach (var child in fieldList.Children)
                     {
-                        if (child.Type == TreeSitterSyntax.Rust.AttributeItem)
+                        if (child.Is(TreeSitterSyntax.Rust.AttributeItem))
                         {
                             lastAttr = child;
                         }
-                        else if (child.Type == TreeSitterSyntax.Rust.FieldDeclaration)
+                        else if (child.Is(TreeSitterSyntax.Rust.FieldDeclaration))
                         {
                             var attr = child.FindChildOfType(TreeSitterSyntax.Rust.AttributeItem);
                             var effectiveAttr = attr.IsValid() ? attr : lastAttr;
@@ -136,10 +135,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type == TreeSitterSyntax.Rust.TraitItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Trait })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.TypeIdentifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
             if (nameNode.IsValid())
             {
                 var name = nameNode.Text;
@@ -152,10 +151,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.Rust.FunctionItem or TreeSitterSyntax.Rust.FunctionSignatureItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax { Kind: not CodeExplorer.Core.Parser.Syntax.FunctionSyntaxKind.Macro })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
             if (nameNode.IsValid())
             {
                 var name = nameNode.Text;
@@ -174,10 +173,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type == TreeSitterSyntax.Rust.MacroDefinition)
+        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.FunctionSyntaxKind.Macro })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
             if (nameNode.IsValid())
             {
                 register(nameNode.Text, node, null);
@@ -185,10 +184,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type == TreeSitterSyntax.Rust.ModItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.NamespaceDeclSyntax)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
             var modName = nameNode.IsValid() ? nameNode.Text : null;
             var nextScope = !string.IsNullOrEmpty(modName)
                 ? (!string.IsNullOrEmpty(currentScope) ? $"{currentScope}::{modName}" : modName)
@@ -201,10 +200,10 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (type == TreeSitterSyntax.Rust.ImplItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.ImplDeclSyntax)
         {
             var typeNode = node.GetChildForField(TreeSitterSyntax.Fields.Type) ??
-                           node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.TypeIdentifier);
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
             var implTarget = typeNode.IsValid() ? typeNode.Text : currentScope;
 
             foreach (var child in node.Children)

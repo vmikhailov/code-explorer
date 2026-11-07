@@ -59,7 +59,7 @@ public class RustFileVisitor : BaseParserVisitor
         if (text.Contains("aws_sdk_") || text.Contains("aws-sdk-") || text.Contains("aws_sdk") || text.Contains("receive_message") || text.Contains(".publish()")) ResolveAndInjectLibraryParser("aws-sdk-rust");
 
         // 2. Attribute-based routing
-        if (node.Type == TreeSitterSyntax.Rust.AttributeItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.AnnotationSyntax)
         {
             if (text.Contains("get(") || text.Contains("post(") || text.Contains("put(") || text.Contains("delete("))
             {
@@ -172,7 +172,7 @@ public class RustFileVisitor : BaseParserVisitor
 
     protected override void VisitDefault(Node node, int depth)
     {
-        if (node.Type == TreeSitterSyntax.Rust.ImplItem)
+        if (node is CodeExplorer.Core.Parser.Syntax.ImplDeclSyntax || node.Is(TreeSitterSyntax.Rust.ImplItem))
         {
             VisitImplItem(node, depth);
             return;
@@ -309,10 +309,11 @@ public class RustFileVisitor : BaseParserVisitor
 
     protected override string? FindCallName(Node callNode)
     {
-        if (callNode.Type == TreeSitterSyntax.Rust.MacroInvocation)
+        if (callNode is CodeExplorer.Core.Parser.Syntax.CallExprSyntax { CallKind: CodeExplorer.Core.Parser.Syntax.CallSyntaxKind.Macro } ||
+            callNode.Is(TreeSitterSyntax.Rust.MacroInvocation))
         {
             var macroChild = callNode.GetChildForField("macro") ??
-                             callNode.Children.FirstOrDefault(c => c.Type is TreeSitterSyntax.Rust.Identifier or TreeSitterSyntax.Rust.ScopedIdentifier);
+                             callNode.Children.FirstOrDefault(c => c is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax or CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax);
             if (macroChild.IsValid())
             {
                 return macroChild.Text + "!";
@@ -320,7 +321,7 @@ public class RustFileVisitor : BaseParserVisitor
             return null;
         }
 
-        if (callNode.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (callNode is not CodeExplorer.Core.Parser.Syntax.CallExprSyntax && !callNode.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return null;
         }
@@ -334,29 +335,29 @@ public class RustFileVisitor : BaseParserVisitor
 
         func = UnwrapTryAndAwait(func);
 
-        if (func.Type == TreeSitterSyntax.Rust.GenericFunction)
+        if (func is CodeExplorer.Core.Parser.Syntax.TypeCastExprSyntax { IsGenericInstantiation: true } || func.Is(TreeSitterSyntax.Rust.GenericFunction))
         {
             var innerFunc = func.GetChildForField(TreeSitterSyntax.Fields.Function) ??
                             (func.Children.Count > 0 ? func.Children[0] : null);
             if (innerFunc.IsValid()) func = innerFunc;
         }
 
-        if (func.Type == TreeSitterSyntax.Rust.FieldExpression)
+        if (func is CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax { Operator: not "::" } || func.Is(TreeSitterSyntax.Rust.FieldExpression))
         {
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field) ??
-                        func.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.FieldIdentifier);
+                        func.Children.LastOrDefault(c => c is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax);
             if (field.IsValid())
             {
                 return field.Text;
             }
         }
 
-        if (func.Type == TreeSitterSyntax.Rust.ScopedIdentifier)
+        if (func is CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax { Operator: "::" } || func.Is(TreeSitterSyntax.Rust.ScopedIdentifier))
         {
             return func.Text;
         }
 
-        if (func.Type == TreeSitterSyntax.Rust.Identifier)
+        if (func is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax || func.Is(TreeSitterSyntax.Rust.Identifier))
         {
             return func.Text;
         }
@@ -369,18 +370,20 @@ public class RustFileVisitor : BaseParserVisitor
         var current = node;
         while (current.IsValid())
         {
-            if (current.Type == TreeSitterSyntax.Rust.TryExpression)
+            if (current is CodeExplorer.Core.Parser.Syntax.UnaryExprSyntax { IsTryPropagate: true } || current.Is(TreeSitterSyntax.Rust.TryExpression))
             {
-                var inner = current.Children.FirstOrDefault(c => c.Text != "?");
+                var inner = (current as CodeExplorer.Core.Parser.Syntax.UnaryExprSyntax)?.Operand ??
+                            current.Children.FirstOrDefault(c => c.Text != "?");
                 if (inner.IsValid() && inner.Id != current.Id)
                 {
                     current = inner;
                     continue;
                 }
             }
-            else if (current.Type == TreeSitterSyntax.Rust.AwaitExpression)
+            else if (current is CodeExplorer.Core.Parser.Syntax.UnaryExprSyntax { IsAwait: true } || current.Is(TreeSitterSyntax.Rust.AwaitExpression))
             {
-                var inner = current.Children.FirstOrDefault(c => c.Text != "await" && c.Text != ".");
+                var inner = (current as CodeExplorer.Core.Parser.Syntax.UnaryExprSyntax)?.Operand ??
+                            current.Children.FirstOrDefault(c => c.Text != "await" && c.Text != ".");
                 if (inner.IsValid() && inner.Id != current.Id)
                 {
                     current = inner;
@@ -437,10 +440,10 @@ public class RustFileVisitor : BaseParserVisitor
 
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
-        if (node.Type == TreeSitterSyntax.Rust.LetDeclaration)
+        if (node is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax || node.Is(TreeSitterSyntax.Rust.LetDeclaration))
         {
             var patternNode = node.GetChildForField("pattern") ??
-                              node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                              node.Children.FirstOrDefault(c => c is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax);
             var valNode = node.GetChildForField(TreeSitterSyntax.Fields.Value);
 
             if (patternNode.IsValid())

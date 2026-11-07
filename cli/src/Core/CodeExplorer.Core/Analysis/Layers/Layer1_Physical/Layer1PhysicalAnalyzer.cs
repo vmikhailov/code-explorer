@@ -282,7 +282,8 @@ public class Layer1PhysicalParser
                 isManifest,
                 isSupportedSourceOrConfig,
                 ctx.FileFilter,
-                ctx.CancellationToken);
+                ctx.CancellationToken,
+                computeHash: isManifest || !ctx.Clear);
             skipByContent = streamed.SkipByContent;
             contentHash = streamed.ContentHash;
             lineCount = streamed.LineCount;

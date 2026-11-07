@@ -194,12 +194,12 @@ public class RabbitMqLibraryParser : ISemanticExtension
                 var right = assign.GetChildForField(TreeSitterSyntax.Fields.Right) ?? assign.Children.LastOrDefault();
                 if (right.IsValid())
                 {
-                    while (right.IsValid() && (right.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression))
+                    while (right.IsValid() && right.IsAny(TreeSitterSyntax.Common.AwaitExpression, TreeSitterSyntax.Common.ParenthesizedExpression))
                     {
                         right = right.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")");
                     }
 
-                    if (right.IsValid() && right.Type == TreeSitterSyntax.TypeScript.CallExpression)
+                    if (right.IsValid() && right.Is(TreeSitterSyntax.TypeScript.CallExpression))
                     {
                         var args = AstHelper.GetCallArguments(right);
                         if (args.Count > 0 && (AstValueResolver.TryResolveTopicOrQueue(args[0], null, out var qName) ||
@@ -241,21 +241,21 @@ public class RabbitMqLibraryParser : ISemanticExtension
     private static string? FindAssignedVariableName(Node node)
     {
         var curr = node.Parent;
-        while (curr.IsValid() && (curr.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression))
+        while (curr.IsValid() && curr.IsAny(TreeSitterSyntax.Common.AwaitExpression, TreeSitterSyntax.Common.ParenthesizedExpression))
         {
             curr = curr.Parent;
         }
 
         if (curr.IsValid())
         {
-            if (curr.Type is TreeSitterSyntax.TypeScript.AssignmentExpression)
+            if (curr.Is(TreeSitterSyntax.TypeScript.AssignmentExpression))
             {
                 var left = curr.GetChildForField(TreeSitterSyntax.Fields.Left) ?? curr.Children.FirstOrDefault();
                 if (left.IsValid()) return left.Text;
             }
-            else if (curr.Type is TreeSitterSyntax.TypeScript.VariableDeclarator)
+            else if (curr.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
             {
-                var name = curr.GetChildForField(TreeSitterSyntax.Fields.Name) ?? curr.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
+                var name = curr.GetChildForField(TreeSitterSyntax.Fields.Name) ?? curr.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Common.Identifier));
                 if (name.IsValid()) return name.Text;
             }
         }

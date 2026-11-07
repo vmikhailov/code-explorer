@@ -49,10 +49,10 @@ public class PythonFileVisitor : BaseParserVisitor
                 return OntologyConstants.NodeLabels.Query;
             }
         }
-        return node.Type switch
+        return node switch
         {
-            TreeSitterSyntax.Python.ClassDefinition => "Class",
-            TreeSitterSyntax.Python.FunctionDefinition => OntologyConstants.NodeLabels.Function,
+            CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class } => "Class",
+            CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax => OntologyConstants.NodeLabels.Function,
             _ => null
         };
     }
@@ -93,7 +93,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private bool IsPythonMainGuard(Node node)
     {
-        if (node.Type != "if_statement" || WorkspaceConventions.IsTestFilePath(RelativePath))
+        if (node is not CodeExplorer.Core.Parser.Syntax.ControlFlowStmtSyntax { Kind: CodeExplorer.Core.Parser.Syntax.ControlFlowKind.If } || WorkspaceConventions.IsTestFilePath(RelativePath))
             return false;
 
         var cond = node.GetChildForField("condition");
@@ -190,30 +190,24 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override void VisitImportStatement(Node node, int depth)
     {
-        if (node.Is(TreeSitterSyntax.Python.ImportStatement))
+        var moduleNode = node.GetChildForField(TreeSitterSyntax.Fields.ModuleName);
+        if (moduleNode.IsValid())
+        {
+            var importPath = moduleNode.Text;
+            RawImports.Add(new RawImport(importPath, "", ImportType.External));
+            ResolveAndInjectLibraryParser(importPath);
+        }
+        else if (node.Is(TreeSitterSyntax.Python.ImportStatement))
         {
             foreach (var child in node.Children)
             {
-                if (child.IsAny(TreeSitterSyntax.Python.DottedName, TreeSitterSyntax.Python.AliasedName))
+                if (child is CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax or CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax or CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax ||
+                    child.IsAny(TreeSitterSyntax.Python.DottedName, TreeSitterSyntax.Python.AliasedName))
                 {
                     var importPath = child.Text;
                     RawImports.Add(new RawImport(importPath, "", ImportType.External));
                     ResolveAndInjectLibraryParser(importPath);
                 }
-            }
-        }
-        else if (node.Is(TreeSitterSyntax.Python.ImportFromStatement))
-        {
-            var moduleNode = node.GetChildForField(TreeSitterSyntax.Fields.ModuleName);
-            if (!moduleNode.IsValid())
-            {
-                moduleNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.DottedName));
-            }
-            if (moduleNode.IsValid())
-            {
-                var importPath = moduleNode.Text;
-                RawImports.Add(new RawImport(importPath, "", ImportType.External));
-                ResolveAndInjectLibraryParser(importPath);
             }
         }
         VisitChildren(node, depth);

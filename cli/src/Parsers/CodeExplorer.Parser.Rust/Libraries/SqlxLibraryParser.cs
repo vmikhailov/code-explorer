@@ -68,8 +68,8 @@ public class SqlxLibraryParser : ISemanticExtension
         sqlText = string.Empty;
         primaryTable = null;
 
-        var isCall = node.Type == TreeSitterSyntax.Rust.CallExpression;
-        var isMacro = node.Type == TreeSitterSyntax.Rust.MacroInvocation;
+        var isCall = node.Is(TreeSitterSyntax.Rust.CallExpression);
+        var isMacro = node.Is(TreeSitterSyntax.Rust.MacroInvocation);
 
         if (!isCall && !isMacro)
         {
@@ -111,7 +111,7 @@ public class SqlxLibraryParser : ISemanticExtension
     {
         dbEngine = string.Empty;
 
-        if (node.Type is TreeSitterSyntax.Rust.UseDeclaration or TreeSitterSyntax.Rust.TypeIdentifier or TreeSitterSyntax.Rust.ScopedTypeIdentifier)
+        if (node.IsAny(TreeSitterSyntax.Rust.UseDeclaration, TreeSitterSyntax.Rust.TypeIdentifier, TreeSitterSyntax.Rust.ScopedTypeIdentifier))
         {
             var span = node.TextSpan;
             if (span.Contains("PgPool", StringComparison.OrdinalIgnoreCase) ||
@@ -135,7 +135,7 @@ public class SqlxLibraryParser : ISemanticExtension
             return false;
         }
 
-        if (node.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return false;
         }

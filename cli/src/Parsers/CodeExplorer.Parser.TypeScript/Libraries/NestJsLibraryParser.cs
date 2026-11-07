@@ -317,7 +317,11 @@ public class NestJsLibraryParser : ISemanticExtension
                     var route = ExtractIdentifier(dec, ctx);
                     if (!string.IsNullOrEmpty(route))
                     {
-                        references.Add(new Reference(scopeSymbolId, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                        var colonIdx = route.IndexOf(':');
+                        var routeKey = colonIdx > 0
+                            ? string.Concat(route.AsSpan(0, colonIdx), " ", route.AsSpan(colonIdx + 1))
+                            : route;
+                        references.Add(new Reference(scopeSymbolId, routeKey, OntologyConstants.Relationships.Implements));
                     }
                 }
             }

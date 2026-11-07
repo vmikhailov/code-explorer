@@ -165,6 +165,16 @@ public static class OntologyUploader
                 if (node.Kind is NodeKind.Endpoint or NodeKind.EntryPoint)
                 {
                     ctx.AddGlobalSymbol(node.Kind, nameStr.Replace(":", " "), node.Id);
+                    var colonIdx = nameStr.IndexOf(':');
+                    if (colonIdx > 0)
+                    {
+                        var firstColonReplaced = string.Concat(nameStr.AsSpan(0, colonIdx), " ", nameStr.AsSpan(colonIdx + 1));
+                        ctx.AddGlobalSymbol(node.Kind, firstColonReplaced, node.Id);
+                        if (firstColonReplaced.Contains(" /api/", StringComparison.Ordinal))
+                        {
+                            ctx.AddGlobalSymbol(node.Kind, firstColonReplaced.Replace(" /api/", " /"), node.Id);
+                        }
+                    }
                 }
                 if (node.Kind == NodeKind.Function && parentNode != null &&
                     parentNode.Kind == NodeKind.Type)

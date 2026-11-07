@@ -697,6 +697,12 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
     }
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string?> _dirToProjectDirCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly HashSet<string> NodeBuiltInModules = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "fs", "path", "os", "http", "https", "crypto", "child_process", "dns", "events", "net", "stream", "util", "url", "zlib"
+    };
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
@@ -757,11 +763,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
                 if (deps.Contains(firstSegment) || deps.Contains(importPath))
                     return ImportType.External;
 
-                var builtIns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "fs", "path", "os", "http", "https", "crypto", "child_process", "dns", "events", "net", "stream", "util", "url", "zlib"
-                };
-                if (builtIns.Contains(firstSegment))
+                if (NodeBuiltInModules.Contains(firstSegment))
                     return ImportType.External;
 
                 if (deps.Count == 0)
@@ -776,13 +778,18 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
 
     private string? FindProjectDirectoryWithPackageJson(string? dir)
     {
-        while (dir != null)
+        if (string.IsNullOrEmpty(dir)) return null;
+        return _dirToProjectDirCache.GetOrAdd(dir, static startDir =>
         {
-            if (File.Exists(Path.Combine(dir, "package.json")))
-                return dir;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
+            var current = startDir;
+            while (current != null)
+            {
+                if (File.Exists(Path.Combine(current, "package.json")))
+                    return current;
+                current = Path.GetDirectoryName(current);
+            }
+            return null;
+        });
     }
 
     private HashSet<string> LoadPackageJsonDependencies(string projectDir)

@@ -27,7 +27,11 @@ public partial class Layer5AnalysisParser
 
         // Find candidate source files in the project/workspace that match the asset
         var candidateFiles = new List<string>();
-        foreach (var file in symbols.KnownFiles)
+        var filesToScan = callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var pFiles)
+            ? (IEnumerable<string>)pFiles
+            : symbols.KnownFiles;
+
+        foreach (var file in filesToScan)
         {
             var norm = file.Replace('\\', '/');
             if (callerProj != null)

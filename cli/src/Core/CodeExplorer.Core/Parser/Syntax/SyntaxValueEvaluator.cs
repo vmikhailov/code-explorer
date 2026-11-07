@@ -37,17 +37,15 @@ public static class SyntaxValueEvaluator
             var variable = doc.AllVariables[i];
             if (variable.Initializer != null)
             {
-                if (AstValueResolver.TryResolveStringWithDecoding(variable.Initializer, contextKey, out var val, out var varDecoded) && !string.IsNullOrEmpty(val))
+                if (variable.Initializer is not (LambdaExprSyntax or CollectionExprSyntax) &&
+                    AstValueResolver.TryResolveStringWithDecoding(variable.Initializer, contextKey, out var val, out var varDecoded) &&
+                    !string.IsNullOrEmpty(val))
                 {
                     variable.ResolvedValue = val;
                     variable.Initializer.ResolvedValue = val;
                     variable.IsDecoded = varDecoded;
                     variable.Initializer.IsDecoded = varDecoded;
                 }
-            }
-            else if (variable.ResolvedValue == null && AstValueResolver.TryResolveString(variable, contextKey, out var declVal) && !string.IsNullOrEmpty(declVal))
-            {
-                variable.ResolvedValue = declVal;
             }
         }
 
@@ -112,7 +110,7 @@ public static class SyntaxValueEvaluator
         expr is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString, IsDecoded: true }
             or LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString, Children.Count: > 0 }
             or InterpolatedStringExprSyntax
-            or BinaryExprSyntax
+            or BinaryExprSyntax { Operator: "+" or "." or "" or null }
             or CallExprSyntax;
 
     private static SqlStmtSyntax CreateEmbeddedSqlNode(ExprSyntax hostExpr, SyntaxDocument doc, string sqlText, string firstWord)
@@ -160,7 +158,6 @@ public static class SyntaxValueEvaluator
         {
             NodeId = hostExpr.NodeId,
             Span = hostExpr.Span,
-            RawGrammarKind = "embedded_sql",
             FieldRole = "embedded_sql",
             Document = doc,
             Parent = hostExpr,

@@ -348,6 +348,9 @@ public partial class Layer3SyntacticParser
                 : Environment.ProcessorCount
         };
 
+        var visitedPass2FilesCount = 0;
+        var lastPass2ReportTicks = Environment.TickCount64;
+
         foreach (var (project, projectSyntaxNode, projectFiles, parsedResults) in projectPass1List)
         {
             var parallelOptions = parallelOptionsPass2;
@@ -409,6 +412,20 @@ public partial class Layer3SyntacticParser
                         ctx.Layer3Log.VisitorFailed(syntaxTree.FilePath, ex.Message, ex);
                         ctx.RecordScanIssue("Layer3_Visitor", "visitor_exception", file.Path, ex.Message, name: "VisitorException", severity: "error", exception: ex, language: syntaxTree.FileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                     }
+                }
+
+                var completedPass2 = Interlocked.Increment(ref visitedPass2FilesCount);
+                var nowTicks = Environment.TickCount64;
+                if (totalFilesAcrossProjects > 0 &&
+                    (completedPass2 == totalFilesAcrossProjects ||
+                     completedPass2 % Math.Max(50, totalFilesAcrossProjects / 10) == 0 ||
+                     (nowTicks - lastPass2ReportTicks >= 3000 && completedPass2 > 0)))
+                {
+                    lastPass2ReportTicks = nowTicks;
+                    var pctDone = (int)Math.Round(completedPass2 * 100.0 / totalFilesAcrossProjects);
+                    const string layer3StageName = "Layer 3: Syntactic";
+                    ctx.ReportProgress(40 + (int)(12.0 * completedPass2 / totalFilesAcrossProjects), layer3StageName, $"Analyzing AST semantics and visitors: {completedPass2}/{totalFilesAcrossProjects} files ({pctDone}%) [{project.Name}]", completedPass2, totalFilesAcrossProjects);
+                    ctx.Layer3Log.VisitorProgress(completedPass2, totalFilesAcrossProjects, pctDone, project.Name);
                 }
 
                 return ValueTask.CompletedTask;
@@ -656,6 +673,11 @@ public partial class Layer3SyntacticParser
         }
         IndexOntologyTree(fileNode, null);
 
+        var hasLateExportMarkers = doc.SourceText.Contains("module.exports", StringComparison.Ordinal) ||
+                                   doc.SourceText.Contains("exports.", StringComparison.Ordinal) ||
+                                   doc.SourceText.Contains("export {", StringComparison.Ordinal) ||
+                                   doc.SourceText.Contains("export default ", StringComparison.Ordinal);
+
         // 1. Enrich all FunctionDeclSyntax nodes with export flags and dataflow signals
         foreach (var fnDecl in doc.AllFunctions.OrderBy(f => f.Span.StartLine))
         {
@@ -703,7 +725,7 @@ public partial class Layer3SyntacticParser
                 functionsByLineAndName[(startLine, fnName)] = fnNode;
             }
 
-            if (IsSyntaxFunctionExported(fnDecl, doc))
+            if (IsSyntaxFunctionExported(fnDecl, doc, hasLateExportMarkers))
             {
                 fnNode.IsExported = true;
                 fnNode.Flags |= SymbolFlags.IsExported;
@@ -742,67 +764,70 @@ public partial class Layer3SyntacticParser
         // 2. Support ES5 Prototype method assignments (`ClassName.prototype.methodName = function(...)`)
         if (syntaxTree.RootNode != null)
         {
-            foreach (var assignExpr in EnumerateSyntaxAssignments(syntaxTree.RootNode))
+            if (doc.SourceText.Contains(".prototype.", StringComparison.Ordinal))
             {
-                if (!TryParseSyntaxPrototypeMethod(assignExpr, out var protoClass, out var protoMethod, out var protoLambda))
+                foreach (var assignExpr in EnumerateSyntaxAssignments(syntaxTree.RootNode))
                 {
-                    continue;
-                }
-
-                if (!typesByName.TryGetValue(protoClass, out var typeNode))
-                {
-                    var typeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Type:{protoClass}";
-                    typeNode = new TypeNode(
-                        typeId,
-                        protoClass,
-                        typeId,
-                        relativePath,
-                        relativePath,
-                        protoLambda.Span.StartLine + 1,
-                        protoLambda.Span.EndLine + 1,
-                        1,
-                        1,
-                        "class",
-                        isTest,
-                        projectKind,
-                        projectName)
+                    if (!TryParseSyntaxPrototypeMethod(assignExpr, out var protoClass, out var protoMethod, out var protoLambda))
                     {
-                        IsExported = true,
-                        Flags = SymbolFlags.IsExported
-                    };
-                    fileNode.Children.Add(typeNode);
-                    typesByName[protoClass] = typeNode;
-                }
+                        continue;
+                    }
 
-                var startLine = protoLambda.Span.StartLine + 1;
-                if (!functionsByLineAndName.TryGetValue((startLine, protoMethod), out var protoFnNode))
-                {
-                    var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{protoClass}.{protoMethod}";
-                    protoFnNode = new FunctionNode(
-                        fnId,
-                        protoMethod,
-                        fnId,
-                        relativePath,
-                        relativePath,
-                        startLine,
-                        protoLambda.Span.EndLine + 1,
-                        protoLambda.Span.StartColumn + 1,
-                        protoLambda.Span.EndColumn + 1,
-                        isTest,
-                        projectKind,
-                        projectName);
-                    typeNode.Children.Add(protoFnNode);
-                    functionsByLineAndName[(startLine, protoMethod)] = protoFnNode;
-                }
+                    if (!typesByName.TryGetValue(protoClass, out var typeNode))
+                    {
+                        var typeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Type:{protoClass}";
+                        typeNode = new TypeNode(
+                            typeId,
+                            protoClass,
+                            typeId,
+                            relativePath,
+                            relativePath,
+                            protoLambda.Span.StartLine + 1,
+                            protoLambda.Span.EndLine + 1,
+                            1,
+                            1,
+                            "class",
+                            isTest,
+                            projectKind,
+                            projectName)
+                        {
+                            IsExported = true,
+                            Flags = SymbolFlags.IsExported
+                        };
+                        fileNode.Children.Add(typeNode);
+                        typesByName[protoClass] = typeNode;
+                    }
 
-                if (!typeNode.Children.Contains(protoFnNode))
-                {
-                    fileNode.Children.Remove(protoFnNode);
-                    typeNode.Children.Add(protoFnNode);
+                    var startLine = protoLambda.Span.StartLine + 1;
+                    if (!functionsByLineAndName.TryGetValue((startLine, protoMethod), out var protoFnNode))
+                    {
+                        var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{protoClass}.{protoMethod}";
+                        protoFnNode = new FunctionNode(
+                            fnId,
+                            protoMethod,
+                            fnId,
+                            relativePath,
+                            relativePath,
+                            startLine,
+                            protoLambda.Span.EndLine + 1,
+                            protoLambda.Span.StartColumn + 1,
+                            protoLambda.Span.EndColumn + 1,
+                            isTest,
+                            projectKind,
+                            projectName);
+                        typeNode.Children.Add(protoFnNode);
+                        functionsByLineAndName[(startLine, protoMethod)] = protoFnNode;
+                    }
+
+                    if (!typeNode.Children.Contains(protoFnNode))
+                    {
+                        fileNode.Children.Remove(protoFnNode);
+                        typeNode.Children.Add(protoFnNode);
+                    }
+                    protoFnNode.Signals().EnclosingTypeName = protoClass;
+                    protoFnNode.IsExported = true;
+                    protoFnNode.Flags |= SymbolFlags.IsExported;
                 }
-                protoFnNode.Signals().EnclosingTypeName = protoClass;
-                protoFnNode.IsExported = true;
-                protoFnNode.Flags |= SymbolFlags.IsExported;
             }
 
             foreach (var (lambdaName, lambdaNode) in EnumerateNamedLambdaFunctions(syntaxTree.RootNode))
@@ -877,7 +902,7 @@ public partial class Layer3SyntacticParser
         var callsByLineAndName = new Dictionary<(int Line, string MethodName), CallExprSyntax>();
         var callsByLine = new Dictionary<int, List<CallExprSyntax>>();
 
-        foreach (var call in doc.DescendantsAndSelf().OfType<CallExprSyntax>())
+        foreach (var call in doc.AllCalls)
         {
             var line = call.Span.StartLine + 1;
             if (!string.IsNullOrEmpty(call.MethodName))
@@ -901,7 +926,7 @@ public partial class Layer3SyntacticParser
                 for (int i = 0; i < node.References.Count; i++)
                 {
                     var r = node.References[i];
-                    if (r.Line <= 0) continue;
+                    if (r.Line <= 0 || r.Kind != OntologyConstants.Relationships.Calls) continue;
 
                     var targetMethod = r.TargetName;
                     if (targetMethod.Contains('.'))

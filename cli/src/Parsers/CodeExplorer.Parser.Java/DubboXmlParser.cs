@@ -36,6 +36,7 @@ public class DubboXmlParser : IFileParser
         public const string DubboNamespaceMarker = "http://dubbo.apache.org/schema/dubbo";
         public const string DubboSchemaMarker = "dubbo.xsd";
         public const string DubboPrefixTag = "<dubbo:";
+        public const string StreamingModeUnary = "Unary";
     }
 
     public string LanguageName => Constants.LanguageName;
@@ -181,7 +182,7 @@ public class DubboXmlParser : IFileParser
                         null,
                         null,
                         null,
-                        "Unary")
+                        Constants.StreamingModeUnary)
                     {
                         FilePath = relativePath,
                         StartLine = line,

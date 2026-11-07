@@ -51,7 +51,8 @@ public static class PhysicalFileStore
         bool isManifest,
         bool isSupportedSourceOrConfig,
         WorkspaceFileFilter fileFilter,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool computeHash = true)
     {
         const int ChunkSize = 16384;
         var byteBuf = ArrayPool<byte>.Shared.Rent(ChunkSize);
@@ -93,8 +94,11 @@ public static class PhysicalFileStore
                 ? fileFilter.ClassifyFileArtifactRole(relativeFile, fileName, firstSpan)
                 : null;
 
-            using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            Incremental.HashUtility.AppendNormalizedData(sha, firstSpan);
+            using var sha = computeHash ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
+            if (sha != null)
+            {
+                Incremental.HashUtility.AppendNormalizedData(sha, firstSpan);
+            }
 
             var newlines = 0;
             byte lastByte = 0;
@@ -112,7 +116,7 @@ public static class PhysicalFileStore
             {
                 if (firstLen == 0)
                 {
-                    var emptyHash = Incremental.HashUtility.FinalizeHash(sha);
+                    var emptyHash = sha != null ? Incremental.HashUtility.FinalizeHash(sha) : null;
                     SetFileText(fullPath, string.Empty);
                     return new StreamedFileResult(skipByContent, emptyHash, 0, artifactRole, string.Empty);
                 }
@@ -135,7 +139,10 @@ public static class PhysicalFileStore
                 if (read == 0) break;
 
                 var chunkSpan = byteBuf.AsSpan(0, read);
-                Incremental.HashUtility.AppendNormalizedData(sha, chunkSpan);
+                if (sha != null)
+                {
+                    Incremental.HashUtility.AppendNormalizedData(sha, chunkSpan);
+                }
                 newlines += chunkSpan.Count((byte)'\n');
                 lastByte = chunkSpan[^1];
                 hasBytes = true;
@@ -154,7 +161,7 @@ public static class PhysicalFileStore
                 SetFileText(fullPath, decodedText);
             }
 
-            var contentHash = Incremental.HashUtility.FinalizeHash(sha);
+            var contentHash = sha != null ? Incremental.HashUtility.FinalizeHash(sha) : null;
             int? lineCount = isSupportedSourceOrConfig && !skipByContent
                 ? (!hasBytes ? 0 : (lastByte == (byte)'\n' ? newlines : newlines + 1))
                 : null;

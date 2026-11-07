@@ -151,7 +151,7 @@ public class FastApiLibraryParser : ISemanticExtension
                 var retNode = fn.GetChildForField(TreeSitterSyntax.Fields.ReturnType);
                 if (!retNode.IsValid())
                 {
-                    retNode = fn.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Python.Type);
+                    retNode = fn.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Type));
                 }
                 if (retNode.IsValid())
                 {
@@ -541,7 +541,7 @@ public class FastApiLibraryParser : ISemanticExtension
             paramName = nameNode?.Text;
 
             var typeNode = paramNode.GetChildForField(TreeSitterSyntax.Fields.Type) ??
-                           paramNode.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Python.Type);
+                           paramNode.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Type));
             typeName = typeNode?.Text;
 
             defaultValue = paramNode.GetChildForField(TreeSitterSyntax.Fields.Value) ??
@@ -554,7 +554,7 @@ public class FastApiLibraryParser : ISemanticExtension
             paramName = nameNode?.Text;
 
             var typeNode = paramNode.GetChildForField(TreeSitterSyntax.Fields.Type) ??
-                           paramNode.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Python.Type);
+                           paramNode.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Type));
             typeName = typeNode?.Text;
         }
         else if (paramNode.Is(TreeSitterSyntax.Python.DefaultParameter))

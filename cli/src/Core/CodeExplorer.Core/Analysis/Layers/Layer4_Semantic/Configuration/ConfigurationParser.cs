@@ -146,7 +146,9 @@ public static class ConfigurationParser
         }
         else if (lower.Contains(".db") || lower.Contains(".sqlite") || lowerName.Contains("sqlite"))
         {
-            CreateDatabaseNode("SQLite", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            const string engineSqlite = "SQLite";
+            const string dbTypeRelational = "relational";
+            CreateDatabaseNode(engineSqlite, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
     }
 

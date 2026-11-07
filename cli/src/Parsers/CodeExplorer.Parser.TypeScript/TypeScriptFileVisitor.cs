@@ -55,19 +55,13 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             }
         }
 
-        return node.Type switch
+        return node switch
         {
-            TreeSitterSyntax.TypeScript.ClassDeclaration or
-            TreeSitterSyntax.TypeScript.ClassExpression or
-            TreeSitterSyntax.TypeScript.EnumDeclaration => "Class",
+            CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } => "Class",
 
-            TreeSitterSyntax.TypeScript.InterfaceDeclaration or
-            TreeSitterSyntax.TypeScript.TypeAliasDeclaration => "Interface",
+            CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.TypeAlias } => "Interface",
 
-            TreeSitterSyntax.TypeScript.MethodDefinition or
-            TreeSitterSyntax.TypeScript.FunctionDeclaration or
-            TreeSitterSyntax.TypeScript.FunctionExpression or
-            TreeSitterSyntax.TypeScript.ArrowFunction =>
+            CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax or CodeExplorer.Core.Parser.Syntax.LambdaExprSyntax =>
                 OntologyConstants.NodeLabels.Function,
 
             _ => null
@@ -169,7 +163,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (arg.Type is "array" or "array_expression")
+        else if (arg is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax { Kind: CodeExplorer.Core.Parser.Syntax.CollectionSyntaxKind.Array })
         {
             foreach (var child in arg.Children)
             {
@@ -372,7 +366,14 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
         CollectVariableAndTypeBindings(node);
-        base.VisitVariableDeclaration(node, depth);
+        if (node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
+        {
+            base.VisitVariableDeclaration(node, depth);
+        }
+        else
+        {
+            VisitChildren(node, depth);
+        }
     }
 
     protected override void VisitParameter(Node node, int depth)
@@ -569,7 +570,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override void VisitDefault(Node node, int depth)
     {
-        if (node.Type is "jsx_opening_element" or "jsx_self_closing_element")
+        if (node is CodeExplorer.Core.Parser.Syntax.UiElementSyntax { IsClosing: false, IsFragment: false })
         {
             ExtractJsxComponentCall(node);
         }
@@ -587,8 +588,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         if (!nameNode.IsValid())
         {
             nameNode = node.Children.FirstOrDefault(c =>
-                c.Is(TreeSitterSyntax.TypeScript.Identifier) ||
-                c.Type is "nested_identifier" or "member_expression" or "jsx_identifier");
+                c is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax or CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax);
         }
 
         if (!nameNode.IsValid()) return;
@@ -682,7 +682,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         {
             var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.PropertyIdentifier));
-            var name = nameNode?.Text;
+            var name = nameNode?.Text ?? (node as CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax)?.Name;
 
             if (!string.IsNullOrEmpty(name))
             {
@@ -690,9 +690,6 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
                 var isConstant = false;
                 var scope = "class";
-
-                RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row + 1,
-                    node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1));
 
                 var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
                 string? fieldTypeName = null;
@@ -702,10 +699,27 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
                     if (typeNode != null) fieldTypeName = typeNode.Text;
                 }
+                else if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { MemberType: { } mType } && mType.IsValid())
+                {
+                    fieldTypeName = mType.Text.TrimStart(':').Trim();
+                }
                 else if (valueNode.IsValid())
                 {
                     fieldTypeName = TryInferTypeFromInitializer(valueNode);
                 }
+
+                RawVariables.Add(new RawVariable(
+                    name,
+                    initializerText,
+                    scope,
+                    isConstant,
+                    "",
+                    node.StartPosition.Row + 1,
+                    node.EndPosition.Row + 1,
+                    node.StartPosition.Column + 1,
+                    node.EndPosition.Column + 1,
+                    fieldTypeName,
+                    CodeExplorer.Cypher.Common.MemberKind.Property));
 
                 if (!string.IsNullOrEmpty(fieldTypeName))
                 {
@@ -762,7 +776,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         {
             if (curr.Is(TreeSitterSyntax.TypeScript.LexicalDeclaration))
             {
-                return curr.Text.StartsWith("const");
+                return curr.AsSpan().StartsWith("const", StringComparison.Ordinal);
             }
 
             curr = curr.Parent;

@@ -35,7 +35,7 @@ public partial class Layer3SyntacticParser
             if (curr is LambdaExprSyntax lambda)
             {
                 var calleeCandidate = (SyntaxNode)lambda;
-                while (calleeCandidate.Parent != null && calleeCandidate.Parent.RawGrammarKind == "parenthesized_expression")
+                while (calleeCandidate.Parent is ParenthesizedExprSyntax)
                 {
                     calleeCandidate = calleeCandidate.Parent;
                 }
@@ -111,9 +111,9 @@ public partial class Layer3SyntacticParser
         {
             var prop = !string.IsNullOrEmpty(mem.MemberName) ? mem.MemberName : call.MethodName;
             var obj = mem.Object;
-            while (obj != null && obj.RawGrammarKind == "parenthesized_expression" && obj.Children.Count > 0)
+            while (obj is ParenthesizedExprSyntax parenExpr)
             {
-                obj = obj.Children[0] as ExprSyntax;
+                obj = parenExpr.Expression ?? (parenExpr.Children.Count > 0 ? parenExpr.Children[0] as ExprSyntax : null);
             }
             if (obj is CallExprSyntax innerCall &&
                 innerCall.MethodName == "require" &&
@@ -225,7 +225,7 @@ public partial class Layer3SyntacticParser
         return true;
     }
 
-    private static bool IsSyntaxFunctionExported(FunctionDeclSyntax fnDecl, SyntaxDocument doc)
+    private static bool IsSyntaxFunctionExported(FunctionDeclSyntax fnDecl, SyntaxDocument doc, bool hasLateExportMarkers = false)
     {
         if ((fnDecl.Modifiers & SyntaxModifiers.Export) != 0 || (fnDecl.Modifiers & SyntaxModifiers.Public) != 0)
         {
@@ -235,22 +235,27 @@ public partial class Layer3SyntacticParser
         var curr = fnDecl.Parent;
         while (curr != null)
         {
-            if (curr.RawGrammarKind is "export_statement" or "export_declaration") return true;
+            if (curr is ImportDeclSyntax { IsReExport: true }) return true;
             if (curr is TypeDeclSyntax td)
             {
                 if ((td.Modifiers & SyntaxModifiers.Export) != 0 || (td.Modifiers & SyntaxModifiers.Public) != 0) return true;
-                if (td.Parent?.RawGrammarKind is "export_statement" or "export_declaration") return true;
-                var typeName = !string.IsNullOrWhiteSpace(td.Name)
-                    ? td.Name
-                    : (td.GetChildForField(SyntaxFields.Name) ?? td.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text.Trim();
-                if (!string.IsNullOrEmpty(typeName) && doc.SourceText.Contains(typeName, StringComparison.Ordinal) &&
-                    (doc.SourceText.Contains("module.exports", StringComparison.Ordinal) || doc.SourceText.Contains("exports.", StringComparison.Ordinal)))
+                if (td.Parent is ImportDeclSyntax { IsReExport: true }) return true;
+                if (hasLateExportMarkers)
                 {
-                    return true;
+                    var typeName = !string.IsNullOrWhiteSpace(td.Name)
+                        ? td.Name
+                        : (td.GetChildForField(SyntaxFields.Name) ?? td.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text.Trim();
+                    if (!string.IsNullOrEmpty(typeName) && doc.SourceText.Contains(typeName, StringComparison.Ordinal) &&
+                        (doc.SourceText.Contains("module.exports", StringComparison.Ordinal) || doc.SourceText.Contains("exports.", StringComparison.Ordinal)))
+                    {
+                        return true;
+                    }
                 }
             }
             curr = curr.Parent;
         }
+
+        if (!hasLateExportMarkers) return false;
 
         var fnName = ExtractSyntaxFunctionName(fnDecl);
         if (!string.IsNullOrEmpty(fnName) && doc.SourceText.Contains(fnName, StringComparison.Ordinal))
@@ -727,6 +732,7 @@ public partial class Layer3SyntacticParser
             {
                 yield return (InferLambdaName(lambda), lambda);
             }
+            if (curr is FunctionDeclSyntax) continue;
             foreach (var child in curr.Children)
             {
                 queue.Enqueue(child);
@@ -779,16 +785,18 @@ public partial class Layer3SyntacticParser
                 }
             }
         }
-        else if (curr?.RawGrammarKind == "export_statement")
+        else if (curr is ImportDeclSyntax { IsReExport: true })
         {
             return "default";
         }
-        else if (curr?.RawGrammarKind == "pair")
+        else if (curr is KeyValueExprSyntax kv)
         {
-            var keyNode = curr.GetChildForField(SyntaxFields.Key) ?? (curr.NamedChildren.Count > 0 ? curr.NamedChildren[0] : null);
+            var keyName = kv.KeyText.Trim().Trim('"', '\'', '`');
+            if (!string.IsNullOrEmpty(keyName)) return keyName;
+            var keyNode = kv.Key ?? kv.GetChildForField(SyntaxFields.Key) ?? (kv.NamedChildren.Count > 0 ? kv.NamedChildren[0] : null);
             if (keyNode != null)
             {
-                var keyName = keyNode.Text.Trim().Trim('"', '\'', '`');
+                keyName = keyNode.Text.Trim().Trim('"', '\'', '`');
                 if (!string.IsNullOrEmpty(keyName)) return keyName;
             }
         }

@@ -75,7 +75,7 @@ public class TonicLibraryParser : ISemanticExtension
         traitName = string.Empty;
         methodName = string.Empty;
 
-        if (node.Type != TreeSitterSyntax.Rust.FunctionItem && node.Type != TreeSitterSyntax.Rust.FunctionSignatureItem)
+        if (!node.Is(TreeSitterSyntax.Rust.FunctionItem) && !node.Is(TreeSitterSyntax.Rust.FunctionSignatureItem))
         {
             return false;
         }
@@ -88,7 +88,7 @@ public class TonicLibraryParser : ISemanticExtension
         var curr = parent;
         while (curr.IsValid())
         {
-            if (curr.Type == TreeSitterSyntax.Rust.ImplItem)
+            if (curr.Is(TreeSitterSyntax.Rust.ImplItem))
             {
                 implNode = curr;
                 break;
@@ -99,7 +99,7 @@ public class TonicLibraryParser : ISemanticExtension
         if (implNode == null || !implNode.IsValid()) return false;
 
         var hasTonicAttr = implNode.Children.Any(c =>
-            c.Type == TreeSitterSyntax.Rust.AttributeItem &&
+            c.Is(TreeSitterSyntax.Rust.AttributeItem) &&
             (c.Text.Contains("tonic::async_trait", StringComparison.OrdinalIgnoreCase) ||
              c.Text.Contains("async_trait", StringComparison.OrdinalIgnoreCase) ||
              c.Text.Contains("tonic", StringComparison.OrdinalIgnoreCase)))
@@ -153,7 +153,7 @@ public class TonicLibraryParser : ISemanticExtension
         if (string.IsNullOrEmpty(traitName)) return false;
 
         var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                       node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                       node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
 
         if (nameNode.IsValid())
         {
@@ -181,7 +181,7 @@ public class TonicLibraryParser : ISemanticExtension
     {
         target = string.Empty;
 
-        if (node.Type != TreeSitterSyntax.Rust.CallExpression)
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
         {
             return false;
         }
@@ -233,7 +233,7 @@ public class TonicLibraryParser : ISemanticExtension
             for (var i = idx - 1; i >= 0; i--)
             {
                 var prev = children[i];
-                if (prev.Type == TreeSitterSyntax.Rust.AttributeItem)
+                if (prev.Is(TreeSitterSyntax.Rust.AttributeItem))
                 {
                     if (prev.Text.Contains("tonic", StringComparison.OrdinalIgnoreCase) ||
                         prev.Text.Contains("async_trait", StringComparison.OrdinalIgnoreCase))

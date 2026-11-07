@@ -18,7 +18,9 @@ This document consolidates all **8 architectural proposals** in [`docs/proposals
 | **6** | [`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md) | 🟡 **~15% Complete** (Initial `DeclarativeSemanticExtension` exists) | Build `YamlSemanticProjectionEngine` ($O(1)$ `FrozenDictionary` dispatch), migrate 16 Host Component parsers (Bucket A) and 106 Library parsers (Bucket B) to YAML packs, and extract shared `RoutePrefixResolver` (Bucket C). |
 | **7** | [`universal-parser-proposal.md`](./universal-parser-proposal.md) | ⚪ Scoped PoC | Implement `UniversalAstVisitor` + `LanguageSyntaxProfile` + `ILanguageHooks`. Track A: 100% parity harness on Java; Track B: new `CodeExplorer.Parser.Swift` assembly. |
 | **8** | [`ontology-visualization-and-cypher-intellisense-proposal.md`](./ontology-visualization-and-cypher-intellisense-proposal.md) | ⚪ Draft | Emit `ontology-schema.json` in `CodeExplorer.OntologyGen`, expose `/api/ontology` with Schema Drift detection, build 5-layer swimlane Ontology View, and add context-aware OpenCypher + SIG IntelliSense. |
-| **9** | [`partial-layer-and-in-memory-scanning-proposal.md`](./partial-layer-and-in-memory-scanning-proposal.md) | ⚪ Proposed | First-class partial-layer (`MaxLayer = Layer1..Layer5`) and zero-overhead pure in-memory scanning API (`WorkspaceIndexer.ScanInMemoryAsync`) in `CodeExplorer.Core`, removing Passport-specific hooks from `ParsingContext`. |
+| **9** | [`partial-layer-and-in-memory-scanning-proposal.md`](./partial-layer-and-in-memory-scanning-proposal.md) | 🟢 **Complete** | First-class partial-layer (`MaxLayer = Layer1..Layer5`) and zero-overhead pure in-memory scanning API (`WorkspaceIndexer.ScanInMemoryAsync`) in `CodeExplorer.Core`, removing Passport-specific hooks from `ParsingContext`. |
+| **10** | [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md) | ⚪ **Proposed (Next)** | **Pillar 1**: Algorithmic loop bottleneck detection (`has_linear_scan_in_loop`, `has_alloc_in_loop`, `max_access_depth`) & gates `SIG-M-P-001/002`; **Pillar 2**: Post-Layer-4 UAST memory compaction (`SyntaxDocument.Compact()`); **Pillar 3**: Pre-resolved numeric `TSFieldId` lookup caching; **Pillar 4**: Deterministic `MaxAstNodeBudget`; **Pillar 5**: Direct UAST type/import resolution retiring `RawImports`/`RawVariables`/`RawTypeBindings`. |
+| **11** | [`ecosystem-library-expansion-proposal.md`](./ecosystem-library-expansion-proposal.md) | ⚪ **Proposed** | Top 10 high-value ecosystem libraries across 6 languages (60 total: Celery, Hangfire, tRPC, Ktor, Exposed, Watermill, Temporal, etc.) implemented via hybrid Declarative YAML rule packs & C# UAST analyzers. |
 
 ---
 
@@ -70,6 +72,14 @@ flowchart TD
      - Eliminates "hollow shell" UAST nodes by populating all strongly-typed properties (`Parameters`, `Body`, `Arguments`, `Initializer`, `Left/Right`, `Condition`, `ThenBranch/ElseBranch`) in `TreeSitterSyntaxConverterBase` and language converters.
      - Computes `CallSiteExecutionContext` (`in_loop`, `loop_depth`, `is_conditional`, `in_try`, `in_catch`, `in_lock`, `is_awaited`) in $O(\text{depth})$ parent hops.
      - Computes intra-procedural `FunctionDataflowSummary` (`arg_flow` on `CALLS` edges, `df_return` and `df_writes` on `FunctionNode`) during standard Layer 3 scanning.
+
+3. **Step 1.3 — UAST Performance Engineering, Memory Compaction & Algorithmic Loop Semantics**
+   - **Proposal:** [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md)
+   - **Scope:**
+     - Computes `has_linear_scan_in_loop`, `has_alloc_in_loop`, and `max_access_depth` during `FunctionDataflowAnalyzer` and adds built-in gates `SIG-M-P-001` (Hidden $O(N^2)$ linear scan in loop) and `SIG-M-P-002` (Law of Demeter chain depth).
+     - Adds `SyntaxDocument.Compact()` after Layer 4 to release statement bodies and expression subtrees before Layer 5 (~75–80% UAST RAM reduction).
+     - Pre-resolves numeric `TSFieldId` lookup tables (`GetChildByFieldId`) and enforces a deterministic `MaxAstNodeBudget` (`5,000,000` nodes).
+     - Retires legacy `RawImports`, `RawVariables`, and `RawTypeBindings` buffers on `SyntaxTree` in favor of direct UAST queries.
 
 ---
 

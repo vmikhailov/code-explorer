@@ -97,25 +97,24 @@ public abstract class TreeSitterSyntaxConverterBase
     {
         if (node is DeclarationSyntax decl)
         {
-            var nameChild = decl.GetChildForField(SyntaxFields.Name) ??
-                            decl.FirstChildOfType<IdentifierExprSyntax>();
-            if (nameChild != null)
-            {
-                decl.NameSlice = new SourceSlice(nameChild.Span.StartByte, nameChild.Span.Length);
-            }
-            else if (!decl.HasName && decl.Children.Count == 0 && !decl.Span.IsEmpty)
-            {
-                decl.NameSlice = new SourceSlice(decl.Span.StartByte, decl.Span.Length);
-            }
-            if (decl is NamespaceDeclSyntax ns && ns.HasName && string.IsNullOrEmpty(doc.PackageOrNamespace))
-            {
-                doc.PackageOrNamespace = ns.Name;
-            }
+            TreeSitterSyntaxPopulator.PopulateDeclarationHeader(decl, doc);
         }
 
         switch (node)
         {
             case IdentifierExprSyntax:
+                break;
+
+            case ImportDeclSyntax imp:
+                TreeSitterSyntaxPopulator.PopulateImport(imp);
+                break;
+
+            case TypeRefSyntax typeRef:
+                TreeSitterSyntaxPopulator.PopulateTypeRef(typeRef);
+                break;
+
+            case ParameterDeclSyntax param:
+                TreeSitterSyntaxPopulator.PopulateParameter(param);
                 break;
 
             case LiteralExprSyntax litExpr:
@@ -155,111 +154,27 @@ public abstract class TreeSitterSyntaxConverterBase
                 break;
 
             case FunctionDeclSyntax fn:
-                var paramsContainer = fn.GetChildForField(SyntaxFields.Parameters);
-                if (paramsContainer != null)
-                {
-                    List<ParameterDeclSyntax>? paramList = null;
-                    for (int i = 0; i < paramsContainer.Children.Count; i++)
-                    {
-                        var c = paramsContainer.Children[i];
-                        if (c is ParameterDeclSyntax p)
-                        {
-                            (paramList ??= new List<ParameterDeclSyntax>(paramsContainer.Children.Count)).Add(p);
-                        }
-                        else if (c is IdentifierExprSyntax id)
-                        {
-                            (paramList ??= new List<ParameterDeclSyntax>(paramsContainer.Children.Count)).Add(new ParameterDeclSyntax
-                            {
-                                NameSlice = new SourceSlice(id.Span.StartByte, id.Span.Length),
-                                Span = id.Span,
-                                Document = id.Document,
-                                Parent = fn,
-                                RawGrammarKind = id.RawGrammarKind
-                            });
-                        }
-                    }
-                    if (paramList != null) fn.Parameters = paramList;
-                }
-                else
-                {
-                    List<ParameterDeclSyntax>? directParams = null;
-                    for (int i = 0; i < fn.Children.Count; i++)
-                    {
-                        if (fn.Children[i] is ParameterDeclSyntax dp)
-                        {
-                            (directParams ??= new List<ParameterDeclSyntax>(4)).Add(dp);
-                        }
-                    }
-                    if (directParams != null) fn.Parameters = directParams;
-                }
-                fn.Body = fn.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ?? fn.FirstChildOfType<BlockStmtSyntax>();
-                for (int i = 0; i < fn.Children.Count; i++)
-                {
-                    if (fn.Children[i] is ExprSyntax exprChild && exprChild is not IdentifierExprSyntax)
-                    {
-                        fn.ExpressionBody = exprChild;
-                        break;
-                    }
-                }
-                CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Analyze(fn);
+                TreeSitterSyntaxPopulator.PopulateFunction(fn);
+                break;
+
+            case LambdaExprSyntax lambda:
+                TreeSitterSyntaxPopulator.PopulateLambda(lambda);
                 break;
 
             case CallExprSyntax call:
-                var argsContainer = call.GetChildForField(SyntaxFields.Arguments);
-                if (argsContainer == null)
-                {
-                    for (int i = 0; i < call.Children.Count; i++)
-                    {
-                        if (call.Children[i].RawGrammarKind is "argument_list" or "arguments" or "tuple_expression")
-                        {
-                            argsContainer = call.Children[i];
-                            break;
-                        }
-                    }
-                }
-                if (argsContainer != null)
-                {
-                    List<ArgumentSyntax>? args = null;
-                    for (int i = 0; i < argsContainer.Children.Count; i++)
-                    {
-                        var child = argsContainer.Children[i];
-                        if (child is ArgumentSyntax arg)
-                        {
-                            (args ??= new List<ArgumentSyntax>(argsContainer.Children.Count)).Add(arg);
-                        }
-                        else if (child is ExprSyntax expr && expr.RawGrammarKind is not "(" and not ")" and not ",")
-                        {
-                            (args ??= new List<ArgumentSyntax>(argsContainer.Children.Count)).Add(new ArgumentSyntax
-                            {
-                                Value = expr,
-                                Span = expr.Span,
-                                Parent = call,
-                                Document = call.Document,
-                                RawGrammarKind = "argument"
-                            });
-                        }
-                    }
-                    if (args != null) call.Arguments = args;
-                }
-                else
-                {
-                    List<ArgumentSyntax>? directArgs = null;
-                    for (int i = 0; i < call.Children.Count; i++)
-                    {
-                        if (call.Children[i] is ArgumentSyntax da)
-                        {
-                            (directArgs ??= new List<ArgumentSyntax>(4)).Add(da);
-                        }
-                    }
-                    if (directArgs != null) call.Arguments = directArgs;
-                }
+                call.Arguments = TreeSitterSyntaxPopulator.ExtractArguments(call);
+                break;
+
+            case AnnotationSyntax ann:
+                TreeSitterSyntaxPopulator.PopulateAnnotation(ann);
                 break;
 
             case ArgumentSyntax argSyntax:
-                argSyntax.Value = argSyntax.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
-                                  argSyntax.FirstChildOfType<ExprSyntax>();
-                var argName = argSyntax.GetChildForField(SyntaxFields.Name);
-                if (argName != null) argSyntax.NameSlice = new SourceSlice(argName.Span.StartByte, argName.Span.Length);
+                TreeSitterSyntaxPopulator.PopulateArgument(argSyntax);
+                break;
+
+            case IndexExprSyntax idx:
+                TreeSitterSyntaxPopulator.PopulateIndex(idx);
                 break;
 
             case AssignmentExprSyntax assign:
@@ -270,7 +185,11 @@ public abstract class TreeSitterSyntaxConverterBase
                 break;
 
             case ConditionalExprSyntax cond:
-                cond.Condition = cond.GetChildForField(SyntaxFields.Condition) as ExprSyntax ?? cond.NthChildOfType<ExprSyntax>(0);
+                TreeSitterSyntaxPopulator.PopulateConditional(cond, doc);
+                break;
+
+            case CollectionExprSyntax col:
+                TreeSitterSyntaxPopulator.PopulateCollection(col);
                 break;
 
             case UnaryExprSyntax unary:
@@ -282,54 +201,11 @@ public abstract class TreeSitterSyntaxConverterBase
                 break;
 
             case ControlFlowStmtSyntax cf:
-                switch (cf.Kind)
-                {
-                    case ControlFlowKind.If:
-                        cf.Condition = cf.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
-                                       cf.FirstChildOfType<ExprSyntax>() ??
-                                       cf.GetChildForField(SyntaxFields.Condition)?.FirstChildOfType<ExprSyntax>();
-                        cf.Body = cf.GetChildForField(SyntaxFields.Consequence) ?? cf.FirstChildOfType<StatementSyntax>();
-                        cf.Alternative = cf.GetChildForField(SyntaxFields.Alternative) ?? cf.NthChildOfType<StatementSyntax>(1);
-                        break;
-
-                    case ControlFlowKind.Loop:
-                        cf.Condition = cf.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
-                                       cf.FirstChildOfType<ExprSyntax>() ??
-                                       cf.GetChildForField(SyntaxFields.Condition)?.FirstChildOfType<ExprSyntax>();
-                        cf.Body = cf.GetChildForField(SyntaxFields.Body) ?? cf.LastChildOfType<StatementSyntax>();
-                        break;
-
-                    case ControlFlowKind.Try:
-                        cf.Body = cf.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ??
-                                  cf.FirstChildOfType<BlockStmtSyntax>();
-                        SyntaxNode? finallyNode = cf.GetChildForField(SyntaxFields.Finalizer);
-                        if (finallyNode == null)
-                        {
-                            for (int i = 0; i < cf.Children.Count; i++)
-                            {
-                                var c = cf.Children[i];
-                                if (c.FieldRole is "finalizer" or "finally_clause" || c.RawGrammarKind is "finally_clause")
-                                {
-                                    finallyNode = c;
-                                    break;
-                                }
-                            }
-                        }
-                        cf.Alternative = finallyNode as BlockStmtSyntax ?? finallyNode?.FirstChildOfType<BlockStmtSyntax>();
-                        break;
-
-                    case ControlFlowKind.Lock:
-                        cf.Body = cf.FirstChildOfType<BlockStmtSyntax>();
-                        break;
-
-                    case ControlFlowKind.Using:
-                        cf.Body = cf.LastChildOfType<StatementSyntax>();
-                        break;
-                }
+                TreeSitterSyntaxPopulator.PopulateControlFlow(cf);
                 break;
 
             case CatchClauseSyntax catchClause:
-                catchClause.Body = catchClause.FirstChildOfType<BlockStmtSyntax>();
+                TreeSitterSyntaxPopulator.PopulateCatchClause(catchClause);
                 break;
 
             case ReturnStmtSyntax ret:
@@ -337,117 +213,40 @@ public abstract class TreeSitterSyntaxConverterBase
                 break;
 
             case VariableDeclSyntax varDecl:
-                var varInitNode = varDecl.GetChildForField(SyntaxFields.Value) ??
-                                  varDecl.GetChildForField(SyntaxFields.Right);
-                if (varInitNode is ExprSyntax directVarInit)
-                {
-                    varDecl.Initializer = directVarInit;
-                }
-                else if (varDecl.Children.Count >= 2)
-                {
-                    var vdNameSpan = varDecl.NameSpan;
-                    for (int i = varDecl.Children.Count - 1; i >= 1; i--)
-                    {
-                        if (varDecl.Children[i] is ExprSyntax exprCandidate &&
-                            exprCandidate.FieldRole is not (SyntaxFields.Name or SyntaxFields.Type or SyntaxFields.Pattern or SyntaxFields.Left) &&
-                            !exprCandidate.AsSpan().Equals(vdNameSpan, StringComparison.Ordinal))
-                        {
-                            varDecl.Initializer = exprCandidate;
-                            break;
-                        }
-                    }
-                }
-                if (varDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || varDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
-                {
-                    varDecl.IsConstant = true;
-                }
-                for (int i = 0; i < varDecl.Children.Count; i++)
-                {
-                    if (varDecl.Children[i] is VariableDeclSyntax childVd)
-                    {
-                        PropagateVariableDeclMetadata(varDecl, childVd);
-                    }
-                }
+                TreeSitterSyntaxPopulator.PopulateVariable(varDecl);
                 break;
 
             case ImplDeclSyntax implDecl:
-                implDecl.ImplementedTrait = implDecl.GetChildForField(SyntaxFields.Trait) as TypeRefSyntax;
-                implDecl.TargetType = implDecl.GetChildForField(SyntaxFields.Type) as TypeRefSyntax;
-                if (implDecl.TargetType == null && implDecl.Children.Count > 0)
-                {
-                    var firstType = implDecl.NthChildOfType<TypeRefSyntax>(0);
-                    var secondType = implDecl.NthChildOfType<TypeRefSyntax>(1);
-                    if (secondType != null)
-                    {
-                        implDecl.ImplementedTrait ??= firstType;
-                        implDecl.TargetType = secondType;
-                    }
-                    else if (firstType != null)
-                    {
-                        implDecl.TargetType = firstType;
-                    }
-                }
+                TreeSitterSyntaxPopulator.PopulateImpl(implDecl);
                 break;
 
             case MemberDeclSyntax memDecl:
-                var memInitNode = memDecl.GetChildForField(SyntaxFields.Value);
-                if (memInitNode == null)
-                {
-                    for (int i = 0; i < memDecl.Children.Count; i++)
-                    {
-                        if (memDecl.Children[i].RawGrammarKind == "arrow_expression_clause")
-                        {
-                            memInitNode = memDecl.Children[i];
-                            break;
-                        }
-                    }
-                }
-                if (memInitNode is { RawGrammarKind: "arrow_expression_clause" } && memInitNode.Children.Count > 0)
-                {
-                    memInitNode = memInitNode.Children[^1];
-                }
-                if (memInitNode is ExprSyntax directMemInit)
-                {
-                    memDecl.Initializer = directMemInit;
-                }
-                else if (memDecl.Children.Count >= 2)
-                {
-                    var mdNameSpan = memDecl.NameSpan;
-                    for (int i = memDecl.Children.Count - 1; i >= 1; i--)
-                    {
-                        if (memDecl.Children[i] is ExprSyntax exprCandidate &&
-                            exprCandidate.FieldRole is not (SyntaxFields.Name or SyntaxFields.Type or SyntaxFields.Pattern or SyntaxFields.Left) &&
-                            !exprCandidate.AsSpan().Equals(mdNameSpan, StringComparison.Ordinal))
-                        {
-                            memDecl.Initializer = exprCandidate;
-                            break;
-                        }
-                    }
-                }
-                if (memDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || memDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
-                {
-                    for (int i = 0; i < memDecl.Children.Count; i++)
-                    {
-                        if (memDecl.Children[i] is VariableDeclSyntax childVd)
-                        {
-                            childVd.IsConstant = true;
-                            childVd.Modifiers |= memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
-                            for (int j = 0; j < childVd.Children.Count; j++)
-                            {
-                                if (childVd.Children[j] is VariableDeclSyntax subVd)
-                                {
-                                    subVd.IsConstant = true;
-                                    subVd.Modifiers |= memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
-                                }
-                            }
-                        }
-                    }
-                }
+                TreeSitterSyntaxPopulator.PopulateMember(memDecl);
+                break;
+
+            case KeyValueExprSyntax kv:
+                TreeSitterSyntaxPopulator.PopulateKeyValue(kv);
+                break;
+
+            case ParenthesizedExprSyntax paren:
+                TreeSitterSyntaxPopulator.PopulateParenthesized(paren);
+                break;
+
+            case TypeCastExprSyntax castExpr:
+                TreeSitterSyntaxPopulator.PopulateTypeCast(castExpr);
                 break;
         }
     }
 
-    protected virtual bool HasInterpolationChild(LiteralExprSyntax litExpr) => false;
+    protected virtual bool HasInterpolationChild(LiteralExprSyntax litExpr)
+    {
+        for (int i = 0; i < litExpr.Children.Count; i++)
+        {
+            if (litExpr.Children[i] is ParenthesizedExprSyntax { IsInterpolation: true })
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Parses source text using Tree-sitter into a complete <see cref="SyntaxDocument"/>,
@@ -468,7 +267,6 @@ public abstract class TreeSitterSyntaxConverterBase
         {
             NodeId = 1,
             Span = fullSpan,
-            RawGrammarKind = tree?.RootNode != null ? SyntaxStringPool.Intern(tree.RootNode.Type) : "document",
             FilePath = filePath,
             RelativePath = relativePath,
             LanguageName = languageName,
@@ -494,7 +292,7 @@ public abstract class TreeSitterSyntaxConverterBase
 
         using var cursor = tree.RootNode.Walk();
 
-        SyntaxNode ConvertNode(TreeSitter.TreeCursor cur, SyntaxNode parent, string? fieldRole)
+        SyntaxNode ConvertNode(TreeSitter.TreeCursor cur, SyntaxNode parent, string? fieldRole, string parentRawKind)
         {
             var id = nextNodeId++;
             var tsNode = cur.CurrentNode;
@@ -507,7 +305,7 @@ public abstract class TreeSitterSyntaxConverterBase
                 tsNode.EndPosition.Column
             );
             var rawKind = SyntaxStringPool.Intern(tsNode.Type);
-            if (rawKind == "ERROR" && parent.RawGrammarKind != "ERROR" && diagnostics.Count < 10)
+            if (rawKind == "ERROR" && parentRawKind != "ERROR" && diagnostics.Count < 10)
             {
                 var errLen = Math.Min(Math.Max(0, span.EndByte - span.StartByte), 80);
                 var rawSpan = span.StartByte >= 0 && span.StartByte + errLen <= sourceText.Length
@@ -515,16 +313,31 @@ public abstract class TreeSitterSyntaxConverterBase
                     : ReadOnlySpan<char>.Empty;
 
                 var snippet = rawSpan.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
-                diagnostics.Add(new SyntaxDiagnostic(
-                    CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
-                    string.IsNullOrEmpty(snippet)
-                        ? $"Syntax error in {parent.RawGrammarKind}"
-                        : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
-                    span,
-                    parent.RawGrammarKind));
+                var isTsOrJs = languageName is "typescript" or "tsx" or "javascript";
+                var isBenign = isTsOrJs && (
+                    ((snippet is ">()" or ",") && sourceText.AsSpan(Math.Max(0, span.StartByte - 150), Math.Min(sourceText.Length - Math.Max(0, span.StartByte - 150), 160)).Contains("import(", StringComparison.Ordinal)) ||
+                    snippet.Contains("abstract override", StringComparison.Ordinal) ||
+                    snippet.Contains("override readonly", StringComparison.Ordinal) ||
+                    (parentRawKind.StartsWith("jsx_", StringComparison.Ordinal) && rawSpan.StartsWith("&", StringComparison.Ordinal))
+                );
+
+                if (!isBenign)
+                {
+                    diagnostics.Add(new SyntaxDiagnostic(
+                        CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
+                        string.IsNullOrEmpty(snippet)
+                            ? $"Syntax error in {parent.SyntaxKind}"
+                            : $"Syntax error in {parent.SyntaxKind} near '{snippet}'",
+                        span));
+                }
             }
 
-            SyntaxNode syntaxNode = CreateSyntaxNode(rawKind, span, parent.RawGrammarKind);
+            SyntaxNode syntaxNode = (rawKind == "string" && languageName == "python" &&
+                                     span.StartByte >= 0 && span.StartByte + 2 <= sourceText.Length &&
+                                     (sourceText[span.StartByte] is 'f' or 'F' ||
+                                      (span.StartByte + 3 <= sourceText.Length && sourceText[span.StartByte] is 'r' or 'R' && sourceText[span.StartByte + 1] is 'f' or 'F')))
+                ? new InterpolatedStringExprSyntax { Span = span }
+                : CreateSyntaxNode(rawKind, span, parentRawKind);
 
             syntaxNode.NodeId = id;
             syntaxNode.FieldRole = fieldRole != null ? SyntaxStringPool.Intern(fieldRole) : null;
@@ -551,7 +364,7 @@ public abstract class TreeSitterSyntaxConverterBase
                             continue;
                         }
                     }
-                    else if (childType is "comment" or "line_comment" or "block_comment" or "interpolation_brace")
+                    else if (childType is "comment" or "line_comment" or "block_comment" or "interpolation_brace" or "interpolation_start" or "interpolation_quote" or "string_start" or "string_end")
                     {
                         continue;
                     }
@@ -566,7 +379,7 @@ public abstract class TreeSitterSyntaxConverterBase
                         continue;
                     }
 
-                    var convertedChild = ConvertNode(cur, syntaxNode, childField);
+                    var convertedChild = ConvertNode(cur, syntaxNode, childField, rawKind);
                     convertedChild.ChildIndex = childCount;
 
                     if (childCount == 0)
@@ -657,7 +470,8 @@ public abstract class TreeSitterSyntaxConverterBase
                 {
                     continue;
                 }
-                var childSyntax = ConvertNode(cursor, doc, childField);
+                const string rootDocumentRawKind = "document";
+                var childSyntax = ConvertNode(cursor, doc, childField, rootDocumentRawKind);
                 childSyntax.ChildIndex = docChildren.Count;
                 docChildren.Add(childSyntax);
 
@@ -696,25 +510,13 @@ public abstract class TreeSitterSyntaxConverterBase
         return false;
     }
 
-    private static void PropagateVariableDeclMetadata(VariableDeclSyntax parent, VariableDeclSyntax child)
-    {
-        if (parent.IsConstant)
-        {
-            child.IsConstant = true;
-        }
-        child.Modifiers |= parent.Modifiers;
-        child.VariableType ??= parent.VariableType;
-        for (int i = 0; i < child.Children.Count; i++)
-        {
-            if (child.Children[i] is VariableDeclSyntax grandChild)
-            {
-                PropagateVariableDeclMetadata(child, grandChild);
-            }
-        }
-    }
-
     private static void ApplyNamedModifierSpan(SyntaxNode parent, ReadOnlySpan<char> modSpan)
     {
+        if (parent is LambdaExprSyntax lam && modSpan is "async")
+        {
+            lam.IsAsync = true;
+            return;
+        }
         if (parent is not DeclarationSyntax decl) return;
         switch (modSpan)
         {
@@ -725,6 +527,9 @@ public abstract class TreeSitterSyntaxConverterBase
             case "readonly":
                 decl.Modifiers |= SyntaxModifiers.ReadOnly;
                 if (decl is VariableDeclSyntax vdRo) vdRo.IsConstant = true;
+                break;
+            case "mut":
+                decl.Modifiers |= SyntaxModifiers.Mutable;
                 break;
             case "static":
                 decl.Modifiers |= SyntaxModifiers.Static;
@@ -796,6 +601,9 @@ public abstract class TreeSitterSyntaxConverterBase
             case ImportDeclSyntax imp when tokenKind == "*":
                 imp.IsWildcard = true;
                 break;
+            case LambdaExprSyntax lam when tokenKind == "async":
+                lam.IsAsync = true;
+                break;
             case DeclarationSyntax decl:
                 switch (tokenKind)
                 {
@@ -806,6 +614,9 @@ public abstract class TreeSitterSyntaxConverterBase
                     case "readonly":
                         decl.Modifiers |= SyntaxModifiers.ReadOnly;
                         if (decl is VariableDeclSyntax vdRo) vdRo.IsConstant = true;
+                        break;
+                    case "mut":
+                        decl.Modifiers |= SyntaxModifiers.Mutable;
                         break;
                     case "static":
                         decl.Modifiers |= SyntaxModifiers.Static;

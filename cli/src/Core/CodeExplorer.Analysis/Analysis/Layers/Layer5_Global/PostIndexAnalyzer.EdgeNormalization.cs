@@ -429,6 +429,11 @@ public partial class PostIndexAnalyzer
 
     public static string ExtractDomainFromExternalServiceId(string extId)
     {
+        if (extId.Contains(":es:graphql:", StringComparison.OrdinalIgnoreCase) ||
+            extId.Contains(":externalservice:graphql:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "graphql";
+        }
         var lastColon = extId.LastIndexOf(':');
         if (lastColon >= 0 && lastColon < extId.Length - 1)
         {
@@ -491,6 +496,7 @@ public partial class PostIndexAnalyzer
         var extRes = await db.ExecuteCypherAsync(extQuery, null, cancellationToken);
 
         var idsToDelete = new List<string>();
+        var matchingProjCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
         const string colDomain = "domain";
         const string colInferredFromPath = "inferred_from_path";
         const string colIsRelativePath = "is_relative_path";
@@ -540,7 +546,11 @@ public partial class PostIndexAnalyzer
             }
 
             // Check if this ExternalService matches an internal project with high confidence
-            var matchingProj = FindMatchingServiceProject(cand, projectList);
+            if (!matchingProjCache.TryGetValue(cand, out var matchingProj))
+            {
+                matchingProj = FindMatchingServiceProject(cand, projectList);
+                matchingProjCache[cand] = matchingProj;
+            }
             if (matchingProj != null)
             {
                 idsToDelete.Add(id);

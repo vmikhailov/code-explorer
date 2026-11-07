@@ -176,6 +176,62 @@ public class MonorepoProjectClassificationTests
         await Write("packages/apps/fixtures/minimal-app/package.json", """{ "name": "minimal-app", "dependencies": { "react": "18.0.0" } }""");
         await Write("packages/apps/fixtures/minimal-app/index.ts", "export const app = {};\n");
 
+        await Write("packages/acme-docs/package.json", """{ "name": "acme-docs", "scripts": { "mintlify": "npx mintlify" }, "devDependencies": { "@mdx-js/mdx": "3.1.1" } }""");
+        await Write("packages/acme-docs/project.json", """{ "projectType": "application", "tags": ["scope:docs"] }""");
+        await Write("packages/acme-docs/scripts/lint-mdx.ts", "export const lint = () => true;\n");
+
+        await Write("packages/server/src/queues/message-queue.constants.ts", "export enum MessageQueue { emailQueue = 'email-queue', messagingQueue = 'messaging-queue' }\n");
+        await Write("packages/server/src/queues/email.sender.ts", """
+            import { Injectable } from '@nestjs/common';
+            import { MessageQueue } from './message-queue.constants';
+            @Injectable()
+            export class EmailSenderService {
+                constructor(@InjectMessageQueue(MessageQueue.emailQueue) private readonly messageQueueService: MessageQueueService) {}
+                async sendWelcomeEmail(to: string) {
+                    await this.messageQueueService.add('SendEmailJob', { to });
+                }
+            }
+            """);
+        await Write("packages/server/src/queues/email.processor.ts", """
+            import { Processor } from './queue.decorator';
+            import { MessageQueue } from './message-queue.constants';
+            @Processor({ queueName: MessageQueue.emailQueue })
+            export class EmailProcessor {
+                async process() {}
+            }
+            """);
+
+        await Write("packages/server/src/entities/agent.entity.ts", """
+            import { Entity, Column } from 'typeorm';
+            @Entity({ name: 'agent', schema: 'core' })
+            export class AgentEntity {
+                @Column()
+                name: string;
+            }
+            """);
+        await Write("packages/server/src/migrations/1700000000-create-agent.ts", """
+            export class CreateAgent1700000000 {
+                async up(queryRunner: any) {
+                    await queryRunner.query(`CREATE TABLE "core"."agent" ("id" uuid NOT NULL, "name" text NOT NULL)`);
+                }
+            }
+            """);
+        await Write("packages/server/src/entities/agent.entity.spec.ts", """
+            import { Entity } from 'typeorm';
+            @Entity({ name: 'mock_test_entity', schema: 'core' })
+            export class MockTestEntity {}
+            """);
+
+        await Write("packages/server/src/controllers/header.controller.ts", """
+            export class HeaderController {
+                checkHeader(request: any) {
+                    const dest = request.get('Sec-Fetch-Dest');
+                    const host = request.get('X-Forwarded-Host');
+                    return { dest, host };
+                }
+            }
+            """);
+
         _client = new SqliteGraphClient(Path.Combine(_tempWorkspace, "graph.db"));
         WorkspaceIndexer.AutoRegisterParsers();
         await new WorkspaceIndexer(_client).IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
@@ -234,5 +290,44 @@ public class MonorepoProjectClassificationTests
         {
             fixtureRole.Should().Be("Test");
         }
+    }
+
+    [Test]
+    public async Task DocsSiteWithMintlify_IsClassifiedAsLibraryNotService()
+    {
+        var roles = await ProjectRolesAsync();
+        roles.Should().ContainKey("acme-docs");
+        roles["acme-docs"].Should().BeOneOf("Library", "SharedLibrary");
+    }
+
+    [Test]
+    public async Task BullMqCustomWrapperAndProcessor_EmitPublishesAndSubscribesToResolvedEnumQueue()
+    {
+        var pubRes = await _client.ExecuteCypherAsync("MATCH (t:Topic)-[:PUBLISHED_BY]->(fn) RETURN fn.name AS fnName, t.name AS topic");
+        var subRes = await _client.ExecuteCypherAsync("MATCH (t:Topic)-[:SUBSCRIBED_BY]->(cls) RETURN cls.name AS clsName, t.name AS topic");
+
+        pubRes.Rows.Select(r => r.GetStringProp("topic")).Should().Contain("email-queue");
+        subRes.Rows.Select(r => r.GetStringProp("topic")).Should().Contain("email-queue");
+    }
+
+    [Test]
+    public async Task OrmEntityAndSqlMigrationTable_AreConsolidatedAndTestTablesExcluded()
+    {
+        var tblRes = await _client.ExecuteCypherAsync("MATCH (t:Table) RETURN t.id AS id, t.name AS name");
+        var names = tblRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+
+        names.Count(n => string.Equals(n, "agent", StringComparison.OrdinalIgnoreCase)).Should().Be(1, "ORM @Entity('agent') and SQL CREATE TABLE \"core\".\"agent\" must consolidate into a single Table node");
+        names.Should().NotContain("mock_test_entity", "tables declared in *.spec.ts files must not pollute production Table nodes");
+    }
+
+    [Test]
+    public async Task RequestGetHttpHeaders_DoNotCreateExternalServiceNodes()
+    {
+        var extRes = await _client.ExecuteCypherAsync("MATCH (s:ExternalService) RETURN s.name AS name");
+        var names = extRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+
+        names.Should().NotContain("sec-fetch-dest");
+        names.Should().NotContain("x-forwarded-host");
+        names.Should().NotContain("unknown-service");
     }
 }

@@ -181,7 +181,7 @@ public static partial class AstValueResolver
     private static bool TryDecodeConstantCall(
         Node? func,
         string funcText,
-        List<Node> argChildren,
+        IReadOnlyList<Node> argChildren,
         string? contextOrProject,
         int depth,
         HashSet<string>? visitedVars,
@@ -244,7 +244,7 @@ public static partial class AstValueResolver
             var sb = new System.Text.StringBuilder(argChildren.Count);
             foreach (var arg in argChildren)
             {
-                var raw = arg is ArgumentSyntax { Value: { } v } ? v.Text.Trim() : arg.Text.Trim();
+                var raw = arg is ArgumentSyntax { Value: { } v } ? v.AsSpan().Trim() : arg.AsSpan().Trim();
                 if (int.TryParse(raw, out var code) && code is >= 0 and <= 0xFFFF)
                 {
                     sb.Append((char)code);

@@ -29,16 +29,80 @@ public partial class PostIndexAnalyzer
         var domainVerifiedKeys = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var domainHasCodeFiles = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
+        var dependsOnRels = allRelationships
+            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn)
+            .ToList();
+
+        var nonConfigDbNodes = allDbNodes
+            .Where(d => d.FromConfig != true)
+            .ToList();
+
+        var ownerCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
+        ProjectNode? GetCachedOwner(string callerId)
+        {
+            if (ownerCache.TryGetValue(callerId, out var cached))
+                return cached;
+            var resolved = FindOwningProjectForId(callerId, projects, fileToProject);
+            ownerCache[callerId] = resolved;
+            return resolved;
+        }
+
+        var preResolvedDbUsages = new List<(string CallerId, string? CallerOwnerId, DatabaseNode TargetDb)>();
+        if (nonConfigDbNodes.Count > 0)
+        {
+            foreach (var rel in allRelationships)
+            {
+                if (rel.Kind == OntologyConstants.Relationships.Contains || rel.FromConfig == true) continue;
+                var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                     rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                     rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+                var isDbUsageRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                                   rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
+                                   rel.Kind == OntologyConstants.Relationships.WritesTo ||
+                                   isReverseDbRel;
+                if (!isDbUsageRel) continue;
+
+                var relDbId = isReverseDbRel ? rel.From : rel.To;
+                var targetDb = nonConfigDbNodes.FirstOrDefault(d => d.Id == relDbId || relDbId.StartWithIC(d.Id));
+                if (targetDb == null) continue;
+
+                var relCallerId = isReverseDbRel ? rel.To : rel.From;
+                var callerOwner = GetCachedOwner(relCallerId);
+                preResolvedDbUsages.Add((relCallerId, callerOwner?.Id, targetDb));
+            }
+        }
+
+        var filesByProject = new Dictionary<string, List<FileNode>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in files)
+        {
+            if (fileToProject.TryGetValue(f.Id, out var p) && !isTestSource(f.Id, f.Path))
+            {
+                if (!filesByProject.TryGetValue(p.Id, out var list))
+                {
+                    list = [];
+                    filesByProject[p.Id] = list;
+                }
+                list.Add(f);
+            }
+        }
+
         foreach (var (domain, domainProjs) in projectsByDomain)
         {
             var domainProjIds = domainProjs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
             // Also include referenced projects via DEPENDS_ON within the domain or related
-            foreach (var rel in allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.DependsOn))
+            foreach (var rel in dependsOnRels)
             {
                 if (domainProjIds.Contains(rel.From)) domainProjIds.Add(rel.To);
             }
 
-            var domainFileNodes = files.Where(f => fileToProject.TryGetValue(f.Id, out var p) && domainProjIds.Contains(p.Id) && !isTestSource(f.Id, f.Path)).ToList();
+            var domainFileNodes = new List<FileNode>();
+            foreach (var pid in domainProjIds)
+            {
+                if (filesByProject.TryGetValue(pid, out var pFiles))
+                {
+                    domainFileNodes.AddRange(pFiles);
+                }
+            }
             var domainCodeFiles = domainFileNodes.Where(f =>
                 !f.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
                 !f.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
@@ -63,41 +127,20 @@ public partial class PostIndexAnalyzer
             }
 
             // 1. AST usages from non-config database relationships
-            foreach (var rel in allRelationships)
+            foreach (var (relCallerId, callerOwnerId, targetDb) in preResolvedDbUsages)
             {
-                if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
-                var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                     rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                     rel.Kind == OntologyConstants.Relationships.DeclaredIn;
-                var isDbUsageRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                                   rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
-                                   rel.Kind == OntologyConstants.Relationships.WritesTo ||
-                                   isReverseDbRel;
-                if (!isDbUsageRel) continue;
-
-                var relDbId = isReverseDbRel ? rel.From : rel.To;
-                var relCallerId = isReverseDbRel ? rel.To : rel.From;
-                var callerOwner = FindOwningProjectForId(relCallerId, projects, fileToProject);
-
                 var isFromDomain = domainProjIds.Contains(relCallerId) ||
-                                   (callerOwner != null && domainProjIds.Contains(callerOwner.Id));
+                                   (callerOwnerId != null && domainProjIds.Contains(callerOwnerId));
                 if (!isFromDomain) continue;
 
-                var targetDb = allDbNodes.FirstOrDefault(d => d.Id == relDbId || relDbId.StartWithIC(d.Id));
-                var isFromConfig = targetDb?.FromConfig == true ||
-                                   rel.FromConfig == true;
-
-                if (!isFromConfig && targetDb != null)
+                var eng = targetDb.Engine ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
+                if (!string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase))
                 {
-                    var eng = targetDb.Engine ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
-                    if (!string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase))
-                    {
-                        vEngines.Add(ResourceReconciliationService.NormalizeEngineName(eng));
-                    }
-                    if (targetDb.DbType != CodeExplorer.Cypher.Common.DatabaseType.Unknown)
-                    {
-                        vDbTypes.Add(targetDb.DbType.ToCanonicalString());
-                    }
+                    vEngines.Add(ResourceReconciliationService.NormalizeEngineName(eng));
+                }
+                if (targetDb.DbType != CodeExplorer.Cypher.Common.DatabaseType.Unknown)
+                {
+                    vDbTypes.Add(targetDb.DbType.ToCanonicalString());
                 }
             }
 
@@ -289,15 +332,31 @@ public partial class PostIndexAnalyzer
         HashSet<string>? rawImplicitDbIds = null)
     {
         var workloadToProject = BuildWorkloadToProjectMap(l4Result, projects);
+        var resolvedOwnersCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
 
         ProjectNode? ResolveOwner(string id)
         {
             if (string.IsNullOrEmpty(id)) return null;
-            if (workloadToProject.TryGetValue(id, out var wp)) return wp;
-            if (fileToProject.TryGetValue(id, out var fp)) return fp;
+            if (resolvedOwnersCache.TryGetValue(id, out var cached)) return cached;
+            if (workloadToProject.TryGetValue(id, out var wp))
+            {
+                resolvedOwnersCache[id] = wp;
+                return wp;
+            }
+            if (fileToProject.TryGetValue(id, out var fp))
+            {
+                resolvedOwnersCache[id] = fp;
+                return fp;
+            }
             var p = projects.FirstOrDefault(pr => pr.Id == id || id.StartWithIC(pr.Id));
-            if (p != null) return p;
-            return FindOwningProjectForId(id, projects, fileToProject);
+            if (p != null)
+            {
+                resolvedOwnersCache[id] = p;
+                return p;
+            }
+            var found = FindOwningProjectForId(id, projects, fileToProject);
+            resolvedOwnersCache[id] = found;
+            return found;
         }
 
         var (libraryProjects, serviceToReferencedLibs, multiDomainSharedLibs) = ComputeMultiDomainSharedLibs(

@@ -28,11 +28,11 @@ namespace CodeExplorer.Core.Parser
                 func = firstChild.Id != IntPtr.Zero ? firstChild : null;
             }
 
-            while (func.IsValid() && (func is UnaryExprSyntax { IsAwait: true } or UnaryExprSyntax { IsTryPropagate: true } ||
-                                      func.Type is "await_expression" or "parenthesized_expression" ||
-                                      func.Type.Contains("instantiation") || func.Type.Contains("type_arguments") || func.Type == "expression_with_type_arguments"))
+            while (func.IsValid() && (func is UnaryExprSyntax { IsAwait: true } or UnaryExprSyntax { IsTryPropagate: true }
+                                      or ParenthesizedExprSyntax { IsInterpolation: false }
+                                      or TypeCastExprSyntax { IsGenericInstantiation: true }))
             {
-                var inner = func.Children.FirstOrDefault(c => c.IsValid() && c.Type != "await" && c.Type != "(" && c.Type != ")" && !c.Type.Contains("type_argument"));
+                var inner = func.Children.FirstOrDefault(c => c.IsValid() && c is not SyntaxList { Kind: SyntaxListKind.TypeArguments });
                 if (inner.IsValid())
                 {
                     func = inner;
@@ -48,7 +48,7 @@ namespace CodeExplorer.Core.Parser
 
         public static bool Is([NotNullWhen(true)] this Node? node, string expectedType)
         {
-            return node.IsValid() && node.Type == expectedType;
+            return SyntaxKindResolver.Matches(node, expectedType);
         }
 
         public static bool IsAny([NotNullWhen(true)] this Node? node, params string[] expectedTypes)
@@ -56,7 +56,7 @@ namespace CodeExplorer.Core.Parser
             if (!node.IsValid()) return false;
             for (int i = 0; i < expectedTypes.Length; i++)
             {
-                if (node.Type == expectedTypes[i]) return true;
+                if (SyntaxKindResolver.Matches(node, expectedTypes[i])) return true;
             }
             return false;
         }
@@ -74,7 +74,7 @@ namespace CodeExplorer.Core.Parser
             for (int i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
-                if (child.IsValid() && child.Type == type) return child;
+                if (SyntaxKindResolver.Matches(child, type)) return child;
             }
             return null;
         }
@@ -85,7 +85,7 @@ namespace CodeExplorer.Core.Parser
             for (int i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
-                if (child.IsValid() && child.Type == type) yield return child;
+                if (SyntaxKindResolver.Matches(child, type)) yield return child;
             }
         }
 
@@ -103,7 +103,7 @@ namespace CodeExplorer.Core.Parser
                     var child = curr.Children[i];
                     if (child.IsValid())
                     {
-                        if (child.Type == type) return child;
+                        if (SyntaxKindResolver.Matches(child, type)) return child;
                         queue.Enqueue(child);
                     }
                 }
@@ -126,7 +126,7 @@ namespace CodeExplorer.Core.Parser
                     var child = curr.Children[i];
                     if (child.IsValid())
                     {
-                        if (child.Type == type) yield return child;
+                        if (SyntaxKindResolver.Matches(child, type)) yield return child;
                         queue.Enqueue(child);
                     }
                 }

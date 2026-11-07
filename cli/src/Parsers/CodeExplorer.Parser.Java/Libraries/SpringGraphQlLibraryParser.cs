@@ -99,7 +99,7 @@ public class SpringGraphQlLibraryParser : ISemanticExtension
             {
                 foreach (var param in paramList.Children)
                 {
-                    if (!param.Type.Contains("formal_parameter")) continue;
+                    if (!param.Is(TreeSitterSyntax.Java.FormalParameter)) continue;
                     var pType = param.GetField(TreeSitterSyntax.Fields.Type);
                     if (pType.IsValid())
                     {

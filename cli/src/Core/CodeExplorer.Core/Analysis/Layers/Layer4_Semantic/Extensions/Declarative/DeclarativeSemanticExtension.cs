@@ -560,10 +560,10 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? ExtractBaseClassName(Node node)
     {
-        var superclass = node.Children.FirstOrDefault(c => c.Type is "superclass" or "extends_clause");
+        var superclass = node.Children.FirstOrDefault(c => c is BaseTypeClauseSyntax { IsImplements: false });
         if (superclass.IsValid())
         {
-            var id = superclass.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier" or "scoped_type_identifier");
+            var id = superclass.Children.FirstOrDefault(c => c is IdentifierExprSyntax or TypeRefSyntax);
             if (id.IsValid()) return id.Text;
             var text = superclass.Text.Replace("extends", "").Trim();
             var angle = text.IndexOf('<');
@@ -575,7 +575,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames)
     {
-        var ifaces = node.Children.FirstOrDefault(c => c.Type is "interfaces" or "implements_clause" or "extends_interfaces" or "super_interfaces");
+        var ifaces = node.Children.FirstOrDefault(c => c is BaseTypeClauseSyntax { IsImplements: true });
         var text = ifaces.IsValid() ? ifaces.Text : node.Text;
         foreach (var rName in repositoryInterfaceNames)
         {

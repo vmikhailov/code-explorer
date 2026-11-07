@@ -182,7 +182,7 @@ public partial class ResourceSemanticAnalyzer
                             }
                         }
 
-                        if (node is VariableDeclSyntax or MemberDeclSyntax or AssignmentExprSyntax || node.Type == "keyed_element")
+                        if (node is VariableDeclSyntax or MemberDeclSyntax or AssignmentExprSyntax or KeyValueExprSyntax)
                         {
                             string? varName = null;
                             TsNode? valNode = null;
@@ -231,31 +231,15 @@ public partial class ResourceSemanticAnalyzer
                                     valNode = valNode.Children[0];
                                 }
                             }
-                            else if (node.Type == "keyed_element")
+                            else if (node is KeyValueExprSyntax kvExpr)
                             {
-                                var colonIdx = -1;
-                                for (var i = 0; i < node.Children.Count; i++)
+                                varName = !string.IsNullOrEmpty(kvExpr.KeyText)
+                                    ? kvExpr.KeyText.Trim()
+                                    : (node.Children.Count > 0 ? node.Children[0].Text.Trim() : null);
+                                valNode = kvExpr.Value ?? (node.Children.Count >= 2 ? node.Children[^1] : null);
+                                if (valNode is ParenthesizedExprSyntax && valNode.Children.Count > 0)
                                 {
-                                    if (node.Children[i].Text == ":")
-                                    {
-                                        colonIdx = i;
-                                        break;
-                                    }
-                                }
-                                if (colonIdx < 0 && node.Children.Count >= 2)
-                                {
-                                    varName = node.Children[0].Text.Trim();
-                                    valNode = node.Children[^1];
-                                    if (valNode.Type == "literal_element" && valNode.Children.Count > 0) valNode = valNode.Children[0];
-                                }
-                                else if (colonIdx > 0 && colonIdx + 1 < node.Children.Count)
-                                {
-                                    varName = node.Children[0].Text.Trim();
-                                    valNode = node.Children[colonIdx + 1];
-                                    if (valNode.Type == "literal_element" && valNode.Children.Count > 0)
-                                    {
-                                        valNode = valNode.Children[0];
-                                    }
+                                    valNode = valNode.Children[0];
                                 }
                             }
 

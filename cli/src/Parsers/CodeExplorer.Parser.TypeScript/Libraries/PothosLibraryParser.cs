@@ -238,14 +238,14 @@ public class PothosLibraryParser : ISemanticExtension
         opPrefix = string.Empty;
         fieldName = string.Empty;
 
-        var key = pairNode.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim('\'', '"', '`');
-        if (string.IsNullOrEmpty(key) || key is "fields" or "type" or "args" or "resolve" or "subscribe" or "description" or "nullable" or "authScopes")
+        var valueNode = pairNode.GetField(TreeSitterSyntax.Fields.Value);
+        if (!valueNode.IsValid() || !valueNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
             return false;
         }
 
-        var valueNode = pairNode.GetField(TreeSitterSyntax.Fields.Value);
-        if (!valueNode.IsValid() || !valueNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        var key = pairNode.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim('\'', '"', '`');
+        if (string.IsNullOrEmpty(key) || key is "fields" or "type" or "args" or "resolve" or "subscribe" or "description" or "nullable" or "authScopes")
         {
             return false;
         }

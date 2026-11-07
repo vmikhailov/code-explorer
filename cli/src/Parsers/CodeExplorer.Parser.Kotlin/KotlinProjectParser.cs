@@ -490,7 +490,9 @@ public class KotlinProjectParser : IProjectParser
 
                         if (!string.IsNullOrEmpty(group) && !string.IsNullOrEmpty(artifact))
                         {
-                            var pkgInfo = new ProducedPackageInfo($"{group}:{artifact}", ver ?? "unknown", "gradle");
+                            const string unknownVersion = "unknown";
+                            const string gradleEcosystem = "gradle";
+                            var pkgInfo = new ProducedPackageInfo($"{group}:{artifact}", ver ?? unknownVersion, gradleEcosystem);
                             result[alias] = pkgInfo;
                             result[alias.Replace('-', '.')] = pkgInfo;
                             result[alias.Replace('_', '.')] = pkgInfo;
@@ -501,6 +503,7 @@ public class KotlinProjectParser : IProjectParser
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            _ = ex;
         }
         return result;
     }

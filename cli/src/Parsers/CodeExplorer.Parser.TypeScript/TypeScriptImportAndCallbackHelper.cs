@@ -122,14 +122,14 @@ internal static class TypeScriptImportAndCallbackHelper
             return;
         }
 
-        if (nameField.Type != ObjectPatternType)
+        if (!nameField.Is(ObjectPatternType))
         {
             return;
         }
 
         foreach (var child in nameField.Children)
         {
-            if (child.Type == ShorthandPropertyIdentifierPatternType)
+            if (child.Is(ShorthandPropertyIdentifierPatternType))
             {
                 var idText = child.Text.Trim();
                 if (!string.IsNullOrEmpty(idText))
@@ -137,7 +137,7 @@ internal static class TypeScriptImportAndCallbackHelper
                     specifiers.Add(new ImportSpecifier(idText, idText));
                 }
             }
-            else if (child.Type == PairPatternType)
+            else if (child.Is(PairPatternType))
             {
                 var keyNode = child.GetField(TreeSitterSyntax.Fields.Key);
                 var valNode = child.GetField(TreeSitterSyntax.Fields.Value);
@@ -213,7 +213,7 @@ internal static class TypeScriptImportAndCallbackHelper
             return;
         }
 
-        if (node.Type == ExportStatementType)
+        if (node.Is(ExportStatementType))
         {
             var specifiers = ExtractImportSpecifiers(node);
             var aliased = specifiers

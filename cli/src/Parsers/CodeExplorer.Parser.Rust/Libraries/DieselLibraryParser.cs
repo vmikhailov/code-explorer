@@ -56,7 +56,7 @@ public class DieselLibraryParser : ISemanticExtension
         tableName = string.Empty;
 
         // 1. table! { ... } macro invocation
-        if (node.Type == TreeSitterSyntax.Rust.MacroInvocation)
+        if (node.Is(TreeSitterSyntax.Rust.MacroInvocation))
         {
             if (RustAstHelper.GetMethodCallInfo(node, out _, out var macroName, out var args))
             {
@@ -65,7 +65,7 @@ public class DieselLibraryParser : ISemanticExtension
                     if (args.Count > 0)
                     {
                         var firstChild = args[0];
-                        if (firstChild.Type == TreeSitterSyntax.Rust.Identifier)
+                        if (firstChild.Is(TreeSitterSyntax.Rust.Identifier))
                         {
                             tableName = firstChild.Text;
                             return true;
@@ -84,7 +84,7 @@ public class DieselLibraryParser : ISemanticExtension
         }
 
         // 2. #[diesel(table_name = ...)] attribute
-        if (node.Type == TreeSitterSyntax.Rust.AttributeItem || node.Type == TreeSitterSyntax.Rust.StructItem)
+        if (node.Is(TreeSitterSyntax.Rust.AttributeItem) || node.Is(TreeSitterSyntax.Rust.StructItem))
         {
             var text = node.Text;
             if (text.Contains("diesel", StringComparison.OrdinalIgnoreCase) && text.Contains("table_name", StringComparison.OrdinalIgnoreCase))

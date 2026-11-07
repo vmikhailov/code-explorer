@@ -131,8 +131,8 @@ public partial class KotlinFileParser : IFileParser
 
         // 4. Line offsets and comment/string masking
         var lineOffsets = BuildLineOffsets(content);
-        var masked = MaskCommentsAndStrings(content);
-        var commentMasked = MaskComments(content);
+        var masked = KotlinDatabaseSqlExtractor.MaskCommentsAndStrings(content);
+        var commentMasked = KotlinDatabaseSqlExtractor.MaskComments(content);
         var semanticSymbols = new List<SyntacticSymbol>();
 
         // 5. Classes / Interfaces / Objects (with JPA @Table / @Entity)
@@ -145,7 +145,7 @@ public partial class KotlinFileParser : IFileParser
         ParseChannelsAndMessaging(content, fileNode, stringVars, workspaceId, relativePath, classScopes);
 
         // 8. Relational database configuration detection (e.g. PostgreSQL driver)
-        DetectDatabaseConfiguration(content, fileNode, workspaceId, relativePath);
+        KotlinDatabaseSqlExtractor.DetectDatabaseConfiguration(content, fileNode, workspaceId, relativePath);
 
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         doc.PackageOrNamespace = packageName;
@@ -169,7 +169,7 @@ public partial class KotlinFileParser : IFileParser
         return syntaxTree;
     }
 
-    private sealed record ClassScope(
+    internal sealed record ClassScope(
         string Name,
         string Kind,
         TypeNode Node,
@@ -185,7 +185,7 @@ public partial class KotlinFileParser : IFileParser
         string? RepositoryEntity = null
     );
 
-    private sealed record AnnotationInfo(string Name, string Args);
+    internal sealed record AnnotationInfo(string Name, string Args);
 
     private static (int OpenBrace, int CloseBrace) FindClassBodyRange(string masked, int headerStartIndex, int matchLength)
     {
@@ -574,7 +574,7 @@ public partial class KotlinFileParser : IFileParser
         return null;
     }
 
-    private static string NormalizeMyBatisParameters(string sql)
+    internal static string NormalizeMyBatisParameters(string sql)
     {
         if (string.IsNullOrWhiteSpace(sql)) return sql;
         sql = Regex.Replace(sql, @"#\{[^}]+\}", "@p");
@@ -582,7 +582,7 @@ public partial class KotlinFileParser : IFileParser
         return sql;
     }
 
-    private static (string? ProviderClass, string? ProviderMethod) ExtractProviderInfo(string args)
+    internal static (string? ProviderClass, string? ProviderMethod) ExtractProviderInfo(string args)
     {
         if (string.IsNullOrWhiteSpace(args)) return (null, null);
 
@@ -813,7 +813,7 @@ public partial class KotlinFileParser : IFileParser
                 var extNode = new ExternalServiceNode(
                     extId,
                     typeNode.Name,
-                    "http",
+                    ProtocolHttp,
                     typeNode.Name,
                     cleanClientPath)
                 {
@@ -860,7 +860,7 @@ public partial class KotlinFileParser : IFileParser
         return classScopes;
     }
 
-    private static (int Line, int Column) GetLineAndColumn(int[] lineOffsets, int charIndex)
+    internal static (int Line, int Column) GetLineAndColumn(int[] lineOffsets, int charIndex)
     {
         var line = Array.BinarySearch(lineOffsets, charIndex);
         if (line < 0)
@@ -882,363 +882,5 @@ public partial class KotlinFileParser : IFileParser
             }
         }
         return [.. offsets];
-    }
-
-    private static string MaskCommentsAndStrings(string source)
-    {
-        var chars = source.ToCharArray();
-        var len = chars.Length;
-        var i = 0;
-
-        while (i < len)
-        {
-            if (i + 1 < len && chars[i] == '/' && chars[i + 1] == '/')
-            {
-                chars[i] = ' ';
-                chars[i + 1] = ' ';
-                i += 2;
-                while (i < len && chars[i] != '\n')
-                {
-                    chars[i] = ' ';
-                    i++;
-                }
-                continue;
-            }
-
-            if (i + 1 < len && chars[i] == '/' && chars[i + 1] == '*')
-            {
-                var depth = 1;
-                chars[i] = ' ';
-                chars[i + 1] = ' ';
-                i += 2;
-                while (i < len && depth > 0)
-                {
-                    if (i + 1 < len && chars[i] == '/' && chars[i + 1] == '*')
-                    {
-                        depth++;
-                        chars[i] = ' ';
-                        chars[i + 1] = ' ';
-                        i += 2;
-                    }
-                    else if (i + 1 < len && chars[i] == '*' && chars[i + 1] == '/')
-                    {
-                        depth--;
-                        chars[i] = ' ';
-                        chars[i + 1] = ' ';
-                        i += 2;
-                    }
-                    else
-                    {
-                        if (chars[i] != '\n') chars[i] = ' ';
-                        i++;
-                    }
-                }
-                continue;
-            }
-
-            if (i + 2 < len && chars[i] == '"' && chars[i + 1] == '"' && chars[i + 2] == '"')
-            {
-                chars[i] = ' '; chars[i + 1] = ' '; chars[i + 2] = ' ';
-                i += 3;
-                while (i < len)
-                {
-                    if (i + 2 < len && chars[i] == '"' && chars[i + 1] == '"' && chars[i + 2] == '"')
-                    {
-                        chars[i] = ' '; chars[i + 1] = ' '; chars[i + 2] = ' ';
-                        i += 3;
-                        break;
-                    }
-                    if (chars[i] != '\n') chars[i] = ' ';
-                    i++;
-                }
-                continue;
-            }
-
-            if (chars[i] == '"')
-            {
-                chars[i] = ' ';
-                i++;
-                while (i < len && chars[i] != '"')
-                {
-                    if (chars[i] == '\\' && i + 1 < len)
-                    {
-                        chars[i] = ' ';
-                        i++;
-                    }
-                    if (chars[i] != '\n') chars[i] = ' ';
-                    i++;
-                }
-                if (i < len && chars[i] == '"')
-                {
-                    chars[i] = ' ';
-                    i++;
-                }
-                continue;
-            }
-
-            if (chars[i] == '\'')
-            {
-                chars[i] = ' ';
-                i++;
-                while (i < len && chars[i] != '\'')
-                {
-                    if (chars[i] == '\\' && i + 1 < len)
-                    {
-                        chars[i] = ' ';
-                        i++;
-                    }
-                    if (chars[i] != '\n') chars[i] = ' ';
-                    i++;
-                }
-                if (i < len && chars[i] == '\'')
-                {
-                    chars[i] = ' ';
-                    i++;
-                }
-                continue;
-            }
-
-            i++;
-        }
-
-        return new string(chars);
-    }
-
-    private static string MaskComments(string source)
-    {
-        var chars = source.ToCharArray();
-        var len = chars.Length;
-        var i = 0;
-
-        while (i < len)
-        {
-            if (i + 1 < len && chars[i] == '/' && chars[i + 1] == '/')
-            {
-                chars[i] = ' ';
-                chars[i + 1] = ' ';
-                i += 2;
-                while (i < len && chars[i] != '\n')
-                {
-                    chars[i] = ' ';
-                    i++;
-                }
-                continue;
-            }
-
-            if (i + 1 < len && chars[i] == '/' && chars[i + 1] == '*')
-            {
-                var depth = 1;
-                chars[i] = ' ';
-                chars[i + 1] = ' ';
-                i += 2;
-                while (i < len && depth > 0)
-                {
-                    if (i + 1 < len && chars[i] == '/' && chars[i + 1] == '*')
-                    {
-                        depth++;
-                        chars[i] = ' ';
-                        chars[i + 1] = ' ';
-                        i += 2;
-                    }
-                    else if (i + 1 < len && chars[i] == '*' && chars[i + 1] == '/')
-                    {
-                        depth--;
-                        chars[i] = ' ';
-                        chars[i + 1] = ' ';
-                        i += 2;
-                    }
-                    else
-                    {
-                        if (chars[i] != '\n') chars[i] = ' ';
-                        i++;
-                    }
-                }
-                continue;
-            }
-
-            if (i + 2 < len && chars[i] == '"' && chars[i + 1] == '"' && chars[i + 2] == '"')
-            {
-                i += 3;
-                while (i < len)
-                {
-                    if (i + 2 < len && chars[i] == '"' && chars[i + 1] == '"' && chars[i + 2] == '"')
-                    {
-                        i += 3;
-                        break;
-                    }
-                    i++;
-                }
-                continue;
-            }
-
-            if (chars[i] == '"')
-            {
-                i++;
-                while (i < len && chars[i] != '"')
-                {
-                    if (chars[i] == '\\' && i + 1 < len)
-                    {
-                        i += 2;
-                        continue;
-                    }
-                    i++;
-                }
-                if (i < len && chars[i] == '"') i++;
-                continue;
-            }
-
-            if (chars[i] == '\'')
-            {
-                i++;
-                while (i < len && chars[i] != '\'')
-                {
-                    if (chars[i] == '\\' && i + 1 < len)
-                    {
-                        i += 2;
-                        continue;
-                    }
-                    i++;
-                }
-                if (i < len && chars[i] == '\'') i++;
-                continue;
-            }
-
-            i++;
-        }
-
-        return new string(chars);
-    }
-
-    private static void DetectDatabaseConfiguration(
-        string content,
-        FileNode fileNode,
-        string workspaceId,
-        string relativePath)
-    {
-        if (content.Contains("org.postgresql.Driver", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("jdbc:postgresql:", StringComparison.OrdinalIgnoreCase))
-        {
-            var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:postgresql";
-            if (!fileNode.Children.Any(c => c.Id == dbId))
-            {
-                var dbNode = new DatabaseNode(dbId, "PostgreSQL", relativePath, "relational")
-                {
-                    Engine = "PostgreSQL",
-                    Technology = "PostgreSQL",
-                    Provider = "PostgreSQL",
-                    IsOrm = true
-                };
-                fileNode.Children.Add(dbNode);
-                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
-                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
-            }
-        }
-
-        if (content.Contains("org.h2.Driver", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("jdbc:h2:", StringComparison.OrdinalIgnoreCase))
-        {
-            var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:h2";
-            if (!fileNode.Children.Any(c => c.Id == dbId))
-            {
-                var dbNode = new DatabaseNode(dbId, "H2", relativePath, "relational")
-                {
-                    Engine = "H2",
-                    Technology = "H2",
-                    Provider = "H2",
-                    IsOrm = true
-                };
-                fileNode.Children.Add(dbNode);
-                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
-                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
-            }
-        }
-
-        if (content.Contains("com.mysql.cj.jdbc.Driver", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("com.mysql.jdbc.Driver", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("jdbc:mysql:", StringComparison.OrdinalIgnoreCase))
-        {
-            var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:mysql";
-            if (!fileNode.Children.Any(c => c.Id == dbId))
-            {
-                var dbNode = new DatabaseNode(dbId, "MySQL", relativePath, "relational")
-                {
-                    Engine = "MySQL",
-                    Technology = "MySQL",
-                    Provider = "MySQL",
-                    IsOrm = true
-                };
-                fileNode.Children.Add(dbNode);
-                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
-                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
-            }
-        }
-
-        // Android Room Database detection
-        if (content.Contains("RoomDatabase", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("databaseBuilder", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("androidx.room", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("@Database", StringComparison.OrdinalIgnoreCase))
-        {
-            string? dbName = null;
-            var builderMatch = Regex.Match(content, @"databaseBuilder\s*\([^,]+,[^,]+,\s*['""]([^'""]+)['""]");
-            if (builderMatch.Success)
-            {
-                dbName = builderMatch.Groups[1].Value.Trim();
-            }
-
-            if (string.IsNullOrWhiteSpace(dbName))
-            {
-                var dbClassMatch = Regex.Match(content, @"(?<![:.])\babstract\s+class\s+([A-Z][a-zA-Z0-9_]*)\s*:\s*RoomDatabase");
-                if (dbClassMatch.Success)
-                {
-                    var cls = dbClassMatch.Groups[1].Value.Trim();
-                    if (cls.EndsWith("Database", StringComparison.OrdinalIgnoreCase) && cls.Length > 8)
-                    {
-                        dbName = $"{cls[..^8].ToLowerInvariant()}-database";
-                    }
-                    else
-                    {
-                        dbName = cls;
-                    }
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(dbName) && content.Contains("@Database", StringComparison.OrdinalIgnoreCase))
-            {
-                var classMatch = Regex.Match(content, @"(?<![:.])\b(?:class|interface)\s+([A-Z][a-zA-Z0-9_]*)");
-                if (classMatch.Success)
-                {
-                    var cls = classMatch.Groups[1].Value.Trim();
-                    if (cls.EndsWith("Database", StringComparison.OrdinalIgnoreCase) && cls.Length > 8)
-                    {
-                        dbName = $"{cls[..^8].ToLowerInvariant()}-database";
-                    }
-                    else
-                    {
-                        dbName = cls;
-                    }
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(dbName))
-            {
-                var canonicalName = $"SQLite.{dbName}";
-                var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:sqlite:{dbName.ToLowerInvariant()}";
-                if (!fileNode.Children.Any(c => c.Id == dbId))
-                {
-                    var dbNode = new DatabaseNode(dbId, canonicalName, relativePath, "relational")
-                    {
-                        Engine = "SQLite",
-                        Technology = "Room",
-                        Provider = "Room",
-                        Schema = dbName,
-                        IsOrm = true
-                    };
-                    fileNode.Children.Add(dbNode);
-                    fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
-                    fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
-                }
-            }
-        }
     }
 }

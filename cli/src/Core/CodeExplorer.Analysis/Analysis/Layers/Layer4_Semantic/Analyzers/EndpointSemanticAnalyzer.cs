@@ -17,6 +17,7 @@ public static class EndpointSemanticAnalyzer
     private const string PropSchemaName = "schema_name";
     private const string PropSchema = "schema";
     private const string PropMethod = "method";
+    private const string PropTestFramework = "test_framework";
     private const string SchemeHttpColon = "http:";
     private const string SchemeHttpsColon = "https:";
     private const string SchemeWsColon = "ws:";
@@ -37,7 +38,8 @@ public static class EndpointSemanticAnalyzer
         var workspaceId = ctx?.WorkspaceId ?? "";
         var projectName = project?.Name ?? syntaxTree.FileNode?.ProjectName;
         var projectKind = (project?.EntityKind != ProjectEntityKind.Unknown ? project?.EntityKind : null) ?? syntaxTree.FileNode?.ProjectKind;
-        var symbolIsTest = syntaxTree.FileNode?.IsTest ?? false;
+        var checkRelPath = !string.IsNullOrEmpty(syntaxTree.RelativePath) ? syntaxTree.RelativePath : relativePath;
+        var symbolIsTest = (syntaxTree.FileNode?.IsTest ?? false) || WorkspaceConventions.IsTestFilePath(checkRelPath) || project?.IsTest == true;
 
         foreach (var syntactic in syntaxTree.SemanticSymbols)
         {
@@ -136,6 +138,10 @@ public static class EndpointSemanticAnalyzer
             var parentScopeId = syntactic.ParentScopeId;
             if (isEndpoint)
             {
+                if (symbolIsTest)
+                {
+                    return null;
+                }
                 var epNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic, projectName);
                 typedNode = epNode;
                 if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
@@ -180,7 +186,14 @@ public static class EndpointSemanticAnalyzer
         else if (kind == OntologyConstants.NodeLabels.ExternalService)
         {
             var parentScopeId = syntactic.ParentScopeId;
-            typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId, parentScopeId);
+            var esCandidate = CreateExternalServiceNode(name, node, relativePath, workspaceId, parentScopeId);
+            if (esCandidate.DomainOrService == "unknown-service" &&
+                esCandidate.IsRelativePath != true &&
+                !syntactic.Properties.ContainsKey(PropTestFramework))
+            {
+                return null;
+            }
+            typedNode = esCandidate;
             if (typedNode is ExternalServiceNode esNode && syntactic.Properties.TryGetValue(PropMethod, out var meth) && !string.IsNullOrEmpty(meth))
             {
                 esNode.Method = meth;
@@ -203,6 +216,10 @@ public static class EndpointSemanticAnalyzer
         }
         else if (kind == OntologyConstants.NodeLabels.Table)
         {
+            if (symbolIsTest)
+            {
+                return null;
+            }
             var resolvedName = name;
             if (ConstantRegistry.TryResolve(relativePath, name, out var rName))
             {
@@ -377,7 +394,8 @@ public static class EndpointSemanticAnalyzer
             {
                 target = resolvedTarget;
             }
-            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId, TargetName = target });
+            var refArgFlow = string.IsNullOrEmpty(reference.ArgFlow) ? relativePath : reference.ArgFlow;
+            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId, TargetName = target, ArgFlow = refArgFlow });
         }
 
         if (syntactic.HasProperties)
@@ -692,6 +710,8 @@ public static class EndpointSemanticAnalyzer
 
         var protocol = "http";
         var domainOrService = cleanName;
+        const string schemeDubboColon = "dubbo:";
+        const string schemeTriColon = "tri:";
         var hasExplicitScheme = domainOrService.Contains("://") ||
                                 domainOrService.StartWithIC("http:") ||
                                 domainOrService.StartWithIC("https:") ||
@@ -699,8 +719,8 @@ public static class EndpointSemanticAnalyzer
                                 domainOrService.StartWithIC("wss:") ||
                                 domainOrService.StartWithIC("grpc:") ||
                                 domainOrService.StartWithIC("rpc:") ||
-                                domainOrService.StartWithIC("dubbo:") ||
-                                domainOrService.StartWithIC("tri:");
+                                domainOrService.StartWithIC(schemeDubboColon) ||
+                                domainOrService.StartWithIC(schemeTriColon);
 
         if (domainOrService.Contains("://"))
         {
@@ -805,6 +825,10 @@ public static class EndpointSemanticAnalyzer
                     break;
                 }
                 if ((seg.Equals("gateway", StringComparison.OrdinalIgnoreCase) || seg.Equals("gw", StringComparison.OrdinalIgnoreCase)) && i + 1 < segments.Length)
+                {
+                    continue;
+                }
+                if (seg.All(c => c is '-' or '_'))
                 {
                     continue;
                 }
