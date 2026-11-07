@@ -1,6 +1,6 @@
 # Proposal: Ecosystem Library Expansion & Polyglot Semantic Archetypes
 
-**Status:** Proposed  
+**Status:** Implemented  
 **Created:** 2026-11-07  
 **Target Layer:** Layer 4 (Semantic Structure) & Layer 2 (Host Components)  
 **Related Proposals:** [`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md), [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md)

@@ -280,6 +280,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         new Libraries.StackExchangeRedisLibraryParser(),
         new Libraries.Neo4jDriverLibraryParser(),
         new Libraries.AspNetCoreLibraryParser(),
+        new Libraries.AzureFunctionsLibraryParser(),
         new Libraries.HotChocolateLibraryParser(),
         new Libraries.GrpcCSharpLibraryParser(),
         new Libraries.WcfLibraryParser(),
@@ -297,6 +298,10 @@ public partial class CSharpParser : IProjectParser, IFileParser
         new Libraries.RestSharpLibraryParser(),
         new Libraries.RefitLibraryParser(),
         new Libraries.StripeLibraryParser(),
+        new Libraries.MartenLibraryParser(),
+        new Libraries.AwsSdkDotNetLibraryParser(),
+        new Libraries.PollyResilienceLibraryParser(),
+        new Libraries.OpenTelemetryDotNetLibraryParser(),
         Libraries.DotNetTestLibraryParser.Instance
     ];
 

@@ -33,7 +33,19 @@ public partial class KotlinFileParser : IFileParser
 
     public bool UsesTreeSitter => false;
 
-    public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
+    [
+        new Libraries.KtorServerLibraryParser(),
+        new Libraries.KtorClientLibraryParser(),
+        new Libraries.MicronautKotlinLibraryParser(),
+        new Libraries.GraphQlKotlinLibraryParser(),
+        new Libraries.SpringCloudStreamKotlinLibraryParser(),
+        new Libraries.ExposedLibraryParser(),
+        new Libraries.KtormLibraryParser(),
+        new Libraries.KoinLibraryParser(),
+        new Libraries.ArrowKotlinLibraryParser(),
+        new Libraries.KotlinxSerializationLibraryParser()
+    ];
 
     public bool CanParse(string fileExtension)
     {

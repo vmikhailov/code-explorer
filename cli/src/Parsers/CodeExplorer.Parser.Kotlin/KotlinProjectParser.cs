@@ -35,9 +35,26 @@ public class KotlinProjectParser : IProjectParser
         new SpringFrameworkConfigurationDescriptor()
     ];
 
-    public IReadOnlyList<PackageDescriptor> Packages => [];
+    public IReadOnlyList<PackageDescriptor> Packages { get; }
 
-    public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
+    [
+        new Libraries.KtorServerLibraryParser(),
+        new Libraries.KtorClientLibraryParser(),
+        new Libraries.MicronautKotlinLibraryParser(),
+        new Libraries.GraphQlKotlinLibraryParser(),
+        new Libraries.SpringCloudStreamKotlinLibraryParser(),
+        new Libraries.ExposedLibraryParser(),
+        new Libraries.KtormLibraryParser(),
+        new Libraries.KoinLibraryParser(),
+        new Libraries.ArrowKotlinLibraryParser(),
+        new Libraries.KotlinxSerializationLibraryParser()
+    ];
+
+    public KotlinProjectParser()
+    {
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
+    }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {

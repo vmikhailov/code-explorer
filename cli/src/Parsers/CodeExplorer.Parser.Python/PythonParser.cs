@@ -41,6 +41,8 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.DjangoLibraryParser(),
         new Libraries.ElasticsearchPythonLibraryParser(),
         new Libraries.FastApiLibraryParser(),
+        new Libraries.LitestarLibraryParser(),
+        new Libraries.StrawberryGraphQlLibraryParser(),
         new Libraries.FlaskLibraryParser(),
         new Libraries.GrpcPythonLibraryParser(),
         new Libraries.HttpxPythonLibraryParser(),
@@ -55,6 +57,11 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.RequestsPythonLibraryParser(),
         new Libraries.SqlAlchemyLibraryParser(),
         new Libraries.SqlModelLibraryParser(),
+        new Libraries.TortoiseOrmLibraryParser(),
+        new Libraries.MotorMongoLibraryParser(),
+        new Libraries.Boto3LibraryParser(),
+        new Libraries.TemporalPythonLibraryParser(),
+        new Libraries.AiSdkPythonLibraryParser(),
         Libraries.PythonTestLibraryParser.Instance
     ];
 
