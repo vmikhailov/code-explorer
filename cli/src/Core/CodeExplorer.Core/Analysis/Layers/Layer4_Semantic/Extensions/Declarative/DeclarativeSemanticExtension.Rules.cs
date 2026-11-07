@@ -618,7 +618,7 @@ public partial class DeclarativeSemanticExtension
 
     #region Shared AST Utility Helpers
 
-    private static string? GetShortAnnotationName(Node annot)
+    internal static string? GetShortAnnotationName(Node annot)
     {
         var nameNode = annot.GetField(SyntaxFields.Name)
                        ?? annot.Children.FirstOrDefault(c => c is IdentifierExprSyntax or MemberAccessExprSyntax)
@@ -681,7 +681,7 @@ public partial class DeclarativeSemanticExtension
                 node.Type.Contains("string_literal", StringComparison.Ordinal));
     }
 
-    private static List<Node> GetNodeAnnotations(Node declNode, FrozenSet<string> annotationNodeTypes)
+    internal static List<Node> GetNodeAnnotations(Node declNode, FrozenSet<string> annotationNodeTypes)
     {
         var result = new List<Node>();
         foreach (var child in declNode.Children)
@@ -705,7 +705,7 @@ public partial class DeclarativeSemanticExtension
         return result;
     }
 
-    private static string? ExtractNamedOrFirstStringFromAnnotation(Node annotNode, FrozenSet<string> acceptedKeys)
+    internal static string? ExtractNamedOrFirstStringFromAnnotation(Node annotNode, FrozenSet<string> acceptedKeys)
     {
         foreach (var child in annotNode.Children)
         {
@@ -815,7 +815,7 @@ public partial class DeclarativeSemanticExtension
         }
     }
 
-    private static void CollectNodesByType(Node node, string nodeType, List<Node> result)
+    internal static void CollectNodesByType(Node node, string nodeType, List<Node> result)
     {
         if (node.Is(nodeType))
         {

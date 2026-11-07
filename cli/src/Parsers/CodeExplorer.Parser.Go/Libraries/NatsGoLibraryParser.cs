@@ -1,25 +1,33 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class NatsGoLibraryParser : ISemanticExtension
+public class NatsGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public string Name => "NATS";
-    public string Id => "nats";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/nats-io/nats.go*",
-        "*nats-io*",
-        "*nats_rpc*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    public NatsGoLibraryParser()
+    {
+        Type = SemanticExtensionType.Queue;
+        Name = "NATS";
+        Id = "nats";
+        SupportedPatterns =
+        [
+            "github.com/nats-io/nats.go*",
+            "*nats-io*",
+            "*nats_rpc*"
+        ];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.AssignmentStatement, TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                CollectReferences = CollectNatsReferences
+            }
+        ];
+    }
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectNatsReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 0. Dispatcher index assignment: routes["v1.task.create"] = r.createTask()
         if (GoAstHelper.TryGetIndexAssignment(node, out var operandText, out var indexKey))

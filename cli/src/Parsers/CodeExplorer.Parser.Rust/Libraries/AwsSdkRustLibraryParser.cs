@@ -10,16 +10,29 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// and SNS topic publishing (publish).
 /// Emits Topic nodes and PUBLISHES_TO / SUBSCRIBES_TO relationships.
 /// </summary>
-public class AwsSdkRustLibraryParser : ISemanticExtension
+public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "aws-sdk-rust";
-    public string Name => "AWS SDK for Rust";
-    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-    public IReadOnlyList<string> SupportedPatterns => ["aws-sdk-*", "aws_sdk_*", "aws-config*"];
+    public AwsSdkRustLibraryParser()
+    {
+        Id = "aws-sdk-rust";
+        Name = "AWS SDK for Rust";
+        Type = SemanticExtensionType.Cloud;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["aws-sdk-*", "aws_sdk_*", "aws-config*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsAwsSdkCall(node, out _, out _, out _) ? OntologyConstants.NodeLabels.Topic : null,
+                ExtractIdentifier = (node, _, _, _) => IsAwsSdkCall(node, out var topic, out _, out _) ? topic : null,
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
+    }
 
-    public IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
         yield return new PackageDescriptor("aws-sdk-sqs", "AWS SDK SQS", LibraryRole.MessageBroker, "queue", ["aws-sdk-sqs*", "aws_sdk_sqs*"]);
         yield return new PackageDescriptor("aws-sdk-sns", "AWS SDK SNS", LibraryRole.MessageBroker, "queue", ["aws-sdk-sns*", "aws_sdk_sns*"]);
@@ -29,28 +42,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         yield return new PackageDescriptor(Id, Name, LibraryRole, Type, SupportedPatterns);
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsAwsSdkCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Topic;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsAwsSdkCall(node, out var topic, out _, out _))
-        {
-            return topic;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsAwsSdkCall(node, out var topic, out var brokerType, out var isPublish) && !string.IsNullOrEmpty(topic))
         {
@@ -62,7 +54,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsAwsSdkCall(node, out _, out var brokerType, out var isPublish))
         {
@@ -470,7 +462,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             .Select(resource => resource.Role)
             .ToArray();
 
-    public void SynthesizeCloudResources(
+    public override void SynthesizeCloudResources(
         CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
         string effectiveSource,
         IReadOnlySet<string> packageNames,

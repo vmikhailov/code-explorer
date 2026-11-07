@@ -3,15 +3,15 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class GraphQLClientLibraryParser : ISemanticExtension
+public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
 
-    public string Name => "GraphQL Client";
+    public override string Name => "GraphQL Client";
 
-    public string Id => "graphql-client";
+    public override string Id => "graphql-client";
 
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "@apollo/client",
         "graphql-request",
@@ -21,11 +21,29 @@ public class GraphQLClientLibraryParser : ISemanticExtension
         "@graphql-typed-document-node/core"
     ];
 
-    public bool IsBuiltIn => true;
+    public override bool IsBuiltIn => true;
 
-    public bool IsImplemented => true;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.VariableDeclarator,
+                TreeSitterSyntax.TypeScript.TaggedTemplateExpression,
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.NewExpression
+            ],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            EnrichSymbol = EnrichSymbolCore,
+            CollectReferences = CollectReferencesCore
+        }
+    ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (!node.IsValid()) return null;
 
@@ -56,7 +74,7 @@ public class GraphQLClientLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (!node.IsValid()) return null;
 
@@ -85,12 +103,12 @@ public class GraphQLClientLibraryParser : ISemanticExtension
             {
                 if (args[0].Is(TreeSitterSyntax.TypeScript.Object))
                 {
-                    if (AstHelper.TryGetObjectProperty(args[0], "uri", out var uriNode) && uriNode.IsValid())
+                    if (AstHelper.TryGetObjectProperty(args[0], UriPropName, out var uriNode) && uriNode.IsValid())
                     {
                         var resolved = AstHelper.ResolveStringOrTemplate(uriNode);
                         if (!string.IsNullOrWhiteSpace(resolved)) return FormatTarget(resolved);
                     }
-                    if (AstHelper.TryGetObjectProperty(args[0], "url", out var urlNode) && urlNode.IsValid())
+                    if (AstHelper.TryGetObjectProperty(args[0], UrlPropName, out var urlNode) && urlNode.IsValid())
                     {
                         var resolved = AstHelper.ResolveStringOrTemplate(urlNode);
                         if (!string.IsNullOrWhiteSpace(resolved)) return FormatTarget(resolved);
@@ -110,7 +128,13 @@ public class GraphQLClientLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private const string UriPropName = "uri";
+    private const string UrlPropName = "url";
+    private const string QueryPropName = "query";
+    private const string GraphQlOperationPropKey = "graphql_operation";
+    private const string OperationTypePropKey = "operation_type";
+
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
             node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator) &&
@@ -124,11 +148,11 @@ public class GraphQLClientLibraryParser : ISemanticExtension
             {
                 if (!string.IsNullOrEmpty(op.OperationName))
                 {
-                    symbol.Properties.TryAdd("graphql_operation", op.OperationName);
+                    symbol.Properties.TryAdd(GraphQlOperationPropKey, op.OperationName);
                     aliases.AddRange(GraphQLFileParser.BuildCodegenAliases(op.OperationName, op.OperationType.ToCanonicalString()));
                 }
                 symbol.OperationType = op.OperationType;
-                symbol.Properties.TryAdd("operation_type", op.OperationType.ToCanonicalString());
+                symbol.Properties.TryAdd(OperationTypePropKey, op.OperationType.ToCanonicalString());
 
                 foreach (var rf in op.RootFields)
                 {
@@ -164,7 +188,7 @@ public class GraphQLClientLibraryParser : ISemanticExtension
         }
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.IsValid()) return;
 
@@ -192,7 +216,7 @@ public class GraphQLClientLibraryParser : ISemanticExtension
                         }
                     }
                     else if (arg0.Is(TreeSitterSyntax.TypeScript.Object) &&
-                             AstHelper.TryGetObjectProperty(arg0, "query", out var qNode) &&
+                             AstHelper.TryGetObjectProperty(arg0, QueryPropName, out var qNode) &&
                              qNode.IsValid() &&
                              qNode.IsAny(TreeSitterSyntax.TypeScript.Identifier, TreeSitterSyntax.TypeScript.MemberExpression))
                     {

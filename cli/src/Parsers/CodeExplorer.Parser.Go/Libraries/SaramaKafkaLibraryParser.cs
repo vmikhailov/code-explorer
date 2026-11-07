@@ -1,28 +1,36 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class SaramaKafkaLibraryParser : ISemanticExtension
+public class SaramaKafkaLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public string Name => "Sarama Kafka";
-    public string Id => "sarama-kafka";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/IBM/sarama*",
-        "github.com/Shopify/sarama*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-
     private static readonly Regex TopicRegex = new(@"Topic:\s*(?:""([^""]+)""|([A-Za-z0-9_]+))", RegexOptions.Compiled);
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    public SaramaKafkaLibraryParser()
+    {
+        Type = SemanticExtensionType.Queue;
+        Name = "Sarama Kafka";
+        Id = "sarama-kafka";
+        SupportedPatterns =
+        [
+            "github.com/IBM/sarama*",
+            "github.com/Shopify/sarama*"
+        ];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CompositeLiteral }.ToFrozenSet(),
+                CollectReferences = CollectSaramaReferences
+            }
+        ];
+    }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectSaramaReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.Go.CompositeLiteral))
         {

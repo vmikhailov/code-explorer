@@ -8,41 +8,36 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Supports attribute-based routing (#[get("/path")], #[post("/path")])
 /// and fluent routing builders (web::resource, web::scope, web::get().to(handler)).
 /// </summary>
-public class ActixWebLibraryParser : ISemanticExtension
+public class ActixWebLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "actix-web";
-    public string Name => "Actix-Web";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-    public IReadOnlyList<string> SupportedPatterns => ["actix-web*", "actix_web*"];
-
     private static readonly Regex ActixAttributeRegex = new(
         @"#\[\s*(get|post|put|delete|patch|head|options)\s*\(\s*""([^""]+)""\s*\)\s*\]",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ActixWebLibraryParser()
     {
-        if (IsActixRoute(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Id = "actix-web";
+        Name = "Actix-Web";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["actix-web*", "actix_web*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.Rust.AttributeItem,
+                    TreeSitterSyntax.Rust.CallExpression
+                ]),
+                MapNodeType = (node, ctx) => IsActixRoute(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => IsActixRoute(node, out var m, out var r, out _) ? $"{m}:{r}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsActixRoute(node, out var httpMethod, out var fullRoute, out _))
-        {
-            return $"{httpMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsActixRoute(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
         {

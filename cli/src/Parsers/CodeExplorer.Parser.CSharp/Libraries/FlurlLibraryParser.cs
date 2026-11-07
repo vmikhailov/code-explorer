@@ -2,24 +2,31 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class FlurlLibraryParser : ISemanticExtension
+public class FlurlLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public FlurlLibraryParser()
+    {
+        Id = "flurl";
+        Name = "Flurl";
+        Type = SemanticExtensionType.ApiClient;
+        LibraryRole = LibraryRole.General;
+        SupportedPatterns = ["Flurl", "Flurl.Http", "Flurl.*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.CSharp.InvocationExpression]),
+                MapNodeType = MapNodeTypeCore,
+                ExtractIdentifier = (node, _, _, _) => ExtractIdentifierCore(node)
+            }
+        ];
+    }
 
-    public string Name => "Flurl";
-
-    public string Id => "flurl";
-
-    public IReadOnlyList<string> SupportedPatterns => ["Flurl", "Flurl.Http", "Flurl.*"];
-
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsFlurlCall(node))
         {
-            var target = ExtractIdentifier(node, ctx);
+            var target = ExtractIdentifierCore(node);
             if (!string.IsNullOrEmpty(target) && target != "flurl-service")
             {
                 return OntologyConstants.NodeLabels.ExternalService;
@@ -28,7 +35,10 @@ public class FlurlLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private const string HttpPrefix = "http://";
+    private const string HttpsPrefix = "https://";
+
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsFlurlCall(node))
         {
@@ -39,7 +49,7 @@ public class FlurlLibraryParser : ISemanticExtension
                 {
                     return uri.Host;
                 }
-                if (rootUrl.StartWithIC("http://") || rootUrl.StartWithIC("https://"))
+                if (rootUrl.StartWithIC(HttpPrefix) || rootUrl.StartWithIC(HttpsPrefix))
                 {
                     return rootUrl;
                 }
@@ -51,11 +61,6 @@ public class FlurlLibraryParser : ISemanticExtension
             return null;
         }
         return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Flurl calls represent external services, no custom inner references are required
     }
 
     private static bool IsFlurlCall(Node node)

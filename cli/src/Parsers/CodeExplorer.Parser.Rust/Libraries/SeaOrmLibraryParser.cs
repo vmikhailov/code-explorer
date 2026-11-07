@@ -8,41 +8,36 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects structs annotated with DeriveEntityModel and #[sea_orm(table_name = "...")].
 /// Emits Table nodes and PERSISTED_IN / USES_DB relationships.
 /// </summary>
-public class SeaOrmLibraryParser : ISemanticExtension
+public class SeaOrmLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "sea-orm";
-    public string Name => "SeaORM";
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-    public IReadOnlyList<string> SupportedPatterns => ["sea-orm*", "sea_orm*"];
-
     private static readonly Regex TableNameRegex = new(
         @"table_name\s*=\s*""([^""]+)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public SeaOrmLibraryParser()
     {
-        if (IsSeaOrmEntity(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-        return null;
+        Id = "sea-orm";
+        Name = "SeaORM";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["sea-orm*", "sea_orm*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.Rust.StructItem,
+                    TreeSitterSyntax.Rust.AttributeItem
+                ]),
+                MapNodeType = (node, ctx) => IsSeaOrmEntity(node, out _) ? OntologyConstants.NodeLabels.Table : null,
+                ExtractIdentifier = (node, _, _, _) => IsSeaOrmEntity(node, out var tableName) ? tableName : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsSeaOrmEntity(node, out var tableName))
-        {
-            return tableName;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsSeaOrmEntity(node, out var tableName) && !string.IsNullOrEmpty(tableName))
         {

@@ -1,52 +1,44 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class ElasticsearchTsLibraryParser : ISemanticExtension
+public class ElasticsearchTsLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.SearchDb;
-    public string Name => "Elasticsearch";
-    public string Id => "elasticsearch";
-    public IReadOnlyList<string> SupportedPatterns => ["@elastic/elasticsearch"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
     {
         "search", "index", "get", "update", "delete", "bulk", "count", "mget", "msearch"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ElasticsearchTsLibraryParser()
     {
-        if (IsEsCall(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsEsCall(node))
-        {
-            if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
+        Type = SemanticExtensionType.SearchDb;
+        Name = "Elasticsearch";
+        Id = "elasticsearch";
+        SupportedPatterns = ["@elastic/elasticsearch"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var indexName = TryExtractIndexFromArgs(node);
-                if (!string.IsNullOrEmpty(indexName))
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsEsCall(node) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
                 {
-                    return $"Elasticsearch: {propName} ({indexName})";
+                    if (!IsEsCall(node)) return null;
+                    if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
+                    {
+                        var indexName = TryExtractIndexFromArgs(node);
+                        if (!string.IsNullOrEmpty(indexName))
+                        {
+                            return $"Elasticsearch: {propName} ({indexName})";
+                        }
+                        return $"Elasticsearch: {propName}";
+                    }
+                    return "Elasticsearch Query";
                 }
-                return $"Elasticsearch: {propName}";
             }
-
-            return "Elasticsearch Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Search queries represent Query nodes
+        ];
     }
 
     private static bool IsEsCall(Node node)

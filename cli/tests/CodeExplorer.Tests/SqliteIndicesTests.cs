@@ -52,7 +52,7 @@ public class SqliteIndicesTests
             "idx_nodes_kind", "idx_nodes_kind_path", "idx_nodes_kind_file_path", "idx_nodes_kind_name",
             "idx_nodes_name_kind",
             "idx_nodes_kind_symbol", "idx_nodes_kind_lower_path", "idx_edges_from_kind_to",
-            "idx_edges_to_kind_from", "idx_edges_kind_from_to", "idx_edges_unique",
+            "idx_edges_to_kind_from", "idx_edges_kind_from_to",
             "idx_file_registry_hash"
         };
 

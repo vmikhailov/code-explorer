@@ -7,37 +7,29 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects message publishing via FutureRecord::to("topic") and consumer subscriptions via consumer.subscribe(&amp;["topic"]).
 /// Emits Topic nodes and PUBLISHES_TO / SUBSCRIBES_TO relationships.
 /// </summary>
-public class RdKafkaRustLibraryParser : ISemanticExtension
+public class RdKafkaRustLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "rdkafka";
-    public string Name => "rdkafka (Kafka)";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-    public IReadOnlyList<string> SupportedPatterns => ["rdkafka*"];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RdKafkaRustLibraryParser()
     {
-        if (IsKafkaCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Topic;
-        }
-        return null;
+        Id = "rdkafka";
+        Name = "rdkafka (Kafka)";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["rdkafka*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsKafkaCall(node, out _, out _) ? OntologyConstants.NodeLabels.Topic : null,
+                ExtractIdentifier = (node, _, _, _) => IsKafkaCall(node, out var topic, out _) ? topic : null,
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsKafkaCall(node, out var topic, out _))
-        {
-            return topic;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsKafkaCall(node, out var topic, out var isProducer) && !string.IsNullOrEmpty(topic))
         {
@@ -50,7 +42,7 @@ public class RdKafkaRustLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsKafkaCall(node, out _, out _))
         {

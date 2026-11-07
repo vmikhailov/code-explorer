@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.74.0] - 2026-11-07
+
+### Added
+- **100% Unified Declarative Semantic Extension Engine (`DeclarativeSemanticExtension` & `CompiledDeclarativeRuleIndex`)**:
+  - Migrated all remaining imperative `ISemanticExtension` library parsers across **Kotlin** (19), **Java** (38), **Rust** (14), **C#** (48), **Go** (36), **Python** (40), and **TypeScript** (55) — **250 library parsers in total** — to inherit from `DeclarativeSemanticExtension`.
+  - Added `AnnotationSinkRule`, `ClassHierarchySinkRule`, and `CustomAstRule` declarative rule primitives (`DeclarativeExtendedRules`) with $O(1)$ node-type bucket dispatch and fused single-pass execution via `CompiledDeclarativeRuleIndex.GetOrCreateFused` (~7x AST semantic evaluation speedup).
+  - Added `SyntaxKindResolver.GetCanonicalNodeTypes` to automatically normalize language-specific Tree-sitter node types (`invocation_expression`, `call`, `decorator`, `attribute_item`, `method_definition`, `function_definition`, etc.) into canonical UAST node kinds during `CompiledDeclarativeRuleIndex` compilation.
+- **Native Tree-Sitter TypeScript & TSX Grammar Enhancements**:
+  - Updated cross-platform native `tree-sitter-typescript` and `tree-sitter-tsx` binaries (`win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`) to natively parse `<typeof import(...)>` type arguments, `abstract override readonly` property modifier orderings, TSX generic tagged template expressions, and bare `&` characters in JSX text with zero syntax diagnostics.
+
+### Changed
+- **SQLite Graph Schema v5 & Deferred Index Bulk Loading**:
+  - Upgraded SQLite graph schema to **v5** with compact partial expression indices (`WHERE json_extract(properties, '$.name') IS NOT NULL` on `idx_nodes_kind_name` and `idx_nodes_name_kind`) and restored `idx_nodes_kind` for fast `ROWID`-ordered kind scans (`find_symbol` SLA < 15ms on 100k-node graphs).
+  - Implemented deferred secondary index creation during full database bulk loads (`DropSecondaryIndicesAsync` / `EnsureSecondaryIndicesAsync`) for faster initial workspace indexing.
+
 ## [1.73.0] - 2026-11-07
 
 ### Added

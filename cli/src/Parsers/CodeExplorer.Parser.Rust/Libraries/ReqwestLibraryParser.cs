@@ -7,42 +7,33 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects outbound HTTP requests such as reqwest::get(url) or client.get(url).send().await.
 /// Emits ExternalService nodes and CALLS relationships.
 /// </summary>
-public class ReqwestLibraryParser : ISemanticExtension
+public class ReqwestLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "reqwest";
-    public string Name => "Reqwest";
-    public SemanticExtensionType Type => SemanticExtensionType.HttpClient;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-    public IReadOnlyList<string> SupportedPatterns => ["reqwest*"];
-
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "get", "post", "put", "delete", "patch", "head"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ReqwestLibraryParser()
     {
-        if (IsReqwestCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
+        Id = "reqwest";
+        Name = "Reqwest";
+        Type = SemanticExtensionType.HttpClient;
+        LibraryRole = LibraryRole.General;
+        SupportedPatterns = ["reqwest*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsReqwestCall(node, out _) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = (node, _, _, _) => IsReqwestCall(node, out var target) ? target : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsReqwestCall(node, out var target))
-        {
-            return target;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsReqwestCall(node, out var target) && !string.IsNullOrEmpty(target))
         {

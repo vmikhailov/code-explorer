@@ -2,12 +2,12 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class GcpLibraryParser : ISemanticExtension
+public class GcpLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public string Name => "GCP";
-    public string Id => "gcp";
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override SemanticExtensionType Type => SemanticExtensionType.Queue;
+    public override string Name => "GCP";
+    public override string Id => "gcp";
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "@google-cloud",
         "@google-cloud/*",
@@ -16,13 +16,25 @@ public class GcpLibraryParser : ISemanticExtension
         "*pubsub*",
         "*pub-sub*"
     ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.CloudSdk;
+    public override LibraryRole LibraryRole => LibraryRole.CloudSdk;
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            CollectReferences = CollectReferencesCore
+        }
+    ];
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private const string TopicNameProp = "topicName";
+    private const string TopicProp = "topic";
+    private const string ReceiveTopicNameProp = "receiveTopicName";
+    private const string SubscriptionNameProp = "subscriptionName";
+
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 
@@ -102,8 +114,8 @@ public class GcpLibraryParser : ISemanticExtension
             // Check if arguments contain { topicName: ... } first (e.g. pubSubService.publishMessage({ topicName: ... }))
             if (string.IsNullOrEmpty(topic) && args.Count > 0 && args[0].Is(TreeSitterSyntax.TypeScript.Object))
             {
-                if (AstHelper.TryGetObjectProperty(args[0], "topicName", out var tp) ||
-                    AstHelper.TryGetObjectProperty(args[0], "topic", out tp))
+                if (AstHelper.TryGetObjectProperty(args[0], TopicNameProp, out var tp) ||
+                    AstHelper.TryGetObjectProperty(args[0], TopicProp, out tp))
                 {
                     if (!AstValueResolver.TryResolveTopicOrQueue(tp, scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
                     {
@@ -177,11 +189,11 @@ public class GcpLibraryParser : ISemanticExtension
 
                 if (isCallback || args.Count == 0)
                 {
-                    if (ConstantRegistry.TryResolve(scopeSymbolId, "receiveTopicName", out var recTopic) && IsValidTopicName(recTopic))
+                    if (ConstantRegistry.TryResolve(scopeSymbolId, ReceiveTopicNameProp, out var recTopic) && IsValidTopicName(recTopic))
                     {
                         AddSubscribeReference(references, scopeSymbolId, recTopic);
                     }
-                    else if (ConstantRegistry.TryResolve(scopeSymbolId, "subscriptionName", out var subTopic) && IsValidTopicName(subTopic))
+                    else if (ConstantRegistry.TryResolve(scopeSymbolId, SubscriptionNameProp, out var subTopic) && IsValidTopicName(subTopic))
                     {
                         AddSubscribeReference(references, scopeSymbolId, subTopic);
                     }

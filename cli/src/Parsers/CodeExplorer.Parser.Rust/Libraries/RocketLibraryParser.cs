@@ -7,41 +7,32 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Semantic extension for the Rocket web framework in Rust.
 /// Detects attribute routes (#[get("/path")], #[post("/path")]) and routes![...] macro mounts.
 /// </summary>
-public class RocketLibraryParser : ISemanticExtension
+public class RocketLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "rocket";
-    public string Name => "Rocket";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-    public IReadOnlyList<string> SupportedPatterns => ["rocket*"];
-
     private static readonly Regex RocketAttributeRegex = new(
         @"#\[\s*(get|post|put|delete|patch|head|options)\s*\(\s*""([^""]+)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RocketLibraryParser()
     {
-        if (IsRocketRoute(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Id = "rocket";
+        Name = "Rocket";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["rocket*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.AttributeItem]),
+                MapNodeType = (node, ctx) => IsRocketRoute(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => IsRocketRoute(node, out var m, out var r, out _) ? $"{m}:{r}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsRocketRoute(node, out var httpMethod, out var fullRoute, out _))
-        {
-            return $"{httpMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsRocketRoute(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
         {

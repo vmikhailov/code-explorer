@@ -1,60 +1,47 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class FlaskLibraryParser : ISemanticExtension
+public class FlaskLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Flask";
-    public string Id => "flask";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["flask", "flask.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly HashSet<string> RouteMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "route", "get", "post", "put", "delete", "patch"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public FlaskLibraryParser()
     {
-        if (IsFlaskDecorator(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsFlaskDecorator(node))
-        {
-            return ExtractRoute(node);
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (!IsFlaskDecorator(node)) return;
-
-        var fn = FastApiLibraryParser.GetDecoratedFunction(node);
-        if (!fn.IsValid()) return;
-
-        var nameNode = fn.GetChildForField(TreeSitterSyntax.Fields.Name);
-        if (nameNode.IsValid() && !string.IsNullOrEmpty(nameNode.Text))
-        {
-            references.Add(new Reference(scopeSymbolId, nameNode.Text, OntologyConstants.Relationships.Triggers));
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
-    {
-        if (!IsFlaskDecorator(node)) return;
-        symbol.Protocol = "REST";
+        Name = "Flask";
+        Id = "flask";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["flask", "flask.*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsFlaskDecorator(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsFlaskDecorator(node) ? ExtractRoute(node) : null,
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (!IsFlaskDecorator(node)) return;
+                    var fn = FastApiLibraryParser.GetDecoratedFunction(node);
+                    if (!fn.IsValid()) return;
+                    var nameNode = fn.GetChildForField(TreeSitterSyntax.Fields.Name);
+                    if (nameNode.IsValid() && !string.IsNullOrEmpty(nameNode.Text))
+                    {
+                        references.Add(new Reference(scopeSymbolId, nameNode.Text, OntologyConstants.Relationships.Triggers));
+                    }
+                },
+                EnrichSymbol = static (node, symbol, ctx) =>
+                {
+                    if (!IsFlaskDecorator(node)) return;
+                    symbol.Protocol = "REST";
+                }
+            }
+        ];
     }
 
     public static bool IsFlaskDecorator(Node node)

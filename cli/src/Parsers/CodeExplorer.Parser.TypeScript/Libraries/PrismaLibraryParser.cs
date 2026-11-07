@@ -2,25 +2,28 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class PrismaLibraryParser : ISemanticExtension
+public class PrismaLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "Prisma";
-    public string Id => "prisma";
-    public IReadOnlyList<string> SupportedPatterns => ["@prisma/client", "prisma"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
+    public override string Name => "Prisma";
+    public override string Id => "prisma";
+    public override IReadOnlyList<string> SupportedPatterns => ["@prisma/client", "prisma"];
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsPrismaCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.TaggedTemplateExpression, TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsPrismaCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsPrismaCall(node))
         {
@@ -48,7 +51,7 @@ public class PrismaLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsPrismaCall(node))
         {

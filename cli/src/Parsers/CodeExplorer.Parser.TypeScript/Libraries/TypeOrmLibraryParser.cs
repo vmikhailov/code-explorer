@@ -2,12 +2,12 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class TypeOrmLibraryParser : ISemanticExtension
+public class TypeOrmLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "TypeORM";
-    public string Id => "typeorm";
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
+    public override string Name => "TypeORM";
+    public override string Id => "typeorm";
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "typeorm",
         "typeorm/*",
@@ -19,10 +19,29 @@ public class TypeOrmLibraryParser : ISemanticExtension
         "*twenty-orm*",
         "*workspace-scoped-repository*"
     ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.Decorator,
+                TreeSitterSyntax.TypeScript.ClassDeclaration,
+                TreeSitterSyntax.TypeScript.ClassExpression
+            ],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsTypeOrmCall(node))
         {
@@ -35,7 +54,7 @@ public class TypeOrmLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsTypeOrmCall(node))
         {
@@ -75,7 +94,7 @@ public class TypeOrmLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsTypeOrmCall(node))
         {
@@ -108,7 +127,7 @@ public class TypeOrmLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (node.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
         {

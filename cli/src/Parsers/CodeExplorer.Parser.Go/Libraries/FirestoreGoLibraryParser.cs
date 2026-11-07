@@ -1,62 +1,55 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class FirestoreGoLibraryParser : ISemanticExtension
+public class FirestoreGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
-    public string Name => "Google Cloud Firestore Go";
-    public string Id => "firestore-go";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "cloud.google.com/go/firestore*",
-        "cloud.google.com/go/firestore"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private const string FirestoreEngine = "Firestore";
     private const string FirestoreDbName = "firestore";
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public FirestoreGoLibraryParser()
     {
-        if (IsFirestoreCollectionCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-        if (IsFirestoreClientInit(node))
-        {
-            return OntologyConstants.NodeLabels.Database;
-        }
-        return null;
+        Type = SemanticExtensionType.DocumentDb;
+        Name = "Google Cloud Firestore Go";
+        Id = "firestore-go";
+        SupportedPatterns =
+        [
+            "cloud.google.com/go/firestore*",
+            "cloud.google.com/go/firestore"
+        ];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsFirestoreCollectionCall(node, out _)) return OntologyConstants.NodeLabels.Table;
+                    if (IsFirestoreClientInit(node)) return OntologyConstants.NodeLabels.Database;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsFirestoreCollectionCall(node, out var collectionName)) return collectionName;
+                    if (IsFirestoreClientInit(node)) return FirestoreDbName;
+                    return null;
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsFirestoreCollectionCall(node, out var collectionName) && !string.IsNullOrEmpty(collectionName))
+                    {
+                        references.Add(new Reference(scopeSymbolId, collectionName, OntologyConstants.Relationships.UsesDb));
+                        references.Add(new Reference(scopeSymbolId, FirestoreDbName, OntologyConstants.Relationships.UsesDb));
+                    }
+                },
+                EnrichSymbol = EnrichFirestoreSymbol
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsFirestoreCollectionCall(node, out var collectionName))
-        {
-            return collectionName;
-        }
-        if (IsFirestoreClientInit(node))
-        {
-            return FirestoreDbName;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsFirestoreCollectionCall(node, out var collectionName) && !string.IsNullOrEmpty(collectionName))
-        {
-            references.Add(new Reference(scopeSymbolId, collectionName, OntologyConstants.Relationships.UsesDb));
-            references.Add(new Reference(scopeSymbolId, FirestoreDbName, OntologyConstants.Relationships.UsesDb));
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichFirestoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsFirestoreCollectionCall(node, out _))
         {

@@ -1,35 +1,33 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class RestSharpLibraryParser : ISemanticExtension
+public class RestSharpLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "RestSharp";
-    public string Id => "restsharp";
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public IReadOnlyList<string> SupportedPatterns => ["RestSharp", "RestSharp.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
+    public RestSharpLibraryParser()
+    {
+        Name = "RestSharp";
+        Id = "restsharp";
+        Type = SemanticExtensionType.ApiClient;
+        SupportedPatterns = ["RestSharp", "RestSharp.*"];
+        LibraryRole = LibraryRole.General;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.ObjectCreationExpression, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsRestSharpTarget(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = static (node, _, _, _) => IsRestSharpTarget(node) ? ExtractRestSharpTarget(node) : null
+            }
+        ];
+    }
 
     private static readonly HashSet<string> RestClientCallMethods =
     [
         "GetAsync", "PostAsync", "PutAsync", "DeleteAsync", "PatchAsync",
         "GetJsonAsync", "PostJsonAsync", "PutJsonAsync", "DeleteJsonAsync"
     ];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsRestSharpTarget(node)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsRestSharpTarget(node)) return ExtractRestSharpTarget(node);
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     private static bool IsRestSharpTarget(Node node)
     {

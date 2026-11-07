@@ -2,7 +2,7 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class InngestLibraryParser : ISemanticExtension
+public class InngestLibraryParser : DeclarativeSemanticExtension
 {
     private const string InngestPrefix = "inngest:";
     private const string CreateFunctionMethod = "createFunction";
@@ -12,24 +12,26 @@ public class InngestLibraryParser : ISemanticExtension
     private const string IdPropKey = "id";
     private const string NamePropKey = "name";
 
-    public string Name => "Inngest";
-    public string Id => "inngest";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["inngest", "inngest/*", "@inngest/*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
+    public override string Name => "Inngest";
+    public override string Id => "inngest";
+    public override SemanticExtensionType Type => SemanticExtensionType.Queue;
+    public override IReadOnlyList<string> SupportedPatterns => ["inngest", "inngest/*", "@inngest/*"];
+    public override LibraryRole LibraryRole => LibraryRole.WorkerService;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        return TryExtractCreateFunctionEvent(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
-    }
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => TryExtractCreateFunctionEvent(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = static (node, ctx, _, _) => TryExtractCreateFunctionEvent(node, out var eventName) ? $"Inngest:{eventName}" : null,
+            CollectReferences = CollectReferencesCore
+        }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractCreateFunctionEvent(node, out var eventName) ? $"Inngest:{eventName}" : null;
-    }
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

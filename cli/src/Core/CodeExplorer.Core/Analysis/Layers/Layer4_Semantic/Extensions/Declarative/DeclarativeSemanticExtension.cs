@@ -139,24 +139,48 @@ public sealed record ServiceCallSinkRule
 /// </summary>
 public partial class DeclarativeSemanticExtension : ISemanticExtension
 {
-    public string Id { get; init; } = "";
-    public string Name { get; init; } = "";
-    public SemanticExtensionType Type { get; init; } = SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole { get; init; } = LibraryRole.General;
-    public IReadOnlyList<string> SupportedPatterns { get; init; } = [];
-    public bool IsBuiltIn { get; init; }
-    public bool IsImplemented { get; init; } = true;
-    public Func<ProjectContext, bool>? CustomMatch { get; init; }
-    public SemanticExtensionType? PackageDescriptorTypeOverride { get; init; }
+    public virtual string Id { get; init; } = "";
+    public virtual string Name { get; init; } = "";
+    public virtual SemanticExtensionType Type { get; init; } = SemanticExtensionType.Framework;
+    public virtual LibraryRole LibraryRole { get; init; } = LibraryRole.General;
+    public virtual IReadOnlyList<string> SupportedPatterns { get; init; } = [];
+    public virtual bool IsBuiltIn { get; init; }
+    public virtual bool IsImplemented { get; init; } = true;
+    public virtual Func<ProjectContext, bool>? CustomMatch { get; init; }
+    public virtual SemanticExtensionType? PackageDescriptorTypeOverride { get; init; }
 
-    public IReadOnlyList<AnnotationEndpointRule> AnnotationEndpointRules { get; init; } = [];
-    public IReadOnlyList<OutboundHttpRule> OutboundHttpRules { get; init; } = [];
-    public IReadOnlyList<SqlSinkRule> SqlSinkRules { get; init; } = [];
-    public IReadOnlyList<OrmTableRule> OrmTableRules { get; init; } = [];
-    public IReadOnlyList<MessagingBrokerRule> MessagingBrokerRules { get; init; } = [];
-    public IReadOnlyList<InboundRouteCallRule> InboundRouteCallRules { get; init; } = [];
-    public IReadOnlyList<DataStoreAccessRule> DataStoreAccessRules { get; init; } = [];
-    public IReadOnlyList<ServiceCallSinkRule> ServiceCallSinkRules { get; init; } = [];
+    public virtual IReadOnlyList<AnnotationEndpointRule> AnnotationEndpointRules { get; init; } = [];
+    public virtual IReadOnlyList<OutboundHttpRule> OutboundHttpRules { get; init; } = [];
+    public virtual IReadOnlyList<SqlSinkRule> SqlSinkRules { get; init; } = [];
+    public virtual IReadOnlyList<OrmTableRule> OrmTableRules { get; init; } = [];
+    public virtual IReadOnlyList<MessagingBrokerRule> MessagingBrokerRules { get; init; } = [];
+    public virtual IReadOnlyList<InboundRouteCallRule> InboundRouteCallRules { get; init; } = [];
+    public virtual IReadOnlyList<DataStoreAccessRule> DataStoreAccessRules { get; init; } = [];
+    public virtual IReadOnlyList<ServiceCallSinkRule> ServiceCallSinkRules { get; init; } = [];
+    public virtual IReadOnlyList<AnnotationSinkRule> AnnotationSinkRules { get; init; } = [];
+    public virtual IReadOnlyList<ClassHierarchySinkRule> ClassHierarchySinkRules { get; init; } = [];
+    public virtual IReadOnlyList<CustomAstRule> CustomAstRules { get; init; } = [];
+    public virtual IReadOnlyDictionary<string, NodeSelector> Selectors => System.Collections.Immutable.ImmutableDictionary<string, NodeSelector>.Empty;
+
+    public virtual void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    {
+    }
+
+    public virtual void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+    }
+
+    public virtual void SynthesizeCloudResources(
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        string effectiveSource,
+        IReadOnlySet<string> packageNames,
+        string? workloadId,
+        CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
+        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        ParsingContext ctx)
+    {
+    }
 
     public virtual IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
@@ -170,9 +194,16 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
     }
 
     private CompiledDeclarativeRuleIndex? _compiledIndex;
+    private CompiledDeclarativeRuleIndex CompiledIndex => _compiledIndex ??= CompiledDeclarativeRuleIndex.Build(this);
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
+        if (CustomAstRules.Count > 0)
+        {
+            var customKind = CompiledIndex.EvaluateCustomMapNodeType(node, ctx);
+            if (customKind != null) return customKind;
+        }
+
         if (node.SyntaxKind is not (SyntaxKind.Annotation or SyntaxKind.CallExpression or SyntaxKind.TypeDeclaration or SyntaxKind.SyntaxList))
         {
             return null;
@@ -210,6 +241,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
+        for (var i = 0; i < ClassHierarchySinkRules.Count; i++)
+        {
+            var rule = ClassHierarchySinkRules[i];
+            if (rule.EmitTableNode && DeclarativeExtendedRuleEvaluator.MatchesClassHierarchyRule(node, rule, out _))
+            {
+                return OntologyConstants.NodeLabels.Table;
+            }
+        }
+
         for (var i = 0; i < MessagingBrokerRules.Count; i++)
         {
             var rule = MessagingBrokerRules[i];
@@ -239,6 +279,12 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
+        if (CustomAstRules.Count > 0)
+        {
+            var customId = CompiledIndex.EvaluateCustomExtractIdentifier(node, ctx, projectName, relativePath);
+            if (customId != null) return customId;
+        }
+
         if (node.SyntaxKind is not (SyntaxKind.Annotation or SyntaxKind.CallExpression or SyntaxKind.TypeDeclaration or SyntaxKind.FunctionDeclaration or SyntaxKind.SyntaxList))
         {
             return null;
@@ -305,6 +351,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
+        for (var i = 0; i < ClassHierarchySinkRules.Count; i++)
+        {
+            var rule = ClassHierarchySinkRules[i];
+            if (rule.EmitTableNode && DeclarativeExtendedRuleEvaluator.MatchesClassHierarchyRule(node, rule, out var tableName))
+            {
+                return tableName;
+            }
+        }
+
         for (var i = 0; i < MessagingBrokerRules.Count; i++)
         {
             var rule = MessagingBrokerRules[i];
@@ -336,17 +391,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        if (node.SyntaxKind is not (SyntaxKind.CallExpression or SyntaxKind.TypeDeclaration or SyntaxKind.Annotation or SyntaxKind.FunctionDeclaration or SyntaxKind.SyntaxList))
-        {
-            return;
-        }
-
-        (_compiledIndex ??= CompiledDeclarativeRuleIndex.Build(this))
-            .EvaluateCollectReferences(node, scopeSymbolId, references);
+        CompiledIndex.EvaluateCollectReferences(node, scopeSymbolId, references, ctx);
     }
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
+        if (CustomAstRules.Count > 0)
+        {
+            CompiledIndex.EvaluateCustomEnrichSymbol(node, symbol, ctx);
+        }
         if (symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query &&
             string.IsNullOrEmpty(symbol.Text) &&
             SqlSinkRules.Count > 0)
@@ -547,7 +600,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         {
             var wsPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys) ?? "/";
             wsPath = ConfigurationIndex.ResolvePlaceholders(wsPath, projectName);
-            return $"WS:{NormalizeRoute(wsPath)}";
+            return $"WS:{NormalizeDeclarativeRoute(wsPath)}";
         }
 
         var methodPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys);
@@ -607,12 +660,12 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             curr = curr.Parent;
         }
 
-        var fullRoute = CombineRoutes(classPrefix ?? "", methodPath);
+        var fullRoute = CombineDeclarativeRoutes(classPrefix ?? "", methodPath);
         fullRoute = ConfigurationIndex.ResolvePlaceholders(fullRoute, projectName);
         return $"{httpMethod}:{fullRoute}";
     }
 
-    internal static string NormalizeRoute(string raw)
+    internal static string NormalizeDeclarativeRoute(string raw)
     {
         var trimmed = (raw ?? "").Trim();
         if (string.IsNullOrEmpty(trimmed) || trimmed == "/") return "/";
@@ -687,7 +740,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return false;
     }
 
-    internal static string CombineRoutes(string prefix, string path)
+    internal static string CombineDeclarativeRoutes(string prefix, string path)
     {
         prefix = (prefix ?? "").Trim('/');
         path = (path ?? "").Trim('/');
@@ -697,429 +750,18 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return $"/{prefix}/{path}";
     }
 
-    private static void EnrichFromEnclosingDeclarations(Node annotationNode, SyntacticSymbol symbol)
-    {
-        var targetDecl = annotationNode.Parent;
-        while (targetDecl.IsValid())
-        {
-            if (targetDecl is FunctionDeclSyntax or TypeDeclSyntax)
-            {
-                EnrichSecurityFromAnnotations(targetDecl, symbol);
-                break;
-            }
-            targetDecl = targetDecl.Parent;
-        }
-
-        if (targetDecl is FunctionDeclSyntax)
-        {
-            ExtractMethodPayloadSchemas(targetDecl, symbol);
-
-            var classDecl = targetDecl.Parent;
-            while (classDecl.IsValid())
-            {
-                if (classDecl is TypeDeclSyntax)
-                {
-                    EnrichSecurityFromAnnotations(classDecl, symbol);
-                    break;
-                }
-                classDecl = classDecl.Parent;
-            }
-        }
-    }
-
-    private static void ExtractMethodPayloadSchemas(Node methodDecl, SyntacticSymbol symbol)
-    {
-        var typeNode = methodDecl.GetField(SyntaxFields.Type);
-        if (typeNode.IsValid())
-        {
-            var ret = UnwrapGenericResponseType(typeNode.Text);
-            if (!string.IsNullOrEmpty(ret) && ret != "void")
-            {
-                symbol.ResponseType = ret;
-            }
-        }
-
-        var paramList = methodDecl.GetField(SyntaxFields.Parameters);
-        if (paramList.IsValid())
-        {
-            foreach (var param in paramList.Children)
-            {
-                if (param is not ParameterDeclSyntax && !param.Type.Contains("parameter", StringComparison.Ordinal)) continue;
-
-                var isRequestBody = param.Text.Contains("@RequestBody", StringComparison.Ordinal) ||
-                                    param.Text.Contains("@ModelAttribute", StringComparison.Ordinal);
-                var pType = param.GetField(SyntaxFields.Type);
-                if (pType.IsValid())
-                {
-                    var pTypeName = UnwrapGenericResponseType(pType.Text);
-                    if (isRequestBody || (!IsPrimitiveOrFrameworkParamType(pTypeName) && symbol.RequestType == null))
-                    {
-                        symbol.RequestType = pTypeName;
-                        if (isRequestBody) break;
-                    }
-                }
-            }
-        }
-    }
-
-    private static string UnwrapGenericResponseType(string rawType)
-    {
-        if (string.IsNullOrWhiteSpace(rawType)) return "";
-        var type = rawType.Trim();
-        while (true)
-        {
-            var genericIdx = type.IndexOf('<');
-            if (genericIdx > 0 && type.EndsWith('>'))
-            {
-                var outer = type[..genericIdx].Trim();
-                if (outer is "ResponseEntity" or "CompletableFuture" or "Mono" or "Flux" or "List" or "Set" or "Collection" or "Optional" or "HttpEntity")
-                {
-                    type = type[(genericIdx + 1)..^1].Trim();
-                    continue;
-                }
-            }
-            break;
-        }
-        return type;
-    }
-
-    private static bool IsPrimitiveOrFrameworkParamType(string type)
-    {
-        return type is "int" or "long" or "String" or "boolean" or "double" or "float" or "byte" or "short" or "char"
-            or "Integer" or "Long" or "Boolean" or "Double" or "Float" or "UUID" or "Date" or "Instant" or "LocalDate"
-            or "LocalDateTime" or "HttpServletRequest" or "HttpServletResponse" or "Principal" or "Authentication"
-            or "HttpSession" or "Object";
-    }
-
-    private static void EnrichSecurityFromAnnotations(Node targetDecl, SyntacticSymbol symbol)
-    {
-        var annotations = GetNodeAnnotations(targetDecl, new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet());
-        foreach (var annot in annotations)
-        {
-            var name = GetShortAnnotationName(annot);
-            if (string.IsNullOrEmpty(name)) continue;
-
-            if (name is "PermitAll" or "AnonymousAllowed" or "AllowAnonymous")
-            {
-                symbol.IsAnonymous = true;
-            }
-            else if (name is "RolesAllowed" or "Secured")
-            {
-                var role = ExtractNamedOrFirstStringFromAnnotation(annot, new[] { "value", "roles" }.ToFrozenSet());
-                if (!string.IsNullOrEmpty(role))
-                {
-                    symbol.RequiredRoles = string.IsNullOrEmpty(symbol.RequiredRoles) ? role : $"{symbol.RequiredRoles},{role}";
-                }
-            }
-            else if (name is "PreAuthorize" or "PostAuthorize")
-            {
-                var expr = ExtractNamedOrFirstStringFromAnnotation(annot, new[] { "value" }.ToFrozenSet());
-                if (!string.IsNullOrEmpty(expr))
-                {
-                    symbol.Policies = string.IsNullOrEmpty(symbol.Policies) ? expr : $"{symbol.Policies},{expr}";
-                    if (expr.Contains("hasRole", StringComparison.OrdinalIgnoreCase) || expr.Contains("hasAuthority", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var startQuote = expr.IndexOf('\'');
-                        var endQuote = expr.LastIndexOf('\'');
-                        if (startQuote >= 0 && endQuote > startQuote)
-                        {
-                            var role = expr[(startQuote + 1)..endQuote];
-                            symbol.RequiredRoles = string.IsNullOrEmpty(symbol.RequiredRoles) ? role : $"{symbol.RequiredRoles},{role}";
-                        }
-                    }
-                }
-            }
-            else if (name is "QueryMapping" or "MutationMapping" or "SubscriptionMapping")
-            {
-                symbol.Protocol = "GraphQL";
-            }
-            else if (name is "GrpcService")
-            {
-                symbol.Protocol = "gRPC";
-            }
-        }
-    }
+    private static void EnrichFromEnclosingDeclarations(Node annotationNode, SyntacticSymbol symbol) =>
+        DeclarativeOutboundAndSecurityHelper.EnrichFromEnclosingDeclarations(annotationNode, symbol);
 
     #endregion
 
     #region Outbound HTTP Helpers
 
-    private static bool MatchesOutboundHttp(Node node, OutboundHttpRule rule)
-    {
-        if (rule.CallNodeTypes.Contains(node.Type))
-        {
-            var name = GetCallMethodName(node);
-            if (!string.IsNullOrEmpty(name) && rule.CallMethodNames.Contains(name))
-            {
-                return true;
-            }
-        }
+    private static bool MatchesOutboundHttp(Node node, OutboundHttpRule rule) =>
+        DeclarativeOutboundAndSecurityHelper.MatchesOutboundHttp(node, rule);
 
-        if (rule.AnnotationNodeTypes.Contains(node.Type))
-        {
-            var annotName = GetShortAnnotationName(node);
-            if (!string.IsNullOrEmpty(annotName) &&
-                rule.ClientAnnotationSuffixes.Any(suffix => annotName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
-            {
-                return true;
-            }
-        }
-
-        if (node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface } && rule.ClientAnnotationSuffixes.Count > 0)
-        {
-            var annotations = GetNodeAnnotations(node, rule.AnnotationNodeTypes);
-            if (annotations.Any(a =>
-                {
-                    var n = GetShortAnnotationName(a);
-                    return !string.IsNullOrEmpty(n) &&
-                           rule.ClientAnnotationSuffixes.Any(s => n.EndsWith(s, StringComparison.OrdinalIgnoreCase));
-                }))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string ExtractOutboundHttpTarget(Node node, OutboundHttpRule rule, string? projectName = null)
-    {
-        var targetNode = node;
-        if (node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface })
-        {
-            var annotations = GetNodeAnnotations(node, rule.AnnotationNodeTypes);
-            var clientAnnot = annotations.FirstOrDefault(a =>
-            {
-                var n = GetShortAnnotationName(a);
-                return !string.IsNullOrEmpty(n) &&
-                       rule.ClientAnnotationSuffixes.Any(s => n.EndsWith(s, StringComparison.OrdinalIgnoreCase));
-            });
-            if (clientAnnot.IsValid())
-            {
-                targetNode = clientAnnot;
-            }
-        }
-
-        if (rule.AnnotationNodeTypes.Contains(targetNode.Type))
-        {
-            string? nameVal = null;
-            string? pathVal = null;
-
-            var str = targetNode.Children.FirstOrDefault(IsStringLiteral);
-            if (str.IsValid()) nameVal = str.Text.Trim('"', '\'');
-
-            var pairs = new List<Node>();
-            CollectNodesByType(targetNode, "element_value_pair", pairs);
-            foreach (var pair in pairs)
-            {
-                var key = pair.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
-                var val = pair.Children.FirstOrDefault(IsStringLiteral);
-                if (key.IsValid() && val.IsValid())
-                {
-                    var keyText = key.Text;
-                    var valText = val.Text.Trim('"', '\'');
-                    if (keyText is "name" or "value" or "configKey" or "serviceId" or "id")
-                    {
-                        nameVal = valText;
-                    }
-                    else if (keyText is "path")
-                    {
-                        pathVal = valText;
-                    }
-                    else if (keyText is "url")
-                    {
-                        var rawUrl = valText;
-                        if (rawUrl.StartsWith("${") && rawUrl.EndsWith('}'))
-                        {
-                            var propKey = rawUrl[2..^1].Trim();
-                            if (ConstantRegistry.TryResolve(null, propKey, out var constVal) && !string.IsNullOrEmpty(constVal))
-                            {
-                                rawUrl = constVal;
-                            }
-                            else if (ConfigurationIndex.TryGetConfig(null, propKey, out var confVal) && !string.IsNullOrEmpty(confVal))
-                            {
-                                rawUrl = confVal;
-                            }
-                        }
-                        var norm = RouteDictionaryRegistry.NormalizeResolvedUrl(rawUrl);
-                        if (!string.IsNullOrEmpty(norm) && norm != "*")
-                        {
-                            return norm;
-                        }
-                    }
-                }
-            }
-
-            if (string.IsNullOrEmpty(nameVal) && node is TypeDeclSyntax typeDecl)
-            {
-                nameVal = typeDecl.Name;
-            }
-
-            if (!string.IsNullOrEmpty(nameVal))
-            {
-                var combined = !string.IsNullOrEmpty(pathVal) ? $"{nameVal}/{pathVal.TrimStart('/')}" : nameVal;
-                combined = ConfigurationIndex.ResolvePlaceholders(combined, projectName);
-                return RouteDictionaryRegistry.NormalizeResolvedUrl(combined);
-            }
-        }
-
-        if (rule.CallNodeTypes.Contains(targetNode.Type))
-        {
-            var argList = FindArgumentsNode(targetNode);
-            if (argList.IsValid())
-            {
-                foreach (var child in argList.Children)
-                {
-                    if (IsStringLiteral(child))
-                    {
-                        var text = child.Text.Trim('"', '\'');
-                        if (text.Contains('/') || text.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                        {
-                            return RouteDictionaryRegistry.NormalizeResolvedUrl(text);
-                        }
-                    }
-                    else if (child is IdentifierExprSyntax)
-                    {
-                        var varName = child.Text;
-                        if (RouteDictionaryRegistry.TryResolve(varName, out var rPath, out var rService))
-                        {
-                            var cleanPath = rPath.Split('?')[0];
-                            return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
-                        }
-
-                        var resolved = FindVariableInitializerInEnclosingScopes(child, varName);
-                        if (!string.IsNullOrEmpty(resolved))
-                        {
-                            return RouteDictionaryRegistry.NormalizeResolvedUrl(resolved);
-                        }
-                    }
-                    else if (child is BinaryExprSyntax)
-                    {
-                        var left = child.GetField(SyntaxFields.Left) ?? (child.Children.Count >= 1 ? child.Children[0] : null);
-                        string? leftText = null;
-                        if (left.IsValid())
-                        {
-                            if (IsStringLiteral(left))
-                            {
-                                leftText = left.Text.Trim('"', '\'');
-                            }
-                            else if (left is IdentifierExprSyntax or CallExprSyntax)
-                            {
-                                var varName = left.Text.TrimStart('$');
-                                if (left is CallExprSyntax)
-                                {
-                                    var callName = GetCallMethodName(left);
-                                    if (!string.IsNullOrEmpty(callName)) varName = callName;
-                                }
-                                leftText = FindVariableInitializerInEnclosingScopes(child, varName);
-                            }
-                        }
-
-                        var right = child.GetField(SyntaxFields.Right) ?? (child.Children.Count >= 3 ? child.Children[2] : null);
-                        string? rightText = null;
-                        if (right.IsValid() && IsStringLiteral(right))
-                        {
-                            rightText = right.Text.Trim('"', '\'');
-                        }
-
-                        if (!string.IsNullOrEmpty(leftText) && !string.IsNullOrEmpty(rightText))
-                        {
-                            var combined = leftText.TrimEnd('/') + "/" + rightText.TrimStart('/');
-                            return RouteDictionaryRegistry.NormalizeResolvedUrl(combined);
-                        }
-                        if (!string.IsNullOrEmpty(leftText) && (leftText.Contains('/') || leftText.StartsWith("http", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            return RouteDictionaryRegistry.NormalizeResolvedUrl(leftText.EndsWith('/') ? leftText + "*" : leftText);
-                        }
-                        if (!string.IsNullOrEmpty(rightText))
-                        {
-                            return RouteDictionaryRegistry.NormalizeResolvedUrl(rightText);
-                        }
-                    }
-                }
-            }
-        }
-
-        return rule.FallbackTarget;
-    }
-
-    private static string? FindVariableInitializerInEnclosingScopes(Node node, string varName)
-    {
-        var curr = node.Parent;
-        while (curr.IsValid())
-        {
-            if (curr is BlockStmtSyntax or FunctionDeclSyntax or TypeDeclSyntax || curr.IsAny("class_body", "statement_block", "compound_statement"))
-            {
-                foreach (var child in curr.Children)
-                {
-                    if (child is VariableDeclSyntax or MemberDeclSyntax)
-                    {
-                        foreach (var decl in child.Children)
-                        {
-                            if (decl is not VariableDeclSyntax && decl.Type != "property_element") continue;
-
-                            var nameNode = decl.GetChildForField(SyntaxFields.Name) ??
-                                           decl.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
-                            if (nameNode.IsValid() && nameNode.Text.TrimStart('$') == varName.TrimStart('$'))
-                            {
-                                var valNode = decl.GetChildForField(SyntaxFields.Value) ??
-                                              (decl.Children.Count >= 3 ? decl.Children[^1] : null);
-                                if (valNode.IsValid())
-                                {
-                                    if (IsStringLiteral(valNode))
-                                    {
-                                        return valNode.Text.Trim('"', '\'');
-                                    }
-                                    if (valNode is BinaryExprSyntax)
-                                    {
-                                        var left = valNode.GetChildForField(SyntaxFields.Left) ??
-                                                   (valNode.Children.Count > 0 ? valNode.Children[0] : null);
-                                        var right = valNode.GetChildForField(SyntaxFields.Right) ??
-                                                    (valNode.Children.Count >= 3 ? valNode.Children[2] : null);
-
-                                        if (left.IsValid() && IsStringLiteral(left))
-                                        {
-                                            var leftText = left.Text.Trim('"', '\'');
-                                            if (right.IsValid() && IsStringLiteral(right))
-                                            {
-                                                return leftText + right.Text.Trim('"', '\'');
-                                            }
-                                            return leftText + "*";
-                                        }
-                                        if (right.IsValid() && IsStringLiteral(right))
-                                        {
-                                            return right.Text.Trim('"', '\'');
-                                        }
-                                    }
-                                    if (valNode is CallExprSyntax)
-                                    {
-                                        var argList = FindArgumentsNode(valNode);
-                                        var str = argList?.Children.FirstOrDefault(IsStringLiteral);
-                                        if (str.IsValid()) return str.Text.Trim('"', '\'');
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (child is FunctionDeclSyntax fn)
-                    {
-                        var fnName = fn.GetChildForField(SyntaxFields.Name)?.Text ?? fn.Children.FirstOrDefault(c => c is IdentifierExprSyntax)?.Text;
-                        if (!string.IsNullOrEmpty(fnName) && fnName.Equals(varName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            var str = fn.Descendants().FirstOrDefault(d => IsStringLiteral(d) && (d.Text.Contains('/') || d.Text.Contains('-') || d.Text.Contains(':')));
-                            if (str.IsValid())
-                            {
-                                var s = str.Text.Trim('"', '\'');
-                                if (!string.IsNullOrEmpty(s)) return s.StartsWith("http", StringComparison.OrdinalIgnoreCase) || s.StartsWith("lb:", StringComparison.OrdinalIgnoreCase) ? s : $"http://{s}";
-                            }
-                        }
-                    }
-                }
-            }
-            curr = curr.Parent;
-        }
-        return null;
-    }
+    private static string ExtractOutboundHttpTarget(Node node, OutboundHttpRule rule, string? projectName = null) =>
+        DeclarativeOutboundAndSecurityHelper.ExtractOutboundHttpTarget(node, rule, projectName);
 
     #endregion
 

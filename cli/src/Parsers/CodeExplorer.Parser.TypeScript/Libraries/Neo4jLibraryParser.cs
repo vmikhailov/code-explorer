@@ -1,55 +1,46 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class Neo4jLibraryParser : ISemanticExtension
+public class Neo4jLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GraphDb;
-    public string Name => "Neo4j";
-    public string Id => "neo4j";
-    public IReadOnlyList<string> SupportedPatterns => ["neo4j-driver"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> Neo4jMethods = new(StringComparer.Ordinal)
     {
         "run", "executeRead", "executeWrite", "beginTransaction"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public Neo4jLibraryParser()
     {
-        if (IsNeo4jCall(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsNeo4jCall(node))
-        {
-            var query = AstHelper.ExtractFirstStringArgument(node);
-            if (!string.IsNullOrEmpty(query))
+        Type = SemanticExtensionType.GraphDb;
+        Name = "Neo4j";
+        Id = "neo4j";
+        SupportedPatterns = ["neo4j-driver"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var clean = NestedSqlParser.CleanQueryText(query);
-                return $"Neo4j: {clean}";
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsNeo4jCall(node) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsNeo4jCall(node)) return null;
+                    var query = AstHelper.ExtractFirstStringArgument(node);
+                    if (!string.IsNullOrEmpty(query))
+                    {
+                        var clean = NestedSqlParser.CleanQueryText(query);
+                        return $"Neo4j: {clean}";
+                    }
+                    if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
+                    {
+                        var target = objNode.IsValid() ? objNode.Text : "session";
+                        return $"Neo4j: {target}.{propName}";
+                    }
+                    return "Neo4j Query";
+                }
             }
-
-            if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
-            {
-                var target = objNode.IsValid() ? objNode.Text : "session";
-                return $"Neo4j: {target}.{propName}";
-            }
-
-            return "Neo4j Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Graph queries represent Query nodes
+        ];
     }
 
     private static bool IsNeo4jCall(Node node)

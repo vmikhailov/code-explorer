@@ -1,51 +1,50 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class MongoGoLibraryParser : ISemanticExtension
+public class MongoGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
-    public string Name => "MongoDB";
-    public string Id => "mongodb";
-    public IReadOnlyList<string> SupportedPatterns => ["go.mongodb.org/mongo-driver/mongo*", "go.mongodb.org/mongo-driver*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> MongoMethods = new(StringComparer.Ordinal)
     {
         "Find", "FindOne", "InsertOne", "InsertMany", "UpdateOne", "UpdateMany",
         "DeleteOne", "DeleteMany", "Aggregate", "CountDocuments", "ReplaceOne"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public MongoGoLibraryParser()
     {
-        if (IsMongoCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsMongoCall(node, out var method, out var target))
-        {
-            return !string.IsNullOrEmpty(target) ? $"MongoDB: {target}.{method}" : $"MongoDB: {method}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsMongoCall(node, out _, out var target))
-        {
-            if (!string.IsNullOrEmpty(target))
+        Type = SemanticExtensionType.DocumentDb;
+        Name = "MongoDB";
+        Id = "mongodb";
+        SupportedPatterns = ["go.mongodb.org/mongo-driver/mongo*", "go.mongodb.org/mongo-driver*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.UsesDb));
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsMongoCall(node, out _, out _) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsMongoCall(node, out var method, out var target)) return null;
+                    return !string.IsNullOrEmpty(target) ? $"MongoDB: {target}.{method}" : $"MongoDB: {method}";
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsMongoCall(node, out _, out var target))
+                    {
+                        if (!string.IsNullOrEmpty(target))
+                        {
+                            references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.UsesDb));
+                        }
+                        references.Add(new Reference(scopeSymbolId, MongoDbId, OntologyConstants.Relationships.UsesDb));
+                    }
+                }
             }
-            references.Add(new Reference(scopeSymbolId, "mongodb", OntologyConstants.Relationships.UsesDb));
-        }
+        ];
     }
+
+    private const string MongoDbId = "mongodb";
 
     private static bool IsMongoCall(Node node, out string? methodName, out string? targetInfo)
     {

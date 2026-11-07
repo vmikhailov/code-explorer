@@ -2,14 +2,13 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AwsSdkLibraryParser : ISemanticExtension
+public class AwsSdkLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
-    public string Name => "AWS";
-    public string Id => "aws";
-    public IReadOnlyList<string> SupportedPatterns => ["aws-sdk", "@aws-sdk/*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.CloudSdk;
+    public override SemanticExtensionType Type => SemanticExtensionType.Cloud;
+    public override string Name => "AWS";
+    public override string Id => "aws";
+    public override IReadOnlyList<string> SupportedPatterns => ["aws-sdk", "@aws-sdk/*"];
+    public override LibraryRole LibraryRole => LibraryRole.CloudSdk;
 
     private static readonly HashSet<string> DynamoDbCommands = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -23,16 +22,20 @@ public class AwsSdkLibraryParser : ISemanticExtension
         "putItem", "getItem", "updateItem", "deleteItem"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsDynamoDbCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.NewExpression, TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsDynamoDbCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsDynamoDbCall(node))
         {
@@ -46,7 +49,7 @@ public class AwsSdkLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. SQS queue references
         var queueUrl = ExtractQueueUrl(node, out var isReceive);

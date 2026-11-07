@@ -1,8 +1,9 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class DramatiqLibraryParser : ISemanticExtension
+public class DramatiqLibraryParser : DeclarativeSemanticExtension
 {
     private const string DramatiqPrefix = "dramatiq:";
     private const string ActorDecorator = "actor";
@@ -11,24 +12,26 @@ public class DramatiqLibraryParser : ISemanticExtension
     private const string ActorNameKeyword = "actor_name";
     private const string QueueNameKeyword = "queue_name";
 
-    public string Name => "Dramatiq";
-    public string Id => "dramatiq";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["dramatiq", "dramatiq.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public DramatiqLibraryParser()
     {
-        return IsDramatiqActorDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Name = "Dramatiq";
+        Id = "dramatiq";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["dramatiq", "dramatiq.*"];
+        LibraryRole = LibraryRole.WorkerService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsDramatiqActorDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsDramatiqActorDecorator(node, out var actorName) ? $"Actor:{actorName}" : null,
+                CollectReferences = CollectDramatiqReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsDramatiqActorDecorator(node, out var actorName) ? $"Actor:{actorName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectDramatiqReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsDramatiqActorDecorator(node, out var actorName))
         {

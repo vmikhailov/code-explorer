@@ -2,18 +2,11 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class WolverineLibraryParser : ISemanticExtension
+public class WolverineLibraryParser : DeclarativeSemanticExtension
 {
     private const string WolverinePrefix = "wolverine:";
     private const string HandlerSuffix = "Handler";
     private const string WolverineHandlerAttr = "WolverineHandler";
-
-    public string Name => "Wolverine";
-    public string Id => "wolverine";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["WolverineFx", "WolverineFx.*", "Wolverine", "Wolverine.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     private static readonly HashSet<string> HandlerMethods = new(StringComparer.Ordinal)
     {
@@ -25,17 +18,30 @@ public class WolverineLibraryParser : ISemanticExtension
         "InvokeAsync", "PublishAsync", "SendAsync", "BroadcastToTopicAsync"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public WolverineLibraryParser()
     {
-        return IsWolverineHandlerMethod(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Id = "wolverine";
+        Name = "Wolverine";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["WolverineFx", "WolverineFx.*", "Wolverine", "Wolverine.*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.CSharp.MethodDeclaration,
+                    TreeSitterSyntax.CSharp.InvocationExpression
+                ]),
+                MapNodeType = (node, ctx) => IsWolverineHandlerMethod(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => IsWolverineHandlerMethod(node, out var msgType) ? $"WolverineHandler:{msgType}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsWolverineHandlerMethod(node, out var msgType) ? $"WolverineHandler:{msgType}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsWolverineHandlerMethod(node, out var handledMessage))
         {

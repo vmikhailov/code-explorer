@@ -7,42 +7,33 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects declarative routing constructs such as Router::new().route("/path", get(handler).post(handler))
 /// and nested route scopes via .nest("/prefix", router).
 /// </summary>
-public class AxumLibraryParser : ISemanticExtension
+public class AxumLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "axum";
-    public string Name => "Axum";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-    public IReadOnlyList<string> SupportedPatterns => ["axum*"];
-
     private static readonly HashSet<string> AxumHttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "get", "post", "put", "delete", "patch", "head", "options", "trace", "any"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public AxumLibraryParser()
     {
-        if (IsAxumRoute(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Id = "axum";
+        Name = "Axum";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["axum*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsAxumRoute(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => IsAxumRoute(node, out var m, out var r, out _) ? $"{m}:{r}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsAxumRoute(node, out var primaryMethod, out var fullRoute, out _))
-        {
-            return $"{primaryMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsAxumRoute(node, out _, out var fullRoute, out var handlers))
         {

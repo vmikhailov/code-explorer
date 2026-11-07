@@ -7,16 +7,34 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects server gRPC service implementations annotated with #[tonic::async_trait]
 /// and client invocations (e.g. GreeterClient::connect(...)).
 /// </summary>
-public class TonicLibraryParser : ISemanticExtension
+public class TonicLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "tonic";
-    public string Name => "Tonic (gRPC)";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-    public IReadOnlyList<string> SupportedPatterns => ["tonic*"];
+    public TonicLibraryParser()
+    {
+        Id = "tonic";
+        Name = "Tonic (gRPC)";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["tonic*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.Rust.FunctionItem,
+                    TreeSitterSyntax.Rust.FunctionSignatureItem,
+                    TreeSitterSyntax.Rust.CallExpression
+                ]),
+                MapNodeType = MapNodeTypeCore,
+                ExtractIdentifier = (node, _, _, _) => ExtractIdentifierCore(node),
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
+    }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsTonicServerMethod(node, out _, out _))
         {
@@ -31,10 +49,7 @@ public class TonicLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsTonicServerMethod(node, out var traitName, out var methodName))
         {
@@ -49,7 +64,7 @@ public class TonicLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsTonicServerMethod(node, out _, out var methodName))
         {
@@ -61,7 +76,7 @@ public class TonicLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsTonicServerMethod(node, out _, out _) || IsTonicClientCall(node, out _))
         {

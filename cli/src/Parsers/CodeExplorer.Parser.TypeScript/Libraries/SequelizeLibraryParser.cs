@@ -2,16 +2,35 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class SequelizeLibraryParser : ISemanticExtension
+public class SequelizeLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "Sequelize";
-    public string Id => "sequelize";
-    public IReadOnlyList<string> SupportedPatterns => ["sequelize", "sequelize-typescript", "@types/sequelize"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
+    public override string Name => "Sequelize";
+    public override string Id => "sequelize";
+    public override IReadOnlyList<string> SupportedPatterns => ["sequelize", "sequelize-typescript", "@types/sequelize"];
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.Decorator,
+                TreeSitterSyntax.TypeScript.ClassDeclaration,
+                TreeSitterSyntax.TypeScript.ClassExpression
+            ],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsSequelizeCall(node))
         {
@@ -24,7 +43,7 @@ public class SequelizeLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsSequelizeCall(node))
         {
@@ -58,7 +77,7 @@ public class SequelizeLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsSequelizeCall(node))
         {
@@ -89,7 +108,7 @@ public class SequelizeLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (node.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
         {

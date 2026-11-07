@@ -1,16 +1,34 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class EventBusLibraryParser : ISemanticExtension
+public class EventBusLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "EventBus";
-    public string Id => "eventbus";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["*EventBus*", "EventBus", "EventBus.*", "RabbitMQ.Client", "RabbitMQ.*"];
-    public bool IsBuiltIn => true;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    public EventBusLibraryParser()
+    {
+        Name = "EventBus";
+        Id = "eventbus";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["*EventBus*", "EventBus", "EventBus.*", "RabbitMQ.Client", "RabbitMQ.*"];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsHandlerClass(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsHandlerClass(node)) return null;
+                    var msg = ExtractHandlerMessageType(node);
+                    return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
+                },
+                CollectReferences = CollectEventBusReferences
+            }
+        ];
+    }
 
     private static readonly HashSet<string> HandlerInterfaces =
     [
@@ -52,27 +70,7 @@ public class EventBusLibraryParser : ISemanticExtension
         "CancellationToken"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsHandlerClass(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsHandlerClass(node))
-        {
-            var msg = ExtractHandlerMessageType(node);
-            return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectEventBusReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Ingress: Handler classes subscribe to message types
         if (IsHandlerClass(node))

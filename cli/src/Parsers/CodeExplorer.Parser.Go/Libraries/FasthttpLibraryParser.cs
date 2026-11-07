@@ -1,69 +1,58 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class FasthttpLibraryParser : ISemanticExtension
+public class FasthttpLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => "FastHTTP";
-    public string Id => "fasthttp";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/valyala/fasthttp*",
-        "github.com/buaazp/fasthttprouter*",
-        "github.com/fasthttp/router*",
-        "*fasthttp*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly HashSet<string> FasthttpRouterMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "Handle"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public FasthttpLibraryParser()
     {
-        if (IsFasthttpRouteCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-
-        if (IsFasthttpClientCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-
-        return null;
+        Type = SemanticExtensionType.Framework;
+        Name = "FastHTTP";
+        Id = "fasthttp";
+        SupportedPatterns =
+        [
+            "github.com/valyala/fasthttp*",
+            "github.com/buaazp/fasthttprouter*",
+            "github.com/fasthttp/router*",
+            "*fasthttp*"
+        ];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsFasthttpRouteCall(node, out _, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
+                    if (IsFasthttpClientCall(node, out _)) return OntologyConstants.NodeLabels.ExternalService;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsFasthttpRouteCall(node, out var httpMethod, out var fullRoute, out _)) return $"{httpMethod}:{fullRoute}";
+                    if (IsFasthttpClientCall(node, out var target)) return target;
+                    return null;
+                },
+                CollectReferences = static (node, _, references, _) =>
+                {
+                    if (IsFasthttpRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
+                    {
+                        references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                },
+                EnrichSymbol = EnrichFasthttpSymbol
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsFasthttpRouteCall(node, out var httpMethod, out var fullRoute, out _))
-        {
-            return $"{httpMethod}:{fullRoute}";
-        }
-
-        if (IsFasthttpClientCall(node, out var target))
-        {
-            return target;
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsFasthttpRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
-        {
-            references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichFasthttpSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsFasthttpRouteCall(node, out var httpMethod, out var fullRoute, out _))
         {

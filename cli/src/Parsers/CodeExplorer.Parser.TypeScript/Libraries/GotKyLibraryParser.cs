@@ -1,15 +1,10 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class GotKyLibraryParser : ISemanticExtension
+public class GotKyLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public string Name => "Got / Ky HTTP Clients";
-    public string Id => "got-ky";
-    public IReadOnlyList<string> SupportedPatterns => ["got", "ky", "ky-universal", "superagent", "needle"];
-    public bool IsImplemented => true;
-
     private static readonly HashSet<string> ClientNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "got", "ky", "superagent", "needle"
@@ -20,45 +15,42 @@ public class GotKyLibraryParser : ISemanticExtension
         "get", "post", "put", "delete", "patch", "head"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GotKyLibraryParser()
     {
-        if (IsHttpClientCall(node))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsHttpClientCall(node))
-        {
-            var rawArg = AstHelper.ExtractFirstStringArgument(node);
-            if (!string.IsNullOrEmpty(rawArg))
+        Type = SemanticExtensionType.ApiClient;
+        Name = "Got / Ky HTTP Clients";
+        Id = "got-ky";
+        SupportedPatterns = ["got", "ky", "ky-universal", "superagent", "needle"];
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                if (Uri.TryCreate(rawArg, UriKind.Absolute, out var uri))
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsHttpClientCall(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = static (node, _, _, _) =>
                 {
-                    return uri.Host;
+                    if (!IsHttpClientCall(node)) return null;
+                    var rawArg = AstHelper.ExtractFirstStringArgument(node);
+                    if (!string.IsNullOrEmpty(rawArg))
+                    {
+                        return Uri.TryCreate(rawArg, UriKind.Absolute, out var uri) ? uri.Host : rawArg;
+                    }
+                    return "http-client";
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsHttpClientCall(node))
+                    {
+                        var rawArg = AstHelper.ExtractFirstStringArgument(node);
+                        if (!string.IsNullOrEmpty(rawArg))
+                        {
+                            var target = Uri.TryCreate(rawArg, UriKind.Absolute, out var uri) ? uri.Host : rawArg;
+                            references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls));
+                        }
+                    }
                 }
-                return rawArg;
             }
-
-            return "http-client";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsHttpClientCall(node))
-        {
-            var rawArg = AstHelper.ExtractFirstStringArgument(node);
-            if (!string.IsNullOrEmpty(rawArg))
-            {
-                var target = Uri.TryCreate(rawArg, UriKind.Absolute, out var uri) ? uri.Host : rawArg;
-                references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls));
-            }
-        }
+        ];
     }
 
     private static bool IsHttpClientCall(Node node)

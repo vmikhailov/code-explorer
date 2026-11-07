@@ -4,22 +4,29 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class ConfluentKafkaLibraryParser : ISemanticExtension
+public class ConfluentKafkaLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Confluent.Kafka";
-    public string Id => "confluent-kafka";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["Confluent.Kafka*", "Confluent.Kafka"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-
     private static readonly Regex TopicFallbackRegex = new(@"\?\?\s*""([^""]+)""", RegexOptions.Compiled);
     private static readonly Regex StringLiteralRegex = new(@"""([^""]+)""", RegexOptions.Compiled);
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    public ConfluentKafkaLibraryParser()
+    {
+        Id = "confluent-kafka";
+        Name = "Confluent.Kafka";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["Confluent.Kafka*", "Confluent.Kafka"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.CSharp.InvocationExpression]),
+                CollectReferences = CollectReferencesCore
+            }
+        ];
+    }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return;
 

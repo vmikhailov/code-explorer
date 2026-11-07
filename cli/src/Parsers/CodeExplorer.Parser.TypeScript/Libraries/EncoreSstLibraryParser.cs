@@ -2,15 +2,15 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class EncoreSstLibraryParser : ISemanticExtension
+public class EncoreSstLibraryParser : DeclarativeSemanticExtension
 {
     private static readonly char[] QuoteChars = ['"', '\'', '`'];
     private const string EncoreTopicPrefix = "encore:";
 
-    public string Name => "Encore.ts, SST & Nitric";
-    public string Id => "encore-sst";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override string Name => "Encore.ts, SST & Nitric";
+    public override string Id => "encore-sst";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "encore.dev",
         "encore.dev/*",
@@ -18,13 +18,20 @@ public class EncoreSstLibraryParser : ISemanticExtension
         "sst/*",
         "@nitric/sdk*"
     ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.NewExpression, TreeSitterSyntax.TypeScript.CallExpression],
+            CollectReferences = CollectReferencesCore
+        }
+    ];
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.NewExpression))
         {

@@ -8,41 +8,37 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects schema declarations via table! { ... } macros and #[diesel(table_name = ...)] attributes.
 /// Emits Table nodes and USES_DB relationships.
 /// </summary>
-public class DieselLibraryParser : ISemanticExtension
+public class DieselLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "diesel";
-    public string Name => "Diesel";
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-    public IReadOnlyList<string> SupportedPatterns => ["diesel*"];
-
     private static readonly Regex DieselTableAttrRegex = new(
         @"table_name\s*=\s*""?([a-zA-Z0-9_]+)""?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public DieselLibraryParser()
     {
-        if (IsDieselTable(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-        return null;
+        Id = "diesel";
+        Name = "Diesel";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["diesel*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.Rust.MacroInvocation,
+                    TreeSitterSyntax.Rust.AttributeItem,
+                    TreeSitterSyntax.Rust.StructItem
+                ]),
+                MapNodeType = (node, ctx) => IsDieselTable(node, out _) ? OntologyConstants.NodeLabels.Table : null,
+                ExtractIdentifier = (node, _, _, _) => IsDieselTable(node, out var tableName) ? tableName : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsDieselTable(node, out var tableName))
-        {
-            return tableName;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsDieselTable(node, out var tableName) && !string.IsNullOrEmpty(tableName))
         {

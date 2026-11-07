@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
@@ -6,20 +7,8 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GrpcGatewayGoLibraryParser : ISemanticExtension
+public class GrpcGatewayGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
-    public string Name => "grpc-gateway (Go)";
-    public string Id => "grpc-gateway-go";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/grpc-ecosystem/grpc-gateway*",
-        "github.com/grpc-ecosystem/grpc-gateway/v2*"
-    ];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly char[] TrimQuotes = ['"', '`'];
     private const string Slash = "/";
     private const string Colon = ":";
@@ -34,28 +23,32 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
 
     private static readonly ConcurrentDictionary<string, Dictionary<string, (string Route, string Service, string Method)>> PatternCache = new();
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GrpcGatewayGoLibraryParser()
     {
-        if (IsGrpcGatewayCall(node, out _, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Type = SemanticExtensionType.GrpcFramework;
+        Name = "grpc-gateway (Go)";
+        Id = "grpc-gateway-go";
+        SupportedPatterns =
+        [
+            "github.com/grpc-ecosystem/grpc-gateway*",
+            "github.com/grpc-ecosystem/grpc-gateway/v2*"
+        ];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsGrpcGatewayCall(node, out _, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsGrpcGatewayCall(node, out var verb, out var route, out _, out _) ? $"{verb}:{route}" : null,
+                EnrichSymbol = EnrichGrpcGatewaySymbol,
+                CollectReferences = CollectGrpcGatewayReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsGrpcGatewayCall(node, out var verb, out var route, out _, out _))
-        {
-            return $"{verb}:{route}";
-        }
-        return null;
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichGrpcGatewaySymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsGrpcGatewayCall(node, out var verb, out _, out var service, out var method))
         {
@@ -68,7 +61,7 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
         }
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectGrpcGatewayReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsGrpcGatewayCall(node, out _, out _, out var service, out var method))
         {

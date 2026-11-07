@@ -1,8 +1,9 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class RqRedisStreamsLibraryParser : ISemanticExtension
+public class RqRedisStreamsLibraryParser : DeclarativeSemanticExtension
 {
     private const string RqPrefix = "rq:";
     private const string RedisStreamPrefix = "redis-stream:";
@@ -13,29 +14,31 @@ public class RqRedisStreamsLibraryParser : ISemanticExtension
     private const string DictionaryNodeType = "dictionary";
     private const string PairNodeType = "pair";
 
-    public string Name => "RQ & Redis Streams";
-    public string Id => "rq-redis-streams";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["rq", "rq.*", "django_rq", "django-rq"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
-
     private static readonly HashSet<string> EnqueueMethods = new(StringComparer.Ordinal)
     {
         "enqueue", "enqueue_call", "enqueue_in", "enqueue_at", "enqueue_many"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RqRedisStreamsLibraryParser()
     {
-        return IsRqJobDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Name = "RQ & Redis Streams";
+        Id = "rq-redis-streams";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["rq", "rq.*", "django_rq", "django-rq"];
+        LibraryRole = LibraryRole.WorkerService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsRqJobDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsRqJobDecorator(node, out var jobName) ? $"Job:{jobName}" : null,
+                CollectReferences = CollectRqReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsRqJobDecorator(node, out var jobName) ? $"Job:{jobName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectRqReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsRqJobDecorator(node, out var jobName))
         {

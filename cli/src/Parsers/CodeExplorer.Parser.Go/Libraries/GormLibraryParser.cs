@@ -1,32 +1,36 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GormLibraryParser : ISemanticExtension
+public class GormLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "GORM";
-    public string Id => "gorm";
-    public IReadOnlyList<string> SupportedPatterns => ["gorm.io/gorm*", "github.com/jinzhu/gorm*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> GormMethods = new(StringComparer.Ordinal)
     {
         "Find", "First", "Take", "Last", "Where", "Create", "Save", "Update", "Updates", "Delete",
         "Raw", "Exec", "Table", "Model", "Select", "Joins", "Group", "Having", "Order"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GormLibraryParser()
     {
-        if (IsGormCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
+        Type = SemanticExtensionType.RelationalDb;
+        Name = "GORM";
+        Id = "gorm";
+        SupportedPatterns = ["gorm.io/gorm*", "github.com/jinzhu/gorm*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsGormCall(node, out _, out _) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = ExtractGormIdentifier,
+                CollectReferences = CollectGormReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractGormIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsGormCall(node, out var method, out var target))
         {
@@ -55,7 +59,9 @@ public class GormLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private const string DefaultDatabaseId = "database";
+
+    private static void CollectGormReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsGormCall(node, out var method, out var target))
         {
@@ -73,7 +79,7 @@ public class GormLibraryParser : ISemanticExtension
             }
             else
             {
-                references.Add(new Reference(scopeSymbolId, "database", OntologyConstants.Relationships.UsesDb));
+                references.Add(new Reference(scopeSymbolId, DefaultDatabaseId, OntologyConstants.Relationships.UsesDb));
             }
         }
     }

@@ -1,36 +1,37 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class BullLegacyLibraryParser : ISemanticExtension
+public class BullLegacyLibraryParser : DeclarativeSemanticExtension
 {
     private const string BullPrefix = "bull:";
     private const string ProcessDecoratorName = "Process";
     private const string ProcessMethodName = "process";
 
-    public string Name => "Bull (Legacy Queue)";
-    public string Id => "bull-legacy";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["bull", "@nestjs/bull"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public BullLegacyLibraryParser()
     {
-        return TryExtractProcessTarget(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractProcessTarget(node, out var jobName) ? $"BullProcess:{jobName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (TryExtractProcessTarget(node, out var jobName))
-        {
-            references.Add(new Reference(scopeSymbolId, BullPrefix + jobName, OntologyConstants.Relationships.SubscribesTo));
-        }
+        Name = "Bull (Legacy Queue)";
+        Id = "bull-legacy";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["bull", "@nestjs/bull"];
+        LibraryRole = LibraryRole.WorkerService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.Decorator, TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractProcessTarget(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractProcessTarget(node, out var jobName) ? $"BullProcess:{jobName}" : null,
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (TryExtractProcessTarget(node, out var jobName))
+                    {
+                        references.Add(new Reference(scopeSymbolId, BullPrefix + jobName, OntologyConstants.Relationships.SubscribesTo));
+                    }
+                }
+            }
+        ];
     }
 
     private static bool TryExtractProcessTarget(Node node, out string jobName)

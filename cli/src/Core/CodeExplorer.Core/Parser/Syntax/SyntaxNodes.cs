@@ -1621,4 +1621,180 @@ public static class SyntaxKindResolver
             _ => false
         };
     }
+
+    public static string[] GetCanonicalNodeTypes(string expectedKind) =>
+        expectedKind switch
+        {
+            "call_expression" or "invocation_expression" or "method_invocation" or "call" or "tagged_template_expression" =>
+                ["call_expression"],
+            "new_expression" or "object_creation_expression" or "implicit_object_creation_expression" or "explicit_constructor_invocation" or "super_constructor_invocation" =>
+                ["object_creation_expression", "implicit_object_creation_expression"],
+            "macro_invocation" =>
+                ["macro_invocation"],
+            "member_expression" or "member_access_expression" or "selector_expression" or "field_access" or "field_expression" =>
+                ["member_access_expression"],
+            "scoped_identifier" or "qualified_name" =>
+                ["scoped_identifier", "member_access_expression"],
+            "attribute" or "decorator" or "annotation" or "marker_annotation" or "attribute_item" or "inner_attribute_item" =>
+                ["attribute", "member_access_expression"],
+            "class_declaration" or "class_definition" or "class_expression" or "abstract_class_declaration" =>
+                ["class_declaration"],
+            "struct_declaration" or "struct_item" or "struct_type" or "type_spec" =>
+                ["struct_declaration"],
+            "type_declaration" =>
+                ["class_declaration", "interface_declaration", "struct_declaration", "enum_declaration", "record_declaration", "trait_item", "protocol_declaration", "object_declaration", "companion_object", "type_alias_declaration", "union_item", "graphql_type_declaration", "declaration_list"],
+            "record_declaration" =>
+                ["record_declaration"],
+            "interface_declaration" or "interface_type" or "annotation_type_declaration" =>
+                ["interface_declaration"],
+            "enum_declaration" or "enum_item" =>
+                ["enum_declaration"],
+            "trait_item" or "trait_declaration" =>
+                ["trait_item"],
+            "type_alias_declaration" or "type_item" or "delegate_declaration" =>
+                ["type_alias_declaration"],
+            "union_item" or "union_declaration" =>
+                ["union_item"],
+            "impl_item" =>
+                ["impl_item"],
+            "method_declaration" or "method_definition" or "method_signature" =>
+                ["method_declaration", "constructor_declaration"],
+            "function_declaration" or "function_definition" or "function_item" or "function_signature_item" or "local_function_statement" or "generator_function_declaration" =>
+                ["function_declaration", "method_declaration"],
+            "constructor_declaration" or "compact_constructor_declaration" or "constructor" =>
+                ["constructor_declaration", "method_declaration"],
+            "arrow_function" or "function_expression" or "lambda_expression" or "lambda" or "func_literal" or "closure_expression" or "function" or "generator_function" =>
+                ["lambda_expression"],
+            "parameter" or "formal_parameter" or "required_parameter" or "optional_parameter" or "parameter_declaration" or "parameter_property" or "typed_parameter" or "default_parameter" or "typed_default_parameter" or "spread_parameter" or "variadic_parameter" or "variadic_parameter_declaration" or "self_parameter" or "receiver_parameter" =>
+                ["parameter", "self_parameter", "rest_pattern", "dictionary_splat_pattern"],
+            "parameter_list" or "formal_parameters" or "parameters" =>
+                ["parameter_list"],
+            "argument_list" or "arguments" or "attribute_argument_list" or "annotation_argument_list" or "bracketed_argument_list" or "token_tree" =>
+                ["argument_list"],
+            "argument" or "attribute_argument" or "keyword_argument" or "expression_element" or "spread_element" =>
+                ["argument", "spread_element"],
+            "variable_declaration" or "lexical_declaration" or "local_declaration_statement" or "local_variable_declaration" or "let_declaration" or "var_declaration" or "short_var_declaration" =>
+                ["variable_declaration"],
+            "const_declaration" or "constant_declaration" or "const_spec" or "const_item" =>
+                ["variable_declaration", "constant_declaration"],
+            "variable_declarator" or "var_spec" =>
+                ["variable_declarator"],
+            "field_declaration" or "public_field_definition" or "property_definition" or "static_item" =>
+                ["field_declaration"],
+            "property_declaration" or "property_signature" or "indexer_declaration" =>
+                ["property_declaration"],
+            "enum_member_declaration" or "enum_assignment" or "enum_constant" or "enum_variant" =>
+                ["enum_member_declaration"],
+            "string" or "string_literal" or "interpreted_string_literal" or "text_block" or "string_content" or "string_fragment" or "escape_sequence" or "raw_string_literal" or "verbatim_string_literal" =>
+                ["string_literal", "raw_string_literal"],
+            "template_string" or "interpolated_string_expression" or "format_string" or "concatenated_string" =>
+                ["interpolated_string_expression"],
+            "integer_literal" or "int_literal" or "integer" or "number" =>
+                ["integer_literal", "float_literal"],
+            "boolean_literal" or "true" or "false" =>
+                ["boolean_literal"],
+            "null_literal" or "null" or "nil" or "none" or "undefined" =>
+                ["null_literal"],
+            "identifier" =>
+                ["identifier", "type_identifier", "property_identifier", "this"],
+            "type_identifier" or "scoped_type_identifier" or "qualified_type" or "type_annotation" or "type" =>
+                ["type_identifier", "generic_type", "array_type", "slice_type", "tuple_type", "pointer_type", "reference_type", "nullable_type", "union_type", "intersection_type", "function_type", "channel_type", "type_annotation", "predefined_type", "identifier"],
+            "property_identifier" or "field_identifier" or "shorthand_property_identifier" or "shorthand_property_identifier_pattern" =>
+                ["property_identifier", "identifier"],
+            "pair" or "keyed_element" or "field_initializer" or "element_value_pair" or "jsx_attribute" or "import_specifier" or "export_specifier" or "import_require_clause" =>
+                ["pair"],
+            "object" or "struct_expression" =>
+                ["object"],
+            "dictionary" or "dictionary_comprehension" =>
+                ["dictionary"],
+            "array" or "array_expression" or "array_creation_expression" or "array_initializer" or "collection_expression" or "list" or "list_comprehension" or "element_value_array_initializer" =>
+                ["array_expression"],
+            "composite_literal" or "literal_value" or "initializer_expression" =>
+                ["composite_literal"],
+            "tuple" or "tuple_expression" =>
+                ["tuple_expression"],
+            "subscript_expression" or "element_access_expression" or "index_expression" or "array_access" or "subscript" or "slice_expression" =>
+                ["index_expression"],
+            "assignment_expression" or "assignment_statement" or "assignment" or "augmented_assignment" or "augmented_assignment_expression" or "compound_assignment_expr" =>
+                ["assignment_expression"],
+            "binary_expression" or "binary_operator" or "boolean_operator" or "comparison_operator" =>
+                ["binary_expression"],
+            "unary_expression" or "unary_operator" or "prefix_unary_expression" or "postfix_unary_expression" or "update_expression" or "non_null_expression" =>
+                ["unary_expression", "await_expression", "try_expression"],
+            "cast_expression" or "as_expression" or "satisfies_expression" or "type_assertion" =>
+                ["cast_expression", "binary_expression"],
+            "await_expression" or "await" =>
+                ["await_expression"],
+            "try_expression" =>
+                ["try_expression"],
+            "parenthesized_expression" or "literal_element" =>
+                ["parenthesized_expression"],
+            "interpolation" or "template_substitution" or "formatted_expression" or "jsx_expression" =>
+                ["interpolation"],
+            "block" or "statement_block" or "statement_list" =>
+                ["block"],
+            "declaration_list" or "class_body" or "interface_body" or "enum_body" or "enum_variant_list" or "field_declaration_list" or "annotation_type_body" =>
+                ["declaration_list", "block"],
+            "decorated_definition" =>
+                ["declaration_list", "function_declaration", "method_declaration", "class_declaration"],
+            "attribute_list" or "modifiers" or "decorator_list" =>
+                ["attribute_list"],
+            "type_argument_list" or "type_arguments" =>
+                ["type_argument_list"],
+            "type_parameter_list" or "type_parameters" =>
+                ["type_parameter_list"],
+            "arrow_expression_clause" or "equals_value_clause" =>
+                ["arrow_expression_clause"],
+            "expression_list" =>
+                ["expression_list"],
+            "import_clause" or "named_imports" or "import_spec_list" =>
+                ["import_clause"],
+            "export_clause" =>
+                ["export_clause"],
+            "global_statement" =>
+                ["global_statement"],
+            "base_list" or "class_heritage" =>
+                ["base_list", "implements_clause"],
+            "extends_clause" or "extends_type_clause" or "superclass" =>
+                ["base_list"],
+            "implements_clause" or "super_interfaces" or "extends_interfaces" or "interfaces" =>
+                ["implements_clause"],
+            "import_statement" or "import_from_statement" or "import_declaration" or "import_spec" or "using_directive" or "use_declaration" or "extern_crate_declaration" =>
+                ["import_statement"],
+            "export_statement" or "export_declaration" =>
+                ["export_statement"],
+            "package_clause" or "package_declaration" or "namespace_declaration" or "file_scoped_namespace_declaration" or "mod_item" or "module" =>
+                ["namespace_declaration"],
+            "return_statement" or "return_expression" or "yield_statement" or "yield_expression" =>
+                ["return_statement"],
+            "expression_statement" =>
+                ["expression_statement"],
+            "if_statement" or "if_expression" =>
+                ["if_statement"],
+            "switch_statement" or "switch_expression" or "match_statement" or "match_expression" or "expression_switch_statement" or "type_switch_statement" or "select_statement" =>
+                ["switch_statement"],
+            "for_statement" or "for_in_statement" or "foreach_statement" or "while_statement" or "do_statement" or "enhanced_for_statement" or "loop_expression" or "while_expression" or "for_expression" =>
+                ["for_statement"],
+            "try_statement" or "try_with_resources_statement" =>
+                ["try_statement"],
+            "using_statement" or "with_statement" =>
+                ["using_statement"],
+            "catch_clause" or "except_clause" =>
+                ["catch_clause"],
+            "generic_type" or "generic_name" =>
+                ["generic_type"],
+            "generic_function" or "instantiation_expression" or "expression_with_type_arguments" =>
+                ["generic_function", "generic_type"],
+            "jsx_opening_element" =>
+                ["jsx_opening_element"],
+            "jsx_self_closing_element" =>
+                ["jsx_self_closing_element"],
+            "jsx_closing_element" =>
+                ["jsx_closing_element"],
+            "jsx_element" or "jsx_fragment" =>
+                ["jsx_opening_element", "jsx_self_closing_element", "jsx_closing_element", "jsx_fragment"],
+            "compilation_unit" or "program" or "source_file" or "document" =>
+                ["document"],
+            _ => [expectedKind]
+        };
 }

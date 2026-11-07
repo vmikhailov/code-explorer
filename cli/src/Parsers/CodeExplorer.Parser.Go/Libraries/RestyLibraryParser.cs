@@ -1,43 +1,32 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class RestyLibraryParser : ISemanticExtension
+public class RestyLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public string Name => "Resty";
-    public string Id => "resty";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-resty/resty*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options", "Execute"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RestyLibraryParser()
     {
-        if (IsRestyCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
+        Type = SemanticExtensionType.ApiClient;
+        Name = "Resty";
+        Id = "resty";
+        SupportedPatterns = ["github.com/go-resty/resty*"];
+        LibraryRole = LibraryRole.General;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsRestyCall(node, out _) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = static (node, _, _, _) => IsRestyCall(node, out var targetUrl) ? targetUrl : null
+            }
+        ];
     }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsRestyCall(node, out var targetUrl))
-        {
-            return targetUrl;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     public static bool IsRestyCall(Node node, out string? targetUrl)
     {

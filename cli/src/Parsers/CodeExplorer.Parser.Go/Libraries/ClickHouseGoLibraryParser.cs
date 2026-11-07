@@ -1,22 +1,11 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class ClickHouseGoLibraryParser : ISemanticExtension
+public class ClickHouseGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
-    public string Name => "ClickHouse";
-    public string Id => "clickhouse";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/ClickHouse/clickhouse-go",
-        "github.com/ClickHouse/clickhouse-go/v2",
-        "github.com/ClickHouse/clickhouse-go/*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> ClickHouseMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "Open", "OpenDB", "ParseDSN",
@@ -28,34 +17,44 @@ public class ClickHouseGoLibraryParser : ISemanticExtension
         @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+(?:IF\s+NOT\s+EXISTS\s+|IF\s+EXISTS\s+)?([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ClickHouseGoLibraryParser()
     {
-        if (IsClickHouseCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsClickHouseCall(node, out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Type = SemanticExtensionType.AnalyticsDb;
+        Name = "ClickHouse";
+        Id = "clickhouse";
+        SupportedPatterns =
+        [
+            "github.com/ClickHouse/clickhouse-go",
+            "github.com/ClickHouse/clickhouse-go/v2",
+            "github.com/ClickHouse/clickhouse-go/*"
+        ];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsClickHouseCall(node, out _, out _) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
                 {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"ClickHouse: {clean}";
+                    if (!IsClickHouseCall(node, out var sqlText, out var method)) return null;
+                    if (!string.IsNullOrEmpty(sqlText))
+                    {
+                        var clean = NestedSqlParser.CleanQueryText(sqlText);
+                        if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
+                        {
+                            return $"{firstWord} Query: {clean}";
+                        }
+                        return $"ClickHouse: {clean}";
+                    }
+                    return $"ClickHouse: {method ?? "Query"}";
+                },
+                CollectReferences = CollectClickHouseReferences
             }
-            return $"ClickHouse: {method ?? "Query"}";
-        }
-        return null;
+        ];
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectClickHouseReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsClickHouseCall(node, out var sqlText, out _))
         {
@@ -76,9 +75,11 @@ public class ClickHouseGoLibraryParser : ISemanticExtension
                 }
             }
 
-            references.Add(new Reference(scopeSymbolId, "clickhouse", OntologyConstants.Relationships.UsesDb));
+            references.Add(new Reference(scopeSymbolId, ClickHouseDbId, OntologyConstants.Relationships.UsesDb));
         }
     }
+
+    private const string ClickHouseDbId = "clickhouse";
 
     private static bool IsClickHouseCall(Node node, out string? sqlText, out string? methodName)
     {

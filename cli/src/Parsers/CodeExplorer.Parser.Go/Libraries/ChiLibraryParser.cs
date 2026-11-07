@@ -1,59 +1,48 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class ChiLibraryParser : ISemanticExtension
+public class ChiLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => "Chi";
-    public string Id => "chi";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-chi/chi*", "github.com/go-chi/chi/v5*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "CONNECT", "TRACE", "HandleFunc", "Handle", "Method"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public ChiLibraryParser()
     {
-        if (IsChiRouteCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsChiRouteCall(node, out var httpMethod, out var fullRoute, out _))
-        {
-            return $"{httpMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsChiRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
-        {
-            references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
-    {
-        if (IsChiRouteCall(node, out var httpMethod, out var fullRoute, out _))
-        {
-            symbol.Protocol = "REST";
-            symbol.Properties["protocol"] = "REST";
-            symbol.Properties["httpMethod"] = httpMethod;
-            symbol.Properties["routeTemplate"] = fullRoute;
-        }
+        Type = SemanticExtensionType.Framework;
+        Name = "Chi";
+        Id = "chi";
+        SupportedPatterns = ["github.com/go-chi/chi*", "github.com/go-chi/chi/v5*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsChiRouteCall(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsChiRouteCall(node, out var httpMethod, out var fullRoute, out _) ? $"{httpMethod}:{fullRoute}" : null,
+                CollectReferences = static (node, _, references, _) =>
+                {
+                    if (IsChiRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
+                    {
+                        references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                },
+                EnrichSymbol = static (node, symbol, ctx) =>
+                {
+                    if (IsChiRouteCall(node, out var httpMethod, out var fullRoute, out _))
+                    {
+                        symbol.Protocol = "REST";
+                        symbol.Properties["protocol"] = "REST";
+                        symbol.Properties["httpMethod"] = httpMethod;
+                        symbol.Properties["routeTemplate"] = fullRoute;
+                    }
+                }
+            }
+        ];
     }
 
     public static bool IsChiRouteCall(Node node, out string httpMethod, out string fullRoute, out string? handlerName)

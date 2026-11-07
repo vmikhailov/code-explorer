@@ -2,15 +2,15 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AngularOidcLibraryParser : ISemanticExtension
+public class AngularOidcLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
 
-    public string Name => "Angular OAuth2 OIDC";
+    public override string Name => "Angular OAuth2 OIDC";
 
-    public string Id => "angular-oidc";
+    public override string Id => "angular-oidc";
 
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "angular-oauth2-oidc",
         "oidc-client-ts",
@@ -19,8 +19,7 @@ public class AngularOidcLibraryParser : ISemanticExtension
         "@auth0/auth0-spa-js"
     ];
 
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.AuthAndSecurity;
+    public override LibraryRole LibraryRole => LibraryRole.AuthAndSecurity;
 
     private static readonly HashSet<string> OidcCallMethods =
     [
@@ -33,6 +32,18 @@ public class AngularOidcLibraryParser : ISemanticExtension
         "refreshtoken",
         "configure"
     ];
+
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.Object, TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsOidcTarget(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx)
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
     private static bool IsOidcTarget(Node node)
     {
@@ -80,13 +91,12 @@ public class AngularOidcLibraryParser : ISemanticExtension
         return false;
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsOidcTarget(node)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
+    private const string IssuerProperty = "issuer";
+    private const string AuthorityProperty = "authority";
+    private const string IdentityServiceKey = "identity";
+    private const string AuthServiceKey = "auth";
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (!IsOidcTarget(node)) return null;
 
@@ -94,11 +104,11 @@ public class AngularOidcLibraryParser : ISemanticExtension
         if (node.Is(TreeSitterSyntax.TypeScript.Object))
         {
             Node? targetNode = null;
-            if (AstHelper.TryGetObjectProperty(node, "issuer", out var issuerNode) && issuerNode.IsValid())
+            if (AstHelper.TryGetObjectProperty(node, IssuerProperty, out var issuerNode) && issuerNode.IsValid())
             {
                 targetNode = issuerNode;
             }
-            else if (AstHelper.TryGetObjectProperty(node, "authority", out var authNode) && authNode.IsValid())
+            else if (AstHelper.TryGetObjectProperty(node, AuthorityProperty, out var authNode) && authNode.IsValid())
             {
                 targetNode = authNode;
             }
@@ -127,12 +137,12 @@ public class AngularOidcLibraryParser : ISemanticExtension
             }
 
             // Check if RouteDictionaryRegistry has an identity or auth service registered
-            if (RouteDictionaryRegistry.TryResolve("identity", out var idPath, out var idSvc))
+            if (RouteDictionaryRegistry.TryResolve(IdentityServiceKey, out var idPath, out var idSvc))
             {
                 var target = !string.IsNullOrEmpty(idSvc) ? $"{idSvc}{idPath}" : idPath;
                 return FormatOidcTarget(target);
             }
-            if (RouteDictionaryRegistry.TryResolve("auth", out var authPath, out var authSvc))
+            if (RouteDictionaryRegistry.TryResolve(AuthServiceKey, out var authPath, out var authSvc))
             {
                 var target = !string.IsNullOrEmpty(authSvc) ? $"{authSvc}{authPath}" : authPath;
                 return FormatOidcTarget(target);
@@ -160,9 +170,5 @@ public class AngularOidcLibraryParser : ISemanticExtension
         return string.IsNullOrEmpty(clean)
             ? "identity/.well-known/openid-configuration"
             : $"{clean}/.well-known/openid-configuration";
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
     }
 }

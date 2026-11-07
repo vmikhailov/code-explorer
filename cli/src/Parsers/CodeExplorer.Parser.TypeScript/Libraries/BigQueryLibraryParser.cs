@@ -2,14 +2,13 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class BigQueryLibraryParser : ISemanticExtension
+public class BigQueryLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
-    public string Name => "BigQuery";
-    public string Id => "bigquery";
-    public IReadOnlyList<string> SupportedPatterns => ["@google-cloud/bigquery", "bigquery"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
+    public override string Name => "BigQuery";
+    public override string Id => "bigquery";
+    public override IReadOnlyList<string> SupportedPatterns => ["@google-cloud/bigquery", "bigquery"];
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> BigQueryQueryMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -21,16 +20,20 @@ public class BigQueryLibraryParser : ISemanticExtension
         "insert", "load", "extract"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsBigQueryCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsBigQueryCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsBigQueryCall(node))
         {
@@ -56,7 +59,7 @@ public class BigQueryLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsBigQueryCall(node))
         {

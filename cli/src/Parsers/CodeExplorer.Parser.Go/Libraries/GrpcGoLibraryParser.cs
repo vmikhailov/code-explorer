@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
@@ -6,19 +7,51 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GrpcGoLibraryParser : ISemanticExtension
+public class GrpcGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
-    public string Name => "gRPC Go";
-    public string Id => "grpc-go";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "google.golang.org/grpc*",
-        "google.golang.org/grpc"
-    ];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public GrpcGoLibraryParser()
+    {
+        Type = SemanticExtensionType.GrpcFramework;
+        Name = "gRPC Go";
+        Id = "grpc-go";
+        SupportedPatterns =
+        [
+            "google.golang.org/grpc*",
+            "google.golang.org/grpc"
+        ];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.MethodDeclaration, TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsGrpcMethod(node, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
+                    if (IsGrpcClientCall(node, out _, out _)) return OntologyConstants.NodeLabels.ExternalService;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsGrpcMethod(node, out var serviceName, out var methodName)) return $"RPC:/{serviceName}/{methodName}";
+                    if (IsGrpcClientCall(node, out var clientService, out var clientMethod)) return $"RPC:/{clientService}/{clientMethod}";
+                    return null;
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsGrpcClientCall(node, out var serviceName, out var methodName))
+                    {
+                        var target = $"RPC:/{serviceName}/{methodName}";
+                        references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls,
+                            (int)node.StartPosition.Row + 1,
+                            (int)node.StartPosition.Column + 1));
+                    }
+                },
+                EnrichSymbol = EnrichGrpcGoSymbol
+            }
+        ];
+    }
 
     private const string ResultFieldName = "result";
     private const string ReceiverFieldName = "receiver";
@@ -76,41 +109,7 @@ public class GrpcGoLibraryParser : ISemanticExtension
         return clean.EndsWith(ServiceSuffix, StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}{ServiceSuffix}";
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsGrpcMethod(node, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
-        if (IsGrpcClientCall(node, out _, out _)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsGrpcMethod(node, out var serviceName, out var methodName))
-        {
-            return $"RPC:/{serviceName}/{methodName}";
-        }
-        if (IsGrpcClientCall(node, out var clientService, out var clientMethod))
-        {
-            return $"RPC:/{clientService}/{clientMethod}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsGrpcClientCall(node, out var serviceName, out var methodName))
-        {
-            var target = $"RPC:/{serviceName}/{methodName}";
-            references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls,
-                (int)node.StartPosition.Row + 1,
-                (int)node.StartPosition.Column + 1));
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichGrpcGoSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsGrpcMethod(node, out _, out _))
         {

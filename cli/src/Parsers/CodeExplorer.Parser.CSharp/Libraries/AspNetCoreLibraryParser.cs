@@ -1,17 +1,60 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public partial class AspNetCoreLibraryParser : ISemanticExtension
+public partial class AspNetCoreLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "ASP.NET Core";
-    public string Id => "aspnetcore";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["Microsoft.AspNetCore", "Microsoft.AspNetCore.*", "Microsoft.AspNetCore.Mvc", "Microsoft.AspNetCore.Mvc.*"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-    public Func<ProjectContext, bool>? CustomMatch => ctx => ctx.ManifestProperties?.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk.Web";
+    public AspNetCoreLibraryParser()
+    {
+        Name = "ASP.NET Core";
+        Id = "aspnetcore";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["Microsoft.AspNetCore", "Microsoft.AspNetCore.*", "Microsoft.AspNetCore.Mvc", "Microsoft.AspNetCore.Mvc.*"];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomMatch = ctx => ctx.ManifestProperties?.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk.Web";
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.Attribute, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsRouteAttribute(node))
+                    {
+                        if (IsClassLevelAttribute(node)) return null;
+                        if (IsInsideInterface(node)) return OntologyConstants.NodeLabels.ExternalService;
+                        return OntologyConstants.NodeLabels.EntryPoint;
+                    }
+                    if (IsEndpointInvocation(node)) return OntologyConstants.NodeLabels.EntryPoint;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsRouteAttribute(node))
+                    {
+                        if (IsClassLevelAttribute(node)) return null;
+                        if (IsInsideInterface(node))
+                        {
+                            return RefitLibraryParser.ExtractRefitTarget(node) ?? ExtractDeclarativeClientRoute(node);
+                        }
+                        return ExtractRoute(node);
+                    }
+                    if (IsEndpointInvocation(node)) return ExtractEndpointIdentifier(node);
+                    return null;
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsEndpointInvocation(node))
+                    {
+                        CollectEndpointReferences(node, scopeSymbolId, references);
+                    }
+                },
+                EnrichSymbol = EnrichAspNetCoreSymbol
+            }
+        ];
+    }
 
     public bool MatchesProject(ProjectContext project)
     {
@@ -42,51 +85,7 @@ public partial class AspNetCoreLibraryParser : ISemanticExtension
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsRouteAttribute(node))
-        {
-            if (IsClassLevelAttribute(node))
-            {
-                return null;
-            }
-            if (IsInsideInterface(node))
-            {
-                return OntologyConstants.NodeLabels.ExternalService;
-            }
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        if (IsEndpointInvocation(node)) return OntologyConstants.NodeLabels.EntryPoint;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsRouteAttribute(node))
-        {
-            if (IsClassLevelAttribute(node))
-            {
-                return null;
-            }
-            if (IsInsideInterface(node))
-            {
-                return RefitLibraryParser.ExtractRefitTarget(node) ?? ExtractDeclarativeClientRoute(node);
-            }
-            return ExtractRoute(node);
-        }
-        if (IsEndpointInvocation(node)) return ExtractEndpointIdentifier(node);
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsEndpointInvocation(node))
-        {
-            CollectEndpointReferences(node, scopeSymbolId, references);
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichAspNetCoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsRouteAttribute(node))
         {

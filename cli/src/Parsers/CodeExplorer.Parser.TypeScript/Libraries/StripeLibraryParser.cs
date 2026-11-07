@@ -1,54 +1,47 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class StripeLibraryParser : ISemanticExtension
+public class StripeLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
-    public string Name => "Stripe";
-    public string Id => "stripe";
-    public IReadOnlyList<string> SupportedPatterns => ["stripe", "@stripe/*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.CloudSdk;
-
     private static readonly HashSet<string> StripeActions = new(StringComparer.OrdinalIgnoreCase)
     {
         "create", "retrieve", "update", "list", "del", "cancel", "capture", "confirm"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public StripeLibraryParser()
     {
-        if (IsStripeCall(node))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
-    {
-        if (IsStripeCall(node))
-        {
-            var path = ExtractStripePath(node);
-            if (!string.IsNullOrEmpty(path))
+        Type = SemanticExtensionType.Cloud;
+        Name = "Stripe";
+        Id = "stripe";
+        SupportedPatterns = ["stripe", "@stripe/*"];
+        LibraryRole = LibraryRole.CloudSdk;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                return $"https://api.stripe.com/v1/{path}";
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsStripeCall(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsStripeCall(node)) return null;
+                    var path = ExtractStripePath(node);
+                    return !string.IsNullOrEmpty(path) ? $"https://api.stripe.com/v1/{path}" : "https://api.stripe.com/v1";
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsStripeCall(node))
+                    {
+                        references.Add(new Reference(scopeSymbolId, StripeApiEndpoint, OntologyConstants.Relationships.CallsEndpoint));
+                    }
+                }
             }
-            return "https://api.stripe.com/v1";
-        }
-        return null;
+        ];
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsStripeCall(node))
-        {
-            references.Add(new Reference(scopeSymbolId, "api.stripe.com", OntologyConstants.Relationships.CallsEndpoint));
-        }
-    }
+    private const string StripeApiEndpoint = "api.stripe.com";
 
     private static bool IsStripeCall(Node node)
     {

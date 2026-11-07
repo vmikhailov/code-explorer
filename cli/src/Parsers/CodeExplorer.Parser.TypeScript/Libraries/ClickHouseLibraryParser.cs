@@ -3,30 +3,33 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class ClickHouseLibraryParser : ISemanticExtension
+public class ClickHouseLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
-    public string Name => "ClickHouse";
-    public string Id => "clickhouse";
-    public IReadOnlyList<string> SupportedPatterns => ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
+    public override string Name => "ClickHouse";
+    public override string Id => "clickhouse";
+    public override IReadOnlyList<string> SupportedPatterns => ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"];
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> ClickHouseMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "query", "command", "exec", "insert"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsClickHouseCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsClickHouseCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsClickHouseCall(node))
         {
@@ -52,7 +55,7 @@ public class ClickHouseLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsClickHouseCall(node))
         {

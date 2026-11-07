@@ -1,17 +1,12 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class SqlModelLibraryParser : ISemanticExtension
+public class SqlModelLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "SQLModel";
-    public string Id => "sqlmodel";
     private const string DefaultDatabaseTarget = "database";
-    public IReadOnlyList<string> SupportedPatterns => ["sqlmodel", "sqlmodel.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> SqlModelQueryMethods = new(StringComparer.Ordinal)
     {
@@ -20,37 +15,36 @@ public class SqlModelLibraryParser : ISemanticExtension
 
     private static readonly Regex ForeignKeyRegex = new(@"foreign_key\s*=\s*[""']([A-Za-z0-9_]+)\.[A-Za-z0-9_]+[""']", RegexOptions.Compiled);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public SqlModelLibraryParser()
     {
-        if (IsSqlModelTableClass(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-
-        if (IsSqlModelCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-
-        return null;
+        Type = SemanticExtensionType.RelationalDb;
+        Name = "SQLModel";
+        Id = "sqlmodel";
+        SupportedPatterns = ["sqlmodel", "sqlmodel.*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsSqlModelTableClass(node, out _, out _)) return OntologyConstants.NodeLabels.Table;
+                    if (IsSqlModelCall(node, out _, out _)) return OntologyConstants.NodeLabels.Query;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsSqlModelTableClass(node, out _, out var tableName)) return tableName;
+                    if (IsSqlModelCall(node, out var queryText, out _)) return queryText;
+                    return null;
+                },
+                CollectReferences = CollectSqlModelReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsSqlModelTableClass(node, out _, out var tableName))
-        {
-            return tableName;
-        }
-
-        if (IsSqlModelCall(node, out var queryText, out _))
-        {
-            return queryText;
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectSqlModelReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsSqlModelTableClass(node, out var className, out var tableName))
         {

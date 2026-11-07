@@ -1,35 +1,43 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class SpringGraphQlLibraryParser : ISemanticExtension
+public class SpringGraphQlLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GraphqlFramework;
-    public string Name => "Spring GraphQL";
-    public string Id => "spring-graphql";
-
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "org.springframework.graphql",
-        "org.springframework.graphql.*",
-        "org.springframework.graphql.data.method.annotation"
-    ];
-
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    private static readonly HashSet<string> GraphQlAnnotations = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenSet<string> GraphQlAnnotations = new[]
     {
         "QueryMapping", "MutationMapping", "SubscriptionMapping", "SchemaMapping"
-    };
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public SpringGraphQlLibraryParser()
     {
-        if (IsGraphQlAnnotation(node)) return OntologyConstants.NodeLabels.EntryPoint;
-        return null;
+        Id = "spring-graphql";
+        Name = "Spring GraphQL";
+        Type = SemanticExtensionType.GraphqlFramework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns =
+        [
+            "org.springframework.graphql",
+            "org.springframework.graphql.*",
+            "org.springframework.graphql.data.method.annotation"
+        ];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Java.Annotation, TreeSitterSyntax.Java.MarkerAnnotation }.ToFrozenSet(),
+                MapNodeType = MapNodeTypeCore,
+                ExtractIdentifier = (node, ctx, _, _) => ExtractIdentifierCore(node),
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx) =>
+        IsGraphQlAnnotation(node) ? OntologyConstants.NodeLabels.EntryPoint : null;
+
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsGraphQlAnnotation(node))
         {
@@ -59,9 +67,7 @@ public class SpringGraphQlLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (!IsGraphQlAnnotation(node)) return;
 

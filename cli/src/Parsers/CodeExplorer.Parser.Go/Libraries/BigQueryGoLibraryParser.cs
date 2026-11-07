@@ -1,21 +1,11 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class BigQueryGoLibraryParser : ISemanticExtension
+public class BigQueryGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
-    public string Name => "BigQuery";
-    public string Id => "bigquery";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "cloud.google.com/go/bigquery",
-        "cloud.google.com/go/bigquery/*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> BigQueryMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "NewClient", "Query", "Table", "Dataset", "CreateQueryJob", "Read", "Inserter", "Put"
@@ -25,34 +15,43 @@ public class BigQueryGoLibraryParser : ISemanticExtension
         @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+(?:IF\s+NOT\s+EXISTS\s+|IF\s+EXISTS\s+)?([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public BigQueryGoLibraryParser()
     {
-        if (IsBigQueryCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsBigQueryCall(node, out var sqlText, out var method))
-        {
-            if (!string.IsNullOrEmpty(sqlText))
+        Type = SemanticExtensionType.AnalyticsDb;
+        Name = "BigQuery";
+        Id = "bigquery";
+        SupportedPatterns =
+        [
+            "cloud.google.com/go/bigquery",
+            "cloud.google.com/go/bigquery/*"
+        ];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression, TreeSitterSyntax.Go.FieldDeclaration }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsBigQueryCall(node, out _, out _) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
                 {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"BigQuery: {clean}";
+                    if (!IsBigQueryCall(node, out var sqlText, out var method)) return null;
+                    if (!string.IsNullOrEmpty(sqlText))
+                    {
+                        var clean = NestedSqlParser.CleanQueryText(sqlText);
+                        if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
+                        {
+                            return $"{firstWord} Query: {clean}";
+                        }
+                        return $"BigQuery: {clean}";
+                    }
+                    return $"BigQuery: {method ?? "Query"}";
+                },
+                CollectReferences = CollectBigQueryReferences
             }
-            return $"BigQuery: {method ?? "Query"}";
-        }
-        return null;
+        ];
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectBigQueryReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Detect calls (Query, Table, Inserter, NewClient, etc.)
         if (IsBigQueryCall(node, out var sqlText, out var method))
@@ -88,19 +87,22 @@ public class BigQueryGoLibraryParser : ISemanticExtension
                 }
             }
 
-            references.Add(new Reference(scopeSymbolId, "bigquery", OntologyConstants.Relationships.UsesDb));
+            references.Add(new Reference(scopeSymbolId, BigQueryDbId, OntologyConstants.Relationships.UsesDb));
         }
 
         // 2. Struct tags: detect struct fields tagged with `bigquery:"..."`
         if (node.Is(TreeSitterSyntax.Go.FieldDeclaration))
         {
             var tagNode = node.GetChildForField(TreeSitterSyntax.Fields.Tag);
-            if (tagNode.IsValid() && tagNode.Text.Contains("bigquery:"))
+            if (tagNode.IsValid() && tagNode.Text.Contains(BigQueryTagPrefix))
             {
-                references.Add(new Reference(scopeSymbolId, "bigquery", OntologyConstants.Relationships.UsesDb));
+                references.Add(new Reference(scopeSymbolId, BigQueryDbId, OntologyConstants.Relationships.UsesDb));
             }
         }
     }
+
+    private const string BigQueryDbId = "bigquery";
+    private const string BigQueryTagPrefix = "bigquery:";
 
     private static bool IsBigQueryCall(Node node, out string? sqlText, out string? methodName)
     {

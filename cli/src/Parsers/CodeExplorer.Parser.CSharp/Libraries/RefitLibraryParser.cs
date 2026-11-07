@@ -2,15 +2,8 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class RefitLibraryParser : ISemanticExtension
+public class RefitLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Refit / RestEase";
-    public string Id => "refit";
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public IReadOnlyList<string> SupportedPatterns => ["Refit", "Refit.*", "RestEase", "RestEase.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-
     private static readonly HashSet<string> RefitMethodAttributes =
     [
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options",
@@ -18,25 +11,23 @@ public class RefitLibraryParser : ISemanticExtension
         "PatchAttribute", "HeadAttribute", "OptionsAttribute"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RefitLibraryParser()
     {
-        if (IsRefitMethodAttribute(node))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
+        Id = "refit";
+        Name = "Refit / RestEase";
+        Type = SemanticExtensionType.ApiClient;
+        LibraryRole = LibraryRole.General;
+        SupportedPatterns = ["Refit", "Refit.*", "RestEase", "RestEase.*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.CSharp.Attribute]),
+                MapNodeType = (node, ctx) => IsRefitMethodAttribute(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = (node, _, _, _) => IsRefitMethodAttribute(node) ? ExtractRefitTarget(node) : null
+            }
+        ];
     }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsRefitMethodAttribute(node))
-        {
-            return ExtractRefitTarget(node);
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     public static bool IsRefitMethodAttribute(Node node)
     {

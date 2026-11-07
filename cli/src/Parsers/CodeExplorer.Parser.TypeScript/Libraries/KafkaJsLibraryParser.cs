@@ -1,20 +1,28 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class KafkaJsLibraryParser : ISemanticExtension
+public class KafkaJsLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
-    public string Name => "KafkaJS";
-    public string Id => "kafkajs";
-    public IReadOnlyList<string> SupportedPatterns => ["kafkajs"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    public KafkaJsLibraryParser()
+    {
+        Type = SemanticExtensionType.Cloud;
+        Name = "KafkaJS";
+        Id = "kafkajs";
+        SupportedPatterns = ["kafkajs"];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                CollectReferences = CollectKafkaJsReferences
+            }
+        ];
+    }
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectKafkaJsReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

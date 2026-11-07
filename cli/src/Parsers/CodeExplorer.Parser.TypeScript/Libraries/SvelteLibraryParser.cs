@@ -2,40 +2,32 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class SvelteLibraryParser : ISemanticExtension
+public class SvelteLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "svelte";
-    public string Name => "Svelte";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["svelte", "svelte/*"];
-    public bool IsImplemented => true;
+    public override string Id => "svelte";
+    public override string Name => "Svelte";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.FrontendFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["svelte", "svelte/*"];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsSvelteMount(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression],
+            MapNodeType = static (node, ctx) => IsSvelteMount(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = static (node, ctx, _, _) => IsSvelteMount(node) ? "Svelte:Mount" : null,
+            CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+            {
+                if (IsSvelteMount(node))
+                {
+                    ExtractSvelteRootReferences(node, scopeSymbolId, references);
+                }
+            }
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsSvelteMount(node))
-        {
-            return "Svelte:Mount";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsSvelteMount(node))
-        {
-            ExtractSvelteRootReferences(node, scopeSymbolId, references);
-        }
-    }
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
     private static bool IsSvelteMount(Node node)
     {

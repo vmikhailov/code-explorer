@@ -2,13 +2,12 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class NestJsCqrsLibraryParser : ISemanticExtension
+public class NestJsCqrsLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "NestJS CQRS";
-    public string Id => "nestjs-cqrs";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["@nestjs/cqrs"];
-    public bool IsImplemented => true;
+    public override string Name => "NestJS CQRS";
+    public override string Id => "nestjs-cqrs";
+    public override SemanticExtensionType Type => SemanticExtensionType.Queue;
+    public override IReadOnlyList<string> SupportedPatterns => ["@nestjs/cqrs"];
 
     private static readonly HashSet<string> HandlerDecorators =
     [
@@ -17,11 +16,23 @@ public class NestJsCqrsLibraryParser : ISemanticExtension
         "QueryHandler"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.ClassDeclaration,
+                TreeSitterSyntax.TypeScript.ClassExpression,
+                TreeSitterSyntax.TypeScript.CallExpression
+            ],
+            CollectReferences = CollectReferencesCore
+        }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Ingress: @CommandHandler(CreateOrderCommand), @EventsHandler(OrderCreatedEvent)
         if (IsCqrsHandlerClass(node))

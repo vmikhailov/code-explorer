@@ -2,22 +2,32 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AngularHttpLibraryParser : ISemanticExtension
+public class AngularHttpLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
 
-    public string Name => "Angular HttpClient";
+    public override string Name => "Angular HttpClient";
 
-    public string Id => "angular-http";
+    public override string Id => "angular-http";
 
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "@angular/common/http",
         "@angular/common/http/*",
         "@angular/common"
     ];
 
-    public bool IsImplemented => true;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsHttpCallNode(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj)
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
     private static bool IsHttpCallNode(Node node)
     {
@@ -62,15 +72,7 @@ public class AngularHttpLibraryParser : ISemanticExtension
         return false;
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsHttpCallNode(node)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsHttpCallNode(node))
         {
@@ -117,14 +119,14 @@ public class AngularHttpLibraryParser : ISemanticExtension
                             {
                                 var firstPart = path[..slashIdx].ToLowerInvariant();
                                 var rest = path[slashIdx..];
-                                if (!firstPart.Equals("api", StringComparison.OrdinalIgnoreCase) &&
-                                    !firstPart.Equals("v1", StringComparison.OrdinalIgnoreCase) &&
-                                    !firstPart.Equals("v2", StringComparison.OrdinalIgnoreCase) &&
-                                    !firstPart.Equals("v3", StringComparison.OrdinalIgnoreCase) &&
-                                    (rest.StartWithIC("/api/") ||
-                                     rest.StartWithIC("/v1/") ||
-                                     rest.StartWithIC("/v2/") ||
-                                     rest.StartWithIC("/v3/") ||
+                                if (!firstPart.Equals(ApiSegment, StringComparison.OrdinalIgnoreCase) &&
+                                    !firstPart.Equals(V1Segment, StringComparison.OrdinalIgnoreCase) &&
+                                    !firstPart.Equals(V2Segment, StringComparison.OrdinalIgnoreCase) &&
+                                    !firstPart.Equals(V3Segment, StringComparison.OrdinalIgnoreCase) &&
+                                    (rest.StartWithIC(ApiSlashPrefix) ||
+                                     rest.StartWithIC(V1SlashPrefix) ||
+                                     rest.StartWithIC(V2SlashPrefix) ||
+                                     rest.StartWithIC(V3SlashPrefix) ||
                                      RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, firstPart, StringComparison.OrdinalIgnoreCase))))
                                 {
                                     return $"{firstPart}/{rest.TrimStart('/')}";
@@ -143,7 +145,12 @@ public class AngularHttpLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-    }
+    private const string ApiSegment = "api";
+    private const string V1Segment = "v1";
+    private const string V2Segment = "v2";
+    private const string V3Segment = "v3";
+    private const string ApiSlashPrefix = "/api/";
+    private const string V1SlashPrefix = "/v1/";
+    private const string V2SlashPrefix = "/v2/";
+    private const string V3SlashPrefix = "/v3/";
 }

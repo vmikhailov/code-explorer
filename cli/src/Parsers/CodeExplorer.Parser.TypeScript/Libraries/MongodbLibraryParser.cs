@@ -1,16 +1,10 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class MongodbLibraryParser : ISemanticExtension
+public class MongodbLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
-    public string Name => "MongoDB";
-    public string Id => "mongodb";
-    public IReadOnlyList<string> SupportedPatterns => ["mongodb"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> MongoMethods = new(StringComparer.Ordinal)
     {
         "find", "findOne", "insertOne", "insertMany", "updateOne", "updateMany",
@@ -18,43 +12,39 @@ public class MongodbLibraryParser : ISemanticExtension
         "distinct", "bulkWrite", "createIndex", "drop", "dropDatabase", "replaceOne", "command"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public MongodbLibraryParser()
     {
-        if (IsMongoCall(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsMongoCall(node))
-        {
-            if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
+        Type = SemanticExtensionType.DocumentDb;
+        Name = "MongoDB";
+        Id = "mongodb";
+        SupportedPatterns = ["mongodb"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var collectionName = TryExtractCollectionName(objNode);
-                if (!string.IsNullOrEmpty(collectionName))
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsMongoCall(node) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
                 {
-                    return $"MongoDB: {collectionName}.{propName}";
+                    if (!IsMongoCall(node)) return null;
+                    if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
+                    {
+                        var collectionName = TryExtractCollectionName(objNode);
+                        if (!string.IsNullOrEmpty(collectionName))
+                        {
+                            return $"MongoDB: {collectionName}.{propName}";
+                        }
+                        if (objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+                        {
+                            return $"MongoDB: {objNode.Text}.{propName}";
+                        }
+                        return $"MongoDB: {propName}";
+                    }
+                    return "MongoDB Query";
                 }
-
-                if (objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.Identifier))
-                {
-                    return $"MongoDB: {objNode.Text}.{propName}";
-                }
-
-                return $"MongoDB: {propName}";
             }
-
-            return "MongoDB Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Document queries represent DB Query nodes
+        ];
     }
 
     private static bool IsMongoCall(Node node)

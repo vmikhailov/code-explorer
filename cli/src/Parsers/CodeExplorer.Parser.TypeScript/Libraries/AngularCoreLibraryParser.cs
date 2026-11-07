@@ -2,22 +2,45 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AngularCoreLibraryParser : ISemanticExtension
+public class AngularCoreLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "angular";
-    public string Name => "Angular";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override string Id => "angular";
+    public override string Name => "Angular";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.FrontendFramework;
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "@angular/core",
         "@angular/core/*",
         "@angular/router",
         "@angular/router/*"
     ];
-    public bool IsImplemented => true;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.Decorator,
+                TreeSitterSyntax.TypeScript.ClassDeclaration,
+                TreeSitterSyntax.TypeScript.ClassExpression,
+                TreeSitterSyntax.TypeScript.String,
+                TreeSitterSyntax.TypeScript.TemplateString,
+                TreeSitterSyntax.TypeScript.Identifier,
+                TreeSitterSyntax.TypeScript.MemberExpression,
+                "binary_expression"
+            ],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
+            CollectReferences = CollectReferencesCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsAngularBootstrap(node))
         {
@@ -32,9 +55,7 @@ public class AngularCoreLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsAngularBootstrap(node))
         {
@@ -57,7 +78,7 @@ public class AngularCoreLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsAngularBootstrap(node))
         {

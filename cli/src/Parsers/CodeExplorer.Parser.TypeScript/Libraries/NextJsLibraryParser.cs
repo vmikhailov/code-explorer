@@ -1,51 +1,40 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class NextJsLibraryParser : ISemanticExtension
+public class NextJsLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Next.js";
-    public string Id => "nextjs";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["next", "next/*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-
     private static readonly HashSet<string> HttpMethodFunctions = new(StringComparer.Ordinal)
     {
         "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public NextJsLibraryParser()
     {
-        if (IsNextRouteHandler(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Name = "Next.js";
+        Id = "nextjs";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["next", "next/*"];
+        LibraryRole = LibraryRole.FrontendFramework;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.FunctionDeclaration }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsNextRouteHandler(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsNextRouteHandler(node)) return null;
+                    var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+                    var funcName = nameNode.IsValid() ? nameNode.Text : "";
+                    if (HttpMethodFunctions.Contains(funcName)) return $"{funcName}:route";
+                    if (string.Equals(funcName, "handler", StringComparison.OrdinalIgnoreCase)) return "API:handler";
+                    return $"{funcName}:route";
+                }
+            }
+        ];
     }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (!IsNextRouteHandler(node)) return null;
-
-        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
-        var funcName = nameNode.IsValid() ? nameNode.Text : "";
-
-        if (HttpMethodFunctions.Contains(funcName))
-        {
-            return $"{funcName}:route";
-        }
-
-        if (string.Equals(funcName, "handler", StringComparison.OrdinalIgnoreCase))
-        {
-            return "API:handler";
-        }
-
-        return $"{funcName}:route";
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     private static bool IsNextRouteHandler(Node node)
     {

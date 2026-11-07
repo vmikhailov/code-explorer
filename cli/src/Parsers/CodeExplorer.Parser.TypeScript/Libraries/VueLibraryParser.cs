@@ -2,34 +2,28 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class VueLibraryParser : ISemanticExtension
+public class VueLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "vue";
-    public string Name => "Vue";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["vue", "vue/*"];
-    public bool IsImplemented => true;
+    public override string Id => "vue";
+    public override string Name => "Vue";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.FrontendFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["vue", "vue/*"];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsVueRootMount(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression],
+            MapNodeType = static (node, ctx) => IsVueRootMount(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = static (node, ctx, _, _) => IsVueRootMount(node) ? "Vue:Root" : null,
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsVueRootMount(node))
-        {
-            return "Vue:Root";
-        }
-        return null;
-    }
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsVueRootMount(node))
         {

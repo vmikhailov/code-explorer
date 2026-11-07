@@ -1,34 +1,37 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class LitestarLibraryParser : ISemanticExtension
+public class LitestarLibraryParser : DeclarativeSemanticExtension
 {
     private const string PathKeyword = "path";
-
-    public string Name => "Litestar";
-    public string Id => "litestar";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["litestar", "litestar.*", "starlite", "starlite.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> RouteDecorators = new(StringComparer.OrdinalIgnoreCase)
     {
         "get", "post", "put", "delete", "patch", "head", "route", "websocket"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public LitestarLibraryParser()
     {
-        return TryExtractLitestarRoute(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Name = "Litestar";
+        Id = "litestar";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["litestar", "litestar.*", "starlite", "starlite.*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractLitestarRoute(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractLitestarRoute(node, out var method, out var path) ? $"{method}:{path}" : null,
+                CollectReferences = CollectLitestarReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractLitestarRoute(node, out var method, out var path) ? $"{method}:{path}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectLitestarReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!TryExtractLitestarRoute(node, out _, out _)) return;
 

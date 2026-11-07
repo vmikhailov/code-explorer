@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Text.Json;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser.Syntax;
@@ -5,7 +6,7 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class BeegoLibraryParser : ISemanticExtension
+public class BeegoLibraryParser : DeclarativeSemanticExtension
 {
     private const string IdBeego = "beego";
     private const string NameBeego = "Beego";
@@ -15,18 +16,30 @@ public class BeegoLibraryParser : ISemanticExtension
     private const string OrmRoleDesc = "Beego ORM";
     private static readonly char[] QuoteSeparators = ['"', '`'];
 
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => NameBeego;
-    public string Id => IdBeego;
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/beego/beego*",
-        "github.com/astaxie/beego*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public BeegoLibraryParser()
+    {
+        Type = SemanticExtensionType.Framework;
+        Name = NameBeego;
+        Id = IdBeego;
+        SupportedPatterns =
+        [
+            "github.com/beego/beego*",
+            "github.com/astaxie/beego*"
+        ];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression, TreeSitterSyntax.Go.MethodDeclaration }.ToFrozenSet(),
+                MapNodeType = MapBeegoNodeType,
+                ExtractIdentifier = ExtractBeegoIdentifier,
+                CollectReferences = CollectBeegoReferences
+            }
+        ];
+    }
 
-    public IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
         yield return new PackageDescriptor(WebRoleName, WebRoleDesc, LibraryRole.WebService, SemanticExtensionType.Framework, SupportedPatterns);
         yield return new PackageDescriptor(OrmRoleName, OrmRoleDesc, LibraryRole.OrmOrDatabase, SemanticExtensionType.RelationalDb, SupportedPatterns);
@@ -37,7 +50,7 @@ public class BeegoLibraryParser : ISemanticExtension
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options", "Any"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapBeegoNodeType(Node node, ParsingContext ctx)
     {
         if (IsBeegoRouteCall(node, out _, out _, out _, out _))
         {
@@ -67,10 +80,7 @@ public class BeegoLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractBeegoIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsBeegoRouteCall(node, out var httpMethod, out var fullRoute, out _, out _))
         {
@@ -106,7 +116,7 @@ public class BeegoLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
+    private static void CollectBeegoReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
     {
         if (IsBeegoRouteCall(node, out _, out var fullRoute, out _, out var mappings))
         {

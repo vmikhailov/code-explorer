@@ -2,15 +2,8 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MongoDbCsLibraryParser : ISemanticExtension
+public class MongoDbCsLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
-    public string Name => "MongoDB";
-    public string Id => "mongodb";
-    public IReadOnlyList<string> SupportedPatterns => ["MongoDB.Driver", "MongoDB.Driver.*", "MongoDB.Bson", "MongoDB.Bson.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> MongoMethods =
     [
         "Find", "FindAsync", "InsertOne", "InsertOneAsync", "InsertMany", "InsertManyAsync",
@@ -20,7 +13,30 @@ public class MongoDbCsLibraryParser : ISemanticExtension
         "CountDocuments", "CountDocumentsAsync", "BulkWrite", "BulkWriteAsync"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public MongoDbCsLibraryParser()
+    {
+        Id = "mongodb";
+        Name = "MongoDB";
+        Type = SemanticExtensionType.DocumentDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["MongoDB.Driver", "MongoDB.Driver.*", "MongoDB.Bson", "MongoDB.Bson.*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.CSharp.InvocationExpression,
+                    TreeSitterSyntax.CSharp.PropertyDeclaration
+                ]),
+                MapNodeType = MapNodeTypeCore,
+                ExtractIdentifier = (node, _, _, _) => ExtractIdentifierCore(node),
+                CollectReferences = CollectReferencesCore
+            }
+        ];
+    }
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsGetCollectionCall(node) || IsMongoCollectionProperty(node))
         {
@@ -35,7 +51,7 @@ public class MongoDbCsLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsGetCollectionCall(node))
         {
@@ -60,7 +76,7 @@ public class MongoDbCsLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsGetCollectionCall(node))
         {

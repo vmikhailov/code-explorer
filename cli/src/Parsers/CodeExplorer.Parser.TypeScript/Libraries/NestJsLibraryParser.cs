@@ -3,14 +3,13 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class NestJsLibraryParser : ISemanticExtension
+public class NestJsLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "NestJS";
-    public string Id => "nestjs";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["@nestjs/common", "@nestjs/core", "@nestjs/microservices", "@nestjs/websockets", "@nestjs/graphql"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public override string Name => "NestJS";
+    public override string Id => "nestjs";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override IReadOnlyList<string> SupportedPatterns => ["@nestjs/common", "@nestjs/core", "@nestjs/microservices", "@nestjs/websockets", "@nestjs/graphql"];
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
 
     private const string DecoratorEntryPointPattern = "Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod";
 
@@ -25,12 +24,31 @@ public class NestJsLibraryParser : ISemanticExtension
         .FirstChild
         .FunctionNode;
 
-    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
+    public override IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {
         { OntologyConstants.NodeLabels.EntryPoint, _decoratorEntryPointSelector }
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.Decorator,
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.MethodDefinition
+            ],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if ((_decoratorEntryPointSelector.Matches(node) && !IsParameterDecorator(node)) || IsNestFactoryCreate(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
@@ -43,9 +61,7 @@ public class NestJsLibraryParser : ISemanticExtension
         return func.IsValid() && func.Text.StartsWith("NestFactory.create", StringComparison.Ordinal);
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsNestFactoryCreate(node))
         {
@@ -305,7 +321,7 @@ public class NestJsLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
         {
@@ -314,7 +330,7 @@ public class NestJsLibraryParser : ISemanticExtension
             {
                 if (_decoratorEntryPointSelector.Matches(dec))
                 {
-                    var route = ExtractIdentifier(dec, ctx);
+                    var route = ExtractIdentifierStatic(dec, ctx, null);
                     if (!string.IsNullOrEmpty(route))
                     {
                         var colonIdx = route.IndexOf(':');
@@ -362,7 +378,7 @@ public class NestJsLibraryParser : ISemanticExtension
         return result;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         var decorators = new List<Node>();
         Node? methodNode = null;
@@ -563,7 +579,7 @@ public class NestJsLibraryParser : ISemanticExtension
         return type is "string" or "number" or "boolean" or "any" or "unknown" or "void" or "null" or "undefined" or "never" or "object" or "Record<string, any>" or "Request" or "Response";
     }
 
-    public void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(content) || !content.Contains("setGlobalPrefix")) return;
 
@@ -587,7 +603,7 @@ public class NestJsLibraryParser : ISemanticExtension
         }
     }
 
-    public void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         if (!rootNode.IsValid()) return;
         TraverseForGlobalPrefix(rootNode, projectName);

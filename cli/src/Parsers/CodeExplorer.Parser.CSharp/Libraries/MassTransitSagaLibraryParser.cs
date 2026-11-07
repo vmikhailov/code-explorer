@@ -2,29 +2,31 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MassTransitSagaLibraryParser : ISemanticExtension
+public class MassTransitSagaLibraryParser : DeclarativeSemanticExtension
 {
     private const string SagaBaseClass = "MassTransitStateMachine";
     private const string MassTransitPrefix = "masstransit:";
 
-    public string Name => "MassTransit Sagas";
-    public string Id => "masstransit-saga";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["MassTransit", "MassTransit.StateMachine*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public MassTransitSagaLibraryParser()
     {
-        return IsSagaStateMachineClass(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Id = "masstransit-saga";
+        Name = "MassTransit Sagas";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["MassTransit", "MassTransit.StateMachine*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.CSharp.ClassDeclaration]),
+                MapNodeType = (node, ctx) => IsSagaStateMachineClass(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => IsSagaStateMachineClass(node, out var stateType) ? $"Saga:{stateType}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsSagaStateMachineClass(node, out var stateType) ? $"Saga:{stateType}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsSagaStateMachineClass(node, out var stateType))
         {

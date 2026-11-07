@@ -1,15 +1,33 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MassTransitLibraryParser : ISemanticExtension
+public class MassTransitLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "MassTransit";
-    public string Id => "masstransit";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["MassTransit", "MassTransit.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    public MassTransitLibraryParser()
+    {
+        Name = "MassTransit";
+        Id = "masstransit";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["MassTransit", "MassTransit.*"];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsConsumerClass(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsConsumerClass(node)) return null;
+                    var msg = ExtractConsumerMessageType(node);
+                    return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
+                },
+                CollectReferences = CollectMassTransitReferences
+            }
+        ];
+    }
 
     private static readonly HashSet<string> ConsumerInterfaces =
     [
@@ -30,27 +48,7 @@ public class MassTransitLibraryParser : ISemanticExtension
         "RespondAsync"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsConsumerClass(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsConsumerClass(node))
-        {
-            var msg = ExtractConsumerMessageType(node);
-            return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectMassTransitReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Ingress: Consumer classes subscribe to message types
         if (IsConsumerClass(node))

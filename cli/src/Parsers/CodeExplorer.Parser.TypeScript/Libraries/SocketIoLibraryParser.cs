@@ -2,13 +2,12 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class SocketIoLibraryParser : ISemanticExtension
+public class SocketIoLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Socket.io";
-    public string Id => "socketio";
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public IReadOnlyList<string> SupportedPatterns => ["socket.io", "socket.io-client"];
-    public bool IsImplemented => true;
+    public override string Name => "Socket.io";
+    public override string Id => "socketio";
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public override IReadOnlyList<string> SupportedPatterns => ["socket.io", "socket.io-client"];
 
     private static readonly NodeSelector _socketOnSelector = NodeSelector.New()
         .HasType(TreeSitterSyntax.TypeScript.CallExpression)
@@ -30,13 +29,25 @@ public class SocketIoLibraryParser : ISemanticExtension
                 .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("emit"))
         ));
 
-    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
+    public override IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {
         { OntologyConstants.NodeLabels.EntryPoint, _socketOnSelector },
         { OntologyConstants.NodeLabels.ExternalService, _socketEmitSelector }
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx)
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (_socketOnSelector.Matches(node)) return OntologyConstants.NodeLabels.EntryPoint;
         if (_socketEmitSelector.Matches(node))
@@ -47,7 +58,7 @@ public class SocketIoLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         var isOn = _socketOnSelector.Matches(node);
         var isEmit = _socketEmitSelector.Matches(node);
@@ -56,7 +67,7 @@ public class SocketIoLibraryParser : ISemanticExtension
 
         if (isOn || isEmit)
         {
-            var argList = node.GetChildForField("arguments");
+            var argList = node.GetChildForField(TreeSitterSyntax.Fields.Arguments);
             if (argList != null && argList.Children.Count > 0)
             {
                 var firstArg = argList.Children[0].Type == "(" && argList.Children.Count > 1 ? argList.Children[1] : argList.Children[0];
@@ -103,9 +114,5 @@ public class SocketIoLibraryParser : ISemanticExtension
         }
 
         return false;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
     }
 }

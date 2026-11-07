@@ -7,37 +7,29 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects client.publish("subject", ...) and client.subscribe("subject").
 /// Emits Topic nodes and PUBLISHES_TO / SUBSCRIBES_TO relationships.
 /// </summary>
-public class AsyncNatsLibraryParser : ISemanticExtension
+public class AsyncNatsLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "async-nats";
-    public string Name => "async-nats (NATS)";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-    public IReadOnlyList<string> SupportedPatterns => ["async-nats*", "async_nats*"];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public AsyncNatsLibraryParser()
     {
-        if (IsNatsCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Topic;
-        }
-        return null;
+        Id = "async-nats";
+        Name = "async-nats (NATS)";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["async-nats*", "async_nats*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsNatsCall(node, out _, out _) ? OntologyConstants.NodeLabels.Topic : null,
+                ExtractIdentifier = (node, _, _, _) => IsNatsCall(node, out var subject, out _) ? subject : null,
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsNatsCall(node, out var subject, out _))
-        {
-            return subject;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsNatsCall(node, out var subject, out var isPublish) && !string.IsNullOrEmpty(subject))
         {
@@ -50,7 +42,7 @@ public class AsyncNatsLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsNatsCall(node, out _, out _))
         {

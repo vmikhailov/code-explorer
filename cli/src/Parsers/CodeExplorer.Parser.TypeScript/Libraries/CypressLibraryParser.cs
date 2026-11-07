@@ -2,22 +2,35 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class CypressLibraryParser : ISemanticExtension
+public class CypressLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "cypress";
-    public string Name => "Cypress";
-    public SemanticExtensionType Type => SemanticExtensionType.Library;
-    public LibraryRole LibraryRole => LibraryRole.TestFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["cypress"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
+    public override string Id => "cypress";
+    public override string Name => "Cypress";
+    public override SemanticExtensionType Type => SemanticExtensionType.Library;
+    public override LibraryRole LibraryRole => LibraryRole.TestFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["cypress"];
+    public override bool IsBuiltIn => true;
 
-    public IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            EnrichSymbol = EnrichSymbolCore,
+            CollectReferences = CollectReferencesCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
         yield return new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "library", ["cypress"]);
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsCyExternalCall(node, out _, out _))
         {
@@ -32,9 +45,7 @@ public class CypressLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsCyExternalCall(node, out var argNode, out _))
         {
@@ -60,7 +71,7 @@ public class CypressLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsCypressSuiteOrTest(node) || IsCyExternalCall(node, out _, out _))
         {
@@ -72,9 +83,11 @@ public class CypressLibraryParser : ISemanticExtension
         }
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private const string VisitMethodName = "visit";
+
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        if (IsCyCall(node, "visit", out var argNode))
+        if (IsCyCall(node, VisitMethodName, out var argNode))
         {
             var raw = ExtractStringValue(argNode);
             if (!string.IsNullOrWhiteSpace(raw))

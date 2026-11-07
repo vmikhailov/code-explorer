@@ -2,16 +2,8 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class OrleansLibraryParser : ISemanticExtension
+public class OrleansLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Microsoft Orleans";
-    public string Id => "orleans";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["Orleans", "Microsoft.Orleans", "Microsoft.Orleans.*", "*Orleans*"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-
     private static readonly HashSet<string> GrainBaseClasses =
     [
         "Grain", "JournaledGrain"
@@ -23,16 +15,33 @@ public class OrleansLibraryParser : ISemanticExtension
         "IGrainWithGuidCompoundKey", "IGrainWithIntegerCompoundKey", "IGrainObserver", "IGrainExtension"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public OrleansLibraryParser()
     {
-        if (IsGrainClass(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Id = "orleans";
+        Name = "Microsoft Orleans";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.General;
+        IsBuiltIn = true;
+        SupportedPatterns = ["Orleans", "Microsoft.Orleans", "Microsoft.Orleans.*", "*Orleans*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.CSharp.ClassDeclaration,
+                    TreeSitterSyntax.CSharp.RecordDeclaration,
+                    TreeSitterSyntax.CSharp.InvocationExpression
+                ]),
+                MapNodeType = (node, ctx) => IsGrainClass(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => ExtractIdentifierCore(node),
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsGrainClass(node))
         {
@@ -45,7 +54,7 @@ public class OrleansLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsGrainClass(node))
         {
@@ -104,7 +113,7 @@ public class OrleansLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsGrainClass(node))
         {

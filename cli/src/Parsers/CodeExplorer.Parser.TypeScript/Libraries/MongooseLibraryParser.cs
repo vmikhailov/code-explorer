@@ -2,29 +2,31 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class MongooseLibraryParser : ISemanticExtension
+public class MongooseLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
+    public override SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
 
-    public string Name => "MongoDB";
+    public override string Name => "MongoDB";
 
-    public string Id => "mongoose";
+    public override string Id => "mongoose";
 
-    public IReadOnlyList<string> SupportedPatterns => ["mongoose"];
+    public override IReadOnlyList<string> SupportedPatterns => ["mongoose"];
 
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsMongooseCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsMongooseCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx)
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsMongooseCall(node))
         {
@@ -56,11 +58,6 @@ public class MongooseLibraryParser : ISemanticExtension
             return "Mongoose Query";
         }
         return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Mongoose actions represent database queries
     }
 
     private static bool IsMongooseCall(Node node)

@@ -1,0 +1,142 @@
+diff --git a/common/define-grammar.js b/common/define-grammar.js
+index efb0b76..6b38018 100644
+--- a/common/define-grammar.js
++++ b/common/define-grammar.js
+@@ -63,7 +63,6 @@ module.exports = function defineGrammar(dialect) {
+       [$.decorator_call_expression, $.decorator],
+       [$.literal_type, $.pattern],
+       [$.predefined_type, $.pattern],
+-      [$.call_expression, $._type_query_call_expression],
+       [$.call_expression, $._type_query_call_expression_in_type_annotation],
+       [$.new_expression, $.primary_expression],
+       [$.meta_property, $.primary_expression],
+@@ -111,6 +110,7 @@ module.exports = function defineGrammar(dialect) {
+       [$.array_pattern, $.tuple_type],
+ 
+       [$.template_literal_type, $.template_string],
++      [$.call_expression, $._type_query_call_expression],
+     ]).concat(
+       dialect === 'typescript' ? [
+         [$.primary_type, $.type_parameter],
+@@ -139,8 +139,8 @@ module.exports = function defineGrammar(dialect) {
+         )),
+         choice(
+           seq(optional('static'), optional($.override_modifier), optional('readonly')),
+-          seq(optional('abstract'), optional('readonly')),
+-          seq(optional('readonly'), optional('abstract')),
++          seq(optional('abstract'), optional($.override_modifier), optional('readonly')),
++          seq(optional('readonly'), optional('abstract'), optional($.override_modifier)),
+           optional('accessor'),
+         ),
+         field('name', $._property_name),
+@@ -180,6 +180,11 @@ module.exports = function defineGrammar(dialect) {
+           field('function', choice($.primary_expression, $.new_expression)),
+           field('arguments', $.template_string),
+         )),
++        prec('call', seq(
++          field('function', $.expression),
++          field('type_arguments', $.type_arguments),
++          field('arguments', $.template_string),
++        )),
+         prec('member', seq(
+           field('function', $.primary_expression),
+           '?.',
+@@ -867,7 +872,7 @@ module.exports = function defineGrammar(dialect) {
+         optional('?.'),
+         '[', field('index', choice($.predefined_type, $.string, $.number)), ']',
+       ),
+-      _type_query_call_expression: $ => seq(
++      _type_query_call_expression: $ => prec('call', seq(
+         field('function', choice(
+           $.import,
+           $.identifier,
+@@ -875,7 +880,7 @@ module.exports = function defineGrammar(dialect) {
+           alias($._type_query_subscript_expression, $.subscript_expression),
+         )),
+         field('arguments', $.arguments),
+-      ),
++      )),
+       _type_query_instantiation_expression: $ => seq(
+         field('function', choice(
+           $.import,
+diff --git a/common/scanner.h b/common/scanner.h
+index 23b78b5..5e9cb1c 100644
+--- a/common/scanner.h
++++ b/common/scanner.h
+@@ -282,25 +282,53 @@ static bool scan_jsx_text(TSLexer *lexer) {
+     bool at_newline = false;
+ 
+     while (lexer->lookahead != 0 && lexer->lookahead != '<' && lexer->lookahead != '>' && lexer->lookahead != '{' &&
+-           lexer->lookahead != '}' && lexer->lookahead != '&') {
++           lexer->lookahead != '}') {
++        if (lexer->lookahead == '&') {
++            lexer->mark_end(lexer);
++            advance(lexer);
++            bool is_entity = false;
++            if (lexer->lookahead == '#') {
++                advance(lexer);
++                if (lexer->lookahead == 'x' || lexer->lookahead == 'X') {
++                    advance(lexer);
++                    int count = 0;
++                    while (count < 6 && ((lexer->lookahead >= '0' && lexer->lookahead <= '9') ||
++                                         (lexer->lookahead >= 'a' && lexer->lookahead <= 'f') ||
++                                         (lexer->lookahead >= 'A' && lexer->lookahead <= 'F'))) {
++                        advance(lexer);
++                        count++;
++                    }
++                    is_entity = (count >= 1 && lexer->lookahead == ';');
++                } else {
++                    int count = 0;
++                    while (count < 5 && (lexer->lookahead >= '0' && lexer->lookahead <= '9')) {
++                        advance(lexer);
++                        count++;
++                    }
++                    is_entity = (count >= 1 && lexer->lookahead == ';');
++                }
++            } else {
++                int count = 0;
++                while (count < 30 && ((lexer->lookahead >= 'a' && lexer->lookahead <= 'z') ||
++                                      (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z'))) {
++                    advance(lexer);
++                    count++;
++                }
++                is_entity = (count >= 1 && lexer->lookahead == ';');
++            }
++            if (is_entity) {
++                lexer->result_symbol = JSX_TEXT;
++                return saw_text;
++            }
++            at_newline = false;
++            saw_text = true;
++            continue;
++        }
++
+         bool is_wspace = iswspace(lexer->lookahead);
+         if (lexer->lookahead == '\n') {
+             at_newline = true;
+         } else {
+-            // If at_newline is already true, and we see some whitespace, then it must stay true.
+-            // Otherwise, it should be false.
+-            //
+-            // See the table below to determine the logic for computing `saw_text`.
+-            //
+-            // |------------------------------------|
+-            // | at_newline | is_wspace | saw_text  |
+-            // |------------|-----------|-----------|
+-            // | false (0)  | false (0) | true  (1) |
+-            // | false (0)  | true  (1) | true  (1) |
+-            // | true  (1)  | false (0) | true  (1) |
+-            // | true  (1)  | true  (1) | false (0) |
+-            // |------------------------------------|
+-
+             at_newline &= is_wspace;
+             if (!at_newline) {
+                 saw_text = true;
+@@ -310,6 +338,7 @@ static bool scan_jsx_text(TSLexer *lexer) {
+         advance(lexer);
+     }
+ 
++    lexer->mark_end(lexer);
+     lexer->result_symbol = JSX_TEXT;
+     return saw_text;
+ }

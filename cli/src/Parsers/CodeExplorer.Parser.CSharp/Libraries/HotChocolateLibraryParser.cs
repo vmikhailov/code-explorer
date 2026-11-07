@@ -1,16 +1,29 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class HotChocolateLibraryParser : ISemanticExtension
+public class HotChocolateLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "HotChocolate GraphQL";
-    public string Id => "hotchocolate";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["HotChocolate", "HotChocolate.*", "HotChocolate.Types", "HotChocolate.AspNetCore"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public HotChocolateLibraryParser()
+    {
+        Name = "HotChocolate GraphQL";
+        Id = "hotchocolate";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["HotChocolate", "HotChocolate.*", "HotChocolate.Types", "HotChocolate.AspNetCore"];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.Attribute, TreeSitterSyntax.CSharp.MethodDeclaration }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => (IsGraphQlAttribute(node) || IsGraphQlMethodDeclaration(node)) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, ctx, _, _) => ExtractHotChocolateIdentifier(node, ctx),
+                EnrichSymbol = EnrichHotChocolateSymbol
+            }
+        ];
+    }
 
     private static readonly HashSet<string> GraphQlAttributes =
     [
@@ -20,13 +33,7 @@ public class HotChocolateLibraryParser : ISemanticExtension
         "UsePagingAttribute", "UseFilteringAttribute", "UseSortingAttribute", "UseProjectionAttribute"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsGraphQlAttribute(node) || IsGraphQlMethodDeclaration(node)) return OntologyConstants.NodeLabels.EntryPoint;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractHotChocolateIdentifier(Node node, ParsingContext ctx)
     {
         if (IsGraphQlAttribute(node))
         {
@@ -58,9 +65,7 @@ public class HotChocolateLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichHotChocolateSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsGraphQlAttribute(node))
         {

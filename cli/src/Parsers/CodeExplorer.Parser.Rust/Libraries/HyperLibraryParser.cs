@@ -6,37 +6,28 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Semantic extension for the Hyper HTTP client in Rust.
 /// Detects low-level request builder invocations like hyper::Request::builder().uri(url).
 /// </summary>
-public class HyperLibraryParser : ISemanticExtension
+public class HyperLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "hyper";
-    public string Name => "Hyper";
-    public SemanticExtensionType Type => SemanticExtensionType.HttpClient;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-    public IReadOnlyList<string> SupportedPatterns => ["hyper*"];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public HyperLibraryParser()
     {
-        if (IsHyperCall(node, out _))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
+        Id = "hyper";
+        Name = "Hyper";
+        Type = SemanticExtensionType.HttpClient;
+        LibraryRole = LibraryRole.General;
+        SupportedPatterns = ["hyper*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsHyperCall(node, out _) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = (node, _, _, _) => IsHyperCall(node, out var target) ? target : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsHyperCall(node, out var target))
-        {
-            return target;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsHyperCall(node, out var target) && !string.IsNullOrEmpty(target))
         {

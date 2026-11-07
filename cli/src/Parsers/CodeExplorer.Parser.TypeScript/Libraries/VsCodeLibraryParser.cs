@@ -2,20 +2,26 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class VsCodeLibraryParser : ISemanticExtension
+public class VsCodeLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "vscode";
-    public string Name => "VS Code Extension API";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["vscode", "@types/vscode"];
-    public bool IsImplemented => true;
+    public override string Id => "vscode";
+    public override string Name => "VS Code Extension API";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.FrontendFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["vscode", "@types/vscode"];
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            CollectReferences = CollectReferencesCore
+        }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

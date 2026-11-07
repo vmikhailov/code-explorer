@@ -1,60 +1,68 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class GrpcCSharpLibraryParser : ISemanticExtension
+public class GrpcCSharpLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "gRPC";
-    public string Id => "grpc";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "Grpc", "Grpc.*", "Grpc.Core", "Grpc.Net.Client", "Grpc.AspNetCore",
-        "Grpc.AspNetCore.Server", "Grpc.AspNetCore.*", "Grpc.Net.*",
-        "*Grpc*", "*.Grpc", "*.Grpc.*"
-    ];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GrpcCSharpLibraryParser()
     {
-        if (IsGrpcMethodDeclaration(node)) return OntologyConstants.NodeLabels.EntryPoint;
-        if (IsGrpcClientCall(node)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsGrpcMethodDeclaration(node))
-        {
-            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
-            var methodName = nameNode.IsValid() ? nameNode.Text : "anonymous";
-            var serviceName = GetParentClassName(node);
-            return string.IsNullOrEmpty(serviceName) ? $"RPC:{methodName}" : $"RPC:/{serviceName}/{methodName}";
-        }
-        if (IsGrpcClientCall(node))
-        {
-            return ExtractClientTarget(node);
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsGrpcClientCall(node))
-        {
-            var target = ExtractClientTarget(node);
-            if (!string.IsNullOrEmpty(target))
+        Name = "gRPC";
+        Id = "grpc";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns =
+        [
+            "Grpc", "Grpc.*", "Grpc.Core", "Grpc.Net.Client", "Grpc.AspNetCore",
+            "Grpc.AspNetCore.Server", "Grpc.AspNetCore.*", "Grpc.Net.*",
+            "*Grpc*", "*.Grpc", "*.Grpc.*"
+        ];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                references.Add(new Reference(scopeSymbolId, target, "CALLS",
-                    (int)node.StartPosition.Row + 1,
-                    (int)node.StartPosition.Column + 1));
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsGrpcMethodDeclaration(node)) return OntologyConstants.NodeLabels.EntryPoint;
+                    if (IsGrpcClientCall(node)) return OntologyConstants.NodeLabels.ExternalService;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsGrpcMethodDeclaration(node))
+                    {
+                        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+                        var methodName = nameNode.IsValid() ? nameNode.Text : "anonymous";
+                        var serviceName = GetParentClassName(node);
+                        return string.IsNullOrEmpty(serviceName) ? $"RPC:{methodName}" : $"RPC:/{serviceName}/{methodName}";
+                    }
+                    if (IsGrpcClientCall(node))
+                    {
+                        return ExtractClientTarget(node);
+                    }
+                    return null;
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsGrpcClientCall(node))
+                    {
+                        var target = ExtractClientTarget(node);
+                        if (!string.IsNullOrEmpty(target))
+                        {
+                            references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls,
+                                (int)node.StartPosition.Row + 1,
+                                (int)node.StartPosition.Column + 1));
+                        }
+                    }
+                },
+                EnrichSymbol = EnrichGrpcSymbol
             }
-        }
+        ];
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichGrpcSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (!IsGrpcMethodDeclaration(node)) return;
 

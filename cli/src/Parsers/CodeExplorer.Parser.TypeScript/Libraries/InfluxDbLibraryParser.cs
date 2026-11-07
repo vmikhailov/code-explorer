@@ -1,49 +1,41 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class InfluxDbLibraryParser : ISemanticExtension
+public class InfluxDbLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.TimeSeriesDb;
-    public string Name => "InfluxDB";
-    public string Id => "influxdb";
-    public IReadOnlyList<string> SupportedPatterns => ["@influxdata/influxdb-client", "influxdb"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> InfluxMethods = new(StringComparer.Ordinal)
     {
         "writePoint", "writePoints", "writeRecord", "writeRecords",
         "queryRows", "queryRaw", "collectRows", "iterateRows"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public InfluxDbLibraryParser()
     {
-        if (IsInfluxCall(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsInfluxCall(node))
-        {
-            if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
+        Type = SemanticExtensionType.TimeSeriesDb;
+        Name = "InfluxDB";
+        Id = "influxdb";
+        SupportedPatterns = ["@influxdata/influxdb-client", "influxdb"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var target = objNode.IsValid() ? objNode.Text : "influx";
-                return $"InfluxDB: {target}.{propName}";
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsInfluxCall(node) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsInfluxCall(node)) return null;
+                    if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
+                    {
+                        var target = objNode.IsValid() ? objNode.Text : "influx";
+                        return $"InfluxDB: {target}.{propName}";
+                    }
+                    return "InfluxDB Query";
+                }
             }
-
-            return "InfluxDB Query";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Timeseries queries represent Query nodes
+        ];
     }
 
     private static bool IsInfluxCall(Node node)

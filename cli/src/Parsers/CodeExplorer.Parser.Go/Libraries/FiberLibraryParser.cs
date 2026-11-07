@@ -1,51 +1,44 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class FiberLibraryParser : ISemanticExtension
+public class FiberLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => "Fiber";
-    public string Id => "fiber";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/gofiber/fiber*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly HashSet<string> FiberMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "Get", "Post", "Put", "Delete", "Patch", "Options", "Head", "All", "Add"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public FiberLibraryParser()
     {
-        if (IsFiberRouteCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsFiberRouteCall(node, out var httpMethod, out var fullRoute, out _))
-        {
-            fullRoute = ApplyMountPrefix(fullRoute, relativePath);
-            return $"{httpMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsFiberRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
-        {
-            string? relativePath = null;
-            fullRoute = ApplyMountPrefix(fullRoute, relativePath);
-            references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
-        }
+        Type = SemanticExtensionType.Framework;
+        Name = "Fiber";
+        Id = "fiber";
+        SupportedPatterns = ["github.com/gofiber/fiber*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsFiberRouteCall(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, relativePath) =>
+                {
+                    if (!IsFiberRouteCall(node, out var httpMethod, out var fullRoute, out _)) return null;
+                    fullRoute = ApplyMountPrefix(fullRoute, relativePath);
+                    return $"{httpMethod}:{fullRoute}";
+                },
+                CollectReferences = static (node, _, references, _) =>
+                {
+                    if (IsFiberRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
+                    {
+                        fullRoute = ApplyMountPrefix(fullRoute, null);
+                        references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                }
+            }
+        ];
     }
 
     private static string ApplyMountPrefix(string route, string? relativePath)

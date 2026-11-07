@@ -1,37 +1,40 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PeeweeLibraryParser : ISemanticExtension
+public class PeeweeLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "Peewee";
-    public string Id => "peewee";
-    public IReadOnlyList<string> SupportedPatterns => ["peewee", "peewee.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> PeeweeQueryMethods = new(StringComparer.Ordinal)
     {
         "select", "create", "get", "get_or_none", "delete", "update", "insert", "insert_many", "raw", "execute_sql"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public PeeweeLibraryParser()
     {
-        if (IsPeeweeModelClass(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-
-        if (IsPeeweeCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-
-        return null;
+        Type = SemanticExtensionType.RelationalDb;
+        Name = "Peewee";
+        Id = "peewee";
+        SupportedPatterns = ["peewee", "peewee.*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsPeeweeModelClass(node, out _)) return OntologyConstants.NodeLabels.Table;
+                    if (IsPeeweeCall(node, out _, out _, out _)) return OntologyConstants.NodeLabels.Query;
+                    return null;
+                },
+                ExtractIdentifier = ExtractPeeweeIdentifier,
+                CollectReferences = CollectPeeweeReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractPeeweeIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsPeeweeModelClass(node, out var className))
         {
@@ -61,12 +64,14 @@ public class PeeweeLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private const string DefaultDatabaseId = "database";
+
+    private static void CollectPeeweeReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsPeeweeModelClass(node, out var className))
         {
             references.Add(new Reference(scopeSymbolId, className, OntologyConstants.Relationships.PersistedIn));
-            references.Add(new Reference(scopeSymbolId, "database", OntologyConstants.Relationships.UsesDb));
+            references.Add(new Reference(scopeSymbolId, DefaultDatabaseId, OntologyConstants.Relationships.UsesDb));
             return;
         }
 
@@ -81,7 +86,7 @@ public class PeeweeLibraryParser : ISemanticExtension
                 references.Add(new Reference(scopeSymbolId, targetInfo, OntologyConstants.Relationships.UsesDb));
             }
 
-            references.Add(new Reference(scopeSymbolId, "database", OntologyConstants.Relationships.UsesDb));
+            references.Add(new Reference(scopeSymbolId, DefaultDatabaseId, OntologyConstants.Relationships.UsesDb));
         }
     }
 

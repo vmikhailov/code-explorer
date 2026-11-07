@@ -1,40 +1,27 @@
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using System.Collections.Frozen;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class NettyLibraryParser : ISemanticExtension
+public class NettyLibraryParser : DeclarativeSemanticExtension
 {
-    private const string NettyEndpointPrefix = "TCP:/netty/";
-    private const string SuperclassField = "superclass";
-    private const string InboundAdapterName = "ChannelInboundHandlerAdapter";
-    private const string SimpleHandlerName = "SimpleChannelInboundHandler";
-
-    public string Name => "Netty";
-    public string Id => "netty";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["io.netty.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    public NettyLibraryParser()
     {
-        if (!node.Is(TreeSitterSyntax.Java.ClassDeclaration)) return;
-
-        var superclassNode = node.GetField(SuperclassField);
-        if (!superclassNode.IsValid()) return;
-
-        var superText = superclassNode.Text;
-        if (superText.Contains(InboundAdapterName, StringComparison.Ordinal) ||
-            superText.Contains(SimpleHandlerName, StringComparison.Ordinal))
-        {
-            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
-            if (nameNode.IsValid())
+        Id = "netty";
+        Name = "Netty";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns = ["io.netty.*"];
+        ClassHierarchySinkRules =
+        [
+            new ClassHierarchySinkRule
             {
-                references.Add(new Reference(scopeSymbolId, NettyEndpointPrefix + nameNode.Text, OntologyConstants.Relationships.Exposes));
+                BaseTypeSubstrings = new[]
+                {
+                    "ChannelInboundHandlerAdapter", "SimpleChannelInboundHandler"
+                }.ToFrozenSet(StringComparer.Ordinal),
+                TargetPrefix = "TCP:/netty/",
+                TargetRelation = OntologyConstants.Relationships.Exposes
             }
-        }
+        ];
     }
 }

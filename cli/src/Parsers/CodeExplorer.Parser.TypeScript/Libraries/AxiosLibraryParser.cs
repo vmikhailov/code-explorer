@@ -2,18 +2,34 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AxiosLibraryParser : ISemanticExtension
+public class AxiosLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    private const string UrlPropertyName = "url";
 
-    public string Name => "Axios";
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
 
-    public string Id => "axios";
+    public override string Name => "Axios";
 
-    public IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios", "@nestjs/common"];
+    public override string Id => "axios";
 
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
+    public override IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios", "@nestjs/common"];
+
+    public override bool IsBuiltIn => true;
+
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => (IsHttpCallNode(node) && ExtractIdentifierStatic(node, ctx, null) != null)
+                ? OntologyConstants.NodeLabels.ExternalService
+                : null,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
     private static bool IsHttpCallNode(Node node)
     {
@@ -102,15 +118,7 @@ public class AxiosLibraryParser : ISemanticExtension
         return false;
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsHttpCallNode(node) && ExtractIdentifier(node, ctx) != null) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsHttpCallNode(node))
         {
@@ -144,7 +152,7 @@ public class AxiosLibraryParser : ISemanticExtension
                     targetArg = args[1];
                 }
                 else if (targetArg.Is(TreeSitterSyntax.TypeScript.Object) &&
-                    AstHelper.TryGetObjectProperty(targetArg, "url", out var urlProp) && urlProp.IsValid())
+                    AstHelper.TryGetObjectProperty(targetArg, UrlPropertyName, out var urlProp) && urlProp.IsValid())
                 {
                     targetArg = urlProp;
                 }
@@ -348,12 +356,7 @@ public class AxiosLibraryParser : ISemanticExtension
         return AstHelper.CleanIdentifierSuffix(ident);
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Axios calls represent external services, no custom inner references are required
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (!IsHttpCallNode(node)) return;
         var func = node.GetFunctionNode();

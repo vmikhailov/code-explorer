@@ -3,14 +3,13 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class RoutingControllersLibraryParser : ISemanticExtension
+public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "RoutingControllers";
-    public string Id => "routing-controllers";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["routing-controllers"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public override string Name => "RoutingControllers";
+    public override string Id => "routing-controllers";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override IReadOnlyList<string> SupportedPatterns => ["routing-controllers"];
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> ActionDecorators = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -26,12 +25,26 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         .GetChildForField(TreeSitterSyntax.Fields.Function)
         .Text(ActionDecoratorPattern);
 
-    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
+    public override IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {
         { OntologyConstants.NodeLabels.EntryPoint, _decoratorEntryPointSelector }
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.Decorator, TreeSitterSyntax.TypeScript.MethodDefinition],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (TryGetDecoratorNameAndCall(node, out var decName, out _) && ActionDecorators.Contains(decName))
         {
@@ -40,10 +53,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (!TryGetDecoratorNameAndCall(node, out var decName, out var callExpr) || !ActionDecorators.Contains(decName))
         {
@@ -76,7 +86,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         return $"{method}:{combinedRoute}";
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
         {
@@ -85,7 +95,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
             {
                 if (TryGetDecoratorNameAndCall(dec, out var decName, out _) && ActionDecorators.Contains(decName))
                 {
-                    var route = ExtractIdentifier(dec, ctx, null, null);
+                    var route = ExtractIdentifierStatic(dec, ctx, null, null);
                     if (!string.IsNullOrEmpty(route))
                     {
                         var colonIdx = route.IndexOf(':');
@@ -99,7 +109,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         var decorators = new List<Node>();
         Node? methodNode = null;
@@ -210,7 +220,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         }
     }
 
-    public void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(content) || !content.Contains("routePrefix")) return;
 
@@ -234,7 +244,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         }
     }
 
-    public void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
     }
 

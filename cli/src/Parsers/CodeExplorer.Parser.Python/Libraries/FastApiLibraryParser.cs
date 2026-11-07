@@ -1,20 +1,14 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class FastApiLibraryParser : ISemanticExtension
+public class FastApiLibraryParser : DeclarativeSemanticExtension
 {
     private const string ApiPrefixMatch = "api";
     private const string VersionPrefixMatch = "v";
-
-    public string Name => "FastAPI";
-    public string Id => "fastapi";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["fastapi", "fastapi.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -33,25 +27,27 @@ public class FastApiLibraryParser : ISemanticExtension
         "Header", "Cookie", "Query", "Path", "Body", "Depends", "Security", "HTTPException"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public FastApiLibraryParser()
     {
-        if (IsFastApiDecorator(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
+        Name = "FastAPI";
+        Id = "fastapi";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["fastapi", "fastapi.*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsFastApiDecorator(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsFastApiDecorator(node) ? ExtractRoute(node) : null,
+                CollectReferences = CollectFastApiReferences,
+                EnrichSymbol = EnrichFastApiSymbol
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsFastApiDecorator(node))
-        {
-            return ExtractRoute(node);
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectFastApiReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!IsFastApiDecorator(node)) return;
 
@@ -74,7 +70,7 @@ public class FastApiLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichFastApiSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (!IsFastApiDecorator(node)) return;
 
@@ -724,7 +720,7 @@ public class FastApiLibraryParser : ISemanticExtension
         return raw.Trim('\'', '"');
     }
 
-    public void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         if (!rootNode.IsValid()) return;
         TraverseForFastApiDeclarations(rootNode, relativePath, projectName, ctx);

@@ -1,41 +1,30 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoHttpClientLibraryParser : ISemanticExtension
+public class GoHttpClientLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public string Name => "Go HTTP Client";
-    public string Id => "net-http";
-    public IReadOnlyList<string> SupportedPatterns => ["net/http*", "*googletrans*", "*translator*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
-
     private const string DefaultGoogleTranslateUrl = "https://translate.google.com";
     private const string UnknownServiceTarget = "http:unknown-service";
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GoHttpClientLibraryParser()
     {
-        if (IsHttpClientCall(node))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
+        Type = SemanticExtensionType.ApiClient;
+        Name = "Go HTTP Client";
+        Id = "net-http";
+        SupportedPatterns = ["net/http*", "*googletrans*", "*translator*"];
+        LibraryRole = LibraryRole.General;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsHttpClientCall(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = static (node, _, _, _) => IsHttpClientCall(node) ? ExtractHttpClientTarget(node) : null
+            }
+        ];
     }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsHttpClientCall(node))
-        {
-            return ExtractHttpClientTarget(node);
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     public static bool IsHttpClientCall(Node node)
     {

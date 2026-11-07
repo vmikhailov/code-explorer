@@ -6,35 +6,52 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class GrpcTypeScriptLibraryParser : ISemanticExtension
+public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
-    public string Name => "gRPC TypeScript";
-    public string Id => "grpc-ts";
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
+    public override string Name => "gRPC TypeScript";
+    public override string Id => "grpc-ts";
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "@grpc/grpc-js*",
         "@grpc/proto-loader*",
         "grpc-web*"
     ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly ConcurrentDictionary<string, Dictionary<string, string>> FileClientMapCache = new();
     private static readonly Regex ClientNameRegex = new(@"([A-Za-z0-9_]+?)(?:Svc|Service)?Client$", RegexOptions.Compiled);
     private static readonly Regex ServiceDefRegex = new(@"([A-Za-z0-9_]+?)(?:Service)?(?:\.service)?$", RegexOptions.Compiled);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.Pair,
+                TreeSitterSyntax.TypeScript.MethodDefinition,
+                TreeSitterSyntax.TypeScript.ShorthandPropertyIdentifier,
+                TreeSitterSyntax.TypeScript.Identifier
+            ],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsGrpcClientCall(node, out _, out _)) return OntologyConstants.NodeLabels.ExternalService;
         if (IsGrpcServerAddServiceMethod(node, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {
@@ -47,7 +64,7 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {
@@ -58,7 +75,7 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {

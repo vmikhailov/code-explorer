@@ -2,32 +2,35 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class UndiciLibraryParser : ISemanticExtension
+public class UndiciLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public string Name => "undici";
-    public string Id => "undici";
-    public IReadOnlyList<string> SupportedPatterns => ["undici"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public override string Name => "undici";
+    public override string Id => "undici";
+    public override IReadOnlyList<string> SupportedPatterns => ["undici"];
+    public override LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> UndiciMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "request", "stream", "pipeline", "connect", "fetch"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsUndiciClientCreation(node) || IsUndiciHttpCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.ExternalService;
+            NodeTypes = [TreeSitterSyntax.TypeScript.NewExpression, TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => (IsUndiciClientCreation(node) || IsUndiciHttpCall(node))
+                ? OntologyConstants.NodeLabels.ExternalService
+                : null,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
     {
         var projectContext = projectName ?? ctx?.WorkspaceId;
 
@@ -55,7 +58,7 @@ public class UndiciLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsUndiciClientCreation(node) || IsUndiciHttpCall(node))
         {

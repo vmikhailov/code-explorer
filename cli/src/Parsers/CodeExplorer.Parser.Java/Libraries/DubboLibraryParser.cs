@@ -4,7 +4,7 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class DubboLibraryParser : ISemanticExtension
+public class DubboLibraryParser : DeclarativeSemanticExtension
 {
     private static class Constants
     {
@@ -42,22 +42,38 @@ public class DubboLibraryParser : ISemanticExtension
         "toString", "equals", "hashCode", "clone", "finalize", "getClass", "wait", "notify", "notifyAll", "main"
     };
 
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => Constants.ExtensionName;
-    public string Id => Constants.ExtensionId;
+    public DubboLibraryParser()
+    {
+        Id = Constants.ExtensionId;
+        Name = Constants.ExtensionName;
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns =
+        [
+            "org.apache.dubbo",
+            "org.apache.dubbo.*",
+            "com.alibaba.dubbo",
+            "com.alibaba.dubbo.*"
+        ];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.Java.MethodDeclaration,
+                    TreeSitterSyntax.Java.FieldDeclaration,
+                    TreeSitterSyntax.Java.MethodInvocation
+                ]),
+                MapNodeType = MapNodeTypeCore,
+                ExtractIdentifier = (node, ctx, _, _) => ExtractIdentifierCore(node),
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
+    }
 
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "org.apache.dubbo",
-        "org.apache.dubbo.*",
-        "com.alibaba.dubbo",
-        "com.alibaba.dubbo.*"
-    ];
-
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsDubboServiceMethod(node)) return OntologyConstants.NodeLabels.EntryPoint;
         if (IsDubboReferenceField(node)) return OntologyConstants.NodeLabels.ExternalService;
@@ -65,7 +81,7 @@ public class DubboLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsDubboServiceMethod(node))
         {
@@ -95,11 +111,11 @@ public class DubboLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsDubboReferenceField(node) || IsDubboMethodInvocation(node))
         {
-            var target = ExtractIdentifier(node, ctx);
+            var target = ExtractIdentifierCore(node);
             if (!string.IsNullOrEmpty(target))
             {
                 references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls));
@@ -107,7 +123,7 @@ public class DubboLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsDubboServiceMethod(node))
         {

@@ -1,29 +1,32 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class TemporalPythonLibraryParser : ISemanticExtension
+public class TemporalPythonLibraryParser : DeclarativeSemanticExtension
 {
     private const string TemporalPrefix = "temporal:";
 
-    public string Name => "Temporal (Python SDK)";
-    public string Id => "temporal-python";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["temporalio", "temporalio.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public TemporalPythonLibraryParser()
     {
-        return TryExtractTemporalDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Name = "Temporal (Python SDK)";
+        Id = "temporal-python";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["temporalio", "temporalio.*"];
+        LibraryRole = LibraryRole.WorkerService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractTemporalDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractTemporalDecorator(node, out var target) ? $"Temporal:{target}" : null,
+                CollectReferences = CollectTemporalReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractTemporalDecorator(node, out var target) ? $"Temporal:{target}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectTemporalReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (TryExtractTemporalDecorator(node, out var defTarget))
         {

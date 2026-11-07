@@ -1,37 +1,45 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class SqlAlchemyLibraryParser : ISemanticExtension
+public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "SQLAlchemy";
-    public string Id => "sqlalchemy";
     private const string DefaultDatabaseTarget = "database";
-    public IReadOnlyList<string> SupportedPatterns => ["sqlalchemy", "sqlalchemy.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> SqlAlchemyMethods = new(StringComparer.Ordinal)
     {
         "execute", "scalar", "scalars", "query", "select", "insert", "update", "delete", "Table"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public SqlAlchemyLibraryParser()
     {
-        if (IsDeclarativeModel(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-
-        if (IsSqlAlchemyCall(node, out _, out _, out var isTable))
-        {
-            return isTable ? OntologyConstants.NodeLabels.Table : OntologyConstants.NodeLabels.Query;
-        }
-        return null;
+        Type = SemanticExtensionType.RelationalDb;
+        Name = "SQLAlchemy";
+        Id = "sqlalchemy";
+        SupportedPatterns = ["sqlalchemy", "sqlalchemy.*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsDeclarativeModel(node, out _)) return OntologyConstants.NodeLabels.Table;
+                    if (IsSqlAlchemyCall(node, out _, out _, out var isTable))
+                    {
+                        return isTable ? OntologyConstants.NodeLabels.Table : OntologyConstants.NodeLabels.Query;
+                    }
+                    return null;
+                },
+                ExtractIdentifier = ExtractSqlAlchemyIdentifier,
+                CollectReferences = CollectSqlAlchemyReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractSqlAlchemyIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsDeclarativeModel(node, out var modelTable))
         {
@@ -60,7 +68,7 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectSqlAlchemyReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsDeclarativeModel(node, out var modelTable))
         {

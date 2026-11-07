@@ -1,32 +1,35 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class TortoiseOrmLibraryParser : ISemanticExtension
+public class TortoiseOrmLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Tortoise ORM";
-    public string Id => "tortoise-orm";
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public IReadOnlyList<string> SupportedPatterns => ["tortoise", "tortoise.*", "aerich", "aerich.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> QueryMethods = new(StringComparer.Ordinal)
     {
         "filter", "all", "get", "get_or_none", "first", "create", "bulk_create", "update", "delete", "raw"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public TortoiseOrmLibraryParser()
     {
-        return TryExtractTortoiseTable(node, out _) ? OntologyConstants.NodeLabels.Table : null;
+        Name = "Tortoise ORM";
+        Id = "tortoise-orm";
+        Type = SemanticExtensionType.RelationalDb;
+        SupportedPatterns = ["tortoise", "tortoise.*", "aerich", "aerich.*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractTortoiseTable(node, out _) ? OntologyConstants.NodeLabels.Table : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractTortoiseTable(node, out var table) ? table : null,
+                CollectReferences = CollectTortoiseReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractTortoiseTable(node, out var table) ? table : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectTortoiseReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (TryExtractTortoiseTable(node, out var tableName))
         {

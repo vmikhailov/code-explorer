@@ -1,8 +1,9 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class CeleryLibraryParser : ISemanticExtension
+public class CeleryLibraryParser : DeclarativeSemanticExtension
 {
     private const string CeleryPrefix = "celery:";
     private const string SharedTaskName = "shared_task";
@@ -13,24 +14,26 @@ public class CeleryLibraryParser : ISemanticExtension
     private const string NameKeyword = "name";
     private const string QueueKeyword = "queue";
 
-    public string Name => "Celery";
-    public string Id => "celery";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["celery", "celery.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public CeleryLibraryParser()
     {
-        return IsCeleryTaskDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Name = "Celery";
+        Id = "celery";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["celery", "celery.*"];
+        LibraryRole = LibraryRole.WorkerService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsCeleryTaskDecorator(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsCeleryTaskDecorator(node, out var taskName) ? $"Task:{taskName}" : null,
+                CollectReferences = CollectCeleryReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsCeleryTaskDecorator(node, out var taskName) ? $"Task:{taskName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectCeleryReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsCeleryTaskDecorator(node, out var subscribedTask))
         {

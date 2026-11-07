@@ -1,27 +1,30 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class TrpcLibraryParser : ISemanticExtension
+public class TrpcLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "tRPC";
-    public string Id => "trpc";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["@trpc/server*", "@trpc/client*", "@trpc/react-query*", "@trpc/next*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public TrpcLibraryParser()
     {
-        return TryExtractTrpcProcedure(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Name = "tRPC";
+        Id = "trpc";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["@trpc/server*", "@trpc/client*", "@trpc/react-query*", "@trpc/next*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.Pair }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractTrpcProcedure(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractTrpcProcedure(node, out var kind, out var name) ? $"{kind}:/trpc/{name}" : null,
+                CollectReferences = CollectTrpcReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractTrpcProcedure(node, out var kind, out var name) ? $"{kind}:/trpc/{name}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectTrpcReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

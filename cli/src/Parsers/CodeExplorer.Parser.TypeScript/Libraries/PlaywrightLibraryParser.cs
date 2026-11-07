@@ -2,22 +2,35 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class PlaywrightLibraryParser : ISemanticExtension
+public class PlaywrightLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "playwright";
-    public string Name => "Playwright";
-    public SemanticExtensionType Type => SemanticExtensionType.Library;
-    public LibraryRole LibraryRole => LibraryRole.TestFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["@playwright/test", "playwright"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
+    public override string Id => "playwright";
+    public override string Name => "Playwright";
+    public override SemanticExtensionType Type => SemanticExtensionType.Library;
+    public override LibraryRole LibraryRole => LibraryRole.TestFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["@playwright/test", "playwright"];
+    public override bool IsBuiltIn => true;
 
-    public IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            EnrichSymbol = EnrichSymbolCore,
+            CollectReferences = CollectReferencesCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
         yield return new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"]);
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsPlaywrightExternalCall(node, out _, out _))
         {
@@ -32,9 +45,7 @@ public class PlaywrightLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsPlaywrightExternalCall(node, out var argNode, out _))
         {
@@ -60,7 +71,7 @@ public class PlaywrightLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsPlaywrightSuiteOrTest(node) || IsPlaywrightExternalCall(node, out _, out _))
         {
@@ -72,7 +83,7 @@ public class PlaywrightLibraryParser : ISemanticExtension
         }
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsGotoCall(node, out var gotoArg))
         {

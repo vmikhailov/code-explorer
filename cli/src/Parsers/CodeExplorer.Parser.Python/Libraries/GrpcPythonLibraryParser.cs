@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
@@ -6,60 +7,58 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class GrpcPythonLibraryParser : ISemanticExtension
+public class GrpcPythonLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
-    public string Name => "gRPC Python";
-    public string Id => "grpc-python";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "grpcio*",
-        "grpc*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly ConcurrentDictionary<string, (Dictionary<string, string> ClassToService, Dictionary<string, string> VarToService)> FileMapCache = new();
     private static readonly Regex ServicerInheritanceRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+?)Servicer\b", RegexOptions.Compiled);
     private static readonly Regex AddServicerRegex = new(@"(?:[A-Za-z0-9_]+\.)?add_([A-Za-z0-9_]+?)Servicer_to_server\b", RegexOptions.Compiled);
     private static readonly Regex StubConstructorRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+?)Stub\b", RegexOptions.Compiled);
     private static readonly Regex StubVarRegex = new(@"([A-Za-z0-9_]+?)(?:_svc|_service)?(?:_stub|_client)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GrpcPythonLibraryParser()
     {
-        if (IsGrpcServerMethod(node, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
-        if (IsGrpcClientCall(node, out _, out _)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
+        Type = SemanticExtensionType.GrpcFramework;
+        Name = "gRPC Python";
+        Id = "grpc-python";
+        SupportedPatterns =
+        [
+            "grpcio*",
+            "grpc*"
+        ];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.FunctionDefinition, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsGrpcServerMethod(node, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
+                    if (IsGrpcClientCall(node, out _, out _)) return OntologyConstants.NodeLabels.ExternalService;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsGrpcServerMethod(node, out var serviceName, out var methodName)) return $"RPC:/{serviceName}/{methodName}";
+                    if (IsGrpcClientCall(node, out var clientService, out var clientMethod)) return $"RPC:/{clientService}/{clientMethod}";
+                    return null;
+                },
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (IsGrpcClientCall(node, out var serviceName, out var methodName))
+                    {
+                        var target = $"RPC:/{serviceName}/{methodName}";
+                        references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls,
+                            (int)node.StartPosition.Row + 1,
+                            (int)node.StartPosition.Column + 1));
+                    }
+                },
+                EnrichSymbol = EnrichGrpcPythonSymbol
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsGrpcServerMethod(node, out var serviceName, out var methodName))
-        {
-            return $"RPC:/{serviceName}/{methodName}";
-        }
-        if (IsGrpcClientCall(node, out var clientService, out var clientMethod))
-        {
-            return $"RPC:/{clientService}/{clientMethod}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsGrpcClientCall(node, out var serviceName, out var methodName))
-        {
-            var target = $"RPC:/{serviceName}/{methodName}";
-            references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls,
-                (int)node.StartPosition.Row + 1,
-                (int)node.StartPosition.Column + 1));
-        }
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichGrpcPythonSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsGrpcServerMethod(node, out _, out _))
         {

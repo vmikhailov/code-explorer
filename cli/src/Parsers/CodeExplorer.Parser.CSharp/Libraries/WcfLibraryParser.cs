@@ -1,22 +1,52 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class WcfLibraryParser : ISemanticExtension
+public class WcfLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "WCF";
-    public string Id => "wcf";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "System.ServiceModel",
-        "System.ServiceModel.*",
-        "CoreWCF",
-        "CoreWCF.*"
-    ];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public WcfLibraryParser()
+    {
+        Name = "WCF";
+        Id = "wcf";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns =
+        [
+            "System.ServiceModel",
+            "System.ServiceModel.*",
+            "CoreWCF",
+            "CoreWCF.*"
+        ];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.Attribute, TreeSitterSyntax.CSharp.InvocationExpression, TreeSitterSyntax.CSharp.ObjectCreationExpression, TreeSitterSyntax.CSharp.GenericName }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsWcfServerEndpointNode(node, out _)) return OntologyConstants.NodeLabels.EntryPoint;
+                    if (IsWcfClientNode(node, out _)) return OntologyConstants.NodeLabels.ExternalService;
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsWcfServerEndpointNode(node, out var serverContract)) return $"RPC:/{NormalizeContractName(serverContract)}";
+                    if (IsWcfClientNode(node, out var clientContract)) return $"/{NormalizeContractName(clientContract)}";
+                    return null;
+                },
+                EnrichSymbol = static (node, symbol, ctx) =>
+                {
+                    if (IsWcfServerEndpointNode(node, out _))
+                    {
+                        symbol.Protocol = "gRPC";
+                        symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Wcf;
+                    }
+                }
+            }
+        ];
+    }
 
     private static readonly HashSet<string> WcfClientBasePrefixes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -40,45 +70,6 @@ public class WcfLibraryParser : ISemanticExtension
         "IOperationBehavior",
         "IErrorHandler"
     };
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsWcfServerEndpointNode(node, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        if (IsWcfClientNode(node, out _))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsWcfServerEndpointNode(node, out var serverContract))
-        {
-            return $"RPC:/{NormalizeContractName(serverContract)}";
-        }
-        if (IsWcfClientNode(node, out var clientContract))
-        {
-            return $"/{NormalizeContractName(clientContract)}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-    }
-
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
-    {
-        if (IsWcfServerEndpointNode(node, out _))
-        {
-            symbol.Protocol = "gRPC";
-            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Wcf;
-        }
-    }
 
     public static bool IsWcfServerEndpointNode(Node node, out string contractName)
     {

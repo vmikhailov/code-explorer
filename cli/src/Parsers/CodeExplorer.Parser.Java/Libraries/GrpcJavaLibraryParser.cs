@@ -1,34 +1,51 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class GrpcJavaLibraryParser : ISemanticExtension
+public class GrpcJavaLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
-    public string Name => "gRPC Java";
-    public string Id => "grpc-java";
+    public GrpcJavaLibraryParser()
+    {
+        Id = "grpc-java";
+        Name = "gRPC Java";
+        Type = SemanticExtensionType.GrpcFramework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns =
+        [
+            "io.grpc",
+            "io.grpc.*",
+            "net.devh.boot.grpc",
+            "net.devh.boot.grpc.*",
+            "io.grpc.stub",
+            "io.quarkus.grpc*"
+        ];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[]
+                {
+                    TreeSitterSyntax.Java.MethodDeclaration,
+                    TreeSitterSyntax.Java.Annotation,
+                    TreeSitterSyntax.Java.MarkerAnnotation
+                }.ToFrozenSet(),
+                MapNodeType = MapNodeTypeCore,
+                ExtractIdentifier = (node, ctx, _, _) => ExtractIdentifierCore(node),
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
+    }
 
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "io.grpc",
-        "io.grpc.*",
-        "net.devh.boot.grpc",
-        "net.devh.boot.grpc.*",
-        "io.grpc.stub",
-        "io.quarkus.grpc*"
-    ];
-
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (IsGrpcJavaMethod(node)) return OntologyConstants.NodeLabels.EntryPoint;
         if (HasGrpcClient(node)) return OntologyConstants.NodeLabels.ExternalService;
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node)
     {
         if (IsGrpcJavaMethod(node))
         {
@@ -44,7 +61,7 @@ public class GrpcJavaLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (HasGrpcClient(node))
         {
@@ -56,7 +73,7 @@ public class GrpcJavaLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (!IsGrpcJavaMethod(node)) return;
 

@@ -1,16 +1,27 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MediatRLibraryParser : ISemanticExtension
+public class MediatRLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "MediatR";
-    public string Id => "mediatr";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["MediatR", "MediatR.*", "*Mediator*"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
+    public MediatRLibraryParser()
+    {
+        Name = "MediatR";
+        Id = "mediatr";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["MediatR", "MediatR.*", "*Mediator*"];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.General;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                CollectReferences = CollectMediatRReferences
+            }
+        ];
+    }
 
     private static readonly HashSet<string> HandlerInterfaces =
     [
@@ -35,11 +46,7 @@ public class MediatRLibraryParser : ISemanticExtension
         "DispatchAsync"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectMediatRReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Ingress: Handler classes subscribe to request/notification types
         if (IsHandlerClass(node))

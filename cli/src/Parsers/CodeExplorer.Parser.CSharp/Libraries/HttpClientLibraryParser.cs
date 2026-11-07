@@ -1,17 +1,40 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public partial class HttpClientLibraryParser : ISemanticExtension
+public partial class HttpClientLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "HttpClient";
-    public string Id => "httpclient";
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public IReadOnlyList<string> SupportedPatterns => ["System.Net.Http", "System.Net.Http.*"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
+    public HttpClientLibraryParser()
+    {
+        Name = "HttpClient";
+        Id = "httpclient";
+        Type = SemanticExtensionType.ApiClient;
+        SupportedPatterns = ["System.Net.Http", "System.Net.Http.*"];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.General;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsHttpClientCall(node))
+                    {
+                        var target = ExtractTarget(node);
+                        if (!string.IsNullOrEmpty(target) && !target.Equals("http:unknown-service", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return OntologyConstants.NodeLabels.ExternalService;
+                        }
+                    }
+                    return null;
+                },
+                ExtractIdentifier = static (node, _, _, _) => IsHttpClientCall(node) ? ExtractTarget(node) : null
+            }
+        ];
+    }
 
     private static readonly HashSet<string> HttpMethods =
     [
@@ -29,27 +52,6 @@ public partial class HttpClientLibraryParser : ISemanticExtension
         "builder", "helper", "validator", "mapper", "converter", "hub",
         "clients", "clientproxy", "hubcontext"
     ];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsHttpClientCall(node))
-        {
-            var target = ExtractTarget(node);
-            if (!string.IsNullOrEmpty(target) && !target.Equals("http:unknown-service", StringComparison.OrdinalIgnoreCase))
-            {
-                return OntologyConstants.NodeLabels.ExternalService;
-            }
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsHttpClientCall(node)) return ExtractTarget(node);
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     public static bool IsHttpClientCall(Node node)
     {

@@ -205,4 +205,45 @@ public class TypeScriptImportCallResolutionTests
             }
         }
     }
+
+    [Test]
+    public void Test_TreeSitterTypeScript_And_Tsx_GrammarFixes_ProduceZeroDiagnostics()
+    {
+        var tsSource = """
+        import { styled } from '@linaria/react';
+
+        const actual = jest.requireActual<typeof import('twenty-shared/utils')>(
+            'twenty-shared/utils',
+        );
+
+        abstract class BaseField {
+            readonly kind: string = 'base';
+        }
+
+        abstract class DerivedField extends BaseField {
+            abstract override readonly kind: string;
+        }
+        """;
+
+        var tsxSource = """
+        import React from 'react';
+        import { styled } from '@linaria/react';
+
+        const StyledCell = styled.div<{ $isDimmed?: boolean; $width?: number }>`
+            opacity: ${({ $isDimmed }) => ($isDimmed ? 0.5 : 1)};
+        `;
+
+        export const LicenseEmail = ({ baseUrl, licenseKey, activationKey }: { baseUrl: string; licenseKey: string; activationKey: string }) => (
+            <a href={`${baseUrl}?&licenseKey=${licenseKey}&activationKey=${activationKey}`}>
+                Activate &amp; Continue & Verify
+            </a>
+        );
+        """;
+
+        var tsTree = CodeExplorer.Parser.TypeScript.TypeScriptSyntaxConverter.Instance.Parse(tsSource, "TypeScript", "sample.ts", "sample.ts");
+        tsTree.Diagnostics.Should().BeEmpty("TypeScript <typeof import(...)> and abstract override readonly must parse with 0 syntax errors");
+
+        var tsxTree = CodeExplorer.Parser.TypeScript.TypeScriptSyntaxConverter.Instance.Parse(tsxSource, "Tsx", "sample.tsx", "sample.tsx");
+        tsxTree.Diagnostics.Should().BeEmpty("TSX generic tagged template and bare '&' in JSX text must parse with 0 syntax errors");
+    }
 }

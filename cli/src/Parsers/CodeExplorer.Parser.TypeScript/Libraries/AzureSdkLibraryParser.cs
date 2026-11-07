@@ -2,25 +2,28 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AzureSdkLibraryParser : ISemanticExtension
+public class AzureSdkLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
-    public string Name => "Azure";
-    public string Id => "azure";
-    public IReadOnlyList<string> SupportedPatterns => ["@azure/*", "@azure/service-bus", "@azure/storage-blob", "@azure/cosmos"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.CloudSdk;
+    public override SemanticExtensionType Type => SemanticExtensionType.Cloud;
+    public override string Name => "Azure";
+    public override string Id => "azure";
+    public override IReadOnlyList<string> SupportedPatterns => ["@azure/*", "@azure/service-bus", "@azure/storage-blob", "@azure/cosmos"];
+    public override LibraryRole LibraryRole => LibraryRole.CloudSdk;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsCosmosContainerCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsCosmosContainerCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsCosmosContainerCall(node))
         {
@@ -34,7 +37,7 @@ public class AzureSdkLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

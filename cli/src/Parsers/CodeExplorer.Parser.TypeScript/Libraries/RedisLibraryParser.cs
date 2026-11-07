@@ -1,51 +1,40 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class RedisLibraryParser : ISemanticExtension
+public class RedisLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
-
-    public string Name => "Redis";
-
-    public string Id => "redis";
-
-    public IReadOnlyList<string> SupportedPatterns => ["redis", "ioredis"];
-
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RedisLibraryParser()
     {
-        if (IsRedisCall(node))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsRedisCall(node))
-        {
-            var func = node.GetFunctionNode();
-            if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        Type = SemanticExtensionType.KeyValueDb;
+        Name = "Redis";
+        Id = "redis";
+        SupportedPatterns = ["redis", "ioredis"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
             {
-                var obj = func.GetField(TreeSitterSyntax.Fields.Object);
-                var prop = func.GetField(TreeSitterSyntax.Fields.Property);
-                if (obj.IsValid() && prop.IsValid())
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsRedisCall(node) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) =>
                 {
-                    return $"Redis: {obj.Text}.{prop.Text}";
+                    if (!IsRedisCall(node)) return null;
+                    var func = node.GetFunctionNode();
+                    if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+                    {
+                        var obj = func.GetField(TreeSitterSyntax.Fields.Object);
+                        var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+                        if (obj.IsValid() && prop.IsValid())
+                        {
+                            return $"Redis: {obj.Text}.{prop.Text}";
+                        }
+                    }
+                    return "Redis Command";
                 }
             }
-            return "Redis Command";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        // Redis commands represent database queries
+        ];
     }
 
     private static bool IsRedisCall(Node node)

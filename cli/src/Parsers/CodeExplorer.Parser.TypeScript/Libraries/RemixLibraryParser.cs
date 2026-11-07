@@ -1,32 +1,33 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class RemixLibraryParser : ISemanticExtension
+public class RemixLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Remix / React Router";
-    public string Id => "remix";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["@remix-run/*", "react-router", "react-router-dom", "@react-router/*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public RemixLibraryParser()
     {
-        return TryExtractRemixRouteHandler(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractRemixRouteHandler(node, out var method, out var fnName) ? $"{method}:/{fnName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (TryExtractRemixRouteHandler(node, out _, out var fnName))
-        {
-            references.Add(new Reference(scopeSymbolId, fnName, OntologyConstants.Relationships.Triggers));
-        }
+        Name = "Remix / React Router";
+        Id = "remix";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["@remix-run/*", "react-router", "react-router-dom", "@react-router/*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.FunctionDeclaration }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractRemixRouteHandler(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractRemixRouteHandler(node, out var method, out var fnName) ? $"{method}:/{fnName}" : null,
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (TryExtractRemixRouteHandler(node, out _, out var fnName))
+                    {
+                        references.Add(new Reference(scopeSymbolId, fnName, OntologyConstants.Relationships.Triggers));
+                    }
+                }
+            }
+        ];
     }
 
     private static bool TryExtractRemixRouteHandler(Node node, out string httpMethod, out string fnName)

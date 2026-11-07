@@ -2,7 +2,7 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class AzureFunctionsLibraryParser : ISemanticExtension
+public class AzureFunctionsLibraryParser : DeclarativeSemanticExtension
 {
     private const string FunctionAttr = "Function";
     private const string FunctionNameAttr = "FunctionName";
@@ -11,28 +11,34 @@ public class AzureFunctionsLibraryParser : ISemanticExtension
     private const string EventHubTriggerAttr = "EventHubTrigger";
     private const string CosmosDbTriggerAttr = "CosmosDBTrigger";
 
-    public string Name => "Azure Functions";
-    public string Id => "azure-functions";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "Microsoft.Azure.Functions.Worker*",
-        "Microsoft.Azure.WebJobs*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public AzureFunctionsLibraryParser()
     {
-        return TryGetFunctionName(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Id = "azure-functions";
+        Name = "Azure Functions";
+        Type = SemanticExtensionType.Framework;
+        LibraryRole = LibraryRole.WebService;
+        SupportedPatterns =
+        [
+            "Microsoft.Azure.Functions.Worker*",
+            "Microsoft.Azure.WebJobs*"
+        ];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.CSharp.Attribute,
+                    TreeSitterSyntax.CSharp.MethodDeclaration
+                ]),
+                MapNodeType = (node, ctx) => TryGetFunctionName(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => TryGetFunctionName(node, out var fnName) ? $"ALL:/azure-func/{fnName}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryGetFunctionName(node, out var fnName) ? $"ALL:/azure-func/{fnName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)) return;
         if (!HasFunctionAttribute(node)) return;

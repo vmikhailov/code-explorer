@@ -164,7 +164,7 @@ internal static class DeclarativeUniversalRuleEvaluator
         {
             routeId = string.IsNullOrEmpty(verb)
                 ? rule.StaticRoute
-                : $"{verb}:{DeclarativeSemanticExtension.CombineRoutes(rule.RoutePrefix, DeclarativeSemanticExtension.NormalizeRoute(rule.StaticRoute))}";
+                : $"{verb}:{DeclarativeSemanticExtension.CombineDeclarativeRoutes(rule.RoutePrefix, DeclarativeSemanticExtension.NormalizeDeclarativeRoute(rule.StaticRoute))}";
             return true;
         }
 
@@ -185,7 +185,7 @@ internal static class DeclarativeUniversalRuleEvaluator
             route = SlashPrefix;
         }
 
-        var combined = DeclarativeSemanticExtension.CombineRoutes(rule.RoutePrefix, DeclarativeSemanticExtension.NormalizeRoute(route));
+        var combined = DeclarativeSemanticExtension.CombineDeclarativeRoutes(rule.RoutePrefix, DeclarativeSemanticExtension.NormalizeDeclarativeRoute(route));
         routeId = string.IsNullOrEmpty(verb) ? combined : $"{verb}:{combined}";
 
         if (rule.EmitHandlerTriggers)

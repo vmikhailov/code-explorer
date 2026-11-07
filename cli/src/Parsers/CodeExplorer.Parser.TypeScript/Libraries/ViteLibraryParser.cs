@@ -2,40 +2,32 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class ViteLibraryParser : ISemanticExtension
+public class ViteLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "vite";
-    public string Name => "Vite";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["vite"];
-    public bool IsImplemented => true;
+    public override string Id => "vite";
+    public override string Name => "Vite";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.FrontendFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["vite"];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsViteConfig(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsViteConfig(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = static (node, ctx, _, _) => IsViteConfig(node) ? "Vite:Config" : null,
+            CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+            {
+                if (IsViteConfig(node))
+                {
+                    ExtractVitePlugins(node, scopeSymbolId, references);
+                }
+            }
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsViteConfig(node))
-        {
-            return "Vite:Config";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsViteConfig(node))
-        {
-            ExtractVitePlugins(node, scopeSymbolId, references);
-        }
-    }
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
     private static bool IsViteConfig(Node node)
     {

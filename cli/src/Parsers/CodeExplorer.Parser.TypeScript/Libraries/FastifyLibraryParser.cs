@@ -2,30 +2,32 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class FastifyLibraryParser : ISemanticExtension
+public class FastifyLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Fastify";
-    public string Id => "fastify";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["fastify"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public override string Name => "Fastify";
+    public override string Id => "fastify";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override IReadOnlyList<string> SupportedPatterns => ["fastify"];
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "get", "post", "put", "delete", "patch", "options", "head", "all"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsFastifyRouteCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsFastifyRouteCall(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx)
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (!IsFastifyRouteCall(node)) return null;
 
@@ -47,8 +49,6 @@ public class FastifyLibraryParser : ISemanticExtension
 
         return null;
     }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
     private static bool IsFastifyRouteCall(Node node)
     {

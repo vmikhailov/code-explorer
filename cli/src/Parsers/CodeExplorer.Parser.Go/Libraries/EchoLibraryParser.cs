@@ -1,48 +1,38 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class EchoLibraryParser : ISemanticExtension
+public class EchoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => "Echo";
-    public string Id => "echo";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/labstack/echo*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly HashSet<string> EchoMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "Any", "Match", "Add"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public EchoLibraryParser()
     {
-        if (IsEchoRouteCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsEchoRouteCall(node, out var httpMethod, out var fullRoute, out _))
-        {
-            return $"{httpMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsEchoRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
-        {
-            references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
-        }
+        Type = SemanticExtensionType.Framework;
+        Name = "Echo";
+        Id = "echo";
+        SupportedPatterns = ["github.com/labstack/echo*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsEchoRouteCall(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => IsEchoRouteCall(node, out var httpMethod, out var fullRoute, out _) ? $"{httpMethod}:{fullRoute}" : null,
+                CollectReferences = static (node, _, references, _) =>
+                {
+                    if (IsEchoRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
+                    {
+                        references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                }
+            }
+        ];
     }
 
     public static bool IsEchoRouteCall(Node node, out string httpMethod, out string fullRoute, out string? handlerName)

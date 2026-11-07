@@ -24,6 +24,10 @@ internal sealed class CompiledDeclarativeRuleIndex
     internal required OrmTableRule[] OrmTableRules { get; init; }
     internal required MessagingBrokerRule[] ConsumerInterfaceRules { get; init; }
     internal required MessagingBrokerRule[] AnnotationMessagingRules { get; init; }
+    internal required AnnotationSinkRule[] AnnotationSinkRules { get; init; }
+    internal required ClassHierarchySinkRule[] ClassHierarchySinkRules { get; init; }
+    internal required FrozenDictionary<string, CustomAstRule[]> CustomRulesByNodeType { get; init; }
+    internal required CustomAstRule[] UnfilteredCustomRules { get; init; }
 
     internal static DeclarativeSemanticExtension? GetOrCreateFused(IReadOnlyList<DeclarativeSemanticExtension> extensions)
     {
@@ -54,6 +58,9 @@ internal sealed class CompiledDeclarativeRuleIndex
         var inboundRoutes = new List<InboundRouteCallRule>();
         var dataStores = new List<DataStoreAccessRule>();
         var serviceSinks = new List<ServiceCallSinkRule>();
+        var annotSinks = new List<AnnotationSinkRule>();
+        var classHierarchySinks = new List<ClassHierarchySinkRule>();
+        var customAstRules = new List<CustomAstRule>();
 
         for (var i = 0; i < extensions.Count; i++)
         {
@@ -66,6 +73,9 @@ internal sealed class CompiledDeclarativeRuleIndex
             inboundRoutes.AddRange(ext.InboundRouteCallRules);
             dataStores.AddRange(ext.DataStoreAccessRules);
             serviceSinks.AddRange(ext.ServiceCallSinkRules);
+            annotSinks.AddRange(ext.AnnotationSinkRules);
+            classHierarchySinks.AddRange(ext.ClassHierarchySinkRules);
+            customAstRules.AddRange(ext.CustomAstRules);
         }
 
         return new DeclarativeSemanticExtension
@@ -79,7 +89,10 @@ internal sealed class CompiledDeclarativeRuleIndex
             MessagingBrokerRules = messaging,
             InboundRouteCallRules = inboundRoutes,
             DataStoreAccessRules = dataStores,
-            ServiceCallSinkRules = serviceSinks
+            ServiceCallSinkRules = serviceSinks,
+            AnnotationSinkRules = annotSinks,
+            ClassHierarchySinkRules = classHierarchySinks,
+            CustomAstRules = customAstRules
         };
     }
 
@@ -92,6 +105,29 @@ internal sealed class CompiledDeclarativeRuleIndex
         var publishMap = new Dictionary<string, List<MessagingBrokerRule>>(StringComparer.Ordinal);
         var subscribeMap = new Dictionary<string, List<MessagingBrokerRule>>(StringComparer.Ordinal);
         var sqlCallMap = new Dictionary<string, List<SqlSinkRule>>(StringComparer.Ordinal);
+        var customByType = new Dictionary<string, List<CustomAstRule>>(StringComparer.Ordinal);
+        var unfilteredCustom = new List<CustomAstRule>();
+
+        for (var i = 0; i < ext.CustomAstRules.Count; i++)
+        {
+            var cr = ext.CustomAstRules[i];
+            if (cr.NodeTypes.Count == 0)
+            {
+                unfilteredCustom.Add(cr);
+            }
+            else
+            {
+                foreach (var nt in cr.NodeTypes)
+                {
+                    AddRuleUnique(customByType, nt, cr);
+                    var canonicalKinds = SyntaxKindResolver.GetCanonicalNodeTypes(nt);
+                    for (var k = 0; k < canonicalKinds.Length; k++)
+                    {
+                        AddRuleUnique(customByType, canonicalKinds[k], cr);
+                    }
+                }
+            }
+        }
 
         for (var i = 0; i < ext.InboundRouteCallRules.Count; i++)
         {
@@ -176,7 +212,11 @@ internal sealed class CompiledDeclarativeRuleIndex
             AnnotationSqlSinkRules = [.. annotSqlRules],
             OrmTableRules = [.. ext.OrmTableRules],
             ConsumerInterfaceRules = [.. consumerRules],
-            AnnotationMessagingRules = [.. annotMsgRules]
+            AnnotationMessagingRules = [.. annotMsgRules],
+            AnnotationSinkRules = [.. ext.AnnotationSinkRules],
+            ClassHierarchySinkRules = [.. ext.ClassHierarchySinkRules],
+            CustomRulesByNodeType = ToFrozenArrayMap(customByType),
+            UnfilteredCustomRules = [.. unfilteredCustom]
         };
     }
 
@@ -190,12 +230,39 @@ internal sealed class CompiledDeclarativeRuleIndex
         list.Add(rule);
     }
 
+    private static void AddRuleUnique<TRule>(Dictionary<string, List<TRule>> map, string key, TRule rule)
+    {
+        if (!map.TryGetValue(key, out var list))
+        {
+            list = [];
+            map[key] = list;
+        }
+        if (!list.Contains(rule))
+        {
+            list.Add(rule);
+        }
+    }
+
     private static FrozenDictionary<string, TRule[]> ToFrozenArrayMap<TRule>(Dictionary<string, List<TRule>> map) =>
         map.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray(), StringComparer.Ordinal)
            .ToFrozenDictionary(StringComparer.Ordinal);
 
-    internal void EvaluateCollectReferences(Node node, string scopeSymbolId, List<Reference> references)
+    internal string? EvaluateCustomMapNodeType(Node node, ParsingContext ctx) =>
+        DeclarativeExtendedRuleEvaluator.EvaluateCustomMapNodeType(node, ctx, CustomRulesByNodeType, UnfilteredCustomRules);
+
+    internal string? EvaluateCustomExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath) =>
+        DeclarativeExtendedRuleEvaluator.EvaluateCustomExtractIdentifier(node, ctx, projectName, relativePath, CustomRulesByNodeType, UnfilteredCustomRules);
+
+    internal void EvaluateCustomEnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx) =>
+        DeclarativeExtendedRuleEvaluator.EvaluateCustomEnrichSymbol(node, symbol, ctx, CustomRulesByNodeType, UnfilteredCustomRules);
+
+    internal void EvaluateCollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
+        if (CustomRulesByNodeType.Count > 0 || UnfilteredCustomRules.Length > 0)
+        {
+            DeclarativeExtendedRuleEvaluator.EvaluateCustomCollectReferences(node, scopeSymbolId, references, ctx, CustomRulesByNodeType, UnfilteredCustomRules);
+        }
+
         if (node is CallExprSyntax { CallKind: CallSyntaxKind.Method or CallSyntaxKind.Function or CallSyntaxKind.Constructor } ||
             node.SyntaxKind == SyntaxKind.CallExpression)
         {
@@ -215,6 +282,15 @@ internal sealed class CompiledDeclarativeRuleIndex
                     {
                         references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, msgType), OntologyConstants.Relationships.SubscribesTo));
                     }
+                }
+            }
+
+            for (var i = 0; i < ClassHierarchySinkRules.Length; i++)
+            {
+                var rule = ClassHierarchySinkRules[i];
+                if (DeclarativeExtendedRuleEvaluator.MatchesClassHierarchyRule(node, rule, out var targetName))
+                {
+                    references.Add(new Reference(scopeSymbolId, targetName, rule.TargetRelation));
                 }
             }
             return;
@@ -340,6 +416,11 @@ internal sealed class CompiledDeclarativeRuleIndex
         for (var i = 0; i < AnnotationMessagingRules.Length; i++)
         {
             DeclarativeUniversalRuleEvaluator.CollectMessagingRuleReferences(node, ref emptySpan, ref resolved, scopeSymbolId, references, AnnotationMessagingRules[i]);
+        }
+
+        for (var i = 0; i < AnnotationSinkRules.Length; i++)
+        {
+            DeclarativeExtendedRuleEvaluator.EvaluateAnnotationSinkRule(node, scopeSymbolId, references, AnnotationSinkRules[i]);
         }
     }
 }

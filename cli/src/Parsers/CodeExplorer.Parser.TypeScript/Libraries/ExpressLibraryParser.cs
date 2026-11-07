@@ -3,14 +3,13 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class ExpressLibraryParser : ISemanticExtension
+public class ExpressLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Express";
-    public string Id => "express";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["express", "@types/express"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public override string Name => "Express";
+    public override string Id => "express";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override IReadOnlyList<string> SupportedPatterns => ["express", "@types/express"];
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly NodeSelector _expressRouteSelector = NodeSelector.New()
         .HasType(TreeSitterSyntax.TypeScript.CallExpression)
@@ -23,19 +22,23 @@ public class ExpressLibraryParser : ISemanticExtension
         .FunctionNode
         .GetChildForField(TreeSitterSyntax.Fields.Property);
 
-    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>();
+    public override IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>();
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsExpressRouteCall(node)) return OntologyConstants.NodeLabels.EntryPoint;
-        return null;
-    }
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsExpressRouteCall(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsExpressRouteCall(node))
         {
@@ -212,7 +215,7 @@ public class ExpressLibraryParser : ISemanticExtension
         return $"/{prefix}/{route}";
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 
@@ -246,7 +249,7 @@ public class ExpressLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
         if (!IsExpressRouteCall(node)) return;
@@ -318,7 +321,7 @@ public class ExpressLibraryParser : ISemanticExtension
     private static bool IsNoiseIdentifier(string name) =>
         name is "req" or "res" or "next" or "err" or "error" or "undefined" or "null" or "true" or "false";
 
-    public void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(content) || !content.Contains(".use(")) return;
 
@@ -390,7 +393,7 @@ public class ExpressLibraryParser : ISemanticExtension
         }
     }
 
-    public void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         if (!rootNode.IsValid()) return;
         var imports = new Dictionary<string, string>(StringComparer.Ordinal);

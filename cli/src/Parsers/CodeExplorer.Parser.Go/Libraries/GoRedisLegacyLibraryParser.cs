@@ -1,56 +1,53 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoRedisLegacyLibraryParser : ISemanticExtension
+public class GoRedisLegacyLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
-    public string Name => "Redis (go-redis v8)";
-    public string Id => "go-redis-v8";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-redis/redis/v8*", "github.com/go-redis/redis*", "gopkg.in/redis*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
     private static readonly HashSet<string> RedisConstructorMethods = new(StringComparer.Ordinal)
     {
         "NewClient", "NewFailoverClient", "NewClusterClient", "NewUniversalClient", "NewRing"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GoRedisLegacyLibraryParser()
     {
-        if (GoRedisLibraryParser.IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-        return null;
+        Type = SemanticExtensionType.KeyValueDb;
+        Name = "Redis (go-redis v8)";
+        Id = "go-redis-v8";
+        SupportedPatterns = ["github.com/go-redis/redis/v8*", "github.com/go-redis/redis*", "gopkg.in/redis*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => (GoRedisLibraryParser.IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!)) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = static (node, _, _, _) => (GoRedisLibraryParser.IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!)) ? $"Redis: {method}" : null,
+                CollectReferences = CollectRedisLegacyReferences
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (GoRedisLibraryParser.IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
-        {
-            return $"Redis: {method}";
-        }
-        return null;
-    }
+    private const string RedisDbId = "redis";
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectRedisLegacyReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (GoRedisLibraryParser.IsRedisCall(node, out var method, out var target))
         {
             if (method == "Publish")
             {
-                var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
+                var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : RedisDbId;
                 references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.PublishesTo));
             }
             else if (method is "Subscribe" or "PSubscribe")
             {
-                var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
+                var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : RedisDbId;
                 references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.SubscribesTo));
             }
             else
             {
-                references.Add(new Reference(scopeSymbolId, "redis", OntologyConstants.Relationships.UsesDb));
+                references.Add(new Reference(scopeSymbolId, RedisDbId, OntologyConstants.Relationships.UsesDb));
             }
         }
     }

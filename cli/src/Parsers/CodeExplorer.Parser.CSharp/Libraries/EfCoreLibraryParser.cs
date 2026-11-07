@@ -1,55 +1,57 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class EfCoreLibraryParser : ISemanticExtension
+public class EfCoreLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "EF Core";
-    public string Id => "microsoft.entityframeworkcore";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "Microsoft.EntityFrameworkCore",
-        "Microsoft.EntityFrameworkCore.*",
-        "System.Data.Entity",
-        "System.Data.Entity.*",
-        "EntityFramework",
-        "System.ComponentModel.DataAnnotations.Schema"
-    ];
-
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public EfCoreLibraryParser()
     {
-        if (IsTableAttribute(node) || IsDbSetProperty(node) || IsToTableCall(node))
-        {
-            return OntologyConstants.NodeLabels.Table;
-        }
-        return null;
+        Type = SemanticExtensionType.RelationalDb;
+        Name = "EF Core";
+        Id = "microsoft.entityframeworkcore";
+        SupportedPatterns =
+        [
+            "Microsoft.EntityFrameworkCore",
+            "Microsoft.EntityFrameworkCore.*",
+            "System.Data.Entity",
+            "System.Data.Entity.*",
+            "EntityFramework",
+            "System.ComponentModel.DataAnnotations.Schema"
+        ];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.Attribute, TreeSitterSyntax.CSharp.PropertyDeclaration, TreeSitterSyntax.CSharp.InvocationExpression, TreeSitterSyntax.CSharp.ClassDeclaration }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => (IsTableAttribute(node) || IsDbSetProperty(node) || IsToTableCall(node)) ? OntologyConstants.NodeLabels.Table : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (IsTableAttribute(node))
+                    {
+                        var tableName = ExtractTableNameFromAttribute(node);
+                        if (!string.IsNullOrEmpty(tableName)) return tableName;
+                    }
+                    if (IsDbSetProperty(node))
+                    {
+                        var tableName = ExtractTableNameFromDbSet(node);
+                        if (!string.IsNullOrEmpty(tableName)) return tableName;
+                    }
+                    if (IsToTableCall(node))
+                    {
+                        var tableName = ExtractTableNameFromToTable(node);
+                        if (!string.IsNullOrEmpty(tableName)) return tableName;
+                    }
+                    return null;
+                },
+                CollectReferences = CollectEfCoreReferences,
+                EnrichSymbol = EnrichEfCoreSymbol
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsTableAttribute(node))
-        {
-            var tableName = ExtractTableNameFromAttribute(node);
-            if (!string.IsNullOrEmpty(tableName)) return tableName;
-        }
-        if (IsDbSetProperty(node))
-        {
-            var tableName = ExtractTableNameFromDbSet(node);
-            if (!string.IsNullOrEmpty(tableName)) return tableName;
-        }
-        if (IsToTableCall(node))
-        {
-            var tableName = ExtractTableNameFromToTable(node);
-            if (!string.IsNullOrEmpty(tableName)) return tableName;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectEfCoreReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsTableAttribute(node))
         {
@@ -91,7 +93,7 @@ public class EfCoreLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichEfCoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.CSharp.ClassDeclaration))
         {

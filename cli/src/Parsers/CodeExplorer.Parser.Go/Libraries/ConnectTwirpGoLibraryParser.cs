@@ -1,8 +1,9 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class ConnectTwirpGoLibraryParser : ISemanticExtension
+public class ConnectTwirpGoLibraryParser : DeclarativeSemanticExtension
 {
     private const string RpcRoutePrefix = "GRPC:/";
     private const string RpcCallPrefix = "grpc://";
@@ -12,22 +13,29 @@ public class ConnectTwirpGoLibraryParser : ISemanticExtension
     private const string ClientSuffix = "Client";
     private const char DotChar = '.';
 
-    public string Name => "ConnectRPC & Twirp Go";
-    public string Id => "connect-twirp-go";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "connectrpc.com/connect*",
-        "github.com/bufbuild/connect-go*",
-        "github.com/twitchtv/twirp*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
+    public ConnectTwirpGoLibraryParser()
+    {
+        Name = "ConnectRPC & Twirp Go";
+        Id = "connect-twirp-go";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns =
+        [
+            "connectrpc.com/connect*",
+            "github.com/bufbuild/connect-go*",
+            "github.com/twitchtv/twirp*"
+        ];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                CollectReferences = CollectConnectTwirpReferences
+            }
+        ];
+    }
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectConnectTwirpReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return;
 

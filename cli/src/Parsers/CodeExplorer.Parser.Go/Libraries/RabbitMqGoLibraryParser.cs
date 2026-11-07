@@ -1,26 +1,34 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class RabbitMqGoLibraryParser : ISemanticExtension
+public class RabbitMqGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public string Name => "RabbitMQ";
-    public string Id => "rabbitmq";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "github.com/rabbitmq/amqp091-go*",
-        "github.com/streadway/amqp*",
-        "*rabbit*",
-        "*Rabbit*"
-    ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    public RabbitMqGoLibraryParser()
+    {
+        Type = SemanticExtensionType.Queue;
+        Name = "RabbitMQ";
+        Id = "rabbitmq";
+        SupportedPatterns =
+        [
+            "github.com/rabbitmq/amqp091-go*",
+            "github.com/streadway/amqp*",
+            "*rabbit*",
+            "*Rabbit*"
+        ];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.AssignmentStatement, TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                CollectReferences = CollectRabbitMqReferences
+            }
+        ];
+    }
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectRabbitMqReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 0. Dispatcher index assignment: routes["v1.task.create"] = r.createTask()
         if (GoAstHelper.TryGetIndexAssignment(node, out var operandText, out var indexKey))

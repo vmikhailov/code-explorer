@@ -313,23 +313,12 @@ public abstract class TreeSitterSyntaxConverterBase
                     : ReadOnlySpan<char>.Empty;
 
                 var snippet = rawSpan.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
-                var isTsOrJs = languageName is "typescript" or "tsx" or "javascript";
-                var isBenign = isTsOrJs && (
-                    ((snippet is ">()" or ",") && sourceText.AsSpan(Math.Max(0, span.StartByte - 150), Math.Min(sourceText.Length - Math.Max(0, span.StartByte - 150), 160)).Contains("import(", StringComparison.Ordinal)) ||
-                    snippet.Contains("abstract override", StringComparison.Ordinal) ||
-                    snippet.Contains("override readonly", StringComparison.Ordinal) ||
-                    (parentRawKind.StartsWith("jsx_", StringComparison.Ordinal) && rawSpan.StartsWith("&", StringComparison.Ordinal))
-                );
-
-                if (!isBenign)
-                {
-                    diagnostics.Add(new SyntaxDiagnostic(
-                        CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
-                        string.IsNullOrEmpty(snippet)
-                            ? $"Syntax error in {parent.SyntaxKind}"
-                            : $"Syntax error in {parent.SyntaxKind} near '{snippet}'",
-                        span));
-                }
+                diagnostics.Add(new SyntaxDiagnostic(
+                    CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
+                    string.IsNullOrEmpty(snippet)
+                        ? $"Syntax error in {parent.SyntaxKind}"
+                        : $"Syntax error in {parent.SyntaxKind} near '{snippet}'",
+                    span));
             }
 
             SyntaxNode syntaxNode = (rawKind == "string" && languageName == "python" &&

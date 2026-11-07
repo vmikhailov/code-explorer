@@ -2,33 +2,34 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class MochaLibraryParser : ISemanticExtension
+public class MochaLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "mocha";
-    public string Name => "Mocha";
-    public SemanticExtensionType Type => SemanticExtensionType.Library;
-    public LibraryRole LibraryRole => LibraryRole.TestFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["mocha", "@types/mocha"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
+    public override string Id => "mocha";
+    public override string Name => "Mocha";
+    public override SemanticExtensionType Type => SemanticExtensionType.Library;
+    public override LibraryRole LibraryRole => LibraryRole.TestFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["mocha", "@types/mocha"];
+    public override bool IsBuiltIn => true;
 
-    public IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsMochaCall(node, out var kind) ? kind : null,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
         yield return new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "library", ["mocha", "@types/mocha"]);
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsMochaCall(node, out var kind))
-        {
-            return kind;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsMochaCall(node, out _))
         {
@@ -40,7 +41,7 @@ public class MochaLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsMochaCall(node, out _))
         {
@@ -50,10 +51,6 @@ public class MochaLibraryParser : ISemanticExtension
             symbol.Properties["test_kind"] = isSuite ? "suite" : "test";
             symbol.Properties["test_title"] = ExtractTitle(node);
         }
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
     }
 
     private static bool IsMochaCall(Node node, out string kind)

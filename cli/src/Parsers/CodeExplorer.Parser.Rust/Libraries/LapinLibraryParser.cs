@@ -7,37 +7,29 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// Detects basic_publish and basic_consume invocations.
 /// Emits Topic nodes and PUBLISHES_TO / SUBSCRIBES_TO relationships.
 /// </summary>
-public class LapinLibraryParser : ISemanticExtension
+public class LapinLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "lapin";
-    public string Name => "Lapin (RabbitMQ)";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
-    public IReadOnlyList<string> SupportedPatterns => ["lapin*"];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public LapinLibraryParser()
     {
-        if (IsLapinCall(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Topic;
-        }
-        return null;
+        Id = "lapin";
+        Name = "Lapin (RabbitMQ)";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["lapin*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsLapinCall(node, out _, out _) ? OntologyConstants.NodeLabels.Topic : null,
+                ExtractIdentifier = (node, _, _, _) => IsLapinCall(node, out var topic, out _) ? topic : null,
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsLapinCall(node, out var topic, out _))
-        {
-            return topic;
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsLapinCall(node, out var topic, out var isPublish) && !string.IsNullOrEmpty(topic))
         {
@@ -50,7 +42,7 @@ public class LapinLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsLapinCall(node, out _, out _))
         {

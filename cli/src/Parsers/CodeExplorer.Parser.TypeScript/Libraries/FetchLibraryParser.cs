@@ -1,16 +1,44 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class FetchLibraryParser : ISemanticExtension
+public class FetchLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Fetch";
-    public string Id => "fetch";
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    // fetch is built-in; node-fetch/got/superagent are npm packages
-    public IReadOnlyList<string> SupportedPatterns => ["node-fetch", "got", "superagent", "cross-fetch", "isomorphic-fetch"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;   // fetch is available without import in browsers/Node 18+
+    public FetchLibraryParser()
+    {
+        Name = "Fetch";
+        Id = "fetch";
+        Type = SemanticExtensionType.ApiClient;
+        SupportedPatterns = ["node-fetch", "got", "superagent", "cross-fetch", "isomorphic-fetch"];
+        IsBuiltIn = true;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => _fetchCallSelector.Matches(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = static (node, ctx, projectName, rel) =>
+                {
+                    if (_fetchCallSelector.Matches(node))
+                    {
+                        var firstArg = _callFirstStringArgSelector.Select(node);
+                        if (firstArg.IsValid())
+                        {
+                            var projectContext = projectName ?? ctx?.WorkspaceId;
+                            var resolved = AstHelper.ResolveStringOrTemplate(firstArg, projectContext);
+                            if (!string.IsNullOrWhiteSpace(resolved))
+                            {
+                                return resolved;
+                            }
+                        }
+                        return "http:unknown-service";
+                    }
+                    return null;
+                }
+            }
+        ];
+    }
 
     private static readonly NodeSelector _fetchCallSelector = NodeSelector.New()
         .HasType(TreeSitterSyntax.TypeScript.CallExpression)
@@ -30,37 +58,8 @@ public class FetchLibraryParser : ISemanticExtension
         .GetChildForField(TreeSitterSyntax.Fields.Arguments)
         .FirstChild;
 
-    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
+    public override IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {
         { OntologyConstants.NodeLabels.ExternalService, _fetchCallSelector }
     };
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (_fetchCallSelector.Matches(node)) return OntologyConstants.NodeLabels.ExternalService;
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
-    {
-        if (_fetchCallSelector.Matches(node))
-        {
-            var firstArg = _callFirstStringArgSelector.Select(node);
-            if (firstArg.IsValid())
-            {
-                var projectContext = projectName ?? ctx?.WorkspaceId;
-                var resolved = AstHelper.ResolveStringOrTemplate(firstArg, projectContext);
-                if (!string.IsNullOrWhiteSpace(resolved))
-                {
-                    return resolved;
-                }
-            }
-            return "http:unknown-service";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 }

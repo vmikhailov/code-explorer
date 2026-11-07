@@ -1,15 +1,34 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class KafkaFlowLibraryParser : ISemanticExtension
+public class KafkaFlowLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "KafkaFlow";
-    public string Id => "kafkaflow";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["KafkaFlow", "KafkaFlow.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    public KafkaFlowLibraryParser()
+    {
+        Name = "KafkaFlow";
+        Id = "kafkaflow";
+        Type = SemanticExtensionType.Queue;
+        SupportedPatterns = ["KafkaFlow", "KafkaFlow.*"];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.InvocationExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsConsumerClass(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) =>
+                {
+                    if (!IsConsumerClass(node)) return null;
+                    var msg = ExtractConsumerMessageType(node);
+                    return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
+                },
+                CollectReferences = CollectKafkaFlowReferences,
+                EnrichSymbol = EnrichKafkaFlowSymbol
+            }
+        ];
+    }
 
     private static readonly HashSet<string> ConsumerInterfaces =
     [
@@ -26,27 +45,7 @@ public class KafkaFlowLibraryParser : ISemanticExtension
         "PublishAsync"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsConsumerClass(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsConsumerClass(node))
-        {
-            var msg = ExtractConsumerMessageType(node);
-            return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectKafkaFlowReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Ingress: Handler classes subscribe to message types
         if (IsConsumerClass(node))
@@ -93,7 +92,7 @@ public class KafkaFlowLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichKafkaFlowSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsConsumerClass(node))
         {

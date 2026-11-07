@@ -2,34 +2,40 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class QuartzNetLibraryParser : ISemanticExtension
+public class QuartzNetLibraryParser : DeclarativeSemanticExtension
 {
     private const string QuartzPrefix = "quartz:";
     private const string JobInterfaceName = "IJob";
-
-    public string Name => "Quartz.NET";
-    public string Id => "quartz-net";
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["Quartz", "Quartz.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
 
     private static readonly HashSet<string> ScheduleMethods = new(StringComparer.Ordinal)
     {
         "ScheduleJob", "AddJob", "TriggerJob", "CheckExists"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public QuartzNetLibraryParser()
     {
-        return IsQuartzJobClass(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
+        Id = "quartz-net";
+        Name = "Quartz.NET";
+        Type = SemanticExtensionType.Queue;
+        LibraryRole = LibraryRole.WorkerService;
+        SupportedPatterns = ["Quartz", "Quartz.*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.CSharp.ClassDeclaration,
+                    TreeSitterSyntax.CSharp.InvocationExpression
+                ]),
+                MapNodeType = (node, ctx) => IsQuartzJobClass(node, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = (node, _, _, _) => IsQuartzJobClass(node, out var jobName) ? $"QuartzJob:{jobName}" : null,
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return IsQuartzJobClass(node, out var jobName) ? $"QuartzJob:{jobName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsQuartzJobClass(node, out var jobClassName))
         {

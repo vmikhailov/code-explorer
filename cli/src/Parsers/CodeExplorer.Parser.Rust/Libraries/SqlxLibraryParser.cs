@@ -8,31 +8,37 @@ namespace CodeExplorer.Parser.Rust.Libraries;
 /// dynamic query calls (sqlx::query(...)), and pool connections (PgPool, MySqlPool, SqlitePool).
 /// Emits Query, Table, and Database nodes with QUERIES_DB and USES_DB relationships.
 /// </summary>
-public class SqlxLibraryParser : ISemanticExtension
+public class SqlxLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "sqlx";
-    public string Name => "SQLx";
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
-    public IReadOnlyList<string> SupportedPatterns => ["sqlx*"];
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public SqlxLibraryParser()
     {
-        if (IsSqlQuery(node, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.Query;
-        }
-
-        return null;
+        Id = "sqlx";
+        Name = "SQLx";
+        Type = SemanticExtensionType.RelationalDb;
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        SupportedPatterns = ["sqlx*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet(
+                [
+                    TreeSitterSyntax.Rust.CallExpression,
+                    TreeSitterSyntax.Rust.MacroInvocation,
+                    TreeSitterSyntax.Rust.UseDeclaration,
+                    TreeSitterSyntax.Rust.TypeIdentifier,
+                    TreeSitterSyntax.Rust.ScopedTypeIdentifier
+                ]),
+                MapNodeType = (node, ctx) => IsSqlQuery(node, out _, out _) ? OntologyConstants.NodeLabels.Query : null,
+                ExtractIdentifier = (node, _, _, _) => ExtractIdentifierCore(node),
+                CollectReferences = CollectReferencesCore
+            }
+        ];
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierCore(Node node)
     {
-        if (IsSqlQuery(node, out var sqlText, out var primaryTable))
+        if (IsSqlQuery(node, out var sqlText, out _))
         {
             var clean = NestedSqlParser.CleanQueryText(sqlText);
             if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
@@ -45,7 +51,7 @@ public class SqlxLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsSqlQuery(node, out var sqlText, out var primaryTable))
         {

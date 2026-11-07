@@ -1,50 +1,44 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GinLibraryParser : ISemanticExtension
+public class GinLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public string Name => "Gin";
-    public string Id => "gin";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/gin-gonic/gin*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
     private static readonly HashSet<string> HttpMethods = new(StringComparer.Ordinal)
     {
         "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "Any", "Match"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public GinLibraryParser()
     {
-        if (IsGinRouteCall(node, out _, out _, out _))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
-    {
-        if (IsGinRouteCall(node, out var httpMethod, out var fullRoute, out _))
-        {
-            fullRoute = ApplyMountPrefix(fullRoute, relativePath);
-            return $"{httpMethod}:{fullRoute}";
-        }
-        return null;
-    }
-
-    public void CollectReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
-    {
-        if (IsGinRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
-        {
-            fullRoute = ApplyMountPrefix(fullRoute, null);
-            references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
-        }
+        Type = SemanticExtensionType.Framework;
+        Name = "Gin";
+        Id = "gin";
+        SupportedPatterns = ["github.com/gin-gonic/gin*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => IsGinRouteCall(node, out _, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, relativePath) =>
+                {
+                    if (!IsGinRouteCall(node, out var httpMethod, out var fullRoute, out _)) return null;
+                    fullRoute = ApplyMountPrefix(fullRoute, relativePath);
+                    return $"{httpMethod}:{fullRoute}";
+                },
+                CollectReferences = static (node, _, references, _) =>
+                {
+                    if (IsGinRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
+                    {
+                        fullRoute = ApplyMountPrefix(fullRoute, null);
+                        references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                }
+            }
+        ];
     }
 
     private static string ApplyMountPrefix(string route, string? relativePath)

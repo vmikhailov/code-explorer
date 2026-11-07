@@ -2,25 +2,28 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class KnexLibraryParser : ISemanticExtension
+public class KnexLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
-    public string Name => "Knex";
-    public string Id => "knex";
-    public IReadOnlyList<string> SupportedPatterns => ["knex", "@types/knex"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    public override SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
+    public override string Name => "Knex";
+    public override string Id => "knex";
+    public override IReadOnlyList<string> SupportedPatterns => ["knex", "@types/knex"];
+    public override LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsKnexCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.Query;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsKnexCall(node) ? OntologyConstants.NodeLabels.Query : null,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (IsKnexCall(node))
         {
@@ -50,7 +53,7 @@ public class KnexLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsKnexCall(node))
         {

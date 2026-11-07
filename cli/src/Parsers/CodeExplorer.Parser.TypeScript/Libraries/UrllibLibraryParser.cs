@@ -2,32 +2,33 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class UrllibLibraryParser : ISemanticExtension
+public class UrllibLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
-    public string Name => "urllib";
-    public string Id => "urllib";
-    public IReadOnlyList<string> SupportedPatterns => ["urllib"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.General;
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+    public override string Name => "urllib";
+    public override string Id => "urllib";
+    public override IReadOnlyList<string> SupportedPatterns => ["urllib"];
+    public override LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> UrllibMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "request", "curl", "requestWithCallback"
     };
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsUrllibCall(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.ExternalService;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsUrllibCall(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsUrllibCall(node))
         {
@@ -41,7 +42,7 @@ public class UrllibLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsUrllibCall(node))
         {

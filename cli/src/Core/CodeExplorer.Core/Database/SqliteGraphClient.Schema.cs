@@ -304,13 +304,13 @@ public partial class SqliteGraphClient
         using var cmd = _conn.CreateCommand();
         cmd.CommandTimeout = 0;
         cmd.CommandText = """
-                          DROP INDEX IF EXISTS idx_nodes_kind;
                           DROP INDEX IF EXISTS idx_edges_unique;
 
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path')) WHERE json_extract(properties, '$.path') IS NOT NULL;
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path')) WHERE json_extract(properties, '$.file_path') IS NOT NULL;
-                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
-                          CREATE INDEX IF NOT EXISTS idx_nodes_name_kind ON nodes(json_extract(properties, '$.name'), kind);
+                          CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name')) WHERE json_extract(properties, '$.name') IS NOT NULL;
+                          CREATE INDEX IF NOT EXISTS idx_nodes_name_kind ON nodes(json_extract(properties, '$.name'), kind) WHERE json_extract(properties, '$.name') IS NOT NULL;
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol')) WHERE json_extract(properties, '$.symbol') IS NOT NULL;
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path'))) WHERE lower(json_extract(properties, '$.path')) IS NOT NULL;
 

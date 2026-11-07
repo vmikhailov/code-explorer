@@ -2,34 +2,28 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class ReactLibraryParser : ISemanticExtension
+public class ReactLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "react";
-    public string Name => "React";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["react", "react-dom", "react-dom/*", "react/*"];
-    public bool IsImplemented => true;
+    public override string Id => "react";
+    public override string Name => "React";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.FrontendFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["react", "react-dom", "react-dom/*", "react/*"];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsReactRootMount(node))
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsReactRootMount(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = static (node, ctx, _, _) => IsReactRootMount(node) ? "React:Root" : null,
+            CollectReferences = CollectReferencesCore
         }
-        return null;
-    }
+    ];
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsReactRootMount(node))
-        {
-            return "React:Root";
-        }
-        return null;
-    }
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (IsReactRootMount(node))
         {

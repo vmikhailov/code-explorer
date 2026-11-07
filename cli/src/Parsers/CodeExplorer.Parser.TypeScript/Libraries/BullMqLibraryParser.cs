@@ -2,16 +2,16 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class BullMqLibraryParser : ISemanticExtension
+public class BullMqLibraryParser : DeclarativeSemanticExtension
 {
     private const string ThisDotPrefix = "this.";
     private const string PropQueueName = "queueName";
     private const string PropQueue = "queue";
     private const string PropName = "name";
-    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
-    public string Name => "BullMQ";
-    public string Id => "bullmq";
-    public IReadOnlyList<string> SupportedPatterns =>
+    public override SemanticExtensionType Type => SemanticExtensionType.Cloud;
+    public override string Name => "BullMQ";
+    public override string Id => "bullmq";
+    public override IReadOnlyList<string> SupportedPatterns =>
     [
         "bullmq",
         "bull",
@@ -24,13 +24,27 @@ public class BullMqLibraryParser : ISemanticExtension
         "*enum*",
         "*job.repository*"
     ];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WorkerService;
+    public override LibraryRole LibraryRole => LibraryRole.WorkerService;
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes =
+            [
+                TreeSitterSyntax.TypeScript.Decorator,
+                TreeSitterSyntax.TypeScript.NewExpression,
+                TreeSitterSyntax.TypeScript.CallExpression,
+                TreeSitterSyntax.TypeScript.MethodDefinition
+            ],
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Check for `@Processor('queue-name')` or `@Processor(MessageQueue.emailQueue)` or `@Processor({ queueName: MessageQueue.emailQueue })`
         if (node.Is(TreeSitterSyntax.TypeScript.Decorator))
@@ -162,7 +176,7 @@ public class BullMqLibraryParser : ISemanticExtension
         }
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.MethodDefinition) ||
             symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)

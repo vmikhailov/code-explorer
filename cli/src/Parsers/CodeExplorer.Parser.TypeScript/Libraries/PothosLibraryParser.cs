@@ -12,17 +12,32 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 /// - &lt;builder&gt;.subscriptionField('name', (t) =&gt; t.field({ resolve: ... }))
 /// - Batch definitions via queryFields / mutationFields / subscriptionFields / queryType / mutationType / subscriptionType
 /// </summary>
-public class PothosLibraryParser : ISemanticExtension
+public class PothosLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "pothos-graphql";
-    public string Name => "Pothos GraphQL";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-    public IReadOnlyList<string> SupportedPatterns => ["@pothos/core"];
-    public bool IsBuiltIn => true;
-    public bool IsImplemented => true;
+    public override string Id => "pothos-graphql";
+    public override string Name => "Pothos GraphQL";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
+    public override IReadOnlyList<string> SupportedPatterns => ["@pothos/core"];
+    public override bool IsBuiltIn => true;
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.Pair],
+            MapNodeType = MapNodeTypeCore,
+            ExtractIdentifier = static (node, ctx, _, _) => ExtractIdentifierCore(node, ctx),
+            EnrichSymbol = EnrichSymbolCore,
+            CollectReferences = CollectReferencesCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static readonly char[] QuoteChars = ['\'', '"', '`'];
+
+    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
             TryExtractSingleRootField(node, out _, out _, out _))
@@ -39,7 +54,7 @@ public class PothosLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
             TryExtractSingleRootField(node, out _, out var opPrefix, out var fieldName))
@@ -56,7 +71,7 @@ public class PothosLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
 
@@ -72,7 +87,7 @@ public class PothosLibraryParser : ISemanticExtension
         }
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         if (!node.IsValid() || !node.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.Pair))
         {
@@ -93,7 +108,7 @@ public class PothosLibraryParser : ISemanticExtension
         // (e.g., `resolve: resolveAuditLogs`), link the endpoint to that function.
         foreach (var pair in EnumeratePairs(node))
         {
-            var key = pair.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim('\'', '"', '`');
+            var key = pair.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim(QuoteChars);
             if (key is "resolve" or "subscribe")
             {
                 var val = pair.GetField(TreeSitterSyntax.Fields.Value);

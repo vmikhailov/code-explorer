@@ -2,34 +2,36 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class JestVitestLibraryParser : ISemanticExtension
+public class JestVitestLibraryParser : DeclarativeSemanticExtension
 {
-    public string Id => "jest";
-    public string Name => "Jest / Vitest";
-    public SemanticExtensionType Type => SemanticExtensionType.Library;
-    public LibraryRole LibraryRole => LibraryRole.TestFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["jest", "@types/jest", "ts-jest", "babel-jest", "@jest/globals", "vitest", "@vitest/*"];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
+    public override string Id => "jest";
+    public override string Name => "Jest / Vitest";
+    public override SemanticExtensionType Type => SemanticExtensionType.Library;
+    public override LibraryRole LibraryRole => LibraryRole.TestFramework;
+    public override IReadOnlyList<string> SupportedPatterns => ["jest", "@types/jest", "ts-jest", "babel-jest", "@jest/globals", "vitest", "@vitest/*"];
+    public override bool IsBuiltIn => true;
 
-    public IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsJestVitestCall(node, out var kind) ? kind : null,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            EnrichSymbol = EnrichSymbolCore,
+            CollectReferences = CollectReferencesCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
     {
         yield return new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "library", ["jest", "@types/jest", "ts-jest", "babel-jest", "@jest/globals"]);
         yield return new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "library", ["vitest", "@vitest/*"]);
     }
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsJestVitestCall(node, out var kind))
-        {
-            return kind;
-        }
-        return null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx, projectName, null);
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
         if (IsJestVitestCall(node, out _))
         {
@@ -42,7 +44,7 @@ public class JestVitestLibraryParser : ISemanticExtension
         return null;
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         if (IsJestVitestCall(node, out _))
         {
@@ -55,7 +57,7 @@ public class JestVitestLibraryParser : ISemanticExtension
         }
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // Extract mocked modules from jest.mock('...') and vi.mock('...')
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))

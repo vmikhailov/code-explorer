@@ -1,32 +1,33 @@
+using System.Collections.Frozen;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class StrawberryGraphQlLibraryParser : ISemanticExtension
+public class StrawberryGraphQlLibraryParser : DeclarativeSemanticExtension
 {
-    public string Name => "Strawberry & Graphene GraphQL";
-    public string Id => "strawberry-graphql";
-    public SemanticExtensionType Type => SemanticExtensionType.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["strawberry", "strawberry.*", "graphene", "graphene.*"];
-    public bool IsImplemented => true;
-    public LibraryRole LibraryRole => LibraryRole.WebService;
-
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public StrawberryGraphQlLibraryParser()
     {
-        return TryExtractGraphQlField(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null;
-    }
-
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        return TryExtractGraphQlField(node, out var kind, out var fieldName) ? $"GRAPHQL:{kind}:{fieldName}" : null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
-    {
-        if (TryExtractGraphQlField(node, out _, out var fieldName))
-        {
-            references.Add(new Reference(scopeSymbolId, fieldName, OntologyConstants.Relationships.Triggers));
-        }
+        Name = "Strawberry & Graphene GraphQL";
+        Id = "strawberry-graphql";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["strawberry", "strawberry.*", "graphene", "graphene.*"];
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.Decorator }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => TryExtractGraphQlField(node, out _, out _) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, _, _, _) => TryExtractGraphQlField(node, out var kind, out var fieldName) ? $"GRAPHQL:{kind}:{fieldName}" : null,
+                CollectReferences = static (node, scopeSymbolId, references, ctx) =>
+                {
+                    if (TryExtractGraphQlField(node, out _, out var fieldName))
+                    {
+                        references.Add(new Reference(scopeSymbolId, fieldName, OntologyConstants.Relationships.Triggers));
+                    }
+                }
+            }
+        ];
     }
 
     private static bool TryExtractGraphQlField(Node node, out string kind, out string fieldName)

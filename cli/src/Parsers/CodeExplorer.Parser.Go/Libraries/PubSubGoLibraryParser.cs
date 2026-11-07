@@ -1,30 +1,40 @@
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class PubSubGoLibraryParser : ISemanticExtension
+public class PubSubGoLibraryParser : DeclarativeSemanticExtension
 {
-    public SemanticExtensionType Type => SemanticExtensionType.Queue;
-    public string Name => "PubSub";
-    public string Id => "pubsub";
-    public IReadOnlyList<string> SupportedPatterns =>
-    [
-        "cloud.google.com/go/pubsub",
-        "cloud.google.com/go/pubsub/*",
-        "*pubsub*",
-        "*pub-sub*",
-        "*dapr*",
-        "github.com/dapr/go-sdk*"
-    ];
-    public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
-    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
+    private const string TopicWord = "Topic";
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => null;
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
+    public PubSubGoLibraryParser()
+    {
+        Type = SemanticExtensionType.Queue;
+        Name = "PubSub";
+        Id = "pubsub";
+        SupportedPatterns =
+        [
+            "cloud.google.com/go/pubsub",
+            "cloud.google.com/go/pubsub/*",
+            "*pubsub*",
+            "*pub-sub*",
+            "*dapr*",
+            "github.com/dapr/go-sdk*"
+        ];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Go.CompositeLiteral, TreeSitterSyntax.Go.FieldDeclaration, TreeSitterSyntax.Go.ConstSpec, TreeSitterSyntax.Go.CallExpression }.ToFrozenSet(),
+                CollectReferences = CollectPubSubReferences
+            }
+        ];
+    }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectPubSubReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. Composite literals with topic fields (Topic, TopicID, TopicName, SubID, WorkerDef)
         if (node is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
@@ -68,7 +78,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
             {
                 AddSubscribe(references, scopeSymbolId, val);
             }
-            else if (!string.IsNullOrEmpty(name) && (name.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) || name.StartWithIC("Topic")))
+            else if (!string.IsNullOrEmpty(name) && (name.EndsWith(TopicWord, StringComparison.OrdinalIgnoreCase) || name.StartWithIC(TopicWord)))
             {
                 AddSubscribe(references, scopeSymbolId, name);
             }
