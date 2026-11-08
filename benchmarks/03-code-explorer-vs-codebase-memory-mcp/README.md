@@ -14,7 +14,7 @@
 ## 1. Experimental Setup & Methodology
 
 ### 1.1 Tools Under Test
-- **`ce` (`codeexplorer.cli`)**: `v1.75.0` (.NET 10, single-pass Layer 3 Tree-sitter + UAST pipeline with topological project ordering, 5-Layer Semantic & Global Ontology Pipeline, SQLite Schema v6 graph backend, `36` MCP tools).
+- **`ce` (`codeexplorer.cli`)**: `v1.75.0` (.NET 10, 5-layer AST & architectural ontology pipeline, SQLite graph backend, `36` MCP tools).
 - **`CBM` (`codebase-memory-mcp`)**: `v0.12.1` (`win32-x64` native Go/CGo binary, Tree-sitter + SQLite graph backend, `17` MCP tools).
 
 ### 1.2 Target Repositories (Pinned Commits)
@@ -62,13 +62,13 @@ Both tools were executed from a cold state (`Remove-Item .codeexplorer/graph.db*
 | **Parse / Analysis Warnings** | **0** (`0` `ScanIssue` nodes) | 209 `parse_partial`, 1 `unusable` | **0** | 4 `parse_partial` |
 
 **Analysis of Indexing Performance (`ce` Phase Breakdown):**
-- On medium-sized repositories (`immich`), **`ce` indexes faster than `CBM` (`17.60 s` vs. `20.6 s`)** and produces a **5.1× smaller database** (`55.1 MB` vs. `282.0 MB` because `CBM` indexes 141,286 local `Variable` nodes and `ce` Schema v6 encodes `kind` and `from_id`/`to_id` as compact integers (`rowid`) and builds partial/unique B-Tree indices bottom-up after bulk load).
+- On medium-sized repositories (`immich`), **`ce` indexes faster than `CBM` (`17.60 s` vs. `20.6 s`)** and produces a **5.1× smaller database** (`55.1 MB` vs. `282.0 MB`, partly because `CBM` indexes 141,286 local `Variable` nodes).
 - On large monorepos (`twenty`), **`CBM` is 1.52× faster (`96.9 s` vs. `147.33 s`)** and uses less RAM, while **`ce` produces a smaller SQLite database (`784.0 MB` vs. `842.5 MB`) despite storing 1.81× more nodes (`456,711` vs. `251,750`) and 46k more edges (`960,660` vs. `914,479`)**. Breaking down `ce`'s `147.33 s` cold run on `twenty` shows where the time is spent:
-  - **Layer 1 & 2 (Physical topology & 46 project boundaries across 36,644 files):** `14 s`
-  - **Layer 3 Single-Pass with Topological Project Ordering (Tree-sitter C-API parse + UAST + AST visitors + semantic extensions across 46 topologically sorted projects):** `51 s`
-  - **Layer 4 (Semantic enrichment across 46 projects / 36,340 syntax trees):** **`4 s`**
-  - **Layer 5 (Resolving 578,143 global cross-references + late-binding `ExternalService` calls):** `19 s`
-  - **Single-Transaction Unindexed Bulk Flush + Bottom-Up B-Tree Index Build + `PostIndexAnalyzer` & Incremental AST Snapshots:** `58 s` (**`17.9 s`** for bulk flush + index creation of 456.7k nodes and 960.7k integer-keyed edges)
+  - **Layer 1 & 2 (File tree & 46 project boundaries across 36,644 files):** `14 s`
+  - **Layer 3 (AST parsing & framework visitors across 46 packages):** `51 s`
+  - **Layer 4 (Endpoints, queues, and ORM table extraction):** `4 s`
+  - **Layer 5 (Cross-project symbol resolution & service call linking):** `19 s`
+  - **SQLite write, indexing, and post-analysis:** `58 s`
 
 ---
 

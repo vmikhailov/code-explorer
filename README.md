@@ -279,7 +279,7 @@ The VS Code extension provides an interactive workspace for exploring the graph,
 
 ## Supported Languages & Frameworks
 
-CodeExplorer combines Tree-sitter grammars, Microsoft SQL ScriptDom, and **250 compiled declarative framework analyzers** (`DeclarativeSemanticExtension` with $O(1)$ fused node-type dispatch). Maturity reflects how much real-world code each analyzer has been validated against: **Stable** means validated on large open-source and production repositories, **Beta** means coverage is still growing. If the graph looks wrong on your repository, please [open an issue](https://github.com/vmikhailov/code-explorer/issues).
+CodeExplorer combines Tree-sitter parsers, SQL parsers, and **250 framework analyzers** across 8 languages. Maturity reflects how much real-world code each analyzer has been validated against: **Stable** means validated on large open-source and production repositories, **Beta** means coverage is still growing. If the graph looks wrong on your repository, please [open an issue](https://github.com/vmikhailov/code-explorer/issues).
 
 | Language | Maturity | Files & Manifests | Extracted Framework Semantics (250 Library Parsers) |
 | :--- | :--- | :--- | :--- |

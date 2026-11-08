@@ -12,7 +12,7 @@
 ## 1. Experimental Setup & Methodology
 
 ### 1.1 Tools Under Test
-- **`ce` (`codeexplorer.cli`)**: `v1.75.0` (.NET 10, single-pass Layer 3 Tree-sitter + UAST pipeline with topological project ordering, Layer 4–5 Semantic & Global Ontology Pipeline, SQLite Schema v6 graph backend, `36` MCP tools).
+- **`ce` (`codeexplorer.cli`)**: `v1.75.0` (.NET 10, 5-layer AST & architectural ontology pipeline, SQLite graph backend, `36` MCP tools).
 - **`graphify` (`graphifyy[mcp,sql,terraform]`)**: `v0.9.104` (Python 3.10, Tree-sitter + NetworkX `graph.json` backend, Leiden community clustering, run in deterministic `--code-only --force` mode via `python -m graphify.cli extract <repo> --code-only --force`, `10` MCP tools + `6` MCP resources via `python -m graphify.serve`).
 
 ### 1.2 Target Repositories (Pinned Commits)
@@ -61,13 +61,12 @@ Both tools were executed from a cold state (`--clear` for `ce`, `--code-only --f
 | **Parse / Analysis Warnings** | **0** | `9` syntax errors + `171` zero-symbol files | **0** | *DNF* |
 
 #### Why `ce` (`147.33 s`) Scales to 24.5k-File Monorepos While `graphify` (`>45 min`) Stalls
-1. **Single-Pass Layer 3 with Topological Project Ordering in `ce` (`51 s` on `twenty`):**
-   - In `ce` `v1.75.0`, Layer 3 orders the 46 projects in `twenty` topologically via Kahn's algorithm over `l2Result.ProjectDependencies` (`Tier 0` shared libraries like `twenty-shared` and `twenty-ui` $\to$ `Tier 1` services/apps like `twenty-front` and `twenty-server` $\to$ `Tier 2` test suites).
-   - Each file's Tree-sitter AST is parsed into the Unified Abstract Syntax Tree (`UAST`) and visited by language/framework visitors **in a single pass** per project (`51 s` total for `36,644` files on `twenty`, down from `124 s` in `v1.74.0`), reducing total `twenty` cold scan time from `212.6 s` to **`147.33 s`**.
-2. **Three Algorithmic Bottlenecks in `graphify` (`v0.9.104`) on Large TypeScript Monorepos:**
-   - **Slow `detect()` Phase (`117.1 s` on `twenty`):** Before parsing a single AST, `graphify`'s `detect()` phase spends **nearly 2 minutes (`117.1 s`)** walking and classifying files on `twenty` (nearly as long as `ce`'s entire 5-layer indexing pipeline).
-   - **Complete AST Cache Bypass for JS/TS (`_JS_CACHE_BYPASS_SUFFIXES`) + Duplicate Single-Threaded Re-Parsing:** In `graphify/extract.py:10676`, all `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, and `.cjs` files are hardcoded in `_JS_CACHE_BYPASS_SUFFIXES` and **never cached in `graphify-out/cache/ast/`**. Worse, after the `ProcessPoolExecutor` workers finish extracting `per_file` ASTs (~`415 s`), `_collect_js_symbol_resolution_facts` (`graphify/extractors/resolution.py:2585`) **re-parses all `24,048` JS/TS files a second time sequentially on a single Python thread** via `_parse_js_tree(path)` and probes the filesystem on every import (`_resolve_js_module_path`).
-   - **$O(|\text{uses}| \times |\text{nodes}|)$ Quadratic Loop in `_apply_symbol_resolution_facts` (`resolution.py:1872–1930`):** For every symbol reference in `facts.uses` (`>200,000` uses in `twenty`), `_collision_aware(source_id, file_path, line)` runs `any(other.startswith(source_id + "_") for other in owned)` and `[n for n in nodes if ...]` — performing **two linear scans over `~300,000` nodes on every single `use_fact`** ($\sim 6 \times 10^{10}$ Python iterations on one CPU core).
+1. **Single-Pass AST & Framework Analysis in `ce` (`51 s` on `twenty`):**
+   - `ce` orders the 46 packages in `twenty` by dependency (`twenty-shared` and `twenty-ui` before `twenty-front` and `twenty-server`) and parses each file's AST and framework constructs in a single pass (`51 s` total for `36,644` files on `twenty`), finishing the full 5-layer cold index in **`147.33 s`**.
+2. **Bottlenecks in `graphify` (`v0.9.104`) on Large TypeScript Monorepos:**
+   - **Slow `detect()` Phase (`117.1 s` on `twenty`):** Before parsing ASTs, `graphify`'s `detect()` phase spends `117.1 s` walking and classifying files on `twenty`.
+   - **Duplicate Single-Threaded JS/TS Re-Parsing:** After `ProcessPoolExecutor` workers finish extracting `per_file` ASTs (~`415 s`), `_collect_js_symbol_resolution_facts` re-parses all `24,048` JS/TS files a second time sequentially on a single Python thread.
+   - **Quadratic Symbol Resolution Loop:** `_apply_symbol_resolution_facts` scans the node list linearly for each symbol reference (`>200,000` uses across `~300,000` nodes on a single CPU core).
 
 ---
 
