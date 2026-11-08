@@ -76,7 +76,7 @@ public partial class Layer4SemanticParser
         var existingRelKeys = new HashSet<(string From, string To, string Kind)>();
         foreach (var r in semanticRelationships)
         {
-            existingRelKeys.Add((r.From, r.To, r.Kind));
+            existingRelKeys.Add((r.From, r.To, r.Kind.ToCypherType()));
         }
 
         // Materialize first-class semantic workload nodes under SemanticStructure before per-project enrichment
@@ -305,7 +305,7 @@ public partial class Layer4SemanticParser
 
         foreach (var dep in l3Result.Prev.ProjectDependencies)
         {
-            if (dep.Kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.DeclaredIn &&
+            if (dep.Kind is RelationshipKind.Triggers or RelationshipKind.DeclaredIn &&
                 modInitByFileId.TryGetValue(dep.To, out var targetModInit) &&
                 dep.From.Contains($":{OntologyConstants.IdPrefixes.EntryPoint}:", StringComparison.Ordinal))
             {

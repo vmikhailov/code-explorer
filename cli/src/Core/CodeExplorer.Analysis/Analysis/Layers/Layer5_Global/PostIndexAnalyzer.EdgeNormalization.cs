@@ -149,98 +149,53 @@ public partial class PostIndexAnalyzer
         return (category, depType, normalizedKind);
     }
 
-    public static async Task<int> NormalizeEdgesAsync(
-        IGraphClient db,
-        string widPrefix,
-        CancellationToken cancellationToken = default)
+    public static List<EdgeNormalizationUpdate> ComputeEdgeNormalizationUpdates(EdgeNormalizationSnapshot snapshot)
     {
-        // 1. Query architectural/macro nodes to determine kind and whether project is library
-        var nodeMap = new Dictionary<string, (string Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
-        const string nodesQuery = "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role";
-        const string colLbl = "lbl";
-        const string colIsLib = "is_lib";
-        const string defaultNodeKind = "Node";
-        var nodesRes = await db.ExecuteCypherAsync(nodesQuery, null, cancellationToken);
-        foreach (var row in nodesRes.Rows)
+        var updates = new List<EdgeNormalizationUpdate>();
+        const string PropCategory = "category";
+        const string PropDependencyType = "dependency_type";
+        var nodeMap = snapshot.NodeMap;
+
+        foreach (var edge in snapshot.Edges)
         {
-            var id = row.GetStringProp(ColId);
-            if (string.IsNullOrEmpty(id)) continue;
-            var kind = defaultNodeKind;
-            if (row.TryGetProperty(colLbl, out var lblProp))
-            {
-                if (lblProp.Kind == CypherValueKind.Array && lblProp.AsArray() is { Count: > 0 } arr)
-                {
-                    kind = arr[0].AsString(defaultNodeKind);
-                }
-                else if (lblProp.Kind == CypherValueKind.String && lblProp.AsStringList() is { Count: > 0 } strList)
-                {
-                    kind = strList[0];
-                }
-            }
-            var isLib = kind is "Package" or "Library" || row.GetBoolProp(colIsLib);
-            var role = row.GetStringProp(ColRole);
-            if (role is "SharedLibrary" or "Test") isLib = true;
-
-            nodeMap[id] = (kind, isLib);
-        }
-
-        // 2. Query architectural/macro edges directly from edges table
-        var edgeQuery = "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY')";
-        var edgesRes = await db.ExecuteCypherAsync(edgeQuery, null, cancellationToken);
-
-        var updatedCount = 0;
-        var updates = new List<(string NormalizedKind, string PropsJson, string Src, string Tgt, string RawKind)>();
-
-        foreach (var row in edgesRes.Rows)
-        {
-            var src = row.GetStringProp(ColSource);
-            var tgt = row.GetStringProp(ColTarget);
-            var rawKind = row.GetStringProp(ColKind);
+            var src = edge.Source;
+            var tgt = edge.Target;
+            var rawKind = edge.Kind;
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
             nodeMap.TryGetValue(src, out var srcInfo);
             nodeMap.TryGetValue(tgt, out var tgtInfo);
 
-            if (string.IsNullOrEmpty(tgtInfo.Kind))
+            if (tgtInfo.Kind == default)
             {
                 if (tgt.Contains(":pkg:") || tgt.Contains(":package:"))
                 {
-                    tgtInfo = ("Package", true);
+                    tgtInfo = (NodeKind.Package, true);
                 }
                 else if (tgt.Contains(":res:db:") || tgt.Contains(":db:") || tgt.Contains(":database:"))
                 {
-                    tgtInfo = ("Database", false);
+                    tgtInfo = (NodeKind.Database, false);
                 }
                 else if (tgt.Contains(":top:") || tgt.Contains(":topic:"))
                 {
-                    tgtInfo = ("Topic", false);
+                    tgtInfo = (NodeKind.Topic, false);
                 }
             }
 
-            var existingCategory = "";
-            var existingDepType = "";
-            var props = new Dictionary<string, string>(StringComparer.Ordinal);
+            var props = new Dictionary<string, string>(edge.Properties, StringComparer.Ordinal);
+            var existingCategory = props.GetValueOrDefault(PropCategory, string.Empty);
+            var existingDepType = props.GetValueOrDefault(PropDependencyType, string.Empty);
 
-            if (row.TryGetProperty("properties", out var pElem))
-            {
-                foreach (var (k, valStr) in pElem.ExtractStringMap())
-                {
-                    props[k] = valStr;
-                    if (string.Equals(k, "category", StringComparison.Ordinal)) existingCategory = valStr;
-                    if (string.Equals(k, "dependency_type", StringComparison.Ordinal)) existingDepType = valStr;
-                }
-            }
-
-            var (category, depType, normalizedKind) = NormalizeEdgeCategory(rawKind, srcInfo.Kind, tgtInfo.Kind,
+            var (category, depType, normalizedKindStr) = NormalizeEdgeCategory(rawKind.ToCypherType(), srcInfo.Kind, tgtInfo.Kind,
                 existingCategory, existingDepType, tgtInfo.IsLibrary);
+            var normalizedKind = EnumExtensions.ParseRelationshipKind(normalizedKindStr);
 
             var categoryStr = category.ToCategoryString();
-            var needsUpdate = !props.ContainsKey("dependency_type") ||
-                              !string.Equals(props.GetValueOrDefault("dependency_type"), depType,
+            var needsUpdate = !props.ContainsKey(PropDependencyType) ||
+                              !string.Equals(props.GetValueOrDefault(PropDependencyType), depType,
                                   StringComparison.Ordinal) ||
-                              !string.Equals(props.GetValueOrDefault("category"), categoryStr,
-                                  StringComparison.Ordinal) || !string.Equals(rawKind, normalizedKind,
-                                  StringComparison.Ordinal);
+                              !string.Equals(props.GetValueOrDefault(PropCategory), categoryStr,
+                                  StringComparison.Ordinal) || rawKind != normalizedKind;
 
             if (needsUpdate)
             {
@@ -248,31 +203,21 @@ public partial class PostIndexAnalyzer
                 props["category"] = categoryStr;
 
                 var propsJson = JsonSerializer.Serialize(props);
-                updates.Add((normalizedKind, propsJson, src, tgt, rawKind));
+                updates.Add(new EdgeNormalizationUpdate(normalizedKind, propsJson, src, tgt, rawKind));
             }
         }
 
-        const int updateBatchSize = 100;
-        for (int i = 0; i < updates.Count; i += updateBatchSize)
-        {
-            var chunk = updates.Skip(i).Take(updateBatchSize).ToList();
-            var sb = new System.Text.StringBuilder(chunk.Count * 120);
-            var paramDict = new Dictionary<string, string>(StringComparer.Ordinal);
-            for (int j = 0; j < chunk.Count; j++)
-            {
-                var u = chunk[j];
-                sb.AppendLine($"UPDATE OR IGNORE edges SET kind = @k{j}, properties = jsonb(@p{j}) WHERE from_id = @s{j} AND to_id = @t{j} AND kind = @rk{j};");
-                paramDict[$"k{j}"] = u.NormalizedKind;
-                paramDict[$"p{j}"] = u.PropsJson;
-                paramDict[$"s{j}"] = u.Src;
-                paramDict[$"t{j}"] = u.Tgt;
-                paramDict[$"rk{j}"] = u.RawKind;
-            }
-            await db.ExecuteWriteAsync(sb.ToString(), paramDict, cancellationToken);
-            updatedCount += chunk.Count;
-        }
+        return updates;
+    }
 
-        return updatedCount;
+    public static async Task<int> NormalizeEdgesAsync(
+        IGraphClient db,
+        string widPrefix,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await db.LoadEdgeNormalizationSnapshotAsync(cancellationToken);
+        var updates = ComputeEdgeNormalizationUpdates(snapshot);
+        return await db.ApplyEdgeNormalizationUpdatesAsync(updates, cancellationToken);
     }
     public static ProjectNode? FindMatchingServiceProject(string key, IEnumerable<ProjectNode> projects)
     {
@@ -444,17 +389,10 @@ public partial class PostIndexAnalyzer
 
     public static bool IsGarbageExternalService(string domain) => WorkspaceConventions.IsGarbageExternalService(domain);
 
-    public static async Task PurgePhantomExternalServicesAsync(
-        IGraphClient db,
-        string widPrefix,
-        CancellationToken cancellationToken = default)
+    public static List<string> IdentifyPhantomExternalServicesToPurge(ExternalServicePurgeSnapshot snapshot)
     {
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
-        var projsRows = await db.QueryAsync<(string Id, string Name, string? Path)>(projQuery, null, cancellationToken);
-
         var projectList = new List<ProjectNode>();
-
-        foreach (var (pId, pName, pPath) in projsRows)
+        foreach (var (pId, pName, pPath) in snapshot.Projects)
         {
             if (!string.IsNullOrEmpty(pId))
             {
@@ -464,55 +402,40 @@ public partial class PostIndexAnalyzer
 
         var projectCandidates = projectList.Select(p => new ProjectMatchCandidate(p.Id, p.Name, p.Path, null, p.IsLibrary)).ToList();
 
-        var epQuery =
-            "MATCH (ep:Endpoint) RETURN ep.id AS id, ep.name AS name, json_extract(ep.properties, '$.route_template') AS route, json_extract(ep.properties, '$.http_method') AS method, json_extract(ep.properties, '$.path') AS path";
-        var epRows = await db.QueryAsync<(string Id, string Name, string Route, string Method, string Path)>(epQuery, null, cancellationToken);
         var endpointCandidates = new List<EndpointMatchCandidate>();
-        foreach (var (epId, epName, rawRoute, rawMethod, epPath) in epRows)
+        foreach (var ep in snapshot.Endpoints)
         {
-            var epRoute = rawRoute;
-            var epMethod = rawMethod;
+            var epRoute = ep.Route;
+            var epMethod = ep.Method;
 
-            if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(epName) && epName.Contains(':'))
+            if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(ep.Name) && ep.Name.Contains(':'))
             {
-                var parts = epName.Split(':', 2);
+                var parts = ep.Name.Split(':', 2);
                 if (string.IsNullOrEmpty(epMethod)) epMethod = parts[0];
                 epRoute = parts[1];
             }
 
-            if (!string.IsNullOrEmpty(epId) && !string.IsNullOrEmpty(epRoute))
+            if (!string.IsNullOrEmpty(ep.Id) && !string.IsNullOrEmpty(epRoute))
             {
-                var ownerProj = !string.IsNullOrEmpty(epPath) ? Layer2ProjectParser.FindProjectForFilePath(epPath, projectList) : null;
-                endpointCandidates.Add(new EndpointMatchCandidate(epId, epRoute, epMethod, ownerProj?.Id));
+                var ownerProj = !string.IsNullOrEmpty(ep.Path) ? Layer2ProjectParser.FindProjectForFilePath(ep.Path, projectList) : null;
+                endpointCandidates.Add(new EndpointMatchCandidate(ep.Id, epRoute, epMethod, ownerProj?.Id));
             }
         }
 
-        var callsEpQuery = "MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) RETURN es.id AS es_id";
-        var callsEpIds = await db.QueryAsync<string>(callsEpQuery, null, cancellationToken);
-        var servicesCallingEndpoints = new HashSet<string>(callsEpIds.Where(id => !string.IsNullOrEmpty(id)), StringComparer.OrdinalIgnoreCase);
-
-        var extQuery =
-            "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.path') AS path, json_extract(es.properties, '$.inferred_from_path') AS inferred_from_path, json_extract(es.properties, '$.is_relative_path') AS is_relative_path, json_extract(es.properties, '$.is_external') AS is_ext, json_extract(es.properties, '$.inferred_from_identifier') AS inferred_from_ident";
-        var extRes = await db.ExecuteCypherAsync(extQuery, null, cancellationToken);
-
+        var servicesCallingEndpoints = snapshot.ServicesCallingEndpoints;
         var idsToDelete = new List<string>();
         var matchingProjCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
-        const string colDomain = "domain";
-        const string colInferredFromPath = "inferred_from_path";
-        const string colIsRelativePath = "is_relative_path";
-        const string colIsExt = "is_ext";
-        const string colInferredFromIdent = "inferred_from_ident";
 
-        foreach (var row in extRes.Rows)
+        foreach (var ext in snapshot.ExternalServices)
         {
-            var id = row.GetStringProp(ColId);
-            var name = row.GetStringProp(ColName);
-            var domain = row.GetStringProp(colDomain);
-            var path = row.GetStringProp(ColPath);
-            var inferredFromPath = row.GetStringProp(colInferredFromPath);
-            var isRelativePath = row.GetStringProp(colIsRelativePath);
-            var isExt = row.GetStringProp(colIsExt);
-            var inferredFromIdent = row.GetStringProp(colInferredFromIdent);
+            var id = ext.Id;
+            var name = ext.Name;
+            var domain = ext.Domain;
+            var path = ext.Path;
+            var inferredFromPath = ext.InferredFromPath;
+            var isRelativePath = ext.IsRelativePath;
+            var isExt = ext.IsExternal;
+            var inferredFromIdent = ext.InferredFromIdentifier;
 
             var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
@@ -565,8 +488,6 @@ public partial class PostIndexAnalyzer
 
             if (isExt is "true" or "1") continue;
 
-            // A candidate is synthesized from a relative path if explicitly flagged, starting with '/',
-            // or if the candidate service name is simply the first segment of the path without an explicit network host.
             var isRelative = inferredFromPath == "true" ||
                              isRelativePath == "true" ||
                              cand.StartsWith('/') ||
@@ -575,14 +496,12 @@ public partial class PostIndexAnalyzer
 
             if (isRelative)
             {
-                // If it was already late-bound to an internal endpoint, it's an internal invocation
                 if (servicesCallingEndpoints.Contains(id))
                 {
                     idsToDelete.Add(id);
                     continue;
                 }
 
-                // Or check via EndpointScoringEngine if the path or route matches an internal endpoint with score >= 50.0
                 if (endpointCandidates.Count > 0)
                 {
                     var effectivePath = !string.IsNullOrEmpty(path) && path != "/" ? path : (cand.StartsWith('/') ? cand : null);
@@ -599,31 +518,21 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        const int deleteBatchSize = 100;
-        for (int i = 0; i < idsToDelete.Count; i += deleteBatchSize)
-        {
-            var chunk = idsToDelete.Skip(i).Take(deleteBatchSize).ToList();
-            var paramDict = new Dictionary<string, string>(StringComparer.Ordinal);
-            var inParams = string.Join(", ", chunk.Select((id, idx) =>
-            {
-                var p = $"@id{idx}";
-                paramDict[$"id{idx}"] = id;
-                return p;
-            }));
-
-            var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}); DELETE FROM edges WHERE to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
-            await db.ExecuteWriteAsync(sql, paramDict, cancellationToken);
-        }
+        return idsToDelete;
     }
 
-    public static async Task PurgePlaceholderTopicsAsync(
+    public static async Task PurgePhantomExternalServicesAsync(
         IGraphClient db,
         string widPrefix,
         CancellationToken cancellationToken = default)
     {
-        var topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name";
-        var topicsRows = await db.QueryAsync<(string Id, string Name)>(topicQuery, null, cancellationToken);
+        var snapshot = await db.LoadExternalServicePurgeSnapshotAsync(cancellationToken);
+        var idsToDelete = IdentifyPhantomExternalServicesToPurge(snapshot);
+        await db.DeleteNodesAndConnectedEdgesAsync(idsToDelete, cancellationToken);
+    }
 
+    public static List<string> IdentifyPlaceholderTopicsToPurge(IReadOnlyList<(string Id, string Name)> topicsRows)
+    {
         var placeholderIds = new List<string>();
         var concreteExternalTopicCount = 0;
 
@@ -651,24 +560,17 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        if (concreteExternalTopicCount > 0 && placeholderIds.Count > 0)
-        {
-            const int deleteBatchSize = 100;
-            for (int i = 0; i < placeholderIds.Count; i += deleteBatchSize)
-            {
-                var chunk = placeholderIds.Skip(i).Take(deleteBatchSize).ToList();
-                var paramDict = new Dictionary<string, string>(StringComparer.Ordinal);
-                var inParams = string.Join(", ", chunk.Select((id, idx) =>
-                {
-                    var p = $"@id{idx}";
-                    paramDict[$"id{idx}"] = id;
-                    return p;
-                }));
+        return concreteExternalTopicCount > 0 ? placeholderIds : [];
+    }
 
-                var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}); DELETE FROM edges WHERE to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
-                await db.ExecuteWriteAsync(sql, paramDict, cancellationToken);
-            }
-        }
+    public static async Task PurgePlaceholderTopicsAsync(
+        IGraphClient db,
+        string widPrefix,
+        CancellationToken cancellationToken = default)
+    {
+        var topicsRows = await db.LoadTopicsForPurgeAsync(cancellationToken);
+        var placeholderIds = IdentifyPlaceholderTopicsToPurge(topicsRows);
+        await db.DeleteNodesAndConnectedEdgesAsync(placeholderIds, cancellationToken);
     }
 
     public Task DeduplicateProjectNodesAsync(string widPrefix = "", CancellationToken cancellationToken = default)
@@ -695,53 +597,9 @@ public partial class PostIndexAnalyzer
         }
     }
 
-    public static async Task DeduplicateProjectNodesAsync(
+    public static Task DeduplicateProjectNodesAsync(
         IGraphClient db,
         string widPrefix = "",
         CancellationToken cancellationToken = default)
-    {
-        // When both modern :p: project nodes and legacy :project: / :project_semantic / :project_syntax nodes exist,
-        // purge the legacy duplicates and their connected edges.
-        if (db is SqliteGraphClient sqliteClient)
-        {
-            await using var checkCmd = sqliteClient.Connection.CreateCommand();
-            checkCmd.CommandText = "SELECT 1 FROM nodes WHERE kind IN ('Project', 'ProjectSemantic', 'ProjectSyntax') AND (id LIKE '%:project:%' OR id LIKE '%:project') LIMIT 1;";
-            var hasLegacy = await checkCmd.ExecuteScalarAsync(cancellationToken);
-            if (hasLegacy == null || hasLegacy == DBNull.Value) return;
-        }
-        await db.ExecuteWriteAsync("""
-            DELETE FROM edges WHERE from_id IN (
-                SELECT p1.id FROM nodes p1
-                WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
-                AND EXISTS (
-                    SELECT 1 FROM nodes p2
-                    WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
-                    AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
-                )
-            );
-            DELETE FROM edges WHERE to_id IN (
-                SELECT p1.id FROM nodes p1
-                WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
-                AND EXISTS (
-                    SELECT 1 FROM nodes p2
-                    WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
-                    AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
-                )
-            );
-            DELETE FROM nodes
-            WHERE kind = 'Project' AND (id LIKE '%:project:%' OR id LIKE '%:project')
-            AND EXISTS (
-                SELECT 1 FROM nodes p2
-                WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
-                AND json_extract(p2.properties, '$.path') = json_extract(nodes.properties, '$.path')
-            );
-            DELETE FROM edges WHERE from_id IN (
-                SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
-            );
-            DELETE FROM edges WHERE to_id IN (
-                SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
-            );
-            DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
-            """, null, cancellationToken);
-    }
+        => db.DeduplicateLegacyProjectNodesAsync(widPrefix, cancellationToken);
 }

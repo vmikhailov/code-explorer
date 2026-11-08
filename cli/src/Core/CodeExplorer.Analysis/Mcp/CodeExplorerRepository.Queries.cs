@@ -3,6 +3,7 @@ using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Core.Mcp.Models;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Parser;
 
 namespace CodeExplorer.Core.Mcp;
@@ -193,8 +194,8 @@ public partial class CodeExplorerRepository
         await using (var client = new SqliteGraphClient(ws.DbPath))
         {
             await client.ExecuteWriteAsync(
-                "INSERT INTO nodes (id, kind, properties) VALUES ('workspace', 'Workspace', json_object('id', 'workspace', 'name', @name, 'path', @path)) " +
-                "ON CONFLICT(id) DO UPDATE SET properties = json_object('id', 'workspace', 'name', @name, 'path', @path);",
+                $"INSERT INTO nodes (id, kind, properties) VALUES ('workspace', {GraphKindCodec.EncodeNodeKind(NodeKind.Workspace)}, jsonb(json_object('name', @name, 'path', @path))) " +
+                "ON CONFLICT(id) DO UPDATE SET properties = jsonb(json_object('name', @name, 'path', @path));",
                 new { name = wsName, path = ws.RootDirectory }, cancellationToken);
         }
 
@@ -350,8 +351,8 @@ public partial class CodeExplorerRepository
                     var props = node.TryGetProperty("properties", out var p) && !p.IsNull ? p.ToJsonString() : "{}";
 
                     await client.ExecuteWriteAsync(
-                        "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, json(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = json(@props);",
-                        new { id, kind, props },
+                        "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, jsonb(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = jsonb(@props);",
+                        new { id, kind = GraphKindCodec.EncodeNodeKind(kind), props },
                         cancellationToken);
                     nodesIngested++;
                 }
@@ -379,8 +380,9 @@ public partial class CodeExplorerRepository
                         var props = rel.TryGetProperty("properties", out var p) && !p.IsNull ? p.ToJsonString() : "{}";
 
                         await client.ExecuteWriteAsync(
-                            "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES (@fromId, @toId, @kind, json(@props));",
-                            new { kind, fromId, toId, props }, cancellationToken);
+                            "INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES (@fromId, 0, jsonb('{}')), (@toId, 0, jsonb('{}')); " +
+                            "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @fromId), (SELECT rowid FROM nodes WHERE id = @toId), @kind, jsonb(@props));",
+                            new { kind = GraphKindCodec.EncodeRelKind(kind), fromId, toId, props }, cancellationToken);
                         relsIngested++;
                     }
                 }

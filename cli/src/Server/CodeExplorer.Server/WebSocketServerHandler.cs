@@ -5,6 +5,7 @@ using System.Text.Json;
 using CodeExplorer.Core.Protocol;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ArchitectureViewType = CodeExplorer.Core.Analysis.ArchitectureViewType;
 
 namespace CodeExplorer.Server;
 

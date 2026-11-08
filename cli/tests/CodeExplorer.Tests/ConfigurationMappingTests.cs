@@ -78,7 +78,7 @@ public class ConfigurationMappingTests
         (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe cloud service should be extracted");
         (cloud.Any(c => c.Name == "Auth0")).Should().BeTrue("Auth0 cloud service should be extracted");
 
-        var configRels = l4.SemanticRelationships.Where(r => r.Kind == "DECLARED_IN" && r.To.Contains("appsettings.json", StringComparison.OrdinalIgnoreCase)).ToList();
+        var configRels = l4.SemanticRelationships.Where(r => r.Kind == RelationshipKind.DeclaredIn && r.To.Contains("appsettings.json", StringComparison.OrdinalIgnoreCase)).ToList();
 
         configRels.Count.Should().BeGreaterThanOrEqualTo(4, "DECLARED_IN edges should link configured services to appsettings.json");
     }

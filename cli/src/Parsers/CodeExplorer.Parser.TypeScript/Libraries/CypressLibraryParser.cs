@@ -217,25 +217,25 @@ public class CypressLibraryParser : DeclarativeSemanticExtension
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
-        if (!IsCypressContext(node)) return false;
+        if (!IsSuiteCall(node) && !IsTestCall(node)) return false;
 
-        return IsSuiteCall(node) || IsTestCall(node);
+        return IsCypressContext(node);
     }
 
     private static bool IsSuiteCall(Node node)
     {
         var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
         if (!func.IsValid()) return false;
-        var text = func.Text;
-        return text is "describe" or "context" or "describe.only" or "describe.skip";
+        var span = func.AsSpan();
+        return span is "describe" or "context" or "describe.only" or "describe.skip";
     }
 
     private static bool IsTestCall(Node node)
     {
         var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
         if (!func.IsValid()) return false;
-        var text = func.Text;
-        return text is "it" or "specify" or "it.only" or "it.skip";
+        var span = func.AsSpan();
+        return span is "it" or "specify" or "it.only" or "it.skip";
     }
 
     private static bool IsCypressContext(Node node)

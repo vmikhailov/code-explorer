@@ -14,6 +14,8 @@
     <Using Include="CodeExplorer.Core.Mcp" />
     <Using Include="CodeExplorer.Core.Gates" />
     <Using Include="CodeExplorer.Server" />
+    <Using Include="CodeExplorer.Core.Common.ProjectRole" Alias="ProjectRole" />
+    <Using Include="CodeExplorer.Core.Analysis.ArchitectureViewType" Alias="ArchitectureViewType" />
   </ItemGroup>
 
   <ItemGroup>

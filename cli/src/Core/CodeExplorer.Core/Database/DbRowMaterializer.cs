@@ -144,7 +144,9 @@ public static class DbRowMaterializer
         }
 
         var id = row.GetStringProp(PropId);
-        var kind = row.GetStringProp(PropKind);
+        var kind = row.TryGetProperty(PropKind, out var kindVal) && kindVal.Kind == CypherValueKind.Int64
+            ? (NodeKind)(int)kindVal.AsInt64()
+            : EnumExtensions.ParseNodeKind(row.GetStringProp(PropKind));
         var props = row.TryGetProperty(PropProperties, out var propVal)
             ? ConvertObjectToLegacyDictionary(propVal)
             : new Dictionary<string, object>(StringComparer.Ordinal);
@@ -159,7 +161,9 @@ public static class DbRowMaterializer
     public static Node MaterializeNodeFromValue(CypherValue val)
     {
         var id = val.GetStringProp(PropId);
-        var kind = val.GetStringProp(PropKind);
+        var kind = val.TryGetProperty(PropKind, out var kindVal) && kindVal.Kind == CypherValueKind.Int64
+            ? (NodeKind)(int)kindVal.AsInt64()
+            : EnumExtensions.ParseNodeKind(val.GetStringProp(PropKind));
         var props = val.TryGetProperty(PropProperties, out var propVal)
             ? ConvertObjectToLegacyDictionary(propVal)
             : new Dictionary<string, object>(StringComparer.Ordinal);
@@ -180,7 +184,20 @@ public static class DbRowMaterializer
 
         var from = row.GetStringProp(PropFromId, row.GetStringProp(PropFrom));
         var to = row.GetStringProp(PropToId, row.GetStringProp(PropTo));
-        var kind = row.GetStringProp(PropKind, row.GetStringProp(PropType));
+        RelationshipKind kind;
+        if (row.TryGetProperty(PropKind, out var kindVal) && kindVal.Kind == CypherValueKind.Int64)
+        {
+            kind = (RelationshipKind)(int)kindVal.AsInt64();
+        }
+        else if (row.TryGetProperty(PropType, out var typeVal) && typeVal.Kind == CypherValueKind.Int64)
+        {
+            kind = (RelationshipKind)(int)typeVal.AsInt64();
+        }
+        else
+        {
+            kind = EnumExtensions.ParseRelationshipKind(row.GetStringProp(PropKind, row.GetStringProp(PropType)));
+        }
+
         var props = row.TryGetProperty(PropProperties, out var propVal)
             ? ConvertObjectToLegacyDictionary(propVal)
             : null;
@@ -192,7 +209,20 @@ public static class DbRowMaterializer
     {
         var from = val.GetStringProp(PropFrom, val.GetStringProp(PropFromId));
         var to = val.GetStringProp(PropTo, val.GetStringProp(PropToId));
-        var kind = val.GetStringProp(PropType, val.GetStringProp(PropKind));
+        RelationshipKind kind;
+        if (val.TryGetProperty(PropType, out var typeVal) && typeVal.Kind == CypherValueKind.Int64)
+        {
+            kind = (RelationshipKind)(int)typeVal.AsInt64();
+        }
+        else if (val.TryGetProperty(PropKind, out var kindVal) && kindVal.Kind == CypherValueKind.Int64)
+        {
+            kind = (RelationshipKind)(int)kindVal.AsInt64();
+        }
+        else
+        {
+            kind = EnumExtensions.ParseRelationshipKind(val.GetStringProp(PropType, val.GetStringProp(PropKind)));
+        }
+
         var props = val.TryGetProperty(PropProperties, out var propVal)
             ? ConvertObjectToLegacyDictionary(propVal)
             : null;

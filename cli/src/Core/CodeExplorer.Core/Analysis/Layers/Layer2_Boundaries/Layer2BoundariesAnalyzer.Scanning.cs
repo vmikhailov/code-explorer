@@ -730,7 +730,7 @@ public partial class Layer2ProjectParser
                     if (!string.Equals(proj.Id, targetProj.Id, StringComparison.OrdinalIgnoreCase))
                     {
                         var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id, new() { ["dependency_type"] = "library" }));
-                        if (!dependencies.Any(d => d.From == proj.Id && d.To == targetProj.Id && d.Kind == OntologyConstants.Relationships.DependsOn))
+                        if (!dependencies.Any(d => d.From == proj.Id && d.To == targetProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
                         {
                             dependencies.Add(depRel);
                             ctx.AddGlobalProjectDependency(depRel);
@@ -778,14 +778,14 @@ public partial class Layer2ProjectParser
             if (bestParent != null)
             {
                 childProj.Signals().ParentProjectId = bestParent.Id;
-                var containsProjRel = new Relationship(bestParent.Id, childProj.Id, OntologyConstants.Relationships.Contains);
-                if (!dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == OntologyConstants.Relationships.Contains))
+                var containsProjRel = new Relationship(bestParent.Id, childProj.Id, CodeExplorer.Cypher.Common.RelationshipKind.Contains);
+                if (!dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.Contains))
                 {
                     dependencies.Add(containsProjRel);
                 }
 
                 if (childProj.IsLibrary && !bestParent.IsLibrary &&
-                    !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == OntologyConstants.Relationships.DependsOn))
+                    !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
                 {
                     var depRel = Relationship.FromRelationship(new DependsOnRelationship(bestParent.Id, childProj.Id, new() { ["dependency_type"] = "library" }));
                     dependencies.Add(depRel);
@@ -875,7 +875,7 @@ public partial class Layer2ProjectParser
             var targetProjectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeTargetDir}:";
 
             var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
-            if (!dependencies.Any(d => d.From == projectNodeId && d.To == targetProjectNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
+            if (!dependencies.Any(d => d.From == projectNodeId && d.To == targetProjectNodeId && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
             {
                 dependencies.Add(dependsOnRel);
                 ctx.AddGlobalProjectDependency(dependsOnRel);
@@ -903,7 +903,7 @@ public partial class Layer2ProjectParser
                 packages.Add(packageNode);
 
                 var dependsOnPkgRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, packageNodeId, new() { ["dependency_type"] = "package", ["category"] = "library" }));
-                if (!dependencies.Any(d => d.From == projectNodeId && d.To == packageNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
+                if (!dependencies.Any(d => d.From == projectNodeId && d.To == packageNodeId && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
                 {
                     dependencies.Add(dependsOnPkgRel);
                     ctx.AddGlobalProjectDependency(dependsOnPkgRel);

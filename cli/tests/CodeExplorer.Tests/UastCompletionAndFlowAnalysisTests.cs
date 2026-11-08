@@ -461,4 +461,70 @@ public class UastCompletionAndFlowAnalysisTests
         Assert.That(catchClause!.ExceptionType, Is.Not.Null);
         Assert.That(catchClause.ExceptionType!.Name, Is.EqualTo("Error"));
     }
+
+    [Test]
+    public void CallSiteContextExtractor_DetectsParallelBatchAndSerializesRelationshipProperties()
+    {
+        var code = """
+                   public class AggregatorService
+                   {
+                       public async Task AggregateAsync()
+                       {
+                           await Task.WhenAll(FetchCatalogAsync(), FetchPricingAsync());
+
+                           var invTask = FetchInventoryAsync();
+                           var shipTask = FetchShippingAsync();
+                           await Task.WhenAll(invTask, shipTask);
+
+                           await FetchLoyaltySequentialAsync();
+                       }
+                   }
+                   """;
+
+        var doc = _csParser.Parse(code, "c-sharp", "AggregatorService.cs", "AggregatorService.cs");
+
+        var catalogCall = doc.AllCalls.FirstOrDefault(c => c.MethodName == "FetchCatalogAsync");
+        var inventoryCall = doc.AllCalls.FirstOrDefault(c => c.MethodName == "FetchInventoryAsync");
+        var sequentialCall = doc.AllCalls.FirstOrDefault(c => c.MethodName == "FetchLoyaltySequentialAsync");
+
+        Assert.That(catalogCall, Is.Not.Null);
+        Assert.That(inventoryCall, Is.Not.Null);
+        Assert.That(sequentialCall, Is.Not.Null);
+
+        var catalogCtx = CallSiteContextExtractor.Extract(catalogCall!);
+        Assert.That(catalogCtx.Flags.HasFlag(CallExecutionFlags.IsParallelBatch), Is.True);
+        Assert.That(catalogCtx.Flags.HasFlag(CallExecutionFlags.IsAwaited), Is.True);
+        Assert.That(catalogCtx.IsParallel, Is.True);
+
+        var inventoryCtx = CallSiteContextExtractor.Extract(inventoryCall!);
+        Assert.That(inventoryCtx.Flags.HasFlag(CallExecutionFlags.IsParallelBatch), Is.True);
+        Assert.That(inventoryCtx.Flags.HasFlag(CallExecutionFlags.IsAwaited), Is.True);
+        Assert.That(inventoryCtx.IsParallel, Is.True);
+
+        var sequentialCtx = CallSiteContextExtractor.Extract(sequentialCall!);
+        Assert.That(sequentialCtx.Flags.HasFlag(CallExecutionFlags.IsParallelBatch), Is.False);
+        Assert.That(sequentialCtx.Flags.HasFlag(CallExecutionFlags.IsAwaited), Is.True);
+        Assert.That(sequentialCtx.IsParallel, Is.False);
+
+        var callRel = CodeExplorer.Core.Database.Relationship.CreateWithCallSite(
+            "fn:AggregateAsync",
+            "fn:FetchCatalogAsync",
+            CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+            catalogCall!.Span.StartLine + 1,
+            catalogCall.Span.StartColumn + 1,
+            catalogCtx);
+
+        Assert.That(callRel.Properties["is_parallel"], Is.EqualTo(true));
+        Assert.That(callRel.Properties["is_awaited"], Is.EqualTo(true));
+
+        var liftedServiceRel = new CodeExplorer.Core.Database.Relationship(
+            "proj:Aggregator",
+            "proj:Catalog",
+            CodeExplorer.Cypher.Common.RelationshipKind.ServiceCall);
+        EvidenceProvenanceHelper.MergeProvenance(liftedServiceRel, callRel);
+
+        Assert.That(liftedServiceRel.CallContext.IsParallel, Is.True);
+        Assert.That(liftedServiceRel.Properties["is_parallel"], Is.EqualTo(true));
+        Assert.That(liftedServiceRel.Properties["is_awaited"], Is.EqualTo(true));
+    }
 }

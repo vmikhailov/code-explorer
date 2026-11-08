@@ -210,7 +210,7 @@ public class CSharpFileVisitor : BaseParserVisitor
                     var className = classCurr.IsValid() ? ExtractCsIdentifier(classCurr) : null;
                     var targetName = !string.IsNullOrEmpty(className) ? $"{className}.{methodName}" : methodName;
 
-                    if (!symbolNode.References.Any(r => r.TargetName == targetName && r.Kind == OntologyConstants.Relationships.Triggers))
+                    if (!symbolNode.References.Any(r => r.TargetName == targetName && r.Kind == RelationshipKind.Triggers))
                     {
                         symbolNode.References.Add(new Reference("", targetName, OntologyConstants.Relationships.Triggers));
                     }

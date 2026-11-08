@@ -70,5 +70,8 @@ public record ExternalServiceNode(
     public bool? InferredFromIdentifier { get; set; }
 
     [JsonIgnore]
+    public CallSiteExecutionContext CallContext { get; set; }
+
+    [JsonIgnore]
     public override NodeKind Kind => NodeKind.ExternalService;
 }

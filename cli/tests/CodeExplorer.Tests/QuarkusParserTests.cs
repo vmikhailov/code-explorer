@@ -157,16 +157,16 @@ paths:
 
             // References check
             var references = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
-            var persistedIn = references.Where(r => r.Kind == OntologyConstants.Relationships.PersistedIn).ToList();
+            var persistedIn = references.Where(r => r.Kind == RelationshipKind.PersistedIn).ToList();
             Assert.That(persistedIn.Any(r => r.TargetName == "Fights"), Is.True);
 
-            var accessedBy = references.Where(r => r.Kind == OntologyConstants.Relationships.AccessedBy).ToList();
+            var accessedBy = references.Where(r => r.Kind == RelationshipKind.AccessedBy).ToList();
             Assert.That(accessedBy.Any(r => r.TargetName == "Hero"), Is.True);
 
-            var subscribesTo = references.Where(r => r.Kind == OntologyConstants.Relationships.SubscribesTo).ToList();
+            var subscribesTo = references.Where(r => r.Kind == RelationshipKind.SubscribesTo).ToList();
             Assert.That(subscribesTo.Any(r => r.TargetName == "kafka:fights"), Is.True);
 
-            var publishesTo = references.Where(r => r.Kind == OntologyConstants.Relationships.PublishesTo).ToList();
+            var publishesTo = references.Where(r => r.Kind == RelationshipKind.PublishesTo).ToList();
             Assert.That(publishesTo.Any(r => r.TargetName == "kafka:winner-stats"), Is.True);
             Assert.That(publishesTo.Any(r => r.TargetName == "kafka:fights"), Is.True);
         }

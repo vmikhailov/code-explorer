@@ -241,6 +241,31 @@ public class PlaywrightLibraryParser : DeclarativeSemanticExtension
         rootId = "";
         members = [];
 
+        if (funcNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            if (funcNode.AsSpan() is "test")
+            {
+                rootId = "test";
+            }
+            return;
+        }
+
+        var probe = funcNode;
+        while (probe.IsValid())
+        {
+            if (probe.Is(TreeSitterSyntax.TypeScript.Identifier))
+            {
+                if (probe.AsSpan() is not "test") return;
+                break;
+            }
+            if (probe.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                probe = probe.GetChildForField(TreeSitterSyntax.Fields.Object);
+                continue;
+            }
+            return;
+        }
+
         var current = funcNode;
         while (current.IsValid())
         {

@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -340,20 +341,13 @@ public partial class PostIndexAnalyzer
 
         if (ctx.DbClient != null)
         {
-            await ctx.DbClient.ExecuteWriteAsync(
-                "DELETE FROM edges WHERE kind = 'USES_DB' AND (from_id LIKE '%:p:%' OR from_id LIKE '%:project:%' OR from_id LIKE '%:svc:%' OR from_id LIKE '%:app:%' OR from_id LIKE '%:wrk:%' OR from_id LIKE '%:lib:%');");
-        }
+            if (canonicalRels.Count > 0)
+            {
+                ctx.PostIndexLog.MaterializingCanonicalDatabaseRelationships(canonicalRels.Count);
+                ctx.AddRelsCount(canonicalRels.Count);
+            }
 
-        if (canonicalRels.Count > 0 && ctx.DbClient != null)
-        {
-            ctx.PostIndexLog.MaterializingCanonicalDatabaseRelationships(canonicalRels.Count);
-            await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
-            ctx.AddRelsCount(canonicalRels.Count);
-        }
-
-        if (ctx.DbClient != null)
-        {
-            // Apply domain-scoped remappings to edges
+            var remaps = new List<DomainEdgeTargetRemap>();
             foreach (var (domain, dMap) in domainScopedRemap)
             {
                 var domProjs = projectsByDomain.GetValueOrDefault(domain, []);
@@ -362,18 +356,16 @@ public partial class PostIndexAnalyzer
                 {
                     foreach (var pId in domProjIds)
                     {
-                        await ctx.DbClient.ExecuteWriteAsync(
-                            "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
-                            new { winnerId, loserId, pIdPrefix = $"{pId}%" });
+                        remaps.Add(new DomainEdgeTargetRemap(loserId, winnerId, $"{pId}%"));
                         if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(pId, out var wlId) && !string.IsNullOrEmpty(wlId))
                         {
-                            await ctx.DbClient.ExecuteWriteAsync(
-                                "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @wlIdPrefix;",
-                                new { winnerId, loserId, wlIdPrefix = $"{wlId}%" });
+                            remaps.Add(new DomainEdgeTargetRemap(loserId, winnerId, $"{wlId}%"));
                         }
                     }
                 }
             }
+
+            await ctx.DbClient.ReplaceProjectDatabaseRelationshipsAndRemapAsync(canonicalRels, remaps);
         }
 
         return canonicalRels;
@@ -384,108 +376,22 @@ public partial class PostIndexAnalyzer
         Dictionary<string, string> rawToCanonical,
         Dictionary<string, DatabaseNode> canonicalDbNodes)
     {
-        // Clean up duplicate non-canonical database nodes
-        foreach (var (rawId, canonicalId) in rawToCanonical)
-        {
-            if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
+        if (ctx.DbClient == null) return;
+
+        var rootDirName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
+        var orderedDbs = canonicalDbNodes
+            .OrderBy(kvp =>
             {
-                await ctx.DbClient.ExecuteWriteAsync("""
-                    UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;
-                    DELETE FROM edges WHERE to_id = @rawId;
-                    UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;
-                    DELETE FROM edges WHERE from_id = @rawId;
-                    DELETE FROM nodes WHERE id = @rawId;
-                    """, new { canonicalId, rawId });
-            }
-        }
+                var dbName = kvp.Value.Name ?? "";
+                var clean = dbName.Contains('.') ? dbName.Split('.', 2)[1] : dbName;
+                return (!string.IsNullOrEmpty(rootDirName) && clean.Equals(rootDirName, StringComparison.OrdinalIgnoreCase)) ? 1 : 0;
+            })
+            .Select(kvp => new CanonicalDatabasePropagationInfo(kvp.Key, kvp.Value.Name ?? "", kvp.Value.Engine ?? ""))
+            .ToList();
 
-        // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-        await ctx.DbClient.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND kind = 'CONTAINS' AND from_id NOT LIKE '%semantic_structure%';");
-
-        // Purge any remaining phantom Database nodes that were not canonicalized
-        var validIds = canonicalDbNodes.Keys.ToList();
-        if (validIds.Count > 0)
-        {
-            var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-            var paramDict = new Dictionary<string, object>();
-            for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
-
-            await ctx.DbClient.ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
-                paramDict);
-        }
-        else
-        {
-            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM nodes WHERE kind = 'Database';");
-        }
-
-        // Link orphaned DDL tables (e.g. created via .sql schema files without explicit CREATE DATABASE) to canonical database
-        if (canonicalDbNodes.Count > 0)
-        {
-            var rootDirName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
-            var orderedDbs = canonicalDbNodes
-                .OrderBy(kvp =>
-                {
-                    var dbName = kvp.Value.Name ?? "";
-                    var clean = dbName.Contains('.') ? dbName.Split('.', 2)[1] : dbName;
-                    return (!string.IsNullOrEmpty(rootDirName) && clean.Equals(rootDirName, StringComparison.OrdinalIgnoreCase)) ? 1 : 0;
-                })
-                .ToList();
-
-            // 1. Link each Table to the matching canonical Database based on path/project/name
-            foreach (var (dbId, dbNode) in orderedDbs)
-            {
-                var dbName = dbNode.Name ?? "";
-                var cleanDbName = dbName.Contains('.') ? dbName.Split('.', 2)[1] : dbName;
-                var dbKey = dbId.Split(':').LastOrDefault() ?? cleanDbName;
-                if (string.IsNullOrWhiteSpace(cleanDbName) || cleanDbName.Length < 3) continue;
-
-                await ctx.DbClient.ExecuteWriteAsync(@"
-                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                    SELECT @dbId, t.id, 'CONTAINS', '{}'
-                    FROM nodes t
-                    WHERE t.kind = 'Table'
-                      AND (
-                          instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '/') > 0
-                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '-') > 0
-                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '_') > 0
-                          OR instr(lower(t.id), lower(@cleanDbName)) > 0
-                      )
-                      AND NOT EXISTS (
-                          SELECT 1 FROM edges e
-                          JOIN nodes d ON e.from_id = d.id
-                          WHERE e.to_id = t.id AND e.kind = 'CONTAINS' AND d.kind IN ('Database', 'DataSet')
-                      );",
-                    new { dbId, cleanDbName, dbKey });
-            }
-
-            var primaryCanonicalId = canonicalDbNodes.Keys.First();
-            await ctx.DbClient.ExecuteWriteAsync(@"
-                INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                SELECT @primaryCanonicalId, t.id, 'CONTAINS', '{}'
-                FROM nodes t
-                WHERE t.kind = 'Table'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM edges e
-                      JOIN nodes d ON e.from_id = d.id
-                      WHERE e.to_id = t.id AND e.kind = 'CONTAINS' AND d.kind IN ('Database', 'DataSet')
-                  );",
-                new { primaryCanonicalId });
-
-            // Link owning Project to Table via DEFINES
-            await ctx.DbClient.ExecuteWriteAsync(@"
-                INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                SELECT p.id, t.id, 'DEFINES', '{}'
-                FROM nodes t
-                CROSS JOIN edges e1 ON e1.to_id = t.id AND e1.kind = 'CONTAINS'
-                CROSS JOIN nodes f ON e1.from_id = f.id AND f.kind = 'File'
-                CROSS JOIN edges e2 ON e2.to_id = f.id AND e2.kind = 'CONTAINS'
-                CROSS JOIN nodes p ON e2.from_id = p.id AND p.kind = 'Project'
-                WHERE t.kind = 'Table'
-                  AND NOT EXISTS (
-                    SELECT 1 FROM edges ep WHERE ep.from_id = p.id AND ep.to_id = t.id AND ep.kind = 'DEFINES'
-                );");
-        }
+        await ctx.DbClient.CleanupAndPropagateDatabaseEntitiesAsync(
+            rawToCanonical,
+            orderedDbs,
+            propagateChildSchemaProperties: false);
     }
 }

@@ -102,12 +102,12 @@ func queryDatabase(ctx context.Context, pool *pgxpool.Pool) {
 
             var selectQuery = queries.FirstOrDefault(q => q.QueryText.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
             selectQuery.Should().NotBeNull();
-            selectQuery!.References.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "postgres").Should().BeTrue();
+            selectQuery!.References.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "postgres").Should().BeTrue();
             selectQuery.References.Any(r => r.TargetName.Equals("users", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
 
             var deleteQuery = queries.FirstOrDefault(q => q.QueryText.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
             deleteQuery.Should().NotBeNull();
-            deleteQuery!.References.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "postgres").Should().BeTrue();
+            deleteQuery!.References.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "postgres").Should().BeTrue();
             deleteQuery.References.Any(r => r.TargetName.Equals("orders", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
         }
         finally
@@ -260,12 +260,12 @@ func (r *Repo) Init(ctx context.Context) error {
 
             var createTableQuery = queries.FirstOrDefault(q => q.QueryText.Contains("CREATE TABLE", StringComparison.OrdinalIgnoreCase));
             createTableQuery.Should().NotBeNull();
-            createTableQuery!.References.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "clickhouse").Should().BeTrue();
+            createTableQuery!.References.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "clickhouse").Should().BeTrue();
             createTableQuery.References.Any(r => r.TargetName.Equals("bundle_placements", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
 
             var insertQuery = queries.FirstOrDefault(q => q.QueryText.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase));
             insertQuery.Should().NotBeNull();
-            insertQuery!.References.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "clickhouse").Should().BeTrue();
+            insertQuery!.References.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "clickhouse").Should().BeTrue();
             insertQuery.References.Any(r => r.TargetName.Equals("bundle_snapshots", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
         }
         finally
@@ -324,12 +324,12 @@ func (r *BqRepo) QueryData(ctx context.Context) error {
 
             var selectQuery = queries.FirstOrDefault(q => q.QueryText.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
             selectQuery.Should().NotBeNull();
-            selectQuery!.References.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "bigquery").Should().BeTrue();
+            selectQuery!.References.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "bigquery").Should().BeTrue();
             selectQuery.References.Any(r => r.TargetName.Equals("historical_events", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
 
             var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
             allRefs.Any(r => r.TargetName.Equals("event_stream", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "bigquery").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "bigquery").Should().BeTrue();
         }
         finally
         {
@@ -396,9 +396,9 @@ func StartIngest(ctx context.Context) {
             var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
 
             // Literal topic names are preserved as written
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:IMPRESSION_TOPIC").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:CONVERSION_TOPIC").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:TYPE_CPV1").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:IMPRESSION_TOPIC").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:CONVERSION_TOPIC").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:TYPE_CPV1").Should().BeTrue();
         }
         finally
         {
@@ -454,8 +454,8 @@ func Run(ctx context.Context, client dapr.Client) error {
 
             var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
 
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName.Contains("orders-received")).Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName.Contains("orders-processed")).Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName.Contains("orders-received")).Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("orders-processed")).Should().BeTrue();
         }
         finally
         {
@@ -498,9 +498,9 @@ func getTrainerHours(ctx context.Context, client *firestore.Client) {
             fileNode.Should().NotBeNull();
 
             var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "firestore").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "trainer-hours").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "trainings").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "firestore").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "trainer-hours").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "trainings").Should().BeTrue();
         }
         finally
         {

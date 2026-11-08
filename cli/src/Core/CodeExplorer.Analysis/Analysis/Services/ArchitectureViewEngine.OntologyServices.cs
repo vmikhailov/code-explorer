@@ -237,13 +237,13 @@ public partial class ArchitectureViewEngine
                 IReadOnlyList<(string SName, string SId, int EpCount)> epRows;
                 if (db is SqliteGraphClient)
                 {
-                    const string fastEpQuery = """
-                        SELECT coalesce(json_extract(s.properties, '$.name'), s.id) AS sName, s.id AS sId, COUNT(ep.id) AS epCount
+                    var fastEpQuery = $"""
+                        SELECT coalesce(json_extract(s.properties, '$.name'), s.id) AS sName, s.id AS sId, COUNT(ep.rowid) AS epCount
                         FROM nodes ep
-                        JOIN edges _r0 ON _r0.to_id = ep.id AND _r0.kind = 'CONTAINS'
-                        JOIN nodes s ON s.id = _r0.from_id
-                        WHERE ep.kind = 'Endpoint'
-                          AND (s.kind IN ('Project', 'Service', 'App', 'Worker', 'CliTool', 'TestSuite'))
+                        JOIN edges _r0 ON _r0.to_id = ep.rowid AND _r0.kind = {GraphKindCodec.EncodeRelKind(RelationshipKind.Contains)}
+                        JOIN nodes s ON s.rowid = _r0.from_id
+                        WHERE ep.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Endpoint)}
+                          AND (s.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.CliTool, NodeKind.TestSuite)}))
                         GROUP BY sName, sId;
                         """;
                     epRows = await db.QueryAsync<(string SName, string SId, int EpCount)>(fastEpQuery, null, ct);

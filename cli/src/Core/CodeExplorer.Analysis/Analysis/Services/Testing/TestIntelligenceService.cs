@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Core.Analysis.Testing;
@@ -238,11 +239,12 @@ public class TestIntelligenceService
         var methodToType = new Dictionary<string, (string TypeId, string TypeName)>();
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = """
-                SELECT e.from_id, e.to_id, json_extract(n.properties, '$.name')
+            cmd.CommandText = $"""
+                SELECT tn.id, mn.id, json_extract(tn.properties, '$.name')
                 FROM edges e
-                JOIN nodes n ON e.from_id = n.id
-                WHERE e.kind = 'HAS_METHOD';
+                JOIN nodes tn ON e.from_id = tn.rowid
+                JOIN nodes mn ON e.to_id = mn.rowid
+                WHERE e.kind = {GraphKindCodec.EncodeRelKind(RelationshipKind.HasMethod)};
                 """;
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -258,7 +260,7 @@ public class TestIntelligenceService
         // Query Nodes
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT id, kind, json(properties) FROM nodes WHERE kind IN ('Type', 'Function');";
+            cmd.CommandText = $"SELECT id, ce_node_kind(kind), json(properties) FROM nodes WHERE kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Type, NodeKind.Function)});";
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -347,18 +349,19 @@ public class TestIntelligenceService
 
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = """
+            var relKindsSql = GraphKindCodec.RelKindsInSql(RelationshipKind.Calls, RelationshipKind.UsesType);
+            cmd.CommandText = $"""
                 WITH RECURSIVE reach AS (
                     -- Anchor: direct calls or uses from test methods
                     SELECT
                         t.id AS test_id,
                         COALESCE(json_extract(n.properties, '$.name'), t.id) AS test_name,
-                        e.to_id AS target_id,
+                        e.to_id AS target_rowid,
                         1 AS depth
                     FROM temp_test_ids t
                     JOIN nodes n ON t.id = n.id
-                    JOIN edges e ON t.id = e.from_id
-                    WHERE e.kind IN ('CALLS', 'USES_TYPE')
+                    JOIN edges e ON n.rowid = e.from_id
+                    WHERE e.kind IN ({relKindsSql})
 
                     UNION
 
@@ -366,19 +369,20 @@ public class TestIntelligenceService
                     SELECT
                         r.test_id,
                         r.test_name,
-                        e.to_id AS target_id,
+                        e.to_id AS target_rowid,
                         r.depth + 1
                     FROM reach r
-                    JOIN edges e ON r.target_id = e.from_id
-                    WHERE e.kind IN ('CALLS', 'USES_TYPE')
+                    JOIN edges e ON r.target_rowid = e.from_id
+                    WHERE e.kind IN ({relKindsSql})
                       AND r.depth < 12
                 )
                 SELECT
-                    target_id,
-                    MIN(depth) AS min_depth,
-                    GROUP_CONCAT(DISTINCT test_name) AS covering_tests
-                FROM reach
-                GROUP BY target_id;
+                    tn.id AS target_id,
+                    MIN(r.depth) AS min_depth,
+                    GROUP_CONCAT(DISTINCT r.test_name) AS covering_tests
+                FROM reach r
+                JOIN nodes tn ON tn.rowid = r.target_rowid
+                GROUP BY tn.id;
                 """;
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -531,7 +535,7 @@ public class TestIntelligenceService
             : null;
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id, kind, json(properties) FROM nodes WHERE kind IN ('Function', 'Type', 'Member', 'class', 'interface');";
+        cmd.CommandText = $"SELECT id, ce_node_kind(kind), json(properties) FROM nodes WHERE kind IN ({GraphKindCodec.ChangedSymbolKindsSql});";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -661,16 +665,17 @@ public class TestIntelligenceService
 
             await using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = """
-                    SELECT e.from_id,
-                           e.to_id,
-                           e.kind,
+                cmd.CommandText = $"""
+                    SELECT fn.id,
+                           tn.id,
+                           ce_rel_kind(e.kind),
                            json(fn.properties),
-                           COALESCE(json_extract(fn.properties, '$.name'), e.from_id) AS caller_name
+                           COALESCE(json_extract(fn.properties, '$.name'), fn.id) AS caller_name
                     FROM temp_frontier f
-                    JOIN edges e ON e.to_id = f.id
-                    JOIN nodes fn ON e.from_id = fn.id
-                    WHERE e.kind IN ('CALLS', 'USES_TYPE', 'IMPLEMENTS', 'INHERITS_FROM', 'HAS_METHOD');
+                    JOIN nodes tn ON tn.id = f.id
+                    JOIN edges e ON e.to_id = tn.rowid
+                    JOIN nodes fn ON e.from_id = fn.rowid
+                    WHERE e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.Calls, RelationshipKind.UsesType, RelationshipKind.Implements, RelationshipKind.InheritsFrom, RelationshipKind.HasMethod)});
                     """;
 
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -866,16 +871,16 @@ public class TestIntelligenceService
 
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = """
+            cmd.CommandText = $"""
                 SELECT
                     COALESCE(json_extract(f.properties, '$.name'), '') AS name,
                     COALESCE(json_extract(f.properties, '$.symbol'), '') AS symbol,
                     COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), '') AS file_path,
                     COALESCE(json_extract(p.properties, '$.name'), '') AS class_name
                 FROM nodes f
-                LEFT JOIN edges e ON e.to_id = f.id AND e.kind IN ('HAS_METHOD', 'CONTAINS')
-                LEFT JOIN nodes p ON e.from_id = p.id AND p.kind IN ('Type', 'Class', 'Record', 'class', 'interface')
-                WHERE f.kind IN ('Function', 'Method')
+                LEFT JOIN edges e ON e.to_id = f.rowid AND e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.HasMethod, RelationshipKind.Contains)})
+                LEFT JOIN nodes p ON e.from_id = p.rowid AND p.kind IN ({GraphKindCodec.TestContainerTypeKindsSql})
+                WHERE f.kind IN ({GraphKindCodec.TestFunctionKindsSql})
                   AND (
                       json_extract(f.properties, '$.is_test') = 'true'
                       OR json_extract(f.properties, '$.is_test') = 1

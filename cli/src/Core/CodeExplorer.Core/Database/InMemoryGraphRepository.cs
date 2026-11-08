@@ -137,7 +137,8 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                 return ValueTask.FromResult<IReadOnlyList<Relationship>>([.. rels]);
             }
 
-            var filtered = rels.Where(r => string.Equals(r.Kind, relationshipKind, StringComparison.OrdinalIgnoreCase)).ToList();
+            var parsedKind = EnumExtensions.ParseRelationshipKind(relationshipKind);
+            var filtered = rels.Where(r => r.Kind == parsedKind).ToList();
             return ValueTask.FromResult<IReadOnlyList<Relationship>>(filtered);
         }
     }
@@ -161,7 +162,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                 return ValueTask.FromResult<IReadOnlyList<Relationship>>([.. rels]);
             }
 
-            var filtered = rels.Where(r => EnumExtensions.ParseRelationshipKind(r.Kind) == relationshipKind).ToList();
+            var filtered = rels.Where(r => r.Kind == relationshipKind).ToList();
             return ValueTask.FromResult<IReadOnlyList<Relationship>>(filtered);
         }
     }
@@ -200,7 +201,8 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                 return ValueTask.FromResult<IReadOnlyList<Relationship>>([.. rels]);
             }
 
-            var filtered = rels.Where(r => string.Equals(r.Kind, relationshipKind, StringComparison.OrdinalIgnoreCase)).ToList();
+            var parsedKind = EnumExtensions.ParseRelationshipKind(relationshipKind);
+            var filtered = rels.Where(r => r.Kind == parsedKind).ToList();
             return ValueTask.FromResult<IReadOnlyList<Relationship>>(filtered);
         }
     }
@@ -224,7 +226,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                 return ValueTask.FromResult<IReadOnlyList<Relationship>>([.. rels]);
             }
 
-            var filtered = rels.Where(r => EnumExtensions.ParseRelationshipKind(r.Kind) == relationshipKind).ToList();
+            var filtered = rels.Where(r => r.Kind == relationshipKind).ToList();
             return ValueTask.FromResult<IReadOnlyList<Relationship>>(filtered);
         }
     }
@@ -236,10 +238,10 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
             foreach (var node in nodes)
             {
                 NodesById[node.Id] = node;
-                var kindMap = NodesByKind.GetOrAdd(node.Kind, _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
+                var kindMap = NodesByKind.GetOrAdd(node.Kind.ToCypherLabel(), _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
                 kindMap[node.Id] = node;
 
-                var kindEnum = EnumExtensions.ParseNodeKind(node.Kind);
+                var kindEnum = node.Kind;
                 if (kindEnum != NodeKind.Unspecified)
                 {
                     var kindEnumMap = NodesByKindEnum.GetOrAdd(kindEnum, _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
@@ -312,7 +314,7 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
                     var name = node.GetName();
                     if (!string.IsNullOrEmpty(name) && targetNames.Contains(name))
                     {
-                        result[(node.Kind, name)] = node.Id;
+                        result[(node.Kind.ToCypherLabel(), name)] = node.Id;
                     }
                 }
             }

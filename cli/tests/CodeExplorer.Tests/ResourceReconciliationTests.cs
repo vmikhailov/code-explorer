@@ -152,7 +152,7 @@ public class ResourceReconciliationTests
         var rel = new UsesDbRelationship("from:1", "to:1", relExt);
         var dbRel = Relationship.FromRelationship(rel);
 
-        dbRel.Kind.Should().Be(OntologyConstants.Relationships.UsesDb);
+        dbRel.Kind.Should().Be(RelationshipKind.UsesDb);
         dbRel.Properties.Should().NotBeNull();
         dbRel.Properties!["via"]?.ToString().Should().Be("TypeORM");
         dbRel.Properties!["provider"]?.ToString().Should().Be("typeorm");

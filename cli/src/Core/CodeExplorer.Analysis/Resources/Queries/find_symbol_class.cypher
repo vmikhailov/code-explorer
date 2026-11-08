@@ -1,4 +1,4 @@
-MATCH (n:Type {kind: 'class'}) WHERE n.name CONTAINS $name
+MATCH (n:Type {kind: 'class'}) WHERE n.name IS NOT NULL AND n.name CONTAINS $name
 OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File)
 OPTIONAL MATCH (w:Workspace)
 RETURN 'Class' AS type, n.name AS name, n.symbol AS fullName,

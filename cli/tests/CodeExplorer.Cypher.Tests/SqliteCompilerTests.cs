@@ -1,6 +1,8 @@
 using System.Text.Json;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
+using CodeExplorer.Cypher.Tests.Shared;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 
@@ -16,20 +18,21 @@ public class SqliteCompilerTests
     {
         _conn = new SqliteConnection("Data Source=:memory:");
         _conn.Open();
+        SqliteCypherFunctions.Register(_conn);
 
         using var cmd = _conn.CreateCommand();
 
         cmd.CommandText = @"
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
-                kind TEXT NOT NULL,
+                kind INTEGER NOT NULL,
                 properties TEXT NOT NULL
             );
 
             CREATE TABLE edges (
-                from_id TEXT NOT NULL,
-                to_id TEXT NOT NULL,
-                kind TEXT NOT NULL,
+                from_id INTEGER NOT NULL,
+                to_id INTEGER NOT NULL,
+                kind INTEGER NOT NULL,
                 properties TEXT NOT NULL
             );
 
@@ -84,7 +87,7 @@ public class SqliteCompilerTests
 
         cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
         cmd.Parameters.AddWithValue("@id", id);
-        cmd.Parameters.AddWithValue("@kind", kind);
+        cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeNodeKind(kind));
         cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
         cmd.ExecuteNonQuery();
     }
@@ -93,10 +96,10 @@ public class SqliteCompilerTests
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, '{}')";
+        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, '{}')";
         cmd.Parameters.AddWithValue("@from", fromId);
         cmd.Parameters.AddWithValue("@to", toId);
-        cmd.Parameters.AddWithValue("@kind", kind);
+        cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeRelKind(kind));
         cmd.ExecuteNonQuery();
     }
 
@@ -248,7 +251,7 @@ public class SqliteCompilerTests
         var compiled = SqliteCompiler.Compile(ast);
 
         // Verify the condition was placed into the LEFT JOIN ON clause, not dropped
-        compiled.Sql.Should().Contain("LEFT JOIN nodes ep ON 1=1 AND ep.kind = 'Endpoint' AND (json_extract(ep.properties, '$.path') = json_extract(f.properties, '$.path'))");
+        compiled.Sql.Should().Contain($"LEFT JOIN nodes ep ON 1=1 AND ep.kind = {GraphKindCodec.EncodeNodeKind("Endpoint")} AND (json_extract(ep.properties, '$.path') = json_extract(f.properties, '$.path'))");
 
         var rows = ExecuteCypher(cypher);
 
@@ -281,7 +284,7 @@ public class SqliteCompilerTests
         var compiled = SqliteCompiler.Compile(ast);
 
         // Verify the list comprehension was collapsed to an equality join in the ON clause
-        compiled.Sql.Should().Contain("LEFT JOIN nodes es ON 1=1 AND es.kind = 'ExternalService' AND (json_extract(es.properties, '$.file_path') = json_extract(f.properties, '$.path'))");
+        compiled.Sql.Should().Contain($"LEFT JOIN nodes es ON 1=1 AND es.kind = {GraphKindCodec.EncodeNodeKind("ExternalService")} AND (json_extract(es.properties, '$.file_path') = json_extract(f.properties, '$.path'))");
 
         var rows = ExecuteCypher(cypher);
 
@@ -515,13 +518,13 @@ public class SqliteCompilerTests
         using var cmd = _conn.CreateCommand();
 
         cmd.CommandText =
-            "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ('fn:process', 'fn:notify', 'ASYNC_CALL', '{\"via\":\"rabbitmq\",\"call_chain\":\"process->notify\"}')";
+            $"INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = 'fn:process'), (SELECT rowid FROM nodes WHERE id = 'fn:notify'), {GraphKindCodec.EncodeRelKind("TRIGGERS")}, '{{\"via\":\"rabbitmq\",\"call_chain\":\"process->notify\"}}')";
         cmd.ExecuteNonQuery();
 
         // 1. Direct access to relationship properties: r.via, r.call_chain
         var rowsDirect =
             ExecuteCypher(
-                "MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function) RETURN r.via AS via, r.call_chain AS chain");
+                "MATCH (a:Function)-[r:TRIGGERS]->(b:Function) RETURN r.via AS via, r.call_chain AS chain");
         rowsDirect.Should().HaveCount(1);
         rowsDirect[0]["via"].Should().Be("rabbitmq");
         rowsDirect[0]["chain"].Should().Be("process->notify");
@@ -537,12 +540,12 @@ public class SqliteCompilerTests
 
         // 3. WITH r (passing relationship object itself) and then type(r)
         var rowsWithRel = ExecuteCypher(@"
-            MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function)
+            MATCH (a:Function)-[r:TRIGGERS]->(b:Function)
             WITH r, count(b) AS cnt
             RETURN type(r) AS t, r.via AS via, cnt
         ");
         rowsWithRel.Should().HaveCount(1);
-        rowsWithRel[0]["t"].Should().Be("ASYNC_CALL");
+        rowsWithRel[0]["t"].Should().Be("TRIGGERS");
         rowsWithRel[0]["via"].Should().Be("rabbitmq");
     }
 
@@ -608,9 +611,9 @@ public class SqliteCompilerTests
 
         var compiled = SqliteCompiler.Compile(ast);
         compiled.Sql.Should().NotContain("NOT EXISTS");
-        compiled.Sql.Should().Contain("s1.kind = 'Service'");
-        compiled.Sql.Should().Contain("s2.kind = 'Service'");
-        compiled.Sql.Should().Contain("d.kind = 'Database'");
+        compiled.Sql.Should().Contain($"s1.kind = {GraphKindCodec.EncodeNodeKind("Service")}");
+        compiled.Sql.Should().Contain($"s2.kind = {GraphKindCodec.EncodeNodeKind("Service")}");
+        compiled.Sql.Should().Contain($"d.kind = {GraphKindCodec.EncodeNodeKind("Database")}");
     }
 
     [Test]
@@ -667,7 +670,7 @@ public class SqliteCompilerTests
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
 
-        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id");
+        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.rowid");
         compiled.Sql.Should().Contain("json_extract(_src_anc.properties, '$.name')");
 
         var rows = ExecuteCypher(cypher);
@@ -688,7 +691,7 @@ public class SqliteCompilerTests
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
 
-        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.to_id = _src_anc.id");
+        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.to_id = _src_anc.rowid");
         compiled.Sql.Should().Contain("json_extract(_src_anc.properties, '$.name')");
 
         var rows = ExecuteCypher(cypher);

@@ -142,14 +142,14 @@ public class Phase3To5LibraryExpansionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.PersistedIn && r.TargetName == "accounts"), Is.True);
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "mongodb"), Is.True);
-            Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.TargetName == "accounts"), Is.True);
-            Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "bun:sql"), Is.True);
-            Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "marten:postgres"), Is.True);
-            Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "marten-events:Append"), Is.True);
-            Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "invoices"), Is.True);
-            Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "mikro-orm"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.PersistedIn && r.TargetName == "accounts"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "mongodb"), Is.True);
+            Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "accounts"), Is.True);
+            Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "bun:sql"), Is.True);
+            Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "marten:postgres"), Is.True);
+            Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "marten-events:Append"), Is.True);
+            Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "invoices"), Is.True);
+            Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "mikro-orm"), Is.True);
         });
     }
 
@@ -198,12 +198,12 @@ public class Phase3To5LibraryExpansionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.TargetName == "aws:s3"), Is.True);
-            Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "polly:WaitAndRetryAsync"), Is.True);
-            Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "otel:StartActivity"), Is.True);
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.TargetName == "aws:s3"), Is.True);
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "aws:sqs"), Is.True);
-            Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.TargetName == "aws:s3"), Is.True);
+            Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "aws:s3"), Is.True);
+            Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "polly:WaitAndRetryAsync"), Is.True);
+            Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "otel:StartActivity"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "aws:s3"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "aws:sqs"), Is.True);
+            Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "aws:s3"), Is.True);
         });
     }
 
@@ -253,14 +253,14 @@ public class Phase3To5LibraryExpansionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "temporal:activities"), Is.True);
-            Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "temporal:paymentWorkflow"), Is.True);
-            Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "llm:generateText"), Is.True);
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "temporal:charge_card"), Is.True);
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "temporal:charge_card"), Is.True);
-            Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "llm:openai"), Is.True);
-            Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "temporal:ChargeCard"), Is.True);
-            Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "temporal:ChargeCard"), Is.True);
+            Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "temporal:activities"), Is.True);
+            Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "temporal:paymentWorkflow"), Is.True);
+            Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "llm:generateText"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "temporal:charge_card"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "temporal:charge_card"), Is.True);
+            Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "llm:openai"), Is.True);
+            Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "temporal:ChargeCard"), Is.True);
+            Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "temporal:ChargeCard"), Is.True);
         });
     }
 }

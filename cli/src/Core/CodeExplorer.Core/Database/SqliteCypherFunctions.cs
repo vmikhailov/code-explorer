@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Core.Database;
@@ -13,6 +14,51 @@ public static class SqliteCypherFunctions
         RegisterStringFunctions(conn);
         RegisterObjectFunctions(conn);
         RegisterListFunctions(conn);
+        RegisterKindFunctions(conn);
+    }
+
+    private static void RegisterKindFunctions(SqliteConnection conn)
+    {
+        const string fnNodeKind = "ce_node_kind";
+        const string fnNodeKindId = "ce_node_kind_id";
+        const string fnRelKind = "ce_rel_kind";
+        const string fnRelKindId = "ce_rel_kind_id";
+
+        conn.CreateFunction<object?, string?>(fnNodeKind, static v => v switch
+        {
+            null => null,
+            long l => GraphKindCodec.DecodeNodeKind((int)l),
+            int i => GraphKindCodec.DecodeNodeKind(i),
+            string s => int.TryParse(s, out var parsed) ? GraphKindCodec.DecodeNodeKind(parsed) : s,
+            _ => v.ToString()
+        }, isDeterministic: true);
+
+        conn.CreateFunction<object?, int?>(fnNodeKindId, static v => v switch
+        {
+            null => null,
+            long l => (int)l,
+            int i => i,
+            string s => GraphKindCodec.EncodeNodeKind(s),
+            _ => GraphKindCodec.EncodeNodeKind(v.ToString())
+        }, isDeterministic: true);
+
+        conn.CreateFunction<object?, string?>(fnRelKind, static v => v switch
+        {
+            null => null,
+            long l => GraphKindCodec.DecodeRelKind((int)l),
+            int i => GraphKindCodec.DecodeRelKind(i),
+            string s => int.TryParse(s, out var parsed) ? GraphKindCodec.DecodeRelKind(parsed) : s,
+            _ => v.ToString()
+        }, isDeterministic: true);
+
+        conn.CreateFunction<object?, int?>(fnRelKindId, static v => v switch
+        {
+            null => null,
+            long l => (int)l,
+            int i => i,
+            string s => GraphKindCodec.EncodeRelKind(s),
+            _ => GraphKindCodec.EncodeRelKind(v.ToString())
+        }, isDeterministic: true);
     }
 
     private static void RegisterMathFunctions(SqliteConnection conn)

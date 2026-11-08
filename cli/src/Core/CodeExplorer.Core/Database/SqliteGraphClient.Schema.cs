@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Extensions.Logging;
 
@@ -165,11 +166,57 @@ public partial class SqliteGraphClient
                     """);
             }
 
+            if (fromVersion < 6)
+            {
+                sb.AppendLine("""
+                    DROP INDEX IF EXISTS idx_nodes_kind;
+                    DROP INDEX IF EXISTS idx_nodes_kind_path;
+                    DROP INDEX IF EXISTS idx_nodes_kind_file_path;
+                    DROP INDEX IF EXISTS idx_nodes_kind_name;
+                    DROP INDEX IF EXISTS idx_nodes_name_kind;
+                    DROP INDEX IF EXISTS idx_nodes_kind_symbol;
+                    DROP INDEX IF EXISTS idx_nodes_kind_lower_path;
+                    DROP INDEX IF EXISTS idx_edges_from_kind_to;
+                    DROP INDEX IF EXISTS idx_edges_to_kind_from;
+                    DROP INDEX IF EXISTS idx_edges_kind_from_to;
+                    DROP INDEX IF EXISTS idx_edges_unique;
+                    CREATE TABLE nodes_v6 (
+                        id TEXT PRIMARY KEY,
+                        kind INTEGER NOT NULL,
+                        properties JSONB NOT NULL
+                    );
+                    INSERT INTO nodes_v6 (rowid, id, kind, properties)
+                    SELECT rowid, id, CASE WHEN typeof(kind) = 'integer' THEN kind ELSE ce_node_kind_id(kind) END, properties
+                    FROM nodes;
+                    CREATE TABLE edges_v6 (
+                        from_id INTEGER NOT NULL,
+                        to_id INTEGER NOT NULL,
+                        kind INTEGER NOT NULL,
+                        properties JSONB NOT NULL
+                    );
+                    INSERT OR IGNORE INTO edges_v6 (from_id, to_id, kind, properties)
+                    SELECT
+                        CASE WHEN typeof(e.from_id) = 'integer' THEN e.from_id ELSE fn.rowid END,
+                        CASE WHEN typeof(e.to_id) = 'integer' THEN e.to_id ELSE tn.rowid END,
+                        CASE WHEN typeof(e.kind) = 'integer' THEN e.kind ELSE ce_rel_kind_id(e.kind) END,
+                        e.properties
+                    FROM edges e
+                    LEFT JOIN nodes_v6 fn ON typeof(e.from_id) != 'integer' AND fn.id = e.from_id
+                    LEFT JOIN nodes_v6 tn ON typeof(e.to_id) != 'integer' AND tn.id = e.to_id
+                    WHERE (typeof(e.from_id) = 'integer' OR fn.rowid IS NOT NULL)
+                      AND (typeof(e.to_id) = 'integer' OR tn.rowid IS NOT NULL);
+                    DROP TABLE edges;
+                    DROP TABLE nodes;
+                    ALTER TABLE nodes_v6 RENAME TO nodes;
+                    ALTER TABLE edges_v6 RENAME TO edges;
+                    """);
+            }
+
             sb.AppendLine($"PRAGMA user_version = {toVersion};");
             migrateCmd.CommandText = sb.ToString();
             migrateCmd.ExecuteNonQuery();
 
-            if (fromVersion < 5)
+            if (fromVersion < 6)
             {
                 CreateGraphSecondaryIndices();
             }
@@ -214,14 +261,14 @@ public partial class SqliteGraphClient
         cmd.CommandText = """
                           CREATE TABLE IF NOT EXISTS nodes (
                               id TEXT PRIMARY KEY,
-                              kind TEXT NOT NULL,
+                              kind INTEGER NOT NULL,
                               properties JSONB NOT NULL
                           );
 
                           CREATE TABLE IF NOT EXISTS edges (
-                              from_id TEXT NOT NULL,
-                              to_id TEXT NOT NULL,
-                              kind TEXT NOT NULL,
+                              from_id INTEGER NOT NULL,
+                              to_id INTEGER NOT NULL,
+                              kind INTEGER NOT NULL,
                               properties JSONB NOT NULL
                           );
 
@@ -414,7 +461,9 @@ public partial class SqliteGraphClient
                 await CommitBulkLoadUnlockedAsync();
             }
             await InvalidateTaxonomySnapshotUnlockedAsync();
-            var totalWorkspaces = await _conn.ExecuteScalarAsync<int>("SELECT count(DISTINCT id) FROM nodes WHERE kind = 'Workspace';");
+            var wsKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Workspace);
+            var projKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
+            var totalWorkspaces = await _conn.ExecuteScalarAsync<int>($"SELECT count(DISTINCT id) FROM nodes WHERE kind = {wsKindId};");
 
             var wsId = await FindWorkspaceIdByIdOrPathAsync(raw, normalized);
             if (wsId != null)
@@ -425,7 +474,7 @@ public partial class SqliteGraphClient
 
             // Retrieve all workspaces to find if normalized matches or is a subpath of any workspace
             var workspaces = (await _conn.QueryAsync<(string Id, string Path)>(
-                "SELECT id, json_extract(properties, '$.path') AS Path FROM nodes WHERE kind = 'Workspace';")).AsList();
+                $"SELECT id, json_extract(properties, '$.path') AS Path FROM nodes WHERE kind = {wsKindId};")).AsList();
 
             (string Id, string Path)? matchingWs = null;
 
@@ -472,9 +521,9 @@ public partial class SqliteGraphClient
                     if (hasFilesOutside == 0)
                     {
                         var normSlash = (normalized.TrimEnd('/') + "/").ToLowerInvariant();
-                        var hasProjectsOutside = await _conn.ExecuteScalarAsync<int>("""
+                        var hasProjectsOutside = await _conn.ExecuteScalarAsync<int>($"""
                             SELECT count(*) FROM nodes
-                            WHERE kind = 'Project'
+                            WHERE kind = {projKindId}
                               AND lower(replace(json_extract(properties, '$.path'), '\', '/')) NOT LIKE @normSlash || '%'
                               AND lower(replace(json_extract(properties, '$.path'), '\', '/')) != @normLower;
                             """, new { normSlash, normLower = normalized.ToLowerInvariant() });
@@ -573,13 +622,17 @@ public partial class SqliteGraphClient
         using var tx = _conn.BeginTransaction();
         try
         {
-            await _conn.ExecuteAsync("""
-                CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id TEXT PRIMARY KEY, is_container INTEGER DEFAULT 0);
+            var containerKindsSql = GraphKindCodec.NodeKindsInSql(
+                NodeKind.File, NodeKind.Folder, NodeKind.Project,
+                NodeKind.Endpoint, NodeKind.EntryPoint, NodeKind.ScanIssue);
+            var relContainsId = GraphKindCodec.EncodeRelKind(RelationshipKind.Contains);
+            await _conn.ExecuteAsync($"""
+                CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id INTEGER PRIMARY KEY, is_container INTEGER DEFAULT 0);
                 DELETE FROM temp_del_subpath_nodes;
 
                 -- Pass 1: Deterministic ID prefix matching. If wsPrefix is known, uses primary key index on nodes.id!
                 INSERT OR IGNORE INTO temp_del_subpath_nodes(id, is_container)
-                SELECT id,
+                SELECT rowid,
                        CASE WHEN id LIKE '%:dir:%' OR id LIKE '%:p:%' OR id LIKE '%:project:%' OR id LIKE '%:f:%' OR id LIKE '%:file:%' THEN 1 ELSE 0 END
                 FROM nodes
                 WHERE (@hasWsPrefix = 1 AND @hasRel = 1 AND (
@@ -631,8 +684,8 @@ public partial class SqliteGraphClient
 
                 -- Pass 2: Property matching for nodes that don't embed the relative path into their ID
                 INSERT INTO temp_del_subpath_nodes(id, is_container)
-                SELECT id, 1 FROM nodes
-                WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint', 'ScanIssue')
+                SELECT rowid, 1 FROM nodes
+                WHERE kind IN ({containerKindsSql})
                   AND (
                       lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
                       OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
@@ -655,7 +708,7 @@ public partial class SqliteGraphClient
                     SELECT id FROM temp_del_subpath_nodes WHERE is_container = 1
                     UNION
                     SELECT e.to_id FROM del_rec d
-                    JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = 'CONTAINS'
+                    JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = {relContainsId}
                 )
                 INSERT OR IGNORE INTO temp_del_subpath_nodes(id, is_container)
                 SELECT DISTINCT id, 0 FROM del_rec;
@@ -680,7 +733,7 @@ public partial class SqliteGraphClient
                 // Truncate edges instantly instead of performing hundreds of thousands of individual edge deletes!
                 await _conn.ExecuteAsync("""
                     DELETE FROM edges;
-                    DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_subpath_nodes);
+                    DELETE FROM nodes WHERE rowid IN (SELECT id FROM temp_del_subpath_nodes);
                     DROP TABLE IF EXISTS temp_del_subpath_nodes;
 
                     DELETE FROM file_registry
@@ -697,7 +750,7 @@ public partial class SqliteGraphClient
                 await _conn.ExecuteAsync("""
                     DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_del_subpath_nodes);
                     DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_del_subpath_nodes);
-                    DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_subpath_nodes);
+                    DELETE FROM nodes WHERE rowid IN (SELECT id FROM temp_del_subpath_nodes);
                     DROP TABLE IF EXISTS temp_del_subpath_nodes;
 
                     DELETE FROM file_registry
@@ -723,9 +776,9 @@ public partial class SqliteGraphClient
 
     private async Task<string?> FindWorkspaceIdByIdOrPathAsync(string raw, string normalized)
     {
-        const string sql = """
+        var sql = $"""
             SELECT id FROM nodes
-            WHERE kind = 'Workspace'
+            WHERE kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Workspace)}
               AND (
                   id = @raw
                   OR id = @normalized
@@ -746,27 +799,28 @@ public partial class SqliteGraphClient
         }
 
         var wsGlob = wsId + ":*";
+        var relContainsId = GraphKindCodec.EncodeRelKind(RelationshipKind.Contains);
 
         using var tx = _conn.BeginTransaction();
         try
         {
-            await _conn.ExecuteAsync("""
-                CREATE TEMP TABLE IF NOT EXISTS temp_del_ws_nodes (id TEXT PRIMARY KEY);
+            await _conn.ExecuteAsync($"""
+                CREATE TEMP TABLE IF NOT EXISTS temp_del_ws_nodes (id INTEGER PRIMARY KEY);
                 DELETE FROM temp_del_ws_nodes;
 
                 WITH RECURSIVE del_nodes(id) AS (
-                    SELECT id FROM nodes
+                    SELECT rowid FROM nodes
                     WHERE id = @wsId OR id GLOB @wsGlob
                     UNION
                     SELECT e.to_id FROM del_nodes d
-                    JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = 'CONTAINS'
+                    JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = {relContainsId}
                 )
                 INSERT OR IGNORE INTO temp_del_ws_nodes(id)
                 SELECT DISTINCT id FROM del_nodes;
 
                 DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_del_ws_nodes);
                 DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_del_ws_nodes);
-                DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_ws_nodes);
+                DELETE FROM nodes WHERE rowid IN (SELECT id FROM temp_del_ws_nodes);
 
                 DROP TABLE IF EXISTS temp_del_ws_nodes;
                 """, new { wsId, wsGlob }, transaction: tx);

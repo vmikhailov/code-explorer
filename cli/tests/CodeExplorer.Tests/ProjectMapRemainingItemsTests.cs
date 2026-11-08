@@ -54,13 +54,13 @@ public class ProjectMapRemainingItemsTests
             // Verify:
             // 1. Table is now linked to canonical database via CONTAINS
             var dbTableEdgesJson = (await db.ExecuteCypherAsync(
-                "SELECT from_id, to_id, kind FROM edges WHERE to_id = '1:t:customers' AND kind = 'CONTAINS' AND from_id LIKE '%:db:%';",
+                $"SELECT fn.id AS from_id, tn.id AS to_id, ce_rel_kind(e.kind) AS kind FROM edges e JOIN nodes fn ON e.from_id = fn.rowid JOIN nodes tn ON e.to_id = tn.rowid WHERE tn.id = '1:t:customers' AND e.kind = {CodeExplorer.Cypher.Common.GraphKindCodec.EncodeRelKind("CONTAINS")} AND fn.id LIKE '%:db:%';",
                 null)).ToJson();
             dbTableEdgesJson.Should().Contain("1:t:customers");
 
             // 2. Project is linked to Table via DEFINES
             var projTableEdgesJson = (await db.ExecuteCypherAsync(
-                "SELECT from_id, to_id, kind FROM edges WHERE from_id = '1:p:api' AND to_id = '1:t:customers' AND kind = 'DEFINES';",
+                $"SELECT fn.id AS from_id, tn.id AS to_id, ce_rel_kind(e.kind) AS kind FROM edges e JOIN nodes fn ON e.from_id = fn.rowid JOIN nodes tn ON e.to_id = tn.rowid WHERE fn.id = '1:p:api' AND tn.id = '1:t:customers' AND e.kind = {CodeExplorer.Cypher.Common.GraphKindCodec.EncodeRelKind("DEFINES")};",
                 null)).ToJson();
             projTableEdgesJson.Should().Contain("DEFINES");
         }

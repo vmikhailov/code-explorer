@@ -40,9 +40,9 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         }
         else
         {
-            await WriteTransitivelyCallsAsync(widPrefix);
-            await WriteAttributedToAsync(widPrefix);
-            await WriteProjectApiAnnotationsAsync(widPrefix);
+            await db.WriteFallbackReachabilityAsync(widPrefix);
+
+
         }
     }
 
@@ -66,15 +66,15 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         void AddRel(Relationship rel)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Calls ||
-                rel.Kind == OntologyConstants.Relationships.CallsEndpoint ||
-                rel.Kind == OntologyConstants.Relationships.UsesDb)
+            if (rel.Kind == RelationshipKind.Calls ||
+                rel.Kind == RelationshipKind.CallsEndpoint ||
+                rel.Kind == RelationshipKind.UsesDb)
             {
                 AddCall(rel.From, rel.To);
             }
-            else if (rel.Kind == OntologyConstants.Relationships.CalledBy ||
-                     rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                     rel.Kind == OntologyConstants.Relationships.AccessedBy)
+            else if (rel.Kind == RelationshipKind.CalledBy ||
+                     rel.Kind == RelationshipKind.QueriedBy ||
+                     rel.Kind == RelationshipKind.AccessedBy)
             {
                 AddCall(rel.To, rel.From);
             }
@@ -165,15 +165,15 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         void ProcessImplementsRel(Relationship rel)
         {
-            if (rel.Kind == OntologyConstants.Relationships.ImplementedBy ||
-                rel.Kind == OntologyConstants.Relationships.ExposedBy)
+            if (rel.Kind == RelationshipKind.ImplementedBy ||
+                rel.Kind == RelationshipKind.ExposedBy)
             {
                 if (entryPointIds.Contains(rel.From))
                 {
                     AddImplements(rel.From, rel.To);
                 }
             }
-            else if (rel.Kind == OntologyConstants.Relationships.Implements)
+            else if (rel.Kind == RelationshipKind.Implements)
             {
                 if (entryPointIds.Contains(rel.To))
                 {
@@ -271,14 +271,14 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         {
             foreach (var rel in l4Result.SemanticRelationships)
             {
-                if (rel.Kind == OntologyConstants.Relationships.Deploys)
+                if (rel.Kind == RelationshipKind.Deploys)
                 {
                     projectToWorkloadMap[rel.From] = rel.To;
                     projectToWorkloadMap[rel.From.TrimEnd(':')] = rel.To;
                     projectToWorkloadMap[rel.From.TrimEnd(':') + ":"] = rel.To;
                     workloadToProjectMap[rel.To] = rel.From.TrimEnd(':');
                 }
-                else if (rel.Kind == OntologyConstants.Relationships.ImplementedBy &&
+                else if (rel.Kind == RelationshipKind.ImplementedBy &&
                          (rel.To.Contains(":p:") || rel.To.Contains(":project:")))
                 {
                     projectToWorkloadMap[rel.To] = rel.From;
@@ -327,13 +327,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var dependencyItems = new List<DependencyItem>();
         foreach (var r in allCombinedRels)
         {
-            if (r.Kind == OntologyConstants.Relationships.UsesDb)
+            if (r.Kind == RelationshipKind.UsesDb)
             {
                 usesDbBySource[r.From] = usesDbBySource.GetValueOrDefault(r.From) + 1;
             }
-            if (r.Kind is OntologyConstants.Relationships.DependsOn
-                or OntologyConstants.Relationships.ServiceCall
-                or OntologyConstants.Relationships.UsesDb)
+            if (r.Kind is RelationshipKind.DependsOn
+                or RelationshipKind.ServiceCall
+                or RelationshipKind.UsesDb)
             {
                 dependencyItems.Add(new DependencyItem
                 {
@@ -471,16 +471,16 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         // Build adjacency (skip pure AST containment/declaration edges)
         var outEdges = new Dictionary<string, List<Relationship>>(StringComparer.OrdinalIgnoreCase);
         var inEdges = new Dictionary<string, List<Relationship>>(StringComparer.OrdinalIgnoreCase);
-        var existingEdges = new HashSet<(string From, string To, string Kind)>();
+        var existingEdges = new HashSet<(string From, string To, RelationshipKind Kind)>();
 
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind is OntologyConstants.Relationships.Contains
-                or OntologyConstants.Relationships.Declares
-                or OntologyConstants.Relationships.DeclaredIn
-                or OntologyConstants.Relationships.HasMethod
-                or OntologyConstants.Relationships.HasMember
-                or OntologyConstants.Relationships.CalledBy)
+            if (rel.Kind is RelationshipKind.Contains
+                or RelationshipKind.Declares
+                or RelationshipKind.DeclaredIn
+                or RelationshipKind.HasMethod
+                or RelationshipKind.HasMember
+                or RelationshipKind.CalledBy)
             {
                 continue;
             }
@@ -513,7 +513,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        void AddLifted(string fromId, string toId, string relKind, Action<Relationship> configure)
+        void AddLifted(string fromId, string toId, RelationshipKind relKind, Action<Relationship> configure)
         {
             if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(fromId, out var semFrom) && semFrom != null)
             {
@@ -581,15 +581,15 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                         var isTopic = (srcKind != null && srcKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
                                       || inEdge.From.Contains($":{OntologyConstants.IdPrefixes.Topic}:")
                                       || inEdge.From.Contains(":topic:")
-                                      || inEdge.Kind == OntologyConstants.Relationships.Triggers
-                                      || inEdge.Kind == OntologyConstants.Relationships.SubscribesTo;
+                                      || inEdge.Kind == RelationshipKind.Triggers
+                                      || inEdge.Kind == RelationshipKind.SubscribesTo;
 
                         if (isTopic && IsTopicReachable(currId, inEdge.From, isSubscription: true))
                         {
                             AddLifted(
                                 service.Id,
                                 inEdge.From,
-                                OntologyConstants.Relationships.SubscribesTo,
+                                RelationshipKind.SubscribesTo,
                                 r =>
                                 {
                                     r.DependencyType = "messaging";
@@ -619,7 +619,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                    || edge.To.Contains(":db:")
                                    || edge.To.Contains(":res:db:")
                                    || edge.To.Contains(":database:")
-                                   || edge.Kind == OntologyConstants.Relationships.UsesDb;
+                                   || edge.Kind == RelationshipKind.UsesDb;
 
                         if (isDb)
                         {
@@ -631,7 +631,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                             AddLifted(
                                 service.Id,
                                 targetDbId,
-                                OntologyConstants.Relationships.UsesDb,
+                                RelationshipKind.UsesDb,
                                 r =>
                                 {
                                     r.DependencyType = "database";
@@ -646,13 +646,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
                         else if (projects.Any(p => p.Id == targetProjId && !p.IsLibrary && p.Id != service.Id) &&
-                                 (edge.Kind is OntologyConstants.Relationships.ServiceCall or OntologyConstants.Relationships.CallsEndpoint or OntologyConstants.Relationships.Calls ||
+                                 (edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint or RelationshipKind.Calls ||
                                   edge.DependencyType == "service_call"))
                         {
                             AddLifted(
                                 service.Id,
                                 targetProjId,
-                                OntologyConstants.Relationships.ServiceCall,
+                                RelationshipKind.ServiceCall,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -672,7 +672,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                             AddLifted(
                                 service.Id,
                                 edge.To,
-                                OntologyConstants.Relationships.ServiceCall,
+                                RelationshipKind.ServiceCall,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -688,14 +688,14 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                  || edge.To.Contains($":{OntologyConstants.IdPrefixes.Topic}:")
                                  || edge.To.Contains(":topic:")
                                  || edge.To.Contains(":res:topic:")
-                                 || edge.Kind == OntologyConstants.Relationships.PublishesTo
-                                 || edge.Kind == OntologyConstants.Relationships.SubscribesTo
-                                 || edge.Kind == OntologyConstants.Relationships.Triggers)
+                                 || edge.Kind == RelationshipKind.PublishesTo
+                                 || edge.Kind == RelationshipKind.SubscribesTo
+                                 || edge.Kind == RelationshipKind.Triggers)
                         {
-                            var outKind = (edge.Kind == OntologyConstants.Relationships.SubscribesTo || edge.Kind == OntologyConstants.Relationships.Triggers)
-                                ? OntologyConstants.Relationships.SubscribesTo
-                                : OntologyConstants.Relationships.PublishesTo;
-                            if (!IsTopicReachable(currId, edge.To, outKind == OntologyConstants.Relationships.SubscribesTo))
+                            var outKind = (edge.Kind == RelationshipKind.SubscribesTo || edge.Kind == RelationshipKind.Triggers)
+                                ? RelationshipKind.SubscribesTo
+                                : RelationshipKind.PublishesTo;
+                            if (!IsTopicReachable(currId, edge.To, outKind == RelationshipKind.SubscribesTo))
                             {
                                 continue;
                             }
@@ -744,10 +744,10 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             bool isSubscription;
             switch (rel.Kind)
             {
-                case OntologyConstants.Relationships.PublishedBy or OntologyConstants.Relationships.PublishesTo:
+                case RelationshipKind.PublishedBy or RelationshipKind.PublishesTo:
                     isSubscription = false;
                     break;
-                case OntologyConstants.Relationships.SubscribedBy or OntologyConstants.Relationships.SubscribesTo or OntologyConstants.Relationships.Triggers:
+                case RelationshipKind.SubscribedBy or RelationshipKind.SubscribesTo or RelationshipKind.Triggers:
                     isSubscription = true;
                     break;
                 default:

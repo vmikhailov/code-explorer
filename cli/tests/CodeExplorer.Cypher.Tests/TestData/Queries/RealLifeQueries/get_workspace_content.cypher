@@ -1,4 +1,4 @@
-MATCH (r:Root {path: $workspacePath})-[:CONTAINS*0..]->(n)
+MATCH (r:Workspace {path: $workspacePath})-[:CONTAINS*0..]->(n)
 WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
 RETURN coalesce(n.name, n.id) AS name,
        labels(n)[0] AS type,

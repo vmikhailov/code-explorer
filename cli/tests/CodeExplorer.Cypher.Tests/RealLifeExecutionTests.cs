@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
@@ -24,14 +25,14 @@ public class RealLifeExecutionTests
         cmd.CommandText = @"
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
-                kind TEXT NOT NULL,
+                kind INTEGER NOT NULL,
                 properties TEXT NOT NULL
             );
 
             CREATE TABLE edges (
-                from_id TEXT NOT NULL,
-                to_id TEXT NOT NULL,
-                kind TEXT NOT NULL,
+                from_id INTEGER NOT NULL,
+                to_id INTEGER NOT NULL,
+                kind INTEGER NOT NULL,
                 properties TEXT NOT NULL
             );
 
@@ -57,7 +58,7 @@ public class RealLifeExecutionTests
 
         cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
         cmd.Parameters.AddWithValue("@id", id);
-        cmd.Parameters.AddWithValue("@kind", kind);
+        cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeNodeKind(kind));
         cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
         cmd.ExecuteNonQuery();
     }
@@ -66,10 +67,10 @@ public class RealLifeExecutionTests
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, @props)";
+        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, @props)";
         cmd.Parameters.AddWithValue("@from", fromId);
         cmd.Parameters.AddWithValue("@to", toId);
-        cmd.Parameters.AddWithValue("@kind", kind);
+        cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeRelKind(kind));
         cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props ?? new()));
         cmd.ExecuteNonQuery();
     }
@@ -731,12 +732,11 @@ public class RealLifeExecutionTests
     [Test]
     public void Execution_NotPrecedence_WithContainsAndEquality()
     {
-        using var insertCmd = _conn.CreateCommand();
-        insertCmd.CommandText = @"
-            INSERT INTO nodes (id, kind, properties) VALUES
-            ('es:localhost', 'ExternalService', '{""name"": ""localhost"", ""file_path"": ""catalogImporter.ts""}');
-        ";
-        insertCmd.ExecuteNonQuery();
+        InsertNode("es:localhost", "ExternalService", new()
+        {
+            ["name"] = "localhost",
+            ["file_path"] = "catalogImporter.ts"
+        });
 
         var cypher = "MATCH (es:ExternalService) WHERE es.name = 'localhost' AND NOT es.file_path CONTAINS 'test' RETURN es.name AS name";
         var ast = CypherQueryParser.Parse(cypher);

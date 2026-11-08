@@ -23,6 +23,7 @@ public record Relationship
     private const string PropInFinally = "in_finally";
     private const string PropInLock = "in_lock";
     private const string PropIsAwaited = "is_awaited";
+    private const string PropIsParallel = "is_parallel";
     private const string PropArgFlow = "arg_flow";
     private const string PropHops = "hops";
     private const string PropSinkKind = "sink_kind";
@@ -64,7 +65,7 @@ public record Relationship
 
     public string From { get; init; }
     public string To { get; init; }
-    public string Kind { get; init; }
+    public RelationshipKind Kind { get; init; }
 
     [JsonIgnore]
     public int Line { get; set; }
@@ -203,6 +204,9 @@ public record Relationship
         Line > 0 ||
         LineEnd > 0 ||
         CallCount > 0 ||
+        CallContext.Flags != CallExecutionFlags.None ||
+        CallContext.LoopDepth > 0 ||
+        !string.IsNullOrEmpty(ArgFlow) ||
         EvidenceCount > 0 ||
         Hops > 0 ||
         (EvidenceIds is { Count: > 0 }) ||
@@ -268,10 +272,10 @@ public record Relationship
     }
 
     [JsonIgnore]
-    public RelationshipKind RelationshipKind => EnumExtensions.ParseRelationshipKind(Kind);
+    public RelationshipKind RelationshipKind => Kind;
 
     [JsonConstructor]
-    public Relationship(string from, string to, string kind, Dictionary<string, object>? properties)
+    public Relationship(string from, string to, RelationshipKind kind, Dictionary<string, object>? properties)
     {
         From = from;
         To = to;
@@ -283,20 +287,20 @@ public record Relationship
         }
     }
 
-    public Relationship(string from, string to, string kind)
+    public Relationship(string from, string to, RelationshipKind kind)
     {
         From = from;
         To = to;
         Kind = kind;
     }
 
-    public Relationship(string from, string to, RelationshipKind kind, Dictionary<string, object>? properties)
-        : this(from, to, kind.ToCypherType(), properties)
+    public Relationship(string from, string to, string kind, Dictionary<string, object>? properties)
+        : this(from, to, EnumExtensions.ParseRelationshipKind(kind), properties)
     {
     }
 
-    public Relationship(string from, string to, RelationshipKind kind)
-        : this(from, to, kind.ToCypherType())
+    public Relationship(string from, string to, string kind)
+        : this(from, to, EnumExtensions.ParseRelationshipKind(kind))
     {
     }
 
@@ -339,6 +343,31 @@ public record Relationship
         if (props.TryGetValue(PropDbType, out var dbt) && dbt != null) DbType = dbt.ToString();
         if (props.TryGetValue(PropIsImplicitSchema, out var imp) && bool.TryParse(imp?.ToString(), out var pImp)) IsImplicitSchema = pImp;
         if (props.TryGetValue(PropProtocols, out var prt) && prt != null) Protocols = prt.ToString();
+        HydrateCallContext(props);
+    }
+
+    private void HydrateCallContext(IReadOnlyDictionary<string, object> props)
+    {
+        var flags = CallContext.Flags;
+        var loopDepth = CallContext.LoopDepth;
+        if (props.TryGetValue(PropInLoop, out var il) && string.Equals(il?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.InLoop;
+        if (props.TryGetValue(PropLoopDepth, out var ld) && byte.TryParse(ld?.ToString(), out var pLd))
+        {
+            loopDepth = pLd;
+            if (pLd >= 2) flags |= CallExecutionFlags.InNestedLoop;
+        }
+        if (props.TryGetValue(PropIsConditional, out var ic) && string.Equals(ic?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.IsConditional;
+        if (props.TryGetValue(PropInTry, out var it) && string.Equals(it?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.InTryBlock;
+        if (props.TryGetValue(PropInCatch, out var icatch) && string.Equals(icatch?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.InCatchBlock;
+        if (props.TryGetValue(PropInFinally, out var ifin) && string.Equals(ifin?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.InFinallyBlock;
+        if (props.TryGetValue(PropInLock, out var ilock) && string.Equals(ilock?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.InLockBlock;
+        if (props.TryGetValue(PropIsAwaited, out var iaw) && string.Equals(iaw?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.IsAwaited;
+        if (props.TryGetValue(PropIsParallel, out var ipar) && string.Equals(ipar?.ToString(), BoolTrueStr, StringComparison.OrdinalIgnoreCase)) flags |= CallExecutionFlags.IsParallelBatch;
+        if (flags != CallExecutionFlags.None || loopDepth > 0)
+        {
+            CallContext = new CallSiteExecutionContext(flags, loopDepth, CallContext.ConditionalDepth);
+        }
+        if (props.TryGetValue(PropArgFlow, out var af) && af != null) ArgFlow = af.ToString();
     }
 
     public static Relationship CreateWithCallSite(
@@ -350,7 +379,7 @@ public record Relationship
         CallSiteExecutionContext context = default,
         string? argFlow = null)
     {
-        var rel = new Relationship(from, to, kind.ToCypherType());
+        var rel = new Relationship(from, to, kind);
         if (line > 0)
         {
             rel.Line = line;
@@ -431,18 +460,21 @@ public record Relationship
                     dict[PropCallSites] = $"[\"{Line}:{col}\"]";
                     dict[PropCallCount] = Math.Max(1, CallCount).ToString();
                 }
-
-                var flags = CallContext.Flags;
-                if (flags.HasFlag(CallExecutionFlags.InLoop)) dict[PropInLoop] = BoolTrueStr;
-                if (CallContext.LoopDepth > 0) dict[PropLoopDepth] = CallContext.LoopDepth.ToString();
-                if (flags.HasFlag(CallExecutionFlags.IsConditional)) dict[PropIsConditional] = BoolTrueStr;
-                if (flags.HasFlag(CallExecutionFlags.InTryBlock)) dict[PropInTry] = BoolTrueStr;
-                if (flags.HasFlag(CallExecutionFlags.InCatchBlock)) dict[PropInCatch] = BoolTrueStr;
-                if (flags.HasFlag(CallExecutionFlags.InFinallyBlock)) dict[PropInFinally] = BoolTrueStr;
-                if (flags.HasFlag(CallExecutionFlags.InLockBlock)) dict[PropInLock] = BoolTrueStr;
-                if (flags.HasFlag(CallExecutionFlags.IsAwaited)) dict[PropIsAwaited] = BoolTrueStr;
-                if (!string.IsNullOrEmpty(ArgFlow)) dict[PropArgFlow] = ArgFlow;
             }
+        }
+        if (CallContext.Flags != CallExecutionFlags.None || CallContext.LoopDepth > 0 || !string.IsNullOrEmpty(ArgFlow))
+        {
+            var flags = CallContext.Flags;
+            if (flags.HasFlag(CallExecutionFlags.InLoop)) dict[PropInLoop] = true;
+            if (CallContext.LoopDepth > 0) dict[PropLoopDepth] = (int)CallContext.LoopDepth;
+            if (flags.HasFlag(CallExecutionFlags.IsConditional)) dict[PropIsConditional] = true;
+            if (flags.HasFlag(CallExecutionFlags.InTryBlock)) dict[PropInTry] = true;
+            if (flags.HasFlag(CallExecutionFlags.InCatchBlock)) dict[PropInCatch] = true;
+            if (flags.HasFlag(CallExecutionFlags.InFinallyBlock)) dict[PropInFinally] = true;
+            if (flags.HasFlag(CallExecutionFlags.InLockBlock)) dict[PropInLock] = true;
+            if (flags.HasFlag(CallExecutionFlags.IsAwaited)) dict[PropIsAwaited] = true;
+            if (CallContext.IsParallel) dict[PropIsParallel] = true;
+            if (!string.IsNullOrEmpty(ArgFlow)) dict[PropArgFlow] = ArgFlow;
         }
         if (LineEnd > 0) dict[PropLineEnd] = LineEnd.ToString();
         if (!string.IsNullOrEmpty(FilePath)) dict[PropFilePath] = FilePath;
@@ -544,18 +576,21 @@ public record Relationship
                     writer.WriteString(PropCallSites, $"[\"{lineStr}:{colStr}\"]");
                     writer.WriteString(PropCallCount, Math.Max(1, CallCount).ToString());
                 }
-
-                var flags = CallContext.Flags;
-                if (flags.HasFlag(CallExecutionFlags.InLoop)) writer.WriteString(PropInLoop, BoolTrueStr);
-                if (CallContext.LoopDepth > 0) writer.WriteString(PropLoopDepth, CallContext.LoopDepth.ToString());
-                if (flags.HasFlag(CallExecutionFlags.IsConditional)) writer.WriteString(PropIsConditional, BoolTrueStr);
-                if (flags.HasFlag(CallExecutionFlags.InTryBlock)) writer.WriteString(PropInTry, BoolTrueStr);
-                if (flags.HasFlag(CallExecutionFlags.InCatchBlock)) writer.WriteString(PropInCatch, BoolTrueStr);
-                if (flags.HasFlag(CallExecutionFlags.InFinallyBlock)) writer.WriteString(PropInFinally, BoolTrueStr);
-                if (flags.HasFlag(CallExecutionFlags.InLockBlock)) writer.WriteString(PropInLock, BoolTrueStr);
-                if (flags.HasFlag(CallExecutionFlags.IsAwaited)) writer.WriteString(PropIsAwaited, BoolTrueStr);
-                if (!string.IsNullOrEmpty(ArgFlow)) writer.WriteString(PropArgFlow, ArgFlow);
             }
+        }
+        if (CallContext.Flags != CallExecutionFlags.None || CallContext.LoopDepth > 0 || !string.IsNullOrEmpty(ArgFlow))
+        {
+            var flags = CallContext.Flags;
+            if (flags.HasFlag(CallExecutionFlags.InLoop)) writer.WriteBoolean(PropInLoop, true);
+            if (CallContext.LoopDepth > 0) writer.WriteNumber(PropLoopDepth, (int)CallContext.LoopDepth);
+            if (flags.HasFlag(CallExecutionFlags.IsConditional)) writer.WriteBoolean(PropIsConditional, true);
+            if (flags.HasFlag(CallExecutionFlags.InTryBlock)) writer.WriteBoolean(PropInTry, true);
+            if (flags.HasFlag(CallExecutionFlags.InCatchBlock)) writer.WriteBoolean(PropInCatch, true);
+            if (flags.HasFlag(CallExecutionFlags.InFinallyBlock)) writer.WriteBoolean(PropInFinally, true);
+            if (flags.HasFlag(CallExecutionFlags.InLockBlock)) writer.WriteBoolean(PropInLock, true);
+            if (flags.HasFlag(CallExecutionFlags.IsAwaited)) writer.WriteBoolean(PropIsAwaited, true);
+            if (CallContext.IsParallel) writer.WriteBoolean(PropIsParallel, true);
+            if (!string.IsNullOrEmpty(ArgFlow)) writer.WriteString(PropArgFlow, ArgFlow);
         }
         if (LineEnd > 0) writer.WriteString(PropLineEnd, LineEnd.ToString());
         if (!string.IsNullOrEmpty(FilePath)) writer.WriteString(PropFilePath, FilePath);

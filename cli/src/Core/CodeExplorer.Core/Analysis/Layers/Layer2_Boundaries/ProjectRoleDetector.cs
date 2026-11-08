@@ -1,3 +1,5 @@
+using ProjectRole = CodeExplorer.Core.Common.ProjectRole;
+
 namespace CodeExplorer.Core.Analysis;
 
 /// <summary>

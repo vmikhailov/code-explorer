@@ -146,10 +146,9 @@ public static partial class BuiltInGateCatalog
                     OR coalesce(m.file_path, '') CONTAINS 'OntologyGen'
                     OR coalesce(m.file_path, '') CONTAINS 'SyntaxNodes'
                     OR coalesce(m.file_path, '') CONTAINS 'Parser.cs'
-                    OR coalesce(m.file_path, '') CONTAINS 'Reference.cs'
                     OR coalesce(m.file_path, '') CONTAINS 'Urn.cs'
-                    OR coalesce(m.file_path, '') CONTAINS 'Node.cs'
-                    OR coalesce(m.file_path, '') CONTAINS 'Relationship.cs'
+                    OR (coalesce(m.file_path, '') CONTAINS 'Node.cs' AND m.name <> 'Kind')
+                    OR (coalesce(m.file_path, '') CONTAINS 'Relationship.cs' AND m.name <> 'Kind')
                     OR m.name IN ['ReturnType', 'RequestType', 'ResponseType', 'ExceptionType', 'DataType', 'ContentType'])
             RETURN m
             """,

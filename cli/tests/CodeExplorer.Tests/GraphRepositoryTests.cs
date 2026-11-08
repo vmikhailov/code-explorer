@@ -21,7 +21,7 @@ public class GraphRepositoryTests
 
         var n1 = await repo.GetNodeByIdAsync("file:1");
         Assert.That(n1, Is.Not.Null);
-        Assert.That(n1!.Kind, Is.EqualTo("File"));
+        Assert.That(n1!.Kind, Is.EqualTo(NodeKind.File));
         Assert.That(n1.Properties["name"], Is.EqualTo("index.ts"));
 
         var functions = await repo.GetNodesByKindAsync("Function");
@@ -111,14 +111,14 @@ public class GraphRepositoryTests
 
         var typedNode = new Node("srv:2", NodeKind.Service, new Dictionary<string, object> { ["name"] = "BillingService" });
         Assert.That(typedNode.NodeKind, Is.EqualTo(NodeKind.Service));
-        Assert.That(typedNode.Kind, Is.EqualTo("Service"));
+        Assert.That(typedNode.Kind, Is.EqualTo(NodeKind.Service));
 
         var typedRel = new Relationship("srv:2", "db:1", RelationshipKind.QueriesDb);
         Assert.That(typedRel.RelationshipKind, Is.EqualTo(RelationshipKind.QueriesDb));
-        Assert.That(typedRel.Kind, Is.EqualTo("QUERIES_DB"));
+        Assert.That(typedRel.Kind, Is.EqualTo(RelationshipKind.QueriesDb));
 
         var reference = new CodeExplorer.Common.Reference("sym:1", "BillingService", RelationshipKind.Calls);
         Assert.That(reference.RelationshipKind, Is.EqualTo(RelationshipKind.Calls));
-        Assert.That(reference.Kind, Is.EqualTo("CALLS"));
+        Assert.That(reference.Kind, Is.EqualTo(RelationshipKind.Calls));
     }
 }

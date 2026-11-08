@@ -133,16 +133,17 @@ public static class ConstantRegistry
 
     private static void IndexGlobalLeaf(string key, string val)
     {
-        var dotIdx = key.LastIndexOf('.');
-        if (dotIdx >= 0 && dotIdx < key.Length - 1)
+        var dotIdx = key.IndexOf('.');
+        while (dotIdx >= 0 && dotIdx < key.Length - 1)
         {
-            var leaf = key[(dotIdx + 1)..];
+            var suffix = key[(dotIdx + 1)..];
             _globalConstantsByLeaf.AddOrUpdate(
-                leaf,
+                suffix,
                 _ => (val, 1),
                 (_, existing) => string.Equals(existing.Value, val, StringComparison.OrdinalIgnoreCase)
                     ? existing
                     : (null, existing.MatchCount + 1));
+            dotIdx = key.IndexOf('.', dotIdx + 1);
         }
     }
 
@@ -325,16 +326,13 @@ public static class ConstantRegistry
             }
         }
 
-        // 4. Fallback: if key is an unqualified member (e.g. "SourcesPlacementsBlack" instead of "ModelNames.SourcesPlacementsBlack")
-        if (!cleanKey.Contains('.'))
+        // 4. Fallback: if key is an unqualified member or suffix (e.g. "SourcesPlacementsBlack" or "SMART_CPA.GLOBAL_PREFIX")
+        if (_globalConstantsByLeaf.TryGetValue(cleanKey, out var leafEntry) &&
+            leafEntry.MatchCount == 1 &&
+            !string.IsNullOrEmpty(leafEntry.Value))
         {
-            if (_globalConstantsByLeaf.TryGetValue(cleanKey, out var leafEntry) &&
-                leafEntry.MatchCount == 1 &&
-                !string.IsNullOrEmpty(leafEntry.Value))
-            {
-                value = leafEntry.Value;
-                return true;
-            }
+            value = leafEntry.Value;
+            return true;
         }
 
         // 5. Fallback: if project is unspecified, search _projectConstants for a matching key

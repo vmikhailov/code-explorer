@@ -142,7 +142,7 @@ public partial class ResourceSemanticAnalyzer
     {
         foreach (var r in node.References)
         {
-            if (r.Kind != OntologyConstants.Relationships.UsesDb || string.IsNullOrEmpty(r.TargetName)) continue;
+            if (r.Kind != RelationshipKind.UsesDb || string.IsNullOrEmpty(r.TargetName)) continue;
             var t = r.TargetName.ToLowerInvariant();
             if (t is "postgres" or "postgresql") return ("PostgreSQL", "relational");
             if (t is "mysql" or "mariadb") return ("MySQL", "relational");

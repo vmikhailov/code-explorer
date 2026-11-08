@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using ArchitectureViewType = CodeExplorer.Core.Analysis.ArchitectureViewType;
 
 namespace CodeExplorer.Server;
 

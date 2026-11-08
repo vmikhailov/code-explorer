@@ -125,7 +125,7 @@ public class TypeScriptOlapDatabaseTests
         // 1. SELECT query
         var selectQuery = queries.FirstOrDefault(q => q.QueryText.Contains("analytics.events") || q.Name.Contains("events"));
         selectQuery.Should().NotBeNull();
-        allReferences.Should().Contain(r => r.TargetName == "events" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "events" && r.Kind == RelationshipKind.DependsOn);
 
         // 2. ALTER TABLE command
         var alterQuery = queries.FirstOrDefault(q => q.QueryText.Contains("ALTER TABLE") || q.Name.Contains("ALTER") || q.References.Any(r => r.TargetName == "events"));
@@ -134,12 +134,12 @@ public class TypeScriptOlapDatabaseTests
         // 3. Insert into user_metrics
         var insertQuery = queries.FirstOrDefault(q => q.Name.Contains("user_metrics") || q.References.Any(r => r.TargetName == "user_metrics"));
         insertQuery.Should().NotBeNull();
-        allReferences.Should().Contain(r => r.TargetName == "user_metrics" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "user_metrics" && r.Kind == RelationshipKind.DependsOn);
 
         // 4. Direct realtime_feed query
         var feedQuery = queries.FirstOrDefault(q => q.QueryText.Contains("realtime_feed") || q.Name.Contains("realtime_feed"));
         feedQuery.Should().NotBeNull();
-        allReferences.Should().Contain(r => r.TargetName == "realtime_feed" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "realtime_feed" && r.Kind == RelationshipKind.DependsOn);
     }
 
     [Test]
@@ -176,16 +176,16 @@ public class TypeScriptOlapDatabaseTests
         // 1. Direct transactions query
         var txQuery = queries.FirstOrDefault(q => q.QueryText.Contains("transactions") || q.Name.Contains("transactions"));
         txQuery.Should().NotBeNull();
-        allReferences.Should().Contain(r => r.TargetName == "transactions" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "transactions" && r.Kind == RelationshipKind.DependsOn);
 
         // 2. store_orders job query
         var orderQuery = queries.FirstOrDefault(q => q.QueryText.Contains("store_orders") || q.Name.Contains("store_orders"));
         orderQuery.Should().NotBeNull();
-        allReferences.Should().Contain(r => r.TargetName == "store_orders" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "store_orders" && r.Kind == RelationshipKind.DependsOn);
 
         // 3. Table insert
         var clickInsert = queries.FirstOrDefault(q => q.Name.Contains("click_logs") || q.References.Any(r => r.TargetName == "click_logs"));
         clickInsert.Should().NotBeNull();
-        allReferences.Should().Contain(r => r.TargetName == "click_logs" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "click_logs" && r.Kind == RelationshipKind.DependsOn);
     }
 }

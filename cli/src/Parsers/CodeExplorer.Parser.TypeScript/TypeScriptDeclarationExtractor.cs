@@ -65,6 +65,11 @@ public static class TypeScriptDeclarationExtractor
 
                     if (valNode.IsValid())
                     {
+                        if (valNode is CodeExplorer.Core.Parser.Syntax.ConditionalExprSyntax condExpr)
+                        {
+                            valNode = condExpr.WhenTrue ?? condExpr.WhenFalse ?? valNode;
+                        }
+
                         // Handle const Objects: const Topics = { OrderCreated: "...", ... }
                         if (valNode.Is(TreeSitterSyntax.TypeScript.Object))
                         {
@@ -99,6 +104,26 @@ public static class TypeScriptDeclarationExtractor
                         }
                     }
                 }
+            }
+            return;
+        }
+
+        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax
+            {
+                Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Property
+            } memberDecl)
+        {
+            var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.PropertyIdentifier));
+            var fieldName = nameNode.IsValid() ? nameNode.Text : memberDecl.Name;
+            var valNode = memberDecl.Initializer ?? node.GetChildForField(TreeSitterSyntax.Fields.Value);
+            if (!string.IsNullOrEmpty(fieldName) && valNode.IsValid())
+            {
+                if (valNode is CodeExplorer.Core.Parser.Syntax.ConditionalExprSyntax condField)
+                {
+                    valNode = condField.WhenTrue ?? condField.WhenFalse ?? valNode;
+                }
+                register(fieldName, valNode, null);
             }
             return;
         }

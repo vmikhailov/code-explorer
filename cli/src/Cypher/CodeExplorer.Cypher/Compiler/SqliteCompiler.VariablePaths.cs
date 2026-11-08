@@ -199,12 +199,12 @@ public partial class SqliteCompiler
         {
             var kind = rel.RelationshipKinds[0];
             var typeName = kind != RelationshipKind.Unspecified ? kind.ToCypherType() : rel.Types[0];
-            edgeKindPred = $"e.kind = '{typeName}'";
+            edgeKindPred = $"e.kind = {GraphKindCodec.EncodeRelKind(typeName)}";
         }
         else if (rel.RelationshipKinds.Count > 1)
         {
             var kinds = string.Join(", ", rel.RelationshipKinds.Select((k, idx) =>
-                $"'{((k != RelationshipKind.Unspecified) ? k.ToCypherType() : rel.Types[idx])}'"));
+                GraphKindCodec.EncodeRelKind(k != RelationshipKind.Unspecified ? k.ToCypherType() : rel.Types[idx])));
             edgeKindPred = $"e.kind IN ({kinds})";
         }
 
@@ -221,7 +221,7 @@ public partial class SqliteCompiler
         var cols = needsPathNodes
             ? "start_id, end_id, depth, path_visited, path_nodes"
             : "start_id, end_id, depth, path_visited";
-        var zeroNodes = needsPathNodes ? ", json_array(id) AS path_nodes" : "";
+        var zeroNodes = needsPathNodes ? ", json_array(rowid) AS path_nodes" : "";
         var anchorNodes = needsPathNodes ? ", json_array(e.from_id, e.to_id) AS path_nodes" : "";
         var recNodes = needsPathNodes ? ", json_insert(c.path_nodes, '$[#]', e.to_id)" : "";
 
@@ -229,11 +229,11 @@ public partial class SqliteCompiler
         {
             if (activeAnchorFilters.Count > 0)
             {
-                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited{zeroNodes} FROM nodes _src_anc WHERE {string.Join(" AND ", activeAnchorFilters)}");
+                anchorSb.AppendLine($"    SELECT rowid AS start_id, rowid AS end_id, 0 AS depth, '/' || rowid || '/' AS path_visited{zeroNodes} FROM nodes _src_anc WHERE {string.Join(" AND ", activeAnchorFilters)}");
             }
             else
             {
-                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited{zeroNodes} FROM nodes");
+                anchorSb.AppendLine($"    SELECT rowid AS start_id, rowid AS end_id, 0 AS depth, '/' || rowid || '/' AS path_visited{zeroNodes} FROM nodes");
             }
             anchorSb.AppendLine("    UNION ALL");
         }
@@ -243,7 +243,7 @@ public partial class SqliteCompiler
             var whereClause = activeAnchorFilters.Count > 0
                 ? $"WHERE {string.Join(" AND ", activeAnchorFilters)} AND {edgeWherePred}"
                 : $"WHERE {edgeWherePred}";
-            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited FROM nodes _src_anc CROSS JOIN {edgeSourceTable} ON e.to_id = _src_anc.id {whereClause}");
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited FROM nodes _src_anc CROSS JOIN {edgeSourceTable} ON e.to_id = _src_anc.rowid {whereClause}");
 
             var maxDepthCond = maxDepth.HasValue ? $" AND c.depth < {maxDepth.Value}" : "";
             var recursiveSql = $@"    SELECT e.from_id, c.end_id, c.depth + 1, '/' || e.from_id || c.path_visited
@@ -261,7 +261,7 @@ public partial class SqliteCompiler
             var wherePart = isUndirected
                 ? string.Join(" AND ", activeAnchorFilters)
                 : $"{string.Join(" AND ", activeAnchorFilters)} AND {edgeWherePred}";
-            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM nodes _src_anc CROSS JOIN {edgeSourceTable} ON e.from_id = _src_anc.id WHERE {wherePart}");
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM nodes _src_anc CROSS JOIN {edgeSourceTable} ON e.from_id = _src_anc.rowid WHERE {wherePart}");
         }
         else
         {
@@ -301,7 +301,7 @@ public partial class SqliteCompiler
 
         if (isShortestPath)
         {
-            conditions.Add($"{rVar}.depth = (SELECT min(depth) FROM {cteName} WHERE start_id = {pVar}.id AND end_id = {tVar}.id)");
+            conditions.Add($"{rVar}.depth = (SELECT min(depth) FROM {cteName} WHERE start_id = {pVar}.rowid AND end_id = {tVar}.rowid)");
         }
 
         return conditions;
@@ -368,13 +368,13 @@ public partial class SqliteCompiler
 
         if (useStartForFixed)
         {
-            relOnConditions.Add($"{rVar}.start_id = {fixedVar}.id");
-            nodeOnConditions.Add($"{freeVar}.id = {rVar}.end_id");
+            relOnConditions.Add($"{rVar}.start_id = {fixedVar}.rowid");
+            nodeOnConditions.Add($"{freeVar}.rowid = {rVar}.end_id");
         }
         else
         {
-            relOnConditions.Add($"{rVar}.end_id = {fixedVar}.id");
-            nodeOnConditions.Add($"{freeVar}.id = {rVar}.start_id");
+            relOnConditions.Add($"{rVar}.end_id = {fixedVar}.rowid");
+            nodeOnConditions.Add($"{freeVar}.rowid = {rVar}.start_id");
         }
     }
 
@@ -416,11 +416,11 @@ public partial class SqliteCompiler
 
         if (rel.Direction == Direction.Incoming)
         {
-            relOnConditions.Add($"{rVar}.end_id = {pVar}.id AND {rVar}.start_id = {tVar}.id");
+            relOnConditions.Add($"{rVar}.end_id = {pVar}.rowid AND {rVar}.start_id = {tVar}.rowid");
         }
         else
         {
-            relOnConditions.Add($"{rVar}.start_id = {pVar}.id AND {rVar}.end_id = {tVar}.id");
+            relOnConditions.Add($"{rVar}.start_id = {pVar}.rowid AND {rVar}.end_id = {tVar}.rowid");
         }
 
         fromAndJoins.AppendLine();
@@ -482,8 +482,8 @@ public partial class SqliteCompiler
                 fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar}" : $" JOIN edges {relVar}");
             }
 
-            var prevIdSrc = _nodeIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.id";
-            var targetIdSrc = _nodeIdSource.TryGetValue(actualTargetVar, out var tSrc) ? tSrc : $"{actualTargetVar}.id";
+            var prevIdSrc = _nodeRowIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.rowid";
+            var targetIdSrc = _nodeRowIdSource.TryGetValue(actualTargetVar, out var tSrc) ? tSrc : $"{actualTargetVar}.rowid";
 
             switch (rel.Direction)
             {

@@ -97,8 +97,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "OrderPlacedHandler.cs");
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName.Contains("OrderPlaced")), Is.True);
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName.Contains("orders.confirmed")), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName.Contains("OrderPlaced")), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("orders.confirmed")), Is.True);
 
         const string javaCode = """
             import io.vertx.core.Vertx;
@@ -112,8 +112,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, javaRefs) = await ParseFileAsync(new JavaParser(), javaCode, "OrderVerticle.java");
-        Assert.That(javaRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName.Contains("/api/vertx/orders")), Is.True);
-        Assert.That(javaRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName.Contains("orders.created")), Is.True);
+        Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName.Contains("/api/vertx/orders")), Is.True);
+        Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("orders.created")), Is.True);
 
         const string pyCode = """
             from faststream import FastStream
@@ -123,8 +123,8 @@ public class Wave2LibraryExpansionTests
                 await broker.publish(msg, "payments.out")
             """;
         var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "stream_app.py");
-        Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "payments.in"), Is.True);
-        Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "payments.out"), Is.True);
+        Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "payments.in"), Is.True);
+        Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "payments.out"), Is.True);
 
         const string goCode = """
             package main
@@ -136,8 +136,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "dapr_app.go");
-        Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "orders.shipped"), Is.True);
-        Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "dapr_state_store"), Is.True);
+        Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "orders.shipped"), Is.True);
+        Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "dapr_state_store"), Is.True);
     }
 
     [Test]
@@ -160,8 +160,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "CreateInvoiceEndpoint.cs");
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName == "POST:/api/invoices/create"), Is.True);
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName == "GET:/api/invoices/list"), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "POST:/api/invoices/create"), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "GET:/api/invoices/list"), Is.True);
 
         const string ktCode = """
             import org.http4k.core.Method.GET
@@ -174,8 +174,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, ktRefs) = await ParseFileAsync(new KotlinFileParser(), ktCode, "BillingService.kt");
-        Assert.That(ktRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName == "GET:/api/http4k/ping"), Is.True);
-        Assert.That(ktRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName == "GRPC:/Billing"), Is.True);
+        Assert.That(ktRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "GET:/api/http4k/ping"), Is.True);
+        Assert.That(ktRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "GRPC:/Billing"), Is.True);
 
         const string tsCode = """
             import { Hono } from '@cloudflare/workers-types';
@@ -193,9 +193,9 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, tsRefs) = await ParseFileAsync(new TypeScriptParser(), tsCode, "worker.ts");
-        Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "cloudflare_d1"), Is.True);
-        Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "cloudflare-worker-queue"), Is.True);
-        Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "/api/v1/profile"), Is.True);
+        Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "cloudflare_d1"), Is.True);
+        Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "cloudflare-worker-queue"), Is.True);
+        Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "/api/v1/profile"), Is.True);
 
         const string goCode = """
             package main
@@ -206,7 +206,7 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "router.go");
-        Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName == "ALL:/api/v2/customers"), Is.True);
+        Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "ALL:/api/v2/customers"), Is.True);
     }
 
     [Test]
@@ -226,8 +226,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "CosmosRepo.cs");
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName.Contains("billing-events")), Is.True);
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "Invoices"), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("billing-events")), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "Invoices"), Is.True);
 
         const string javaCode = """
             import org.jooq.DSLContext;
@@ -241,8 +241,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, javaRefs) = await ParseFileAsync(new JavaParser(), javaCode, "LedgerDao.java");
-        Assert.That(javaRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "ledger_entries"), Is.True);
-        Assert.That(javaRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "session_cache"), Is.True);
+        Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "ledger_entries"), Is.True);
+        Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "session_cache"), Is.True);
 
         const string tsCode = """
             import { createClient } from '@supabase/supabase-js';
@@ -252,7 +252,7 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, tsRefs) = await ParseFileAsync(new TypeScriptParser(), tsCode, "supabaseRepo.ts");
-        Assert.That(tsRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "subscriptions"), Is.True);
+        Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "subscriptions"), Is.True);
 
         const string pyCode = """
             from qdrant_client import QdrantClient
@@ -261,7 +261,7 @@ public class Wave2LibraryExpansionTests
                 client.search("document_embeddings", [0.1, 0.2])
             """;
         var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "vector_repo.py");
-        Assert.That(pyRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "document_embeddings"), Is.True);
+        Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "document_embeddings"), Is.True);
     }
 
     [Test]
@@ -279,7 +279,7 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "OrderAgent.cs");
-        Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "llm:semantic-kernel"), Is.True);
+        Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "llm:semantic-kernel"), Is.True);
 
         const string ktCode = """
             import dagger.Binds
@@ -293,8 +293,8 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, ktRefs) = await ParseFileAsync(new KotlinFileParser(), ktCode, "AppModule.kt");
-        Assert.That(ktRefs.Any(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.TargetName == "SqlUserRepository"), Is.True);
-        Assert.That(ktRefs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "PaymentGateway"), Is.True);
+        Assert.That(ktRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "SqlUserRepository"), Is.True);
+        Assert.That(ktRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "PaymentGateway"), Is.True);
 
         const string goCode = """
             package main
@@ -311,9 +311,9 @@ public class Wave2LibraryExpansionTests
             }
             """;
         var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "boot.go");
-        Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.TargetName == "NewOrderService"), Is.True);
-        Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "casbin_rule"), Is.True);
-        Assert.That(goRefs.Any(r => r.Kind == OntologyConstants.Relationships.Exposes && r.TargetName == "GET:/metrics"), Is.True);
+        Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "NewOrderService"), Is.True);
+        Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "casbin_rule"), Is.True);
+        Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "GET:/metrics"), Is.True);
     }
 
     [Test]

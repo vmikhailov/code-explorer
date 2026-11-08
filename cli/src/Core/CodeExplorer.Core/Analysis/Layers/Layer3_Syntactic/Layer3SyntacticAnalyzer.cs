@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -28,10 +29,6 @@ public partial class Layer3SyntacticParser
         var rawTypeBindings = new List<RawTypeBinding>();
         var globalReferences = new List<Reference>();
         var globalSymbols = new Dictionary<(string Kind, string Name), string>();
-        var nProject = 0;
-        var totalFilesAcrossProjects = 0;
-        var parsedFilesCount = 0;
-        var lastFileReportTicks = Environment.TickCount64;
 
         // O(1) parent index of Layer 1 tree (eliminates 160M recursive DFS traversals)
         var parentByChildId = new Dictionary<string, IOntologyNode>();
@@ -131,7 +128,7 @@ public partial class Layer3SyntacticParser
 
                 foreach (var matchProj in bestMatches)
                 {
-                    projectRels.Add(new Relationship(matchProj.Id, file.Id, OntologyConstants.Relationships.Contains));
+                    projectRels.Add(new Relationship(matchProj.Id, file.Id, RelationshipKind.Contains));
                 }
             }
             else
@@ -160,7 +157,7 @@ public partial class Layer3SyntacticParser
 
 
 
-        foreach (var project in l2Result.Projects)
+        foreach (var project in OrderProjectsTopologically(l2Result))
         {
             foreach (var enrichment in project.Enrichments.OfType<ConfigurationFileInformation>())
             {
@@ -169,25 +166,28 @@ public partial class Layer3SyntacticParser
         }
         ctx.Layer3Log.ConfigurationIndexRegistered(ConfigurationIndex.GetDiscoveredUrls().Count);
 
-        var projectPass1List = new List<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, List<FileNode> ProjectFiles, (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[] ParsedResults)>();
         // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
-
         if (!ctx.LightweightAstScanMode)
         {
             var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
             foreach (var wfile in workspaceRootFiles)
             {
-                if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name)) allCandidateFiles.Add((wfile.FullPath, null));
+                if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name))
+                {
+                    allCandidateFiles.Add((wfile.FullPath, null));
+                }
             }
 
-    
-        foreach (var project in l2Result.Projects)
+            foreach (var project in OrderProjectsTopologically(l2Result))
             {
                 if (filesByProjectId.TryGetValue(project.Id, out var pFiles) && false)
                 {
                     foreach (var pfile in pFiles)
                     {
-                        if (IsRouteOrConfigCandidate(pfile.Path) && !SharedFileParserRegistry.CanParse(pfile.Name)) allCandidateFiles.Add((pfile.FullPath, project.Name));
+                        if (IsRouteOrConfigCandidate(pfile.Path) && !SharedFileParserRegistry.CanParse(pfile.Name))
+                        {
+                            allCandidateFiles.Add((pfile.FullPath, project.Name));
+                        }
                     }
                 }
             }
@@ -197,14 +197,12 @@ public partial class Layer3SyntacticParser
                 var (fPath, pName) = item;
                 try
                 {
-                    // Read from Layer 1 in-memory store
-                    // Size & existence checked via PhysicalFileStore below
-
                     var content = PhysicalFileStore.ReadAllText(fPath);
                     if (string.IsNullOrEmpty(content) || content.Length > 1024 * 1024) return;
                     RouteDictionaryRegistry.ScanServiceDomains(content);
                     RouteDictionaryRegistry.ScanAndRegister(content);
                     ConstantRegistry.ScanAndRegister(fPath, content, pName);
+                    AstConstantExtractor.ExtractAndRegister(fPath, content, pName);
 
                     var fileParser = WorkspaceIndexer.GetParserForFile(fPath);
                     fileParser?.DiscoverDeclarations(fPath, content, pName, ctx);
@@ -216,53 +214,130 @@ public partial class Layer3SyntacticParser
             });
         }
 
+        await foreach (var (_, projectSyntaxNode, file, syntaxTree, parentNode) in StreamProjectSyntaxTreesAsync(
+                           l2Result,
+                           ctx,
+                           syntaxStructureNode,
+                           filesByProjectId,
+                           parentByChildId,
+                           ctx.CancellationToken))
+        {
+            // Replace the empty FileNode in physical tree with the parsed FileNode
+            var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
+            if (idx >= 0)
+            {
+                parentNode.Children[idx] = syntaxTree.FileNode;
+            }
 
+            // Add top-level symbols to project syntax node
+            foreach (var child in syntaxTree.FileNode.Children)
+            {
+                if (child is TypeNode || child is FunctionNode || child is MemberNode)
+                {
+                    projectSyntaxNode.Children.Add(child);
+                }
+            }
 
-        foreach (var project in l2Result.Projects)
+            syntaxTrees.Add(syntaxTree);
+            rawImports.AddRange(syntaxTree.RawImports);
+            rawVariables.AddRange(syntaxTree.RawVariables);
+            rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+
+            // Add to global lists in context for late binding / indexing compatibility
+            ctx.RawImports.AddRange(syntaxTree.RawImports);
+            ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+            ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+        }
+
+        if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan)
+        {
+            ctx.HasWorkspaceSymbolFilter = true;
+        }
+
+        // Link shared files reused across projects via relative imports when no explicit Library project owns the target file
+        var sharedContainsRels = ResolveCrossProjectSharedFileContains(rawImports, primaryOwnerByFilePath, fileNodeByPath, projectRels);
+        if (sharedContainsRels.Count > 0)
+        {
+            await ctx.EnqueueUploadRelationshipsAsync(sharedContainsRels);
+            ctx.AddRelsCount(sharedContainsRels.Count);
+        }
+
+        PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
+        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count);
+        return new Layer3Result(
+            l2Result,
+            syntaxStructureNode,
+            syntaxTrees,
+            rawImports,
+            rawVariables,
+            rawTypeBindings,
+            globalReferences,
+            globalSymbols
+        );
+    }
+
+    private static async IAsyncEnumerable<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)> StreamProjectSyntaxTreesAsync(
+        Layer2Result l2Result,
+        ParsingContext ctx,
+        SyntaxStructureNode syntaxStructureNode,
+        Dictionary<string, List<FileNode>> filesByProjectId,
+        Dictionary<string, IOntologyNode> parentByChildId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var totalProjects = l2Result.Projects.Count;
+        var nProject = 0;
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = ctx.LightweightAstScanMode
+                ? Math.Min(Environment.ProcessorCount, 2)
+                : Environment.ProcessorCount
+        };
+
+        foreach (var project in OrderProjectsTopologically(l2Result))
         {
             nProject++;
-            if (nProject == 1)
-            {
-                totalFilesAcrossProjects = filesByProjectId.Values.Sum(list => list.Count);
-            }
-            ctx.CancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            ctx.Layer3Log.ParsingProject(nProject, l2Result.Projects.Count, project.Path);
+            const string projectSyntaxName = "ProjectSyntax";
+            const string layer3SyntacticSource = "Layer3_Syntactic";
+            const string parseExceptionCode = "parse_exception";
+            const string parseExceptionName = "ParseException";
+            const string layer3VisitorSource = "Layer3_Visitor";
+            const string visitorExceptionCode = "visitor_exception";
+            const string visitorExceptionName = "VisitorException";
+            const string errorSeverity = "error";
 
             var projectSyntaxId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{project.Path}:syntax";
-            var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
+            var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, projectSyntaxName, project.Path);
             syntaxStructureNode.Children.Add(projectSyntaxNode);
 
             var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSyntaxId, project.Id));
             await ctx.EnqueueUploadRelationshipsAsync([belongsToRel]);
             ctx.AddRelsCount(1);
 
-            if (!filesByProjectId.TryGetValue(project.Id, out var projectFiles) || projectFiles.Count == 0)
+            filesByProjectId.TryGetValue(project.Id, out var projectFiles);
+            if (projectFiles != null && projectFiles.Count > 0 && ctx.CustomProjectFileFilter != null)
+            {
+                projectFiles = ctx.CustomProjectFileFilter(projectFiles, project, l2Result).ToList();
+            }
+
+            var projectFileCount = projectFiles?.Count ?? 0;
+            var pctDone = totalProjects > 0 ? (int)Math.Round(nProject * 100.0 / totalProjects) : 100;
+            var progressPct = totalProjects > 0 ? 14 + (int)(38.0 * nProject / totalProjects) : 52;
+            const string layer3StageName = "Layer 3: Syntactic";
+            ctx.ReportProgress(progressPct, layer3StageName, $"Scanning project {nProject}/{totalProjects} ({pctDone}%): {project.Name} ({projectFileCount} files)", nProject, totalProjects);
+            ctx.Layer3Log.ParsingProject(nProject, totalProjects, pctDone, project.Name, projectFileCount);
+
+            if (projectFiles == null || projectFileCount == 0)
             {
                 continue;
             }
 
-            if (ctx.CustomProjectFileFilter != null)
-            {
-                projectFiles = ctx.CustomProjectFileFilter(projectFiles, project, l2Result).ToList();
-                if (projectFiles.Count == 0)
-                {
-                    continue;
-                }
-            }
+            var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFileCount];
 
-            var parallelOptions = new ParallelOptions
-            {
-                CancellationToken = ctx.CancellationToken,
-                MaxDegreeOfParallelism = ctx.LightweightAstScanMode
-                    ? Math.Min(Environment.ProcessorCount, 2)
-                    : Environment.ProcessorCount
-            };
-
-            var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFiles.Count];
-
-            // Pass 1: Parse all syntax trees and discover declarations (constants, enums, raw variables)
-            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, async (i, ct) =>
+            // Step 1 (Project AST -> UAST & Declarations): Parse syntax trees into UAST and register project constants/declarations
+            await Parallel.ForAsync(0, projectFileCount, parallelOptions, async (i, ct) =>
             {
                 var file = projectFiles[i];
                 var fileParser = WorkspaceIndexer.GetParserForFile(file.FullPath);
@@ -287,7 +362,7 @@ public partial class Layer3SyntacticParser
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
 
-                        for (int v = 0; v < syntaxTree.RawVariables.Count; v++)
+                        for (var v = 0; v < syntaxTree.RawVariables.Count; v++)
                         {
                             var rv = syntaxTree.RawVariables[v];
                             if (rv.Scope != "local" && rv.IsConstant &&
@@ -310,53 +385,20 @@ public partial class Layer3SyntacticParser
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
-            
-        if (!ctx.LightweightAstScanMode)
+
+                    if (!ctx.LightweightAstScanMode)
                     {
                         RecordDocumentDiagnostics(syntaxTree, file, ctx);
-                    }
-
-                    var completed = Interlocked.Increment(ref parsedFilesCount);
-                    var nowTicks = Environment.TickCount64;
-                    if (totalFilesAcrossProjects > 0 &&
-                        (completed == totalFilesAcrossProjects ||
-                         completed % Math.Max(25, totalFilesAcrossProjects / 10) == 0 ||
-                         (nowTicks - lastFileReportTicks >= 3000 && completed > 0)))
-                    {
-                        lastFileReportTicks = nowTicks;
-                        var pct = 14 + (int)(38.0 * completed / totalFilesAcrossProjects);
-                        var pctDone = (int)Math.Round(completed * 100.0 / totalFilesAcrossProjects);
-                        ctx.ReportProgress(pct, "Layer 3: Syntactic", $"Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({pctDone}%) [{project.Name}]", completed, totalFilesAcrossProjects);
-                        ctx.Layer3Log.ParsingProgress(completed, totalFilesAcrossProjects, pctDone, project.Name);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     ctx.Layer3Log.FileParseFailed(file.Path, ex.Message, ex);
-                    ctx.RecordScanIssue("Layer3_Syntactic", "parse_exception", file.Path, ex.Message, name: "ParseException", severity: "error", exception: ex, language: fileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
+                    ctx.RecordScanIssue(layer3SyntacticSource, parseExceptionCode, file.Path, ex.Message, name: parseExceptionName, severity: errorSeverity, exception: ex, language: fileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                 }
             });
 
-            projectPass1List.Add((project, projectSyntaxNode, projectFiles, parsedResults));
-        }
-
-        Layer3ScopeVisibilityPass.PopulatePass1WorkspaceSymbolIndex(projectPass1List, ctx);
-
-        var parallelOptionsPass2 = new ParallelOptions
-        {
-            CancellationToken = ctx.CancellationToken,
-            MaxDegreeOfParallelism = ctx.LightweightAstScanMode
-                ? Math.Min(Environment.ProcessorCount, 2)
-                : Environment.ProcessorCount
-        };
-
-        var visitedPass2FilesCount = 0;
-        var lastPass2ReportTicks = Environment.TickCount64;
-
-        foreach (var (project, projectSyntaxNode, projectFiles, parsedResults) in projectPass1List)
-        {
-            var parallelOptions = parallelOptionsPass2;
-            // Pass 2: Traverse ASTs with language visitors and component parsers (now that all constants and symbols are registered)
+            // Step 2 (Immediate Project UAST Visitors & Component Parsers): Run language visitors and component parsers immediately on the project's UASTs
             var projectAbsDir = Path.Combine(ctx.AbsoluteWorkspacePath, project.Path).NormalizeFullPath();
             var filesInProjectDir = PhysicalFileStore.GetDirectoryFiles(projectAbsDir);
             var projectContext = new ProjectContext(
@@ -365,9 +407,6 @@ public partial class Layer3SyntacticParser
                 project.Name,
                 project.ProjectType,
                 filesInProjectDir,
-                // Package dependencies resolved at Layer 2 — CanHandle() of component parsers
-                // (e.g. the JS test runner keyed on jest/jasmine) used to receive an empty list
-                // and therefore never matched.
                 project.Children.OfType<PackageNode>().Select(p => p.Name)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
@@ -376,7 +415,7 @@ public partial class Layer3SyntacticParser
                 ? []
                 : Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 
-            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (int i, CancellationToken ct) =>
+            await Parallel.ForAsync(0, projectFileCount, parallelOptions, (int i, CancellationToken ct) =>
             {
                 var item = parsedResults[i];
                 if (item == null) return ValueTask.CompletedTask;
@@ -386,10 +425,8 @@ public partial class Layer3SyntacticParser
                 {
                     try
                     {
-                        // File category comes from the parser that owns it (test framework component),
-                        // and must be known before symbols are mapped so they inherit is_test.
                         var isTestFile = file.IsTest;
-                        for (int cp = 0; !isTestFile && cp < componentParsers.Count; cp++)
+                        for (var cp = 0; !isTestFile && cp < componentParsers.Count; cp++)
                         {
                             isTestFile = componentParsers[cp].IsTestSource(syntaxTree);
                         }
@@ -403,91 +440,33 @@ public partial class Layer3SyntacticParser
 
                         if (componentParsers.Count > 0)
                         {
-                            for (int cp = 0; cp < componentParsers.Count; cp++)
+                            for (var cp = 0; cp < componentParsers.Count; cp++)
                             {
                                 componentParsers[cp].EnrichWithSyntax(null, syntaxTree, ctx);
                             }
                         }
+
+                        Layer3ScopeVisibilityPass.RegisterSyntaxTreeWorkspaceSymbols(syntaxTree, ctx);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         ctx.Layer3Log.VisitorFailed(syntaxTree.FilePath, ex.Message, ex);
-                        ctx.RecordScanIssue("Layer3_Visitor", "visitor_exception", file.Path, ex.Message, name: "VisitorException", severity: "error", exception: ex, language: syntaxTree.FileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
+                        ctx.RecordScanIssue(layer3VisitorSource, visitorExceptionCode, file.Path, ex.Message, name: visitorExceptionName, severity: errorSeverity, exception: ex, language: syntaxTree.FileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                     }
-                }
-
-                var completedPass2 = Interlocked.Increment(ref visitedPass2FilesCount);
-                var nowTicks = Environment.TickCount64;
-                if (totalFilesAcrossProjects > 0 &&
-                    (completedPass2 == totalFilesAcrossProjects ||
-                     completedPass2 % Math.Max(50, totalFilesAcrossProjects / 10) == 0 ||
-                     (nowTicks - lastPass2ReportTicks >= 3000 && completedPass2 > 0)))
-                {
-                    lastPass2ReportTicks = nowTicks;
-                    var pctDone = (int)Math.Round(completedPass2 * 100.0 / totalFilesAcrossProjects);
-                    const string layer3StageName = "Layer 3: Syntactic";
-                    ctx.ReportProgress(40 + (int)(12.0 * completedPass2 / totalFilesAcrossProjects), layer3StageName, $"Analyzing AST semantics and visitors: {completedPass2}/{totalFilesAcrossProjects} files ({pctDone}%) [{project.Name}]", completedPass2, totalFilesAcrossProjects);
-                    ctx.Layer3Log.VisitorProgress(completedPass2, totalFilesAcrossProjects, pctDone, project.Name);
                 }
 
                 return ValueTask.CompletedTask;
             });
 
-            for (int i = 0; i < projectFiles.Count; i++)
+            for (var i = 0; i < projectFileCount; i++)
             {
                 var item = parsedResults[i];
                 if (item == null) continue;
 
                 var (file, syntaxTree, parentNode) = item.Value;
-
-                // Replace the empty FileNode in physical tree with the parsed FileNode
-                var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
-                if (idx >= 0)
-                {
-                    parentNode.Children[idx] = syntaxTree.FileNode;
-                }
-
-                // Add top-level symbols to project syntax node
-                foreach (var child in syntaxTree.FileNode.Children)
-                {
-                    if (child is TypeNode || child is FunctionNode || child is MemberNode)
-                    {
-                        projectSyntaxNode.Children.Add(child);
-                    }
-                }
-
-                syntaxTrees.Add(syntaxTree);
-                rawImports.AddRange(syntaxTree.RawImports);
-                rawVariables.AddRange(syntaxTree.RawVariables);
-                rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
-
-                // Add to global lists in context for late binding / indexing compatibility
-                ctx.RawImports.AddRange(syntaxTree.RawImports);
-                ctx.RawVariables.AddRange(syntaxTree.RawVariables);
-                ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+                yield return (project, projectSyntaxNode, file, syntaxTree, parentNode);
             }
         }
-
-        // Link shared files reused across projects via relative imports when no explicit Library project owns the target file
-        var sharedContainsRels = ResolveCrossProjectSharedFileContains(rawImports, primaryOwnerByFilePath, fileNodeByPath, projectRels);
-        if (sharedContainsRels.Count > 0)
-        {
-            await ctx.EnqueueUploadRelationshipsAsync(sharedContainsRels);
-            ctx.AddRelsCount(sharedContainsRels.Count);
-        }
-
-        PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
-        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count);
-        return new Layer3Result(
-            l2Result,
-            syntaxStructureNode,
-            syntaxTrees,
-            rawImports,
-            rawVariables,
-            rawTypeBindings,
-            globalReferences,
-            globalSymbols
-        );
     }
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ISemanticExtension> Active, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
@@ -937,7 +916,7 @@ public partial class Layer3SyntacticParser
                 for (int i = 0; i < node.References.Count; i++)
                 {
                     var r = node.References[i];
-                    if (r.Line <= 0 || r.Kind != OntologyConstants.Relationships.Calls) continue;
+                    if (r.Line <= 0 || r.Kind != CodeExplorer.Cypher.Common.RelationshipKind.Calls) continue;
 
                     var targetMethod = r.TargetName;
                     if (targetMethod.Contains('.'))
@@ -985,7 +964,7 @@ public partial class Layer3SyntacticParser
 
             foreach (var child in node.Children)
             {
-                WalkAndEnrich(child);
+                if (child.References.Count > 0 || child.Children.Count > 0) WalkAndEnrich(child);
             }
         }
 

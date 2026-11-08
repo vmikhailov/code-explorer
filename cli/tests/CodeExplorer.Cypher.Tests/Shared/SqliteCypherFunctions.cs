@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Cypher.Tests.Shared;
@@ -8,6 +9,42 @@ public static class SqliteCypherFunctions
 {
     public static void Register(SqliteConnection conn)
     {
+        conn.CreateFunction<object?, string?>("ce_node_kind", static v => v switch
+        {
+            null => null,
+            long l => GraphKindCodec.DecodeNodeKind((int)l),
+            int i => GraphKindCodec.DecodeNodeKind(i),
+            string s => int.TryParse(s, out var parsed) ? GraphKindCodec.DecodeNodeKind(parsed) : s,
+            _ => v.ToString()
+        }, isDeterministic: true);
+
+        conn.CreateFunction<object?, int?>("ce_node_kind_id", static v => v switch
+        {
+            null => null,
+            long l => (int)l,
+            int i => i,
+            string s => GraphKindCodec.EncodeNodeKind(s),
+            _ => GraphKindCodec.EncodeNodeKind(v.ToString())
+        }, isDeterministic: true);
+
+        conn.CreateFunction<object?, string?>("ce_rel_kind", static v => v switch
+        {
+            null => null,
+            long l => GraphKindCodec.DecodeRelKind((int)l),
+            int i => GraphKindCodec.DecodeRelKind(i),
+            string s => int.TryParse(s, out var parsed) ? GraphKindCodec.DecodeRelKind(parsed) : s,
+            _ => v.ToString()
+        }, isDeterministic: true);
+
+        conn.CreateFunction<object?, int?>("ce_rel_kind_id", static v => v switch
+        {
+            null => null,
+            long l => (int)l,
+            int i => i,
+            string s => GraphKindCodec.EncodeRelKind(s),
+            _ => GraphKindCodec.EncodeRelKind(v.ToString())
+        }, isDeterministic: true);
+
         // 1. Math functions
         conn.CreateFunction("power", (double x, double y) => Math.Pow(x, y));
         conn.CreateFunction("sqrt", (double x) => Math.Sqrt(x));

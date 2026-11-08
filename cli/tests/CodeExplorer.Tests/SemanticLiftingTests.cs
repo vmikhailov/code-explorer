@@ -31,7 +31,7 @@ public class SemanticLiftingTests
         var rel = lifted[0];
         rel.From.Should().Be("proj:svc_a");
         rel.To.Should().Be("proj:svc_d");
-        rel.Kind.Should().Be(OntologyConstants.Relationships.ServiceCall);
+        rel.Kind.Should().Be(RelationshipKind.ServiceCall);
         rel.Properties!["via_library"]?.ToString().Should().Be("LibB");
         rel.Properties!["call_chain"]?.ToString().Should().Be("LibB -> LibC");
     }
@@ -57,7 +57,7 @@ public class SemanticLiftingTests
         var rel = lifted[0];
         rel.From.Should().Be("proj:svc_a");
         rel.To.Should().Be("ws1:res:db:relational:orders_db");
-        rel.Kind.Should().Be(OntologyConstants.Relationships.UsesDb);
+        rel.Kind.Should().Be(RelationshipKind.UsesDb);
         rel.Properties!["via_library"]?.ToString().Should().Be("LibData");
     }
 
@@ -82,7 +82,7 @@ public class SemanticLiftingTests
         var rel = lifted[0];
         rel.From.Should().Be("proj:svc_a");
         rel.To.Should().Be("ws1:res:topic:kafka:orders");
-        rel.Kind.Should().Be(OntologyConstants.Relationships.SubscribesTo);
+        rel.Kind.Should().Be(RelationshipKind.SubscribesTo);
         rel.Properties!["via_library"]?.ToString().Should().Be("LibConsumer");
     }
 
@@ -111,8 +111,8 @@ public class SemanticLiftingTests
 
         lifted.Select(r => (r.From, r.Kind, r.To)).Should().BeEquivalentTo(new[]
         {
-            (server.Id, OntologyConstants.Relationships.SubscribesTo, requests),
-            (client.Id, OntologyConstants.Relationships.PublishesTo, requestTopic)
+            (server.Id, RelationshipKind.SubscribesTo, requests),
+            (client.Id, RelationshipKind.PublishesTo, requestTopic)
         });
     }
 }

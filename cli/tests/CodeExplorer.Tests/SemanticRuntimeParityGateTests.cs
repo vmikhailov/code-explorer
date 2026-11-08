@@ -496,16 +496,16 @@ public class SemanticRuntimeParityGateTests
             var semRels = l4.SemanticRelationships;
 
             // 1. Service -> Library DEPENDS_ON
-            var svcToLibRel = semRels.FirstOrDefault(r => r.From.Contains(":s:") && r.To.Contains(":lib:") && r.Kind == OntologyConstants.Relationships.DependsOn);
+            var svcToLibRel = semRels.FirstOrDefault(r => r.From.Contains(":s:") && r.To.Contains(":lib:") && r.Kind == RelationshipKind.DependsOn);
             svcToLibRel.Should().NotBeNull("Semantic ServiceNode must have DEPENDS_ON edge to semantic LibraryNode");
             svcToLibRel!.Properties?.GetValueOrDefault("is_semantic")?.ToString().Should().Be("true");
 
             // 2. Library -> Package DEPENDS_ON
-            var libToPkgRel = semRels.FirstOrDefault(r => r.From.Contains(":lib:") && r.To.Contains(":pkg:") && r.Kind == OntologyConstants.Relationships.DependsOn);
+            var libToPkgRel = semRels.FirstOrDefault(r => r.From.Contains(":lib:") && r.To.Contains(":pkg:") && r.Kind == RelationshipKind.DependsOn);
             libToPkgRel.Should().NotBeNull("Semantic LibraryNode must have DEPENDS_ON edge to PackageNode");
 
             // 3. TestSuite -> Service TESTS
-            var testToSvcRel = semRels.FirstOrDefault(r => r.From.Contains(":suite:") && r.To.Contains(":s:") && r.Kind == OntologyConstants.Relationships.Tests);
+            var testToSvcRel = semRels.FirstOrDefault(r => r.From.Contains(":suite:") && r.To.Contains(":s:") && r.Kind == RelationshipKind.Tests);
             testToSvcRel.Should().NotBeNull("Semantic TestSuiteNode must have TESTS edge to target ServiceNode");
         }
         finally
@@ -542,7 +542,7 @@ public class SemanticRuntimeParityGateTests
             projectToWorkloadMap: projectToWorkloadMap
         );
 
-        directRels.Should().Contain(r => r.From == $"{wsId}:lib:orderlib" && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+        directRels.Should().Contain(r => r.From == $"{wsId}:lib:orderlib" && r.To == targetDbId && r.Kind == RelationshipKind.UsesDb,
             "Direct USES_DB on ProjectNode must be mirrored to semantic Library workload");
 
         // 2. Transitive lifting through library: LiftTransitiveSemanticRelations
@@ -553,9 +553,9 @@ public class SemanticRuntimeParityGateTests
             projectToWorkloadMap: projectToWorkloadMap
         );
 
-        lifted.Should().NotContain(r => r.From == svcProj.Id && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+        lifted.Should().NotContain(r => r.From == svcProj.Id && r.To == targetDbId && r.Kind == RelationshipKind.UsesDb,
             "Upward L2 -> L4 USES_DB edge on ProjectNode is forbidden");
-        lifted.Should().Contain(r => r.From == $"{wsId}:s:orderservice" && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+        lifted.Should().Contain(r => r.From == $"{wsId}:s:orderservice" && r.To == targetDbId && r.Kind == RelationshipKind.UsesDb,
             "Transitive USES_DB must be lifted onto semantic Service workload (L4 -> L4)");
     }
 

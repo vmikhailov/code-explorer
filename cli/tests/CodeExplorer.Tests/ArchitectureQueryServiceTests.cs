@@ -101,7 +101,7 @@ public class ArchitectureQueryServiceTests
         await _db.UploadRelationshipsAsync([
             new("p1", "db1", "USES_DB", new Dictionary<string, object>()),
             new("p2", "db1", "USES_DB", new Dictionary<string, object>()),
-            new("f1", "db1", "WRITES_DATA", new Dictionary<string, object>())
+            new("f1", "db1", "WRITES_TO", new Dictionary<string, object>())
         ]);
 
         var result = await _service.GetNodeUsagesAsync("db1");

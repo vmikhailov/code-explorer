@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -38,7 +39,7 @@ public partial class SqliteGraphClient
         "SELECT DISTINCT n.kind, j.key FROM (SELECT kind, properties FROM nodes GROUP BY kind) n, json_each(n.properties) j;";
 
     private const string SelectAllEdgeEndpointsSql =
-        "SELECT from_id, kind, to_id FROM edges;";
+        "SELECT DISTINCT fn.kind, e.kind, tn.kind FROM edges e JOIN nodes fn ON fn.rowid = e.from_id JOIN nodes tn ON tn.rowid = e.to_id;";
 
     private static readonly JsonSerializerOptions CompactTaxonomyJsonOptions = new()
     {
@@ -60,8 +61,9 @@ public partial class SqliteGraphClient
     {
         foreach (var node in nodes)
         {
-            _nodeKindById[node.Id] = node.Kind;
-            var propSet = GetOrCreateTaxonomyPropSet(node.Kind);
+            var kindStr = node.Kind.ToCypherLabel();
+            _nodeKindById[node.Id] = kindStr;
+            var propSet = GetOrCreateTaxonomyPropSet(kindStr);
             RecordSingleNodeProperties(node, propSet);
         }
 
@@ -74,7 +76,7 @@ public partial class SqliteGraphClient
         if (node.OntologyNode != null && !node.HasMaterializedProperties)
         {
             var ont = node.OntologyNode;
-            if (_registeredOntologyNodeTypes.Add((node.Kind, ont.GetType())))
+            if (_registeredOntologyNodeTypes.Add((node.Kind.ToCypherLabel(), ont.GetType())))
             {
                 foreach (var key in NodeFactory.GetSchemaPropertyKeys(ont.GetType()))
                 {
@@ -114,7 +116,7 @@ public partial class SqliteGraphClient
     {
         foreach (var rel in rels)
         {
-            RecordEdgeEndpointsInTaxonomy(rel.From, rel.Kind, rel.To);
+            RecordEdgeEndpointsInTaxonomy(rel.From, rel.Kind.ToCypherType(), rel.To);
         }
 
         _taxonomyDirty = true;
@@ -313,7 +315,9 @@ public partial class SqliteGraphClient
         while (await reader.ReadAsync(cancellationToken))
         {
             var id = reader.GetString(0);
-            var kind = reader.GetString(1);
+            var kind = reader.GetFieldType(1) == typeof(long)
+                ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(1))
+                : reader.GetString(1);
             _nodeKindById[id] = kind;
         }
 
@@ -368,7 +372,9 @@ public partial class SqliteGraphClient
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            var kind = reader.GetString(0);
+            var kind = reader.GetFieldType(0) == typeof(long)
+                ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(0))
+                : reader.GetString(0);
             var key = reader.GetString(1);
             GetOrCreateTaxonomyPropSet(kind).Add(key);
         }
@@ -383,15 +389,17 @@ public partial class SqliteGraphClient
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            var fromId = reader.GetString(0);
-            var relKind = reader.GetString(1);
-            var toId = reader.GetString(2);
+            var fromKind = reader.GetFieldType(0) == typeof(long)
+                ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(0))
+                : reader.GetString(0);
+            var relKind = reader.GetFieldType(1) == typeof(long)
+                ? GraphKindCodec.DecodeRelKind((int)reader.GetInt64(1))
+                : reader.GetString(1);
+            var toKind = reader.GetFieldType(2) == typeof(long)
+                ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(2))
+                : reader.GetString(2);
 
-            if (_nodeKindById.TryGetValue(fromId, out var fromKind) &&
-                _nodeKindById.TryGetValue(toId, out var toKind))
-            {
-                _taxonomyTriplets.Add((fromKind, relKind, toKind));
-            }
+            _taxonomyTriplets.Add((fromKind, relKind, toKind));
         }
     }
 

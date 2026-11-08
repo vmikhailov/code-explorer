@@ -223,7 +223,7 @@ public class CatchClauseExtractionTests
             nodesByKind.Should().ContainKey(OntologyConstants.NodeLabels.ScanIssue);
             nodesByKind[OntologyConstants.NodeLabels.ScanIssue].Should().BeGreaterThan(0);
 
-            var issueNodes = dbClient.UploadedNodes.Where(n => n.Kind == OntologyConstants.NodeLabels.ScanIssue).ToList();
+            var issueNodes = dbClient.UploadedNodes.Where(n => n.Kind == NodeKind.ScanIssue).ToList();
             issueNodes.Should().NotBeEmpty();
             issueNodes[0].Properties["category"].ToString().Should().Be("syntax_error");
             issueNodes[0].Properties["stage"].ToString().Should().Be("Layer3_Syntactic");

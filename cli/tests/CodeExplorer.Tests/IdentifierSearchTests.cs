@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 
@@ -43,27 +44,28 @@ public class IdentifierSearchTests
 
         using (var setup = conn.CreateCommand())
         {
-            setup.CommandText = """
+            SqliteCypherFunctions.Register(conn);
+            setup.CommandText = $$"""
                 CREATE TABLE IF NOT EXISTS nodes (
                     id TEXT PRIMARY KEY,
-                    kind TEXT NOT NULL,
+                    kind INTEGER NOT NULL,
                     properties JSON NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS edges (
-                    from_id TEXT NOT NULL,
-                    to_id TEXT NOT NULL,
-                    kind TEXT NOT NULL,
+                    from_id INTEGER NOT NULL,
+                    to_id INTEGER NOT NULL,
+                    kind INTEGER NOT NULL,
                     properties JSON NOT NULL
                 );
                 INSERT INTO nodes VALUES
-                  ('t1', 'Type', '{"name":"GateCommandHandler","path":"cli/Commands/GateCommandHandler.cs","start_line":10}'),
-                  ('f1', 'Function', '{"name":"HandleAsync","path":"cli/Commands/GateCommandHandler.cs","start_line":17}'),
-                  ('ep1', 'Endpoint', '{"name":"POST:/api/gates/check","route_template":"/api/gates/check","path":"Server.cs","start_line":330}'),
-                  ('m1', 'Member', '{"name":"GetGatesRequest","path":"Protocol.cs","start_line":26}');
+                  ('t1', {{GraphKindCodec.EncodeNodeKind("Type")}}, '{"name":"GateCommandHandler","path":"cli/Commands/GateCommandHandler.cs","start_line":10}'),
+                  ('f1', {{GraphKindCodec.EncodeNodeKind("Function")}}, '{"name":"HandleAsync","path":"cli/Commands/GateCommandHandler.cs","start_line":17}'),
+                  ('ep1', {{GraphKindCodec.EncodeNodeKind("Endpoint")}}, '{"name":"POST:/api/gates/check","route_template":"/api/gates/check","path":"Server.cs","start_line":330}'),
+                  ('m1', {{GraphKindCodec.EncodeNodeKind("Member")}}, '{"name":"GetGatesRequest","path":"Protocol.cs","start_line":26}');
 
                 INSERT INTO edges VALUES
-                  ('t1', 'f1', 'HAS_METHOD', '{}'),
-                  ('t1', 'm1', 'HAS_MEMBER', '{}');
+                  ((SELECT rowid FROM nodes WHERE id = 't1'), (SELECT rowid FROM nodes WHERE id = 'f1'), {{GraphKindCodec.EncodeRelKind("HAS_METHOD")}}, '{}'),
+                  ((SELECT rowid FROM nodes WHERE id = 't1'), (SELECT rowid FROM nodes WHERE id = 'm1'), {{GraphKindCodec.EncodeRelKind("HAS_MEMBER")}}, '{}');
                 """;
             setup.ExecuteNonQuery();
         }

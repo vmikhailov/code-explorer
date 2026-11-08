@@ -279,12 +279,12 @@ public class FastApiParserTests
 
         ep.RequiredRoles.Should().Be("admin,metrics:read");
 
-        var callsRefs = ep.References.Where(r => r.Kind == OntologyConstants.Relationships.Calls).ToList();
+        var callsRefs = ep.References.Where(r => r.Kind == RelationshipKind.Calls).ToList();
         var depNames = callsRefs.Select(r => r.TargetName).ToList();
         depNames.Should().Contain("get_db");
         depNames.Should().Contain("get_current_user");
 
-        var triggerRef = ep.References.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.Triggers);
+        var triggerRef = ep.References.FirstOrDefault(r => r.Kind == RelationshipKind.Triggers);
         triggerRef.Should().NotBeNull();
         triggerRef!.TargetName.Should().Be("admin_view");
     }

@@ -114,8 +114,8 @@ export function requestWithOptions() {
         extServices.Should().Contain(s => s.DomainOrService == "api.payments.com" && s.Path == "/v1/charge");
 
         var refs = FindAllReferences(ws.FileNode);
-        refs.Should().Contain(r => r.TargetName == "api.github.com" && r.Kind == "CALLS");
-        refs.Should().Contain(r => r.TargetName == "api.payments.com" && r.Kind == "CALLS");
+        refs.Should().Contain(r => r.TargetName == "api.github.com" && r.Kind == RelationshipKind.Calls);
+        refs.Should().Contain(r => r.TargetName == "api.payments.com" && r.Kind == RelationshipKind.Calls);
     }
 
     [Test]
@@ -153,9 +153,9 @@ export async function poolRequest() {
         extServices.Should().Contain(s => s.DomainOrService == "api.undici-pool.com");
 
         var refs = FindAllReferences(ws.FileNode);
-        refs.Should().Contain(r => r.TargetName == "api.undici.com" && r.Kind == "CALLS");
-        refs.Should().Contain(r => r.TargetName == "api.undici-client.com" && r.Kind == "CALLS");
-        refs.Should().Contain(r => r.TargetName == "api.undici-pool.com" && r.Kind == "CALLS");
+        refs.Should().Contain(r => r.TargetName == "api.undici.com" && r.Kind == RelationshipKind.Calls);
+        refs.Should().Contain(r => r.TargetName == "api.undici-client.com" && r.Kind == RelationshipKind.Calls);
+        refs.Should().Contain(r => r.TargetName == "api.undici-pool.com" && r.Kind == RelationshipKind.Calls);
     }
 
     [Test]
@@ -184,7 +184,7 @@ export async function curlUrllibProducts() {
         extServices.Should().Contain(s => s.DomainOrService == "api.urllib.com" && s.Path == "/v1/products");
 
         var refs = FindAllReferences(ws.FileNode);
-        refs.Should().Contain(r => r.TargetName == "api.urllib.com" && r.Kind == "CALLS");
+        refs.Should().Contain(r => r.TargetName == "api.urllib.com" && r.Kind == RelationshipKind.Calls);
     }
 
     [Test]

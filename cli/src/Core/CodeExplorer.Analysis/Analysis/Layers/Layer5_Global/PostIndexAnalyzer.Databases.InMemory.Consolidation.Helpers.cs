@@ -28,12 +28,12 @@ public partial class PostIndexAnalyzer
         {
             foreach (var rel in l4Result.SemanticRelationships)
             {
-                if (rel.Kind == OntologyConstants.Relationships.ImplementedBy)
+                if (rel.Kind == RelationshipKind.ImplementedBy)
                 {
                     var proj = projects.FirstOrDefault(p => p.Id == rel.To || p.Id.TrimEnd(':') == rel.To.TrimEnd(':'));
                     if (proj != null) workloadToProject[rel.From] = proj;
                 }
-                else if (rel.Kind == OntologyConstants.Relationships.Deploys)
+                else if (rel.Kind == RelationshipKind.Deploys)
                 {
                     var proj = projects.FirstOrDefault(p => p.Id == rel.From || p.Id.TrimEnd(':') == rel.From.TrimEnd(':'));
                     if (proj != null) workloadToProject[rel.To] = proj;
@@ -62,7 +62,7 @@ public partial class PostIndexAnalyzer
         ).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
 
         var directReferencedLibs = new Dictionary<string, List<ProjectNode>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var rel in allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.DependsOn))
+        foreach (var rel in allRelationships.Where(r => r.Kind == RelationshipKind.DependsOn))
         {
             if (libraryProjects.TryGetValue(rel.To, out var libProj))
             {
@@ -160,14 +160,14 @@ public partial class PostIndexAnalyzer
         var dbOwners = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
-            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            if (rel.Kind == RelationshipKind.Contains) continue;
+            var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
+                                 rel.Kind == RelationshipKind.QueriedBy ||
+                                 rel.Kind == RelationshipKind.DeclaredIn;
             var relDbId = isReverseDbRel ? rel.From : rel.To;
             var relCallerId = isReverseDbRel ? rel.To : rel.From;
-            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                          rel.Kind == OntologyConstants.Relationships.Configures ||
+            var isDbRel = rel.Kind == RelationshipKind.UsesDb ||
+                          rel.Kind == RelationshipKind.Configures ||
                           isReverseDbRel ||
                           rawToCanonical.ContainsKey(relDbId);
             if (!isDbRel) continue;
@@ -230,14 +230,14 @@ public partial class PostIndexAnalyzer
 
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
-            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            if (rel.Kind == RelationshipKind.Contains) continue;
+            var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
+                                 rel.Kind == RelationshipKind.QueriedBy ||
+                                 rel.Kind == RelationshipKind.DeclaredIn;
             var relDbId = isReverseDbRel ? rel.From : rel.To;
             var relCallerId = isReverseDbRel ? rel.To : rel.From;
-            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                          rel.Kind == OntologyConstants.Relationships.Configures ||
+            var isDbRel = rel.Kind == RelationshipKind.UsesDb ||
+                          rel.Kind == RelationshipKind.Configures ||
                           isReverseDbRel ||
                           rawToCanonical.ContainsKey(relDbId);
             if (!isDbRel) continue;
@@ -291,13 +291,13 @@ public partial class PostIndexAnalyzer
         {
             foreach (var r in l4Result.SemanticRelationships)
             {
-                if (r.Kind == OntologyConstants.Relationships.Deploys)
+                if (r.Kind == RelationshipKind.Deploys)
                 {
                     projectToWorkloadMap[r.From] = r.To;
                     projectToWorkloadMap[r.From.TrimEnd(':')] = r.To;
                     projectToWorkloadMap[r.From.TrimEnd(':') + ":"] = r.To;
                 }
-                else if (r.Kind == OntologyConstants.Relationships.ImplementedBy &&
+                else if (r.Kind == RelationshipKind.ImplementedBy &&
                          (r.To.Contains(":p:") || r.To.Contains(":project:")))
                 {
                     projectToWorkloadMap[r.To] = r.From;

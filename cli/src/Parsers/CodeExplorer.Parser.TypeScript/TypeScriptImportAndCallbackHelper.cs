@@ -312,7 +312,7 @@ internal static class TypeScriptImportAndCallbackHelper
 
             var line = (int)arg.StartPosition.Row + 1;
             var col = (int)arg.StartPosition.Column + 1;
-            if (!currentScope.References.Any(r => r.TargetName == cbName && r.Line == line && r.Kind == OntologyConstants.Relationships.Calls))
+            if (!currentScope.References.Any(r => r.TargetName == cbName && r.Line == line && r.Kind == RelationshipKind.Calls))
             {
                 currentScope.References.Add(new Reference(
                     string.Empty,

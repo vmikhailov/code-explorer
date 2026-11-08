@@ -455,7 +455,7 @@ internal static class SemanticTopologySynthesizer
         List<Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys)
     {
-        if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind)))
+        if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind.ToCypherType())))
         {
             semanticRelationships.Add(relationship);
         }

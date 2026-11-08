@@ -87,7 +87,7 @@ public partial class ArchitectureViewEngine
                     long totalN = 0;
                     await using (var cmd = conn.CreateCommand())
                     {
-                        cmd.CommandText = "SELECT kind, count(*) FROM nodes WHERE (kind != 'Topic' OR (coalesce(json_extract(properties, '$.is_internal'), 'false') != 'true' AND coalesce(json_extract(properties, '$.broker_type'), '') NOT IN ('mediatr', 'in-memory'))) GROUP BY kind";
+                        cmd.CommandText = $"SELECT ce_node_kind(kind), count(*) FROM nodes WHERE (kind != {GraphKindCodec.EncodeNodeKind(NodeKind.Topic)} OR (coalesce(json_extract(properties, '$.is_internal'), 'false') != 'true' AND coalesce(json_extract(properties, '$.broker_type'), '') NOT IN ('mediatr', 'in-memory'))) GROUP BY kind";
                         await using var reader = await cmd.ExecuteReaderAsync(ct);
                         while (await reader.ReadAsync(ct))
                         {
@@ -124,7 +124,7 @@ public partial class ArchitectureViewEngine
                     long totalR = 0;
                     await using (var cmd = conn.CreateCommand())
                     {
-                        cmd.CommandText = "SELECT kind, count(*) FROM edges GROUP BY kind";
+                        cmd.CommandText = "SELECT ce_rel_kind(kind), count(*) FROM edges GROUP BY kind";
                         await using var reader = await cmd.ExecuteReaderAsync(ct);
                         while (await reader.ReadAsync(ct))
                         {

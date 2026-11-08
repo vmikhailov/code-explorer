@@ -22,8 +22,8 @@ public enum NodeKind : byte
     EntryPoint = 12,
     Table = 13,
     Query = 14,
-    Type = 15,
-    Function = 16,
+    Function = 15,
+    Type = 16,
     Member = 17,
     File = 18,
     Folder = 19,
@@ -152,6 +152,10 @@ public static class OntologyEnumMaps
 
         // Aliases
         nodeByName["frontendapp"] = NodeKind.App;
+        nodeByName["databasemigration"] = NodeKind.Worker;
+        nodeByName["database_migration"] = NodeKind.Worker;
+        nodeByName["functionapp"] = NodeKind.Service;
+        nodeByName["function_app"] = NodeKind.Service;
         nodeByName["cli"] = NodeKind.CliTool;
         nodeByName["db"] = NodeKind.Database;
         nodeByName["queue"] = NodeKind.Topic;
@@ -159,6 +163,9 @@ public static class OntologyEnumMaps
         nodeByName["external"] = NodeKind.ExternalService;
         nodeByName["class"] = NodeKind.Type;
         nodeByName["interface"] = NodeKind.Type;
+        nodeByName["struct"] = NodeKind.Type;
+        nodeByName["record"] = NodeKind.Type;
+        nodeByName["enum"] = NodeKind.Type;
         nodeByName["method"] = NodeKind.Function;
         nodeByName["field"] = NodeKind.Member;
         nodeByName["property"] = NodeKind.Member;
@@ -189,6 +196,20 @@ public static class OntologyEnumMaps
                 nameByRel[val] = cypherName;
             }
         }
+
+        // Relationship aliases
+        relByName["ASYNC_CALL"] = RelationshipKind.Calls;
+        relByName["asynccall"] = RelationshipKind.Calls;
+        relByName["USES_DATABASE"] = RelationshipKind.UsesDb;
+        relByName["usesdatabase"] = RelationshipKind.UsesDb;
+        relByName["CALLS_SERVICE"] = RelationshipKind.ServiceCall;
+        relByName["callsservice"] = RelationshipKind.ServiceCall;
+        relByName["HAS_PROPERTY"] = RelationshipKind.HasMember;
+        relByName["hasproperty"] = RelationshipKind.HasMember;
+        relByName["HAS_FIELD"] = RelationshipKind.HasMember;
+        relByName["hasfield"] = RelationshipKind.HasMember;
+        relByName["EXTENDS"] = RelationshipKind.InheritsFrom;
+        relByName["extends"] = RelationshipKind.InheritsFrom;
 
         RelKindByName = relByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByRelKind = nameByRel.ToFrozenDictionary();

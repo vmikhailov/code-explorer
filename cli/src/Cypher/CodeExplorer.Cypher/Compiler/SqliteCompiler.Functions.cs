@@ -1,10 +1,15 @@
 using System.Collections.Frozen;
 using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Cypher.Compiler;
 
 public partial class SqliteCompiler
 {
+    private static readonly string ProjectRoleKindIdsSql = GraphKindCodec.ProjectRoleKindIdsSql;
+
+    private static readonly int ProjectKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
+
     private static bool IsDefinitelyString(Expression expr)
     {
         return expr switch
@@ -93,7 +98,8 @@ public partial class SqliteCompiler
         {
             if (innerFunc.Arguments.Count > 0 && innerFunc.Arguments[0] is IdentifierExpression nodeVar)
             {
-                return $"{nodeVar.Name}.kind";
+                var kSrc = _nodeKindSource.TryGetValue(nodeVar.Name, out var src) ? src : $"{EscapeVar(nodeVar.Name)}.kind";
+                return $"ce_node_kind({kSrc})";
             }
         }
 
@@ -249,14 +255,17 @@ public partial class SqliteCompiler
         if (fn == "labels" && func.Arguments.Count == 1 && func.Arguments[0] is IdentifierExpression nodeVar)
         {
             var v = EscapeVar(nodeVar.Name);
+            var kSrc = _nodeKindSource.TryGetValue(nodeVar.Name, out var src) ? src : $"{v}.kind";
+            var propSrc = _nodePropertySource.TryGetValue(nodeVar.Name, out var pSrc) ? pSrc : $"{v}.properties";
+            var kExpr = $"ce_node_kind({kSrc})";
             return $"CASE " +
-                   $"WHEN {v}.kind IN ('Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool', 'DatabaseMigration', 'FunctionApp', 'Test', 'TestSuite') " +
-                   $"THEN json_array({v}.kind, 'Project') " +
-                   $"WHEN {v}.kind = 'Project' AND json_extract({v}.properties, '$.kind') IS NOT NULL " +
-                   $"THEN json_array({v}.kind, json_extract({v}.properties, '$.kind')) " +
-                   $"WHEN {v}.kind = 'Project' AND json_extract({v}.properties, '$.role') IS NOT NULL " +
-                   $"THEN json_array({v}.kind, json_extract({v}.properties, '$.role')) " +
-                   $"ELSE json_array({v}.kind) END";
+                   $"WHEN {kSrc} IN ({ProjectRoleKindIdsSql}) " +
+                   $"THEN json_array({kExpr}, 'Project') " +
+                   $"WHEN {kSrc} = {ProjectKindId} AND json_extract({propSrc}, '$.kind') IS NOT NULL " +
+                   $"THEN json_array('Project', json_extract({propSrc}, '$.kind')) " +
+                   $"WHEN {kSrc} = {ProjectKindId} AND json_extract({propSrc}, '$.role') IS NOT NULL " +
+                   $"THEN json_array('Project', json_extract({propSrc}, '$.role')) " +
+                   $"ELSE json_array({kExpr}) END";
         }
 
         if (fn == "type" && func.Arguments.Count == 1)
@@ -264,7 +273,7 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression relVar)
             {
                 if (_declaredRels.Contains(relVar.Name))
-                    return $"{EscapeVar(relVar.Name)}.kind";
+                    return $"ce_rel_kind({EscapeVar(relVar.Name)}.kind)";
                 if (_withAliases.TryGetValue(relVar.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.type'), json_extract({aliasSql}, '$.kind'))";
             }
@@ -276,7 +285,7 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression startRelVar)
             {
                 if (_declaredRels.Contains(startRelVar.Name))
-                    return $"{EscapeVar(startRelVar.Name)}.from_id";
+                    return $"(SELECT id FROM nodes WHERE rowid = {EscapeVar(startRelVar.Name)}.from_id)";
                 if (_withAliases.TryGetValue(startRelVar.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.from'), json_extract({aliasSql}, '$.from_id'))";
             }
@@ -288,7 +297,7 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression endRelVar)
             {
                 if (_declaredRels.Contains(endRelVar.Name))
-                    return $"{EscapeVar(endRelVar.Name)}.to_id";
+                    return $"(SELECT id FROM nodes WHERE rowid = {EscapeVar(endRelVar.Name)}.to_id)";
                 if (_withAliases.TryGetValue(endRelVar.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.to'), json_extract({aliasSql}, '$.to_id'))";
             }
@@ -298,7 +307,7 @@ public partial class SqliteCompiler
         if (fn == "nodes" && func.Arguments.Count == 1 &&
             func.Arguments[0] is IdentifierExpression pathVar &&
             _pathVariables.TryGetValue(pathVar.Name, out var relVarNodes))
-            return $"json({EscapeVar(relVarNodes)}.path_nodes)";
+            return $"(SELECT json_group_array(n.id) FROM json_each({EscapeVar(relVarNodes)}.path_nodes) j JOIN nodes n ON n.rowid = j.value)";
 
         if (fn == "relationships" && func.Arguments.Count == 1)
             return VisitRelationshipsFunction(func.Arguments[0]);
@@ -330,10 +339,10 @@ public partial class SqliteCompiler
             var rVar = EscapeVar(relVar);
             if (_declaredRels.Contains(relVar))
             {
-                return $"json_array(json_object('type', {rVar}.kind, 'from', {rVar}.from_id, 'to', {rVar}.to_id, 'properties', json({rVar}.properties)))";
+                return $"json_array(json_object('type', ce_rel_kind({rVar}.kind), 'from', (SELECT id FROM nodes WHERE rowid = {rVar}.from_id), 'to', (SELECT id FROM nodes WHERE rowid = {rVar}.to_id), 'properties', json({rVar}.properties)))";
             }
 
-            return $"json({rVar}.path_nodes)";
+            return $"(SELECT json_group_array(n.id) FROM json_each({rVar}.path_nodes) j JOIN nodes n ON n.rowid = j.value)";
         }
 
         return $"json({VisitExpression(arg)})";
@@ -499,14 +508,23 @@ public partial class SqliteCompiler
             func.Arguments[0] is IdentifierExpression nodeVar &&
             pred.Predicate is BinaryExpression bin && bin.Operator == BinaryOperator.Equal)
         {
+            var v = EscapeVar(nodeVar.Name);
             if (bin.Left is IdentifierExpression idL && idL.Name == pred.Variable)
             {
-                return $"({nodeVar.Name}.kind = {VisitExpression(bin.Right)})";
+                if (bin.Right is StringLiteralExpression strR)
+                {
+                    return $"({v}.kind = {GraphKindCodec.EncodeNodeKind(strR.Value)})";
+                }
+                return $"({v}.kind = ce_node_kind_id({VisitExpression(bin.Right)}))";
             }
 
             if (bin.Right is IdentifierExpression idR && idR.Name == pred.Variable)
             {
-                return $"({nodeVar.Name}.kind = {VisitExpression(bin.Left)})";
+                if (bin.Left is StringLiteralExpression strL)
+                {
+                    return $"({v}.kind = {GraphKindCodec.EncodeNodeKind(strL.Value)})";
+                }
+                return $"({v}.kind = ce_node_kind_id({VisitExpression(bin.Left)}))";
             }
         }
 

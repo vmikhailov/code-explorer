@@ -71,12 +71,12 @@ public partial class PostIndexAnalyzer
         {
             foreach (var rel in l4Result.SemanticRelationships)
             {
-                if (rel.Kind == OntologyConstants.Relationships.ImplementedBy)
+                if (rel.Kind == RelationshipKind.ImplementedBy)
                 {
                     var proj = projects.FirstOrDefault(p => p.Id == rel.To || p.Id.TrimEnd(':') == rel.To.TrimEnd(':'));
                     if (proj != null) workloadToProject[rel.From] = proj;
                 }
-                else if (rel.Kind == OntologyConstants.Relationships.Deploys)
+                else if (rel.Kind == RelationshipKind.Deploys)
                 {
                     var proj = projects.FirstOrDefault(p => p.Id == rel.From || p.Id.TrimEnd(':') == rel.From.TrimEnd(':'));
                     if (proj != null) workloadToProject[rel.To] = proj;
@@ -142,17 +142,17 @@ public partial class PostIndexAnalyzer
         var nonTestAccessedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Contains)
+            if (rel.Kind == RelationshipKind.Contains)
                 continue;
 
-            var isForwardDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                                 rel.Kind == OntologyConstants.Relationships.Configures ||
-                                 rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
-                                 rel.Kind == OntologyConstants.Relationships.WritesTo ||
-                                 rel.Kind == OntologyConstants.Relationships.DependsOn;
-            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            var isForwardDbRel = rel.Kind == RelationshipKind.UsesDb ||
+                                 rel.Kind == RelationshipKind.Configures ||
+                                 rel.Kind == RelationshipKind.ReadsFrom ||
+                                 rel.Kind == RelationshipKind.WritesTo ||
+                                 rel.Kind == RelationshipKind.DependsOn;
+            var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
+                                 rel.Kind == RelationshipKind.QueriedBy ||
+                                 rel.Kind == RelationshipKind.DeclaredIn;
             if (!isForwardDbRel && !isReverseDbRel) continue;
 
             var dbTarget = isReverseDbRel ? rel.From : rel.To;
@@ -354,17 +354,17 @@ public partial class PostIndexAnalyzer
         // Also inspect all relationships for DB targets not caught above
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Contains)
+            if (rel.Kind == RelationshipKind.Contains)
                 continue;
 
-            var isForwardDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                                 rel.Kind == OntologyConstants.Relationships.Configures ||
-                                 rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
-                                 rel.Kind == OntologyConstants.Relationships.WritesTo ||
-                                 rel.Kind == OntologyConstants.Relationships.DependsOn;
-            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            var isForwardDbRel = rel.Kind == RelationshipKind.UsesDb ||
+                                 rel.Kind == RelationshipKind.Configures ||
+                                 rel.Kind == RelationshipKind.ReadsFrom ||
+                                 rel.Kind == RelationshipKind.WritesTo ||
+                                 rel.Kind == RelationshipKind.DependsOn;
+            var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
+                                 rel.Kind == RelationshipKind.QueriedBy ||
+                                 rel.Kind == RelationshipKind.DeclaredIn;
             var dbTarget = isReverseDbRel ? rel.From : rel.To;
             var callerSource = isReverseDbRel ? rel.To : rel.From;
 

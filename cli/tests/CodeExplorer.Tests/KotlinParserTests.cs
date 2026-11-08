@@ -390,7 +390,7 @@ public class KotlinParserTests
             endpoints.Should().Contain(e => e.RouteTemplate == "/admin" && e.HttpMethod == "GET");
 
             // Verify EXPOSED_BY reference
-            var exposedByRels = routesTree.FileNode.References.Where(r => r.Kind == "EXPOSED_BY").ToList();
+            var exposedByRels = routesTree.FileNode.References.Where(r => r.Kind == RelationshipKind.ExposedBy).ToList();
             exposedByRels.Should().NotBeEmpty();
 
             // 2. Verify Exposed ORM Table definitions and operations
@@ -413,7 +413,7 @@ public class KotlinParserTests
             extServices.Should().Contain(e => (e.Url == "/vote" || e.Path == "/vote") && e.Method == "POST");
             extServices.Should().Contain(e => (e.Url != null && e.Url.Contains("sessionize.com")) || e.DomainOrService == "sessionize.com");
 
-            var callRels = clientTree.FileNode.References.Where(r => r.Kind == "CALLS").ToList();
+            var callRels = clientTree.FileNode.References.Where(r => r.Kind == RelationshipKind.Calls).ToList();
             callRels.Should().NotBeEmpty();
         }
         finally
@@ -521,13 +521,13 @@ public class KotlinParserTests
             queries.Should().Contain(q => q.Operation == "UPSERT");
 
             // Verify READS_FROM and WRITES_TO
-            var readsFrom = daoTree.FileNode.References.Where(r => r.Kind == "READS_FROM").ToList();
+            var readsFrom = daoTree.FileNode.References.Where(r => r.Kind == RelationshipKind.ReadsFrom).ToList();
             readsFrom.Should().NotBeEmpty();
-            var writesTo = daoTree.FileNode.References.Where(r => r.Kind == "WRITES_TO").ToList();
+            var writesTo = daoTree.FileNode.References.Where(r => r.Kind == RelationshipKind.WritesTo).ToList();
             writesTo.Should().NotBeEmpty();
 
             // Verify ACCESSED_BY
-            var accessedBy = daoTree.FileNode.References.Where(r => r.Kind == "ACCESSED_BY").ToList();
+            var accessedBy = daoTree.FileNode.References.Where(r => r.Kind == RelationshipKind.AccessedBy).ToList();
             accessedBy.Should().NotBeEmpty();
 
             // 3. Verify Room Database detection
@@ -541,7 +541,7 @@ public class KotlinParserTests
             extServices.Should().HaveCount(2);
             extServices.Should().Contain(e => e.Method == "GET" && (e.Url == "/topics" || e.Path == "/topics"));
             extServices.Should().Contain(e => e.Method == "POST" && (e.Url == "/topics/sync" || e.Path == "/topics/sync"));
-            var retroCalls = retroTree.FileNode.References.Where(r => r.Kind == "CALLS").ToList();
+            var retroCalls = retroTree.FileNode.References.Where(r => r.Kind == RelationshipKind.Calls).ToList();
             retroCalls.Should().HaveCount(2);
         }
         finally
@@ -608,15 +608,15 @@ public class KotlinParserTests
             queries.Should().Contain(q => q.Operation == "SELECT" && q.CustomProperties != null && q.CustomProperties.ContainsKey("provider_class"));
 
             // 3. Verify relationships
-            var readsFrom = tree.FileNode.References.Where(r => r.Kind == "READS_FROM").ToList();
+            var readsFrom = tree.FileNode.References.Where(r => r.Kind == RelationshipKind.ReadsFrom).ToList();
             readsFrom.Should().NotBeEmpty();
             readsFrom.Should().Contain(r => r.TargetName.Contains("users"));
 
-            var writesTo = tree.FileNode.References.Where(r => r.Kind == "WRITES_TO").ToList();
+            var writesTo = tree.FileNode.References.Where(r => r.Kind == RelationshipKind.WritesTo).ToList();
             writesTo.Should().NotBeEmpty();
             writesTo.Should().Contain(r => r.TargetName.Contains("users"));
 
-            var accessedBy = tree.FileNode.References.Where(r => r.Kind == "ACCESSED_BY").ToList();
+            var accessedBy = tree.FileNode.References.Where(r => r.Kind == RelationshipKind.AccessedBy).ToList();
             accessedBy.Should().NotBeEmpty();
         }
         finally
@@ -681,7 +681,7 @@ public class KotlinParserTests
             endpoints.Should().Contain(e => e.Operation == "DELETE" && e.RouteTemplate == "/articles/{slug}");
 
             // 3. Verify EXPOSED_BY references
-            var exposedBy = tree.FileNode.References.Where(r => r.Kind == "EXPOSED_BY").ToList();
+            var exposedBy = tree.FileNode.References.Where(r => r.Kind == RelationshipKind.ExposedBy).ToList();
             exposedBy.Should().HaveCount(4);
         }
         finally
@@ -724,7 +724,7 @@ public class KotlinParserTests
             var dbs = tree.FileNode.Children.OfType<DatabaseNode>().ToList();
             dbs.Should().Contain(d => d.Engine == "H2");
 
-            var usesDb = tree.FileNode.References.Where(r => r.Kind == "USES_DB").ToList();
+            var usesDb = tree.FileNode.References.Where(r => r.Kind == RelationshipKind.UsesDb).ToList();
             usesDb.Should().NotBeEmpty();
         }
         finally

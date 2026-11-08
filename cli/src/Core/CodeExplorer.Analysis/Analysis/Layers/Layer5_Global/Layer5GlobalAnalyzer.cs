@@ -131,8 +131,7 @@ public partial class Layer5AnalysisParser
                 ctx.ReportProgress(globalPct, "Layer 5: Global", $"Resolving cross-references: {resolvedCount}/{totalReferences} ({pctInt}%)...");
             }
 
-            if (refItem.Kind == OntologyConstants.Relationships.Implements ||
-                refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
+            if (refItem.Kind is RelationshipKind.Implements or RelationshipKind.InheritsFrom)
             {
                 continue;
             }
@@ -141,34 +140,34 @@ public partial class Layer5AnalysisParser
             {
                 switch (refItem.Kind)
                 {
-                    case OntologyConstants.Relationships.Calls:
+                    case RelationshipKind.Calls:
                         ResolveCallsReference(refItem, ctx, symbols, bindings, imports, interfaceToImplementors, referenceRelationships);
                         break;
-                    case OntologyConstants.Relationships.DependsOn:
+                    case RelationshipKind.DependsOn:
                         ResolveDependsOnReference(refItem, symbols, referenceRelationships);
                         break;
-                    case OntologyConstants.Relationships.Triggers:
+                    case RelationshipKind.Triggers:
                         ResolveTriggersReference(refItem, symbols, referenceRelationships, existingRefRels);
                         break;
-                    case OntologyConstants.Relationships.PublishesTo:
-                    case OntologyConstants.Relationships.SubscribesTo:
+                    case RelationshipKind.PublishesTo:
+                    case RelationshipKind.SubscribesTo:
                         ResolveMessagingReference(refItem, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
                         break;
-                    case OntologyConstants.Relationships.PersistedIn:
+                    case RelationshipKind.PersistedIn:
                         ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships, existingRefRels);
                         break;
-                    case OntologyConstants.Relationships.Instantiates:
+                    case RelationshipKind.Instantiates:
                         ResolveInstantiatesReference(refItem, ctx, symbols, imports, referenceRelationships);
                         break;
-                    case OntologyConstants.Relationships.UsesType:
+                    case RelationshipKind.UsesType:
                         ResolveUsesTypeReference(refItem, ctx, symbols, referenceRelationships);
                         break;
-                    case OntologyConstants.Relationships.AccessedBy:
-                    case OntologyConstants.Relationships.ImplementedBy:
+                    case RelationshipKind.AccessedBy:
+                    case RelationshipKind.ImplementedBy:
                         ResolveAccessedByOrImplementedByReference(refItem, ctx, symbols, referenceRelationships);
                         break;
-                    case OntologyConstants.Relationships.ReadsFrom:
-                    case OntologyConstants.Relationships.WritesTo:
+                    case RelationshipKind.ReadsFrom:
+                    case RelationshipKind.WritesTo:
                         ResolveReadsOrWritesReference(refItem, symbols, referenceRelationships);
                         break;
                 }
@@ -235,7 +234,7 @@ public partial class Layer5AnalysisParser
 
         foreach (var rel in ctx.TreeRelationships)
         {
-            if (rel.Kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.ExposedBy &&
+            if (rel.Kind is RelationshipKind.Triggers or RelationshipKind.ExposedBy &&
                 (rel.To.Contains(":fn:", StringComparison.Ordinal) || rel.To.Contains(":Function:", StringComparison.Ordinal)))
             {
                 RegisterEndpointHandler(rel.From, rel.To);
@@ -246,7 +245,7 @@ public partial class Layer5AnalysisParser
         {
             foreach (var rel in referenceRelationships)
             {
-                if (rel.Kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.ExposedBy &&
+                if (rel.Kind is RelationshipKind.Triggers or RelationshipKind.ExposedBy &&
                     (rel.To.Contains(":fn:", StringComparison.Ordinal) || rel.To.Contains(":Function:", StringComparison.Ordinal)))
                 {
                     RegisterEndpointHandler(rel.From, rel.To);
@@ -476,6 +475,7 @@ public partial class Layer5AnalysisParser
                     FilePath = extFp,
                     Line = extLine
                 });
+                rel.CallContext = extService.Service.CallContext;
                 lateBoundRels.Add(rel);
                 matchedEndpoint = true;
                 boundServicesCount++;
@@ -484,13 +484,15 @@ public partial class Layer5AnalysisParser
                 var callerId = extService.Service.CallerSymbolId;
                 if (!string.IsNullOrEmpty(callerId))
                 {
-                    lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id)
+                    var callerEpRel = Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id)
                     {
                         Operation = opVerb,
                         EvidenceKind = evKind,
                         FilePath = extFp,
                         Line = extLine
-                    }));
+                    });
+                    callerEpRel.CallContext = extService.Service.CallContext;
+                    lateBoundRels.Add(callerEpRel);
 
                     if (handlersByEndpointId.TryGetValue(endpoint.Endpoint.Id, out var handlerFnIds))
                     {
@@ -498,13 +500,15 @@ public partial class Layer5AnalysisParser
                         {
                             if (callerId != handlerFnId && addedFunctionCalls.Add((callerId, handlerFnId)))
                             {
-                                lateBoundRels.Add(Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId)
+                                var fnCallRel = Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId)
                                 {
                                     Operation = opVerb,
                                     EvidenceKind = evKind,
                                     FilePath = extFp,
                                     Line = extLine
-                                }));
+                                });
+                                fnCallRel.CallContext = extService.Service.CallContext;
+                                lateBoundRels.Add(fnCallRel);
                             }
                         }
                     }
@@ -527,7 +531,7 @@ public partial class Layer5AnalysisParser
                     else
                     {
                         var existingProjDep = lateBoundRels.FirstOrDefault(r =>
-                            r.From == callerProj.Id && r.To == targetProj.Id && r.Kind == OntologyConstants.Relationships.DependsOn);
+                            r.From == callerProj.Id && r.To == targetProj.Id && r.Kind == RelationshipKind.DependsOn);
                         if (existingProjDep != null)
                         {
                             EvidenceProvenanceHelper.RecordContributingEdge(existingProjDep, contribRel);
@@ -864,7 +868,7 @@ public partial class Layer5AnalysisParser
         {
             foreach (var rel in l4Result.SemanticRelationships)
             {
-                if (rel.Kind is OntologyConstants.Relationships.DependsOn or OntologyConstants.Relationships.ServiceCall &&
+                if (rel.Kind is RelationshipKind.DependsOn or RelationshipKind.ServiceCall &&
                     workloadToDomainKey.TryGetValue(rel.From, out var fromDomain) &&
                     workloadToDomainKey.TryGetValue(rel.To, out var toDomain) &&
                     !string.Equals(fromDomain, toDomain, StringComparison.OrdinalIgnoreCase))

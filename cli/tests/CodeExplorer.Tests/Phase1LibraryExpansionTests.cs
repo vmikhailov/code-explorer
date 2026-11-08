@@ -102,10 +102,10 @@ public class Phase1LibraryExpansionTests
         var refs = await ParseAndCollectReferencesAsync(new PythonParser(), code, "tasks.py");
         Assert.Multiple(() =>
         {
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "celery:send_invoice_email"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "celery:send_invoice_email"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "dramatiq:process_refund"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "dramatiq:process_refund"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "celery:send_invoice_email"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "celery:send_invoice_email"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "dramatiq:process_refund"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "dramatiq:process_refund"), Is.True);
         });
     }
 
@@ -124,9 +124,9 @@ public class Phase1LibraryExpansionTests
         var refs = await ParseAndCollectReferencesAsync(new PythonParser(), code, "streams.py");
         Assert.Multiple(() =>
         {
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "rq:sync_inventory"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "redis-stream:orders-stream"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "redis-stream:orders-stream"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "rq:sync_inventory"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "redis-stream:orders-stream"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "redis-stream:orders-stream"), Is.True);
         });
     }
 
@@ -172,14 +172,14 @@ public class Phase1LibraryExpansionTests
         var refs = await ParseAndCollectReferencesAsync(new CSharpParser(), code, "Messaging.cs");
         Assert.Multiple(() =>
         {
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "hangfire:billing"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "hangfire:InvoiceJob"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "quartz:InvoiceJob"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "wolverine:OrderPlaced"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "wolverine:OrderPlaced"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "cap:orders.created"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "cap:orders.created"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "masstransit:OrderPlaced"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "hangfire:billing"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "hangfire:InvoiceJob"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "quartz:InvoiceJob"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "wolverine:OrderPlaced"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "wolverine:OrderPlaced"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "cap:orders.created"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "cap:orders.created"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "masstransit:OrderPlaced"), Is.True);
         });
     }
 
@@ -204,9 +204,9 @@ public class Phase1LibraryExpansionTests
         var refs = await ParseAndCollectReferencesAsync(new TypeScriptParser(), code, "jobs.ts");
         Assert.Multiple(() =>
         {
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "inngest:app/user.created"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "inngest:app/user.synced"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "bull:welcome-email"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "inngest:app/user.created"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "inngest:app/user.synced"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "bull:welcome-email"), Is.True);
         });
     }
 
@@ -231,10 +231,10 @@ public class Phase1LibraryExpansionTests
         var refs = await ParseAndCollectReferencesAsync(new GoParser(), code, "worker.go");
         Assert.Multiple(() =>
         {
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "watermill:orders.incoming"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "watermill:orders.processed"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "asynq:email:deliver"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "asynq:email:deliver"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "watermill:orders.incoming"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "watermill:orders.processed"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "asynq:email:deliver"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "asynq:email:deliver"), Is.True);
         });
     }
 
@@ -269,12 +269,12 @@ public class Phase1LibraryExpansionTests
         var refs = await ParseAndCollectReferencesAsync(new JavaParser(), code, "MessagingRoutes.java");
         Assert.Multiple(() =>
         {
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "camel:jms:queue:orders"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "camel:jms:queue:audit"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "pulsar:persistent://public/default/payments"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "pulsar:persistent://public/default/receipts"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName.StartsWith("axon:")), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "axon:OrderCreatedEvent"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "camel:jms:queue:orders"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "camel:jms:queue:audit"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "pulsar:persistent://public/default/payments"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "pulsar:persistent://public/default/receipts"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName.StartsWith("axon:")), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "axon:OrderCreatedEvent"), Is.True);
         });
     }
 }

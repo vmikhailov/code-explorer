@@ -15,3 +15,11 @@ ce-immich-bulk	wall_s=30.0	peak_ram_mb=749	state=Completed
 ce-twenty-bulk	wall_s=16.7	peak_ram_mb=301	state=Completed
 ce-immich-bulk2	wall_s=22.3	peak_ram_mb=894	state=Completed
 ce-twenty-bulk2	wall_s=245.3	peak_ram_mb=4,953	state=Completed
+ce-1.74.0-immich	wall_s=26.1	peak_ram_mb=880	state=Completed
+ce-1.74.0-twenty	wall_s=282.2	peak_ram_mb=4,566	state=Completed
+ce-1.74.0-clean-immich	wall_s=23.9	peak_ram_mb=873	state=Completed
+ce-1.74.0-clean-twenty	wall_s=255.0	peak_ram_mb=4,269	state=Completed
+ce-immich	wall_s=19.6	peak_ram_mb=777	state=Completed
+ce-twenty	wall_s=212.6	peak_ram_mb=4,589	state=Completed
+cbm-immich	wall_s=20.6	peak_ram_mb=595	state=Completed
+cbm-twenty	wall_s=96.9	peak_ram_mb=2,076	state=Completed

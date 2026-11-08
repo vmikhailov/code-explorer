@@ -96,6 +96,8 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
         kind = OntologyConstants.NodeLabels.Function;
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
+        if (!IsSuiteCall(node) && !IsTestCall(node)) return false;
+
         // Ensure this is not Playwright (which uses `test` with `{ page }` or imports `@playwright/test`)
         if (IsPlaywrightCall(node)) return false;
 
@@ -105,13 +107,18 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
         // Ensure this is not Mocha (which imports mocha or uses context/specify)
         if (IsMochaCall(node)) return false;
 
-        return IsSuiteCall(node) || IsTestCall(node);
+        return true;
     }
 
     private static bool IsSuiteCall(Node node)
     {
         var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
         if (!func.IsValid()) return false;
+
+        if (func.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            return func.AsSpan() is "describe" or "suite";
+        }
 
         GetRootIdentifierAndMembers(func, out var rootId, out var members);
         if (rootId is "describe" or "suite")
@@ -126,6 +133,11 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
     {
         var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
         if (!func.IsValid()) return false;
+
+        if (func.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            return func.AsSpan() is "test" or "it" or "fit" or "xit";
+        }
 
         GetRootIdentifierAndMembers(func, out var rootId, out var members);
         if (rootId is "test" or "it" or "fit" or "xit")
@@ -142,6 +154,30 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
     {
         rootId = "";
         members = [];
+
+        var probe = funcNode;
+        while (probe.IsValid())
+        {
+            if (probe.Is(TreeSitterSyntax.TypeScript.Identifier))
+            {
+                if (probe.AsSpan() is not ("describe" or "suite" or "test" or "it" or "fit" or "xit"))
+                {
+                    return;
+                }
+                break;
+            }
+            if (probe.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                probe = probe.GetChildForField(TreeSitterSyntax.Fields.Object);
+                continue;
+            }
+            if (probe.Is(TreeSitterSyntax.TypeScript.CallExpression))
+            {
+                probe = probe.GetChildForField(TreeSitterSyntax.Fields.Function);
+                continue;
+            }
+            return;
+        }
 
         var current = funcNode;
         while (current.IsValid())

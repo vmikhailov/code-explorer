@@ -144,7 +144,7 @@ public class JavaParserTests
             q.QueryText.Contains("users", StringComparison.OrdinalIgnoreCase));
         hasSelectUsers.Should().BeTrue();
 
-        var tableDeps = queryNodes.SelectMany(q => q.References).Where(r => r.Kind == "DEPENDS_ON")
+        var tableDeps = queryNodes.SelectMany(q => q.References).Where(r => r.Kind == RelationshipKind.DependsOn)
             .Select(r => r.TargetName).ToList();
         tableDeps.Should().Contain("users");
     }

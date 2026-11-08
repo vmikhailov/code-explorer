@@ -8,20 +8,20 @@ public record Reference
 {
     public string ScopeSymbolId { get; init; }
     public string TargetName { get; init; }
-    public string Kind { get; init; }
+    public RelationshipKind Kind { get; init; }
     public int Line { get; init; }
     public int Column { get; init; }
     public CallSiteExecutionContext Context { get; init; }
     public string? ArgFlow { get; init; }
 
     [JsonIgnore]
-    public RelationshipKind RelationshipKind => EnumExtensions.ParseRelationshipKind(Kind);
+    public RelationshipKind RelationshipKind => Kind;
 
     [JsonConstructor]
     public Reference(
         string scopeSymbolId,
         string targetName,
-        string kind,
+        RelationshipKind kind,
         int line = 0,
         int column = 0,
         CallSiteExecutionContext context = default,
@@ -39,12 +39,12 @@ public record Reference
     public Reference(
         string scopeSymbolId,
         string targetName,
-        RelationshipKind kind,
+        string kind,
         int line = 0,
         int column = 0,
         CallSiteExecutionContext context = default,
         string? argFlow = null)
-        : this(scopeSymbolId, targetName, kind.ToCypherType(), line, column, context, argFlow)
+        : this(scopeSymbolId, targetName, EnumExtensions.ParseRelationshipKind(kind), line, column, context, argFlow)
     {
     }
 }

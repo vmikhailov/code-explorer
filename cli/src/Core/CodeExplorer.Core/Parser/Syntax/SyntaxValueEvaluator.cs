@@ -111,7 +111,13 @@ public static class SyntaxValueEvaluator
             or LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString, Children.Count: > 0 }
             or InterpolatedStringExprSyntax
             or BinaryExprSyntax { Operator: "+" or "." or "" or null }
-            or CallExprSyntax;
+            or CallExprSyntax { CallKind: CallSyntaxKind.Macro }
+            or CallExprSyntax
+            {
+                MethodName: "from" or "alloc" or "toString" or "to_string" or "fromCharCode" or "atob"
+                            or "get" or "getString" or "GetValue" or "GetConnectionString"
+                            or "Getenv" or "getenv" or "Sprintf"
+            };
 
     private static SqlStmtSyntax CreateEmbeddedSqlNode(ExprSyntax hostExpr, SyntaxDocument doc, string sqlText, string firstWord)
     {

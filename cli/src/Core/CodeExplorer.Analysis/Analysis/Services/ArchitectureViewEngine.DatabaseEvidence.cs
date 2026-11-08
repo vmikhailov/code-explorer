@@ -91,7 +91,7 @@ public partial class ArchitectureViewEngine
         var usagesQuery = """
             MATCH (src)-[r]-(tgt)
             WHERE (tgt.id = $id OR tgt.name = $name)
-              AND NOT (src:SemanticStructure OR src:Workspace OR src:Layer1 OR src:Layer2 OR src:Layer3 OR src:Layer4)
+              AND NOT (src:SemanticStructure OR src:Workspace OR src:FilesStructure OR src:ProjectsStructure OR src:SyntaxStructure)
             RETURN DISTINCT
               src.id AS src_id,
               src.name AS src_name,

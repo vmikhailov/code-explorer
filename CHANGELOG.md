@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.75.0] - 2026-11-08
+
+### Added & Changed
+- **Strongly-Typed Graph Ontology & SQLite Schema v6 (`NodeKind` & `RelationshipKind`)**:
+  - Replaced stringly-typed `Node.Kind`, `Relationship.Kind`, and `Reference.Kind` properties with canonical `NodeKind` and `RelationshipKind` enums across the entire indexing pipeline, database layer, and query engine.
+  - Upgraded SQLite graph schema to **v6** (`nodes.kind INTEGER NOT NULL` and `edges.kind INTEGER NOT NULL`) backed by zero-allocation `FrozenDictionary` bidirectional codecs (`GraphKindCodec`), eliminating string allocations and reducing database storage footprint.
+  - Tightened `SIG-C-C-001` (`Disallow Stringly-Typed Taxonomies and Classifications`) to strictly enforce enum typing on all `*Kind`, `*Category`, `*Role`, `*Severity`, `*Protocol`, and `*Visibility` properties across production classes.
+- **Single-Pass `IAsyncEnumerable` Layer 3 Syntactic Pipeline (`StreamProjectSyntaxTreesAsync`)**:
+  - Refactored `Layer3SyntacticParser` from a two-pass project loop into a single-pass `IAsyncEnumerable` pipeline (`StreamProjectSyntaxTreesAsync`) that streams projects, parses ASTs into UAST (`SyntaxDocument` / `SyntaxTree`), and immediately executes language visitors (`ProcessVisitor`), component parsers (`EnrichWithSyntax`), and workspace symbol registration (`RegisterSyntaxTreeWorkspaceSymbols`).
+  - Updated Layer 3 progress logging to report project index, completion percentage, project name, and file count once at the start of each project scan.
+- **`PostIndexAnalyzer` Single Responsibility Separation**:
+  - Extracted all raw SQL and persistence operations out of `PostIndexAnalyzer` into `IGraphClient` (`SqliteGraphClient.PostIndexMaintenance` and `InMemoryGraphRepository`) with strongly-typed DTOs (`PostIndexGraphModels`), keeping `PostIndexAnalyzer` purely focused on post-index domain and call-graph analysis logic.
+
 ## [1.74.0] - 2026-11-07
 
 ### Added

@@ -277,12 +277,25 @@ public partial class CodeExplorerRepository
         }
 
         var normalizedPath = filePath.Trim().Replace('\\', '/').TrimStart('/');
-        var query = Queries.Get("get_file_outline");
         var parameters = new Dictionary<string, string>
         {
             ["filePath"] = normalizedPath
         };
-        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        const string fastOutlineQuery =
+            "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path = $filePath " +
+            "OPTIONAL MATCH (child)-[:DECLARED_IN]->(f) " +
+            "WHERE child:Type OR child:Function OR child:Member OR child:Query " +
+            "WITH child WHERE child IS NOT NULL " +
+            "RETURN child.name AS name, " +
+            "CASE WHEN child:Type THEN (CASE WHEN child.kind = 'class' THEN 'Class' WHEN child.kind = 'interface' THEN 'Interface' ELSE child.kind END) ELSE labels(child)[0] END AS type, " +
+            "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol " +
+            "ORDER BY child.start_line";
+        var res = await client.ExecuteCypherAsync(fastOutlineQuery, parameters, cancellationToken);
+        if (res.Count == 0)
+        {
+            var query = Queries.Get("get_file_outline");
+            res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        }
         return FormatFileOutline(res, format, normalizedPath);
     }
 

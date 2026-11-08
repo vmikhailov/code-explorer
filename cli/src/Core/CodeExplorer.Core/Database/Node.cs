@@ -10,7 +10,7 @@ public record Node
     private Dictionary<string, object>? _properties;
 
     public string Id { get; init; }
-    public string Kind { get; init; }
+    public NodeKind Kind { get; init; }
 
     [JsonIgnore]
     public IOntologyNode? OntologyNode { get; init; }
@@ -27,18 +27,18 @@ public record Node
     }
 
     [JsonIgnore]
-    public NodeKind NodeKind => OntologyNode?.Kind ?? EnumExtensions.ParseNodeKind(Kind);
+    public NodeKind NodeKind => OntologyNode?.Kind ?? Kind;
 
     [JsonConstructor]
-    public Node(string id, string kind, Dictionary<string, object> properties)
+    public Node(string id, NodeKind kind, Dictionary<string, object> properties)
     {
         Id = id;
         Kind = kind;
         _properties = properties;
     }
 
-    public Node(string id, NodeKind kind, Dictionary<string, object> properties)
-        : this(id, kind.ToCypherLabel(), properties)
+    public Node(string id, string kind, Dictionary<string, object> properties)
+        : this(id, EnumExtensions.ParseNodeKind(kind), properties)
     {
     }
 
@@ -46,7 +46,7 @@ public record Node
     {
         ArgumentNullException.ThrowIfNull(ontologyNode);
         Id = ontologyNode.Id;
-        Kind = ontologyNode.Kind.ToCypherLabel();
+        Kind = ontologyNode.Kind;
         OntologyNode = ontologyNode;
     }
 

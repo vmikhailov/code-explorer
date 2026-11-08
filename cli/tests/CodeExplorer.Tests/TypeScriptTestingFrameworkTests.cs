@@ -116,7 +116,7 @@ describe("Auth Module", () => {
         fnTest.Should().NotBeNull("Expected Jest:Test:should handle invalid credentials to be detected");
 
         var allRefs = FindAllReferences(ws.FileNode);
-        allRefs.Any(r => r.TargetName == "./services/auth.service" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "./services/auth.service" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -150,7 +150,7 @@ describe("User Controller", () => {
         testCase!.IsTest.Should().BeTrue();
 
         var allRefs = FindAllReferences(ws.FileNode);
-        allRefs.Any(r => r.TargetName == "./services/user.service" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "./services/user.service" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -207,8 +207,8 @@ describe("Checkout Workflow", () => {
         testCase.Should().NotBeNull("Expected Cypress:Test:completes order");
 
         var allRefs = FindAllReferences(ws.FileNode);
-        allRefs.Any(r => r.TargetName == "https://shop.example.com/checkout" && r.Kind == "CALLS_ENDPOINT").Should().BeTrue();
-        allRefs.Any(r => r.TargetName == "https://api.example.com/v1/orders" && r.Kind == "CALLS_ENDPOINT").Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "https://shop.example.com/checkout" && r.Kind == RelationshipKind.CallsEndpoint).Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "https://api.example.com/v1/orders" && r.Kind == RelationshipKind.CallsEndpoint).Should().BeTrue();
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
         extServices.Should().NotBeEmpty();
@@ -238,8 +238,8 @@ test.describe("Admin Portal", () => {
         testCase.Should().NotBeNull("Expected Playwright:Test:navigates and verifies telemetry");
 
         var allRefs = FindAllReferences(ws.FileNode);
-        allRefs.Any(r => r.TargetName == "https://portal.example.com/dashboard" && r.Kind == "CALLS_ENDPOINT").Should().BeTrue();
-        allRefs.Any(r => r.TargetName == "https://api.example.com/health" && r.Kind == "CALLS_ENDPOINT").Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "https://portal.example.com/dashboard" && r.Kind == RelationshipKind.CallsEndpoint).Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "https://api.example.com/health" && r.Kind == RelationshipKind.CallsEndpoint).Should().BeTrue();
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
         extServices.Should().NotBeEmpty();

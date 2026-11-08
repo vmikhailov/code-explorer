@@ -89,9 +89,9 @@ public class MyBatisXmlMapperParserTests
 
             // Verify references to Java mapper method and interface
             var refs = syntaxTree.FileNode.References;
-            refs.Should().Contain(r => r.TargetName == "com.macro.mall.portal.dao.PortalOrderDao.getDetail" && r.Kind == "ACCESSED_BY");
-            refs.Should().Contain(r => r.TargetName == "com.macro.mall.portal.dao.PortalOrderDao.getDetail" && r.Kind == "IMPLEMENTED_BY");
-            refs.Should().Contain(r => r.TargetName == "com.macro.mall.portal.dao.PortalOrderDao" && r.Kind == "ACCESSED_BY");
+            refs.Should().Contain(r => r.TargetName == "com.macro.mall.portal.dao.PortalOrderDao.getDetail" && r.Kind == RelationshipKind.AccessedBy);
+            refs.Should().Contain(r => r.TargetName == "com.macro.mall.portal.dao.PortalOrderDao.getDetail" && r.Kind == RelationshipKind.ImplementedBy);
+            refs.Should().Contain(r => r.TargetName == "com.macro.mall.portal.dao.PortalOrderDao" && r.Kind == RelationshipKind.AccessedBy);
         }
         finally
         {

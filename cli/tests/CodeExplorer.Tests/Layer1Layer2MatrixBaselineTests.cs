@@ -66,7 +66,7 @@ public class Layer1Layer2MatrixBaselineTests
         await indexer.IndexAsync(_sampleProjectsRoot, clear: false);
 
         var discoveredProjects = client.UploadedNodes
-            .Where(n => n.Kind == OntologyConstants.NodeLabels.Project)
+            .Where(n => n.Kind == NodeKind.Project)
             .DistinctBy(n => n.Properties.GetValueOrDefault("path")?.ToString())
             .ToDictionary(
                 n => n.Properties.GetValueOrDefault("path")!.ToString()!.Replace('\\', '/').Trim('/'),

@@ -76,10 +76,10 @@ public static partial class Layer3LogMessages
     [LoggerMessage(EventId = 3002, Level = LogLevel.Debug, Message = "[ConfigurationIndex] Registered {Count} service endpoints and configuration keys into ConstantRegistry.")]
     public static partial void RegisteredConfigurationUrls(ILogger logger, int count);
 
-    [LoggerMessage(EventId = 3003, Level = LogLevel.Debug, Message = "[Layer 3    ] Parsing project {ProjectIndex} of {TotalProjects} at: '{ProjectPath}'...")]
-    public static partial void ParsingProject(ILogger logger, int projectIndex, int totalProjects, string projectPath);
+    [LoggerMessage(EventId = 3003, Level = LogLevel.Information, Message = "[Layer 3    ] Scanning project {ProjectIndex}/{TotalProjects} ({Percentage}%): {ProjectName} ({FileCount} files)...")]
+    public static partial void ParsingProject(ILogger logger, int projectIndex, int totalProjects, int percentage, string projectName, int fileCount);
 
-    [LoggerMessage(EventId = 3004, Level = LogLevel.Information, Message = "[Layer 3    ] Parsing syntax trees: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
+    [LoggerMessage(EventId = 3004, Level = LogLevel.Debug, Message = "[Layer 3    ] Parsing syntax trees: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
     public static partial void ParsingProgress(ILogger logger, int completed, int totalFiles, int percentage, string projectName);
 
     [LoggerMessage(EventId = 3005, Level = LogLevel.Warning, Message = "[Layer 3    ] Error parsing file '{FilePath}': {ErrorMessage}")]
@@ -91,7 +91,10 @@ public static partial class Layer3LogMessages
     [LoggerMessage(EventId = 3007, Level = LogLevel.Information, Message = "[Layer 3    ] Syntactic parsing pass complete. Parsed {SyntaxTreeCount} files.")]
     public static partial void SyntacticScanComplete(ILogger logger, int syntaxTreeCount);
 
-    [LoggerMessage(EventId = 3008, Level = LogLevel.Information, Message = "[Layer 3    ] Analyzing AST semantics and visitors: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
+    [LoggerMessage(EventId = 3008, Level = LogLevel.Information, Message = "[Layer 3    ] Running in-memory AST visitors across {TotalFiles} parsed syntax trees...")]
+    public static partial void StartingInMemoryVisitors(ILogger logger, int totalFiles);
+
+    [LoggerMessage(EventId = 3009, Level = LogLevel.Information, Message = "[Layer 3    ] Visitor progress: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
     public static partial void VisitorProgress(ILogger logger, int completed, int totalFiles, int percentage, string projectName);
 }
 
@@ -99,8 +102,9 @@ public readonly struct Layer3Logger(ILogger logger)
 {
     public void ScanStarted() => Layer3LogMessages.StartingSyntacticScan(logger);
     public void ConfigurationIndexRegistered(int count) => Layer3LogMessages.RegisteredConfigurationUrls(logger, count);
-    public void ParsingProject(int projectIndex, int totalProjects, string projectPath) => Layer3LogMessages.ParsingProject(logger, projectIndex, totalProjects, projectPath);
+    public void ParsingProject(int projectIndex, int totalProjects, int percentage, string projectName, int fileCount) => Layer3LogMessages.ParsingProject(logger, projectIndex, totalProjects, percentage, projectName, fileCount);
     public void ParsingProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.ParsingProgress(logger, completed, totalFiles, percentage, projectName);
+    public void StartingInMemoryVisitors(int totalFiles) => Layer3LogMessages.StartingInMemoryVisitors(logger, totalFiles);
     public void VisitorProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.VisitorProgress(logger, completed, totalFiles, percentage, projectName);
     public void FileParseFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.FileParseError(logger, filePath, errorMessage, ex);
     public void VisitorFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.VisitorProcessingError(logger, filePath, errorMessage, ex);

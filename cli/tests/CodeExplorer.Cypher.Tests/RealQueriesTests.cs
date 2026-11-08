@@ -114,7 +114,7 @@ public class RealQueriesTests
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText =
-                "SELECT id, json_extract(properties, '$.name'), json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace';";
+                $"SELECT id, json_extract(properties, '$.name'), json_extract(properties, '$.path') FROM nodes WHERE kind = {CodeExplorer.Cypher.Common.GraphKindCodec.EncodeNodeKind("Workspace")};";
 
             using (var reader = cmd.ExecuteReader())
             {

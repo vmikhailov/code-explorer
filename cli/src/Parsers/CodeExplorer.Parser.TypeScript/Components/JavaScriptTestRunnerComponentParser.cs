@@ -53,6 +53,8 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
         ".spec.ts", ".spec.tsx", ".spec.js", ".spec.jsx", ".test.ts", ".test.tsx", ".test.js", ".test.jsx"
     ];
 
+    private const string DefaultFrameworkJest = "jest";
+
     /// <inheritdoc />
     public bool IsTestSource(SyntaxTree syntaxTree)
     {
@@ -83,48 +85,40 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
     {
         if (syntaxTree.Tree == null) return;
 
-        var root = syntaxTree.Tree.RootNode;
         var hasTestsInFile = syntaxTree.RelativePath.EndsWith(".test.ts", StringComparison.OrdinalIgnoreCase) ||
                              syntaxTree.RelativePath.EndsWith(".spec.ts", StringComparison.OrdinalIgnoreCase) ||
                              syntaxTree.RelativePath.EndsWith(".test.js", StringComparison.OrdinalIgnoreCase) ||
                              syntaxTree.RelativePath.EndsWith(".spec.js", StringComparison.OrdinalIgnoreCase);
 
-        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+        var doc = syntaxTree.Document;
+        if (doc != null)
         {
-            if (node.Is(TreeSitterSyntax.Common.CallExpression))
+            for (int i = 0; i < doc.AllCalls.Count; i++)
             {
-                var func = node.GetChildForField(TreeSitterSyntax.Fields.Function) ?? node.Children.FirstOrDefault(c => c.IsValid());
-                if (func.IsValid())
+                var node = doc.AllCalls[i];
+                var func = node.Callee ?? node.GetChildForField(TreeSitterSyntax.Fields.Function);
+                if (!func.IsValid()) continue;
+                var funcSpan = func.AsSpan();
+                if (funcSpan.Length > 24) continue;
+                var funcName = func.Text;
+                if (TestFunctions.Contains(funcName))
                 {
-                    var funcName = func.Text;
-                    if (TestFunctions.Contains(funcName))
+                    hasTestsInFile = true;
+                    var testTitle = "";
+                    if (node.Arguments.Count > 0)
                     {
-                        hasTestsInFile = true;
-                        var args = node.GetChildForField(TreeSitterSyntax.Fields.Arguments) ?? node.FindChildOfType(TreeSitterSyntax.Common.Arguments);
-                        var testTitle = "";
-                        if (args.IsValid() && args.Children.Count > 0)
+                        var firstArg = node.Arguments[0].Value ?? node.Arguments[0];
+                        if (firstArg.IsValid() && (firstArg is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax || firstArg.Type.Contains("string") || firstArg.Type.Contains("template")))
                         {
-                            var firstArg = args.Children.FirstOrDefault(c => c.IsValid() && (c.Type.Contains("string") || c.Type.Contains("template")));
-                            if (firstArg.IsValid()) testTitle = firstArg.Text.Trim('"', '\'', '`');
+                            testTitle = firstArg.Text.Trim('"', '\'', '`');
                         }
-
-                        var startRow = node.StartPosition.Row;
-                        MarkMatchingFunction(syntaxTree.FileNode, testTitle, startRow, "jest", result);
                     }
-                }
-            }
 
-            for (int i = 0; i < node.Children.Count; i++)
-            {
-                var child = node.Children[i];
-                if (child.IsValid())
-                {
-                    WalkNode(child);
+                    var startRow = node.StartPosition.Row;
+                    MarkMatchingFunction(syntaxTree.FileNode, testTitle, startRow, DefaultFrameworkJest, result);
                 }
             }
         }
-
-        WalkNode(root);
 
         if (hasTestsInFile)
         {

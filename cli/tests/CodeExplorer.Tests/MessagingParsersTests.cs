@@ -125,12 +125,12 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
 
             // Verify SubscribesTo relationship to SubmitOrder
             var subRel = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "masstransit:SubmitOrder");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "masstransit:SubmitOrder");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for SubmitOrder message");
 
             // Verify PublishesTo relationship to OrderSubmitted
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "masstransit:OrderSubmitted");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "masstransit:OrderSubmitted");
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for OrderSubmitted message");
         }
         finally
@@ -207,16 +207,16 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
 
             // Verify SubscribesTo relationships
             var subCmd = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "mediatr:CreateUserCommand");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "mediatr:CreateUserCommand");
             subCmd.Should().NotBeNull("Expected SUBSCRIBES_TO reference for CreateUserCommand");
 
             var subNotification = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "mediatr:UserCreatedEvent");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "mediatr:UserCreatedEvent");
             subNotification.Should().NotBeNull("Expected SUBSCRIBES_TO reference for UserCreatedEvent");
 
             // Verify PublishesTo relationship
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "mediatr:UserCreatedEvent");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "mediatr:UserCreatedEvent");
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for UserCreatedEvent");
         }
         finally
@@ -278,7 +278,7 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
 
             // Verify SubscribesTo relationship to OrderDirectiveMessage
             var subRel = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "kafka:OrderDirectiveMessage");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "kafka:OrderDirectiveMessage");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for OrderDirectiveMessage");
         }
         finally
@@ -332,15 +332,15 @@ func consumeRabbit(ctx context.Context, ch *amqp.Channel, q string, h any) {}
             var refs = FindReferences(fileNode.Children);
 
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:orders_queue");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "rabbitmq:orders_queue");
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for rabbitmq:orders_queue");
 
             var subRel = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:orders_queue");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "rabbitmq:orders_queue");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for rabbitmq:orders_queue");
 
             var helperSub = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:impression_queue");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "rabbitmq:impression_queue");
 
             helperSub.Should().NotBeNull("Expected SUBSCRIBES_TO reference for rabbitmq:impression_queue via consumeRabbit helper");
         }
@@ -405,15 +405,15 @@ func RunPubSub(ctx context.Context, client *pubsub.Client) {
             var refs = FindReferences(fileNode.Children);
 
             var pubRel =
-                refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "gcp:events_topic");
+                refs.FirstOrDefault(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "gcp:events_topic");
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for gcp:events_topic");
 
             var subRel =
-                refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:events_sub");
+                refs.FirstOrDefault(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:events_sub");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:events_sub");
 
             var workerSub = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:streaming_topic");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:streaming_topic");
 
             workerSub.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:streaming_topic from WorkerDef");
         }
@@ -469,11 +469,11 @@ func EnsureSubscription(ctx context.Context, client *pubsub.Client) {
             var refs = FindReferences(fileNode.Children);
 
             // Must NOT have any PUBLISHES_TO because client.Topic was only retrieved for subscription setup, never published to!
-            var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO");
+            var pubRel = refs.FirstOrDefault(r => r.Kind == RelationshipKind.PublishesTo);
             pubRel.Should().BeNull("Expected NO PUBLISHES_TO relationship when .Publish() is never called");
 
             // Should have SUBSCRIBES_TO for subscription
-            var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:incoming_sub");
+            var subRel = refs.FirstOrDefault(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:incoming_sub");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:incoming_sub");
         }
         finally
@@ -528,11 +528,11 @@ export async function sendPartner() {
             var refs = FindReferences(fileNode.Children);
 
             var subRel = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for rabbitmq:PA_PARTNER_QUEUE");
 
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
 
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for rabbitmq:PA_PARTNER_QUEUE via send");
         }
@@ -590,16 +590,16 @@ export class AppService {
             var refs = FindReferences(fileNode.Children);
 
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:event-bus-topic" ||
+                r.Kind == RelationshipKind.PublishesTo && (r.TargetName == "gcp:event-bus-topic" ||
                                              r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME"));
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for gcp:event-bus-topic");
 
             var subRel = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:event-bus-topic-SUB");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:event-bus-topic-SUB");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:event-bus-topic-SUB");
 
             var listenSub = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME");
 
             listenSub.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME via listenSubscription");
         }
@@ -667,12 +667,12 @@ export class RuleTreeService {
 
             // Assert resolved or config-extracted topics
             var ruleTreeRef = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:RULE_TREE_TOPIC" ||
+                r.Kind == RelationshipKind.PublishesTo && (r.TargetName == "gcp:RULE_TREE_TOPIC" ||
                                              r.TargetName == "gcp:rule-tree-topic"));
             ruleTreeRef.Should().NotBeNull("Expected reference for RULE_TREE_TOPIC");
 
             var eventBusRef = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME" ||
+                r.Kind == RelationshipKind.PublishesTo && (r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME" ||
                                              r.TargetName == "gcp:event-bus-topic"));
             eventBusRef.Should().NotBeNull("Expected reference for EVENT_BUS_TOPIC_NAME");
         }
@@ -736,7 +736,7 @@ export class LegacyQueueService {
 
             // Assert valid queue is captured
             var validRef = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:legacy_orders_queue");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "rabbitmq:legacy_orders_queue");
             validRef.Should().NotBeNull("Expected PUBLISHES_TO reference for legacy_orders_queue");
         }
         finally
@@ -842,7 +842,7 @@ export class OrderPublisher {
             var refs = FindReferences(fileNode.Children);
 
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "gcp:orders-completed-v2");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "gcp:orders-completed-v2");
 
             pubRel.Should().NotBeNull("Expected cross-file exported constant to resolve to 'gcp:orders-completed-v2'");
         }
@@ -922,12 +922,12 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
 
             // Verify SubscribesTo relationship to OrderStartedIntegrationEvent
             var subRel = refs.FirstOrDefault(r =>
-                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "eventbus:OrderStartedIntegrationEvent");
+                r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "eventbus:OrderStartedIntegrationEvent");
             subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for OrderStartedIntegrationEvent message");
 
             // Verify PublishesTo relationship to OrderStartedIntegrationEvent
             var pubRel = refs.FirstOrDefault(r =>
-                r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderStartedIntegrationEvent");
+                r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderStartedIntegrationEvent");
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for OrderStartedIntegrationEvent message");
 
             // Verify Layer5 TopicNode creation:
@@ -1045,20 +1045,20 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler : IIntegr
             var refs = FindReferences(fileNode.Children);
 
             // SubscribesTo OrderStockConfirmedIntegrationEvent via AddSubscription / IIntegrationEventHandler
-            refs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "eventbus:OrderStockConfirmedIntegrationEvent")
+            refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "eventbus:OrderStockConfirmedIntegrationEvent")
                 .Should().BeTrue("Expected AddSubscription to emit SUBSCRIBES_TO");
 
             // PublishesTo both branch outcomes: OrderPaymentSucceededIntegrationEvent AND OrderPaymentFailedIntegrationEvent
-            refs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
+            refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
                 .Should().BeTrue("Expected success branch to emit PUBLISHES_TO");
-            refs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
+            refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
                 .Should().BeTrue("Expected failed branch to emit PUBLISHES_TO");
 
             await OntologyUploader.UploadNodeTreeAsync(fileNode, "parent-id", ctx);
 
-            ctx.GlobalReferences.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
+            ctx.GlobalReferences.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
                 .Should().BeTrue("Expected OntologyUploader to preserve OrderPaymentSucceededIntegrationEvent in ctx.GlobalReferences");
-            ctx.GlobalReferences.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
+            ctx.GlobalReferences.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
                 .Should().BeTrue("Expected OntologyUploader to preserve OrderPaymentFailedIntegrationEvent in ctx.GlobalReferences");
         }
         finally

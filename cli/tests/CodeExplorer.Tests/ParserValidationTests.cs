@@ -81,7 +81,7 @@ public class ParserValidationTests
 
         sqlQuery.QueryText.Should().Contain("DELETE FROM tracking.data_all_leads WHERE bundle_id in");
 
-        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName)
             .ToList();
         dependsOn.Should().Contain("tracking");
         dependsOn.Should().Contain("data_all_leads");
@@ -115,7 +115,7 @@ public class ParserValidationTests
         sqlQuery.Name.Should().Be("SELECT Query");
         sqlQuery.QueryText.Should().Contain("SELECT id, name FROM users");
 
-        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName)
             .ToList();
         dependsOn.Should().Contain("users");
 
@@ -148,7 +148,7 @@ public class ParserValidationTests
         sqlQuery.Name.Should().Be("INSERT Query");
         sqlQuery.QueryText.Should().Contain("INSERT INTO logs");
 
-        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName)
             .ToList();
         dependsOn.Should().Contain("logs");
 
@@ -181,7 +181,7 @@ public class ParserValidationTests
         sqlQuery.Name.Should().Be("UPDATE Query");
         sqlQuery.QueryText.Should().Contain("UPDATE transactions SET status");
 
-        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName)
             .ToList();
         dependsOn.Should().Contain("transactions");
 
@@ -641,17 +641,17 @@ public class ParserValidationTests
 
         // Check that downward grounding (L4 -> L3/L1) and horizontal semantic (L4 -> L4) relationships are created
         var declDb =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == dbNode.Id && (r.Kind == "ACCESSED_BY" || r.Kind == "DECLARED_IN"));
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == dbNode.Id && (r.Kind == RelationshipKind.AccessedBy || r.Kind == RelationshipKind.DeclaredIn));
         declDb.Should().NotBeNull();
         var usesDb =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == dbNode.Id && r.Kind == "USES_DB");
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == dbNode.Id && r.Kind == RelationshipKind.UsesDb);
         usesDb.Should().NotBeNull();
 
         var declCloud =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == cloudNode.Id && (r.Kind == "ACCESSED_BY" || r.Kind == "DECLARED_IN"));
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == cloudNode.Id && (r.Kind == RelationshipKind.AccessedBy || r.Kind == RelationshipKind.DeclaredIn));
         declCloud.Should().NotBeNull();
         var usesCloud =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == cloudNode.Id && r.Kind == "USES_CLOUD");
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == cloudNode.Id && r.Kind == RelationshipKind.UsesCloud);
         usesCloud.Should().NotBeNull();
 
         // Check member nodes under TypeNode (Repository)
@@ -705,7 +705,7 @@ public class ParserValidationTests
 
         // Verify reference from process_payment function to Endpoint POST:/charge is collected
         var pyRefs = FindReferences(pyNode.Children);
-        (pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS")).Should().BeTrue();
+        (pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == RelationshipKind.Implements)).Should().BeTrue();
 
         // 2. Go Parser - Gin & HTTP Get calls
         var goParser = new GoParser();
@@ -727,7 +727,7 @@ public class ParserValidationTests
         var goRefs = FindReferences(goNode.Children);
 
         (goRefs.Any(r =>
-                r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" &&
+                r.TargetName == "GET /api/v1/users" && r.Kind == RelationshipKind.Implements &&
                 r.ScopeSymbolId == "GetUsers")).Should().BeTrue();
 
         // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
@@ -760,7 +760,7 @@ public class ParserValidationTests
         var queryNode = procNode.Children.OfType<QueryNode>().FirstOrDefault();
         queryNode.Should().NotBeNull();
 
-        (queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == "CALLS")).Should().BeTrue();
+        (queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == RelationshipKind.Calls)).Should().BeTrue();
     }
 
     [Test]
@@ -809,9 +809,9 @@ public class ParserValidationTests
             csDbNode.DbType.Should().Be(DatabaseType.Relational);
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == csDbNode.Id && r.To == csFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+                    r.From == csDbNode.Id && r.To == csFile.Id && r.Kind == RelationshipKind.DeclaredIn)).Should().BeTrue();
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.To == csDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.To == csDbNode.Id && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
             // Test C# Semantic Model with graph (Neo4j.Driver)
             var csGraphProj = new ProjectNode("cs_graph_project", "cs_graph_project", "cs_graph_project", "csharp");
@@ -835,9 +835,9 @@ public class ParserValidationTests
             csGraphDbNode.DbType.Should().Be(DatabaseType.Graph);
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == csGraphDbNode.Id && r.To == csGraphFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+                    r.From == csGraphDbNode.Id && r.To == csGraphFile.Id && r.Kind == RelationshipKind.DeclaredIn)).Should().BeTrue();
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.To == csGraphDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.To == csGraphDbNode.Id && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
             // Test TypeScript Semantic Model with document (mongoose)
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
@@ -857,9 +857,9 @@ public class ParserValidationTests
             tsDbNode.DbType.Should().Be(DatabaseType.Document);
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == tsDbNode.Id && r.To == tsFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+                    r.From == tsDbNode.Id && r.To == tsFile.Id && r.Kind == RelationshipKind.DeclaredIn)).Should().BeTrue();
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.To == tsDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.To == tsDbNode.Id && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
             // Test Python Semantic Model with keyvalue (redis)
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
@@ -879,9 +879,9 @@ public class ParserValidationTests
             pyDbNode.DbType.Should().Be(DatabaseType.KeyValue);
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == pyDbNode.Id && r.To == pyFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+                    r.From == pyDbNode.Id && r.To == pyFile.Id && r.Kind == RelationshipKind.DeclaredIn)).Should().BeTrue();
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.To == pyDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.To == pyDbNode.Id && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
         }
         finally
         {
@@ -1074,7 +1074,7 @@ public class ParserValidationTests
         var pubsubRefs = FindReferences(syntaxTreePubsub.FileNode);
 
         var pubsubPub = pubsubRefs.FirstOrDefault(r =>
-            r.Kind == OntologyConstants.Relationships.PublishesTo);
+            r.Kind == RelationshipKind.PublishesTo);
         pubsubPub.Should().NotBeNull();
         pubsubPub.TargetName.Should().Be("gcp:negative-profit-topic");
 
@@ -1086,7 +1086,7 @@ public class ParserValidationTests
         var rabbitRefs = FindReferences(syntaxTreeRabbit.FileNode);
 
         var rabbitPub = rabbitRefs.FirstOrDefault(r =>
-            r.Kind == OntologyConstants.Relationships.PublishesTo);
+            r.Kind == RelationshipKind.PublishesTo);
         rabbitPub.Should().NotBeNull();
         rabbitPub.TargetName.Should().Be("rabbitmq:calc-done-queue");
 

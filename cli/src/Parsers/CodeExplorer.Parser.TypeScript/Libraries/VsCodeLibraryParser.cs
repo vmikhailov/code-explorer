@@ -150,7 +150,7 @@ public class VsCodeLibraryParser : DeclarativeSemanticExtension
 
     private static void AddInstantiatesReference(string scopeSymbolId, string target, int line, int col, List<Reference> references)
     {
-        if (references.Any(r => r.Kind == OntologyConstants.Relationships.Instantiates && r.TargetName == target))
+        if (references.Any(r => r.Kind == RelationshipKind.Instantiates && r.TargetName == target))
         {
             return;
         }

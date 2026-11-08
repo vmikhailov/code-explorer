@@ -2,12 +2,15 @@ using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Syntax;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
 public static class EvidenceProvenanceHelper
 {
     public const int DefaultEvidenceCap = 200;
+    private const string PropIsParallel = "is_parallel";
+    private const string BoolTrueStr = "true";
 
     public static string FormatEdgeIdentity(string fromId, string kind, string toId) =>
         $"{fromId}|{kind}|{toId}";
@@ -29,7 +32,7 @@ public static class EvidenceProvenanceHelper
         Relationship targetRel,
         Relationship contributingRel,
         int cap = DefaultEvidenceCap) =>
-        RecordContributingEdge(targetRel, contributingRel.From, contributingRel.Kind, contributingRel.To, cap);
+        RecordContributingEdge(targetRel, contributingRel.From, contributingRel.Kind.ToCypherType(), contributingRel.To, cap);
 
     public static void RecordContributingEdge(
         Relationship targetRel,
@@ -73,7 +76,7 @@ public static class EvidenceProvenanceHelper
         Dictionary<string, object> properties,
         Relationship contributingRel,
         int cap = DefaultEvidenceCap) =>
-        RecordContributingEdge(properties, contributingRel.From, contributingRel.Kind, contributingRel.To, cap);
+        RecordContributingEdge(properties, contributingRel.From, contributingRel.Kind.ToCypherType(), contributingRel.To, cap);
 
     public static void RecordContributingEdge(
         Dictionary<string, object> properties,
@@ -114,6 +117,15 @@ public static class EvidenceProvenanceHelper
         int cap = DefaultEvidenceCap)
     {
         if (source is null) return;
+        if (source.CallContext.Flags != CallExecutionFlags.None || source.CallContext.LoopDepth > 0 || source.CallContext.ConditionalDepth > 0)
+        {
+            target.CallContext = new CallSiteExecutionContext(
+                target.CallContext.Flags | source.CallContext.Flags,
+                Math.Max(target.CallContext.LoopDepth, source.CallContext.LoopDepth),
+                Math.Max(target.CallContext.ConditionalDepth, source.CallContext.ConditionalDepth));
+        }
+        target.ArgFlow ??= source.ArgFlow;
+
         if (target.HasMaterializedProperties || source.HasMaterializedProperties)
         {
             MergeProvenance(target.Properties, source.Properties, cap);
@@ -261,7 +273,11 @@ public static class EvidenceProvenanceHelper
         }
         if (context.Flags.HasFlag(CallExecutionFlags.IsAwaited))
         {
-            dict["is_awaited"] = "true";
+            dict["is_awaited"] = BoolTrueStr;
+        }
+        if (context.IsParallel)
+        {
+            dict[PropIsParallel] = BoolTrueStr;
         }
         if (!string.IsNullOrEmpty(argFlow))
         {
@@ -334,9 +350,18 @@ public static class EvidenceProvenanceHelper
                     }
                     target.CallContext = new CallSiteExecutionContext(
                         target.CallContext.Flags | source.CallContext.Flags,
-                        Math.Max(target.CallContext.LoopDepth, source.CallContext.LoopDepth));
+                        Math.Max(target.CallContext.LoopDepth, source.CallContext.LoopDepth),
+                        Math.Max(target.CallContext.ConditionalDepth, source.CallContext.ConditionalDepth));
                     target.ArgFlow ??= source.ArgFlow;
                 }
+            }
+            else if (source.CallContext.Flags != CallExecutionFlags.None || source.CallContext.LoopDepth > 0 || !string.IsNullOrEmpty(source.ArgFlow))
+            {
+                target.CallContext = new CallSiteExecutionContext(
+                    target.CallContext.Flags | source.CallContext.Flags,
+                    Math.Max(target.CallContext.LoopDepth, source.CallContext.LoopDepth),
+                    Math.Max(target.CallContext.ConditionalDepth, source.CallContext.ConditionalDepth));
+                target.ArgFlow ??= source.ArgFlow;
             }
 
             // 2. Merge Evidence IDs

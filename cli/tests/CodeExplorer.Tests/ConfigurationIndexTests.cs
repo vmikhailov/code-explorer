@@ -193,7 +193,7 @@ public class ConfigurationIndexTests
         (extServices.Any(e => e.DomainOrService == "api.cloudpayments.ru" || e.Name == "CloudPayments")).Should().BeTrue("ExternalServiceNode for api.cloudpayments.ru should be created generically without hardcoded parser");
 
         // ServiceCall relationship for OrderService should be created generically
-        var serviceCalls = l4.SemanticRelationships.Where(r => r.Kind == "SERVICE_CALL").ToList();
+        var serviceCalls = l4.SemanticRelationships.Where(r => r.Kind == RelationshipKind.ServiceCall).ToList();
 
         serviceCalls.Any(r => r.To.Contains("service_target:orderservice")).Should().BeTrue("ServiceCall for order-service target should be created generically");
     }

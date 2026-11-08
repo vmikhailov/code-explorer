@@ -108,11 +108,11 @@ root.render(React.createElement(App, null));
         reactRoot.Should().NotBeNull("Expected React:Root EntryPoint to be detected");
 
         // App should be referenced by the root mount
-        reactRoot!.References.Any(r => r.TargetName == "App" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        reactRoot!.References.Any(r => r.TargetName == "App" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
 
         // Lazy import should produce a reference to ./UserModal
         var allRefs = FindAllReferences(ws.FileNode);
-        allRefs.Any(r => r.TargetName == "./UserModal" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "./UserModal" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -132,7 +132,7 @@ export function App() {
         using var ws = await TestWorkspace.CreateAsync(code, "App.tsx");
         var appFunc = FindNodes<FunctionNode>(ws.FileNode.Children).FirstOrDefault(f => f.Name == "App");
         appFunc.Should().NotBeNull();
-        appFunc!.References.Any(r => r.TargetName == "Toolbar" && r.Kind == "CALLS").Should().BeTrue();
+        appFunc!.References.Any(r => r.TargetName == "Toolbar" && r.Kind == RelationshipKind.Calls).Should().BeTrue();
     }
 
     [Test]
@@ -155,10 +155,10 @@ createApp(App).mount('#app');
         var vueRoot = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Vue && e.Name == "Root");
         vueRoot.Should().NotBeNull("Expected Vue:Root EntryPoint to be detected");
 
-        vueRoot!.References.Any(r => r.TargetName == "App" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        vueRoot!.References.Any(r => r.TargetName == "App" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
 
         var allRefs = FindAllReferences(ws.FileNode);
-        allRefs.Any(r => r.TargetName == "./UserProfile" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        allRefs.Any(r => r.TargetName == "./UserProfile" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -180,12 +180,12 @@ bootstrapApplication(AppComponent);
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
         var angularBootstrap = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Angular && e.Name == "Bootstrap");
         angularBootstrap.Should().NotBeNull("Expected Angular:Bootstrap EntryPoint");
-        angularBootstrap!.References.Any(r => r.TargetName == "AppComponent" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        angularBootstrap!.References.Any(r => r.TargetName == "AppComponent" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
 
         var types = FindNodes<TypeNode>(ws.FileNode.Children);
         var appComp = types.FirstOrDefault(t => t.Name == "AppComponent");
         appComp.Should().NotBeNull("Expected AppComponent TypeNode");
-        appComp!.References.Any(r => r.TargetName == "./app.component.html" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        appComp!.References.Any(r => r.TargetName == "./app.component.html" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -205,7 +205,7 @@ mount(AppRoot, {
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
         var svelteMount = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Svelte && e.Name == "Mount");
         svelteMount.Should().NotBeNull("Expected Svelte:Mount EntryPoint");
-        svelteMount!.References.Any(r => r.TargetName == "AppRoot" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        svelteMount!.References.Any(r => r.TargetName == "AppRoot" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -226,8 +226,8 @@ export default defineConfig({
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
         var viteConfig = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Vite && e.Name == "Config");
         viteConfig.Should().NotBeNull("Expected Vite:Config EntryPoint");
-        viteConfig!.References.Any(r => r.TargetName == "reactPlugin" && r.Kind == "DEPENDS_ON").Should().BeTrue();
-        viteConfig!.References.Any(r => r.TargetName == "vuePlugin" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        viteConfig!.References.Any(r => r.TargetName == "reactPlugin" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
+        viteConfig!.References.Any(r => r.TargetName == "vuePlugin" && r.Kind == RelationshipKind.DependsOn).Should().BeTrue();
     }
 
     [Test]
@@ -290,6 +290,6 @@ export class GraphPanel {
 """;
         using var ws = await TestWorkspace.CreateAsync(code, "graphPanel.ts");
         var references = FindAllReferences(ws.FileNode);
-        references.Should().Contain(r => r.Kind == OntologyConstants.Relationships.Instantiates && r.TargetName == "dist/webview.js");
+        references.Should().Contain(r => r.Kind == RelationshipKind.Instantiates && r.TargetName == "dist/webview.js");
     }
 }

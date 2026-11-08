@@ -208,6 +208,21 @@ public class AxiosLibraryParser : DeclarativeSemanticExtension
 
                     return resolved.TrimStart('/');
                 }
+
+                var fallbackBaseUrl = FindBaseUrl(node, projectContext);
+                if (!string.IsNullOrEmpty(fallbackBaseUrl))
+                {
+                    return fallbackBaseUrl;
+                }
+
+                if (objText != null && (objText.Contains("http") || objText.Contains("axios")))
+                {
+                    var fallbackSvc = AstHelper.ExtractEnclosingServiceFallback(node);
+                    if (!string.IsNullOrEmpty(fallbackSvc))
+                    {
+                        return fallbackSvc;
+                    }
+                }
             }
             return null;
         }

@@ -16,21 +16,21 @@ public partial class PostIndexAnalyzer
         IReadOnlyDictionary<string, string>? projectToWorkloadMap = null)
     {
         var materializedRels = new List<Relationship>();
-        var existingEdges = new HashSet<(string From, string To, string Kind)>();
-        var edgeLookup = new Dictionary<(string From, string To, string Kind), Relationship>();
+        var existingEdges = new HashSet<(string From, string To, RelationshipKind Kind)>();
+        var edgeLookup = new Dictionary<(string From, string To, RelationshipKind Kind), Relationship>();
         foreach (var existing in allRelationships)
         {
-            if (existing.Kind is OntologyConstants.Relationships.UsesDb
-                or OntologyConstants.Relationships.PublishesTo
-                or OntologyConstants.Relationships.SubscribesTo
-                or OntologyConstants.Relationships.ServiceCall)
+            if (existing.Kind is RelationshipKind.UsesDb
+                or RelationshipKind.PublishesTo
+                or RelationshipKind.SubscribesTo
+                or RelationshipKind.ServiceCall)
             {
                 existingEdges.Add((existing.From, existing.To, existing.Kind));
                 edgeLookup.TryAdd((existing.From, existing.To, existing.Kind), existing);
             }
         }
 
-        void AddMaterialized(string fromId, string toId, string relKind, Action<Relationship> configure, Relationship? contributingRel = null)
+        void AddMaterialized(string fromId, string toId, RelationshipKind relKind, Action<Relationship> configure, Relationship? contributingRel = null)
         {
             Relationship CreateCandidate(string f, string t, bool forceSemantic)
             {
@@ -106,21 +106,21 @@ public partial class PostIndexAnalyzer
         {
             foreach (var rel in allRelationships)
             {
-                if (rel.Kind == OntologyConstants.Relationships.Contains ||
-                    rel.Kind == OntologyConstants.Relationships.Exposes ||
-                    rel.Kind == OntologyConstants.Relationships.Declares ||
-                    rel.Kind == OntologyConstants.Relationships.HasMethod ||
-                    rel.Kind == OntologyConstants.Relationships.HasMember ||
-                    rel.Kind == OntologyConstants.Relationships.Deploys)
+                if (rel.Kind == RelationshipKind.Contains ||
+                    rel.Kind == RelationshipKind.Exposes ||
+                    rel.Kind == RelationshipKind.Declares ||
+                    rel.Kind == RelationshipKind.HasMethod ||
+                    rel.Kind == RelationshipKind.HasMember ||
+                    rel.Kind == RelationshipKind.Deploys)
                 {
                     if (fileToProject.TryGetValue(rel.From, out var proj) || nodeToProject.TryGetValue(rel.From, out proj))
                     {
                         nodeToProject.TryAdd(rel.To, proj);
                     }
                 }
-                else if (rel.Kind == OntologyConstants.Relationships.ImplementedBy ||
-                         rel.Kind == OntologyConstants.Relationships.ExposedBy ||
-                         rel.Kind == OntologyConstants.Relationships.DeclaredIn)
+                else if (rel.Kind == RelationshipKind.ImplementedBy ||
+                         rel.Kind == RelationshipKind.ExposedBy ||
+                         rel.Kind == RelationshipKind.DeclaredIn)
                 {
                     if (fileToProject.TryGetValue(rel.To, out var proj) || nodeToProject.TryGetValue(rel.To, out proj))
                     {
@@ -180,11 +180,11 @@ public partial class PostIndexAnalyzer
             var to = rel.To;
 
             // 1. Direct Project -> Database (only when dbCanonicalMap is not provided; when provided, CanonicalizeDatabasesInMemoryAsync already materialized consolidated edges)
-            if ((kind == OntologyConstants.Relationships.UsesDb ||
-                 kind == OntologyConstants.Relationships.AccessedBy ||
-                 kind == OntologyConstants.Relationships.QueriedBy) && dbCanonicalMap == null)
+            if ((kind == RelationshipKind.UsesDb ||
+                 kind == RelationshipKind.AccessedBy ||
+                 kind == RelationshipKind.QueriedBy) && dbCanonicalMap == null)
             {
-                var isForward = kind == OntologyConstants.Relationships.UsesDb;
+                var isForward = kind == RelationshipKind.UsesDb;
                 var candidateDb = isForward ? to : from;
                 var candidateCaller = isForward ? from : to;
                 var isDb = (nodeKindsById?.GetValueOrDefault(candidateDb) == OntologyConstants.NodeLabels.Database) ||
@@ -198,7 +198,7 @@ public partial class PostIndexAnalyzer
                         AddMaterialized(
                             owner.Id,
                             targetDbId,
-                            OntologyConstants.Relationships.UsesDb,
+                            RelationshipKind.UsesDb,
                             r =>
                             {
                                 r.DependencyType = "database";
@@ -211,8 +211,8 @@ public partial class PostIndexAnalyzer
                 }
             }
             // 2. Direct Project -> Topic (PUBLISHES_TO / PUBLISHED_BY)
-            else if (kind == OntologyConstants.Relationships.PublishesTo ||
-                     kind == OntologyConstants.Relationships.PublishedBy)
+            else if (kind == RelationshipKind.PublishesTo ||
+                     kind == RelationshipKind.PublishedBy)
             {
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
                                     to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:") || to.Contains(":res:topic:");
@@ -239,7 +239,7 @@ public partial class PostIndexAnalyzer
                             AddMaterialized(
                                 owner.Id,
                                 topicId,
-                                OntologyConstants.Relationships.PublishesTo,
+                                RelationshipKind.PublishesTo,
                                 r =>
                                 {
                                     r.DependencyType = "messaging";
@@ -253,9 +253,9 @@ public partial class PostIndexAnalyzer
                 }
             }
             // 3. Topic -> Project (TRIGGERS / SUBSCRIBES_TO / SUBSCRIBED_BY)
-            else if (kind == OntologyConstants.Relationships.Triggers ||
-                     kind == OntologyConstants.Relationships.SubscribesTo ||
-                     kind == OntologyConstants.Relationships.SubscribedBy)
+            else if (kind == RelationshipKind.Triggers ||
+                     kind == RelationshipKind.SubscribesTo ||
+                     kind == RelationshipKind.SubscribedBy)
             {
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
                                     to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:") || to.Contains(":res:topic:");
@@ -282,7 +282,7 @@ public partial class PostIndexAnalyzer
                             AddMaterialized(
                                 owner.Id,
                                 topicId,
-                                OntologyConstants.Relationships.SubscribesTo,
+                                RelationshipKind.SubscribesTo,
                                 r =>
                                 {
                                     r.DependencyType = "messaging";
@@ -296,7 +296,7 @@ public partial class PostIndexAnalyzer
                 }
             }
             // 5. Calls Endpoint -> Project -> Project SERVICE_CALL
-            else if (kind == OntologyConstants.Relationships.CallsEndpoint)
+            else if (kind == RelationshipKind.CallsEndpoint)
             {
                 var targetOwner = ResolveOwningProject(to);
                 if (targetOwner != null)
@@ -320,7 +320,7 @@ public partial class PostIndexAnalyzer
                             AddMaterialized(
                                 callerOwner.Id,
                                 targetOwner.Id,
-                                OntologyConstants.Relationships.ServiceCall,
+                                RelationshipKind.ServiceCall,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -343,7 +343,7 @@ public partial class PostIndexAnalyzer
                     AddMaterialized(
                         callerOwner.Id,
                         targetProj.Id,
-                        OntologyConstants.Relationships.ServiceCall,
+                        RelationshipKind.ServiceCall,
                         r =>
                         {
                             r.DependencyType = "service_call";
@@ -355,12 +355,12 @@ public partial class PostIndexAnalyzer
                 }
             }
             // 6. External Service invocation -> Project -> ExternalService SERVICE_CALL
-            else if (kind == OntologyConstants.Relationships.ServiceCall ||
-                     kind == OntologyConstants.Relationships.UsesApi ||
-                     kind == OntologyConstants.Relationships.UsesCloud ||
-                     kind == OntologyConstants.Relationships.CalledBy ||
-                     kind == OntologyConstants.Relationships.Calls ||
-                     kind == OntologyConstants.Relationships.TransitivelyCalls)
+            else if (kind == RelationshipKind.ServiceCall ||
+                     kind == RelationshipKind.UsesApi ||
+                     kind == RelationshipKind.UsesCloud ||
+                     kind == RelationshipKind.CalledBy ||
+                     kind == RelationshipKind.Calls ||
+                     kind == RelationshipKind.TransitivelyCalls)
             {
                 var isTargetExt = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.ExternalService) ||
                                   to.Contains($":{OntologyConstants.IdPrefixes.ExternalService}:") || to.Contains(":externalservice:") || to.Contains(":res:service:external:") || to.Contains(":cloud:") || to.Contains($":{OntologyConstants.IdPrefixes.CloudService}:");
@@ -375,7 +375,7 @@ public partial class PostIndexAnalyzer
                     callerId = from;
                     extId = to;
                 }
-                else if (isSourceExt && (kind == OntologyConstants.Relationships.CalledBy || kind == "CALLED_BY"))
+                else if (isSourceExt && kind == RelationshipKind.CalledBy)
                 {
                     callerId = to;
                     extId = from;
@@ -394,7 +394,7 @@ public partial class PostIndexAnalyzer
                             AddMaterialized(
                                 callerOwner.Id,
                                 internalTargetProj.Id,
-                                OntologyConstants.Relationships.ServiceCall,
+                                RelationshipKind.ServiceCall,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -408,7 +408,7 @@ public partial class PostIndexAnalyzer
                             AddMaterialized(
                                 callerOwner.Id,
                                 extId,
-                                OntologyConstants.Relationships.ServiceCall,
+                                RelationshipKind.ServiceCall,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -421,7 +421,7 @@ public partial class PostIndexAnalyzer
                 }
             }
             // 7. Configures -> roll up DB / Topic configuration to Project
-            else if (kind == OntologyConstants.Relationships.Configures)
+            else if (kind == RelationshipKind.Configures)
             {
                 var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
                                  to.Contains($":{OntologyConstants.IdPrefixes.Database}:") || to.Contains(":db:") || to.Contains(":database:");
@@ -437,7 +437,7 @@ public partial class PostIndexAnalyzer
                         AddMaterialized(
                             owner.Id,
                             targetDbId,
-                            OntologyConstants.Relationships.UsesDb,
+                            RelationshipKind.UsesDb,
                             r =>
                             {
                                 r.DependencyType = "database";
@@ -453,7 +453,7 @@ public partial class PostIndexAnalyzer
                     AddMaterialized(
                         owner.Id,
                         to,
-                        OntologyConstants.Relationships.PublishesTo,
+                        RelationshipKind.PublishesTo,
                         r =>
                         {
                             r.DependencyType = "messaging";
@@ -742,27 +742,4 @@ public partial class PostIndexAnalyzer
             [.. attributedTo.DistinctBy(x => (x.EpId, x.SinkId))],
             projectExternalApis);
     }
-
-    private Task WriteTransitivelyCallsAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH path = (caller:Function)-[:CALLS|CALLS_ENDPOINT|USES_DB*1..15]->(sink)
-        WHERE caller.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Database OR sink:Query)
-        WITH caller, sink, min(length(path)) AS hops
-        MERGE (caller)-[r:TRANSITIVELY_CALLS]->(sink)
-        SET r.hops = hops
-        """, new { widPrefix });
-
-    private Task WriteAttributedToAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH path = (ep)-[:IMPLEMENTS|IMPLEMENTED_BY|EXPOSED_BY]-(fn:Function)-[:CALLS|CALLS_ENDPOINT|USES_DB*0..15]->(sink)
-        WHERE (ep:EntryPoint OR ep:Endpoint) AND ep.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Database OR sink:Query)
-        WITH ep, sink, min(length(path)) AS hops, labels(sink)[0] AS sinkKind
-        MERGE (ep)-[r:ATTRIBUTED_TO]->(sink)
-        SET r.hops = hops, r.sink_kind = sinkKind
-        """, new { widPrefix });
-
-    private Task WriteProjectApiAnnotationsAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH (p:Project)-[:CONTAINS|EXPOSES*1..2]->(ep)-[:ATTRIBUTED_TO]->(es:ExternalService)
-        WHERE (ep:EntryPoint OR ep:Endpoint) AND p.id STARTS WITH $widPrefix
-        WITH p, collect(DISTINCT es.domain_or_service) AS domains
-        SET p.external_apis = domains
-        """, new { widPrefix });
 }

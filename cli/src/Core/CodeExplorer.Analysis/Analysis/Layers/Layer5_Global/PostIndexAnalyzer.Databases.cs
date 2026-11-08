@@ -1,3 +1,5 @@
+using CodeExplorer.Cypher.Common;
+
 namespace CodeExplorer.Core.Parser;
 
 public partial class PostIndexAnalyzer
@@ -32,9 +34,7 @@ public partial class PostIndexAnalyzer
         }
 
         // 4. Query relationships targeting any database and consolidate per service/project
-        var relEdgesQuery =
-            "SELECT from_id, to_id, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'IMPLEMENTED_BY', 'DEPLOYS', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN')";
-        var relEdges = await db.QueryAsync<Relationship>(relEdgesQuery, null, cancellationToken);
+        var relEdges = await db.LoadDatabaseCandidateRelationshipsAsync(cancellationToken);
 
         var libraryProjects = projectList.Where(p => p.IsLibrary).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
         var projById = projectList.ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
@@ -51,12 +51,12 @@ public partial class PostIndexAnalyzer
             var kind = rel.Kind;
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
-            if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(tgt))
+            if (kind == RelationshipKind.ImplementedBy && projById.ContainsKey(tgt))
             {
                 workloadToProject[src] = tgt;
                 projectToWorkload[tgt] = src;
             }
-            else if (string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(src))
+            else if (kind == RelationshipKind.Deploys && projById.ContainsKey(src))
             {
                 workloadToProject[tgt] = src;
                 projectToWorkload[src] = tgt;
@@ -69,13 +69,12 @@ public partial class PostIndexAnalyzer
             var tgt = rel.To;
             var kind = rel.Kind;
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-            if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase))
+            if (kind is RelationshipKind.ImplementedBy or RelationshipKind.Deploys)
             {
                 continue;
             }
 
-            if (string.Equals(kind, "DEPENDS_ON", StringComparison.OrdinalIgnoreCase))
+            if (kind == RelationshipKind.DependsOn)
             {
                 var resolvedSrc = workloadToProject.GetValueOrDefault(src, src);
                 var resolvedTgt = workloadToProject.GetValueOrDefault(tgt, tgt);
@@ -91,9 +90,9 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            var isReverseDbRel = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(kind, "QUERIED_BY", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(kind, "DECLARED_IN", StringComparison.OrdinalIgnoreCase);
+            var isReverseDbRel = kind is RelationshipKind.AccessedBy
+                                 or RelationshipKind.QueriedBy
+                                 or RelationshipKind.DeclaredIn;
             var dbTarget = isReverseDbRel ? src : tgt;
             var callerSrc = isReverseDbRel ? tgt : src;
 

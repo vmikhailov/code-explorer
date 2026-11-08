@@ -18,30 +18,6 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
         _parser = parser;
-
-        if (relativePath.Contains("route", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("const", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("config", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("api", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("env", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("url", StringComparison.OrdinalIgnoreCase))
-        {
-            RouteDictionaryRegistry.ScanAndRegister(rootNode.Text);
-        }
-
-        // Register a sequence detector rule for CommonJS 'require' statements
-        SequenceDetector.Register([
-            n => n.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
-                 n.GetField(TreeSitterSyntax.Fields.Function)?.Text == "require"
-        ], path =>
-        {
-            var callNode = path[^1];
-            TypeScriptImportAndCallbackHelper.ExtractCommonJsRequireImport(
-                callNode,
-                RawImports,
-                ResolveAndInjectLibraryParser);
-        });
     }
 
     protected override string? MapNodeType(Node node)
@@ -136,11 +112,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             {
                 var line = (int)arg.StartPosition.Row + 1;
                 var col = (int)arg.StartPosition.Column + 1;
-                if (!parentNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                if (!parentNode.References.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Calls))
                 {
                     parentNode.References.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
                 }
-                if (!symbolNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Triggers))
+                if (!symbolNode.References.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Triggers))
                 {
                     symbolNode.References.Add(new Reference(symbolNode.Name, name, OntologyConstants.Relationships.Triggers, line, col));
                 }
@@ -153,11 +129,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             {
                 var line = (int)arg.StartPosition.Row + 1;
                 var col = (int)arg.StartPosition.Column + 1;
-                if (!parentNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                if (!parentNode.References.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Calls))
                 {
                     parentNode.References.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
                 }
-                if (!symbolNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Triggers))
+                if (!symbolNode.References.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Triggers))
                 {
                     symbolNode.References.Add(new Reference(symbolNode.Name, name, OntologyConstants.Relationships.Triggers, line, col));
                 }
@@ -368,7 +344,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         CollectVariableAndTypeBindings(node);
         if (node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
         {
-            base.VisitVariableDeclaration(node, depth);
+            VisitSymbolOrBase(node, depth);
         }
         else
         {
@@ -553,6 +529,26 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 {
                     SymbolStack.Peek().References.Add(new Reference("", child.Text, kind));
                 }
+                else if (child is CodeExplorer.Core.Parser.Syntax.CallExprSyntax callChild)
+                {
+                    var calleeName = callChild.Callee is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax id
+                        ? id.Text
+                        : (callChild.Callee is CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax mem
+                            ? mem.MemberName
+                            : callChild.MethodName);
+                    if (!string.IsNullOrEmpty(calleeName))
+                    {
+                        SymbolStack.Peek().References.Add(new Reference("", calleeName, kind));
+                    }
+                }
+                else if (child is CodeExplorer.Core.Parser.Syntax.TypeRefSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeRefKind.Generic } genericChild)
+                {
+                    var firstId = genericChild.FirstChildOfType<CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax>();
+                    if (firstId != null && !string.IsNullOrEmpty(firstId.Text))
+                    {
+                        SymbolStack.Peek().References.Add(new Reference("", firstId.Text, kind));
+                    }
+                }
             }
         }
 
@@ -561,6 +557,15 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override void VisitCallExpression(Node node, int depth)
     {
+        if (node is CodeExplorer.Core.Parser.Syntax.CallExprSyntax { MethodName: "require" } ||
+            (node.GetField(TreeSitterSyntax.Fields.Function) is { } fn && fn.IsValid() && fn.AsSpan() is "require"))
+        {
+            TypeScriptImportAndCallbackHelper.ExtractCommonJsRequireImport(
+                node,
+                RawImports,
+                ResolveAndInjectLibraryParser);
+        }
+
         base.VisitCallExpression(node, depth);
         if (SymbolStack.Count > 0)
         {
@@ -609,24 +614,24 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
-            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Triggers))
+            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == RelationshipKind.Triggers))
             {
                 currentScope.References.Add(new Reference(currentScope.Name, tagName, OntologyConstants.Relationships.Triggers, line, col));
             }
-            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Calls))
+            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == RelationshipKind.Calls))
             {
                 currentScope.References.Add(new Reference("", tagName, OntologyConstants.Relationships.Calls, line, col));
             }
 
             // Also attach to RootSymbol so the entry file (e.g. index.tsx) has a CALLS edge to the component
-            if (!RootSymbol.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Calls))
+            if (!RootSymbol.References.Any(r => r.TargetName == tagName && r.Kind == RelationshipKind.Calls))
             {
                 RootSymbol.References.Add(new Reference("", tagName, OntologyConstants.Relationships.Calls, line, col));
             }
         }
         else
         {
-            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Calls))
+            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == RelationshipKind.Calls))
             {
                 currentScope.References.Add(new Reference("", tagName, OntologyConstants.Relationships.Calls, line, col));
             }

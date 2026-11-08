@@ -1,4 +1,4 @@
-MATCH (n:Type {kind: 'interface'}) WHERE n.name CONTAINS $name
+MATCH (n:Type {kind: 'interface'}) WHERE n.name IS NOT NULL AND n.name CONTAINS $name
 OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File)
 OPTIONAL MATCH (w:Workspace)
 RETURN 'Interface' AS type, n.name AS name, n.symbol AS fullName,

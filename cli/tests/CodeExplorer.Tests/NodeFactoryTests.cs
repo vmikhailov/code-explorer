@@ -88,7 +88,7 @@ public class NodeFactoryTests
             var modernProps = modernNode.Properties;
 
             modernNode.Id.Should().Be(node.Id);
-            modernNode.Kind.Should().Be(node.Kind.ToCypherLabel());
+            modernNode.Kind.Should().Be(node.Kind);
 
             var legacyKeys = legacyProps.Keys.OrderBy(k => k).ToList();
             var modernKeys = modernProps.Keys.OrderBy(k => k).ToList();

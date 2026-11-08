@@ -14,11 +14,15 @@ public enum CallExecutionFlags : ushort
     InUsingResource   = 1 << 7, // Inside UsingOrWithStmtSyntax (scoped disposable resource)
     IsAwaited         = 1 << 8, // Wrapped in AwaitOrTryExprSyntax
     IsConcurrentSpawn = 1 << 9, // Inside Go goroutine (`go fn()`), `Task.Run(...)`, or `tokio::spawn(...)`
-    InLambda          = 1 << 10 // Inside LambdaExprSyntax closure
+    InLambda          = 1 << 10, // Inside LambdaExprSyntax closure
+    IsParallelBatch   = 1 << 11  // Aggregated via Task.WhenAll, Promise.all, WaitAll, CompletableFuture.allOf, asyncio.gather
 }
 
 public readonly record struct CallSiteExecutionContext(
     CallExecutionFlags Flags = CallExecutionFlags.None,
     byte LoopDepth = 0,
     byte ConditionalDepth = 0
-);
+)
+{
+    public bool IsParallel => (Flags & (CallExecutionFlags.IsParallelBatch | CallExecutionFlags.IsConcurrentSpawn)) != 0;
+}

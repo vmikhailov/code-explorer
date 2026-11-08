@@ -1,25 +1,11 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
 public partial class PostIndexAnalyzer
 {
-    private const string ColId = "id";
-    private const string ColName = "name";
-    private const string ColDbType = "db_type";
-    private const string ColEngine = "engine";
-    private const string ColSchema = "schema";
-    private const string ColPath = "path";
-    private const string ColIsTest = "is_test";
-    private const string ColRole = "role";
-    private const string ColIsImplicitSchema = "is_implicit_schema";
-    private const string ColIsExplicitSchema = "is_explicit_schema";
-    private const string ColFromConfig = "from_config";
-    private const string ColEntityKind = "entity_kind";
-    private const string ColSource = "source";
-    private const string ColTarget = "target";
-    private const string ColKind = "kind";
     private const string DefaultRelational = "relational";
     private const string DefaultDatabase = "Database";
 
@@ -60,20 +46,19 @@ public partial class PostIndexAnalyzer
         Dictionary<string, (string Name, string DbType, string Key, string Engine)> canonicalNodes,
         CancellationToken cancellationToken)
     {
-        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine, d.schema AS schema, d.path AS path, json_extract(d.properties, '$.is_test') AS is_test, json_extract(d.properties, '$.is_implicit_schema') AS is_implicit_schema, json_extract(d.properties, '$.is_explicit_schema') AS is_explicit_schema, json_extract(d.properties, '$.from_config') AS from_config, d.role AS role";
-        var dbRes = await db.ExecuteCypherAsync(dbQuery, null, cancellationToken);
+        var (rawDatabases, dataSets) = await db.LoadRawDatabasesAndDataSetsAsync(cancellationToken);
         string? primaryRelationalEngine = null;
         var implicitCanonicalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var explicitCanonicalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var rawImplicitDbIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var row in dbRes.Rows)
+        foreach (var row in rawDatabases)
         {
-            var dt = row.GetStringProp(ColDbType, DefaultRelational);
+            var dt = string.IsNullOrEmpty(row.DbClassification) ? DefaultRelational : row.DbClassification;
             if (!string.Equals(dt, DefaultRelational, StringComparison.OrdinalIgnoreCase)) continue;
 
-            var eng = row.GetStringProp(ColEngine);
-            var nm = row.GetStringProp(ColName);
+            var eng = row.Engine ?? string.Empty;
+            var nm = row.Name;
             var candidate = !string.IsNullOrWhiteSpace(eng) && !eng.Equals(DefaultDatabase, StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
                 ? eng
                 : (nm.Contains('.') ? nm.Split('.', 2)[0] : nm);
@@ -89,17 +74,17 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        foreach (var row in dbRes.Rows)
+        foreach (var row in rawDatabases)
         {
-            var id = row.GetStringProp(ColId);
-            var name = row.GetStringProp(ColName, id);
-            var rawEngine = row.TryGetProperty(ColEngine, out var eg) && eg.Kind == CypherValueKind.String ? eg.AsNullableString() : null;
+            var id = row.Id;
+            var name = string.IsNullOrEmpty(row.Name) ? id : row.Name;
+            var rawEngine = row.Engine;
             if (!IsLikelyDatabaseName(name, rawEngine) && !IsLikelyDatabaseName(id, rawEngine)) continue;
 
-            var dPath = row.TryGetProperty(ColPath, out var dp) && dp.Kind == CypherValueKind.String ? dp.AsNullableString() : null;
+            var dPath = row.Path;
             var isDeclaredInProduction = !string.IsNullOrEmpty(dPath) && !WorkspaceConventions.IsTestFilePath(dPath);
-            var isExplicitTest = row.GetBoolProp(ColIsTest) ||
-                                 string.Equals(row.GetStringProp(ColRole), "Test", StringComparison.OrdinalIgnoreCase) ||
+            var isExplicitTest = row.IsTest ||
+                                 string.Equals(row.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                                  WorkspaceConventions.IsTestFilePath(dPath);
 
             var hasNonTestAccess = (!isExplicitTest && isDeclaredInProduction) || nonTestAccessedTargets.Contains(id);
@@ -108,16 +93,16 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            var dbType = row.GetStringProp(ColDbType, DefaultDatabase);
-            var rawSchema = row.TryGetProperty(ColSchema, out var sc) && sc.Kind == CypherValueKind.String ? sc.AsNullableString() : null;
+            var dbType = string.IsNullOrEmpty(row.DbClassification) ? DefaultDatabase : row.DbClassification;
+            var rawSchema = row.Schema;
 
             var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType, rawEngine, rawSchema, primaryRelationalEngine);
             var canonicalId = BuildCanonicalDatabaseId(id, cType, cKey, widPrefix);
             rawToCanonical[id] = canonicalId;
             nonTestAccessedTargets.Add(canonicalId);
 
-            var isRawImplicit = row.GetBoolProp(ColIsImplicitSchema);
-            var isRawExplicit = row.GetBoolProp(ColIsExplicitSchema) || row.GetBoolProp(ColFromConfig);
+            var isRawImplicit = row.IsImplicitSchema;
+            var isRawExplicit = row.IsExplicitSchema || row.FromConfig;
 
             if (isRawImplicit && !isRawExplicit)
             {
@@ -134,7 +119,7 @@ public partial class PostIndexAnalyzer
                 implicitCanonicalIds.Add(canonicalId);
             }
 
-            var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
+            var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals(DefaultDatabase, StringComparison.OrdinalIgnoreCase)
                 ? rawEngine
                 : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
 
@@ -146,45 +131,38 @@ public partial class PostIndexAnalyzer
         }
 
         // Also map any dataset (schema) nodes
-        try
+        foreach (var (dsId, dsName) in dataSets)
         {
-            var dsQuery = "MATCH (ds:DataSet) RETURN ds.id AS id, ds.name AS name";
-            var dsRows = await db.QueryAsync<(string Id, string Name)>(dsQuery, null, cancellationToken);
+            if (string.IsNullOrEmpty(dsId) || string.IsNullOrEmpty(dsName)) continue;
+            if (!nonTestAccessedTargets.Contains(dsId)) continue;
 
-            foreach (var (dsId, dsName) in dsRows)
+            var targetEngine = !string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : "PostgreSQL";
+            var (cName, cType, cKey) = CanonicalizeDatabase(targetEngine, DefaultRelational, null, dsName, primaryRelationalEngine);
+            var canonicalId = BuildCanonicalDatabaseId(dsId, cType, cKey, widPrefix);
+            rawToCanonical[dsId] = canonicalId;
+
+            var isImplicitDs = dsId.Contains(":db:default:dbo", StringComparison.OrdinalIgnoreCase) ||
+                               dsName.Equals("dbo", StringComparison.OrdinalIgnoreCase) ||
+                               dsName.Equals("default", StringComparison.OrdinalIgnoreCase);
+            if (isImplicitDs)
             {
-                if (string.IsNullOrEmpty(dsId) || string.IsNullOrEmpty(dsName)) continue;
-                if (!nonTestAccessedTargets.Contains(dsId)) continue;
-
-                var targetEngine = !string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : "PostgreSQL";
-                var (cName, cType, cKey) = CanonicalizeDatabase(targetEngine, "relational", null, dsName, primaryRelationalEngine);
-                var canonicalId = BuildCanonicalDatabaseId(dsId, cType, cKey, widPrefix);
-                rawToCanonical[dsId] = canonicalId;
-
-                var isImplicitDs = dsId.Contains(":db:default:dbo", StringComparison.OrdinalIgnoreCase) ||
-                                   dsName.Equals("dbo", StringComparison.OrdinalIgnoreCase) ||
-                                   dsName.Equals("default", StringComparison.OrdinalIgnoreCase);
-                if (isImplicitDs)
+                rawImplicitDbIds.Add(dsId);
+                if (!explicitCanonicalIds.Contains(canonicalId))
                 {
-                    rawImplicitDbIds.Add(dsId);
-                    if (!explicitCanonicalIds.Contains(canonicalId))
-                    {
-                        implicitCanonicalIds.Add(canonicalId);
-                    }
-                }
-                else
-                {
-                    explicitCanonicalIds.Add(canonicalId);
-                    implicitCanonicalIds.Remove(canonicalId);
-                }
-
-                if (!canonicalNodes.ContainsKey(canonicalId))
-                {
-                    canonicalNodes[canonicalId] = (cName, cType, cKey, targetEngine);
+                    implicitCanonicalIds.Add(canonicalId);
                 }
             }
+            else
+            {
+                explicitCanonicalIds.Add(canonicalId);
+                implicitCanonicalIds.Remove(canonicalId);
+            }
+
+            if (!canonicalNodes.ContainsKey(canonicalId))
+            {
+                canonicalNodes[canonicalId] = (cName, cType, cKey, targetEngine);
+            }
         }
-        catch { }
 
         return (primaryRelationalEngine, implicitCanonicalIds, rawImplicitDbIds);
     }
@@ -443,16 +421,7 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        await db.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE kind = 'USES_DB' AND (from_id LIKE '%:p:%' OR from_id LIKE '%:project:%' OR from_id LIKE '%:svc:%' OR from_id LIKE '%:app:%' OR from_id LIKE '%:wrk:%' OR from_id LIKE '%:lib:%');",
-            null, cancellationToken);
-
-        if (relationshipsToUpload.Count > 0)
-        {
-            await db.UploadRelationshipsAsync(relationshipsToUpload);
-        }
-
-        // Apply domain-scoped remappings to edges
+        var remaps = new List<DomainEdgeTargetRemap>();
         foreach (var (domain, dMap) in domainScopedRemap)
         {
             var domProjIds = projectList.Where(p => {
@@ -465,18 +434,16 @@ public partial class PostIndexAnalyzer
             {
                 foreach (var pId in domProjIds)
                 {
-                    await db.ExecuteWriteAsync(
-                        "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
-                        new { winnerId, loserId, pIdPrefix = $"{pId}%" }, cancellationToken);
+                    remaps.Add(new DomainEdgeTargetRemap(loserId, winnerId, $"{pId}%"));
                     if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(pId, out var wlId) && !string.IsNullOrEmpty(wlId))
                     {
-                        await db.ExecuteWriteAsync(
-                            "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @wlIdPrefix;",
-                            new { winnerId, loserId, wlIdPrefix = $"{wlId}%" }, cancellationToken);
+                        remaps.Add(new DomainEdgeTargetRemap(loserId, winnerId, $"{wlId}%"));
                     }
                 }
             }
         }
+
+        await db.ReplaceProjectDatabaseRelationshipsAndRemapAsync(relationshipsToUpload, remaps, cancellationToken);
 
         return relationshipsToUpload.Count;
     }
@@ -487,160 +454,31 @@ public partial class PostIndexAnalyzer
         Dictionary<string, (string Name, string DbType, string Key, string Engine)> canonicalNodes,
         CancellationToken cancellationToken)
     {
-        // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId
-        foreach (var (rawId, canonicalId) in rawToCanonical)
-        {
-            if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
-            {
-                await db.ExecuteWriteAsync("""
-                    UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;
-                    DELETE FROM edges WHERE to_id = @rawId;
-                    UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;
-                    DELETE FROM edges WHERE from_id = @rawId;
-                    DELETE FROM nodes WHERE id = @rawId;
-                    """, new { canonicalId, rawId }, cancellationToken);
-            }
-        }
+        var propagationInfos = canonicalNodes
+            .Select(kvp => new CanonicalDatabasePropagationInfo(kvp.Key, kvp.Value.Name, kvp.Value.Engine))
+            .ToList();
 
-        // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-        await db.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND kind = 'CONTAINS' AND from_id NOT LIKE '%semantic_structure%';",
-            null, cancellationToken);
-
-        // Purge any remaining phantom Database nodes that were not canonicalized
-        var validIds = canonicalNodes.Keys.ToList();
-
-        if (validIds.Count > 0)
-        {
-            var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-            var paramDict = new Dictionary<string, string>();
-            for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
-
-            await db.ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders})); DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
-                paramDict, cancellationToken);
-        }
-        else
-        {
-            await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Database'); DELETE FROM nodes WHERE kind = 'Database';", null, cancellationToken);
-        }
-
-        // Purge any invalid Table nodes (e.g. containing spaces like 'ordering api')
-        await db.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %'); DELETE FROM edges WHERE from_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %'); DELETE FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %';",
-            null, cancellationToken);
-
-        // Link orphaned DDL tables (e.g. created via .sql schema files without explicit CREATE DATABASE) to canonical database
-        if (canonicalNodes.Count > 0)
-        {
-            // 1. Link each Table to the matching canonical Database based on path/project/name
-            foreach (var (dbId, tuple) in canonicalNodes)
-            {
-                var cName = tuple.Name;
-                var cleanDbName = cName.Contains('.') ? cName.Split('.', 2)[1] : cName;
-                var dbKey = dbId.Split(':').LastOrDefault() ?? cleanDbName;
-                if (string.IsNullOrWhiteSpace(cleanDbName) || cleanDbName.Length < 3) continue;
-
-                await db.ExecuteWriteAsync(@"
-                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                    SELECT @dbId, t.id, 'CONTAINS', '{}'
-                    FROM nodes t
-                    WHERE t.kind = 'Table'
-                      AND (
-                          instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '/') > 0
-                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '-') > 0
-                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '_') > 0
-                          OR instr(lower(t.id), lower(@cleanDbName)) > 0
-                      )
-                      AND NOT EXISTS (
-                          SELECT 1 FROM edges e
-                          JOIN nodes d ON e.from_id = d.id
-                          WHERE e.to_id = t.id AND e.kind = 'CONTAINS' AND d.kind IN ('Database', 'DataSet')
-                      );",
-                    new { dbId, cleanDbName, dbKey }, cancellationToken);
-            }
-
-            var primaryCanonicalId = canonicalNodes.Keys.First();
-            await db.ExecuteWriteAsync(@"
-                INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                SELECT @primaryCanonicalId, t.id, 'CONTAINS', '{}'
-                FROM nodes t
-                WHERE t.kind = 'Table'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM edges e
-                      JOIN nodes d ON e.from_id = d.id
-                      WHERE e.to_id = t.id AND e.kind = 'CONTAINS' AND d.kind IN ('Database', 'DataSet')
-                  );",
-                new { primaryCanonicalId }, cancellationToken);
-
-            // Link owning Project to Table via DEFINES
-            await db.ExecuteWriteAsync(@"
-                INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                SELECT p.id, t.id, 'DEFINES', '{}'
-                FROM nodes t
-                JOIN edges e1 ON e1.to_id = t.id AND e1.kind = 'CONTAINS'
-                JOIN nodes f ON e1.from_id = f.id AND f.kind = 'File'
-                JOIN edges e2 ON e2.to_id = f.id AND e2.kind = 'CONTAINS'
-                JOIN nodes p ON e2.from_id = p.id AND p.kind = 'Project'
-                WHERE t.kind = 'Table'
-                  AND NOT EXISTS (
-                    SELECT 1 FROM edges ep WHERE ep.from_id = p.id AND ep.to_id = t.id AND ep.kind = 'DEFINES'
-                );",
-                null, cancellationToken);
-        }
-
-        // Propagate canonical engine and schema to child DataSets and Tables
-        foreach (var (canonicalId, (cName, _, _, engineToUse)) in canonicalNodes)
-        {
-            var sch = cName.Contains('.') ? cName.Split('.', 2)[1] : "";
-            if (string.IsNullOrWhiteSpace(engineToUse)) continue;
-
-            await db.ExecuteWriteAsync(@"
-                UPDATE nodes
-                SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), '$.engine', @engineToUse, '$.schema', COALESCE(json_extract(properties, '$.name'), @sch))
-                WHERE id IN (
-                    SELECT to_id FROM edges WHERE from_id = @canonicalId AND kind = 'CONTAINS'
-                ) AND kind = 'DataSet';",
-                new { canonicalId, engineToUse, sch }, cancellationToken);
-
-            await db.ExecuteWriteAsync(@"
-                UPDATE nodes
-                SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), '$.engine', @engineToUse, '$.schema', @sch)
-                WHERE id IN (
-                    SELECT to_id FROM edges WHERE from_id = @canonicalId AND kind = 'CONTAINS'
-                ) AND kind = 'Table';",
-                new { canonicalId, engineToUse, sch }, cancellationToken);
-
-            await db.ExecuteWriteAsync(@"
-                UPDATE nodes
-                SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'),
-                    '$.engine', @engineToUse,
-                    '$.schema', COALESCE((SELECT json_extract(ds.properties, '$.name') FROM nodes ds JOIN edges e2 ON ds.id = e2.from_id WHERE e2.to_id = nodes.id AND e2.kind = 'CONTAINS' LIMIT 1), @sch)
-                )
-                WHERE id IN (
-                    SELECT e2.to_id FROM edges e1
-                    JOIN edges e2 ON e1.to_id = e2.from_id AND e2.kind = 'CONTAINS'
-                    WHERE e1.from_id = @canonicalId AND e1.kind = 'CONTAINS'
-                ) AND kind = 'Table';",
-                new { canonicalId, engineToUse, sch }, cancellationToken);
-        }
+        await db.CleanupAndPropagateDatabaseEntitiesAsync(
+            rawToCanonical,
+            propagationInfos,
+            propagateChildSchemaProperties: true,
+            cancellationToken);
     }
 
     internal static async Task<List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)>> QueryProjectsForCanonicalizationAsync(
         IGraphClient db,
         CancellationToken cancellationToken)
     {
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path, p.role AS role, json_extract(p.properties, '$.is_test') AS is_test, json_extract(p.properties, '$.entity_kind') AS entity_kind";
-        var projsRes = await db.ExecuteCypherAsync(projQuery, null, cancellationToken);
+        var rawProjects = await db.LoadProjectsForDbCanonicalizationAsync(cancellationToken);
         var projectList = new List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)>();
-        foreach (var row in projsRes.Rows)
+        foreach (var row in rawProjects)
         {
-            var pId = row.GetStringProp(ColId);
-            var pName = row.GetStringProp(ColName);
-            var pPath = row.TryGetProperty(ColPath, out var pt) && pt.Kind == CypherValueKind.String ? pt.AsNullableString() : null;
-            var pRole = row.GetStringProp(ColRole);
-            var isTestProp = row.GetStringProp(ColIsTest);
-            var entityKind = row.GetStringProp(ColEntityKind);
+            var pId = row.Id;
+            var pName = row.Name;
+            var pPath = row.Path;
+            var pRole = row.Role ?? string.Empty;
+            var isTestProp = row.IsTestProp ?? string.Empty;
+            var entityKind = row.EntityRole ?? string.Empty;
 
             var isTest = string.Equals(pRole, "Test", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(pRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
@@ -668,25 +506,24 @@ public partial class PostIndexAnalyzer
         List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)> projectList,
         CancellationToken cancellationToken)
     {
-        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'READS_FROM', 'WRITES_TO', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties, src.role AS src_role, src.path AS src_path, json_extract(src.properties, '$.is_test') AS src_is_test, tgt.role AS tgt_role, tgt.path AS tgt_path, json_extract(tgt.properties, '$.is_test') AS tgt_is_test";
-        var edgesRes = await db.ExecuteCypherAsync(edgesQuery, null, cancellationToken);
+        var edges = await db.LoadAccessEdgesForDbCanonicalizationAsync(cancellationToken);
         var nonTestAccessedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var row in edgesRes.Rows)
+        foreach (var row in edges)
         {
-            var src = row.GetStringProp(ColSource);
-            var tgt = row.GetStringProp(ColTarget);
-            var kind = row.GetStringProp(ColKind);
+            var src = row.Source;
+            var tgt = row.Target;
+            var kind = row.Kind;
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
-            var isReverse = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(kind, "QUERIED_BY", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(kind, "DECLARED_IN", StringComparison.OrdinalIgnoreCase);
+            var isReverse = kind is RelationshipKind.AccessedBy
+                            or RelationshipKind.QueriedBy
+                            or RelationshipKind.DeclaredIn;
 
             var dbTarget = isReverse ? src : tgt;
             var callerSrc = isReverse ? tgt : src;
-            var callerRole = row.GetStringProp(isReverse ? "tgt_role" : "src_role");
-            var callerPath = row.GetStringProp(isReverse ? "tgt_path" : "src_path");
-            var callerIsTest = row.GetStringProp(isReverse ? "tgt_is_test" : "src_is_test");
+            var callerRole = (isReverse ? row.TgtRole : row.SrcRole) ?? string.Empty;
+            var callerPath = (isReverse ? row.TgtPath : row.SrcPath) ?? string.Empty;
+            var callerIsTest = (isReverse ? row.TgtIsTest : row.SrcIsTest) ?? string.Empty;
 
             var matchingProj = projectList.FirstOrDefault(p => p.Id == callerSrc || callerSrc.StartWithIC(p.Id) || (!string.IsNullOrEmpty(p.Path) && callerSrc.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
             var isTestSrc = string.Equals(callerRole, "Test", StringComparison.OrdinalIgnoreCase) ||

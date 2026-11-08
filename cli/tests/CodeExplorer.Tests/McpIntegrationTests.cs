@@ -377,8 +377,8 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_IngestGraphData()
     {
-        var nodesJson = "[{\"id\":\"custom_test_node\",\"kind\":\"TestKind\",\"properties\":{\"name\":\"TestNode\"}}]";
-        var relsJson = "[{\"type\":\"TEST_REL\",\"from_id\":\"workspace\",\"to_id\":\"custom_test_node\",\"properties\":{}}]";
+        var nodesJson = "[{\"id\":\"custom_test_node\",\"kind\":\"Service\",\"properties\":{\"name\":\"TestNode\"}}]";
+        var relsJson = "[{\"type\":\"CONTAINS\",\"from_id\":\"workspace\",\"to_id\":\"custom_test_node\",\"properties\":{}}]";
         await CallToolAndAssertSuccessAsync("ingest_graph_data", $"{{\"nodesJson\": {JsonSerializer.Serialize(nodesJson)}, \"relationshipsJson\": {JsonSerializer.Serialize(relsJson)}}}", 20);
     }
 

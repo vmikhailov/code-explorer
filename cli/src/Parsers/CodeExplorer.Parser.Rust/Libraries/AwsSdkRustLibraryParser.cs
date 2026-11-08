@@ -545,7 +545,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys)
     {
-        if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind)))
+        if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind.ToCypherType())))
         {
             semanticRelationships.Add(relationship);
         }

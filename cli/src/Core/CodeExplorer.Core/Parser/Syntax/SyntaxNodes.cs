@@ -10,7 +10,8 @@ namespace CodeExplorer.Core.Parser.Syntax;
 public static class SyntaxStringPool
 {
     private const int MaxPooledLength = 64;
-    private const int MaxPoolCapacity = 32768;
+    private const int MaxPoolCapacity = 262144;
+    private static int _count;
     private static readonly ConcurrentDictionary<string, string> Pool = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string>.AlternateLookup<ReadOnlySpan<char>> SpanLookup =
         Pool.GetAlternateLookup<ReadOnlySpan<char>>();
@@ -21,9 +22,9 @@ public static class SyntaxStringPool
         if (span.Length > MaxPooledLength) return span.ToString();
         if (SpanLookup.TryGetValue(span, out var existing)) return existing;
         var str = span.ToString();
-        if (Pool.Count < MaxPoolCapacity)
+        if (Volatile.Read(ref _count) < MaxPoolCapacity && SpanLookup.TryAdd(span, str))
         {
-            SpanLookup.TryAdd(span, str);
+            Interlocked.Increment(ref _count);
         }
         return str;
     }
@@ -33,9 +34,9 @@ public static class SyntaxStringPool
         if (string.IsNullOrEmpty(value)) return string.Empty;
         if (value.Length > MaxPooledLength) return value;
         if (Pool.TryGetValue(value, out var existing)) return existing;
-        if (Pool.Count < MaxPoolCapacity)
+        if (Volatile.Read(ref _count) < MaxPoolCapacity && Pool.TryAdd(value, value))
         {
-            Pool.TryAdd(value, value);
+            Interlocked.Increment(ref _count);
         }
         return value;
     }
@@ -621,6 +622,7 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
     public IReadOnlyList<CallExprSyntax> AllCalls { get; set; } = [];
     public IReadOnlyList<SqlStmtSyntax> AllSqlStatements { get; set; } = [];
     public IReadOnlyList<SyntaxDiagnostic> Diagnostics { get; set; } = [];
+    internal sbyte HasParallelBatchCallsCache = -1;
 
     private Dictionary<string, FunctionDeclSyntax>? _functionsByName;
 
@@ -807,7 +809,7 @@ public abstract class DeclarationSyntax : SyntaxNode
 
     public string Name
     {
-        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : string.Empty);
+        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? (_explicitName = Document.GetText(NameSlice)) : string.Empty);
         set => _explicitName = value;
     }
 
@@ -1223,7 +1225,7 @@ public sealed class CallExprSyntax : ExprSyntax
 
     public string MethodName
     {
-        get => _explicitMethodName ?? (MethodNameSlice.Length > 0 && Document != null ? Document.GetText(MethodNameSlice) : string.Empty);
+        get => _explicitMethodName ?? (MethodNameSlice.Length > 0 && Document != null ? (_explicitMethodName = Document.GetText(MethodNameSlice)) : string.Empty);
         set => _explicitMethodName = value;
     }
 

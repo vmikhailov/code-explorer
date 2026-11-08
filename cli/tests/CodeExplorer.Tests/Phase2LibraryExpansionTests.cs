@@ -126,7 +126,7 @@ public class Phase2LibraryExpansionTests
             Assert.That(endpoints.Any(e => e.Name.Contains("/trpc/getUser")), Is.True);
             Assert.That(endpoints.Any(e => e.Name.Contains("/loader")), Is.True);
             Assert.That(endpoints.Any(e => e.Name.Contains("GRAPHQL:/graphql")), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "trpc:user.byId"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "trpc:user.byId"), Is.True);
         });
     }
 
@@ -155,7 +155,7 @@ public class Phase2LibraryExpansionTests
         {
             Assert.That(endpoints.Any(e => e.Name.Contains("/books")), Is.True);
             Assert.That(endpoints.Any(e => e.Name.Contains("GRAPHQL:FIELD:current_user")), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.Triggers && r.TargetName == "list_books"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.Triggers && r.TargetName == "list_books"), Is.True);
         });
     }
 
@@ -184,8 +184,8 @@ public class Phase2LibraryExpansionTests
         Assert.Multiple(() =>
         {
             Assert.That(endpoints.Any(e => e.Name.Contains("GRAPHQL:/graphql")), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.Calls && r.TargetName == "zrpc:client"), Is.True);
-            Assert.That(refs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "ws:chat:general"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "zrpc:client"), Is.True);
+            Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "ws:chat:general"), Is.True);
         });
     }
 
@@ -224,7 +224,7 @@ public class Phase2LibraryExpansionTests
         Assert.Multiple(() =>
         {
             Assert.That(csEntryPoints.Any(e => e.Name.Contains("/azure-func/ProcessOrder")), Is.True);
-            Assert.That(csRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "servicebus:orders-queue"), Is.True);
+            Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "servicebus:orders-queue"), Is.True);
             Assert.That(extServices.Any(s => s.Name.Contains("billing-service")), Is.True);
             Assert.That(ktParser.SemanticExtensions.Any(e => e.Id == "ktor-server"), Is.True);
             Assert.That(ktParser.SemanticExtensions.Any(e => e.Id == "graphql-kotlin"), Is.True);

@@ -267,7 +267,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
                 {
                     var line = (int)arg.StartPosition.Row + 1;
                     var col = (int)arg.StartPosition.Column + 1;
-                    if (!symbol.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Triggers))
+                    if (!symbol.References.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Triggers))
                     {
                         symbol.References.Add(new Reference(symbol.Name, name, OntologyConstants.Relationships.Triggers, line, col));
                     }
@@ -287,7 +287,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
             {
                 var line = (int)arg.StartPosition.Row + 1;
                 var col = (int)arg.StartPosition.Column + 1;
-                if (!references.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                if (!references.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Calls))
                 {
                     references.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
                 }
@@ -300,7 +300,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
             {
                 var line = (int)arg.StartPosition.Row + 1;
                 var col = (int)arg.StartPosition.Column + 1;
-                if (!references.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                if (!references.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Calls))
                 {
                     references.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
                 }

@@ -16,6 +16,10 @@ import { ServerTransport } from './serverTransport';
 let processManager: ProcessManager | null = null;
 let serverTransport: ServerTransport | null = null;
 
+const VIEW_ID_CODE_EXPLORER = 'codeExplorerView';
+const CMD_FOCUS_INSPECTOR = 'codeExplorer.focusInspector';
+const STATE_KEY_LAST_VERSION = 'codeExplorer.lastVersion';
+
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel('CodeExplorer');
   context.subscriptions.push(outputChannel);
@@ -63,7 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
     serverTransport
   );
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider('codeExplorerView', treeDataProvider)
+    vscode.window.registerTreeDataProvider(VIEW_ID_CODE_EXPLORER, treeDataProvider)
   );
 
   // Register Graph Inspector & Controls WebviewViewProvider for VS Code Sidebar / Secondary Sidebar
@@ -80,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
       inspectorViewProvider,
       { webviewOptions: { retainContextWhenHidden: true } }
     ),
-    vscode.commands.registerCommand('codeExplorer.focusInspector', async () => {
+    vscode.commands.registerCommand(CMD_FOCUS_INSPECTOR, async () => {
       await inspectorViewProvider.reveal(false);
     })
   );
@@ -98,7 +102,9 @@ export function activate(context: vscode.ExtensionContext) {
               try {
                 await currentTransport.ensurePortAllocated(false, wsRoot);
                 initialWsUrl = currentTransport.getEndpoints()?.wsUrl || '';
-              } catch {}
+              } catch (err) {
+                outputChannel.appendLine(`[CodeExplorer] Port allocation notice during panel revival: ${err}`);
+              }
             }
             outputChannel.appendLine(`[CodeExplorer] Reviving webview panel codeExplorerGraph.${mode} (${initialWsUrl})`);
             GraphPanel.revive(
@@ -221,7 +227,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerIntentCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot);
 
   // Check for extension update and show What's New prompt
-  const previousVersion = context.globalState.get<string>('codeExplorer.lastVersion');
+  const previousVersion = context.globalState.get<string>(STATE_KEY_LAST_VERSION);
   const currentVersion = context.extension?.packageJSON?.version;
   if (currentVersion) {
     if (previousVersion && previousVersion !== currentVersion) {
@@ -237,7 +243,7 @@ export function activate(context: vscode.ExtensionContext) {
           }
         });
     }
-    context.globalState.update('codeExplorer.lastVersion', currentVersion);
+    context.globalState.update(STATE_KEY_LAST_VERSION, currentVersion);
   }
 
   outputChannel.appendLine('CodeExplorer extension activated.');

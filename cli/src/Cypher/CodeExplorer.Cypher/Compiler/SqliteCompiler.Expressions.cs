@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Cypher.Compiler;
 
@@ -52,7 +53,7 @@ public partial class SqliteCompiler
 
         if (_pathVariables.TryGetValue(id.Name, out var relVar))
         {
-            return $"{EscapeVar(relVar)}.path_nodes";
+            return $"(SELECT json_group_array(n.id) FROM json_each({EscapeVar(relVar)}.path_nodes) j JOIN nodes n ON n.rowid = j.value)";
         }
 
         return TryVisitNodeIdentifier(id.Name, escaped) ?? TryVisitRelIdentifier(id.Name, escaped) ?? escaped;
@@ -63,12 +64,13 @@ public partial class SqliteCompiler
         if (_nodePropertySource.TryGetValue(name, out var propSource))
         {
             var idSource = _nodeIdSource.TryGetValue(name, out var idSrc) ? idSrc : "NULL";
-            return $"json_object('id', {idSource}, 'properties', json({propSource}))";
+            var kindSource = _nodeKindSource.TryGetValue(name, out var kSrc) ? $"ce_node_kind({kSrc})" : "NULL";
+            return $"json_object('id', {idSource}, 'kind', {kindSource}, 'properties', json({propSource}))";
         }
 
         if (_declaredNodes.Contains(name))
         {
-            return $"json_object('id', {escaped}.id, 'kind', {escaped}.kind, 'properties', json({escaped}.properties))";
+            return $"json_object('id', {escaped}.id, 'kind', ce_node_kind({escaped}.kind), 'properties', json({escaped}.properties))";
         }
 
         return null;
@@ -78,7 +80,7 @@ public partial class SqliteCompiler
     {
         if (_declaredRels.Contains(name))
         {
-            return $"json_object('type', {escaped}.kind, 'from', {escaped}.from_id, 'to', {escaped}.to_id, 'properties', json({escaped}.properties))";
+            return $"json_object('type', ce_rel_kind({escaped}.kind), 'from', (SELECT id FROM nodes WHERE rowid = {escaped}.from_id), 'to', (SELECT id FROM nodes WHERE rowid = {escaped}.to_id), 'properties', json({escaped}.properties))";
         }
 
         return null;
@@ -130,7 +132,8 @@ public partial class SqliteCompiler
 
         if (propName.Equals("kind", StringComparison.OrdinalIgnoreCase))
         {
-            return $"COALESCE(json_extract({propSrc}, '$.kind'), {propSrc})";
+            var kindSrc = _nodeKindSource.TryGetValue(variable, out var kSrc) ? $"ce_node_kind({kSrc})" : propSrc;
+            return $"COALESCE(json_extract({propSrc}, '$.kind'), {kindSrc})";
         }
 
         if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
@@ -167,17 +170,17 @@ public partial class SqliteCompiler
 
             if (propName.Equals("kind", StringComparison.OrdinalIgnoreCase) || propName.Equals("type", StringComparison.OrdinalIgnoreCase))
             {
-                return $"{v}.kind";
+                return $"ce_rel_kind({v}.kind)";
             }
 
             if (propName.Equals("from", StringComparison.OrdinalIgnoreCase) || propName.Equals("from_id", StringComparison.OrdinalIgnoreCase))
             {
-                return $"{v}.from_id";
+                return $"(SELECT id FROM nodes WHERE rowid = {v}.from_id)";
             }
 
             if (propName.Equals("to", StringComparison.OrdinalIgnoreCase) || propName.Equals("to_id", StringComparison.OrdinalIgnoreCase))
             {
-                return $"{v}.to_id";
+                return $"(SELECT id FROM nodes WHERE rowid = {v}.to_id)";
             }
 
             if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
@@ -195,7 +198,7 @@ public partial class SqliteCompiler
 
         if (propName.Equals("kind", StringComparison.OrdinalIgnoreCase))
         {
-            return $"COALESCE(json_extract({v}.properties, '$.kind'), {v}.kind)";
+            return $"COALESCE(json_extract({v}.properties, '$.kind'), ce_node_kind({v}.kind))";
         }
 
         if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
@@ -240,6 +243,13 @@ public partial class SqliteCompiler
 
     private string VisitBinary(BinaryExpression binary)
     {
+        if (binary.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual)
+        {
+            var fastRel = TryCompileIndexedRelBinary(binary.Left, binary.Right, binary.Operator == BinaryOperator.Equal)
+                       ?? TryCompileIndexedRelBinary(binary.Right, binary.Left, binary.Operator == BinaryOperator.Equal);
+            if (fastRel != null) return fastRel;
+        }
+
         var left = VisitExpression(binary.Left);
         var right = VisitExpression(binary.Right);
 
@@ -269,11 +279,115 @@ public partial class SqliteCompiler
         };
     }
 
+    private string? TryCompileIndexedRelBinary(Expression targetExpr, Expression valueExpr, bool isEqual)
+    {
+        var op = isEqual ? "=" : "<>";
+        if (TryGetRelEndpointAccess(targetExpr, out var rEndVar, out var colName))
+        {
+            var rightSql = VisitExpression(valueExpr);
+            return $"({rEndVar}.{colName} {op} (SELECT rowid FROM nodes WHERE id = {rightSql}))";
+        }
+
+        if (TryGetRelKindAccess(targetExpr, out var rKindVar))
+        {
+            if (valueExpr is StringLiteralExpression strLit)
+            {
+                return $"({rKindVar}.kind {op} {GraphKindCodec.EncodeRelKind(strLit.Value)})";
+            }
+
+            var rightSql = VisitExpression(valueExpr);
+            return $"({rKindVar}.kind {op} ce_rel_kind_id({rightSql}))";
+        }
+
+        return null;
+    }
+
+    private bool TryGetRelEndpointAccess(Expression expr, out string escapedRelVar, out string columnName)
+    {
+        escapedRelVar = string.Empty;
+        columnName = string.Empty;
+
+        if (expr is PropertyAccessExpression prop && _declaredRels.Contains(prop.Variable))
+        {
+            if (prop.PropertyName.Equals("from", StringComparison.OrdinalIgnoreCase) ||
+                prop.PropertyName.Equals("from_id", StringComparison.OrdinalIgnoreCase))
+            {
+                escapedRelVar = EscapeVar(prop.Variable);
+                columnName = "from_id";
+                return true;
+            }
+
+            if (prop.PropertyName.Equals("to", StringComparison.OrdinalIgnoreCase) ||
+                prop.PropertyName.Equals("to_id", StringComparison.OrdinalIgnoreCase))
+            {
+                escapedRelVar = EscapeVar(prop.Variable);
+                columnName = "to_id";
+                return true;
+            }
+        }
+
+        if (expr is FunctionCallExpression { Arguments: [IdentifierExpression relId] } fn &&
+            _declaredRels.Contains(relId.Name))
+        {
+            if (fn.FunctionName.Equals("startNode", StringComparison.OrdinalIgnoreCase) ||
+                fn.FunctionName.Equals("start_node", StringComparison.OrdinalIgnoreCase))
+            {
+                escapedRelVar = EscapeVar(relId.Name);
+                columnName = "from_id";
+                return true;
+            }
+
+            if (fn.FunctionName.Equals("endNode", StringComparison.OrdinalIgnoreCase) ||
+                fn.FunctionName.Equals("end_node", StringComparison.OrdinalIgnoreCase))
+            {
+                escapedRelVar = EscapeVar(relId.Name);
+                columnName = "to_id";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryGetRelKindAccess(Expression expr, out string escapedRelVar)
+    {
+        escapedRelVar = string.Empty;
+        if (expr is PropertyAccessExpression prop &&
+            _declaredRels.Contains(prop.Variable) &&
+            (prop.PropertyName.Equals("kind", StringComparison.OrdinalIgnoreCase) ||
+             prop.PropertyName.Equals("type", StringComparison.OrdinalIgnoreCase)))
+        {
+            escapedRelVar = EscapeVar(prop.Variable);
+            return true;
+        }
+
+        if (expr is FunctionCallExpression { Arguments: [IdentifierExpression relId] } fn &&
+            _declaredRels.Contains(relId.Name) &&
+            fn.FunctionName.Equals("type", StringComparison.OrdinalIgnoreCase))
+        {
+            escapedRelVar = EscapeVar(relId.Name);
+            return true;
+        }
+
+        return false;
+    }
+
     private string VisitInOperator(Expression leftExpr, Expression rightExpr, string leftSql, string rightSql)
     {
         if (rightExpr is ListExpression list && list.Items.Count == 0) return "(0 = 1)";
         if (rightExpr is ListExpression listExpr)
+        {
+            if (TryGetRelKindAccess(leftExpr, out var rInVar))
+            {
+                var relItems = listExpr.Items.Select(i =>
+                    i is StringLiteralExpression s
+                        ? GraphKindCodec.EncodeRelKind(s.Value).ToString(CultureInfo.InvariantCulture)
+                        : $"ce_rel_kind_id({VisitExpression(i)})");
+                return $"({rInVar}.kind IN ({string.Join(", ", relItems)}))";
+            }
+
             return $"({leftSql} IN ({string.Join(", ", listExpr.Items.Select(VisitExpression))}))";
+        }
 
         if (rightExpr is IdentifierExpression rightId &&
             _withCollectNodes.TryGetValue(rightId.Name, out var collNode) &&
@@ -356,9 +470,15 @@ public partial class SqliteCompiler
 
     private string VisitHasLabel(HasLabelExpression hasLabel)
     {
+        var labelId = GraphKindCodec.EncodeNodeKind(hasLabel.Label);
         if (hasLabel.Expression is IdentifierExpression id)
         {
-            return $"{EscapeVar(id.Name)}.kind = '{hasLabel.Label}'";
+            if (_nodeKindSource.TryGetValue(id.Name, out var kSrc))
+            {
+                return $"{kSrc} = {labelId}";
+            }
+
+            return $"{EscapeVar(id.Name)}.kind = {labelId}";
         }
 
         return $"({VisitExpression(hasLabel.Expression)} = '{hasLabel.Label}')";

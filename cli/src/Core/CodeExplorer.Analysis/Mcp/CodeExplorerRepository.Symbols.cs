@@ -89,6 +89,17 @@ public partial class CodeExplorerRepository
         query = query.Replace("LIMIT 10", $"LIMIT {effectiveLimit}");
         var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
+        if (res.Count == 0 && (string.IsNullOrEmpty(symbolType) || symbolType == "Function"))
+        {
+            var gqlQuery =
+                "MATCH (n:Function) WHERE n.graphql_field CONTAINS $name OR n.graphql_operation CONTAINS $name " +
+                "OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File) OPTIONAL MATCH (w:Workspace) " +
+                "RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName, " +
+                "CASE WHEN f IS NOT NULL AND w IS NOT NULL THEN w.path + '/' + f.path ELSE coalesce(n.file_path, f.path) END AS filePath, " +
+                $"coalesce(n.start_line, 0) AS startLine, coalesce(n.end_line, 0) AS endLine LIMIT {effectiveLimit}";
+            res = await client.ExecuteCypherAsync(gqlQuery, parameters, cancellationToken);
+        }
+
         if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
         {
             try
@@ -450,15 +461,58 @@ public partial class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        var query = Queries.Get("get_callers");
         var parameters = new Dictionary<string, object?>
         {
             ["target"] = target,
             ["includeTests"] = includeTests
         };
-        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
-        if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
+        CypherQueryResult? res = null;
+        if (!target.Contains(':') && !target.Contains('/'))
+        {
+            if (target.Contains('.'))
+            {
+                var dotIdx = target.LastIndexOf('.');
+                var className = target[..dotIdx];
+                if (className.Contains('.')) className = className[(className.LastIndexOf('.') + 1)..];
+                var methodName = target[(dotIdx + 1)..];
+                const string fastQualCallersQuery =
+                    "MATCH (owner:Type)-[:HAS_METHOD]->(target:Function) " +
+                    "WHERE target.name IS NOT NULL AND target.name = $methodName AND owner.name IS NOT NULL AND owner.name = $className " +
+                    "MATCH (caller)-[r:CALLS|SERVICE_CALL|CALLS_ENDPOINT|USES_TYPE|USES_DB|QUERIES_DB|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|IMPLEMENTS|INHERITS_FROM]->(target) " +
+                    "WHERE $includeTests OR NOT (COALESCE(caller.is_test, false) = true OR COALESCE(caller.project_name, '') CONTAINS '.Test' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/tests/' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/test/' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH 'Tests.cs' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.spec.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.test.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '_test.go') " +
+                    "OPTIONAL MATCH (callerOwner:Type)-[:HAS_METHOD]->(caller) " +
+                    "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(f:File) " +
+                    "RETURN target.name AS targetName, labels(target)[0] AS targetKind, CASE WHEN callerOwner IS NOT NULL THEN callerOwner.name + '.' + caller.name ELSE caller.name END AS callerName, labels(caller)[0] AS callerKind, type(r) AS relKind, COALESCE(caller.project_name, '') AS projectName, CASE WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL AND caller.start_line IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) + ':' + toString(caller.start_line) WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) ELSE '' END AS location ORDER BY targetName, callerName";
+                var qualParams = new Dictionary<string, object?>
+                {
+                    ["className"] = className,
+                    ["methodName"] = methodName,
+                    ["includeTests"] = includeTests
+                };
+                res = await client.ExecuteCypherAsync(fastQualCallersQuery, qualParams, cancellationToken);
+            }
+            else
+            {
+                const string fastExactCallersQuery =
+                    "MATCH (target) WHERE target.name IS NOT NULL AND target.name = $target " +
+                    "MATCH (caller)-[r:CALLS|SERVICE_CALL|CALLS_ENDPOINT|USES_TYPE|USES_DB|QUERIES_DB|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|IMPLEMENTS|INHERITS_FROM]->(target) " +
+                    "WHERE $includeTests OR NOT (COALESCE(caller.is_test, false) = true OR COALESCE(caller.project_name, '') CONTAINS '.Test' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/tests/' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/test/' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH 'Tests.cs' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.spec.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.test.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '_test.go') " +
+                    "OPTIONAL MATCH (callerOwner:Type)-[:HAS_METHOD]->(caller) " +
+                    "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(f:File) " +
+                    "RETURN target.name AS targetName, labels(target)[0] AS targetKind, CASE WHEN callerOwner IS NOT NULL THEN callerOwner.name + '.' + caller.name ELSE caller.name END AS callerName, labels(caller)[0] AS callerKind, type(r) AS relKind, COALESCE(caller.project_name, '') AS projectName, CASE WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL AND caller.start_line IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) + ':' + toString(caller.start_line) WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) ELSE '' END AS location ORDER BY targetName, callerName";
+                res = await client.ExecuteCypherAsync(fastExactCallersQuery, parameters, cancellationToken);
+            }
+        }
+
+        string? query = null;
+        if (res == null || res.Count == 0)
+        {
+            query = Queries.Get("get_callers");
+            res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        }
+
+        if (res.Count == 0 && query != null && client is SqliteGraphClient sqliteClient)
         {
             try
             {

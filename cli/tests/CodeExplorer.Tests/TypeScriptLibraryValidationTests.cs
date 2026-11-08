@@ -120,14 +120,14 @@ async function insertAudit() {
         var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("users"));
         selectQuery.Should().NotBeNull();
 
-        var selectDeps = selectQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+        var selectDeps = selectQuery!.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName)
             .ToList();
         selectDeps.Should().Contain("users");
 
         var insertQuery = queries.FirstOrDefault(q => q.Name.Contains("INSERT") && q.Name.Contains("audit_logs"));
         insertQuery.Should().NotBeNull();
 
-        var insertDeps = insertQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+        var insertDeps = insertQuery!.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName)
             .ToList();
         insertDeps.Should().Contain("audit_logs");
     }
@@ -154,13 +154,13 @@ async function test() {
             (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")));
         selectQuery.Should().NotBeNull();
 
-        (selectQuery!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
+        (selectQuery!.References.Any(r => r.TargetName == "accounts" && r.Kind == RelationshipKind.DependsOn)).Should().BeTrue();
 
         var updateQuery = queries.FirstOrDefault(q =>
             (q.Name.Contains("orders") || q.QueryText.Contains("orders")) &&
             (q.Name.Contains("UPDATE") || q.QueryText.Contains("UPDATE")));
         updateQuery.Should().NotBeNull();
-        (updateQuery!.References.Any(r => r.TargetName == "orders" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
+        (updateQuery!.References.Any(r => r.TargetName == "orders" && r.Kind == RelationshipKind.DependsOn)).Should().BeTrue();
     }
 
     [Test]
@@ -210,12 +210,12 @@ async function getProducts() {
         var knexTableQuery = queries.FirstOrDefault(q => q.Name.Contains("products"));
         knexTableQuery.Should().NotBeNull();
 
-        (knexTableQuery!.References.Any(r => r.TargetName == "products" && r.Kind == "USES_DB")).Should().BeTrue();
+        (knexTableQuery!.References.Any(r => r.TargetName == "products" && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
         var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("system_events"));
         rawQuery.Should().NotBeNull();
 
-        (rawQuery!.References.Any(r => r.TargetName == "system_events" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
+        (rawQuery!.References.Any(r => r.TargetName == "system_events" && r.Kind == RelationshipKind.DependsOn)).Should().BeTrue();
     }
 
     [Test]
@@ -266,7 +266,7 @@ async function test() {
 
         var findAllQuery = queries.FirstOrDefault(q => q.Name.Contains("User.findAll"));
         findAllQuery.Should().NotBeNull();
-        (findAllQuery!.References.Any(r => r.TargetName == "User" && r.Kind == "USES_DB")).Should().BeTrue();
+        (findAllQuery!.References.Any(r => r.TargetName == "User" && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
         var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("passwords"));
         rawQuery.Should().NotBeNull();
@@ -292,11 +292,11 @@ async function main() {
 
         var userFind = queries.FirstOrDefault(q => q.Name.Contains("user.findMany"));
         userFind.Should().NotBeNull();
-        (userFind!.References.Any(r => r.TargetName == "user" && r.Kind == "USES_DB")).Should().BeTrue();
+        (userFind!.References.Any(r => r.TargetName == "user" && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
         var orderCreate = queries.FirstOrDefault(q => q.Name.Contains("order.create"));
         orderCreate.Should().NotBeNull();
-        (orderCreate!.References.Any(r => r.TargetName == "order" && r.Kind == "USES_DB")).Should().BeTrue();
+        (orderCreate!.References.Any(r => r.TargetName == "order" && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
     }
 
     [Test]
@@ -320,7 +320,7 @@ async function queryDb() {
             q.References.Any(r => r.TargetName == "metrics_log"));
         rawQuery.Should().NotBeNull();
 
-        (rawQuery!.References.Any(r => r.TargetName == "metrics_log" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
+        (rawQuery!.References.Any(r => r.TargetName == "metrics_log" && r.Kind == RelationshipKind.DependsOn)).Should().BeTrue();
     }
 
     [Test]
@@ -342,11 +342,11 @@ async function run() {
 
         var selectOp = queries.FirstOrDefault(q => q.Name.Contains("usersTable"));
         selectOp.Should().NotBeNull();
-        (selectOp!.References.Any(r => r.TargetName == "usersTable" && r.Kind == "USES_DB")).Should().BeTrue();
+        (selectOp!.References.Any(r => r.TargetName == "usersTable" && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
 
         var insertOp = queries.FirstOrDefault(q => q.Name.Contains("ordersTable"));
         insertOp.Should().NotBeNull();
-        (insertOp!.References.Any(r => r.TargetName == "ordersTable" && r.Kind == "USES_DB")).Should().BeTrue();
+        (insertOp!.References.Any(r => r.TargetName == "ordersTable" && r.Kind == RelationshipKind.UsesDb)).Should().BeTrue();
     }
 
     [Test]
@@ -364,7 +364,7 @@ const query = sql`SELECT id, created_at FROM audit_trail WHERE severity = 'high'
 
         var q = queries.FirstOrDefault(q => q.Name.Contains("audit_trail") || q.QueryText.Contains("audit_trail"));
         q.Should().NotBeNull();
-        (q!.References.Any(r => r.TargetName == "audit_trail" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
+        (q!.References.Any(r => r.TargetName == "audit_trail" && r.Kind == RelationshipKind.DependsOn)).Should().BeTrue();
     }
 
     [Test]
@@ -579,7 +579,7 @@ async function fetchRemote() {
         extServices[0].Name.Should().Be("api.paymentservice.com");
 
         var refs = FindAllReferences(ws.FileNode);
-        (refs.Any(r => r.TargetName == "api.paymentservice.com" && r.Kind == "CALLS")).Should().BeTrue();
+        (refs.Any(r => r.TargetName == "api.paymentservice.com" && r.Kind == RelationshipKind.Calls)).Should().BeTrue();
     }
 
     [Test]
@@ -599,7 +599,7 @@ async function fetchRemote() {
         extServices[0].Name.Should().Be("inventory.internal.net");
 
         var refs = FindAllReferences(ws.FileNode);
-        (refs.Any(r => r.TargetName == "inventory.internal.net" && r.Kind == "CALLS")).Should().BeTrue();
+        (refs.Any(r => r.TargetName == "inventory.internal.net" && r.Kind == RelationshipKind.Calls)).Should().BeTrue();
     }
 
     [Test]
@@ -621,10 +621,10 @@ async function messaging() {
 
         var refs = FindAllReferences(ws.FileNode);
 
-        var pubRef = refs.FirstOrDefault(r => r.TargetName == "kafka:orders-topic" && r.Kind == "PUBLISHES_TO");
+        var pubRef = refs.FirstOrDefault(r => r.TargetName == "kafka:orders-topic" && r.Kind == RelationshipKind.PublishesTo);
         pubRef.Should().NotBeNull("Should capture Kafka publisher reference");
 
-        var subRef = refs.FirstOrDefault(r => r.TargetName == "kafka:payment-events" && r.Kind == "SUBSCRIBES_TO");
+        var subRef = refs.FirstOrDefault(r => r.TargetName == "kafka:payment-events" && r.Kind == RelationshipKind.SubscribesTo);
         subRef.Should().NotBeNull("Should capture Kafka consumer reference");
     }
 
@@ -648,10 +648,10 @@ const worker = new Worker('mail-queue', async job => {
 
         var refs = FindAllReferences(ws.FileNode);
 
-        var subRef = refs.FirstOrDefault(r => r.TargetName == "bullmq:mail-queue" && r.Kind == "SUBSCRIBES_TO");
+        var subRef = refs.FirstOrDefault(r => r.TargetName == "bullmq:mail-queue" && r.Kind == RelationshipKind.SubscribesTo);
         subRef.Should().NotBeNull("Should capture BullMQ worker subscription");
 
-        var pubRef = refs.FirstOrDefault(r => r.TargetName.Contains("send-invoice") && r.Kind == "PUBLISHES_TO");
+        var pubRef = refs.FirstOrDefault(r => r.TargetName.Contains("send-invoice") && r.Kind == RelationshipKind.PublishesTo);
         pubRef.Should().NotBeNull("Should capture BullMQ queue.add job publishing");
     }
 
@@ -696,9 +696,9 @@ export default router;
         using var ws = await TestWorkspace.CreateAsync(code, "auth.router.ts");
 
         // Verify FileNode.References has CALLS edges to handlers and middleware
-        ws.FileNode.References.Should().Contain(r => r.TargetName == "getAuthData" && r.Kind == OntologyConstants.Relationships.Calls);
-        ws.FileNode.References.Should().Contain(r => r.TargetName == "updateAuthData" && r.Kind == OntologyConstants.Relationships.Calls);
-        ws.FileNode.References.Should().Contain(r => r.TargetName == "authMiddleware" && r.Kind == OntologyConstants.Relationships.Calls);
+        ws.FileNode.References.Should().Contain(r => r.TargetName == "getAuthData" && r.Kind == RelationshipKind.Calls);
+        ws.FileNode.References.Should().Contain(r => r.TargetName == "updateAuthData" && r.Kind == RelationshipKind.Calls);
+        ws.FileNode.References.Should().Contain(r => r.TargetName == "authMiddleware" && r.Kind == RelationshipKind.Calls);
 
         // Verify endpoints were created
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
@@ -706,12 +706,12 @@ export default router;
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
         getEp.Should().NotBeNull();
-        getEp!.References.Should().Contain(r => r.TargetName == "getAuthData" && r.Kind == OntologyConstants.Relationships.Triggers);
+        getEp!.References.Should().Contain(r => r.TargetName == "getAuthData" && r.Kind == RelationshipKind.Triggers);
 
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
         postEp.Should().NotBeNull();
-        postEp!.References.Should().Contain(r => r.TargetName == "updateAuthData" && r.Kind == OntologyConstants.Relationships.Triggers);
-        postEp!.References.Should().Contain(r => r.TargetName == "authMiddleware" && r.Kind == OntologyConstants.Relationships.Triggers);
+        postEp!.References.Should().Contain(r => r.TargetName == "updateAuthData" && r.Kind == RelationshipKind.Triggers);
+        postEp!.References.Should().Contain(r => r.TargetName == "authMiddleware" && r.Kind == RelationshipKind.Triggers);
     }
 
     [Test]
@@ -1025,7 +1025,7 @@ async function test() {
 
         var q = queries.FirstOrDefault(q => q.Name.Contains("accounts") || q.QueryText.Contains("accounts"));
         q.Should().NotBeNull();
-        (q!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
+        (q!.References.Any(r => r.TargetName == "accounts" && r.Kind == RelationshipKind.DependsOn)).Should().BeTrue();
     }
 
     [Test]

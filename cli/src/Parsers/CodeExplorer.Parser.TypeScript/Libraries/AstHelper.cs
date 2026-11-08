@@ -395,10 +395,10 @@ public static partial class AstHelper
                                                     return text;
                                                 }
                                             }
-                                            else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                                            else if (valNode.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression))
                                             {
                                                 var funcNode = valNode.GetFunctionNode();
-                                                if (funcNode.IsValid())
+                                                if (funcNode.IsValid() && valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
                                                 {
                                                     var propNode = funcNode.Is(TreeSitterSyntax.TypeScript.MemberExpression)
                                                         ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
@@ -473,26 +473,9 @@ public static partial class AstHelper
                                                 {
                                                     return resolvedVal;
                                                 }
-
-                                                // Check if any constant in ProjectConstants or GlobalConstants ends with .fullLookupKey or :fullLookupKey
-                                                var suffixWithDot = "." + fullLookupKey;
-                                                var suffixWithColon = ":" + fullLookupKey;
-                                                foreach (var kvp in ConstantRegistry.ProjectConstants)
+                                                if (ConstantRegistry.TryResolve(null, fullLookupKey, out resolvedVal) && !string.IsNullOrEmpty(resolvedVal))
                                                 {
-                                                    if (kvp.Key.EndsWith(suffixWithDot, StringComparison.OrdinalIgnoreCase) ||
-                                                        kvp.Key.EndsWith(suffixWithColon, StringComparison.OrdinalIgnoreCase) ||
-                                                        kvp.Key.Equals(fullLookupKey, StringComparison.OrdinalIgnoreCase))
-                                                    {
-                                                        return kvp.Value;
-                                                    }
-                                                }
-                                                foreach (var kvp in ConstantRegistry.GlobalConstants)
-                                                {
-                                                    if (kvp.Key.EndsWith(suffixWithDot, StringComparison.OrdinalIgnoreCase) ||
-                                                        kvp.Key.Equals(fullLookupKey, StringComparison.OrdinalIgnoreCase))
-                                                    {
-                                                        return kvp.Value;
-                                                    }
+                                                    return resolvedVal;
                                                 }
 
                                                 // If RHS is an identifier/member, resolve it and check
@@ -504,25 +487,9 @@ public static partial class AstHelper
                                                     {
                                                         return valFromResolved;
                                                     }
-
-                                                    var resSuffixWithDot = "." + resolvedFullKey;
-                                                    var resSuffixWithColon = ":" + resolvedFullKey;
-                                                    foreach (var kvp in ConstantRegistry.ProjectConstants)
+                                                    if (ConstantRegistry.TryResolve(null, resolvedFullKey, out valFromResolved) && !string.IsNullOrEmpty(valFromResolved))
                                                     {
-                                                        if (kvp.Key.EndsWith(resSuffixWithDot, StringComparison.OrdinalIgnoreCase) ||
-                                                            kvp.Key.EndsWith(resSuffixWithColon, StringComparison.OrdinalIgnoreCase) ||
-                                                            kvp.Key.Equals(resolvedFullKey, StringComparison.OrdinalIgnoreCase))
-                                                        {
-                                                            return kvp.Value;
-                                                        }
-                                                    }
-                                                    foreach (var kvp in ConstantRegistry.GlobalConstants)
-                                                    {
-                                                        if (kvp.Key.EndsWith(resSuffixWithDot, StringComparison.OrdinalIgnoreCase) ||
-                                                            kvp.Key.Equals(resolvedFullKey, StringComparison.OrdinalIgnoreCase))
-                                                        {
-                                                            return kvp.Value;
-                                                        }
+                                                        return valFromResolved;
                                                     }
                                                 }
                                             }
@@ -638,7 +605,7 @@ public static partial class AstHelper
                                 // If no inline initializer, check constructor for this.<cleanProp> = ...
                                 var ctor = body.Children.FirstOrDefault(c => (c.Is("method_definition") || c.Is("constructor") || c.Type.Contains("constructor")) &&
                                                                             (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor" || c.Type.Contains("constructor")));
-                                if (ctor.IsValid())
+                                if (ctor.IsValid() && ctor.AsSpan().Contains(cleanProp, StringComparison.Ordinal))
                                 {
                                     var match = Regex.Match(ctor.Text, assignPattern);
                                     if (match.Success)
@@ -652,7 +619,7 @@ public static partial class AstHelper
                     }
 
                     // Fallback: check class body text for this.<cleanProp> = ... assignment in constructor or methods
-                    if (body.EndPosition.Row - body.StartPosition.Row <= 500)
+                    if (body.EndPosition.Row - body.StartPosition.Row <= 500 && body.AsSpan().Contains(cleanProp, StringComparison.Ordinal))
                     {
                         var bodyAssignMatch = Regex.Match(body.Text, assignPattern);
                         if (bodyAssignMatch.Success)
@@ -661,9 +628,14 @@ public static partial class AstHelper
                             if (!string.IsNullOrEmpty(res)) return res;
                         }
                     }
+
+                    if (string.IsNullOrEmpty(targetClassName))
+                    {
+                        return null;
+                    }
                 }
 
-                if (curr.Is(TreeSitterSyntax.TypeScript.Program))
+                if (curr.Is(TreeSitterSyntax.TypeScript.Program) && !string.IsNullOrEmpty(targetClassName))
                 {
                     // Search direct classes and exported classes
                     var classDecls = curr.Children

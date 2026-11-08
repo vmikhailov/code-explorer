@@ -265,6 +265,7 @@ public static partial class AstValueResolver
         foreach (var child in root.Children)
         {
             if (child is ReturnStmtSyntax) return child;
+            if (child is FunctionDeclSyntax or LambdaExprSyntax or TypeDeclSyntax) continue;
             var sub = FindFirstReturnStmt(child);
             if (sub.IsValid()) return sub;
         }
@@ -596,12 +597,14 @@ public static partial class AstValueResolver
 
                 if (mName is "to_string" or "toString" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
                 {
-                    if (recv.IsValid() && TryResolveStringInternal(recv, contextOrProject, depth + 1, visitedVars, out result))
+                    if (recv.IsValid() &&
+                        recv is not CallExprSyntax &&
+                        TryResolveStringInternal(recv, contextOrProject, depth + 1, visitedVars, out result))
                     {
                         return true;
                     }
                 }
-                else if (!string.IsNullOrEmpty(mName))
+                else if (!string.IsNullOrEmpty(mName) && funcMember.Object is null or IdentifierExprSyntax)
                 {
                     if (ConstantRegistry.TryResolve(contextOrProject, mName, out var getterVal) ||
                         ConstantRegistry.TryResolve(contextOrProject, $"self.{mName}", out getterVal))
@@ -626,7 +629,8 @@ public static partial class AstValueResolver
                 return TryResolveStringInternal(firstArg, contextOrProject, depth + 1, visitedVars, out result);
             }
 
-            if (func is MemberAccessExprSyntax funcMember)
+            if (func is MemberAccessExprSyntax funcMember &&
+                funcMember.Object is null or IdentifierExprSyntax)
             {
                 var mName = !string.IsNullOrEmpty(funcMember.MemberName)
                     ? funcMember.MemberName
@@ -637,17 +641,20 @@ public static partial class AstValueResolver
                     if (targetFn.IsValid())
                     {
                         var paramIdent = AstScopeResolver.FindFirstParameterName(targetFn);
-                        var boundVal = "";
-                        if (TryResolveStringInternal(firstArg, contextOrProject, depth + 1, visitedVars, out var resolvedArg))
+                        string? boundVal = null;
+                        if (TryResolveStringInternal(firstArg, contextOrProject, depth + 1, visitedVars, out var resolvedArg) &&
+                            !string.IsNullOrEmpty(resolvedArg))
                         {
                             boundVal = resolvedArg;
                         }
-                        else if (ConstantRegistry.TryResolve(contextOrProject, firstArg.Text.TrimStart('&'), out var regVal))
+                        else if (firstArg is IdentifierExprSyntax or UnaryExprSyntax &&
+                                 ConstantRegistry.TryResolve(contextOrProject, firstArg.Text.TrimStart('&'), out var regVal) &&
+                                 !string.IsNullOrEmpty(regVal))
                         {
                             boundVal = regVal;
                         }
 
-                        if (!string.IsNullOrEmpty(paramIdent))
+                        if (!string.IsNullOrEmpty(boundVal) && !string.IsNullOrEmpty(paramIdent))
                         {
                             _localBindings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                             var prevBound = _localBindings.TryGetValue(paramIdent, out var oldBound);

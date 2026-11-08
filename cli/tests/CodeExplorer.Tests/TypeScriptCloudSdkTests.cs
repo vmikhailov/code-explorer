@@ -117,7 +117,7 @@ public class TypeScriptCloudSdkTests
         extServices.Should().Contain(s => s.DomainOrService == "api.stripe.com" && s.Path == "/v1/checkout/sessions");
 
         var allReferences = FindAllReferences(ws.FileNode);
-        allReferences.Should().Contain(r => r.TargetName == "api.stripe.com" && r.Kind == "CALLS_ENDPOINT");
+        allReferences.Should().Contain(r => r.TargetName == "api.stripe.com" && r.Kind == RelationshipKind.CallsEndpoint);
     }
 
     [Test]
@@ -156,15 +156,15 @@ public class TypeScriptCloudSdkTests
         var allReferences = FindAllReferences(ws.FileNode);
 
         // 1. SQS queue publish
-        allReferences.Should().Contain(r => r.TargetName == "order-events" && r.Kind == "PUBLISHES_TO");
+        allReferences.Should().Contain(r => r.TargetName == "order-events" && r.Kind == RelationshipKind.PublishesTo);
 
         // 2. S3 bucket dependency
-        allReferences.Should().Contain(r => r.TargetName == "asset-storage-bucket" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "asset-storage-bucket" && r.Kind == RelationshipKind.DependsOn);
 
         // 3. DynamoDB table query
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
         queries.Should().Contain(q => q.Name.Contains("UserAccountsTable"));
-        allReferences.Should().Contain(r => r.TargetName == "UserAccountsTable" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "UserAccountsTable" && r.Kind == RelationshipKind.DependsOn);
     }
 
     [Test]
@@ -195,15 +195,15 @@ public class TypeScriptCloudSdkTests
         var allReferences = FindAllReferences(ws.FileNode);
 
         // 1. Service Bus publish & subscribe
-        allReferences.Should().Contain(r => r.TargetName == "notification-queue" && r.Kind == "PUBLISHES_TO");
-        allReferences.Should().Contain(r => r.TargetName == "incoming-queue" && r.Kind == "SUBSCRIBES_TO");
+        allReferences.Should().Contain(r => r.TargetName == "notification-queue" && r.Kind == RelationshipKind.PublishesTo);
+        allReferences.Should().Contain(r => r.TargetName == "incoming-queue" && r.Kind == RelationshipKind.SubscribesTo);
 
         // 2. Blob Storage container
-        allReferences.Should().Contain(r => r.TargetName == "invoice-pdfs" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "invoice-pdfs" && r.Kind == RelationshipKind.DependsOn);
 
         // 3. Cosmos DB container query
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
         queries.Should().Contain(q => q.Name.Contains("product_catalog"));
-        allReferences.Should().Contain(r => r.TargetName == "product_catalog" && r.Kind == "DEPENDS_ON");
+        allReferences.Should().Contain(r => r.TargetName == "product_catalog" && r.Kind == RelationshipKind.DependsOn);
     }
 }

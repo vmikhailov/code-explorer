@@ -5,6 +5,12 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public static partial class AstHelper
 {
+    private const string SchemeHttp = "http://";
+    private const string SchemeHttps = "https://";
+    private const string SchemeHttpPrefix = "http";
+    private const string KindShorthandPropId = "shorthand_property_identifier";
+    private const string KindShorthandPropPattern = "shorthand_property_identifier_pattern";
+
     public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject = null)
     {
         return ResolveStringOrTemplate(argNode, contextOrProject, 0, null);
@@ -13,6 +19,7 @@ public static partial class AstHelper
     public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject, int depth, HashSet<string>? visitedVars)
     {
         if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
 
         if (IsStringLiteralNode(argNode))
         {
@@ -63,6 +70,18 @@ public static partial class AstHelper
             if (ConstantRegistry.TryResolve(contextOrProject, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
             {
                 return cVal;
+            }
+
+            // 3. Check file-level URL/endpoint constants in the same file when identifier is a URL/endpoint variable
+            if (depth == 0 &&
+                (varName.EndsWith("Url", StringComparison.OrdinalIgnoreCase) ||
+                 varName.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase)))
+            {
+                var fileFallback = FindFileLevelFallbackUrl(argNode, varName, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(fileFallback))
+                {
+                    return NormalizeResolvedUrl(fileFallback);
+                }
             }
 
             if (WorkspaceConventions.IsGenericUrlStemOrVariable(varName))
@@ -160,11 +179,22 @@ public static partial class AstHelper
                     return NormalizeResolvedUrl(subDecomp ?? classVal);
                 }
 
-                var val = FindVariableInitializerInAst(argNode, propText, depth, visitedVars);
+                var val = FindVariableInitializerInAst(argNode, propText, depth, visitedVars, contextOrProject);
                 if (val != null)
                 {
                     var subDecomp = TryDecomposeTemplateString(argNode, val, depth, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? val);
+                }
+
+                if (depth == 0 &&
+                    (propText.EndsWith("Url", StringComparison.OrdinalIgnoreCase) ||
+                     propText.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var fileFallback = FindFileLevelFallbackUrl(argNode, propText, depth + 1, visitedVars);
+                    if (!string.IsNullOrEmpty(fileFallback))
+                    {
+                        return NormalizeResolvedUrl(fileFallback);
+                    }
                 }
 
                 if (Regex.IsMatch(propText, @"^[A-Z0-9_]{3,}$"))
@@ -189,6 +219,37 @@ public static partial class AstHelper
             {
                 var resolved = ResolveStringOrTemplate(tp, contextOrProject, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(resolved)) return resolved;
+            }
+        }
+
+        if (argNode.Is(TreeSitterSyntax.TypeScript.NewExpression))
+        {
+            var ctor = argNode.GetFunctionNode() ?? argNode.GetField(TreeSitterSyntax.Fields.Constructor);
+            if (ctor.IsValid() && ctor.Text == "URL")
+            {
+                var newArgs = GetCallArguments(argNode);
+                if (newArgs.Count >= 2 && newArgs[0].IsValid())
+                {
+                    var firstRes = ResolveStringOrTemplate(newArgs[0], contextOrProject, depth + 1, visitedVars);
+                    var secondRes = newArgs[1].IsValid()
+                        ? ResolveStringOrTemplate(newArgs[1], contextOrProject, depth + 1, visitedVars)
+                        : null;
+                    if (!string.IsNullOrEmpty(firstRes))
+                    {
+                        if (!string.IsNullOrEmpty(secondRes) &&
+                            (secondRes.StartWithIC(SchemeHttp) || secondRes.StartWithIC(SchemeHttps)))
+                        {
+                            return NormalizeResolvedUrl($"{secondRes.TrimEnd('/')}/{firstRes.TrimStart('/')}");
+                        }
+                        return firstRes.StartsWith('/') || firstRes.StartWithIC(SchemeHttpPrefix)
+                            ? NormalizeResolvedUrl(firstRes)
+                            : $"/{firstRes.TrimStart('/')}";
+                    }
+                }
+                else if (newArgs.Count == 1 && newArgs[0].IsValid())
+                {
+                    return ResolveStringOrTemplate(newArgs[0], contextOrProject, depth + 1, visitedVars);
+                }
             }
         }
 
@@ -245,6 +306,45 @@ public static partial class AstHelper
                         text.StartsWith('/'))
                     {
                         return NormalizeResolvedUrl(text);
+                    }
+                    if (ConstantRegistry.TryResolve(contextOrProject, text, out var cfgVal) &&
+                        !string.IsNullOrEmpty(cfgVal) &&
+                        (cfgVal.StartWithIC(SchemeHttp) || cfgVal.StartWithIC(SchemeHttps) || cfgVal.StartsWith('/')))
+                    {
+                        return NormalizeResolvedUrl(cfgVal);
+                    }
+                }
+
+                var objArg = argList.Children.FirstOrDefault(c => c.IsValid() && c.Is(TreeSitterSyntax.TypeScript.Object));
+                if (objArg.IsValid())
+                {
+                    foreach (var child in objArg.Children)
+                    {
+                        if (child.Is(TreeSitterSyntax.TypeScript.Pair))
+                        {
+                            var keyNode = child.GetField(TreeSitterSyntax.Fields.Key) ?? child.Children.FirstOrDefault();
+                            var valNode = child.GetField(TreeSitterSyntax.Fields.Value) ?? child.Children.LastOrDefault();
+                            if (keyNode.IsValid() && valNode.IsValid() &&
+                                (keyNode.Text.EndsWith("Url", StringComparison.OrdinalIgnoreCase) ||
+                                 keyNode.Text.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                var propRes = ResolveStringOrTemplate(valNode, contextOrProject, depth + 1, visitedVars);
+                                if (!string.IsNullOrEmpty(propRes))
+                                {
+                                    return NormalizeResolvedUrl(propRes);
+                                }
+                            }
+                        }
+                        else if (child.IsAny(KindShorthandPropId, KindShorthandPropPattern, TreeSitterSyntax.TypeScript.Identifier) &&
+                                 (child.Text.EndsWith("Url", StringComparison.OrdinalIgnoreCase) ||
+                                  child.Text.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            var propRes = ResolveStringOrTemplate(child, contextOrProject, depth + 1, visitedVars);
+                            if (!string.IsNullOrEmpty(propRes))
+                            {
+                                return NormalizeResolvedUrl(propRes);
+                            }
+                        }
                     }
                 }
             }
@@ -696,50 +796,130 @@ public static partial class AstHelper
 
         try
         {
-            var root = node;
-            while (root.Parent.IsValid()) root = root.Parent;
-
-            foreach (var decl in FindAllDeclarations(root))
+            var doc = node.Document;
+            if (doc != null)
             {
-                var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name) ?? decl.GetChildForField("name");
-                if (nameNode.IsValid())
+                CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax? enclosingFn = null;
+                for (var p = node.Parent; p.IsValid(); p = p.Parent)
                 {
-                    var nameText = nameNode.Text;
-                    if (string.Equals(nameText, hint, StringComparison.OrdinalIgnoreCase)) continue;
-
-                    if (nameText.Contains("Url", StringComparison.OrdinalIgnoreCase) ||
-                        nameText.Contains("Endpoint", StringComparison.OrdinalIgnoreCase))
+                    if (p is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax fn)
                     {
-                        var valNode = decl.GetField(TreeSitterSyntax.Fields.Value) ?? decl.GetChildForField("value");
-                        if (valNode.IsValid())
+                        enclosingFn = fn;
+                        break;
+                    }
+                }
+                if (enclosingFn != null && !string.IsNullOrEmpty(enclosingFn.Name))
+                {
+                    for (var c = 0; c < doc.AllCalls.Count; c++)
+                    {
+                        var call = doc.AllCalls[c];
+                        if (string.Equals(call.MethodName, enclosingFn.Name, StringComparison.Ordinal) &&
+                            call.Arguments.Count > 0 &&
+                            call.Arguments[0].Value is { } argVal &&
+                            argVal.IsValid())
                         {
-                            var text = valNode.Text.Trim();
-                            var res = ResolveTemplateExpression(root, text, depth + 1, visitedVars);
-                            if (!string.IsNullOrEmpty(res) &&
-                                (res.StartWithIC("http://") ||
-                                 res.StartWithIC("https://")))
+                            var callArgRes = ResolveStringOrTemplate(argVal, null, depth + 1, visitedVars);
+                            if (!string.IsNullOrEmpty(callArgRes) &&
+                                (callArgRes.StartWithIC(SchemeHttp) ||
+                                 callArgRes.StartWithIC(SchemeHttps) ||
+                                 callArgRes.Contains('.')))
                             {
-                                return res;
+                                return callArgRes.Contains("://") ? callArgRes : $"https://{callArgRes}";
                             }
                         }
                     }
                 }
+
+                for (var i = 0; i < doc.AllVariables.Count; i++)
+                {
+                    var decl = doc.AllVariables[i];
+                    if (!decl.IsDeclarator || IsNodeContainedWithin(node, decl) || string.Equals(decl.Name, hint, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var nameText = !string.IsNullOrEmpty(decl.Name)
+                        ? decl.Name
+                        : (decl.GetField(TreeSitterSyntax.Fields.Name) ?? decl.GetChildForField("name"))?.Text;
+                    if (string.IsNullOrEmpty(nameText)) continue;
+
+                    if (nameText.Contains("Url", StringComparison.OrdinalIgnoreCase) ||
+                        nameText.Contains("Endpoint", StringComparison.OrdinalIgnoreCase) ||
+                        nameText.Contains("PATTERN", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var valNode = decl.Initializer ?? decl.GetField(TreeSitterSyntax.Fields.Value) ?? decl.GetChildForField("value");
+                        if (valNode.IsValid())
+                        {
+                            var directRes = !string.IsNullOrEmpty(decl.ResolvedValue)
+                                ? NormalizeResolvedUrl(decl.ResolvedValue)
+                                : ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                            if (!string.IsNullOrEmpty(directRes) &&
+                                (directRes.StartWithIC(SchemeHttp) ||
+                                 directRes.StartWithIC(SchemeHttps) ||
+                                 directRes.Contains('.')))
+                            {
+                                return directRes.Contains("://") ? directRes : $"https://{directRes}";
+                            }
+
+                            var text = valNode.Text.Trim();
+                            if (text.StartsWith('/') && text.Contains("https:\\/\\/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var rxHost = Regex.Match(text, @"https?:\\\/\\\/([a-z0-9\-]+)(?:\\\.[a-z0-9\-\[\]\+]+)*\\\.([a-z0-9\-]+\\?\.[a-z]{2,})", RegexOptions.IgnoreCase);
+                                if (rxHost.Success)
+                                {
+                                    var host = $"{rxHost.Groups[1].Value}.{rxHost.Groups[2].Value.Replace("\\", "")}";
+                                    return $"https://{host}";
+                                }
+                            }
+                        }
+                    }
+                }
+                return null;
             }
+
             return null;
         }
         finally
         {
             visitedVars.Remove("fallback:file");
         }
+    }
 
-        static IEnumerable<Node> FindAllDeclarations(Node parent)
+    public static string? ExtractEnclosingServiceFallback(Node node, string? relativePath = null)
+    {
+        var curr = node.Parent;
+        while (curr.IsValid())
         {
-            foreach (var ch in parent.Children)
+            if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
             {
-                if (ch.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)) yield return ch;
-                foreach (var sub in FindAllDeclarations(ch)) yield return sub;
+                var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
+                var className = nameNode.IsValid() ? nameNode.Text : (curr as CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax)?.Name;
+                if (!string.IsNullOrEmpty(className))
+                {
+                    var stem = Regex.Replace(className, @"(Driver|Repository|Service|Client|Controller|Provider|Manager|Helper|Adapter)$", "", RegexOptions.IgnoreCase);
+                    if (string.IsNullOrEmpty(stem)) stem = className;
+                    var kebab = Regex.Replace(stem, @"([a-z0-9])([A-Z])", "$1-$2").ToLowerInvariant();
+                    if (!string.IsNullOrEmpty(kebab) && !WorkspaceConventions.IsGarbageExternalService(kebab))
+                    {
+                        return $"https://{kebab}";
+                    }
+                }
+                break;
+            }
+            curr = curr.Parent;
+        }
+
+        var path = relativePath ?? node.Document?.RelativePath ?? node.Document?.FilePath;
+        if (!string.IsNullOrEmpty(path))
+        {
+            var fileName = Path.GetFileNameWithoutExtension(path);
+            var dotIdx = fileName.IndexOf('.');
+            if (dotIdx > 0) fileName = fileName[..dotIdx];
+            var cleanStem = Regex.Replace(fileName, @"^(create|get|make|build|use)-|-?(fetch|client|service|repository|driver|helper|util|utils)$", "", RegexOptions.IgnoreCase).Trim('-');
+            if (!string.IsNullOrEmpty(cleanStem) && cleanStem.Length >= 3 && !WorkspaceConventions.IsGarbageExternalService(cleanStem))
+            {
+                return $"https://{cleanStem.ToLowerInvariant()}";
             }
         }
+
+        return null;
     }
 
     private static string CombineServiceAndPath(string? service, string cleanPath)

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Tests.Benchmarks;
@@ -28,24 +29,35 @@ public static class SyntheticBenchmarkGraphGenerator
         private readonly SqliteConnection _conn;
         private readonly SqliteTransaction _tx;
         private readonly StringBuilder _sb = new(64 * 1024);
+        private readonly Dictionary<string, long> _idToRowId = new(110_000, StringComparer.Ordinal);
         private int _batchCount;
+        private long _nextRowId;
         public int TotalAdded { get; private set; }
+        public IReadOnlyDictionary<string, long> IdToRowId => _idToRowId;
 
         public NodeBatcher(SqliteConnection conn, SqliteTransaction tx)
         {
             _conn = conn;
             _tx = tx;
-            _sb.Append("INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES ");
+            _sb.Append("INSERT OR IGNORE INTO nodes (rowid, id, kind, properties) VALUES ");
         }
 
         public void Add(string id, string kind, string props)
         {
+            if (!_idToRowId.TryGetValue(id, out var rowId))
+            {
+                rowId = ++_nextRowId;
+                _idToRowId[id] = rowId;
+            }
+
             if (_batchCount > 0) _sb.Append(',');
-            _sb.Append("('");
+            _sb.Append('(');
+            _sb.Append(rowId);
+            _sb.Append(",'");
             _sb.Append(id);
-            _sb.Append("','");
-            _sb.Append(kind);
-            _sb.Append("','");
+            _sb.Append("',");
+            _sb.Append(GraphKindCodec.EncodeNodeKind(kind));
+            _sb.Append(",'");
             _sb.Append(props.Replace("'", "''"));
             _sb.Append("')");
             _batchCount++;
@@ -68,7 +80,7 @@ public static class SyntheticBenchmarkGraphGenerator
 
             _batchCount = 0;
             _sb.Clear();
-            _sb.Append("INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES ");
+            _sb.Append("INSERT OR IGNORE INTO nodes (rowid, id, kind, properties) VALUES ");
         }
     }
 
@@ -76,27 +88,34 @@ public static class SyntheticBenchmarkGraphGenerator
     {
         private readonly SqliteConnection _conn;
         private readonly SqliteTransaction _tx;
+        private readonly IReadOnlyDictionary<string, long> _idToRowId;
         private readonly StringBuilder _sb = new(64 * 1024);
         private int _batchCount;
         public int TotalAdded { get; private set; }
 
-        public EdgeBatcher(SqliteConnection conn, SqliteTransaction tx)
+        public EdgeBatcher(SqliteConnection conn, SqliteTransaction tx, IReadOnlyDictionary<string, long> idToRowId)
         {
             _conn = conn;
             _tx = tx;
+            _idToRowId = idToRowId;
             _sb.Append("INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES ");
         }
 
         public void Add(string fromId, string toId, string kind)
         {
+            if (!_idToRowId.TryGetValue(fromId, out var fromRowId) || !_idToRowId.TryGetValue(toId, out var toRowId))
+            {
+                return;
+            }
+
             if (_batchCount > 0) _sb.Append(',');
-            _sb.Append("('");
-            _sb.Append(fromId);
-            _sb.Append("','");
-            _sb.Append(toId);
-            _sb.Append("','");
-            _sb.Append(kind);
-            _sb.Append("','{}')");
+            _sb.Append('(');
+            _sb.Append(fromRowId);
+            _sb.Append(',');
+            _sb.Append(toRowId);
+            _sb.Append(',');
+            _sb.Append(GraphKindCodec.EncodeRelKind(kind));
+            _sb.Append(",'{}')");
             _batchCount++;
             TotalAdded++;
 
@@ -141,7 +160,7 @@ public static class SyntheticBenchmarkGraphGenerator
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync();
 
         var nodeBatcher = new NodeBatcher(conn, tx);
-        var edgeBatcher = new EdgeBatcher(conn, tx);
+        var edgeBatcher = new EdgeBatcher(conn, tx, nodeBatcher.IdToRowId);
 
         // 1. Workspace Node
         nodeBatcher.Add(workspaceId, "Workspace", "{\"name\":\"BenchmarkWorkspace\",\"path\":\"/repo/root\"}");

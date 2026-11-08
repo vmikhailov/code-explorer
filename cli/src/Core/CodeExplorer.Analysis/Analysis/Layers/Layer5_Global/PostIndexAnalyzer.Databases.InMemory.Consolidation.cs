@@ -30,7 +30,7 @@ public partial class PostIndexAnalyzer
         var domainHasCodeFiles = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         var dependsOnRels = allRelationships
-            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn)
+            .Where(r => r.Kind == RelationshipKind.DependsOn)
             .ToList();
 
         var nonConfigDbNodes = allDbNodes
@@ -52,13 +52,13 @@ public partial class PostIndexAnalyzer
         {
             foreach (var rel in allRelationships)
             {
-                if (rel.Kind == OntologyConstants.Relationships.Contains || rel.FromConfig == true) continue;
-                var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                     rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                     rel.Kind == OntologyConstants.Relationships.DeclaredIn;
-                var isDbUsageRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                                   rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
-                                   rel.Kind == OntologyConstants.Relationships.WritesTo ||
+                if (rel.Kind == RelationshipKind.Contains || rel.FromConfig == true) continue;
+                var isReverseDbRel = rel.Kind == RelationshipKind.QueriedBy ||
+                                     rel.Kind == RelationshipKind.AccessedBy ||
+                                     rel.Kind == RelationshipKind.DeclaredIn;
+                var isDbUsageRel = rel.Kind == RelationshipKind.UsesDb ||
+                                   rel.Kind == RelationshipKind.ReadsFrom ||
+                                   rel.Kind == RelationshipKind.WritesTo ||
                                    isReverseDbRel;
                 if (!isDbUsageRel) continue;
 
@@ -254,7 +254,7 @@ public partial class PostIndexAnalyzer
         var unverifiedEdges = new List<Relationship>();
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind != OntologyConstants.Relationships.UsesDb) continue;
+            if (rel.Kind != RelationshipKind.UsesDb) continue;
 
             var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartWithIC(d.Id));
             var isConfigDb = targetDb?.FromConfig == true;
@@ -302,7 +302,7 @@ public partial class PostIndexAnalyzer
             }
 
             // Remove any unverified config databases that now have 0 non-test incoming edges
-            var remainingTargets = allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.UsesDb).Select(r => r.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var remainingTargets = allRelationships.Where(r => r.Kind == RelationshipKind.UsesDb).Select(r => r.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var orphanedConfigDbs = allDbNodes.Where(d => d.FromConfig == true && !remainingTargets.Contains(d.Id)).ToList();
             foreach (var oDb in orphanedConfigDbs)
             {
@@ -396,14 +396,14 @@ public partial class PostIndexAnalyzer
 
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
-            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
-                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            if (rel.Kind == RelationshipKind.Contains) continue;
+            var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
+                                 rel.Kind == RelationshipKind.QueriedBy ||
+                                 rel.Kind == RelationshipKind.DeclaredIn;
             var relDbId = isReverseDbRel ? rel.From : rel.To;
             var relCallerId = isReverseDbRel ? rel.To : rel.From;
-            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                          rel.Kind == OntologyConstants.Relationships.Configures ||
+            var isDbRel = rel.Kind == RelationshipKind.UsesDb ||
+                          rel.Kind == RelationshipKind.Configures ||
                           isReverseDbRel ||
                           rawToCanonical.ContainsKey(relDbId);
             if (!isDbRel) continue;

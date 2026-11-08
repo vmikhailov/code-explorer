@@ -62,19 +62,24 @@ public class MochaLibraryParser : DeclarativeSemanticExtension
         var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
         if (!func.IsValid()) return false;
 
-        GetRootIdentifierAndMembers(func, out var rootId, out _);
+        GetRootIdentifierAndMembers(func, out var rootId, out var members);
         if (rootId is "context" or "specify")
         {
-            return true;
+            return members.Count == 0 || members.All(m => m is "only" or "skip");
+        }
+
+        if (rootId is not ("describe" or "suite" or "it" or "test"))
+        {
+            return false;
+        }
+
+        if (members.Count > 0 && !members.All(m => m is "only" or "skip"))
+        {
+            return false;
         }
 
         // In files explicitly importing mocha or matching mocha conventions
-        if (IsMochaContext(node))
-        {
-            return IsSuiteCall(node) || IsTestCall(node);
-        }
-
-        return false;
+        return IsMochaContext(node);
     }
 
     private static bool IsSuiteCall(Node node)
@@ -109,6 +114,35 @@ public class MochaLibraryParser : DeclarativeSemanticExtension
     {
         rootId = "";
         members = [];
+
+        if (funcNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var span = funcNode.AsSpan();
+            if (span is "describe" or "context" or "suite" or "it" or "specify" or "test")
+            {
+                rootId = funcNode.Text;
+            }
+            return;
+        }
+
+        var probe = funcNode;
+        while (probe.IsValid())
+        {
+            if (probe.Is(TreeSitterSyntax.TypeScript.Identifier))
+            {
+                if (probe.AsSpan() is not ("describe" or "context" or "suite" or "it" or "specify" or "test"))
+                {
+                    return;
+                }
+                break;
+            }
+            if (probe.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                probe = probe.GetChildForField(TreeSitterSyntax.Fields.Object);
+                continue;
+            }
+            return;
+        }
 
         var current = funcNode;
         while (current.IsValid())

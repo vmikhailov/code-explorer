@@ -73,15 +73,15 @@ public class RustSemanticLibraryTests
         endpoints.Should().HaveCount(3);
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/users");
         getEp.Should().NotBeNull();
-        getEp!.References.Any(r => r.Kind == "TRIGGERS" && r.TargetName == "list_users").Should().BeTrue();
+        getEp!.References.Any(r => r.Kind == RelationshipKind.Triggers && r.TargetName == "list_users").Should().BeTrue();
 
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/users");
         postEp.Should().NotBeNull();
-        postEp!.References.Any(r => r.Kind == "TRIGGERS" && r.TargetName == "create_user").Should().BeTrue();
+        postEp!.References.Any(r => r.Kind == RelationshipKind.Triggers && r.TargetName == "create_user").Should().BeTrue();
 
         var deleteEp = endpoints.FirstOrDefault(e => e.HttpMethod == "DELETE" && e.RouteTemplate == "/users/:id");
         deleteEp.Should().NotBeNull();
-        deleteEp!.References.Any(r => r.Kind == "TRIGGERS" && r.TargetName == "delete_user").Should().BeTrue();
+        deleteEp!.References.Any(r => r.Kind == RelationshipKind.Triggers && r.TargetName == "delete_user").Should().BeTrue();
     }
 
     [Test]
@@ -363,8 +363,8 @@ public class RustSemanticLibraryTests
         topic.MessagingDirection.Should().Be(OntologyConstants.EvidenceKinds.Subscribe);
 
         var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();
-        allRefs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName.Contains(topic.Name)).Should().BeTrue();
-        allRefs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName.Contains(topic.Name)).Should().BeFalse();
+        allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName.Contains(topic.Name)).Should().BeTrue();
+        allRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains(topic.Name)).Should().BeFalse();
     }
 
     [Test]
@@ -472,7 +472,7 @@ public class RustSemanticLibraryTests
         topic.Should().NotBeNull();
 
         var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();
-        allRefs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName.Contains(topic!.Name)).Should().BeTrue();
+        allRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains(topic!.Name)).Should().BeTrue();
     }
 
     [Test]

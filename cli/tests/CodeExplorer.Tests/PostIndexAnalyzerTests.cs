@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 
@@ -39,7 +40,7 @@ public class PostIndexAnalyzerTests
             new("1:fn:order_service", "Function", new() { ["name"] = "ProcessOrder" }),
             new("1:fn:repo", "Function", new() { ["name"] = "SaveOrder" }),
             new("1:sink:stripe", "ExternalService", new() { ["domain_or_service"] = "api.stripe.com" }),
-            new("1:sink:postgres", "DB", new() { ["name"] = "orders_db" }),
+            new("1:sink:postgres", "Database", new() { ["name"] = "orders_db" }),
             new("1:sink:select_query", "Query", new() { ["query"] = "SELECT * FROM orders" }),
             new("2:fn:other_ws", "Function", new() { ["name"] = "OtherWorkspaceFunc" })
         };
@@ -72,7 +73,7 @@ public class PostIndexAnalyzerTests
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT from_id, to_id, json(properties) FROM edges WHERE kind = 'TRANSITIVELY_CALLS';";
+            cmd.CommandText = $"SELECT fn.id, tn.id, json(e.properties) FROM edges e JOIN nodes fn ON e.from_id = fn.rowid JOIN nodes tn ON e.to_id = tn.rowid WHERE e.kind = {GraphKindCodec.EncodeRelKind("TRANSITIVELY_CALLS")};";
 
             using (var reader = cmd.ExecuteReader())
             {
@@ -101,7 +102,7 @@ public class PostIndexAnalyzerTests
         // 5. Verify ATTRIBUTED_TO in edges table
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT from_id, to_id, json(properties) FROM edges WHERE kind = 'ATTRIBUTED_TO';";
+            cmd.CommandText = $"SELECT fn.id, tn.id, json(e.properties) FROM edges e JOIN nodes fn ON e.from_id = fn.rowid JOIN nodes tn ON e.to_id = tn.rowid WHERE e.kind = {GraphKindCodec.EncodeRelKind("ATTRIBUTED_TO")};";
 
             using (var reader = cmd.ExecuteReader())
             {
@@ -123,7 +124,7 @@ public class PostIndexAnalyzerTests
                 attrRels[("1:ep:create_order", "1:sink:stripe")].SinkKind.Should().Be("ExternalService");
 
                 attrRels[("1:ep:create_order", "1:sink:postgres")].Hops.Should().Be(4);
-                attrRels[("1:ep:create_order", "1:sink:postgres")].SinkKind.Should().Be("DB");
+                attrRels[("1:ep:create_order", "1:sink:postgres")].SinkKind.Should().Be("Database");
 
                 attrRels[("1:ep:create_order", "1:sink:select_query")].Hops.Should().Be(4);
                 attrRels[("1:ep:create_order", "1:sink:select_query")].SinkKind.Should().Be("Query");
@@ -146,11 +147,11 @@ public class PostIndexAnalyzerTests
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT count(*) FROM edges WHERE kind = 'TRANSITIVELY_CALLS';";
+            cmd.CommandText = $"SELECT count(*) FROM edges WHERE kind = {GraphKindCodec.EncodeRelKind("TRANSITIVELY_CALLS")};";
             var tcCount = Convert.ToInt32(cmd.ExecuteScalar());
             tcCount.Should().Be(8);
 
-            cmd.CommandText = "SELECT count(*) FROM edges WHERE kind = 'ATTRIBUTED_TO';";
+            cmd.CommandText = $"SELECT count(*) FROM edges WHERE kind = {GraphKindCodec.EncodeRelKind("ATTRIBUTED_TO")};";
             var attrCount = Convert.ToInt32(cmd.ExecuteScalar());
             attrCount.Should().Be(3);
         }
@@ -281,7 +282,7 @@ public class PostIndexAnalyzerTests
 
         using var cmd = conn.CreateCommand();
 
-        cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Project'";
+        cmd.CommandText = $"SELECT id FROM nodes WHERE kind = {GraphKindCodec.EncodeNodeKind("Project")}";
 
         using (var reader = cmd.ExecuteReader())
         {
@@ -293,7 +294,7 @@ public class PostIndexAnalyzerTests
 
         // Verify dangling edge from legacy project was removed
         cmd.CommandText =
-            "SELECT COUNT(*) FROM edges WHERE from_id = 'ws:project:app:' OR to_id = 'ws:project:app:'";
+            "SELECT COUNT(*) FROM edges e LEFT JOIN nodes fn ON e.from_id = fn.rowid LEFT JOIN nodes tn ON e.to_id = tn.rowid WHERE fn.id IS NULL OR tn.id IS NULL OR fn.id = 'ws:project:app:' OR tn.id = 'ws:project:app:'";
         var count = Convert.ToInt64(cmd.ExecuteScalar());
         count.Should().Be(0);
     }
@@ -317,7 +318,7 @@ public class PostIndexAnalyzerTests
 
         using var cmd = conn.CreateCommand();
 
-        cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Project'";
+        cmd.CommandText = $"SELECT id FROM nodes WHERE kind = {GraphKindCodec.EncodeNodeKind("Project")}";
 
         using var reader = cmd.ExecuteReader();
 
@@ -344,7 +345,7 @@ public class PostIndexAnalyzerTests
 
         PostIndexAnalyzer.DeduplicateProjectNodes(nodes, edges);
 
-        (nodes.Count(n => n.Kind == "Project")).Should().Be(1);
+        (nodes.Count(n => n.Kind == NodeKind.Project)).Should().Be(1);
         (nodes.Any(n => n.Id == "ws:p:api:")).Should().BeTrue();
         (nodes.Any(n => n.Id == "ws:project:api:")).Should().BeFalse();
         (edges.Any(e => e.From == "ws:project:api:")).Should().BeFalse();

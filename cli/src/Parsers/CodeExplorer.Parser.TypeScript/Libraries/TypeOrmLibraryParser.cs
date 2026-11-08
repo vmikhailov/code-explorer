@@ -216,7 +216,8 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
                             var text = nameVal.Text.Trim('\'', '"', '`');
                             if (!string.IsNullOrEmpty(text))
                             {
-                                if (ConstantRegistry.TryResolve(null, text, out var resolvedName))
+                                if (!AstHelper.IsStringLiteralNode(nameVal) &&
+                                    ConstantRegistry.TryResolve(null, text, out var resolvedName))
                                 {
                                     return resolvedName;
                                 }
@@ -254,7 +255,8 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
                             var text = schemaVal.Text.Trim('\'', '"', '`');
                             if (!string.IsNullOrEmpty(text))
                             {
-                                if (ConstantRegistry.TryResolve(null, text, out var resolvedSchema))
+                                if (!AstHelper.IsStringLiteralNode(schemaVal) &&
+                                    ConstantRegistry.TryResolve(null, text, out var resolvedSchema))
                                 {
                                     return resolvedSchema;
                                 }

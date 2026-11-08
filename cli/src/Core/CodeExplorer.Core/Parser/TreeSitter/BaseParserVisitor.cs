@@ -615,7 +615,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? ExtractIdentifierUsingLibraries(Node node, string kind)
     {
-        if (_fusedDeclarative != null && _fusedDeclarative.MapNodeType(node, Context!) == kind)
+        if (_fusedDeclarative != null)
         {
             var decName = _fusedDeclarative.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
             if (decName != null) return decName;
@@ -682,7 +682,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (kind != null)
         {
-            name = ExtractIdentifierUsingLibraries(node, kind) ?? ExtractIdentifier(node);
+            name = (libKind != null ? ExtractIdentifierUsingLibraries(node, kind) : null) ?? ExtractIdentifier(node);
         }
 
         var isSymbol = kind != null && !string.IsNullOrEmpty(name);
@@ -795,8 +795,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             !syntacticNode.Properties.ContainsKey(OntologyConstants.PropertyNames.MessagingDirection))
         {
             var subscribes = syntacticNode.References.Any(r =>
-                r.Kind is OntologyConstants.Relationships.SubscribesTo or OntologyConstants.Relationships.Triggers);
-            var publishes = syntacticNode.References.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
+                r.Kind is CodeExplorer.Cypher.Common.RelationshipKind.SubscribesTo or CodeExplorer.Cypher.Common.RelationshipKind.Triggers);
+            var publishes = syntacticNode.References.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.PublishesTo);
             if (subscribes && !publishes)
             {
                 syntacticNode.Properties[OntologyConstants.PropertyNames.MessagingDirection] = OntologyConstants.EvidenceKinds.Subscribe;
@@ -810,9 +810,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             {
                 foreach (var r in syntacticNode.References)
                 {
-                    if (r.Kind is OntologyConstants.Relationships.DependsOn
-                            or OntologyConstants.Relationships.ReadsFrom
-                            or OntologyConstants.Relationships.WritesTo &&
+                    if (r.Kind is CodeExplorer.Cypher.Common.RelationshipKind.DependsOn
+                            or CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom
+                            or CodeExplorer.Cypher.Common.RelationshipKind.WritesTo &&
                         !parent.References.Contains(r))
                     {
                         parent.References.Add(r);

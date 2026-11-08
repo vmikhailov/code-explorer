@@ -816,13 +816,17 @@ public partial class Layer5AnalysisParser
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
         }
 
-        var relKind = refItem.Kind == OntologyConstants.Relationships.PublishesTo
-            ? OntologyConstants.Relationships.PublishedBy
-            : OntologyConstants.Relationships.SubscribedBy;
-        var isPublish = refItem.Kind == OntologyConstants.Relationships.PublishesTo;
+        var relKind = refItem.Kind == RelationshipKind.PublishesTo
+            ? RelationshipKind.PublishedBy
+            : RelationshipKind.SubscribedBy;
+        var isPublish = refItem.Kind == RelationshipKind.PublishesTo;
 
         referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind)
         {
+            Line = refItem.Line,
+            Column = refItem.Column,
+            CallContext = refItem.Context,
+            ArgFlow = refItem.ArgFlow,
             IsInternal = isInternal,
             Scope = isInternal ? "internal" : "external",
             Category = "messaging",

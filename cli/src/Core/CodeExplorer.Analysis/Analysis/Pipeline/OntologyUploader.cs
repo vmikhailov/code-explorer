@@ -14,7 +14,7 @@ public static class OntologyUploader
         var collectedNodes = new List<Node>();
         var collectedRelationships = new List<Relationship>();
         var visitedNodeIds = new HashSet<string>();
-        var visitedRelKeys = new HashSet<(string From, string To, string Kind)>();
+        var visitedRelKeys = new HashSet<(string From, string To, RelationshipKind Kind)>();
         var nodesWithRefs = new List<IOntologyNode>();
 
         CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
@@ -25,11 +25,11 @@ public static class OntologyUploader
             for (var r = 0; r < refList.Count; r++)
             {
                 var refItem = refList[r];
-                if (refItem.Kind == OntologyConstants.Relationships.Calls && !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
+                if (refItem.Kind == RelationshipKind.Calls && !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
                 {
                     continue;
                 }
-                if (refItem.Kind == OntologyConstants.Relationships.UsesType && !ctx.IsKnownWorkspaceType(refItem.TargetName))
+                if (refItem.Kind == RelationshipKind.UsesType && !ctx.IsKnownWorkspaceType(refItem.TargetName))
                 {
                     continue;
                 }
@@ -67,7 +67,7 @@ public static class OntologyUploader
         List<Node> collectedNodes,
         List<Relationship> collectedRelationships,
         HashSet<string> visitedNodeIds,
-        HashSet<(string From, string To, string Kind)> visitedRelKeys,
+        HashSet<(string From, string To, RelationshipKind Kind)> visitedRelKeys,
         List<IOntologyNode> nodesWithRefs)
     {
         var isDuplicate = visitedNodeIds.Contains(node.Id);
@@ -301,6 +301,12 @@ public static class OntologyUploader
             {
                 CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
             }
+        }
+        else if (node is ExternalServiceNode esDup &&
+                 !string.IsNullOrEmpty(esDup.FilePath) &&
+                 !CodeExplorer.Core.Conventions.Services.SourcePathClassifier.IsTestFilePath(esDup.FilePath))
+        {
+            collectedNodes.Add(Node.FromNode(node));
         }
     }
 

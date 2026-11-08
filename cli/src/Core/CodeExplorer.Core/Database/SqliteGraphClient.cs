@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using Dapper;
@@ -23,8 +24,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private bool _isBulkLoading;
     private bool _bulkIsFreshDb;
     private bool _bulkDropIdentifierIndex;
-    private readonly Dictionary<string, (string Kind, string PropsJson)> _bulkNodes = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string From, string To, string Kind), string> _bulkRelationships = new();
+    private readonly Dictionary<string, (NodeKind Kind, string PropsJson)> _bulkNodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string From, string To, RelationshipKind Kind), string> _bulkRelationships = new();
     private readonly Dictionary<string, List<string>> _bulkProjectExternalApis = new(StringComparer.Ordinal);
 
     public ILogger Logger
@@ -42,7 +43,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     public GraphContext Graph => _graph ??= new(this);
     public IGraphRepository AsRepository() => _repository ??= new PersistedGraphRepository(this);
 
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
     public int SchemaVersion { get; private set; }
     public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
     public bool WasMigratedOnOpen { get; private set; }
@@ -56,8 +57,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         _conn.Open();
 
         InitializePragmas();
-        CheckSchemaVersion();
         SqliteCypherFunctions.Register(_conn);
+        CheckSchemaVersion();
         CreateIndices();
     }
 
@@ -92,9 +93,12 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             if (_isBulkLoading) return;
 
-            var hasNodes = await _conn.ExecuteScalarAsync<int>("SELECT count(*) FROM nodes LIMIT 1;") > 0;
+            const int wsKind = (int)NodeKind.Workspace;
+            var checkNonWsSql = $"SELECT count(*) FROM nodes WHERE kind != {wsKind} LIMIT 1;";
+            var selectWsSql = $"SELECT id AS Id, json(properties) AS PropsJson FROM nodes WHERE kind = {wsKind};";
+            var hasNonWorkspaceNodes = await _conn.ExecuteScalarAsync<int>(checkNonWsSql) > 0;
             var hasEdges = await _conn.ExecuteScalarAsync<int>("SELECT count(*) FROM edges LIMIT 1;") > 0;
-            _bulkIsFreshDb = !hasNodes && !hasEdges;
+            _bulkIsFreshDb = !hasNonWorkspaceNodes && !hasEdges;
 
             _bulkNodes.Clear();
             _bulkRelationships.Clear();
@@ -104,6 +108,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
             if (_bulkIsFreshDb)
             {
+                var wsRows = await _conn.QueryAsync<(string Id, string PropsJson)>(selectWsSql);
+                foreach (var ws in wsRows)
+                {
+                    _bulkNodes[ws.Id] = (NodeKind.Workspace, ws.PropsJson);
+                }
                 ResetTaxonomyInMemory();
                 DropGraphSecondaryIndices();
             }
@@ -175,15 +184,24 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
                 await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
 
-                if (!isFresh && dropIdIdx)
+                if (isFresh)
+                {
+                    await using var delWsCmd = _conn.CreateCommand();
+                    delWsCmd.CommandTimeout = 0;
+                    delWsCmd.Transaction = tx;
+                    delWsCmd.CommandText = "DELETE FROM nodes;";
+                    await delWsCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+                else if (dropIdIdx)
                 {
                     await using var delCmd = _conn.CreateCommand();
                     delCmd.CommandTimeout = 0;
                     delCmd.Transaction = tx;
-                    delCmd.CommandText = "DELETE FROM edges WHERE kind IN ('TRANSITIVELY_CALLS', 'ATTRIBUTED_TO');";
+                    delCmd.CommandText = $"DELETE FROM edges WHERE kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.TransitivelyCalls, RelationshipKind.AttributedTo)});";
                     await delCmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
+                const string paramRowId = "@r";
                 const string paramI = "@i";
                 const string paramK = "@k";
                 const string paramP = "@p";
@@ -192,23 +210,35 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 const string paramF = "@f";
                 const string paramT = "@t";
 
+                var nodeRowIds = relsCount > 0
+                    ? new Dictionary<string, long>(Math.Max(nodesCount, 1024), StringComparer.Ordinal)
+                    : null;
+
                 if (nodesCount > 0)
                 {
                     await using var nodeCmd = _conn.CreateCommand();
                     nodeCmd.CommandTimeout = 0;
                     nodeCmd.Transaction = tx;
                     nodeCmd.CommandText = isFresh
-                        ? "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p));"
+                        ? "INSERT INTO nodes (rowid, id, kind, properties) VALUES (@r, @i, @k, jsonb(@p));"
                         : "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p)) ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;";
+                    var pRowId = isFresh ? nodeCmd.Parameters.Add(paramRowId, SqliteType.Integer) : null;
                     var pId = nodeCmd.Parameters.Add(paramI, SqliteType.Text);
-                    var pKind = nodeCmd.Parameters.Add(paramK, SqliteType.Text);
+                    var pKind = nodeCmd.Parameters.Add(paramK, SqliteType.Integer);
                     var pProps = nodeCmd.Parameters.Add(paramP, SqliteType.Text);
                     nodeCmd.Prepare();
 
+                    long nextRowId = 1;
                     foreach (var (id, (kind, propsJson)) in _bulkNodes)
                     {
+                        if (pRowId != null)
+                        {
+                            var rowId = nextRowId++;
+                            pRowId.Value = rowId;
+                            nodeRowIds?[id] = rowId;
+                        }
                         pId.Value = id;
-                        pKind.Value = kind;
+                        pKind.Value = (int)kind;
                         pProps.Value = propsJson;
                         nodeCmd.ExecuteNonQuery();
                     }
@@ -233,25 +263,44 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                     }
                 }
 
-                if (relsCount > 0)
+                if (relsCount > 0 && nodeRowIds != null)
                 {
+                    if (!isFresh)
+                    {
+                        await using var mapCmd = _conn.CreateCommand();
+                        mapCmd.CommandTimeout = 0;
+                        mapCmd.Transaction = tx;
+                        mapCmd.CommandText = "SELECT id, rowid FROM nodes;";
+                        await using var mapReader = await mapCmd.ExecuteReaderAsync(cancellationToken);
+                        while (await mapReader.ReadAsync(cancellationToken))
+                        {
+                            nodeRowIds[mapReader.GetString(0)] = mapReader.GetInt64(1);
+                        }
+                    }
+
                     await using var relCmd = _conn.CreateCommand();
                     relCmd.CommandTimeout = 0;
                     relCmd.Transaction = tx;
                     relCmd.CommandText = isFresh
                         ? "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p));"
                         : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
-                    var pFrom = relCmd.Parameters.Add(paramF, SqliteType.Text);
-                    var pTo = relCmd.Parameters.Add(paramT, SqliteType.Text);
-                    var pKind = relCmd.Parameters.Add(paramK, SqliteType.Text);
+                    var pFrom = relCmd.Parameters.Add(paramF, SqliteType.Integer);
+                    var pTo = relCmd.Parameters.Add(paramT, SqliteType.Integer);
+                    var pKind = relCmd.Parameters.Add(paramK, SqliteType.Integer);
                     var pProps = relCmd.Parameters.Add(paramP, SqliteType.Text);
                     relCmd.Prepare();
 
                     foreach (var ((fromId, toId, kind), propsJson) in _bulkRelationships)
                     {
-                        pFrom.Value = fromId;
-                        pTo.Value = toId;
-                        pKind.Value = kind;
+                        if (!nodeRowIds.TryGetValue(fromId, out var fromRowId) ||
+                            !nodeRowIds.TryGetValue(toId, out var toRowId))
+                        {
+                            continue;
+                        }
+
+                        pFrom.Value = fromRowId;
+                        pTo.Value = toRowId;
+                        pKind.Value = (int)kind;
                         pProps.Value = propsJson;
                         relCmd.ExecuteNonQuery();
                     }
@@ -320,10 +369,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             {
                 foreach (var (id, (kind, _)) in _bulkNodes)
                 {
-                    if (kind == "Workspace") return id;
+                    if (kind == NodeKind.Workspace) return id;
                 }
             }
-            var existing = await _conn.ExecuteScalarAsync<string>("SELECT id FROM nodes WHERE kind = 'Workspace' LIMIT 1;");
+            var existing = await _conn.ExecuteScalarAsync<string>($"SELECT id FROM nodes WHERE kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Workspace)} LIMIT 1;");
             return existing ?? "ws";
         }
         finally
@@ -363,7 +412,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                             new { id });
                     }
 
-                    _bulkNodes[id] = ("Workspace", !string.IsNullOrWhiteSpace(existingName)
+                    _bulkNodes[id] = (NodeKind.Workspace, !string.IsNullOrWhiteSpace(existingName)
                         ? JsonSerializer.Serialize(new { id, name = existingName, path = normalized })
                         : propsJson);
                 }
@@ -372,10 +421,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             const string sql = """
-                INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', jsonb(@props))
+                INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, jsonb(@props))
                 ON CONFLICT(id) DO UPDATE SET properties = jsonb_set(properties, '$.path', @path);
                 """;
-            await _conn.ExecuteAsync(sql, new { id, props = propsJson, path = normalized });
+            await _conn.ExecuteAsync(sql, new { id, kind = GraphKindCodec.EncodeNodeKind(NodeKind.Workspace), props = propsJson, path = normalized });
             RecordWorkspaceNodeInTaxonomy(id);
         }
         finally
@@ -420,7 +469,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             cmd.CommandText =
                 "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p)) ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;";
             var pId = cmd.Parameters.Add("@i", SqliteType.Text);
-            var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
+            var pKind = cmd.Parameters.Add("@k", SqliteType.Integer);
             var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
             cmd.Prepare();
 
@@ -434,7 +483,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 jsonWriter.Flush();
 
                 pId.Value = node.Id;
-                pKind.Value = node.Kind;
+                pKind.Value = (int)node.Kind;
                 pProps.Value = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
                 cmd.ExecuteNonQuery();
 
@@ -504,10 +553,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await using var cmd = _conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText =
-                "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
+                "INSERT INTO edges (from_id, to_id, kind, properties) SELECT fn.rowid, tn.rowid, @k, jsonb(@p) FROM nodes fn, nodes tn WHERE fn.id = @f AND tn.id = @t ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
             var pFrom = cmd.Parameters.Add("@f", SqliteType.Text);
             var pTo = cmd.Parameters.Add("@t", SqliteType.Text);
-            var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
+            var pKind = cmd.Parameters.Add("@k", SqliteType.Integer);
             var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
             cmd.Prepare();
 
@@ -518,7 +567,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 var rel = distinctRels[i];
                 pFrom.Value = rel.From;
                 pTo.Value = rel.To;
-                pKind.Value = rel.Kind;
+                pKind.Value = (int)rel.Kind;
                 if (!rel.HasTelemetry)
                 {
                     pProps.Value = emptyPropsJson;
@@ -560,7 +609,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         if (rels.Count <= 1) return rels;
 
         var unique = new List<Relationship>(rels.Count);
-        var byKey = new Dictionary<(string From, string To, string Kind), Relationship>(rels.Count);
+        var byKey = new Dictionary<(string From, string To, RelationshipKind Kind), Relationship>(rels.Count);
 
         foreach (var rel in rels)
         {
@@ -835,7 +884,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             if (_isBulkLoading) await CommitBulkLoadUnlockedAsync(cancellationToken);
-            const string sql = "SELECT kind, count(*) AS count FROM nodes GROUP BY kind ORDER BY count(*) DESC;";
+            const string sql = "SELECT ce_node_kind(kind) AS kind, count(*) AS count FROM nodes GROUP BY kind ORDER BY count(*) DESC;";
             var rows = await _conn.QueryAsync<(string kind, int count)>(new CommandDefinition(sql, cancellationToken: cancellationToken));
             return rows.ToDictionary(r => r.kind, r => r.count, StringComparer.OrdinalIgnoreCase);
         }

@@ -27,6 +27,8 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private readonly HashSet<string> _aggregatedAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _nodePropertySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _nodeIdSource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _nodeRowIdSource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _nodeKindSource = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _ctes = [];
 
     private static readonly FrozenSet<string> _reservedSqlKeywords = new[]
@@ -302,10 +304,14 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             if (remainingReferenced.Contains(node))
             {
                 var esc = EscapeVar(node);
+                stage1SelectColumns.Add($"{esc}.rowid AS {node}_rowid");
                 stage1SelectColumns.Add($"{esc}.id AS {node}_id");
+                stage1SelectColumns.Add($"{esc}.kind AS {node}_kind");
                 stage1SelectColumns.Add($"{esc}.properties AS {node}_properties");
-                _nodePropertySource[node] = $"{stage1Name}.{node}_properties";
+                _nodeRowIdSource[node] = $"{stage1Name}.{node}_rowid";
                 _nodeIdSource[node] = $"{stage1Name}.{node}_id";
+                _nodeKindSource[node] = $"{stage1Name}.{node}_kind";
+                _nodePropertySource[node] = $"{stage1Name}.{node}_properties";
             }
         }
 

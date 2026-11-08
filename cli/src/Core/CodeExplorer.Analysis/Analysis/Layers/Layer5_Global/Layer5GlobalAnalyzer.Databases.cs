@@ -398,13 +398,16 @@ public partial class Layer5AnalysisParser
 
             try
             {
-                if (refItem.Kind == OntologyConstants.Relationships.Implements ||
-                    refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
+                if (refItem.Kind is RelationshipKind.Implements or RelationshipKind.InheritsFrom)
                 {
                     var targetNodeId = Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(refItem.TargetName, refItem.ScopeSymbolId, ctx, symbols);
+                    if (targetNodeId == null && refItem.Kind == RelationshipKind.InheritsFrom)
+                    {
+                        symbols.FunctionSymbols.TryGetValue(refItem.TargetName, out targetNodeId);
+                    }
                     if (targetNodeId != null && refItem.ScopeSymbolId != targetNodeId)
                     {
-                        if (refItem.Kind == OntologyConstants.Relationships.Implements)
+                        if (refItem.Kind == RelationshipKind.Implements)
                         {
                             IOntologyRelationship rel = new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId);
                             referenceRelationships.Add(Relationship.FromRelationship(rel));
@@ -418,7 +421,7 @@ public partial class Layer5AnalysisParser
                         inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
                         symbols.InheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
                     }
-                    else if (refItem.Kind == OntologyConstants.Relationships.Implements)
+                    else if (refItem.Kind == RelationshipKind.Implements)
                     {
                         if (symbols.EndpointSymbols.TryGetValue(refItem.TargetName, out var targetEndpointId))
                         {
@@ -866,7 +869,7 @@ public partial class Layer5AnalysisParser
         var targetName = refItem.TargetName;
         if (string.IsNullOrEmpty(targetName)) return;
 
-        var isImpl = refItem.Kind == OntologyConstants.Relationships.ImplementedBy;
+        var isImpl = refItem.Kind == RelationshipKind.ImplementedBy;
 
         // 1. Direct type match (e.g. interface / class name)
         if (symbols.TypeSymbols.TryGetValue(targetName, out var directTypeId) && refItem.ScopeSymbolId != directTypeId)
@@ -937,13 +940,20 @@ public partial class Layer5AnalysisParser
         var targetName = refItem.TargetName;
         if (string.IsNullOrEmpty(targetName)) return;
 
+        void AddTableAccessRel(string resolvedTableId)
+        {
+            var rel = refItem.Kind == RelationshipKind.WritesTo
+                ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, resolvedTableId))
+                : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, resolvedTableId));
+            rel.Line = refItem.Line;
+            rel.Column = refItem.Column;
+            rel.CallContext = refItem.Context;
+            referenceRelationships.Add(rel);
+        }
+
         if (symbols.TableSymbols.TryGetValue(targetName, out var tableId) && refItem.ScopeSymbolId != tableId)
         {
-            var isWrite = refItem.Kind == OntologyConstants.Relationships.WritesTo;
-            var rel = isWrite
-                ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, tableId))
-                : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, tableId));
-            referenceRelationships.Add(rel);
+            AddTableAccessRel(tableId);
             return;
         }
 
@@ -953,11 +963,7 @@ public partial class Layer5AnalysisParser
             var shortTableName = targetName[(dotIdx + 1)..];
             if (symbols.TableSymbols.TryGetValue(shortTableName, out var shortTableId) && refItem.ScopeSymbolId != shortTableId)
             {
-                var isWrite = refItem.Kind == OntologyConstants.Relationships.WritesTo;
-                var rel = isWrite
-                    ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, shortTableId))
-                    : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, shortTableId));
-                referenceRelationships.Add(rel);
+                AddTableAccessRel(shortTableId);
                 return;
             }
         }
@@ -968,34 +974,24 @@ public partial class Layer5AnalysisParser
         {
             symbols.TableSymbols.TryGetValue(targetName[..^1], out candidateTableId);
             if (candidateTableId == null && targetName.EndsWith("es", StringComparison.OrdinalIgnoreCase))
-            {
                 symbols.TableSymbols.TryGetValue(targetName[..^2], out candidateTableId);
-            }
         }
         else
         {
             symbols.TableSymbols.TryGetValue(targetName + "s", out candidateTableId);
             if (candidateTableId == null)
-            {
                 symbols.TableSymbols.TryGetValue(targetName + "es", out candidateTableId);
-            }
         }
         if (candidateTableId == null)
         {
             var snakeName = System.Text.RegularExpressions.Regex.Replace(targetName, "([a-z0-9])([A-Z])", "$1_$2").ToLowerInvariant();
             if (snakeName != targetName)
-            {
                 symbols.TableSymbols.TryGetValue(snakeName, out candidateTableId);
-            }
         }
 
         if (!string.IsNullOrEmpty(candidateTableId) && refItem.ScopeSymbolId != candidateTableId)
         {
-            var isWrite = refItem.Kind == OntologyConstants.Relationships.WritesTo;
-            var rel = isWrite
-                ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, candidateTableId))
-                : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, candidateTableId));
-            referenceRelationships.Add(rel);
+            AddTableAccessRel(candidateTableId);
         }
     }
 }
@@ -1119,7 +1115,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         var hasAnyProjectToProjectEdge = false;
         foreach (var rel in ctx.GlobalProjectDependencies)
         {
-            if (rel.Kind != OntologyConstants.Relationships.DependsOn) continue;
+            if (rel.Kind != RelationshipKind.DependsOn) continue;
             var fromKeys = ResolveProjectIdKeys(rel.From, projectKeysById);
             var toKeys = ResolveProjectIdKeys(rel.To, projectKeysById);
             if (fromKeys == null || toKeys == null) continue;

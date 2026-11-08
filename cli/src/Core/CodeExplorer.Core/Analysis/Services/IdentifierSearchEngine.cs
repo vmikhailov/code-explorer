@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -118,27 +119,32 @@ public class IdentifierSearchEngine
         // Extract candidate nodes: Type, Function, Member, Endpoint, Table, Topic, Project, ExternalService
         // Use correlated subquery for owner_name to ensure SQLite uses primary key index lookup on nodes(id)
         // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
+        var candidateKindsSql = GraphKindCodec.NodeKindsInSql(
+            NodeKind.Type, NodeKind.Function, NodeKind.Member, NodeKind.Endpoint,
+            NodeKind.Table, NodeKind.Topic, NodeKind.Project, NodeKind.ExternalService);
+        var typeKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Type);
+        var hasMethodMemberRelsSql = GraphKindCodec.RelKindsInSql(RelationshipKind.HasMethod, RelationshipKind.HasMember);
         var candidateQuery = hasNativeColumns
-            ? """
-              SELECT n.id, n.kind,
-                     COALESCE(NULLIF(n.name, ''), json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
-                     COALESCE(NULLIF(n.path, ''), json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
-                     COALESCE(NULLIF(n.start_line, 0), CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
-                     (SELECT COALESCE(NULLIF(o.name, ''), json_extract(o.properties, '$.name')) FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
-              FROM nodes n
-              LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
-              WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
-              """
-            : """
-              SELECT n.id, n.kind,
-                     COALESCE(json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
-                     COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
-                     COALESCE(CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
-                     (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
-              FROM nodes n
-              LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
-              WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
-              """;
+            ? $"""
+               SELECT n.id, n.kind,
+                      COALESCE(NULLIF(n.name, ''), json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
+                      COALESCE(NULLIF(n.path, ''), json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                      COALESCE(NULLIF(n.start_line, 0), CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
+                      (SELECT COALESCE(NULLIF(o.name, ''), json_extract(o.properties, '$.name')) FROM nodes o WHERE o.rowid = e.from_id AND o.kind = {typeKindId}) as owner_name
+               FROM nodes n
+               LEFT JOIN edges e ON (e.to_id = n.rowid AND e.kind IN ({hasMethodMemberRelsSql}))
+               WHERE n.kind IN ({candidateKindsSql});
+               """
+            : $"""
+               SELECT n.id, n.kind,
+                      COALESCE(json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
+                      COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                      COALESCE(CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
+                      (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.rowid = e.from_id AND o.kind = {typeKindId}) as owner_name
+               FROM nodes n
+               LEFT JOIN edges e ON (e.to_id = n.rowid AND e.kind IN ({hasMethodMemberRelsSql}))
+               WHERE n.kind IN ({candidateKindsSql});
+               """;
 
         await using var selectCmd = conn.CreateCommand();
         selectCmd.CommandText = candidateQuery;
@@ -149,7 +155,9 @@ public class IdentifierSearchEngine
         while (await reader.ReadAsync(ct))
         {
             var id = reader.GetString(0);
-            var kind = reader.GetString(1);
+            var kind = reader.GetFieldType(1) == typeof(long)
+                ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(1))
+                : reader.GetString(1);
             var name = reader.IsDBNull(2) ? id : reader.GetString(2);
             var path = reader.IsDBNull(3) ? null : reader.GetString(3);
             var startLine = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);

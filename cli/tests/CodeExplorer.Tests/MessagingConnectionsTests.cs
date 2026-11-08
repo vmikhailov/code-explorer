@@ -192,13 +192,13 @@ public class MessagingConnectionsTests
         // Verify inbound message lifted to service as SUBSCRIBES_TO
         var liftedIn = lifted.FirstOrDefault(e => e.From == "service1" && e.To == "inTopic");
         liftedIn.Should().NotBeNull();
-        liftedIn!.Kind.Should().Be("SUBSCRIBES_TO");
+        liftedIn!.Kind.Should().Be(RelationshipKind.SubscribesTo);
         liftedIn.Properties.GetValueOrDefault("semantic_lifted")?.ToString().Should().Be("true");
 
         // Verify outbound message lifted to service as PUBLISHES_TO
         var liftedOut = lifted.FirstOrDefault(e => e.From == "service1" && e.To == "outTopic");
         liftedOut.Should().NotBeNull();
-        liftedOut!.Kind.Should().Be("PUBLISHES_TO");
+        liftedOut!.Kind.Should().Be(RelationshipKind.PublishesTo);
         liftedOut.Properties.GetValueOrDefault("semantic_lifted")?.ToString().Should().Be("true");
     }
 
@@ -231,13 +231,13 @@ public class MessagingConnectionsTests
             nodeKindsById: nodeKinds
         );
 
-        var pubRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicPubId && r.Kind == OntologyConstants.Relationships.PublishesTo);
+        var pubRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicPubId && r.Kind == RelationshipKind.PublishesTo);
         pubRel.Should().NotBeNull("Expected project-level PUBLISHES_TO edge from publisher project to topic");
 
-        var subRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicSubId && r.Kind == OntologyConstants.Relationships.SubscribesTo);
+        var subRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicSubId && r.Kind == RelationshipKind.SubscribesTo);
         subRel.Should().NotBeNull("Expected project-level SUBSCRIBES_TO edge from publisher project to topic");
 
-        var trigRel = materialized.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.Triggers);
+        var trigRel = materialized.FirstOrDefault(r => r.Kind == RelationshipKind.Triggers);
         trigRel.Should().BeNull("Duplicate TRIGGERS edge must not be materialized on macro level");
     }
 

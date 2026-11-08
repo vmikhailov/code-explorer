@@ -158,7 +158,7 @@ public class GitSettingsTests
         projNode.Signals().GitRepo.Should().Be("Backend");
 
         // Verify USES_GIT relationship exists in ctx.TreeRelationships
-        var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == "USES_GIT").ToList();
+        var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == RelationshipKind.UsesGit).ToList();
         usesGitRels.Should().HaveCount(1);
         usesGitRels[0].From.Should().Be(projNode.Id);
         usesGitRels[0].To.Should().Be($"{ctx.WorkspaceId}:git:Backend");

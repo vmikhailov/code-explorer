@@ -1,4 +1,4 @@
-MATCH (f:File) WHERE f.path = $filePath OR f.name = $filePath OR f.full_path = $filePath OR f.path ENDS WITH ('/' + $filePath)
+MATCH (f:File) WHERE f.path IS NOT NULL AND (f.path = $filePath OR f.path ENDS WITH ('/' + $filePath))
 OPTIONAL MATCH (child)-[:DECLARED_IN]->(f)
 WHERE child:Type OR child:Function OR child:Member OR child:Query
 WITH child WHERE child IS NOT NULL

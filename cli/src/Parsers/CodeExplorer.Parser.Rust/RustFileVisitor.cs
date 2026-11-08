@@ -204,7 +204,7 @@ public class RustFileVisitor : BaseParserVisitor
 
         if (!string.IsNullOrEmpty(traitTypeName))
         {
-            if (!targetSymbol.References.Any(r => r.Kind == OntologyConstants.Relationships.Implements && r.TargetName == traitTypeName))
+            if (!targetSymbol.References.Any(r => r.Kind == RelationshipKind.Implements && r.TargetName == traitTypeName))
             {
                 targetSymbol.References.Add(new Reference("", traitTypeName, OntologyConstants.Relationships.Implements));
             }

@@ -245,7 +245,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 {
                     foreach (var r in currentScope.References)
                     {
-                        if (r.Kind == OntologyConstants.Relationships.DependsOn && !enclosingFunc.References.Contains(r))
+                        if (r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn && !enclosingFunc.References.Contains(r))
                         {
                             enclosingFunc.References.Add(r);
                         }

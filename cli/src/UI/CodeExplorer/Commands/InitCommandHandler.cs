@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
@@ -21,9 +22,9 @@ public static class InitCommandHandler
         var ws = WorkspaceLocator.Initialize(targetDir, name);
 
         // Initialize DB schema & seed Workspace node
-        const string upsertWorkspaceSql =
-            "INSERT INTO nodes (id, kind, properties) VALUES ('workspace', 'Workspace', jsonb(json_object('id', 'workspace', 'name', @name, 'path', @path))) " +
-            "ON CONFLICT(id) DO UPDATE SET properties = jsonb(json_object('id', 'workspace', 'name', @name, 'path', @path));";
+        var upsertWorkspaceSql =
+            $"INSERT INTO nodes (id, kind, properties) VALUES ('workspace', {GraphKindCodec.EncodeNodeKind(NodeKind.Workspace)}, jsonb(json_object('name', @name, 'path', @path))) " +
+            "ON CONFLICT(id) DO UPDATE SET properties = jsonb(json_object('name', @name, 'path', @path));";
         await using (var client = new SqliteGraphClient(ws.DbPath))
         {
             await client.ExecuteWriteAsync(

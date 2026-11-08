@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Database;
 
@@ -183,7 +184,7 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    const int CurrentSchemaVersion = 5;
+    const int CurrentSchemaVersion = 6;
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     bool WasMigratedOnOpen => false;
@@ -227,6 +228,52 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         if (attrRels.Count > 0) tasks.Add(UploadRelationshipsAsync(attrRels));
         return Task.WhenAll(tasks);
     }
+
+    Task WriteFallbackReachabilityAsync(string widPrefix, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task<EdgeNormalizationSnapshot> LoadEdgeNormalizationSnapshotAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new EdgeNormalizationSnapshot(new Dictionary<string, (NodeKind Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase), []));
+
+    Task<int> ApplyEdgeNormalizationUpdatesAsync(IReadOnlyList<EdgeNormalizationUpdate> updates, CancellationToken cancellationToken = default) =>
+        Task.FromResult(0);
+
+    Task<ExternalServicePurgeSnapshot> LoadExternalServicePurgeSnapshotAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ExternalServicePurgeSnapshot([], [], new HashSet<string>(StringComparer.OrdinalIgnoreCase), []));
+
+    Task<List<(string Id, string Name)>> LoadTopicsForPurgeAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<(string Id, string Name)>());
+
+    Task DeleteNodesAndConnectedEdgesAsync(IReadOnlyList<string> nodeIds, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task DeduplicateLegacyProjectNodesAsync(string widPrefix = "", CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task<List<DbProjectSnapshot>> LoadProjectsForDbCanonicalizationAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<DbProjectSnapshot>());
+
+    Task<List<DbAccessEdgeSnapshot>> LoadAccessEdgesForDbCanonicalizationAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<DbAccessEdgeSnapshot>());
+
+    Task<(List<RawDatabaseNodeSnapshot> Databases, List<(string Id, string Name)> DataSets)> LoadRawDatabasesAndDataSetsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult((new List<RawDatabaseNodeSnapshot>(), new List<(string Id, string Name)>()));
+
+    Task<List<Relationship>> LoadDatabaseCandidateRelationshipsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<Relationship>());
+
+    Task ReplaceProjectDatabaseRelationshipsAndRemapAsync(
+        IReadOnlyList<Relationship> relationshipsToUpload,
+        IReadOnlyList<DomainEdgeTargetRemap> domainRemaps,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task CleanupAndPropagateDatabaseEntitiesAsync(
+        IReadOnlyDictionary<string, string> rawToCanonical,
+        IReadOnlyList<CanonicalDatabasePropagationInfo> canonicalDatabases,
+        bool propagateChildSchemaProperties,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 
     Task<Dictionary<string, int>> GetNodesBreakdownAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new Dictionary<string, int>());

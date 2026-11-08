@@ -47,16 +47,9 @@ public static class EndpointSemanticAnalyzer
         foreach (var syntactic in syntaxTree.SemanticSymbols)
         {
             var node = MapSemanticSymbolToOntology(syntactic, relativePath, workspaceId, project, ctx, projectName, symbolIsTest, projectKind, relationships);
-            if (node != null && syntaxTree.FileNode != null)
+            if (node != null && syntaxTree.FileNode != null && (node is ExternalServiceNode || !syntaxTree.FileNode.Children.Any(c => c.Id == node.Id)))
             {
-                if (node is ExternalServiceNode)
-                {
-                    syntaxTree.FileNode.Children.Add(node);
-                }
-                else if (!syntaxTree.FileNode.Children.Any(c => c.Id == node.Id))
-                {
-                    syntaxTree.FileNode.Children.Add(node);
-                }
+                syntaxTree.FileNode.Children.Add(node);
             }
         }
 
@@ -117,6 +110,7 @@ public static class EndpointSemanticAnalyzer
                         Operation = "SQL",
                         EvidenceKind = OntologyConstants.EvidenceKinds.Query
                     });
+                    accessedRel.CallContext = CallSiteContextExtractor.Extract(node);
                     ctx?.AddGlobalProjectDependency(accessedRel);
                     relationships?.Add(accessedRel);
                 }
@@ -197,6 +191,8 @@ public static class EndpointSemanticAnalyzer
             {
                 return null;
             }
+            var callContext = CallSiteContextExtractor.Extract(node);
+            esCandidate.CallContext = callContext;
             typedNode = esCandidate;
             if (typedNode is ExternalServiceNode esNode && syntactic.Properties.TryGetValue(PropMethod, out var meth) && !string.IsNullOrEmpty(meth))
             {
@@ -214,6 +210,7 @@ public static class EndpointSemanticAnalyzer
                     Operation = (typedNode is ExternalServiceNode es && !string.IsNullOrEmpty(es.Method)) ? es.Method : "CALL",
                     EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
                 });
+                calledByRel.CallContext = callContext;
                 ctx?.AddGlobalProjectDependency(calledByRel);
                 relationships?.Add(calledByRel);
             }
@@ -225,7 +222,10 @@ public static class EndpointSemanticAnalyzer
                 return null;
             }
             var resolvedName = name;
-            if (ConstantRegistry.TryResolve(relativePath, name, out var rName))
+            var isExplicitQuotedLiteral = !string.IsNullOrEmpty(node.Text) &&
+                                          (node.Text.Contains($"'{name}'", StringComparison.Ordinal) ||
+                                           node.Text.Contains($"\"{name}\"", StringComparison.Ordinal));
+            if (!isExplicitQuotedLiteral && ConstantRegistry.TryResolve(relativePath, name, out var rName))
             {
                 if (!string.IsNullOrWhiteSpace(rName) &&
                     !rName.Contains("://") &&
@@ -260,6 +260,7 @@ public static class EndpointSemanticAnalyzer
                     Operation = "ORM",
                     EvidenceKind = OntologyConstants.EvidenceKinds.Orm
                 });
+                accRel.CallContext = CallSiteContextExtractor.Extract(node);
                 ctx?.AddGlobalProjectDependency(accRel);
                 relationships?.Add(accRel);
 
@@ -327,6 +328,7 @@ public static class EndpointSemanticAnalyzer
                         Operation = "PUBLISH",
                         EvidenceKind = msgDirection
                     });
+                flowRel.CallContext = CallSiteContextExtractor.Extract(node);
                 ctx?.AddGlobalProjectDependency(flowRel);
                 relationships?.Add(flowRel);
             }
@@ -393,7 +395,7 @@ public static class EndpointSemanticAnalyzer
         {
             var target = reference.TargetName;
             var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? typedNode.Id : reference.ScopeSymbolId;
-            if (reference.Kind == OntologyConstants.Relationships.PersistedIn &&
+            if (reference.Kind == RelationshipKind.PersistedIn &&
                 ConstantRegistry.TryResolve(relativePath, target, out var resolvedTarget))
             {
                 target = resolvedTarget;
@@ -950,16 +952,9 @@ public static class EndpointSemanticAnalyzer
             isExternal = false;
             inferredFromIdentifier = true;
         }
-        else
-        {
-            isExternal = true;
-        }
-        return new ExternalServiceNode(
-            extServiceId,
-            domainOrService,
-            protocol,
-            domainOrService,
-            path)
+        else isExternal = true;
+
+        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path)
         {
             FilePath = relativePath,
             StartLine = (int)node.StartPosition.Row + 1,

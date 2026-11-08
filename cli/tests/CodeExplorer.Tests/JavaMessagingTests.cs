@@ -81,9 +81,9 @@ public class OrderConsumer {
             kafkaEp.Should().NotBeNull();
 
             var allRefs = CollectAllReferences(fileNode.Children);
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "kafka:orders-topic").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "kafka:order-confirmations").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.Triggers && r.TargetName == "handleOrder").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "kafka:orders-topic").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "kafka:order-confirmations").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.Triggers && r.TargetName == "handleOrder").Should().BeTrue();
         }
         finally
         {
@@ -134,9 +134,9 @@ public class OrderRabbitConsumer {
             rabbitEp.Should().NotBeNull();
 
             var allRefs = CollectAllReferences(fileNode.Children);
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "rabbitmq:incoming-orders-queue").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "rabbitmq:order-shipped").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.Triggers && r.TargetName == "onOrder").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "rabbitmq:incoming-orders-queue").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "rabbitmq:order-shipped").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.Triggers && r.TargetName == "onOrder").Should().BeTrue();
         }
         finally
         {
@@ -180,8 +180,8 @@ public class OrderStreamProcessor {
             fileNode.Should().NotBeNull();
 
             var allRefs = CollectAllReferences(fileNode.Children);
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "kafka:payment-orders").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "kafka:orders").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "kafka:payment-orders").Should().BeTrue();
+            allRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "kafka:orders").Should().BeTrue();
         }
         finally
         {

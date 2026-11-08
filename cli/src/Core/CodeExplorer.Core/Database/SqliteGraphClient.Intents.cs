@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,7 @@ public partial class SqliteGraphClient
             await using (var cmd = _conn.CreateCommand())
             {
                 cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = """
+                cmd.CommandText = $"""
                     SELECT id,
                            COALESCE(json_extract(properties, '$.name'), '') AS name,
                            COALESCE(json_extract(properties, '$.path'), '') AS path,
@@ -37,13 +38,13 @@ public partial class SqliteGraphClient
                                json_extract(properties, '$.domain'),
                                (SELECT json_extract(d.properties, '$.name')
                                 FROM edges e
-                                JOIN nodes d ON e.to_id = d.id AND d.kind = 'Domain'
-                                WHERE e.from_id = nodes.id AND e.kind IN ('EXPOSES_DOMAIN', 'BELONGS_TO_DOMAIN')
+                                JOIN nodes d ON e.to_id = d.rowid AND d.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Domain)}
+                                WHERE e.from_id = nodes.rowid AND e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.ExposesDomain, RelationshipKind.BelongsToDomain)})
                                 LIMIT 1)
                            ) AS intent_domain,
                            json_extract(properties, '$.intent_summary') AS intent_summary
                     FROM nodes
-                    WHERE kind = 'Project'
+                    WHERE kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Project)}
                     ORDER BY length(path) DESC;
                     """;
 
@@ -75,13 +76,13 @@ public partial class SqliteGraphClient
             await using (var cmd = _conn.CreateCommand())
             {
                 cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = """
-                    SELECT kind,
+                cmd.CommandText = $"""
+                    SELECT ce_node_kind(kind) AS kind,
                            COALESCE(json_extract(properties, '$.name'), '') AS name,
                            COALESCE(json_extract(properties, '$.path'), json_extract(properties, '$.file_path'), '') AS path,
                            COALESCE(json_extract(properties, '$.method'), '') AS method
                     FROM nodes
-                    WHERE kind IN ('Endpoint', 'Table', 'Topic', 'Type', 'class', 'interface', 'struct', 'record');
+                    WHERE kind IN ({GraphKindCodec.ArchitecturalNodeKindsSql});
                     """;
 
                 await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
@@ -185,22 +186,23 @@ public partial class SqliteGraphClient
 
                 edgeCmd.CommandTimeout = CommandTimeoutSeconds;
 
-                edgeCmd.CommandText = """
+                var projKindsSql = GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker);
+                edgeCmd.CommandText = $"""
                                       SELECT COALESCE(json_extract(p.properties, '$.name'), '') AS proj_name,
-                                             e.kind AS edge_kind,
+                                             ce_rel_kind(e.kind) AS edge_kind,
                                              COALESCE(json_extract(target.properties, '$.name'), '') AS target_name
                                       FROM edges e
-                                      JOIN nodes p ON p.id = e.from_id AND p.kind IN ('Project', 'Service', 'App', 'Worker')
-                                      JOIN nodes target ON target.id = e.to_id AND target.kind IN ('Table', 'Topic')
-                                      WHERE e.kind IN ('USES_DB', 'ACCESSES_TABLE', 'PUBLISHES', 'SUBSCRIBES')
+                                      JOIN nodes p ON p.rowid = e.from_id AND p.kind IN ({projKindsSql})
+                                      JOIN nodes target ON target.rowid = e.to_id AND target.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Table, NodeKind.Topic)})
+                                      WHERE e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.UsesDb, RelationshipKind.AccessesTable, RelationshipKind.Publishes, RelationshipKind.Subscribes)})
                                       UNION
                                       SELECT COALESCE(json_extract(p.properties, '$.name'), '') AS proj_name,
-                                             e.kind AS edge_kind,
+                                             ce_rel_kind(e.kind) AS edge_kind,
                                              COALESCE(json_extract(target.properties, '$.name'), '') AS target_name
                                       FROM edges e
-                                      JOIN nodes target ON target.id = e.from_id AND target.kind = 'Table'
-                                      JOIN nodes p ON p.id = e.to_id AND p.kind IN ('Project', 'Service', 'App', 'Worker')
-                                      WHERE e.kind = 'QUERIED_BY';
+                                      JOIN nodes target ON target.rowid = e.from_id AND target.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Table)}
+                                      JOIN nodes p ON p.rowid = e.to_id AND p.kind IN ({projKindsSql})
+                                      WHERE e.kind = {GraphKindCodec.EncodeRelKind(RelationshipKind.QueriedBy)};
                                       """;
 
                 await using var edgeReader = await edgeCmd.ExecuteReaderAsync(cancellationToken);
@@ -249,15 +251,15 @@ public partial class SqliteGraphClient
                 await using var edgeCmd = _conn.CreateCommand();
 
                 edgeCmd.CommandTimeout = CommandTimeoutSeconds;
-                edgeCmd.CommandText = """
+                edgeCmd.CommandText = $"""
                                       SELECT COALESCE(json_extract(from_p.properties, '$.name'), '') AS from_proj,
-                                             e.kind AS edge_kind,
+                                             ce_rel_kind(e.kind) AS edge_kind,
                                              COALESCE(json_extract(to_p.properties, '$.name'), '') AS to_proj,
                                              COALESCE(json_extract(to_p.properties, '$.role'), json_extract(to_p.properties, '$.primary_role'), '') AS to_role
                                       FROM edges e
-                                      JOIN nodes from_p ON from_p.id = e.from_id AND from_p.kind IN ('Project', 'Service', 'App', 'Worker')
-                                      JOIN nodes to_p ON to_p.id = e.to_id AND to_p.kind IN ('Project', 'Service', 'App', 'Worker', 'Library')
-                                      WHERE e.kind IN ('DEPENDS_ON', 'SERVICE_CALL');
+                                      JOIN nodes from_p ON from_p.rowid = e.from_id AND from_p.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker)})
+                                      JOIN nodes to_p ON to_p.rowid = e.to_id AND to_p.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.Library)})
+                                      WHERE e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.DependsOn, RelationshipKind.ServiceCall)});
                                       """;
 
                 await using var reader = await edgeCmd.ExecuteReaderAsync(cancellationToken);
@@ -396,6 +398,11 @@ public partial class SqliteGraphClient
 
             try
             {
+                var projKindsSql = GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker);
+                var domainKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Domain);
+                var belongsDomainRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.BelongsToDomain);
+                var archKindsSql = GraphKindCodec.ArchitecturalNodeKindsSql;
+
                 foreach (var (projectName, (domain, summary, capabilities)) in projectIntents)
                 {
                     if (string.IsNullOrWhiteSpace(domain)) continue;
@@ -406,25 +413,25 @@ public partial class SqliteGraphClient
                         cmd.Transaction = tx;
                         cmd.CommandTimeout = CommandTimeoutSeconds;
 
-                        cmd.CommandText = """
-                                          UPDATE nodes
-                                          SET properties = jsonb_set(
-                                              jsonb_set(
-                                                  jsonb_set(properties, '$.intent_domain', @domain),
-                                                  '$.intent_summary', @summary
-                                              ),
-                                              '$.intent_capabilities', jsonb(@capabilities)
-                                          )
-                                          WHERE kind IN ('Project', 'Service', 'App', 'Worker')
-                                            AND (
-                                                lower(json_extract(properties, '$.name')) = lower(@pname)
-                                                OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
-                                                OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
-                                                OR lower(id) = lower(@pname)
-                                                OR lower(id) LIKE ('%/' || lower(@pname))
-                                                OR lower(id) LIKE ('%:' || lower(@pname))
-                                            );
-                                          """;
+                        cmd.CommandText = $"""
+                                           UPDATE nodes
+                                           SET properties = jsonb_set(
+                                               jsonb_set(
+                                                   jsonb_set(properties, '$.intent_domain', @domain),
+                                                   '$.intent_summary', @summary
+                                               ),
+                                               '$.intent_capabilities', jsonb(@capabilities)
+                                           )
+                                           WHERE kind IN ({projKindsSql})
+                                             AND (
+                                                 lower(json_extract(properties, '$.name')) = lower(@pname)
+                                                 OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
+                                                 OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
+                                                 OR lower(id) = lower(@pname)
+                                                 OR lower(id) LIKE ('%/' || lower(@pname))
+                                                 OR lower(id) LIKE ('%:' || lower(@pname))
+                                             );
+                                           """;
                         cmd.Parameters.AddWithValue("@domain", domain);
                         cmd.Parameters.AddWithValue("@summary", summary ?? "");
                         cmd.Parameters.AddWithValue("@capabilities", JsonSerializer.Serialize(capabilities ?? []));
@@ -441,10 +448,10 @@ public partial class SqliteGraphClient
                         cmd.Transaction = tx;
                         cmd.CommandTimeout = CommandTimeoutSeconds;
 
-                        cmd.CommandText = """
-                                          INSERT OR IGNORE INTO nodes(id, kind, properties)
-                                          VALUES (@id, 'Domain', jsonb_object('id', @id, 'name', @domain));
-                                          """;
+                        cmd.CommandText = $"""
+                                           INSERT OR IGNORE INTO nodes(id, kind, properties)
+                                           VALUES (@id, {domainKindId}, jsonb_object('name', @domain));
+                                           """;
                         cmd.Parameters.AddWithValue("@id", domainId);
                         cmd.Parameters.AddWithValue("@domain", domain);
                         await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -455,22 +462,22 @@ public partial class SqliteGraphClient
                     {
                         delCmd.Transaction = tx;
                         delCmd.CommandTimeout = CommandTimeoutSeconds;
-                        delCmd.CommandText = """
-                                             DELETE FROM edges
-                                             WHERE kind = 'BELONGS_TO_DOMAIN'
-                                               AND from_id IN (
-                                                   SELECT id FROM nodes
-                                                   WHERE kind IN ('Project', 'Service', 'App', 'Worker')
-                                                     AND (
-                                                         lower(json_extract(properties, '$.name')) = lower(@pname)
-                                                         OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
-                                                         OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
-                                                         OR lower(id) = lower(@pname)
-                                                         OR lower(id) LIKE ('%/' || lower(@pname))
-                                                         OR lower(id) LIKE ('%:' || lower(@pname))
-                                                     )
-                                               );
-                                             """;
+                        delCmd.CommandText = $"""
+                                              DELETE FROM edges
+                                              WHERE kind = {belongsDomainRelId}
+                                                AND from_id IN (
+                                                    SELECT rowid FROM nodes
+                                                    WHERE kind IN ({projKindsSql})
+                                                      AND (
+                                                          lower(json_extract(properties, '$.name')) = lower(@pname)
+                                                          OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
+                                                          OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
+                                                          OR lower(id) = lower(@pname)
+                                                          OR lower(id) LIKE ('%/' || lower(@pname))
+                                                          OR lower(id) LIKE ('%:' || lower(@pname))
+                                                      )
+                                                );
+                                              """;
                         delCmd.Parameters.AddWithValue("@pname", projectName);
                         await delCmd.ExecuteNonQueryAsync(cancellationToken);
                     }
@@ -480,20 +487,20 @@ public partial class SqliteGraphClient
                         cmd.Transaction = tx;
                         cmd.CommandTimeout = CommandTimeoutSeconds;
 
-                        cmd.CommandText = """
-                                          INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
-                                          SELECT id, @domainId, 'BELONGS_TO_DOMAIN', jsonb('{}')
-                                          FROM nodes
-                                          WHERE kind IN ('Project', 'Service', 'App', 'Worker')
-                                            AND (
-                                                lower(json_extract(properties, '$.name')) = lower(@pname)
-                                                OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
-                                                OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
-                                                OR lower(id) = lower(@pname)
-                                                OR lower(id) LIKE ('%/' || lower(@pname))
-                                                OR lower(id) LIKE ('%:' || lower(@pname))
-                                            );
-                                          """;
+                        cmd.CommandText = $"""
+                                           INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
+                                           SELECT rowid, (SELECT rowid FROM nodes WHERE id = @domainId), {belongsDomainRelId}, jsonb(json_object())
+                                           FROM nodes
+                                           WHERE kind IN ({projKindsSql})
+                                             AND (
+                                                 lower(json_extract(properties, '$.name')) = lower(@pname)
+                                                 OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
+                                                 OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
+                                                 OR lower(id) = lower(@pname)
+                                                 OR lower(id) LIKE ('%/' || lower(@pname))
+                                                 OR lower(id) LIKE ('%:' || lower(@pname))
+                                             );
+                                           """;
                         cmd.Parameters.AddWithValue("@domainId", domainId);
                         cmd.Parameters.AddWithValue("@pname", projectName);
                         await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -505,25 +512,25 @@ public partial class SqliteGraphClient
                         cmd.Transaction = tx;
                         cmd.CommandTimeout = CommandTimeoutSeconds;
 
-                        cmd.CommandText = """
-                                          INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
-                                          SELECT n.id, @domainId, 'BELONGS_TO_DOMAIN', jsonb('{}')
-                                          FROM nodes n
-                                          JOIN nodes p ON p.kind IN ('Project', 'Service', 'App', 'Worker')
-                                          WHERE (
-                                              lower(json_extract(p.properties, '$.name')) = lower(@pname)
-                                              OR lower(json_extract(p.properties, '$.clean_name')) = lower(@pname)
-                                              OR lower(json_extract(p.properties, '$.raw_name')) = lower(@pname)
-                                              OR lower(p.id) = lower(@pname)
-                                              OR lower(p.id) LIKE ('%/' || lower(@pname))
-                                              OR lower(p.id) LIKE ('%:' || lower(@pname))
-                                          )
-                                          AND n.kind IN ('Endpoint', 'Table', 'Topic', 'Type', 'class', 'interface', 'struct', 'record')
-                                          AND (
-                                              json_extract(n.properties, '$.path') LIKE (json_extract(p.properties, '$.path') || '%')
-                                              OR json_extract(n.properties, '$.file_path') LIKE (json_extract(p.properties, '$.path') || '%')
-                                          );
-                                          """;
+                        cmd.CommandText = $"""
+                                           INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
+                                           SELECT n.rowid, (SELECT rowid FROM nodes WHERE id = @domainId), {belongsDomainRelId}, jsonb(json_object())
+                                           FROM nodes n
+                                           JOIN nodes p ON p.kind IN ({projKindsSql})
+                                           WHERE (
+                                               lower(json_extract(p.properties, '$.name')) = lower(@pname)
+                                               OR lower(json_extract(p.properties, '$.clean_name')) = lower(@pname)
+                                               OR lower(json_extract(p.properties, '$.raw_name')) = lower(@pname)
+                                               OR lower(p.id) = lower(@pname)
+                                               OR lower(p.id) LIKE ('%/' || lower(@pname))
+                                               OR lower(p.id) LIKE ('%:' || lower(@pname))
+                                           )
+                                           AND n.kind IN ({archKindsSql})
+                                           AND (
+                                               json_extract(n.properties, '$.path') LIKE (json_extract(p.properties, '$.path') || '%')
+                                               OR json_extract(n.properties, '$.file_path') LIKE (json_extract(p.properties, '$.path') || '%')
+                                           );
+                                           """;
                         cmd.Parameters.AddWithValue("@domainId", domainId);
                         cmd.Parameters.AddWithValue("@pname", projectName);
                         await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -535,11 +542,11 @@ public partial class SqliteGraphClient
                 {
                     pruneCmd.Transaction = tx;
                     pruneCmd.CommandTimeout = CommandTimeoutSeconds;
-                    pruneCmd.CommandText = """
-                                           DELETE FROM nodes
-                                           WHERE kind = 'Domain'
-                                             AND id NOT IN (SELECT to_id FROM edges WHERE kind = 'BELONGS_TO_DOMAIN');
-                                           """;
+                    pruneCmd.CommandText = $"""
+                                            DELETE FROM nodes
+                                            WHERE kind = {domainKindId}
+                                              AND rowid NOT IN (SELECT to_id FROM edges WHERE kind = {belongsDomainRelId});
+                                            """;
                     await pruneCmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
@@ -660,15 +667,15 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            const string sql = """
+            var sql = $"""
                                SELECT 
                                    i1.domain AS SourceDomain,
                                    i2.domain AS TargetDomain,
-                                   e.kind AS EdgeKind,
+                                   ce_rel_kind(e.kind) AS EdgeKind,
                                    COUNT(*) AS InteractionCount
                                FROM edges e
-                               JOIN nodes n1 ON e.from_id = n1.id
-                               JOIN nodes n2 ON e.to_id = n2.id
+                               JOIN nodes n1 ON e.from_id = n1.rowid
+                               JOIN nodes n2 ON e.to_id = n2.rowid
                                JOIN intents i1 ON (n1.id = i1.file_id 
                                                   OR json_extract(n1.properties, '$.path') = i1.file_path 
                                                   OR json_extract(n1.properties, '$.file_path') = i1.file_path)
@@ -677,7 +684,7 @@ public partial class SqliteGraphClient
                                                   OR json_extract(n2.properties, '$.file_path') = i2.file_path)
                                WHERE (@workspaceId = '' OR i1.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i1.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
                                  AND (@workspaceId = '' OR i2.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i2.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
-                                 AND e.kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_API', 'PUBLISHES', 'SUBSCRIBES', 'TRIGGERS', 'CONSUMES', 'USES_DB')
+                                 AND e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.Calls, RelationshipKind.CallsEndpoint, RelationshipKind.UsesApi, RelationshipKind.Publishes, RelationshipKind.Subscribes, RelationshipKind.Triggers, RelationshipKind.Consumes, RelationshipKind.UsesDb)})
                                  AND i1.domain IS NOT NULL AND trim(i1.domain) != ''
                                  AND i2.domain IS NOT NULL AND trim(i2.domain) != ''
                                  AND lower(i1.domain) != lower(i2.domain)

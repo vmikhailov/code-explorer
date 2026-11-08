@@ -644,7 +644,7 @@ public partial class Layer2ProjectParser
             : (Path.IsPathRooted(projectNode.Path) ? projectNode.Path : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectNode.Path)));
 
         // Transitive local project dependencies already resolved in Layer 2
-        foreach (var dep in dependencies.Where(d => d.From.Equals(projectNode.Id, StringComparison.OrdinalIgnoreCase) && d.Kind == OntologyConstants.Relationships.DependsOn))
+        foreach (var dep in dependencies.Where(d => d.From.Equals(projectNode.Id, StringComparison.OrdinalIgnoreCase) && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
         {
             if (projectById.TryGetValue(dep.To, out var targetProj))
             {

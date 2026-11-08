@@ -642,7 +642,7 @@ public partial class Layer3SyntacticParser
         if (localImportEdges.Count == 0) return newRels;
 
         var existingContainsSet = new HashSet<(string ProjId, string FileId)>(
-            existingProjectRels.Where(r => r.Kind == OntologyConstants.Relationships.Contains)
+            existingProjectRels.Where(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.Contains)
                                .Select(r => (r.From, r.To)));
 
         foreach (var (fromFile, directTargets) in localImportEdges)
@@ -743,8 +743,9 @@ public partial class Layer3SyntacticParser
             if (curr is LambdaExprSyntax lambda)
             {
                 yield return (InferLambdaName(lambda), lambda);
+                continue;
             }
-            if (curr is FunctionDeclSyntax) continue;
+            if (curr is FunctionDeclSyntax or TypeDeclSyntax or UiElementSyntax) continue;
             foreach (var child in curr.Children)
             {
                 queue.Enqueue(child);
@@ -815,6 +816,115 @@ public partial class Layer3SyntacticParser
 
         return $"<anon_{lambda.Span.StartLine + 1}>";
     }
+
+    internal static List<ProjectNode> OrderProjectsTopologically(Layer2Result l2Result)
+    {
+        var projects = l2Result.Projects;
+        if (projects.Count <= 1) return projects;
+
+        var projectById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        var indexById = new Dictionary<string, int>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        var dependentsById = new Dictionary<string, HashSet<string>>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        var inDegreeById = new Dictionary<string, int>(projects.Count, StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < projects.Count; i++)
+        {
+            var p = projects[i];
+            projectById[p.Id] = p;
+            indexById[p.Id] = i;
+            dependentsById[p.Id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            inDegreeById[p.Id] = 0;
+        }
+
+        for (var i = 0; i < l2Result.ProjectDependencies.Count; i++)
+        {
+            var rel = l2Result.ProjectDependencies[i];
+            if (rel.Kind != CodeExplorer.Cypher.Common.RelationshipKind.DependsOn) continue;
+            if (string.Equals(rel.From, rel.To, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!projectById.ContainsKey(rel.From) || !projectById.ContainsKey(rel.To)) continue;
+
+            // rel.From depends on rel.To -> rel.To must be scanned before rel.From
+            if (dependentsById[rel.To].Add(rel.From))
+            {
+                inDegreeById[rel.From]++;
+            }
+        }
+
+        var queue = new PriorityQueue<string, (int Tier, int NegDependents, int OriginalIndex)>(projects.Count);
+        for (var i = 0; i < projects.Count; i++)
+        {
+            var p = projects[i];
+            if (inDegreeById[p.Id] == 0)
+            {
+                queue.Enqueue(p.Id, (GetProjectTopologicalTier(p), -dependentsById[p.Id].Count, i));
+            }
+        }
+
+        var ordered = new List<ProjectNode>(projects.Count);
+        var visited = new HashSet<string>(projects.Count, StringComparer.OrdinalIgnoreCase);
+
+        while (queue.TryDequeue(out var readyId, out _))
+        {
+            if (!visited.Add(readyId)) continue;
+            ordered.Add(projectById[readyId]);
+
+            foreach (var consumerId in dependentsById[readyId])
+            {
+                var remaining = --inDegreeById[consumerId];
+                if (remaining == 0 && !visited.Contains(consumerId))
+                {
+                    var consumer = projectById[consumerId];
+                    queue.Enqueue(
+                        consumerId,
+                        (GetProjectTopologicalTier(consumer), -dependentsById[consumerId].Count, indexById[consumerId]));
+                }
+            }
+        }
+
+        if (ordered.Count < projects.Count)
+        {
+            var remaining = projects
+                .Where(p => !visited.Contains(p.Id))
+                .OrderBy(GetProjectTopologicalTier)
+                .ThenByDescending(p => dependentsById[p.Id].Count)
+                .ThenBy(p => indexById[p.Id]);
+            ordered.AddRange(remaining);
+        }
+
+        return ordered;
+    }
+
+    private static int GetProjectTopologicalTier(ProjectNode project)
+    {
+        if (project.IsTest)
+        {
+            return 2;
+        }
+        if (project.IsLibrary ||
+            project.EntityKind == ProjectEntityKind.Library ||
+            HasSharedLibraryNameHint(project.Name) ||
+            HasSharedLibraryNameHint(project.Path))
+        {
+            return 0;
+        }
+        return 1;
+    }
+
+    private static bool HasSharedLibraryNameHint(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        return value.Contains("shared", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("common", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("core", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("utils", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("sdk", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("types", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("models", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("contracts", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("config", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("-ui", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("/ui", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 internal static class Layer3ScopeVisibilityPass
@@ -848,79 +958,64 @@ internal static class Layer3ScopeVisibilityPass
         }
     }
 
-    internal static void PopulatePass1WorkspaceSymbolIndex(
-        List<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, List<FileNode> ProjectFiles, (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[] ParsedResults)> projectPass1List,
+    internal static void RegisterSyntaxTreeWorkspaceSymbols(
+        SyntaxTree syntaxTree,
         ParsingContext ctx)
     {
-        foreach (var (_, _, _, parsedResults) in projectPass1List)
+        var normRelPath = syntaxTree.RelativePath.Replace('\\', '/');
+        var doc = syntaxTree.Document;
+        if (doc != null)
         {
-            for (var i = 0; i < parsedResults.Length; i++)
+            if (!string.IsNullOrWhiteSpace(doc.PackageOrNamespace))
             {
-                var item = parsedResults[i];
-                if (item == null) continue;
+                ctx.FileNamespaces[normRelPath] = doc.PackageOrNamespace;
+            }
 
-                var (_, syntaxTree, _) = item.Value;
-                var normRelPath = syntaxTree.RelativePath.Replace('\\', '/');
-                var doc = syntaxTree.Document;
-                if (doc != null)
+            for (var m = 0; m < doc.Imports.Count; m++)
+            {
+                var imp = doc.Imports[m];
+                if (!string.IsNullOrWhiteSpace(imp.ModulePath))
                 {
-                    if (!string.IsNullOrWhiteSpace(doc.PackageOrNamespace))
+                    var nsSet = ctx.FileImportedNamespaces.GetOrAdd(normRelPath, _ => new HashSet<string>(StringComparer.Ordinal));
+                    lock (nsSet)
                     {
-                        ctx.FileNamespaces[normRelPath] = doc.PackageOrNamespace;
-                    }
-
-                    for (var m = 0; m < doc.Imports.Count; m++)
-                    {
-                        var imp = doc.Imports[m];
-                        if (!string.IsNullOrWhiteSpace(imp.ModulePath))
-                        {
-                            var nsSet = ctx.FileImportedNamespaces.GetOrAdd(normRelPath, _ => new HashSet<string>(StringComparer.Ordinal));
-                            lock (nsSet)
-                            {
-                                nsSet.Add(imp.ModulePath);
-                            }
-                        }
-                        if (!string.IsNullOrWhiteSpace(imp.Alias))
-                        {
-                            ctx.RegisterKnownCallableName(imp.Alias);
-                            ctx.RegisterKnownTypeName(imp.Alias);
-                        }
-                    }
-
-                    for (var f = 0; f < doc.AllFunctions.Count; f++)
-                    {
-                        var fnDecl = doc.AllFunctions[f];
-                        if (fnDecl.Kind == FunctionSyntaxKind.Accessor) continue;
-                        var fnName = Layer3SyntacticParser.ExtractSyntaxFunctionName(fnDecl);
-                        if (!fnName.StartsWith("<anon_", StringComparison.Ordinal))
-                        {
-                            ctx.RegisterKnownCallableName(fnName);
-                        }
-                    }
-
-                    for (var t = 0; t < doc.AllTypes.Count; t++)
-                    {
-                        var td = doc.AllTypes[t];
-                        var tName = !string.IsNullOrWhiteSpace(td.Name)
-                            ? td.Name
-                            : (td.GetChildForField(SyntaxFields.Name) ?? td.FirstChildOfType<IdentifierExprSyntax>())?.Text.Trim();
-                        if (!string.IsNullOrWhiteSpace(tName))
-                        {
-                            ctx.RegisterKnownTypeName(tName);
-                        }
+                        nsSet.Add(imp.ModulePath);
                     }
                 }
-
-                if (syntaxTree.FileNode != null && syntaxTree.FileNode.Children.Count > 0)
+                if (!string.IsNullOrWhiteSpace(imp.Alias))
                 {
-                    RegisterOntologyTreeSymbolNames(syntaxTree.FileNode, ctx);
+                    ctx.RegisterKnownCallableName(imp.Alias);
+                    ctx.RegisterKnownTypeName(imp.Alias);
+                }
+            }
+
+            for (var f = 0; f < doc.AllFunctions.Count; f++)
+            {
+                var fnDecl = doc.AllFunctions[f];
+                if (fnDecl.Kind == FunctionSyntaxKind.Accessor) continue;
+                var fnName = Layer3SyntacticParser.ExtractSyntaxFunctionName(fnDecl);
+                if (!fnName.StartsWith("<anon_", StringComparison.Ordinal))
+                {
+                    ctx.RegisterKnownCallableName(fnName);
+                }
+            }
+
+            for (var t = 0; t < doc.AllTypes.Count; t++)
+            {
+                var td = doc.AllTypes[t];
+                var tName = !string.IsNullOrWhiteSpace(td.Name)
+                    ? td.Name
+                    : (td.GetChildForField(SyntaxFields.Name) ?? td.FirstChildOfType<IdentifierExprSyntax>())?.Text.Trim();
+                if (!string.IsNullOrWhiteSpace(tName))
+                {
+                    ctx.RegisterKnownTypeName(tName);
                 }
             }
         }
 
-        if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan)
+        if (syntaxTree.FileNode != null && syntaxTree.FileNode.Children.Count > 0)
         {
-            ctx.HasWorkspaceSymbolFilter = true;
+            RegisterOntologyTreeSymbolNames(syntaxTree.FileNode, ctx);
         }
     }
 

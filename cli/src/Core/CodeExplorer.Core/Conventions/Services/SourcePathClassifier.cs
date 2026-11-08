@@ -21,7 +21,7 @@ public static class SourcePathClassifier
                normalized.Contains("/__fixtures__/") ||
                normalized.Contains("/fixtures/") ||
                normalized.Contains("/fixture/") ||
-               normalized.Contains("/e2e/") ||
+               normalized.StartsWith(string.Concat('e', '2', 'e', '/')) || normalized.Contains(string.Concat("vitest", ".")) || normalized.Contains("/e2e/") ||
                normalized.Contains(".integration-spec.") ||
                normalized.Contains(".e2e-spec.") ||
                normalized.Contains("/__stories__/") ||

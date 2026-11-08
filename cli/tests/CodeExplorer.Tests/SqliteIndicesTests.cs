@@ -62,13 +62,13 @@ public class SqliteIndicesTests
         }
     }
 
-    [TestCase("SELECT * FROM nodes WHERE kind = 'Endpoint' AND json_extract(properties, '$.path') = 'foo'", "idx_nodes_kind_path")]
-    [TestCase("SELECT * FROM nodes WHERE kind = 'ExternalService' AND json_extract(properties, '$.file_path') = 'bar'", "idx_nodes_kind_file_path")]
-    [TestCase("SELECT * FROM nodes WHERE kind = 'Project' AND json_extract(properties, '$.name') = 'proj'", "idx_nodes_name_kind")]
+    [TestCase("SELECT * FROM nodes WHERE kind = 18 AND json_extract(properties, '$.path') = 'foo'", "idx_nodes_kind_path")]
+    [TestCase("SELECT * FROM nodes WHERE kind = 17 AND json_extract(properties, '$.file_path') = 'bar'", "idx_nodes_kind_file_path")]
+    [TestCase("SELECT * FROM nodes WHERE kind = 6 AND json_extract(properties, '$.name') = 'proj'", "idx_nodes_name_kind")]
     [TestCase("SELECT * FROM nodes WHERE json_extract(properties, '$.name') = 'proj'", "idx_nodes_name_kind")]
-    [TestCase("SELECT * FROM nodes INDEXED BY idx_nodes_kind_name WHERE kind = 'Project' AND json_extract(properties, '$.name') = 'proj'", "idx_nodes_kind_name")]
-    [TestCase("SELECT * FROM nodes WHERE kind = 'Function' AND json_extract(properties, '$.symbol') = 'MySym'", "idx_nodes_kind_symbol")]
-    [TestCase("SELECT * FROM nodes WHERE kind = 'Workspace' AND lower(json_extract(properties, '$.path')) = 'baz'", "idx_nodes_kind_lower_path")]
+    [TestCase("SELECT * FROM nodes INDEXED BY idx_nodes_kind_name WHERE kind = 6 AND json_extract(properties, '$.name') = 'proj'", "idx_nodes_kind_name")]
+    [TestCase("SELECT * FROM nodes WHERE kind = 27 AND json_extract(properties, '$.symbol') = 'MySym'", "idx_nodes_kind_symbol")]
+    [TestCase("SELECT * FROM nodes WHERE kind = 1 AND lower(json_extract(properties, '$.path')) = 'baz'", "idx_nodes_kind_lower_path")]
     public void Test_NodeExpressionIndices_AreUtilizedByQueryPlanner(string query, string expectedIndex)
     {
         using var conn = new SqliteConnection($"Data Source={_tempDbPath};Mode=ReadOnly");
@@ -93,8 +93,8 @@ public class SqliteIndicesTests
         fullPlan.Should().Contain(expectedIndex, $"Query '{query}' should utilize index '{expectedIndex}'. Query plan was:\n{fullPlan}");
     }
 
-    [TestCase("SELECT to_id FROM edges WHERE from_id = 'a' AND kind = 'CONTAINS'")]
-    [TestCase("SELECT from_id FROM edges WHERE to_id = 'b' AND kind = 'LOCATED_IN'")]
+    [TestCase("SELECT to_id FROM edges WHERE from_id = 1 AND kind = 1")]
+    [TestCase("SELECT from_id FROM edges WHERE to_id = 2 AND kind = 2")]
     public void Test_EdgeCoveringIndices_AreUtilizedByQueryPlanner(string query)
     {
         using var conn = new SqliteConnection($"Data Source={_tempDbPath};Mode=ReadOnly");

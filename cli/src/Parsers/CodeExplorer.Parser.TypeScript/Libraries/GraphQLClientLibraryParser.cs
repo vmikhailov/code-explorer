@@ -277,7 +277,8 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
             return true;
         }
 
-        if (curr.Is(TreeSitterSyntax.TypeScript.Object))
+        if (curr.Is(TreeSitterSyntax.TypeScript.Object) &&
+            curr.AsSpan().Contains("OperationDefinition", StringComparison.Ordinal))
         {
             var typedDocOp = GraphQLDocumentExtractor.TryParseTypedDocumentAst(
                 curr.Text,

@@ -142,7 +142,7 @@ public class CrossProjectResolutionGuardTests
         var task = (Task<List<Relationship>>)resolveMethod.Invoke(layer5, [ctx])!;
         var rels = await task;
 
-        var triggerRel = rels.FirstOrDefault(r => r.From == endpointId && r.Kind == OntologyConstants.Relationships.Triggers);
+        var triggerRel = rels.FirstOrDefault(r => r.From == endpointId && r.Kind == RelationshipKind.Triggers);
         triggerRel.Should().NotBeNull();
         triggerRel!.To.Should().Be(bffFuncId, "endpoint in bff must trigger bff's getBundles, not bundle-update-adapter's");
     }

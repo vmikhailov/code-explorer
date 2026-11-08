@@ -318,7 +318,7 @@ public partial class Layer4SemanticParser
                 for (var i = initialRelCount; i < semanticRelationships.Count; i++)
                 {
                     var r = semanticRelationships[i];
-                    existingRelKeys.Add((r.From, r.To, r.Kind));
+                    existingRelKeys.Add((r.From, r.To, r.Kind.ToCypherType()));
                 }
             }
 
@@ -577,7 +577,7 @@ public partial class Layer4SemanticParser
     {
         foreach (var dep in l3Result.Prev.ProjectDependencies)
         {
-            if (dep.Kind == OntologyConstants.Relationships.DependsOn &&
+            if (dep.Kind == RelationshipKind.DependsOn &&
                 workloadByProjectId.TryGetValue(dep.From, out var sourceWorkloadId))
             {
                 if (workloadByProjectId.TryGetValue(dep.To, out var targetWorkloadId) &&

@@ -384,8 +384,8 @@ var (
 
             // Verify calls to gRPC services
             var references = fileNode.Children.SelectMany(c => c.References).ToList();
-            references.Should().Contain(r => r.TargetName == "RPC:/ItemService/GetItem" && r.Kind == "CALLS");
-            references.Should().Contain(r => r.TargetName == "RPC:/ItemService/CreateItem" && r.Kind == "CALLS");
+            references.Should().Contain(r => r.TargetName == "RPC:/ItemService/GetItem" && r.Kind == RelationshipKind.Calls);
+            references.Should().Contain(r => r.TargetName == "RPC:/ItemService/CreateItem" && r.Kind == RelationshipKind.Calls);
         }
         finally
         {

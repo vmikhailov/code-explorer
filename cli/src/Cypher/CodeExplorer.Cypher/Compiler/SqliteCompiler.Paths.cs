@@ -263,16 +263,16 @@ public partial class SqliteCompiler
         switch (direction)
         {
             case Direction.Outgoing:
-                relOnConditions.Add(isForward ? $"{rVar}.from_id = {fixedVar}.id" : $"{rVar}.to_id = {fixedVar}.id");
-                nodeOnConditions.Add(isForward ? $"{freeVar}.id = {rVar}.to_id" : $"{freeVar}.id = {rVar}.from_id");
+                relOnConditions.Add(isForward ? $"{rVar}.from_id = {fixedVar}.rowid" : $"{rVar}.to_id = {fixedVar}.rowid");
+                nodeOnConditions.Add(isForward ? $"{freeVar}.rowid = {rVar}.to_id" : $"{freeVar}.rowid = {rVar}.from_id");
                 break;
             case Direction.Incoming:
-                relOnConditions.Add(isForward ? $"{rVar}.to_id = {fixedVar}.id" : $"{rVar}.from_id = {fixedVar}.id");
-                nodeOnConditions.Add(isForward ? $"{freeVar}.id = {rVar}.from_id" : $"{freeVar}.id = {rVar}.to_id");
+                relOnConditions.Add(isForward ? $"{rVar}.to_id = {fixedVar}.rowid" : $"{rVar}.from_id = {fixedVar}.rowid");
+                nodeOnConditions.Add(isForward ? $"{freeVar}.rowid = {rVar}.from_id" : $"{freeVar}.rowid = {rVar}.to_id");
                 break;
             case Direction.Undirected:
-                relOnConditions.Add($"({rVar}.from_id = {fixedVar}.id OR {rVar}.to_id = {fixedVar}.id)");
-                nodeOnConditions.Add($"{freeVar}.id = CASE WHEN {rVar}.from_id = {fixedVar}.id THEN {rVar}.to_id ELSE {rVar}.from_id END");
+                relOnConditions.Add($"({rVar}.from_id = {fixedVar}.rowid OR {rVar}.to_id = {fixedVar}.rowid)");
+                nodeOnConditions.Add($"{freeVar}.rowid = CASE WHEN {rVar}.from_id = {fixedVar}.rowid THEN {rVar}.to_id ELSE {rVar}.from_id END");
                 break;
         }
     }
@@ -313,13 +313,13 @@ public partial class SqliteCompiler
         switch (rel.Direction)
         {
             case Direction.Outgoing:
-                relOnConditions.Add($"{rVar}.from_id = {pVar}.id AND {rVar}.to_id = {tVar}.id");
+                relOnConditions.Add($"{rVar}.from_id = {pVar}.rowid AND {rVar}.to_id = {tVar}.rowid");
                 break;
             case Direction.Incoming:
-                relOnConditions.Add($"{rVar}.to_id = {pVar}.id AND {rVar}.from_id = {tVar}.id");
+                relOnConditions.Add($"{rVar}.to_id = {pVar}.rowid AND {rVar}.from_id = {tVar}.rowid");
                 break;
             case Direction.Undirected:
-                relOnConditions.Add($"(({rVar}.from_id = {pVar}.id AND {rVar}.to_id = {tVar}.id) OR ({rVar}.to_id = {pVar}.id AND {rVar}.from_id = {tVar}.id))");
+                relOnConditions.Add($"(({rVar}.from_id = {pVar}.rowid AND {rVar}.to_id = {tVar}.rowid) OR ({rVar}.to_id = {pVar}.rowid AND {rVar}.from_id = {tVar}.rowid))");
                 break;
         }
 
@@ -371,12 +371,12 @@ public partial class SqliteCompiler
         {
             var kind = rel.RelationshipKinds[0];
             var typeName = kind != RelationshipKind.Unspecified ? kind.ToCypherType() : rel.Types[0];
-            conditions.Add($"{rVar}.kind = '{typeName}'");
+            conditions.Add($"{rVar}.kind = {GraphKindCodec.EncodeRelKind(typeName)}");
         }
         else if (rel.RelationshipKinds.Count > 1)
         {
             var kinds = string.Join(", ", rel.RelationshipKinds.Select((k, idx) =>
-                $"'{((k != RelationshipKind.Unspecified) ? k.ToCypherType() : rel.Types[idx])}'"));
+                GraphKindCodec.EncodeRelKind(k != RelationshipKind.Unspecified ? k.ToCypherType() : rel.Types[idx])));
             conditions.Add($"{rVar}.kind IN ({kinds})");
         }
 
@@ -395,13 +395,13 @@ public partial class SqliteCompiler
         if (node.NodeKinds.Count == 1)
         {
             var kind = node.NodeKinds[0];
-            var labelName = kind != NodeKind.Unspecified ? kind.ToCypherLabel() : node.Labels[0];
-            conditions.Add($"{nVar}.kind = '{labelName}'");
+            var kindId = kind != NodeKind.Unspecified ? GraphKindCodec.EncodeNodeKind(kind) : GraphKindCodec.EncodeNodeKind(node.Labels[0]);
+            conditions.Add($"{nVar}.kind = {kindId}");
         }
         else if (node.NodeKinds.Count > 1)
         {
             var kinds = string.Join(", ", node.NodeKinds.Select((k, idx) =>
-                $"'{((k != NodeKind.Unspecified) ? k.ToCypherLabel() : node.Labels[idx])}'"));
+                k != NodeKind.Unspecified ? GraphKindCodec.EncodeNodeKind(k) : GraphKindCodec.EncodeNodeKind(node.Labels[idx])));
             conditions.Add($"{nVar}.kind IN ({kinds})");
         }
 
@@ -422,7 +422,7 @@ public partial class SqliteCompiler
             else if (k.Equals("kind", StringComparison.OrdinalIgnoreCase))
             {
                 conditions.Add(
-                    $"COALESCE(json_extract({nVar}.properties, '$.kind'), {nVar}.kind) = {VisitExpression(v)}");
+                    $"COALESCE(json_extract({nVar}.properties, '$.kind'), ce_node_kind({nVar}.kind)) = {VisitExpression(v)}");
             }
             else
             {

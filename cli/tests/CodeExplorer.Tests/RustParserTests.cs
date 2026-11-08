@@ -397,7 +397,7 @@ public class RustParserTests
 
         // Trait implementation check: InMemoryUserRepo implements UserRepository
         var repoType = types.First(t => t.Name == "InMemoryUserRepo");
-        var implRel = repoType.References.FirstOrDefault(r => r.Kind == "IMPLEMENTS");
+        var implRel = repoType.References.FirstOrDefault(r => r.Kind == RelationshipKind.Implements);
         implRel.Should().NotBeNull("InMemoryUserRepo should implement UserRepository trait");
         implRel!.TargetName.Should().Be("UserRepository");
     }
@@ -426,7 +426,7 @@ public class RustParserTests
         var selectQuery = queries.FirstOrDefault(q => q.QueryText.Contains("SELECT * FROM users", StringComparison.OrdinalIgnoreCase));
         selectQuery.Should().NotBeNull();
 
-        var tableDeps = selectQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
+        var tableDeps = selectQuery!.References.Where(r => r.Kind == RelationshipKind.DependsOn).Select(r => r.TargetName).ToList();
         tableDeps.Should().Contain("users");
 
         var functions = FindNodes<FunctionNode>(fileNode.Children);
@@ -502,7 +502,7 @@ public class RustParserTests
             typeNames.Should().Contain("Order");
 
             var orderType = types.First(t => t.Name == "Order");
-            var implRel = orderType.References.FirstOrDefault(r => r.Kind == "IMPLEMENTS");
+            var implRel = orderType.References.FirstOrDefault(r => r.Kind == RelationshipKind.Implements);
             implRel.Should().NotBeNull("Order implements Describable");
             implRel!.TargetName.Should().Be("Describable");
 
@@ -515,7 +515,7 @@ public class RustParserTests
 
             var paymentFn = functions.First(f => f.Name == "process_payment");
             paymentFn.Visibility.Should().Be("pub");
-            var calls = paymentFn.References.Where(r => r.Kind == "CALLS").Select(r => r.TargetName).ToList();
+            var calls = paymentFn.References.Where(r => r.Kind == RelationshipKind.Calls).Select(r => r.TargetName).ToList();
             calls.Should().Contain("calculate_total");
         }
         finally

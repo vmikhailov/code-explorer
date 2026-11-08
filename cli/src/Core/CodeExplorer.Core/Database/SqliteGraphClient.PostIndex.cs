@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -44,23 +45,26 @@ public partial class SqliteGraphClient
             cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
-            cmd.CommandText = """
-                              SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name
-                              FROM temp_target_names t
-                              JOIN nodes n ON json_extract(n.properties, '$.name') = t.val
-                              WHERE n.kind IN ('Type', 'Function', 'Procedure', 'Table', 'EntryPoint', 'Endpoint')
-                                AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
-                              """;
+            cmd.CommandText = $"""
+                               SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name, n.rowid
+                               FROM temp_target_names t
+                               JOIN nodes n ON json_extract(n.properties, '$.name') = t.val
+                               WHERE n.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Type, NodeKind.Function, NodeKind.Procedure, NodeKind.Table, NodeKind.EntryPoint, NodeKind.Endpoint)})
+                                 AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
+                               """;
 
-            var functionNodes = new List<(string Id, string Name)>();
+            var functionNodes = new List<(long RowId, string Id, string Name)>();
 
             await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
             {
                 while (await reader.ReadAsync(cancellationToken))
                 {
                     var id = reader.GetString(0);
-                    var kind = reader.GetString(1);
+                    var kind = reader.GetFieldType(1) == typeof(long)
+                        ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(1))
+                        : reader.GetString(1);
                     var name = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                    var rowId = reader.GetInt64(3);
 
                     if (!string.IsNullOrEmpty(name))
                     {
@@ -73,7 +77,7 @@ public partial class SqliteGraphClient
 
                         if (kind == "Function")
                         {
-                            functionNodes.Add((id, name));
+                            functionNodes.Add((rowId, id, name));
                         }
                     }
                 }
@@ -82,27 +86,31 @@ public partial class SqliteGraphClient
             // Secondary lookup ONLY for Function nodes: resolve parent Type name without cartesian explosion on other symbols
             if (functionNodes.Count > 0)
             {
-                var fnMap = functionNodes.ToDictionary(f => f.Id, f => f.Name, StringComparer.Ordinal);
+                var fnMap = new Dictionary<long, (string Id, string Name)>(functionNodes.Count);
+                foreach (var f in functionNodes)
+                {
+                    fnMap[f.RowId] = (f.Id, f.Name);
+                }
                 var fnIdsJson = JsonSerializer.Serialize(fnMap.Keys);
 
                 await using var fnCmd = _conn.CreateCommand();
                 fnCmd.CommandTimeout = CommandTimeoutSeconds;
                 fnCmd.Parameters.AddWithValue("@fnIdsJson", fnIdsJson);
-                fnCmd.CommandText = """
-                                    SELECT e.to_id, json_extract(p.properties, '$.name') AS parent_name
-                                    FROM json_each(@fnIdsJson) j
-                                    JOIN edges e ON e.to_id = j.value AND e.kind IN ('HAS_METHOD', 'CONTAINS')
-                                    JOIN nodes p ON p.id = e.from_id AND p.kind = 'Type';
-                                    """;
+                fnCmd.CommandText = $"""
+                                     SELECT e.to_id, json_extract(p.properties, '$.name') AS parent_name
+                                     FROM json_each(@fnIdsJson) j
+                                     JOIN edges e ON e.to_id = CAST(j.value AS INTEGER) AND e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.HasMethod, RelationshipKind.Contains)})
+                                     JOIN nodes p ON p.rowid = e.from_id AND p.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Type)};
+                                     """;
 
                 await using var fnReader = await fnCmd.ExecuteReaderAsync(cancellationToken);
                 while (await fnReader.ReadAsync(cancellationToken))
                 {
-                    var fnId = fnReader.GetString(0);
+                    var fnRowId = fnReader.GetInt64(0);
                     var parentName = fnReader.IsDBNull(1) ? null : fnReader.GetString(1);
-                    if (!string.IsNullOrEmpty(parentName) && fnMap.TryGetValue(fnId, out var fnName))
+                    if (!string.IsNullOrEmpty(parentName) && fnMap.TryGetValue(fnRowId, out var fnInfo))
                     {
-                        result[("Function", $"{parentName}.{fnName}")] = fnId;
+                        result[("Function", $"{parentName}.{fnInfo.Name}")] = fnInfo.Id;
                     }
                 }
             }
@@ -161,15 +169,17 @@ public partial class SqliteGraphClient
             cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
-            cmd.CommandText = """
-                              SELECT json_extract(t_target.properties, '$.name') AS iface_name,
-                                     json_extract(t_impl.properties, '$.name') AS impl_name
-                              FROM temp_target_types tt
-                              JOIN nodes t_target ON json_extract(t_target.properties, '$.name') = tt.val AND t_target.kind = 'Type'
-                              JOIN edges e ON e.to_id = t_target.id AND e.kind = 'IMPLEMENTS'
-                              JOIN nodes t_impl ON t_impl.id = e.from_id AND t_impl.kind = 'Type'
-                              WHERE (length(@widPrefix) = 0 OR e.from_id LIKE @widPrefix || '%');
-                              """;
+            var typeKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Type);
+            var implRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.Implements);
+            cmd.CommandText = $"""
+                               SELECT json_extract(t_target.properties, '$.name') AS iface_name,
+                                      json_extract(t_impl.properties, '$.name') AS impl_name
+                               FROM temp_target_types tt
+                               JOIN nodes t_target ON json_extract(t_target.properties, '$.name') = tt.val AND t_target.kind = {typeKindId}
+                               JOIN edges e ON e.to_id = t_target.rowid AND e.kind = {implRelId}
+                               JOIN nodes t_impl ON t_impl.rowid = e.from_id AND t_impl.kind = {typeKindId}
+                               WHERE (length(@widPrefix) = 0 OR t_impl.id LIKE @widPrefix || '%');
+                               """;
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -242,18 +252,18 @@ public partial class SqliteGraphClient
             cmd.Parameters.AddWithValue("@needEndpoints", needEndpoints ? 1 : 0);
             cmd.Parameters.AddWithValue("@needExternalServices", needExternalServices ? 1 : 0);
 
-            cmd.CommandText = """
-                              SELECT id, kind, properties
-                              FROM nodes
-                              WHERE (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%')
-                                AND (
-                                  (@needEndpoints = 1 AND kind IN ('Endpoint', 'EntryPoint'))
-                                  OR
-                                  (@needExternalServices = 1 AND kind = 'ExternalService')
-                                  OR
-                                  kind = 'Project'
-                                );
-                              """;
+            cmd.CommandText = $"""
+                               SELECT id, kind, properties
+                               FROM nodes
+                               WHERE (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%')
+                                 AND (
+                                   (@needEndpoints = 1 AND kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Endpoint, NodeKind.EntryPoint)}))
+                                   OR
+                                   (@needExternalServices = 1 AND kind = {GraphKindCodec.EncodeNodeKind(NodeKind.ExternalService)})
+                                   OR
+                                   kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Project)}
+                                 );
+                               """;
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -280,7 +290,9 @@ public partial class SqliteGraphClient
             while (await reader.ReadAsync(cancellationToken))
             {
                 var id = reader.GetString(0);
-                var kind = reader.GetString(1);
+                var kind = reader.GetFieldType(1) == typeof(long)
+                    ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(1))
+                    : reader.GetString(1);
                 var root = reader.IsDBNull(2) ? CypherValue.Null : CypherValue.FromSqliteObject(reader.GetValue(2));
                 if (root.IsNull) continue;
 
@@ -332,23 +344,53 @@ public partial class SqliteGraphClient
         try
         {
             if (_isBulkLoading) await CommitBulkLoadUnlockedAsync();
-            // 1. Sinks (ExternalService, DB, Database, Query, CloudService)
+            var idByRowId = new Dictionary<long, string>(4096);
             var sinks = new Dictionary<string, string>();
             var sinkDomains = new Dictionary<string, string?>();
+            var entryPointIds = new List<string>();
+            var callers = new List<string>();
+
             await using (var cmd = _conn.CreateCommand())
             {
                 cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = "SELECT id, kind, COALESCE(json_extract(properties, '$.domain_or_service'), json_extract(properties, '$.name')) FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query', 'CloudService');";
+                cmd.CommandText = $"""
+                    SELECT rowid, id, kind,
+                           CASE WHEN kind IN ({GraphKindCodec.SinkKindsSql})
+                                THEN COALESCE(json_extract(properties, '$.domain_or_service'), json_extract(properties, '$.name'))
+                                ELSE NULL
+                           END
+                    FROM nodes;
+                    """;
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
                     {
-                        var id = reader.GetString(0);
-                        var kind = reader.GetString(1);
-                        var domain = reader.IsDBNull(2) ? null : reader.GetString(2);
-                        sinks[id] = kind;
-                        sinkDomains[id] = domain;
+                        var rowId = reader.GetInt64(0);
+                        var id = reader.GetString(1);
+                        var kind = reader.GetFieldType(2) == typeof(long)
+                            ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(2))
+                            : reader.GetString(2);
+                        idByRowId[rowId] = id;
+
+                        if (kind is "ExternalService" or "DB" or "Database" or "Query" or "CloudService")
+                        {
+                            var domain = reader.IsDBNull(3) ? null : reader.GetString(3);
+                            sinks[id] = kind;
+                            sinkDomains[id] = domain;
+                        }
+
+                        if (string.IsNullOrEmpty(widPrefix) || id.StartsWith(widPrefix, StringComparison.Ordinal))
+                        {
+                            if (kind is "EntryPoint" or "Endpoint")
+                            {
+                                entryPointIds.Add(id);
+                            }
+                            else if (kind is "Function" or "Method")
+                            {
+                                callers.Add(id);
+                            }
+                        }
                     }
                 }
             }
@@ -358,18 +400,22 @@ public partial class SqliteGraphClient
             await using (var cmd = _conn.CreateCommand())
             {
                 cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = """
-                    SELECT from_id, to_id FROM edges WHERE kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_DB')
+                cmd.CommandText = $"""
+                    SELECT from_id, to_id FROM edges WHERE kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.Calls, RelationshipKind.CallsEndpoint, RelationshipKind.UsesDb)})
                     UNION
-                    SELECT to_id, from_id FROM edges WHERE kind IN ('CALLED_BY', 'QUERIED_BY', 'ACCESSED_BY');
+                    SELECT to_id, from_id FROM edges WHERE kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.CalledBy, RelationshipKind.QueriedBy, RelationshipKind.AccessedBy)});
                     """;
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
                     {
-                        var from = reader.GetString(0);
-                        var to = reader.GetString(1);
+                        var fromRowId = reader.GetInt64(0);
+                        var toRowId = reader.GetInt64(1);
+                        if (!idByRowId.TryGetValue(fromRowId, out var from) || !idByRowId.TryGetValue(toRowId, out var to))
+                        {
+                            continue;
+                        }
 
                         if (!callsAdjacency.TryGetValue(from, out var list))
                         {
@@ -384,20 +430,25 @@ public partial class SqliteGraphClient
 
             // 3. IMPLEMENTS, IMPLEMENTED_BY, and EXPOSED_BY edges
             var implements = new Dictionary<string, List<string>>(); // epId -> list of fnIds
+            var implRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.Implements);
             await using (var cmd = _conn.CreateCommand())
             {
                 cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = "SELECT from_id, to_id, kind FROM edges WHERE kind IN ('IMPLEMENTS', 'IMPLEMENTED_BY', 'EXPOSED_BY');";
+                cmd.CommandText = $"SELECT from_id, to_id, kind FROM edges WHERE kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.Implements, RelationshipKind.ImplementedBy, RelationshipKind.ExposedBy)});";
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
                     {
-                        var from = reader.GetString(0);
-                        var to = reader.GetString(1);
-                        var kind = reader.GetString(2);
-                        var epId = kind == "IMPLEMENTS" ? to : from;
-                        var fnId = kind == "IMPLEMENTS" ? from : to;
+                        var fromRowId = reader.GetInt64(0);
+                        var toRowId = reader.GetInt64(1);
+                        var kindId = (int)reader.GetInt64(2);
+                        if (!idByRowId.TryGetValue(fromRowId, out var from) || !idByRowId.TryGetValue(toRowId, out var to))
+                        {
+                            continue;
+                        }
+                        var epId = kindId == implRelId ? to : from;
+                        var fnId = kindId == implRelId ? from : to;
 
                         if (!implements.TryGetValue(epId, out var list))
                         {
@@ -413,73 +464,43 @@ public partial class SqliteGraphClient
                 }
             }
 
-            // 4. EntryPoints
-            var entryPointIds = new List<string>();
-            await using (var cmd = _conn.CreateCommand())
-            {
-                cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('EntryPoint', 'Endpoint') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
-                cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
-
-                await using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        entryPointIds.Add(reader.GetString(0));
-                    }
-                }
-            }
-
-            // 5. Callers (Function / Method)
-            var callers = new List<string>();
-            await using (var cmd = _conn.CreateCommand())
-            {
-                cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('Function', 'Method') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
-                cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
-
-                await using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        callers.Add(reader.GetString(0));
-                    }
-                }
-            }
-
             // 6. Project to EntryPoints
             var projectToEntryPoints = new Dictionary<string, List<string>>();
             var epSet = new HashSet<string>(entryPointIds);
+            var projKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
+            var containsExposeRels = GraphKindCodec.RelKindsInSql(RelationshipKind.Contains, RelationshipKind.Exposes, RelationshipKind.HasEntrypoint);
+            var belongsImplRels = GraphKindCodec.RelKindsInSql(RelationshipKind.BelongsTo, RelationshipKind.ImplementedBy);
             await using (var cmd = _conn.CreateCommand())
             {
+                const string paramWidPrefix = "@widPrefix";
                 cmd.CommandTimeout = CommandTimeoutSeconds;
-                cmd.CommandText = """
+                cmd.CommandText = $"""
                     SELECT p.id, e.to_id
                     FROM nodes p
-                    JOIN edges e ON e.from_id = p.id AND e.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
-                    WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
+                    JOIN edges e ON e.from_id = p.rowid AND e.kind IN ({containsExposeRels})
+                    WHERE p.kind = {projKindId} AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
                     UNION
                     SELECT p.id, e2.to_id
                     FROM nodes p
-                    JOIN edges e1 ON e1.from_id = p.id AND e1.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
-                    JOIN edges e2 ON e2.from_id = e1.to_id AND e2.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
-                    WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
+                    JOIN edges e1 ON e1.from_id = p.rowid AND e1.kind IN ({containsExposeRels})
+                    JOIN edges e2 ON e2.from_id = e1.to_id AND e2.kind IN ({containsExposeRels})
+                    WHERE p.kind = {projKindId} AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
                     UNION
                     SELECT p.id, e.to_id
                     FROM nodes p
-                    JOIN edges b ON b.to_id = p.id AND b.kind IN ('BELONGS_TO', 'IMPLEMENTED_BY')
-                    JOIN edges e ON e.from_id = b.from_id AND e.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
-                    WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%');
+                    JOIN edges b ON b.to_id = p.rowid AND b.kind IN ({belongsImplRels})
+                    JOIN edges e ON e.from_id = b.from_id AND e.kind IN ({containsExposeRels})
+                    WHERE p.kind = {projKindId} AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%');
                     """;
-                cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                cmd.Parameters.AddWithValue(paramWidPrefix, widPrefix);
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
                     {
                         var projId = reader.GetString(0);
-                        var toId = reader.GetString(1);
-                        if (!epSet.Contains(toId)) continue;
+                        var toRowId = reader.GetInt64(1);
+                        if (!idByRowId.TryGetValue(toRowId, out var toId) || !epSet.Contains(toId)) continue;
 
                         if (!projectToEntryPoints.TryGetValue(projId, out var epList))
                         {
@@ -514,7 +535,7 @@ public partial class SqliteGraphClient
                 if (!_bulkIsFreshDb)
                 {
                     var toRemove = _bulkRelationships.Keys
-                        .Where(k => k.Kind is RelTransitivelyCalls or RelAttributedTo &&
+                        .Where(k => k.Kind is RelationshipKind.TransitivelyCalls or RelationshipKind.AttributedTo &&
                                     (string.IsNullOrEmpty(widPrefix) || k.From.StartsWith(widPrefix, StringComparison.Ordinal)))
                         .ToList();
                     foreach (var k in toRemove)
@@ -525,12 +546,12 @@ public partial class SqliteGraphClient
 
                 foreach (var rel in result.TransitivelyCalls)
                 {
-                    _bulkRelationships[(rel.From, rel.To, RelTransitivelyCalls)] = $"{{\"hops\":{rel.Hops}}}";
+                    _bulkRelationships[(rel.From, rel.To, RelationshipKind.TransitivelyCalls)] = $"{{\"hops\":{rel.Hops}}}";
                 }
 
                 foreach (var rel in result.AttributedTo)
                 {
-                    _bulkRelationships[(rel.EpId, rel.SinkId, RelAttributedTo)] =
+                    _bulkRelationships[(rel.EpId, rel.SinkId, RelationshipKind.AttributedTo)] =
                         JsonSerializer.Serialize(new { hops = rel.Hops, sink_kind = rel.SinkKind });
                 }
 
@@ -546,19 +567,20 @@ public partial class SqliteGraphClient
 
             // 1. Delete old TRANSITIVELY_CALLS and ATTRIBUTED_TO for workspace
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
+            var tcRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.TransitivelyCalls);
+            var attrRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.AttributedTo);
 
             await using (var delCmd = _conn.CreateCommand())
             {
                 delCmd.CommandTimeout = CommandTimeoutSeconds;
                 delCmd.Transaction = tx;
 
-                delCmd.CommandText =
-                    "DELETE FROM edges WHERE kind = 'TRANSITIVELY_CALLS' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
+                delCmd.CommandText = $"""
+                    DELETE FROM edges
+                    WHERE kind IN ({tcRelId}, {attrRelId})
+                      AND (length(@widPrefix) = 0 OR from_id IN (SELECT rowid FROM nodes WHERE id LIKE @widPrefix || '%'));
+                    """;
                 delCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
-                await delCmd.ExecuteNonQueryAsync();
-
-                delCmd.CommandText =
-                    "DELETE FROM edges WHERE kind = 'ATTRIBUTED_TO' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
                 await delCmd.ExecuteNonQueryAsync();
             }
 
@@ -570,8 +592,12 @@ public partial class SqliteGraphClient
 
                 insCmd.Transaction = tx;
 
-                insCmd.CommandText =
-                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', jsonb(@props));";
+                insCmd.CommandText = $"""
+                    INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties)
+                    SELECT fn.rowid, tn.rowid, {tcRelId}, jsonb(@props)
+                    FROM nodes fn, nodes tn
+                    WHERE fn.id = @from AND tn.id = @to;
+                    """;
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
@@ -594,8 +620,12 @@ public partial class SqliteGraphClient
 
                 insCmd.Transaction = tx;
 
-                insCmd.CommandText =
-                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', jsonb(@props));";
+                insCmd.CommandText = $"""
+                    INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties)
+                    SELECT fn.rowid, tn.rowid, {attrRelId}, jsonb(@props)
+                    FROM nodes fn, nodes tn
+                    WHERE fn.id = @from AND tn.id = @to;
+                    """;
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
