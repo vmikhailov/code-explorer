@@ -295,6 +295,23 @@ p code, li code, td code, th code {
   color: var(--color-ink);
 }
 
+.slab-links a.nav-framed {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 500;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
+}
+
+.slab-links a.nav-framed:hover {
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
 .slab-actions {
   display: flex;
   align-items: center;
@@ -350,6 +367,18 @@ p code, li code, td code, th code {
   background: var(--color-ink);
   border-color: var(--color-ink);
   color: var(--color-accent-ink);
+}
+
+.btn--framed {
+  border: 1px solid var(--color-accent);
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.btn--framed:hover {
+  background: var(--color-paper-2);
+  border-color: var(--color-accent);
+  color: var(--color-ink);
 }
 
 .hero-stage {
@@ -780,7 +809,7 @@ p code, li code, td code, th code {
       </a>
 
       <ul class="slab-links">
-        <li><a href="/index.html">Overview</a></li>
+        <li><a href="/index.html" class="nav-framed">Overview</a></li>
         <li><a href="#matrix">Feature Matrix</a></li>
         <li><a href="#twenty-immich">vs. CBM &amp; Graphify</a></li>
         <li><a href="#mcp-latency">MCP Latency</a></li>
@@ -810,7 +839,7 @@ p code, li code, td code, th code {
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn btn--primary">Inspect Scripts &amp; Ground Truth</a>
-              <a href="/index.html" class="btn">Back to Product Overview</a>
+              <a href="/index.html" class="btn btn--framed">Back to Product Overview</a>
             </div>
           </div>
         </div>

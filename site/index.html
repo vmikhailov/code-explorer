@@ -356,6 +356,23 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   color: var(--color-ink);
 }
 
+.slab-links a.nav-framed {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 500;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
+}
+
+.slab-links a.nav-framed:hover {
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
 .slab-actions {
   display: flex;
   align-items: center;
@@ -392,6 +409,18 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   background: var(--color-accent);
   color: var(--color-accent-ink);
   border-color: var(--color-accent);
+}
+
+.btn--framed {
+  border: 1px solid var(--color-accent);
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.btn--framed:hover {
+  background: var(--color-paper-2);
+  border-color: var(--color-accent);
+  color: var(--color-ink);
 }
 
 .btn--primary:hover {
@@ -1259,7 +1288,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         <li><a href="#playground">OpenCypher</a></li>
         <li><a href="#ai-mcp">Terminal &amp; MCP</a></li>
         <li><a href="#gates">Invariant Gates</a></li>
-        <li><a href="/benchmarks.html">Benchmarks</a></li>
+        <li><a href="/benchmarks.html" class="nav-framed">Benchmarks</a></li>
         <li><a href="#install">Install</a></li>
         <li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener" class="tone-accent">CodePassport</a></li>
       </ul>
@@ -1286,7 +1315,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             </p>
             <div class="hero-controls">
               <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
-              <a href="/benchmarks.html" class="btn">Competitor Benchmarks</a>
+              <a href="/benchmarks.html" class="btn btn--framed">Competitor Benchmarks</a>
               <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">Star on GitHub</a>
               <button type="button" class="cmd-strip" onclick="copyText('brew install vmikhailov/tap/ce', 'Copied Homebrew command to clipboard!')" title="Click to copy Homebrew command">
                 <span class="cmd-prompt">$</span>
