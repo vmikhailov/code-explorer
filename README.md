@@ -28,6 +28,17 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
 | **Agent Effort** | 285 turns (142 shell commands, 114 file reads) | **23 turns (18 graph queries, 0 file reads)** | **12.4× fewer turns** |
 | **Blast-Radius Recall** | 82% *(missed 9 RTB services behind env constants)* | **100% recall** *(all services & DB tables found)* | **Zero blind spots** |
 
+### Head-to-Head vs. Other MCP Code Graphs (`immich` & `twenty`)
+*(Evaluated on pinned commits of `immich-app/immich` (`3,205` files, `461k` LOC) and `twentyhq/twenty` (`24,527` files, `2.49M` LOC) against a frozen seed-42 ground-truth dataset (`365` items across `C1–C11`). Full reproducible reports and scripts: [Case Study 03 (`ce` vs. `codebase-memory-mcp`)](./benchmarks/03-code-explorer-vs-codebase-memory-mcp/README.md) and [Case Study 04 (`ce` vs. `graphify`)](./benchmarks/04-code-explorer-vs-graphify/README.md).)*
+
+| Dimension | **`CodeExplorer` (`ce` `v1.75.0`)** | **`codebase-memory-mcp` (`v0.12.1`)** | **`graphify` (`v0.9.104`)** |
+| :--- | :---: | :---: | :---: |
+| **Cold Index (`immich`, `3.2k` files)** | **`17.60 s`** (`55.1 MB` DB) | `20.60 s` (`282.0 MB` DB) | `107.60 s` (`52.3 MB` dir) |
+| **Cold Index (`twenty`, `24.5k` files)** | `147.33 s` (**`784.0 MB`** DB) | **`96.90 s`** (`842.5 MB` DB) | `DNF (>45 min timeout)` |
+| **Part 1 Recall (`L1–L3`: Endpoints, HTTP, Call Graph, Inheritance)** | **`78%`** (`102 / 130`) | `38%` (`49 / 130`) | `18%` (`23 / 130`; `35%` on `immich`) |
+| **Part 2 Recall (`L4–L5`: Queues, DB Tables, Read/Write Lineage, Services)** | **`97%`** (`227 / 235`) | *Not modeled (`0%`)* | *Not modeled (`0%`)* |
+| **Structured Query & CI Governance** | **OpenCypher (`3.1–4.7 ms`) + 32+ CI Gates** | Cypher subset (`38–71 ms`), snapshot diff | Keyword BFS/DFS (`334 ms`), Leiden clusters |
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/all_services.png" alt="CodeExplorer Service Topology" width="100%" />
 </p>
@@ -305,6 +316,8 @@ CodeExplorer sits between code-intelligence indexers and architecture-testing li
 | **GitHub CodeQL** | Deep semantic and security dataflow queries over per-language databases, built from the compiler for compiled languages. | No build required. One graph across all languages, with cross-service HTTP/gRPC/queue edges and architecture gates with ratchet baselines. Not a security dataflow engine. |
 | **Joern** | Open-source Code Property Graph for vulnerability research, queried with a Scala DSL. | Architecture-level ontology instead of a low-level CPG, standard OpenCypher, and MCP / VS Code / CI integration out of the box. |
 | **Serena** and other LSP-based MCP servers | Precise symbol lookup and editing for agents through language servers. | Gives agents the system view (cross-service calls, data lineage, blast radius) rather than symbol-level edits. Works well alongside an LSP-based server. |
+| **`codebase-memory-mcp` (`CBM`)** | Fast Go/C Tree-sitter structural & call-graph indexing (`96.9s` on `twenty`), low RAM usage, branch graph diffing (`compare_graphs`), and runtime trace overlays (`ingest_traces`). | Adds Layer 4–5 architectural ontology (ORM/SQL database tables, `READS_FROM`/`WRITES_TO` lineage, BullMQ/Kafka queues, GraphQL/REST endpoints), NestJS DI call resolution, and CI Semantic Invariant Gates ([Case Study 03](./benchmarks/03-code-explorer-vs-codebase-memory-mcp/README.md)). |
+| **`graphify`** | Unsupervised Leiden community clustering, cross-community bridge detection (`graphify://surprises`), docstring rationale extraction, GitHub PR triage, and Obsidian/HTML knowledge vault exports. | Scales to 24.5k-file monorepos (`147s` vs. `>45m` timeout on `twenty`), queries an indexed SQLite database via OpenCypher (`608ms` cold MCP init vs. `3.8s`), and models endpoints, queues, and database lineage ([Case Study 04](./benchmarks/04-code-explorer-vs-graphify/README.md)). |
 | **Aider repo map** | Compact Tree-sitter summary of important symbols, placed directly into the prompt. | A persistent graph the agent can query on demand with multi-hop questions, instead of a static summary. |
 | **ArchUnit**, **NetArchTest**, **dependency-cruiser** | Architecture rules written as tests inside one language ecosystem. ArchUnit can also freeze existing violations. | One rule language (OpenCypher) across languages and services, and the same graph also powers visualization and agent context. |
 | **Structurizr**, C4 diagrams-as-code | Carefully authored architecture models and diagrams. | The model is derived from code, so it does not drift. Diagrams can be exported to Mermaid or C4 (`ce export`). |

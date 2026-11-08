@@ -23,3 +23,5 @@ ce-immich	wall_s=19.6	peak_ram_mb=777	state=Completed
 ce-twenty	wall_s=212.6	peak_ram_mb=4,589	state=Completed
 cbm-immich	wall_s=20.6	peak_ram_mb=595	state=Completed
 cbm-twenty	wall_s=96.9	peak_ram_mb=2,076	state=Completed
+ce-1.75.0-immich	wall_s=17.60	peak_ram_mb=780.5	db_mb=55.12	nodes=54978	edges=117070	state=Completed
+ce-1.75.0-twenty	wall_s=147.33	peak_ram_mb=4660.6	db_mb=783.99	nodes=456711	edges=960660	state=Completed (L1+L2=14s, L3_single_pass_topo=51s, L4=4s, L5=19s, BulkFlush+Indices+PostIndex=58s)

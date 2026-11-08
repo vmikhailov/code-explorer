@@ -184,6 +184,12 @@ To evaluate how AI coding agents interact with both servers over the Model Conte
 2. **Rich L4/L5 Architectural Ontology (`97` Micro-Recall in Part 2, `100` on `C1` Endpoints & `50–83` on `C2` Outbound HTTP):** `ce` models REST/GraphQL/FastAPI endpoints with full URL routes and HTTP verbs, outbound HTTP calls, BullMQ producers and consumers, TypeORM/Kysely database tables, code-to-table `READS_FROM`/`WRITES_TO` lineage (`17,382` edges on `twenty`), and monorepo sub-project boundaries.
 3. **6.2× Faster Cold MCP Startup, 2.5× Lower RAM, and 8–43× Faster Search & Path Queries:** Because `ce` queries an indexed SQLite database rather than deserializing a multi-megabyte JSON file into NetworkX on startup, `ce mcp` initializes in **`608 ms`** (`64.2 MB` RSS vs. `3,782 ms` and `162.7 MB` RSS for `graphify`), resolves multi-match symbols (`validate`, `AuthService`) in a single round trip without ambiguity errors, and executes OpenCypher queries in **`3.1–3.8 ms`**.
 
+### 6.3 Methodological Note: Deterministic Static Extraction (`--code-only`) vs. Optional LLM Synthesis
+`graphify` offers two extraction stages: a deterministic Tree-sitter + NetworkX static pass (`extract --code-only`, which handles all source code files by default) and an optional LLM subagent pass intended primarily for unstructured documents, PDFs, images, and conceptual links (`SEMANTICALLY_SIMILAR`, `CONCEPTUALLY_RELATED`). Both tools were evaluated in their deterministic, zero-LLM static analysis modes for three reasons:
+1. **`graphify` Stalls in the Static AST Pass Before Any LLM Pass Begins:** On `twenty` (`24,527` files), `graphify` hangs for `>45 minutes` inside `extractors/resolution.py` during the deterministic AST symbol-resolution phase, before any optional LLM stage could ever execute.
+2. **Economics & CI Reproducibility at Scale:** Running LLM subagents across `24,527` files (`~2.49M` LOC) would cost tens to hundreds of dollars per full index and require hours of API calls, whereas `ce` extracts `456,711` nodes, `960,660` edges, `164` ORM tables, and `17,382` `READS_FROM`/`WRITES_TO` lineage edges deterministically in **`147.33 s` for `$0.00`**.
+3. **Strict Architectural Lineage vs. Probabilistic Conceptual Edges:** Answering whether a method writes to a database table (`WRITES_TO`) or publishes to a BullMQ queue (`PUBLISHED_BY`) requires exact AST/decorator/ORM type resolution (`100%` deterministic precision), not probabilistic LLM-inferred `AMBIGUOUS` / `CONCEPTUALLY_RELATED` edges.
+
 ---
 
 ## 7. Repository Artifacts in This Folder
@@ -194,3 +200,4 @@ To evaluate how AI coding agents interact with both servers over the Model Conte
 - [`results/indexing-telemetry.txt`](./results/indexing-telemetry.txt) — Cold indexing wall-clock time, phase breakdown, peak working set (RAM), and artifact size measurements.
 - [`results/pinned-shas.txt`](./results/pinned-shas.txt) — Exact commit SHAs tested for `twenty` and `immich`.
 - [`groundtruth/`](./groundtruth/) — Deterministically sampled ground-truth CSVs (`twenty-c*.csv`, `immich-c*.csv`), Cypher query specs (`*-c11-queries.md`), and SHA256 freeze manifest (`FREEZE.txt`).
+- [`scripts/`](./scripts/) — Reproducible ground-truth generator ([`build_groundtruth.py`](./scripts/build_groundtruth.py)), cold indexing timer ([`bench_graphify_index.py`](./scripts/bench_graphify_index.py)), automated query/recall evaluator ([`eval_ce_vs_graphify.py`](./scripts/eval_ce_vs_graphify.py)), and MCP stdio latency benchmark ([`bench_mcp_graphify.py`](./scripts/bench_mcp_graphify.py)).
