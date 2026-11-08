@@ -279,17 +279,18 @@ The VS Code extension provides an interactive workspace for exploring the graph,
 
 ## Supported Languages & Frameworks
 
-CodeExplorer combines Tree-sitter grammars, Microsoft SQL ScriptDom, and framework-specific semantic analyzers (`ISemanticExtension`). Maturity reflects how much real-world code each analyzer has been validated against: **Stable** means used daily on large production repositories, **Beta** means the analyzers exist and are tested, but coverage of real-world framework patterns is still growing. If the graph looks wrong on your repository, please [open an issue](https://github.com/vmikhailov/code-explorer/issues).
+CodeExplorer combines Tree-sitter grammars, Microsoft SQL ScriptDom, and **250 compiled declarative framework analyzers** (`DeclarativeSemanticExtension` with $O(1)$ fused node-type dispatch). Maturity reflects how much real-world code each analyzer has been validated against: **Stable** means validated on large open-source and production repositories, **Beta** means coverage is still growing. If the graph looks wrong on your repository, please [open an issue](https://github.com/vmikhailov/code-explorer/issues).
 
-| Language | Maturity | Files & Manifests | Extracted Framework Semantics |
+| Language | Maturity | Files & Manifests | Extracted Framework Semantics (250 Library Parsers) |
 | :--- | :--- | :--- | :--- |
-| **C#** | Stable | `.cs`, `.csproj`, `.sln`, `.slnx` | ASP.NET Core Controllers & Minimal APIs, gRPC services/clients, HttpClient, EF Core (`DbContext`, entities, migrations), Dapper, MassTransit, MediatR |
-| **TypeScript / JS** | Stable | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS, Express, Next.js, React, Vue, Angular, Svelte, Axios/fetch/undici clients, Prisma/TypeORM, AWS SDK (SQS, S3, DynamoDB), Azure SDK, Stripe, Jest/Vitest/Playwright/Cypress |
+| **C#** | Stable | `.cs`, `.csproj`, `.sln`, `.slnx` | ASP.NET Core Controllers & Minimal APIs, FastEndpoints, Carter, YARP, gRPC, HttpClient, EF Core, Dapper, Marten, Linq2Db, NHibernate, MassTransit (incl. Sagas), Wolverine, NServiceBus, Rebus, Hangfire, Quartz.NET, CAP, MediatR, Dapr, Azure/AWS SDKs, Semantic Kernel |
+| **TypeScript / JS** | Stable | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS (REST, GraphQL `@Resolver`, DI), Express, Fastify, Next.js, Hono, tRPC, Remix, SvelteKit, Astro, Cloudflare Workers, React/Vue/Angular/Svelte, Prisma, TypeORM, Kysely, MikroORM, BullMQ, Inngest, Temporal, NATS/MQTT, TanStack Query/SWR, Vercel AI SDK, Playwright/Cypress |
 | **SQL** | Stable | `.sql` & embedded SQL strings | T-SQL, PostgreSQL, MySQL, SQLite, ClickHouse, BigQuery DDL & CRUD lineage (`READS_FROM`, `WRITES_TO`) |
-| **Go** | Beta | `.go`, `go.mod` | Gin, Fiber, Echo, `net/http` handlers & clients, Resty, gRPC, `pgx` / `database/sql` |
-| **Java** | Beta | `.java`, `pom.xml`, `build.gradle` | Spring Boot REST (`@RestController`, `@RequestMapping`), Spring Kafka (`KafkaTemplate`, `@KafkaListener`), Spring AMQP / RabbitMQ, JPA / Hibernate |
-| **Kotlin & Android** | Beta | `.kt`, `.kts`, `build.gradle.kts`, `AndroidManifest.xml` | Android Activities/Services/BroadcastReceivers/ContentProviders, Intents, Retrofit, OkHttp, Ktor, Room DAO/Entities, gRPC/Protobuf, Hilt/Dagger/Koin DI, Jetpack Compose, Navigation |
-| **Python** | Beta | `.py`, `pyproject.toml`, `requirements.txt` | FastAPI, Flask, Django routes & ORM models, `requests`, `httpx`, `aiohttp`, Celery / Kafka consumers |
+| **Go** | Stable | `.go`, `go.mod` | Gin, Fiber, Echo, Fasthttp, Beego, Gorilla Mux, Go-Zero, Go-Kit/Kratos, `net/http`, gRPC, gRPC-Gateway, ConnectRPC/Twirp, Watermill, Asynq, Machinery/River, Kafka-Go/Franz-Go, Dapr, GORM, `sqlx`, `sqlc`, Ent, Bun, `pgx`, Temporal, Uber Fx/Wire |
+| **Java** | Stable | `.java`, `pom.xml`, `build.gradle` | Spring Boot/Cloud/Batch/Integration/Gateway, Quarkus (RESTEasy, Panache, SmallRye), Micronaut, Dropwizard/Jersey, Vert.x, Akka/Pekko, Netty, Apache Dubbo, Camel, Pulsar, Axon, JPA/Hibernate, MyBatis (Annotations & XML), jOOQ, JDBI, R2DBC, OpenFeign/Retrofit, Temporal, LangChain4j/Spring AI |
+| **Kotlin & Android** | Stable | `.kt`, `.kts`, `build.gradle.kts`, `AndroidManifest.xml` | Spring Web/Data, Ktor Server & Client DSL, Micronaut, http4k, gRPC-Kotlin, Apollo GraphQL, Exposed, Ktorm, Room DAO/Entities, SQLDelight, Coroutines Channels/SharedFlow, Retrofit/OkHttp, Hilt/Dagger/Koin/Kodein DI, Jetpack Compose, Voyager/Decompose, Kotest/MockK |
+| **Python** | Stable | `.py`, `pyproject.toml`, `requirements.txt` | FastAPI, Litestar, Flask, Django, Sanic/Tornado/Falcon, Strawberry GraphQL, SQLAlchemy, SQLModel, Tortoise ORM, `asyncpg`/`psycopg3`, Motor/Mongo, ClickHouse, Qdrant/Milvus/Weaviate, Celery, Dramatiq, RQ, FastStream, AIOKafka, Pika/RabbitMQ, Airflow/Prefect, Temporal, OpenAI/Anthropic/LangChain/CrewAI/PydanticAI |
+| **Rust** | Stable | `.rs`, `Cargo.toml` | Axum, Actix Web, Warp, Rocket, Tonic gRPC, Reqwest, SQLx, SeaORM, Diesel, Tokio, Lapin/rdkafka |
 | **ColdFusion** | Beta | `.cfc`, `.cfm` | Components, functions, `cfquery` SQL extraction, HTTP calls |
 
 ---

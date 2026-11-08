@@ -1218,7 +1218,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     "description": "Understand, query, and guard your codebase architecture. CodeExplorer compiles polyglot repositories into a local SQLite graph, giving engineers and AI agents (via MCP) always-accurate architecture maps in VS Code and Semantic Invariant Gates in CI/CD.",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
-    "softwareVersion": "1.59.1",
+    "softwareVersion": "1.75.0",
     "license": "https://opensource.org/licenses/MIT",
     "isAccessibleForFree": true,
     "offers": {
@@ -1259,13 +1259,13 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         <li><a href="#playground">OpenCypher</a></li>
         <li><a href="#ai-mcp">Terminal &amp; MCP</a></li>
         <li><a href="#gates">Invariant Gates</a></li>
-        <li><a href="#benchmark">Benchmark</a></li>
+        <li><a href="/benchmarks.html">Benchmarks</a></li>
         <li><a href="#install">Install</a></li>
         <li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener" class="tone-accent">CodePassport</a></li>
       </ul>
 
       <div class="slab-actions">
-        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.59.1</a>
+        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.75.0</a>
         <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">GitHub</a>
         <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
       </div>
@@ -1278,10 +1278,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       <div class="wrap">
         <div class="hero-top">
           <div>
-            <span class="measured tone-accent" style="display: inline-block; font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--space-sm);">
-              Codebase Graph &amp; Guardrails · For You and Your Agent
-            </span>
-            <h1 class="hero-title">Understand, query, and guard your architecture — <span class="tone-accent">for you and your agent.</span></h1>
+            <h1 class="hero-title">Understand, query, and guard your architecture for you and your agent.</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
@@ -1289,8 +1286,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             </p>
             <div class="hero-controls">
               <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
+              <a href="/benchmarks.html" class="btn">Competitor Benchmarks</a>
               <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">Star on GitHub</a>
-              <a href="/presentation.html" target="_blank" rel="noopener" class="btn">Interactive Deck</a>
               <button type="button" class="cmd-strip" onclick="copyText('brew install vmikhailov/tap/ce', 'Copied Homebrew command to clipboard!')" title="Click to copy Homebrew command">
                 <span class="cmd-prompt">$</span>
                 <span>brew install vmikhailov/tap/ce</span>
@@ -1703,42 +1700,42 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
           <div class="lang-cell">
             <span class="lang-code">CS</span>
             <span class="lang-name">C# / .NET</span>
-            <span class="lang-detail">Roslyn + ASP.NET, gRPC, MediatR, EF Core, Dapper</span>
+            <span class="lang-detail">ASP.NET, gRPC, Wolverine, Hangfire, MassTransit, EF Core, Dapper</span>
           </div>
           <div class="lang-cell">
             <span class="lang-code">JV</span>
             <span class="lang-name">Java</span>
-            <span class="lang-detail">Spring Boot, Feign, JAX-RS, Kafka, Hibernate, JDBC</span>
+            <span class="lang-detail">Spring Boot, Quarkus, Micronaut, Dubbo, MyBatis, jOOQ, Hibernate</span>
           </div>
           <div class="lang-cell">
             <span class="lang-code">KT</span>
             <span class="lang-name">Kotlin</span>
-            <span class="lang-detail">Spring, Ktor, Coroutines, Exposed, JPA</span>
+            <span class="lang-detail">Spring, Ktor, Exposed, Room, SQLDelight, Coroutines, Retrofit</span>
           </div>
           <div class="lang-cell">
             <span class="lang-code">TS</span>
-            <span class="lang-name">TypeScript</span>
-            <span class="lang-detail">NestJS, Express, Next.js, Prisma, TypeORM, tRPC</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">JS</span>
-            <span class="lang-name">JavaScript</span>
-            <span class="lang-detail">Node.js, Express, Fastify, Axios, Fetch, Mongoose</span>
+            <span class="lang-name">TypeScript &amp; JS</span>
+            <span class="lang-detail">NestJS, Next.js, tRPC, Hono, Kysely, TypeORM, Prisma, BullMQ</span>
           </div>
           <div class="lang-cell">
             <span class="lang-code">GO</span>
             <span class="lang-name">Go</span>
-            <span class="lang-detail">Gin, Echo, Chi, net/http, gRPC, GORM, sqlx</span>
+            <span class="lang-detail">Gin, Fiber, Fasthttp, gRPC-Gateway, Watermill, GORM, sqlx, Ent</span>
           </div>
           <div class="lang-cell">
             <span class="lang-code">PY</span>
             <span class="lang-name">Python</span>
-            <span class="lang-detail">FastAPI, Flask, Django, Celery, SQLAlchemy</span>
+            <span class="lang-detail">FastAPI, Litestar, Django, Celery, Dramatiq, SQLAlchemy, Temporal</span>
+          </div>
+          <div class="lang-cell">
+            <span class="lang-code">RS</span>
+            <span class="lang-name">Rust</span>
+            <span class="lang-detail">Axum, Actix Web, Tonic gRPC, SQLx, SeaORM, Diesel, Tokio</span>
           </div>
           <div class="lang-cell">
             <span class="lang-code">SQL</span>
             <span class="lang-name">Database Schemas</span>
-            <span class="lang-detail">Tables, Views, Stored Procedures, Foreign Keys</span>
+            <span class="lang-detail">PostgreSQL, T-SQL, MySQL, SQLite, ClickHouse, BigQuery Lineage</span>
           </div>
         </div>
       </div>
@@ -1748,16 +1745,16 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     <section class="band" id="benchmark">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">Measured on a 324-service enterprise platform (450 modules).</h2>
+          <h2 class="band-title">Measured against ripgrep and competing MCP graph engines.</h2>
           <p class="band-lede">
-            When an AI agent audits a distributed microservices system with text grep, it burns millions of cumulative tokens reading files and writing ad-hoc scripts, yet still misses indirect service and broker calls. With CodeExplorer, deterministic graph queries resolve the complete blast radius in minutes.
+            Tested on a 324-service enterprise platform and two open-source monorepos (<code>twenty</code> at 2.49M LOC and <code>immich</code> at 461k LOC). Other graph tools stop at Layer 1 to 3 file ASTs; CodeExplorer resolves the full Layer 4 to 5 architecture.
           </p>
         </div>
 
         <div class="diff-layout">
           <div class="diff-surface" role="region" aria-label="Enterprise benchmark comparison">
             <div class="diff-head">
-              <span>Task: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
+              <span>Case Study 02: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
               <span class="measured">A/B Paired Eval</span>
             </div>
             <div class="diff-row diff-row--minus">
@@ -1782,25 +1779,67 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             </div>
           </div>
 
+          <div class="diff-surface" role="region" aria-label="Head-to-head MCP graph engine benchmark">
+            <div class="diff-head">
+              <span>Case Studies 03 &amp; 04: <code>twenty</code> (24,527 files, 2.49M LOC) + <code>immich</code> (3,205 files, 461k LOC)</span>
+              <span class="measured">365 Ground-Truth Items (seed=42)</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>Part 1 Common Ground Recall (L1 to L3 Endpoints, HTTP, Call Graph, Inheritance)</span>
+              <span class="diff-val">CBM: 38% (49/130) | graphify: 18% (23/130)</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>Part 1 Common Ground Recall with CodeExplorer (<code>ce v1.75.0</code>)</span>
+              <span class="diff-val">78% recall (102/130, 7 wins, 1 tie, 0 losses)</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>Part 2 Architectural Ontology Recall (L4 to L5 Queues, ORM Tables, SQL Lineage)</span>
+              <span class="diff-val">CBM: 0% (not modeled) | graphify: 0% (not modeled)</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>Part 2 Architectural Ontology Recall with CodeExplorer (<code>ce v1.75.0</code>)</span>
+              <span class="diff-val">97% micro-recall (227/235 verified items)</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>Cold Indexing on <code>twenty</code> Monorepo (24,527 files, 2.49M LOC)</span>
+              <span class="diff-val">graphify: DNF (&gt;45m timeout) | CBM: 96.9s (843 MB DB)</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>Cold Indexing on <code>twenty</code> with CodeExplorer (Full L1 to L5 Pipeline)</span>
+              <span class="diff-val">147.3s (784 MB SQLite DB, 0 parse warnings)</span>
+            </div>
+          </div>
+
           <div class="panels panels--3">
             <div class="panel panel--sunken">
-              <span class="reading tone-accent">8×</span>
-              <h3 class="panel-title">Wall-clock speedup</h3>
-              <p class="panel-copy">Cut end-to-end architectural audit time from 29m 52s down to 3m 56s.</p>
-              <code class="panel-code">29m 52s to 3m 56s</code>
+              <span class="reading tone-accent">97%</span>
+              <h3 class="panel-title">Architecture recall</h3>
+              <p class="panel-copy">Matches 227 of 235 L4/L5 queue, ORM table, and data-lineage items where AST tools score 0%.</p>
+              <code class="panel-code">227 / 235 L4-L5 GT</code>
             </div>
             <div class="panel panel--sunken">
               <span class="reading tone-ok">44×</span>
               <h3 class="panel-title">Token compression</h3>
-              <p class="panel-copy">Reduced cumulative input tokens from 17.2M to 393K with zero context compactions.</p>
+              <p class="panel-copy">Reduced cumulative input tokens from 17.2M to 393K across 324 services with zero blind spots.</p>
               <code class="panel-code">17.2M to 393K tokens</code>
             </div>
             <div class="panel panel--sunken">
-              <span class="reading">100%</span>
-              <h3 class="panel-title">Edges resolved</h3>
-              <p class="panel-copy">Resolves HTTP/RPC clients, Pub/Sub &amp; RabbitMQ topics, and SQL tables in one graph.</p>
-              <code class="panel-code">L1 AST to L5 Topology</code>
+              <span class="reading">250</span>
+              <h3 class="panel-title">Framework parsers</h3>
+              <p class="panel-copy">Compiled declarative semantic extensions across C#, TS/JS, Java, Kotlin, Go, Python, and Rust.</p>
+              <code class="panel-code">O(1) Fused Dispatch</code>
             </div>
+          </div>
+
+          <div class="hero-controls">
+            <a href="/benchmarks.html" class="btn btn--primary">Explore Full Competitor Comparison &amp; Benchmarks</a>
+            <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">Reproduce From GitHub Scripts</a>
           </div>
         </div>
       </div>
@@ -1942,6 +1981,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         <div class="mast-col">
           <span class="mast-heading">Architecture &amp; Docs</span>
           <ul class="mast-list">
+            <li><a href="/benchmarks.html">Competitor Benchmarks</a></li>
             <li><a href="/presentation.html" target="_blank" rel="noopener">Interactive Presentation</a></li>
             <li><a href="https://github.com/vmikhailov/code-explorer/tree/main/docs" target="_blank" rel="noopener">Ontology Specification</a></li>
             <li><a href="#gates">Semantic Invariant Gates</a></li>
@@ -1963,7 +2003,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
       <div class="mast-bottom">
         <span>Built by Viacheslav Mikhailov · 100% local SQLite execution</span>
-        <span class="measured" id="footerCeVersion">CodeExplorer CLI &amp; Extension v1.59.1</span>
+        <span class="measured" id="footerCeVersion">CodeExplorer CLI &amp; Extension v1.75.0</span>
       </div>
     </div>
   </footer>
