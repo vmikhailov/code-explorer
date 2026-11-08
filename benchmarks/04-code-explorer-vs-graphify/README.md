@@ -60,14 +60,6 @@ Both tools were executed from a cold state (`--clear` for `ce`, `--code-only --f
 | **Graph Edges Extracted** | `117,070` | `76,493` (`896` communities) | `960,660` | *DNF* |
 | **Parse / Analysis Warnings** | **0** | `9` syntax errors + `171` zero-symbol files | **0** | *DNF* |
 
-#### Why `ce` (`147.33 s`) Scales to 24.5k-File Monorepos While `graphify` (`>45 min`) Stalls
-1. **Single-Pass AST & Framework Analysis in `ce` (`51 s` on `twenty`):**
-   - `ce` orders the 46 packages in `twenty` by dependency (`twenty-shared` and `twenty-ui` before `twenty-front` and `twenty-server`) and parses each file's AST and framework constructs in a single pass (`51 s` total for `36,644` files on `twenty`), finishing the full 5-layer cold index in **`147.33 s`**.
-2. **Bottlenecks in `graphify` (`v0.9.104`) on Large TypeScript Monorepos:**
-   - **Slow `detect()` Phase (`117.1 s` on `twenty`):** Before parsing ASTs, `graphify`'s `detect()` phase spends `117.1 s` walking and classifying files on `twenty`.
-   - **Duplicate Single-Threaded JS/TS Re-Parsing:** After `ProcessPoolExecutor` workers finish extracting `per_file` ASTs (~`415 s`), `_collect_js_symbol_resolution_facts` re-parses all `24,048` JS/TS files a second time sequentially on a single Python thread.
-   - **Quadratic Symbol Resolution Loop:** `_apply_symbol_resolution_facts` scans the node list linearly for each symbol reference (`>200,000` uses across `~300,000` nodes on a single CPU core).
-
 ---
 
 ### 3.2 Semantic Recall on Common Ground (`C1`, `C2`, `C6`, `C7`)
