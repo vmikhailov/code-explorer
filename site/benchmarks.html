@@ -876,21 +876,21 @@ p code, li code, td code, th code {
     <section class="band" id="matrix">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">Why AST indexers stop short of software architecture.</h2>
+          <h2 class="band-title">Feature comparison across codebase graph tools.</h2>
           <p class="band-lede">
-            First-generation MCP graph tools parse syntax trees into files, classes, and direct function calls (Layers 1 to 3). Production systems communicate through dependency injection, REST/gRPC/GraphQL routers, message brokers, and ORM database tables (Layers 4 and 5).
+            Most code graph indexers focus on syntax trees, files, and function calls (Layers 1 to 3). CodeExplorer also models HTTP/gRPC endpoints, message queues, database tables, and CI architectural rules (Layers 4 and 5).
           </p>
         </div>
 
         <div class="table-surface" role="region" aria-label="Feature comparison across CodeExplorer, codebase-memory-mcp, Graphify, and CodeQL">
           <div class="table-caption-bar">
-            <span>Architectural Capability &amp; System Design Matrix</span>
+            <span>Capability Matrix</span>
             <span class="measured">ce v1.75.0 vs. CBM v0.12.1 vs. Graphify v0.9.104</span>
           </div>
           <table class="bench-table">
             <thead>
               <tr>
-                <th>Capability Dimension</th>
+                <th>Capability</th>
                 <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
                 <th>codebase-memory-mcp (<code>CBM v0.12.1</code>)</th>
                 <th>Graphify (<code>graphifyy v0.9.104</code>, YC S26)</th>
@@ -900,86 +900,86 @@ p code, li code, td code, th code {
             <tbody>
               <tr>
                 <td>Distribution &amp; Runtime</td>
-                <td class="cell-win">Single native binary (.NET 10 AOT/self-contained) + VS Code Extension. Zero runtime dependencies.</td>
+                <td class="cell-win">Single native binary + VS Code Extension.</td>
                 <td class="cell-num">Single native Go/CGo binary (<code>win32-x64</code>, <code>darwin</code>, <code>linux</code>).</td>
-                <td>Python package (<code>uv tool install graphifyy</code>), requires Python 3.10+ and NetworkX environment.</td>
+                <td>Python package (<code>uv tool install graphifyy</code>), requires Python 3.10+ and NetworkX.</td>
                 <td>Server cluster (Sourcegraph), compiler build wrapper (CodeQL), or single-language test library (ArchUnit).</td>
               </tr>
               <tr>
                 <td>Graph Storage Backend</td>
-                <td class="cell-win">Embedded SQLite Schema v6 (<code>.codeexplorer/graph.db</code>) with integer <code>rowid</code> edges, partial B-Tree indices, and FTS5.</td>
+                <td class="cell-win">Local SQLite database (<code>.codeexplorer/graph.db</code>) with full-text search (FTS5).</td>
                 <td class="cell-num">Local SQLite database in global user cache directory.</td>
-                <td class="cell-loss">Flat JSON file (<code>graphify-out/graph.json</code>) deserialized into RAM via Python <code>NetworkX</code> on every server start.</td>
+                <td class="cell-loss">Flat JSON file (<code>graphify-out/graph.json</code>) loaded into RAM via Python <code>NetworkX</code> on server start.</td>
                 <td>Proprietary per-language DB (CodeQL) or Postgres/Rockskip index (Sourcegraph).</td>
               </tr>
               <tr>
                 <td>Graph Query Language</td>
-                <td class="cell-win">Full read-only OpenCypher compiler over SQLite (<code>3.1 to 4.7 ms</code> warm latency) + parameterized saved queries.</td>
+                <td class="cell-win">Read-only OpenCypher over SQLite (<code>3.1 to 4.7 ms</code> warm latency) + parameterized saved queries.</td>
                 <td class="cell-num">Cypher subset via <code>query_graph</code> (<code>38.1 to 71.2 ms</code> warm latency) with cursor pagination.</td>
                 <td class="cell-loss">None. Fixed keyword BFS/DFS and undirected <code>shortest_path</code> over NetworkX only.</td>
                 <td>Datalog DSL (CodeQL), keyword/SCIP search (Sourcegraph), or fluent Java/C# test code (ArchUnit).</td>
               </tr>
               <tr>
                 <td>Layer 1 to 3: AST, Call Graph &amp; DI Wiring</td>
-                <td class="cell-win">Tree-sitter + UAST across 8 languages, cross-file constructor DI resolution (NestJS, Spring, .NET), nested lambda <code>DECLARES</code> attribution, and loop/try execution flags.</td>
+                <td class="cell-win">Tree-sitter AST and call graph across 8 languages, including cross-file constructor DI resolution (NestJS, Spring, .NET).</td>
                 <td class="cell-num">Tree-sitter AST and intra-class call graph; does not resolve method calls on constructor-injected TypeScript fields.</td>
-                <td class="cell-num">Tree-sitter AST across 20+ languages; resolves TS constructor DI on medium repos but hangs (DNF &gt;45m) on 24.5k-file monorepos.</td>
-                <td>Compiler-exact within one language (SCIP/CodeQL), but requires full project builds.</td>
+                <td class="cell-num">Tree-sitter AST across 20+ languages; resolves TS constructor DI on medium repos, times out (&gt;45m) on 24.5k-file monorepos.</td>
+                <td>Compiler-exact within one language (SCIP/CodeQL), requires full project builds.</td>
               </tr>
               <tr>
-                <td>Layer 4: 250 Framework &amp; Protocol Analyzers</td>
-                <td class="cell-win">250 compiled declarative library parsers (<code>O(1)</code> fused dispatch): REST, GraphQL (<code>@Resolver</code>), gRPC, gRPC-Gateway, Dubbo, FastAPI, Spring, Quarkus, Micronaut, Ktor, tRPC, Hono.</td>
-                <td class="cell-num">Basic route extractors; misses NestJS GraphQL <code>@Resolver</code> and misclassifies template-literal <code>@Controller</code> routes as outbound HTTP calls.</td>
-                <td class="cell-loss">Not modeled (<code>0%</code> endpoint recall). Emits untyped decorator line references without HTTP verbs or route URL paths.</td>
+                <td>Layer 4: Framework &amp; Protocol Analyzers</td>
+                <td class="cell-win">250 framework analyzers: REST, GraphQL (<code>@Resolver</code>), gRPC, Dubbo, FastAPI, Spring, Quarkus, Micronaut, Ktor, tRPC, Hono.</td>
+                <td class="cell-num">Basic route extractors; misses NestJS GraphQL <code>@Resolver</code> and template-literal <code>@Controller</code> routes.</td>
+                <td class="cell-loss">Not modeled (<code>0%</code> endpoint recall). Emits decorator line references without HTTP verbs or route URL paths.</td>
                 <td>Not modeled across languages or services.</td>
               </tr>
               <tr>
-                <td>Layer 4: Message Queues &amp; Distributed Workflows</td>
-                <td class="cell-win">First-class <code>PUBLISHED_BY</code> and <code>SUBSCRIBED_BY</code> topology (<code>95 to 100%</code> recall): Kafka, RabbitMQ, SQS, BullMQ, Temporal, Celery, Dramatiq, Watermill, NServiceBus, MassTransit, Dapr.</td>
+                <td>Layer 4: Message Queues &amp; Workflows</td>
+                <td class="cell-win"><code>PUBLISHED_BY</code> and <code>SUBSCRIBED_BY</code> links (<code>95 to 100%</code> recall): Kafka, RabbitMQ, SQS, BullMQ, Temporal, Celery, Dramatiq, Watermill, MassTransit.</td>
                 <td class="cell-loss">Not modeled (<code>0%</code> recall).</td>
                 <td class="cell-loss">Not modeled (<code>0%</code> recall).</td>
                 <td>Not modeled.</td>
               </tr>
               <tr>
-                <td>Layer 4: ORM Tables &amp; Data Lineage (<code>READS_FROM</code> / <code>WRITES_TO</code>)</td>
-                <td class="cell-win">100% deterministic table and query lineage across SQL ScriptDom, TypeORM, Kysely, Prisma, EF Core, Dapper, JPA/Hibernate, MyBatis, jOOQ, Exposed, Room, GORM, SQLAlchemy, sqlc.</td>
+                <td>Layer 4: ORM Tables &amp; Data Lineage</td>
+                <td class="cell-win">Table and query lineage (<code>READS_FROM</code> / <code>WRITES_TO</code>) across SQL, TypeORM, Kysely, Prisma, EF Core, Dapper, Hibernate, MyBatis, jOOQ, Exposed, GORM, SQLAlchemy.</td>
                 <td class="cell-loss">Not modeled (<code>0%</code> recall).</td>
-                <td class="cell-loss">Optional raw <code>.sql</code> DDL parser only; <code>0%</code> recall on TypeORM, Kysely, Prisma, and code-to-table read/write lineage.</td>
+                <td class="cell-loss">Raw <code>.sql</code> DDL parser only; <code>0%</code> recall on TypeORM, Kysely, Prisma, and code-to-table read/write lineage.</td>
                 <td>Not modeled as a cross-service code-to-table lineage graph.</td>
               </tr>
               <tr>
-                <td>Layer 5: Cross-Service Late-Binding &amp; Monorepo Topology</td>
-                <td class="cell-win">Topological project ordering (Kahn&rsquo;s algorithm), Tarjan SCC cycle detection, C1/C2/C3 architecture views, and cross-service HTTP/gRPC/broker contract binding.</td>
-                <td class="cell-loss">Indexes repository as a single flat project without monorepo package boundaries or cross-service contracts.</td>
-                <td class="cell-loss">Models <code>package.json</code> dependencies as flat <code>concept</code> nodes; no monorepo sub-project boundaries or service contracts.</td>
+                <td>Layer 5: Service Links &amp; Monorepo Packages</td>
+                <td class="cell-win">Monorepo package boundaries, C1/C2/C3 architecture views, cycle detection, and cross-service HTTP/gRPC/broker links.</td>
+                <td class="cell-loss">Indexes repository as a single flat project without monorepo package boundaries or cross-service links.</td>
+                <td class="cell-loss">Models <code>package.json</code> dependencies as flat <code>concept</code> nodes; no sub-project boundaries or service links.</td>
                 <td>Single-project or symbol-only scope.</td>
               </tr>
               <tr>
-                <td>CI Governance: Semantic Invariant Gates (<code>SIG</code>)</td>
-                <td class="cell-win">32+ built-in and custom OpenCypher architectural gates (<code>ce gate check</code>) with SHA-256 baseline ratchets (<code>ce gate ratchet</code>) for zero-regression CI enforcement.</td>
+                <td>CI Architectural Rules (<code>SIG</code>)</td>
+                <td class="cell-win">32+ built-in and custom OpenCypher gates (<code>ce gate check</code>) with baseline ratchets (<code>ce gate ratchet</code>) for CI checks.</td>
                 <td class="cell-loss">None.</td>
                 <td class="cell-loss">None.</td>
                 <td>ArchUnit / NetArchTest support test-time rules in a single language without MCP or cross-service graphs.</td>
               </tr>
               <tr>
                 <td>IDE &amp; Visual Exploration</td>
-                <td class="cell-win">Native VS Code Extension: Concentric Orbits, Project Flow, Bounded Contexts, Transitive Broker Contraction, Gate Editor, and click-to-source navigation.</td>
-                <td>CLI and MCP server only (no IDE visual extension).</td>
+                <td class="cell-win">VS Code Extension with architecture diagrams, data lineage views, gate editor, and click-to-source navigation.</td>
+                <td>CLI and MCP server only (no IDE extension).</td>
                 <td>Generates static D3 <code>graph.html</code>, <code>GRAPH_REPORT.md</code>, and Obsidian Markdown vault exports.</td>
                 <td>Web search UI (Sourcegraph) or IDE query runner (CodeQL).</td>
               </tr>
               <tr>
-                <td>MCP Tool Surface &amp; Disambiguation Ergonomics</td>
-                <td class="cell-win">36 specialized tools. Single-round-trip <code>get_callers</code> returns compact Markdown tables (<code>1.5 KB</code>) across overloaded names without ambiguity failures.</td>
-                <td>17 tools. <code>trace_path("validate")</code> returns a <code>45.6 KB</code> <code>{"status": "ambiguous"}</code> dump of 67 candidates requiring a second call.</td>
-                <td>10 tools + 6 resources. <code>get_node</code> and <code>get_neighbors</code> fail with <code>"Ambiguous: matches 6 nodes"</code> unless given internal file-slug IDs.</td>
-                <td>Not an MCP architectural graph server.</td>
+                <td>MCP Tool Surface &amp; Disambiguation</td>
+                <td class="cell-win">36 tools. <code>get_callers</code> returns Markdown tables (<code>1.5 KB</code>) across overloaded names in one call.</td>
+                <td>17 tools. <code>trace_path("validate")</code> returns a <code>45.6 KB</code> <code>{"status": "ambiguous"}</code> list of 67 candidates requiring a second call.</td>
+                <td>10 tools + 6 resources. <code>get_node</code> and <code>get_neighbors</code> return <code>"Ambiguous: matches 6 nodes"</code> unless given internal node IDs.</td>
+                <td>Not an MCP graph server.</td>
               </tr>
               <tr>
-                <td>Unique Competitor Capabilities</td>
-                <td>Static Test Impact Analysis (<code>get_affected_tests</code>), God-class/dead-code refactoring detector, and local GGUF domain classification (<code>ce intent</code>).</td>
-                <td class="cell-num">Snapshot diffing (<code>compare_graphs</code>), OpenTelemetry trace overlay (<code>ingest_traces</code>), ADR document CRUD (<code>manage_adr</code>), and regex grep (<code>search_code</code>).</td>
-                <td class="cell-num">Unsupervised Leiden community clustering, multimodal LLM doc/PDF pass, docstring <code>rationale</code> nodes, and GitHub PR triage (<code>triage_prs</code>).</td>
+                <td>Other Capabilities</td>
+                <td>Test impact analysis (<code>get_affected_tests</code>), dead-code/coupling checks, and optional local GGUF domain tagging (<code>ce intent</code>).</td>
+                <td class="cell-num">Snapshot diffing (<code>compare_graphs</code>), OpenTelemetry trace overlay (<code>ingest_traces</code>), ADR management (<code>manage_adr</code>), and regex grep (<code>search_code</code>).</td>
+                <td class="cell-num">Leiden community clustering, LLM doc/PDF pass, docstring <code>rationale</code> nodes, and GitHub PR triage (<code>triage_prs</code>).</td>
                 <td>Compiler-verified interprocedural security taint tracking (CodeQL).</td>
               </tr>
             </tbody>
@@ -1074,40 +1074,10 @@ p code, li code, td code, th code {
         </div>
 
         <div class="sub-block">
-          <h3 class="sub-title">Why CodeExplorer finishes 24,527 files in 147 seconds while Graphify stalls past 45 minutes</h3>
-          <div class="trail">
-            <div class="trail-item">
-              <code class="tone-accent">ce: 51.0 s</code>
-              <span class="tone-ink">Single-Pass Topological Layer 3</span>
-              <p class="panel-copy">Orders all 46 packages in <code>twenty</code> via Kahn&rsquo;s algorithm (<code>twenty-shared</code> and <code>twenty-ui</code> before <code>twenty-server</code> and <code>twenty-front</code>) and runs Tree-sitter C-API parsing, UAST construction, and 250 fused declarative framework visitors in a single pass.</p>
-              <code class="tone-ok">36,644 physical files</code>
-            </div>
-            <div class="trail-item">
-              <code class="tone-cool">ce: 24.0 s</code>
-              <span class="tone-ink">Layer 4 &amp; Layer 5 Global Linking</span>
-              <p class="panel-copy">Synthesizes semantic endpoints, queues, and ORM tables in 5 seconds, then resolves 578,143 cross-project symbol references and late-binds 5,092 service calls in 19 seconds using project-scoped hash indices.</p>
-              <code class="tone-ok">17,382 lineage edges</code>
-            </div>
-            <div class="trail-item">
-              <code class="tone-ok">ce: 17.9 s</code>
-              <span class="tone-ink">Deferred-Index SQLite Schema v6 Bulk Flush</span>
-              <p class="panel-copy">Streams 456,711 nodes and 960,660 integer-keyed (<code>rowid</code>) edges in a single unindexed SQLite transaction, then builds partial B-Tree indices bottom-up.</p>
-              <code class="tone-ok">784.0 MB graph.db</code>
-            </div>
-            <div class="trail-item">
-              <code class="tone-bad">Graphify: DNF</code>
-              <span class="tone-ink">Three Algorithmic Bottlenecks in Graphify v0.9.104</span>
-              <p class="panel-copy">1) <code>detect()</code> takes 117.1s before parsing starts. 2) <code>_JS_CACHE_BYPASS_SUFFIXES</code> in <code>extract.py:10676</code> bypasses AST caching for all TS/JS files and re-parses all 24,048 files a second time sequentially on one Python thread (<code>resolution.py:2585</code>). 3) <code>_apply_symbol_resolution_facts</code> (<code>resolution.py:1872</code>) runs a quadratic <code>O(|uses| * |nodes|)</code> loop (~60 billion Python iterations across 300k nodes).</p>
-              <code class="tone-bad">&gt;2,740 s timeout</code>
-            </div>
-          </div>
-        </div>
-
-        <div class="sub-block">
-          <h3 class="sub-title">Part 1: Head-to-Head Recall on Common Ground (Layers 1 to 3, 130 Ground-Truth Items)</h3>
+          <h3 class="sub-title">Part 1: Common Ground Recall (Layers 1 to 3, 130 Ground-Truth Items)</h3>
           <div class="table-surface" role="region" aria-label="Part 1 Common Ground Recall comparison">
             <div class="table-caption-bar">
-              <span>Table 2: Direct Competition on Capabilities Supported by All Tools (0 to 100 Integer Recall Scale)</span>
+              <span>Table 2: Direct Comparison on Capabilities Supported by All Tools (0 to 100 Recall Scale)</span>
               <span class="measured">ce: 7 Wins, 1 Tie, 0 Losses</span>
             </div>
             <table class="bench-table">
@@ -1120,7 +1090,7 @@ p code, li code, td code, th code {
                   <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
                   <th><code>CBM v0.12.1</code></th>
                   <th><code>Graphify v0.9.104</code></th>
-                  <th>Winner &amp; Technical Reason</th>
+                  <th>Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -1142,7 +1112,7 @@ p code, li code, td code, th code {
                   <td class="cell-win">100 (20/20, 321 extracted)</td>
                   <td class="cell-num">90 (18/20, 271 extracted)</td>
                   <td class="cell-loss">0 (0/20 strict; 20 decorator refs without URLs)</td>
-                  <td><code>ce</code> resolves TypeScript enum route constants (<code>@Controller(RouteKey.Asset)</code>); Graphify has no <code>Endpoint</code> or URL route nodes.</td>
+                  <td><code>ce</code> resolves TypeScript enum route constants (<code>@Controller(RouteKey.Asset)</code>); Graphify has no route URL nodes.</td>
                 </tr>
                 <tr>
                   <td><code>C2</code></td>
@@ -1152,7 +1122,7 @@ p code, li code, td code, th code {
                   <td class="cell-win">50 (6/12, 164 extracted)</td>
                   <td class="cell-num">25 (3/12, 196 extracted)</td>
                   <td class="cell-loss">0 (DNF)</td>
-                  <td><code>ce</code> extracts <code>fetch</code>, <code>axios</code>, and GraphQL client operations into <code>:ExternalService</code> nodes.</td>
+                  <td><code>ce</code> extracts <code>fetch</code>, <code>axios</code>, and GraphQL client operations.</td>
                 </tr>
                 <tr>
                   <td><code>C2</code></td>
@@ -1162,7 +1132,7 @@ p code, li code, td code, th code {
                   <td class="cell-win">83 (5/6, 34 extracted)</td>
                   <td class="cell-loss">0 (0/6, 48 extracted)</td>
                   <td class="cell-loss">0 (0/6, 0 extracted)</td>
-                  <td><code>ce</code> resolves variable-URL and template-path HTTP client invocations.</td>
+                  <td><code>ce</code> resolves variable-URL and template-path HTTP client calls.</td>
                 </tr>
                 <tr>
                   <td><code>C6</code></td>
@@ -1172,7 +1142,7 @@ p code, li code, td code, th code {
                   <td class="cell-win">100 (12/12, 18 extracted)</td>
                   <td class="cell-num">75 (9/12, 10 extracted)</td>
                   <td class="cell-loss">0 (DNF)</td>
-                  <td><code>ce</code> resolves NestJS constructor-injected service calls across files and nested arrow functions via <code>[:DECLARES]</code>.</td>
+                  <td><code>ce</code> resolves NestJS constructor-injected service calls across files.</td>
                 </tr>
                 <tr>
                   <td><code>C6</code></td>
@@ -1192,7 +1162,7 @@ p code, li code, td code, th code {
                   <td class="cell-win">80 (16/20, 1,553 extracted)</td>
                   <td class="cell-loss">20 (4/20, 250 extracted)</td>
                   <td class="cell-loss">0 (DNF)</td>
-                  <td>Topological package ordering in <code>ce</code> links cross-package base classes and TypeScript <code>implements</code> interfaces.</td>
+                  <td><code>ce</code> links cross-package base classes and TypeScript <code>implements</code> interfaces.</td>
                 </tr>
                 <tr>
                   <td><code>C7</code></td>
@@ -1210,7 +1180,7 @@ p code, li code, td code, th code {
                   <td class="cell-win">78 Micro / 79 Macro (102/130)</td>
                   <td class="cell-num">38 Micro / 36 Macro (49/130)</td>
                   <td class="cell-loss">18 Micro / 14 Macro (23/130)</td>
-                  <td><code>ce</code> leads by +40 points over <code>CBM</code> and +60 points over <code>Graphify</code>.</td>
+                  <td><code>ce</code>: 102/130 vs. <code>CBM</code>: 49/130 vs. <code>Graphify</code>: 23/130.</td>
                 </tr>
               </tbody>
             </table>
@@ -1392,7 +1362,7 @@ p code, li code, td code, th code {
                   <td colspan="3">Part 2 Combined Total (All L4/L5 Architectural Categories)</td>
                   <td class="cell-num">235</td>
                   <td class="cell-win">97 Micro / 98 Macro (227/235)</td>
-                  <td class="cell-num">Full 5-Layer Ontology</td>
+                  <td class="cell-num">Layers 4 &amp; 5</td>
                   <td class="cell-loss">0 / 235 (0%)</td>
                   <td class="cell-loss">0 / 235 (0%)</td>
                 </tr>
@@ -1406,9 +1376,9 @@ p code, li code, td code, th code {
     <section class="band" id="mcp-latency">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">MCP server startup, query latency, and agent ergonomics.</h2>
+          <h2 class="band-title">MCP server startup and query latency.</h2>
           <p class="band-lede">
-            Measured over persistent JSON-RPC <code>stdio</code> sessions spawned by <code>bench_mcp.py</code> and <code>bench_mcp_graphify.py</code>. Because <code>ce</code> queries an indexed SQLite database on demand instead of loading <code>graph.json</code> into Python NetworkX, it starts 6.2× faster and resolves multi-match callers in one turn.
+            Measured over persistent JSON-RPC <code>stdio</code> sessions via <code>bench_mcp.py</code> and <code>bench_mcp_graphify.py</code>. <code>ce</code> queries an indexed SQLite database on demand instead of loading <code>graph.json</code> into Python NetworkX on startup.
           </p>
         </div>
 
@@ -1425,7 +1395,7 @@ p code, li code, td code, th code {
                 <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
                 <th><code>CBM v0.12.1</code></th>
                 <th><code>Graphify v0.9.104</code></th>
-                <th>Agent Ergonomics &amp; Payload Notes</th>
+                <th>Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -1435,7 +1405,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">608.2 ms (64.2 MB RSS)</td>
                 <td class="cell-num">~150 ms (native binary)</td>
                 <td class="cell-loss">3,782.4 ms (162.7 MB RSS)</td>
-                <td><code>ce</code> starts 6.2× faster than Graphify with 2.5× lower memory footprint.</td>
+                <td><code>ce</code> starts 6.2× faster than Graphify with 2.5× lower memory usage.</td>
               </tr>
               <tr>
                 <td>Graph Schema / Taxonomy (1st Call)</td>
@@ -1443,7 +1413,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">23.2 ms (54.7 KB)</td>
                 <td class="cell-num">72.0 ms (1.0 KB)</td>
                 <td class="cell-loss">76.1 ms on immich (DNF on twenty)</td>
-                <td><code>ce</code> persists incremental taxonomy metadata and returns complete node/edge property schemas.</td>
+                <td>Returns node and relationship counts with property schemas.</td>
               </tr>
               <tr>
                 <td>Graph Schema / Taxonomy (Cached)</td>
@@ -1451,7 +1421,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">1.7 ms / 2.7 ms</td>
                 <td class="cell-num">40.9 ms / 75.3 ms</td>
                 <td class="cell-loss">73.0 ms (spawns git rev-parse every call)</td>
-                <td><code>ce</code> is 21 to 43× faster on subsequent schema calls in the same session.</td>
+                <td>21 to 43× faster on subsequent schema calls in the same session.</td>
               </tr>
               <tr>
                 <td>Read-Only OpenCypher Query (<code>LIMIT 10</code>)</td>
@@ -1459,7 +1429,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">3.1 ms / 4.7 ms</td>
                 <td class="cell-num">38.1 ms / 71.2 ms</td>
                 <td class="cell-loss">Not supported (no query language)</td>
-                <td><code>ce</code>&rsquo;s OpenCypher-to-SQLite compiler executes 9 to 15× faster than <code>CBM</code>.</td>
+                <td>OpenCypher over SQLite runs 9 to 15× faster than <code>CBM</code>.</td>
               </tr>
               <tr>
                 <td>Inbound Callers by Method Name (<code>validate</code>)</td>
@@ -1467,7 +1437,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">37.0 ms (1.5 KB) / 530 ms (2.5 KB)</td>
                 <td class="cell-loss">7.5 ms (18.6 KB ambiguous) / 6.5 ms (45.6 KB ambiguous)</td>
                 <td class="cell-loss">3.8 ms (<code>Ambiguous: matches 6 nodes</code>)</td>
-                <td><code>ce</code> resolves callers across overloaded methods in 1 turn; both <code>CBM</code> and <code>Graphify</code> fail with ambiguity dumps requiring a 2nd turn.</td>
+                <td><code>ce</code> resolves callers across overloaded methods in 1 turn; <code>CBM</code> and <code>Graphify</code> require a 2nd disambiguation call.</td>
               </tr>
               <tr>
                 <td>Call Chain / Shortest Path (<code>login</code> to <code>validate</code>)</td>
@@ -1475,7 +1445,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">23.2 ms (0.8 KB directed chain)</td>
                 <td class="cell-num">19.5 ms (ambiguous without QN)</td>
                 <td class="cell-loss">279.0 ms (0.5 KB undirected)</td>
-                <td><code>ce</code> is 12.0× faster than Graphify&rsquo;s NetworkX path search.</td>
+                <td>12.0× faster than Graphify&rsquo;s NetworkX path search.</td>
               </tr>
               <tr>
                 <td>Keyword / Identifier Search (<code>AuthService</code>)</td>
@@ -1483,7 +1453,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">36.1 ms (<code>find_symbol</code>) / 41.7 ms (<code>search_identifiers</code>)</td>
                 <td class="cell-num">55.6 ms (<code>search_graph</code>)</td>
                 <td class="cell-loss">333.8 ms (<code>query_graph</code>)</td>
-                <td><code>ce</code> combines FTS5 trigram and vector ranking; 8.0× faster than Graphify keyword search.</td>
+                <td>FTS5 search in <code>ce</code> runs 8.0× faster than Graphify keyword search.</td>
               </tr>
               <tr>
                 <td>File Outline (<code>auth.service.ts</code>)</td>
@@ -1491,7 +1461,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">12.6 ms (0.4 KB) / 92.7 ms (0.9 KB)</td>
                 <td class="cell-num">17.3 ms (4.8 KB) / 40.5 ms (7.8 KB)</td>
                 <td class="cell-loss">Not supported</td>
-                <td><code>ce</code> is faster on <code>immich</code> and returns a compact class/method outline without local-variable clutter.</td>
+                <td>Returns a compact class/method outline without local-variable nodes.</td>
               </tr>
               <tr>
                 <td>Database Table Lineage (<code>user</code> table)</td>
@@ -1499,7 +1469,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">10.9 ms (2.6 KB) / 16.2 ms (5.2 KB)</td>
                 <td class="cell-loss">Not supported</td>
                 <td class="cell-loss">Not supported</td>
-                <td><code>ce</code>-exclusive: traces SQL queries, ORM repositories, and service methods reading or writing <code>user</code>.</td>
+                <td>Traces SQL queries, ORM repositories, and methods reading or writing <code>user</code>.</td>
               </tr>
               <tr>
                 <td>Semantic Invariant Gates (<code>check_semantic_gates</code>)</td>
@@ -1507,7 +1477,7 @@ p code, li code, td code, th code {
                 <td class="cell-win">8.9 ms / 9.1 ms (0.4 KB)</td>
                 <td class="cell-loss">Not supported</td>
                 <td class="cell-loss">Not supported</td>
-                <td><code>ce</code>-exclusive: evaluates architectural rules and SHA-256 baseline ratchets in under 10 ms.</td>
+                <td>Evaluates OpenCypher architectural rules and baseline ratchets.</td>
               </tr>
             </tbody>
           </table>
@@ -1520,7 +1490,7 @@ p code, li code, td code, th code {
         <div class="band-head">
           <h2 class="band-title">Paired A/B agent benchmarks: CodeExplorer Graph vs. ripgrep.</h2>
           <p class="band-lede">
-            Why does an AI coding agent need a semantic codebase graph if it already has fast <code>ripgrep</code>? In a 324-service monorepo, string grep requires 285 turns, burns 17.19M cumulative input tokens, and still misses 9 production services behind environment-injected URL constants.
+            Comparing the same AI agent with and without the CodeExplorer MCP server on a 324-service monorepo and a 16-project polyglot repository.
           </p>
         </div>
 
@@ -1536,7 +1506,7 @@ p code, li code, td code, th code {
                 <th>Metric</th>
                 <th>Plain AI Agent (<code>ripgrep</code> + <code>view_file</code>)</th>
                 <th>AI Agent + CodeExplorer Graph</th>
-                <th>Measured Improvement</th>
+                <th>Difference</th>
               </tr>
             </thead>
             <tbody>
@@ -1566,10 +1536,10 @@ p code, li code, td code, th code {
                 <td class="cell-win">14.07× cheaper</td>
               </tr>
               <tr>
-                <td>Blast-Radius Recall &amp; Safety</td>
+                <td>Blast-Radius Recall</td>
                 <td class="cell-loss">~82% (missed 9 RTB services &amp; 15+ callers)</td>
                 <td class="cell-win">100% (0 missed services or callers)</td>
-                <td class="cell-win">Complete architectural guarantee</td>
+                <td class="cell-win">+18% recall (all 9 services found)</td>
               </tr>
               <tr>
                 <td rowspan="4">Case Study 01: Polyglot Architecture &amp; Blast Radius<br><code>16</code> projects (C# .NET 10 + TypeScript)</td>
@@ -1594,7 +1564,7 @@ p code, li code, td code, th code {
                 <td>Blast-Radius Completeness</td>
                 <td class="cell-num">100% (Complete)</td>
                 <td class="cell-win">100% (Complete)</td>
-                <td class="cell-win">Zero blind spots</td>
+                <td class="cell-win">Same recall in 2.35× less time</td>
               </tr>
             </tbody>
           </table>
@@ -1605,9 +1575,9 @@ p code, li code, td code, th code {
     <section class="band" id="methodology">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">100% reproducible ground truth and evaluation scripts.</h2>
+          <h2 class="band-title">Ground truth and evaluation scripts.</h2>
           <p class="band-lede">
-            Every ground-truth CSV, SHA-256 freeze manifest (<code>FREEZE.txt</code>), query harness, and raw JSON-RPC latency log is committed to the repository so you can verify every number on your own machine.
+            All ground-truth CSVs, commit manifests (<code>FREEZE.txt</code>), query scripts, and JSON-RPC latency logs are in the repository.
           </p>
         </div>
 
