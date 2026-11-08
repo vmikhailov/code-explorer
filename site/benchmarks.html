@@ -582,7 +582,6 @@ p code, li code, td code, th code {
   font-size: var(--text-sm);
   color: var(--color-muted);
   background: var(--color-paper-2);
-  white-space: nowrap;
 }
 
 .bench-table tr:last-child td {
@@ -997,80 +996,116 @@ p code, li code, td code, th code {
           </p>
         </div>
 
-        <div class="table-surface" role="region" aria-label="Cold indexing performance and database size comparison">
-          <div class="table-caption-bar">
-            <span>Table 1: Cold Indexing Speed, Resource Footprint &amp; Scalability</span>
-            <span class="measured">Clean cold run on identical Windows hardware</span>
+        <div class="sub-block" style="margin-top: 0;">
+          <div class="table-surface" role="region" aria-label="Cold indexing performance on twenty monorepo">
+            <div class="table-caption-bar">
+              <span>Table 1A: Cold Indexing on <code>twenty</code> (24,527 Tracked Files, ~2.49M LOC)</span>
+              <span class="measured">Clean cold run on identical Windows hardware</span>
+            </div>
+            <table class="bench-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
+                  <th>codebase-memory-mcp (<code>CBM v0.12.1</code>)</th>
+                  <th>Graphify (<code>v0.9.104</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Repository Scale</td>
+                  <td class="cell-num">24,527 tracked (36,644 physical files)</td>
+                  <td class="cell-num">24,527 files (~2.49M LOC)</td>
+                  <td class="cell-num">24,527 tracked (24,048 TS/JS files)</td>
+                </tr>
+                <tr>
+                  <td>Cold Index Wall Time</td>
+                  <td class="cell-win">147.33 s (2.45 min, Layers 1 to 5)</td>
+                  <td class="cell-win">96.90 s (1.6 min, Layers 1 to 3)</td>
+                  <td class="cell-loss">DNF (&gt;2,740 s / &gt;45.6 min timeout)</td>
+                </tr>
+                <tr>
+                  <td>Output Graph Size on Disk</td>
+                  <td class="cell-win">784.0 MB SQLite DB</td>
+                  <td class="cell-num">842.5 MB SQLite DB</td>
+                  <td class="cell-loss">8.1 MB partial cache (no graph.json)</td>
+                </tr>
+                <tr>
+                  <td>Peak Working Set (RAM)</td>
+                  <td class="cell-num">4,660.6 MB</td>
+                  <td class="cell-win">2,076.0 MB</td>
+                  <td class="cell-loss">2,140.0 MB (stalled on 1 CPU core)</td>
+                </tr>
+                <tr>
+                  <td>Graph Nodes &amp; Edges Extracted</td>
+                  <td class="cell-win">456,711 nodes / 960,660 edges</td>
+                  <td class="cell-num">251,750 nodes / 914,479 edges</td>
+                  <td class="cell-loss">DNF (0 output)</td>
+                </tr>
+                <tr>
+                  <td>Parse &amp; Analysis Warnings</td>
+                  <td class="cell-win">0 warnings</td>
+                  <td class="cell-loss">209 parse_partial, 1 unusable</td>
+                  <td class="cell-loss">DNF</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <table class="bench-table">
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th><code>immich</code>: CodeExplorer (<code>ce v1.75.0</code>)</th>
-                <th><code>immich</code>: <code>CBM v0.12.1</code></th>
-                <th><code>immich</code>: <code>Graphify v0.9.104</code></th>
-                <th><code>twenty</code>: CodeExplorer (<code>ce v1.75.0</code>)</th>
-                <th><code>twenty</code>: <code>CBM v0.12.1</code></th>
-                <th><code>twenty</code>: <code>Graphify v0.9.104</code></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Repository Scale</td>
-                <td class="cell-num">3,205 tracked (1,485 code files)</td>
-                <td class="cell-num">3,205 files (~461k LOC)</td>
-                <td class="cell-num">3,205 tracked (1,609 AST files)</td>
-                <td class="cell-num">24,527 tracked (36,644 physical)</td>
-                <td class="cell-num">24,527 files (~2.49M LOC)</td>
-                <td class="cell-num">24,527 tracked (24,048 TS/JS)</td>
-              </tr>
-              <tr>
-                <td>Cold Index Wall Time</td>
-                <td class="cell-win">17.60 s (vs 20.60 s CBM and 107.60 s Graphify)</td>
-                <td class="cell-num">20.60 s</td>
-                <td class="cell-loss">107.60 s (1.8 min)</td>
-                <td class="cell-win">147.33 s (2.45 min, full L1 to L5)</td>
-                <td class="cell-win">96.90 s (1.6 min, L1 to L3 only)</td>
-                <td class="cell-loss">DNF (&gt;2,740 s / &gt;45.6 min timeout)</td>
-              </tr>
-              <tr>
-                <td>Output Graph Size on Disk</td>
-                <td class="cell-win">55.1 MB SQLite DB (5.1× smaller than CBM)</td>
-                <td class="cell-loss">282.0 MB SQLite DB</td>
-                <td class="cell-num">32.0 MB JSON (52.3 MB dir)</td>
-                <td class="cell-win">784.0 MB SQLite DB (smaller than CBM)</td>
-                <td class="cell-num">842.5 MB SQLite DB</td>
-                <td class="cell-loss">8.1 MB partial cache (0 graph.json)</td>
-              </tr>
-              <tr>
-                <td>Peak Working Set (RAM)</td>
-                <td class="cell-num">780.5 MB</td>
-                <td class="cell-win">595.0 MB</td>
-                <td class="cell-loss">956.9 MB</td>
-                <td class="cell-num">4,660.6 MB</td>
-                <td class="cell-win">2,076.0 MB</td>
-                <td class="cell-loss">2,140.0 MB (stalled on 1 CPU core)</td>
-              </tr>
-              <tr>
-                <td>Graph Nodes &amp; Edges Extracted</td>
-                <td class="cell-num">54,978 nodes / 117,070 edges</td>
-                <td class="cell-num">164,125 nodes (141k local vars) / 246,561 edges</td>
-                <td class="cell-num">31,725 nodes / 76,493 edges</td>
-                <td class="cell-win">456,711 nodes / 960,660 edges</td>
-                <td class="cell-num">251,750 nodes / 914,479 edges</td>
-                <td class="cell-loss">DNF (0 output)</td>
-              </tr>
-              <tr>
-                <td>Parse &amp; Analysis Warnings</td>
-                <td class="cell-win">0 warnings (0 ScanIssue nodes)</td>
-                <td class="cell-num">4 parse_partial warnings</td>
-                <td class="cell-loss">9 syntax errors + 171 empty files</td>
-                <td class="cell-win">0 warnings (0 ScanIssue nodes)</td>
-                <td class="cell-loss">209 parse_partial, 1 unusable</td>
-                <td class="cell-loss">DNF</td>
-              </tr>
-            </tbody>
-          </table>
+
+          <div class="table-surface" role="region" aria-label="Cold indexing performance on immich monorepo">
+            <div class="table-caption-bar">
+              <span>Table 1B: Cold Indexing on <code>immich</code> (3,205 Tracked Files, ~461k LOC)</span>
+              <span class="measured">Clean cold run on identical Windows hardware</span>
+            </div>
+            <table class="bench-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
+                  <th>codebase-memory-mcp (<code>CBM v0.12.1</code>)</th>
+                  <th>Graphify (<code>v0.9.104</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Repository Scale</td>
+                  <td class="cell-num">3,205 tracked (1,485 code files)</td>
+                  <td class="cell-num">3,205 files (~461k LOC)</td>
+                  <td class="cell-num">3,205 tracked (1,609 AST files)</td>
+                </tr>
+                <tr>
+                  <td>Cold Index Wall Time</td>
+                  <td class="cell-win">17.60 s</td>
+                  <td class="cell-num">20.60 s</td>
+                  <td class="cell-loss">107.60 s (1.8 min)</td>
+                </tr>
+                <tr>
+                  <td>Output Graph Size on Disk</td>
+                  <td class="cell-win">55.1 MB SQLite DB (5.1× smaller than CBM)</td>
+                  <td class="cell-loss">282.0 MB SQLite DB</td>
+                  <td class="cell-num">32.0 MB JSON (52.3 MB dir)</td>
+                </tr>
+                <tr>
+                  <td>Peak Working Set (RAM)</td>
+                  <td class="cell-num">780.5 MB</td>
+                  <td class="cell-win">595.0 MB</td>
+                  <td class="cell-loss">956.9 MB</td>
+                </tr>
+                <tr>
+                  <td>Graph Nodes &amp; Edges Extracted</td>
+                  <td class="cell-num">54,978 nodes / 117,070 edges</td>
+                  <td class="cell-num">164,125 nodes (141k local vars) / 246,561 edges</td>
+                  <td class="cell-num">31,725 nodes / 76,493 edges</td>
+                </tr>
+                <tr>
+                  <td>Parse &amp; Analysis Warnings</td>
+                  <td class="cell-win">0 warnings</td>
+                  <td class="cell-num">4 parse_partial warnings</td>
+                  <td class="cell-loss">9 syntax errors + 171 empty files</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="sub-block">
