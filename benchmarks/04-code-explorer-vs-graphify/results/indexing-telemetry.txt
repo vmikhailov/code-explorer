@@ -1,0 +1,4 @@
+ce-1.75.0-immich	wall_s=17.60	peak_ram_mb=780.5	db_mb=55.12	nodes=54978	edges=117070	state=Completed
+graphify-0.9.104-immich	wall_s=107.60	peak_ram_mb=956.9	graph_json_mb=31.98	total_dir_mb=52.31	nodes=31725	edges=76493	communities=896	state=Completed (detect=7.6s, ast_extract=72.9s, semantic=0.7s, build=11.8s, cluster=7.7s, analyze=0.5s, export=2.6s)
+ce-1.75.0-twenty	wall_s=147.33	peak_ram_mb=4660.6	db_mb=783.99	nodes=456711	edges=960660	state=Completed (L1+L2=14s, L3_single_pass_topo=51s, L4=4s, L5=19s, BulkFlush+Indices+PostIndex=58s)
+graphify-0.9.104-twenty	wall_s=>2740.0	peak_ram_mb=2140.0	graph_json_mb=0.0	total_dir_mb=8.10	nodes=0	edges=0	state=TimedOut_DNF_45m (detect=117.1s, parallel_ast_extract=415s, hung >36m in single-threaded _collect_js_symbol_resolution_facts + O(U*N) _collision_aware in extractors/resolution.py)

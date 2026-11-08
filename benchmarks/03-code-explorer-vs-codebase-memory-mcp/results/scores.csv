@@ -3,7 +3,7 @@ twenty,Part 1,c1,ce,20,20,100,896,EXPOSED_BY endpoints: 896
 twenty,Part 1,c1,cbm,20,0,0,4,HANDLES->Route: 4
 twenty,Part 1,c2,ce,12,1,8,963,ExternalService nodes: 963
 twenty,Part 1,c2,cbm,12,3,25,196,HTTP_CALLS edges: 196
-twenty,Part 1,c6,ce,12,11,92,18,CALLS for target methods: 18
+twenty,Part 1,c6,ce,12,12,100,18,CALLS for target methods: 18
 twenty,Part 1,c6,cbm,12,9,75,10,CALLS for target methods: 10
 twenty,Part 1,c7,ce,20,13,65,1321,INHERITS_FROM+IMPLEMENTS: 1321
 twenty,Part 1,c7,cbm,20,4,20,250,INHERITS+IMPLEMENTS: 250
@@ -19,7 +19,7 @@ immich,Part 1,c1,ce,20,20,100,321,EXPOSED_BY endpoints: 321
 immich,Part 1,c1,cbm,20,18,90,271,HANDLES->Route: 271
 immich,Part 1,c2,ce,6,1,17,13,ExternalService nodes: 13
 immich,Part 1,c2,cbm,6,0,0,48,HTTP_CALLS edges: 48
-immich,Part 1,c6,ce,20,17,85,119,CALLS for target methods: 119
+immich,Part 1,c6,ce,20,20,100,119,CALLS for target methods: 119
 immich,Part 1,c6,cbm,20,12,60,97,CALLS for target methods: 97
 immich,Part 1,c7,ce,20,3,15,139,INHERITS_FROM+IMPLEMENTS: 139
 immich,Part 1,c7,cbm,20,3,15,564,INHERITS+IMPLEMENTS: 564

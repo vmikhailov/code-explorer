@@ -1,0 +1,412 @@
+{
+  "immich": {
+    "repo": "immich",
+    "ce_tool_count": 36,
+    "ce_tools": [
+      "get_file_outline",
+      "export_architecture_diagram",
+      "resolve_call_target",
+      "clear_workspace_index",
+      "init_workspace",
+      "find_refactoring_opportunities",
+      "check_semantic_gates",
+      "execute_project_query",
+      "get_node_definition",
+      "execute_custom_read_cypher",
+      "get_affected_tests",
+      "analyze_code_impact",
+      "get_bounded_contexts",
+      "manage_domain",
+      "get_test_coverage",
+      "get_architecture_overview",
+      "ingest_graph_data",
+      "get_callers",
+      "get_service_contracts",
+      "get_taxonomy",
+      "fetch_code_snippets",
+      "scan_workspace",
+      "get_call_chain",
+      "find_symbol",
+      "list_semantic_gates",
+      "get_architecture_view",
+      "get_project_dependencies",
+      "assign_service_domain",
+      "search_identifiers",
+      "trace_cross_service_flow",
+      "save_project_query",
+      "inspect_data_lineage",
+      "get_workspace_status",
+      "list_project_queries",
+      "get_project_entry_points",
+      "get_architecture_map"
+    ],
+    "graphify_tool_count": 10,
+    "graphify_tools": [
+      "query_graph",
+      "get_node",
+      "get_neighbors",
+      "get_community",
+      "god_nodes",
+      "graph_stats",
+      "shortest_path",
+      "list_prs",
+      "get_pr_impact",
+      "triage_prs"
+    ],
+    "graphify_resource_count": 6,
+    "graphify_resources": [
+      "graphify://report",
+      "graphify://stats",
+      "graphify://god-nodes",
+      "graphify://surprises",
+      "graphify://audit",
+      "graphify://questions"
+    ],
+    "ce_cold_init_ms": 599.0,
+    "graphify_cold_init_ms": 3682.9,
+    "ce_server_rss_mb_after_init": 63.9,
+    "graphify_server_rss_mb_after_init": 162.8,
+    "operations": {
+      "architecture_overview": {
+        "ce": {
+          "tool": "get_architecture_map",
+          "ms": 239.2,
+          "kb": 4.5,
+          "preview": "{\"results\":[{\"workspace\":\"immich\",\"path\":\"C:\\\\Work\\\\bench-pilot\\\\repos\\\\immich\",\"projects\":[{\"name\":\"server.Scripts\",\"language\":\"shell\",\"dependencies\":[],\"databases\":[],\"ingress\":[],\"egress\":[]},{\"nam"
+        },
+        "graphify": {
+          "tool": "god_nodes",
+          "ms": 21.8,
+          "kb": 0.7,
+          "preview": "God nodes (most connected):\n  1. AuthDto - 569 edges\n  2. GenerateSql() - 415 edges\n  3. svelte-i18n - 370 edges\n  4. Authenticated() - 357 edges\n  5. @immich/ui - 357 edges\n  6. Endpoint() - 334 edge"
+        }
+      },
+      "graph_schema_or_stats_first": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 23.3,
+          "kb": 51.2,
+          "preview": "{\"taxonomy\":[{\"label\":\"ApiInUse\",\"properties\":[\"capability\",\"clean_name\",\"dimension\",\"id\",\"is_semantic_entity\",\"layer\",\"layerColor\",\"layerIcon\",\"layerId\",\"layerName\",\"layerOrder\",\"name\",\"path\",\"projec"
+        },
+        "graphify": {
+          "tool": "graph_stats",
+          "ms": 76.1,
+          "kb": 0.2,
+          "preview": "Nodes: 31725\nEdges: 76493\nCommunities: 896\nEXTRACTED: 96%\nINFERRED: 4%\nAMBIGUOUS: 0%\nBuilt at commit: 2153d22f34349de690cd98890ee4c635808da638 (matches HEAD)\n"
+        }
+      },
+      "graph_schema_or_stats_cached": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 1.7,
+          "kb": 51.2,
+          "preview": "{\"taxonomy\":[{\"label\":\"ApiInUse\",\"properties\":[\"capability\",\"clean_name\",\"dimension\",\"id\",\"is_semantic_entity\",\"layer\",\"layerColor\",\"layerIcon\",\"layerId\",\"layerName\",\"layerOrder\",\"name\",\"path\",\"projec"
+        },
+        "graphify": {
+          "tool": "graph_stats",
+          "ms": 73.0,
+          "kb": 0.2,
+          "preview": "Nodes: 31725\nEdges: 76493\nCommunities: 896\nEXTRACTED: 96%\nINFERRED: 4%\nAMBIGUOUS: 0%\nBuilt at commit: 2153d22f34349de690cd98890ee4c635808da638 (matches HEAD)\n"
+        }
+      },
+      "symbol_lookup_AuthService_by_name": {
+        "ce": {
+          "tool": "find_symbol",
+          "ms": 36.1,
+          "kb": 0.4,
+          "preview": "| Kind | Name | Symbol | File | Lines |\r\n| :--- | :--- | :--- | :--- | :--- |\r\n| Class | `AuthService` | `ws:sym:server/src/services/auth.service.ts:Type:AuthService` | `C:\\Work\\bench-pilot\\repos\\immi"
+        },
+        "graphify": {
+          "tool": "get_node",
+          "ms": 3.7,
+          "kb": 0.6,
+          "preview": "Ambiguous: 'AuthService' matches 5 nodes in different files.\n  server/src/services/auth.service.ts\n    id: server_src_services_auth_service_authservice\n  authservice\n    id: authservice\n  mobile/lib/p"
+        }
+      },
+      "symbol_lookup_AuthService_by_id": {
+        "ce": {
+          "tool": "get_node_definition",
+          "ms": 10.4,
+          "kb": 0.1,
+          "preview": "An error occurred invoking 'get_node_definition'."
+        },
+        "graphify": {
+          "tool": "get_node",
+          "ms": 9.6,
+          "kb": 0.2,
+          "preview": "Node: AuthService\n  ID: server_src_services_auth_service_authservice\n  Source: server/src/services/auth.service.ts L59\n  Type: code\n  Community: 21\n  Degree: 55"
+        }
+      },
+      "inbound_callers_validate_by_name": {
+        "ce": {
+          "tool": "get_callers",
+          "ms": 37.0,
+          "kb": 1.5,
+          "preview": "### Callers & Inbound References for `validate`\n\r\n**Total Inbound Callers**: 8\n\r\n| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |\r\n| :--- | :--- | :--- | :--- | :--- | "
+        },
+        "graphify": {
+          "tool": "get_neighbors",
+          "ms": 3.8,
+          "kb": 0.9,
+          "preview": "Ambiguous: 'validate' matches 6 nodes in different files.\n  server/src/services/auth.service.ts\n    id: server_src_services_auth_service_authservice_validate\n  server/src/services/workflow-execution.s"
+        }
+      },
+      "inbound_callers_validate_by_id": {
+        "ce": {
+          "tool": "get_callers",
+          "ms": 19.0,
+          "kb": 1.5,
+          "preview": "### Callers & Inbound References for `validate`\n\r\n**Total Inbound Callers**: 8\n\r\n| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |\r\n| :--- | :--- | :--- | :--- | :--- | "
+        },
+        "graphify": {
+          "tool": "get_neighbors",
+          "ms": 2.4,
+          "kb": 0.7,
+          "preview": "Neighbors of .validate():\n  --> .getBearerToken() [calls] [EXTRACTED] at=server/src/services/auth.service.ts:L247\n  --> .getCookieToken() [calls] [EXTRACTED] at=server/src/services/auth.service.ts:L24"
+        }
+      },
+      "semantic_or_bfs_search": {
+        "ce": {
+          "tool": "search_identifiers",
+          "ms": 41.7,
+          "kb": 3.0,
+          "preview": "### Code Identifier Search Results for `authentication token validate`\n\r\n**Matches Found**: 15\n\r\n| Score | Kind | Name | Full Name / Route | Location (File:Line) |\r\n| :--- | :--- | :--- | :--- | :--- "
+        },
+        "graphify": {
+          "tool": "query_graph",
+          "ms": 333.8,
+          "kb": 3.6,
+          "preview": "Graph: graphify-out/graph.json (31725 nodes) | Traversal: BFS depth=2 | Start: ['Authentication', 'validate()', 'token'] | 17 nodes found\n\nNODE Authentication [src=server/src/enum.ts loc=L1263 communi"
+        }
+      },
+      "call_chain_or_shortest_path": {
+        "ce": {
+          "tool": "get_call_chain",
+          "ms": 23.2,
+          "kb": 0.2,
+          "preview": "No call chain found between 'login' and 'validate' within depth 5."
+        },
+        "graphify": {
+          "tool": "shortest_path",
+          "ms": 279.0,
+          "kb": 0.3,
+          "preview": "Shortest path (3 hops):\n  .login() --calls [INFERRED 0.85]--> .login() <--method [EXTRACTED]-- AuthService --method [EXTRACTED]--> .validate()\nPath confidence: INFERRED (weakest hop 1: calls, score 0."
+        }
+      },
+      "project_deps_or_community": {
+        "ce": {
+          "tool": "get_project_dependencies",
+          "ms": 6.8,
+          "kb": 1.0,
+          "preview": "### Project Dependencies (Filter: all)\n\r\n- **immich-monorepo** -> prettier, prettier-plugin-sort-json, oazapfts, @openapitools/openapi-generator-cli\r\n- **e2e** -> prettier, @eslint/js, @futo-org/backu"
+        },
+        "graphify": {
+          "tool": "get_community",
+          "ms": 3.5,
+          "kb": 6.3,
+          "preview": "[!] TRUNCATED: showing 100 of 671 lines (~2000-token budget). Raise the token budget to 13131 to get all 671 (token_budget=13131). Raise token_budget or use get_node for specific members\n\nCommunity 0 "
+        }
+      },
+      "file_outline": {
+        "ce": {
+          "tool": "get_file_outline",
+          "ms": 12.6,
+          "kb": 0.4,
+          "preview": "### File Outline: `server/src/services/auth.service.ts`\n\r\n- **Function** `<module_init>` (L1-681)\r\n- **Interface** `LoginDetails` (L33-39)\r\n- **Interface** `OAuthClaimsConfig` (L41-44)\r\n- **Interface*"
+        }
+      },
+      "cypher_query_limit_10": {
+        "ce": {
+          "tool": "execute_custom_read_cypher",
+          "ms": 3.1,
+          "kb": 1.0,
+          "preview": "{\"results\":[{\"json_extract(n.properties, \\u0027$.name\\u0027)\":\"VersionSwitcher\"},{\"json_extract(n.properties, \\u0027$.name\\u0027)\":\"getVersions\"},{\"json_extract(n.properties, \\u0027$.name\\u0027)\":\"Hom"
+        }
+      },
+      "data_lineage_user": {
+        "ce": {
+          "tool": "inspect_data_lineage",
+          "ms": 11.9,
+          "kb": 2.6,
+          "preview": "{\"results\":[{\"tableName\":\"Users\",\"queryName\":\"\",\"queryText\":\"\",\"filePath\":\"\",\"parentName\":[\"up\",\"down\"],\"parentType\":\"Function\",\"callingSymbols\":[]},{\"tableName\":\"album_user\",\"queryName\":\"\",\"queryText"
+        }
+      },
+      "semantic_gates": {
+        "ce": {
+          "tool": "check_semantic_gates",
+          "ms": 8.9,
+          "kb": 0.4,
+          "preview": "# \u2705 **Semantic Gates: All Invariants Satisfied**\n\r\n- **Total Gates Evaluated**: 0\r\n- **Passed**: 0 | **Failed**: 0\r\n- **New Violations**: 0 | **Tolerated Baseline Debt**: 0\r\n- **Evaluation Time**: 1.8"
+        }
+      }
+    },
+    "ce_server_rss_mb_after_queries": 113.0,
+    "graphify_server_rss_mb_after_queries": 268.2
+  },
+  "twenty": {
+    "repo": "twenty",
+    "ce_tool_count": 36,
+    "ce_tools": [
+      "get_file_outline",
+      "export_architecture_diagram",
+      "resolve_call_target",
+      "clear_workspace_index",
+      "init_workspace",
+      "find_refactoring_opportunities",
+      "check_semantic_gates",
+      "execute_project_query",
+      "get_node_definition",
+      "execute_custom_read_cypher",
+      "get_affected_tests",
+      "analyze_code_impact",
+      "get_bounded_contexts",
+      "manage_domain",
+      "get_test_coverage",
+      "get_architecture_overview",
+      "ingest_graph_data",
+      "get_callers",
+      "get_service_contracts",
+      "get_taxonomy",
+      "fetch_code_snippets",
+      "scan_workspace",
+      "get_call_chain",
+      "find_symbol",
+      "list_semantic_gates",
+      "get_architecture_view",
+      "get_project_dependencies",
+      "assign_service_domain",
+      "search_identifiers",
+      "trace_cross_service_flow",
+      "save_project_query",
+      "inspect_data_lineage",
+      "get_workspace_status",
+      "list_project_queries",
+      "get_project_entry_points",
+      "get_architecture_map"
+    ],
+    "graphify_tool_count": 0,
+    "graphify_tools": [],
+    "graphify_resource_count": 0,
+    "graphify_resources": [],
+    "ce_cold_init_ms": 582.5,
+    "graphify_cold_init_ms": null,
+    "ce_server_rss_mb_after_init": 63.0,
+    "graphify_server_rss_mb_after_init": null,
+    "operations": {
+      "architecture_overview": {
+        "ce": {
+          "tool": "get_architecture_map",
+          "ms": 367.1,
+          "kb": 11.0,
+          "preview": "{\"results\":[{\"workspace\":\"twenty\",\"path\":\"C:\\\\Work\\\\bench-pilot\\\\repos\\\\twenty\",\"projects\":[{\"name\":\"twenty-monorepo\",\"language\":\"typescript\",\"dependencies\":[],\"databases\":[],\"ingress\":[],\"egress\":[]}"
+        }
+      },
+      "graph_schema_or_stats_first": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 22.4,
+          "kb": 54.5,
+          "preview": "{\"taxonomy\":[{\"label\":\"ApiInUse\",\"properties\":[\"capability\",\"clean_name\",\"dimension\",\"id\",\"is_semantic_entity\",\"layer\",\"layerColor\",\"layerIcon\",\"layerId\",\"layerName\",\"layerOrder\",\"name\",\"path\",\"projec"
+        }
+      },
+      "graph_schema_or_stats_cached": {
+        "ce": {
+          "tool": "get_taxonomy",
+          "ms": 1.4,
+          "kb": 54.5,
+          "preview": "{\"taxonomy\":[{\"label\":\"ApiInUse\",\"properties\":[\"capability\",\"clean_name\",\"dimension\",\"id\",\"is_semantic_entity\",\"layer\",\"layerColor\",\"layerIcon\",\"layerId\",\"layerName\",\"layerOrder\",\"name\",\"path\",\"projec"
+        }
+      },
+      "symbol_lookup_AuthService_by_name": {
+        "ce": {
+          "tool": "find_symbol",
+          "ms": 62.3,
+          "kb": 1.1,
+          "preview": "| Kind | Name | Symbol | File | Lines |\r\n| :--- | :--- | :--- | :--- | :--- |\r\n| Class | `AuthService` | `ws:sym:packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts:Type:AuthS"
+        }
+      },
+      "symbol_lookup_AuthService_by_id": {
+        "ce": {
+          "tool": "get_node_definition",
+          "ms": 9.4,
+          "kb": 0.1,
+          "preview": "An error occurred invoking 'get_node_definition'."
+        }
+      },
+      "inbound_callers_validate_by_name": {
+        "ce": {
+          "tool": "get_callers",
+          "ms": 35.6,
+          "kb": 2.0,
+          "preview": "### Callers & Inbound References for `validate`\n\r\n**Total Inbound Callers**: 8\n\r\n| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |\r\n| :--- | :--- | :--- | :--- | :--- | "
+        }
+      },
+      "inbound_callers_validate_by_id": {
+        "ce": {
+          "tool": "get_callers",
+          "ms": 18.4,
+          "kb": 2.0,
+          "preview": "### Callers & Inbound References for `validate`\n\r\n**Total Inbound Callers**: 8\n\r\n| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |\r\n| :--- | :--- | :--- | :--- | :--- | "
+        }
+      },
+      "semantic_or_bfs_search": {
+        "ce": {
+          "tool": "search_identifiers",
+          "ms": 485.6,
+          "kb": 4.0,
+          "preview": "### Code Identifier Search Results for `authentication token validate`\n\r\n**Matches Found**: 15\n\r\n| Score | Kind | Name | Full Name / Route | Location (File:Line) |\r\n| :--- | :--- | :--- | :--- | :--- "
+        }
+      },
+      "call_chain_or_shortest_path": {
+        "ce": {
+          "tool": "get_call_chain",
+          "ms": 338.1,
+          "kb": 0.2,
+          "preview": "No call chain found between 'login' and 'validate' within depth 5."
+        }
+      },
+      "project_deps_or_community": {
+        "ce": {
+          "tool": "get_project_dependencies",
+          "ms": 10.8,
+          "kb": 1.0,
+          "preview": "### Project Dependencies (Filter: all)\n\r\n- **twenty-monorepo** -> @nx/jest, @nx/js, @nx/react, @nx/storybook, @nx/vite, @nx/web, @types/react, @types/react-dom, @yarnpkg/types, concurrently, eslint-pl"
+        }
+      },
+      "file_outline": {
+        "ce": {
+          "tool": "get_file_outline",
+          "ms": 11.6,
+          "kb": 0.9,
+          "preview": "### File Outline: `packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts`\n\r\n- **Function** `<module_init>` (L1-1287)\r\n- **Member** `WORKSPACE_CREATION_ACCESS_POLICY` (L129-137)\r\n- **Mem"
+        }
+      },
+      "cypher_query_limit_10": {
+        "ce": {
+          "tool": "execute_custom_read_cypher",
+          "ms": 3.8,
+          "kb": 1.1,
+          "preview": "{\"results\":[{\"json_extract(n.properties, \\u0027$.name\\u0027)\":\"Jest:Suite:retired scaffolder\"},{\"json_extract(n.properties, \\u0027$.name\\u0027)\":\"Jest:Test:shows migration instructions without creatin"
+        }
+      },
+      "data_lineage_user": {
+        "ce": {
+          "tool": "inspect_data_lineage",
+          "ms": 17.8,
+          "kb": 5.2,
+          "preview": "{\"results\":[{\"tableName\":\"pg_statio_user_tables\",\"queryName\":\"\",\"queryText\":\"\",\"filePath\":\"\",\"parentName\":[\"isHealthy\"],\"parentType\":\"Function\",\"callingSymbols\":[\"Jest:Test:should return up status wit"
+        }
+      },
+      "semantic_gates": {
+        "ce": {
+          "tool": "check_semantic_gates",
+          "ms": 9.1,
+          "kb": 0.4,
+          "preview": "# \u2705 **Semantic Gates: All Invariants Satisfied**\n\r\n- **Total Gates Evaluated**: 0\r\n- **Passed**: 0 | **Failed**: 0\r\n- **New Violations**: 0 | **Tolerated Baseline Debt**: 0\r\n- **Evaluation Time**: 1.7"
+        }
+      }
+    },
+    "ce_server_rss_mb_after_queries": 310.0,
+    "graphify_server_rss_mb_after_queries": null
+  }
+}

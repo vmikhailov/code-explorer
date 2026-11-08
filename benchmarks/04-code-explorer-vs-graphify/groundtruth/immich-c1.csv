@@ -1,0 +1,21 @@
+id,file,line,symbol,detail
+immich-c1-S01,machine-learning/immich_ml/main.py,156,root,GET /
+immich-c1-S02,server/src/controllers/album.controller.ts,146,AlbumController.removeAssetFromAlbum,DELETE albums
+immich-c1-S03,server/src/controllers/asset-file.controller.ts,40,AssetFilesController.getAssetFile,GET asset-files
+immich-c1-S04,server/src/controllers/asset.controller.ts,144,AssetController.updateAsset,PUT RouteKey.Asset
+immich-c1-S05,server/src/controllers/auth.controller.ts,119,AuthController.getAuthStatus,GET auth
+immich-c1-S06,server/src/controllers/config-admin.controller.ts,43,ConfigAdminController.updateAdminConfig,PUT admin/config
+immich-c1-S07,server/src/controllers/face.controller.ts,30,FaceController.createFace,POST faces
+immich-c1-S08,server/src/controllers/library.controller.ts,69,LibraryController.updateLibraryV3,PATCH libraries
+immich-c1-S09,server/src/controllers/memory.controller.ts,87,MemoryController.updateMemoryV3,PATCH memories
+immich-c1-S10,server/src/controllers/oauth.controller.ts,100,OAuthController.linkOAuthAccount,POST oauth
+immich-c1-S11,server/src/controllers/person.controller.ts,62,PersonController.getAllPeople,GET people
+immich-c1-S12,server/src/controllers/plugin.controller.ts,28,PluginController.searchPlugins,GET plugins
+immich-c1-S13,server/src/controllers/search.controller.ts,123,SearchController.searchPlaces,GET search
+immich-c1-S14,server/src/controllers/server.controller.ts,193,ServerController.getVersionCheck,GET server
+immich-c1-S15,server/src/controllers/shared-link.controller.ts,175,SharedLinkController.removeSharedLinkAssets,DELETE shared-links
+immich-c1-S16,server/src/controllers/system-config.controller.ts,70,SystemConfigController.getStorageTemplateOptions,GET system-config
+immich-c1-S17,server/src/controllers/timeline.controller.ts,35,TimelineController.getTimeBucket,GET timeline
+immich-c1-S18,server/src/controllers/user-admin.controller.ts,186,UserAdminController.restoreUserAdmin,POST admin/users
+immich-c1-S19,server/src/controllers/user.controller.ts,219,UserController.createProfileImage,POST RouteKey.User
+immich-c1-S20,server/src/controllers/workflow.controller.ts,115,WorkflowController.deleteWorkflow,DELETE workflows

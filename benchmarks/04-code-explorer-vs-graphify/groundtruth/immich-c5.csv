@@ -1,0 +1,11 @@
+id,file,line,symbol,detail
+immich-c5-S01,server/src/repositories/access.repository.ts,22,ActivityAccess.checkOwnerAccess,activity:read
+immich-c5-S02,server/src/repositories/access.repository.ts,38,ActivityAccess.checkAlbumOwnerAccess,activity:read
+immich-c5-S03,server/src/repositories/access.repository.ts,612,PersonAccess.checkFaceOwnerAccess,asset_face:read
+immich-c5-S04,server/src/repositories/activity.repository.ts,28,ActivityRepository.search,activity:read
+immich-c5-S05,server/src/repositories/activity.repository.ts,52,ActivityRepository.create,activity:write
+immich-c5-S06,server/src/repositories/activity.repository.ts,66,ActivityRepository.delete,activity:write
+immich-c5-S07,server/src/repositories/memory.repository.ts,95,MemoryRepository.search,asset_face:read
+immich-c5-S08,server/src/repositories/memory.repository.ts,136,MemoryRepository.personAssets,asset_face:read
+immich-c5-S09,server/src/repositories/person.repository.ts,194,PersonRepository.reassignFaces,asset_face:write
+immich-c5-S10,server/src/repositories/person.repository.ts,210,PersonRepository.updateGroupId,asset_face:write

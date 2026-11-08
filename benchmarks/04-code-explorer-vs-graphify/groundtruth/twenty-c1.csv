@@ -1,0 +1,21 @@
+id,file,line,symbol,detail
+twenty-c1-S01,packages/twenty-server/src/engine/api/mcp/controllers/mcp-core.controller.ts,75,McpCoreController.handleMcpCore,POST ApiPath.Mcp
+twenty-c1-S02,packages/twenty-server/src/engine/api/rest/core/controllers/rest-api-core.controller.ts,147,RestApiCoreController.handleApiMerge,PATCH ApiPath.Rest
+twenty-c1-S03,packages/twenty-server/src/engine/core-modules/application/application-oauth/controllers/oauth-discovery.controller.ts,25,OAuthDiscoveryController.getAuthorizationServerMetadata,GET ApiPath.WellKnown
+twenty-c1-S04,packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration-claim.controller.ts,34,ApplicationRegistrationClaimController.githubCallback,GET ApiPath.ApplicationRegistrationClaim
+twenty-c1-S05,packages/twenty-server/src/engine/core-modules/auth/controllers/google-apis-auth.controller.ts,57,GoogleAPIsAuthController.googleAuth,GET `${ApiPath.Auth}/google-apis`
+twenty-c1-S06,packages/twenty-server/src/engine/core-modules/auth/controllers/oauth-propagator.controller.ts,36,OAuthPropagatorController.propagateOAuthCallback,GET `${ApiPath.Auth}/oauth-propagator`
+twenty-c1-S07,packages/twenty-server/src/engine/core-modules/billing/app-billing/app-billing.controller.ts,115,AppBillingController.charge,POST `${ApiPath.App}/billing`
+twenty-c1-S08,packages/twenty-server/src/engine/core-modules/enterprise/enterprise.resolver.ts,116,EnterpriseResolver.setEnterpriseKey,MUTATION
+twenty-c1-S09,packages/twenty-server/src/engine/core-modules/open-api/open-api.controller.ts,36,OpenApiController.generateOpenApiSchemaMetaData,GET
+twenty-c1-S10,packages/twenty-server/src/engine/core-modules/well-known/controllers/well-known.controller.ts,44,WellKnownController.getApiCatalog,GET ApiPath.WellKnown
+twenty-c1-S11,packages/twenty-server/src/engine/metadata-modules/field-metadata/controllers/field-metadata.controller.ts,177,FieldMetadataController.createOne,POST `${ApiPath.Rest}/metadata/fields`
+twenty-c1-S12,packages/twenty-server/src/engine/metadata-modules/object-metadata/controllers/object-metadata.controller.ts,198,ObjectMetadataController.updateOnePatch,PATCH `${ApiPath.Rest}/metadata/objects`
+twenty-c1-S13,packages/twenty-server/src/engine/metadata-modules/page-layout-widget/controllers/page-layout-widget.controller.ts,60,PageLayoutWidgetController.findMany,GET `${ApiPath.Rest}/metadata/pageLayoutWidgets`
+twenty-c1-S14,packages/twenty-server/src/engine/metadata-modules/page-layout/controllers/page-layout.controller.ts,119,PageLayoutController.update,PATCH `${ApiPath.Rest}/metadata/pageLayouts`
+twenty-c1-S15,packages/twenty-server/src/engine/metadata-modules/view-field/controllers/view-field.controller.ts,69,ViewFieldController.findOne,GET `${ApiPath.Rest}/metadata/viewFields`
+twenty-c1-S16,packages/twenty-server/src/engine/metadata-modules/view-filter-group/controllers/view-filter-group.controller.ts,127,ViewFilterGroupController.delete,DELETE `${ApiPath.Rest}/metadata/viewFilterGroups`
+twenty-c1-S17,packages/twenty-server/src/engine/metadata-modules/view-group/controllers/view-group.controller.ts,95,ViewGroupController.create,POST `${ApiPath.Rest}/metadata/viewGroups`
+twenty-c1-S18,packages/twenty-server/src/engine/metadata-modules/view/controllers/view.controller.ts,74,ViewController.findMany,GET `${ApiPath.Rest}/metadata/views`
+twenty-c1-S19,packages/twenty-server/src/engine/metadata-modules/webhook/controllers/webhook.controller.ts,84,WebhookController.update,"PATCH [`${ApiPath.Rest}/webhooks`, `${ApiPath.Rest}/metadata/webhooks`]"
+twenty-c1-S20,packages/twenty-server/src/modules/emailing/controllers/campaign-tracking.controller.ts,87,CampaignTrackingController.handleOpenPixel,GET ApiPath.Emailing

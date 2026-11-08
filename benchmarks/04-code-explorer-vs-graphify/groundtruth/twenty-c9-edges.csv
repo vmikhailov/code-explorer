@@ -1,0 +1,5 @@
+from_service,to_service,via,evidence
+twenty-front,twenty-server,http/graphql,packages/twenty-front GraphQL & REST client calls to twenty-server
+twenty-server,twenty-worker,queue:MessageQueue,packages/twenty-server/src/engine/core-modules/message-queue (27 queues in MessageQueue enum)
+twenty-server,postgres-db,db:core.*,packages/twenty-docker/docker-compose.yml PG_DATABASE_URL & TypeORM @Entity tables
+twenty-worker,postgres-db,db:core.*,packages/twenty-docker/docker-compose.yml PG_DATABASE_URL & TypeORM @Entity tables

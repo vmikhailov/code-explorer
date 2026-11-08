@@ -1,0 +1,21 @@
+id,file,line,symbol,detail
+immich-c6-S01,server/src/commands/password-login.ts,14,EnablePasswordLoginCommand.run,calls CliService.enablePasswordLogin
+immich-c6-S02,server/src/controllers/asset-media.controller.ts,137,AssetMediaController.viewAsset,calls AssetMediaService.viewThumbnail
+immich-c6-S03,server/src/controllers/person.controller.ts,85,PersonController.updatePeople,calls PersonService.updateAll
+immich-c6-S04,server/src/controllers/server.controller.ts,160,ServerController.getServerLicense,calls ServerService.getLicense
+immich-c6-S05,server/src/controllers/user-admin.controller.ts,149,UserAdminController.getUserPreferencesAdmin,calls UserAdminService.getPreferences
+immich-c6-S06,server/src/maintenance/maintenance-worker.service.ts,207,MaintenanceWorkerService.logSecret,calls MaintenanceWorkerService.getConfig
+immich-c6-S07,server/src/services/auth.service.ts,247,AuthService.validate,calls AuthService.getBearerToken
+immich-c6-S08,server/src/services/futo-backups.service.ts,40,FutoBackupsService.updateLibraryConfig,calls FutoBackupsService.configureImmichDatabaseDump
+immich-c6-S09,server/src/services/media.service.ts,258,MediaService.extractOriginalImage,calls MediaService.extractImage
+immich-c6-S10,server/src/services/media.service.ts,418,MediaService.handleGeneratePersonThumbnail,calls MediaService.extractImage
+immich-c6-S11,server/src/services/metadata.service.ts,408,MetadataService.handleMetadataExtraction,calls MetadataService.linkLivePhotos
+immich-c6-S12,server/src/services/ocr.service.ts,47,OcrService.handleOcr,calls OcrService.parseOcrResults
+immich-c6-S13,server/src/services/search.service.ts,113,SearchService.searchMetadata,calls SearchService.mapResponse
+immich-c6-S14,server/src/services/search.service.ts,197,SearchService.searchSmart,calls SearchService.mapResponse
+immich-c6-S15,server/src/services/search.service.ts,258,SearchService.searchMetadataV3,calls SearchService.mapResponse
+immich-c6-S16,server/src/services/search.service.ts,299,SearchService.searchSmartV3,calls SearchService.mapResponse
+immich-c6-S17,server/src/services/sync.service.ts,191,SyncService.streamInternal,calls SyncService.syncAssetsV1
+immich-c6-S18,server/src/services/sync.service.ts,192,SyncService.streamInternal,calls SyncService.syncAssetFacesV1
+immich-c6-S19,server/src/services/transcoding.service.ts,47,TranscodingService.onBootstrap,calls TranscodingService.removeExpiredSessions
+immich-c6-S20,server/src/services/transcoding.service.ts,62,TranscodingService.onHlsSessionCleanup,calls TranscodingService.removeExpiredSessions

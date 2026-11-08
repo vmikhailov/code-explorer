@@ -1,0 +1,8 @@
+service,root_path,kind,evidence
+immich-server,server,service,docker/docker-compose.yml (service: immich-server) & server/src/main.ts
+immich-microservices-worker,server,worker,server/src/Enum.ts (ImmichWorker.Microservices) & BullMQ @OnJob handlers in server/src/services
+immich-machine-learning,machine-learning,service,docker/docker-compose.yml (service: immich-machine-learning) & machine-learning/immich_ml/main.py
+immich-web,web,frontend,web/package.json
+immich-mobile,mobile,frontend,mobile/pubspec.yaml
+immich-cli,cli,cli,cli/package.json
+open-api-typescript-sdk,open-api/typescript-sdk,library,open-api/typescript-sdk/package.json

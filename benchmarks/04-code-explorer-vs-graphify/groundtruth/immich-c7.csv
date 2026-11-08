@@ -1,0 +1,21 @@
+id,file,line,symbol,detail
+immich-c7-S01,server/src/commands/grant-admin.ts,14,GrantAdminCommand,extends CommandRunner
+immich-c7-S02,server/src/dtos/album.dto.ts,206,AlbumUserParamDto,extends createZodDto
+immich-c7-S03,server/src/dtos/asset-ids.response.dto.ts,55,BulkIdsDto,extends createZodDto
+immich-c7-S04,server/src/dtos/asset.dto.ts,189,AssetMetadataBulkUpsertDto,extends createZodDto
+immich-c7-S05,server/src/dtos/auth.dto.ts,218,OAuthAuthorizeResponseDto,extends createZodDto
+immich-c7-S06,server/src/dtos/download.dto.ts,54,DownloadArchiveInfo,extends createZodDto
+immich-c7-S07,server/src/dtos/library.dto.ts,89,ValidateLibraryResponseDto,extends createZodDto
+immich-c7-S08,server/src/dtos/memory.dto.ts,98,MemoryStatisticsResponseDto,extends createZodDto
+immich-c7-S09,server/src/dtos/passkey.dto.ts,56,PasskeyRegistrationOptionsDto,extends createZodDto
+immich-c7-S10,server/src/dtos/person.dto.ts,265,FaceDto,extends createZodDto
+immich-c7-S11,server/src/dtos/queue.dto.ts,79,QueueCommandDto,extends createZodDto
+immich-c7-S12,server/src/dtos/search.dto.ts,490,SearchExploreResponseDto,extends createZodDto
+immich-c7-S13,server/src/dtos/shared-link.dto.ts,98,SharedLinkSearchDto,extends createZodDto
+immich-c7-S14,server/src/dtos/sync.dto.ts,563,SyncStreamDto,extends createZodDto
+immich-c7-S15,server/src/dtos/trash.dto.ts,10,TrashResponseDto,extends createZodDto
+immich-c7-S16,server/src/dtos/workflow.dto.ts,115,WorkflowGetLogsDto,extends createZodDto
+immich-c7-S17,server/src/services/maintenance.service.ts,23,MaintenanceService,extends BaseService
+immich-c7-S18,server/src/services/stack.service.ts,11,StackService,extends BaseService
+immich-c7-S19,server/src/utils/media.ts,487,ThumbnailConfig,extends BaseConfig
+immich-c7-S20,server/src/validation.ts,107,UUIDv7ParamDto,extends createZodDto

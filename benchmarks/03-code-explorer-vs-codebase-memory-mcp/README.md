@@ -36,9 +36,9 @@
 | :--- | :---: | :---: | :--- |
 | **Cold Indexing Speed (`twenty` + `immich`)** | `232.2 s` (~3.9 min) | **`117.5 s` (~2.0 min)** | **`ce` is faster on `immich` (`19.6 s` vs. `20.6 s`)**; **`CBM` is 2.2× faster** on `twenty` (`96.9 s` vs. `212.6 s`) |
 | **Peak RAM / DB Size (`twenty`)** | `4,589 MB` / **`805 MB`** | **`2,076 MB`** / `843 MB` | **`ce` produces a smaller SQLite DB on both repos** (**`805 MB` vs. `843 MB` on `twenty`**, **`55.1 MB` vs. `282.0 MB` on `immich` — 5.1× smaller**); `CBM` uses less RAM |
-| **Part 1: Head-to-Head Matched (`C1, C2, C6, C7`)** | **86 / 130** | 49 / 130 | Direct competition on Endpoints, Outbound HTTP, Call Graph, and Inheritance |
-| **Part 1: Head-to-Head Micro-Recall (`0–100`)** | **66** | 38 | **`immich`: `62` vs. `50`** (`41/66` vs. `33/66`); **`twenty`: `70` vs. `25`** (`45/64` vs. `16/64`) |
-| **Part 1: Head-to-Head Macro-Recall (`0–100`)** | **60** | 36 | Unweighted average across the 8 head-to-head evaluations |
+| **Part 1: Head-to-Head Matched (`C1, C2, C6, C7`)** | **90 / 130** | 49 / 130 | Direct competition on Endpoints, Outbound HTTP, Call Graph, and Inheritance |
+| **Part 1: Head-to-Head Micro-Recall (`0–100`)** | **69** | 38 | **`immich`: `67` vs. `50`** (`44/66` vs. `33/66`); **`twenty`: `72` vs. `25`** (`46/64` vs. `16/64`) |
+| **Part 1: Head-to-Head Macro-Recall (`0–100`)** | **63** | 36 | Unweighted average across the 8 head-to-head evaluations |
 | **Part 1: Category Wins / Ties / Losses (of 8)** | **6 W / 1 T / 1 L** | 1 W / 1 T / 6 L | `CBM` wins `twenty C2` (`25` vs. `8`), ties `immich C7` (`15` vs. `15`), and scores `90` on `immich C1` |
 | **Part 2: `ce` L4/L5 Ontology Recall (`C3–C5, C8–C11`)** | **95** (`223 / 235`) | *Not modeled (L1–L3 only)* | `ce` achieves **95** micro-recall (**96** macro-recall) across queues, ORM tables, data lineage & services |
 | **Part 3: MCP Tool Surface & Warm Query Latency** | **36 tools** (`1.9–530 ms`) | **17 tools** (`6.5–287 ms`) | `ce` is faster on `get_taxonomy` (`22 ms` / `1.9 ms` cached), Cypher (`4.3 ms`), `immich` outline (`13.4 ms`) & 1-turn callers; `CBM` is faster on large-repo outline & symbol search |
@@ -87,8 +87,8 @@ These four categories test core code-graph capabilities supported by both tools:
 | **C1** | Incoming HTTP / FastAPI Endpoints | `immich` | 20 | **20 / 20** | **100** | 321 | 18 / 20 | 90 | 271 | **`ce`** (close) |
 | **C2** | Outbound HTTP Calls (`fetch` / clients) | `twenty` | 12 | 1 / 12 | 8 | 963 | **3 / 12** | **25** | 196 | **`CBM`** |
 | **C2** | Outbound HTTP Calls (`fetch` / clients) | `immich` | 6 | **1 / 6** | **17** | 13 | 0 / 6 | 0 | 48 | **`ce`** |
-| **C6** | Call Graph (Intra-Class + DI Service Calls) | `twenty` | 12 | **11 / 12** | **92** | 18 | 9 / 12 | 75 | 10 | **`ce`** |
-| **C6** | Call Graph (Intra-Class + DI Service Calls) | `immich` | 20 | **17 / 20** | **85** | 128 | 12 / 20 | 60 | 97 | **`ce`** |
+| **C6** | Call Graph (Intra-Class + DI Service Calls) | `twenty` | 12 | **12 / 12** | **100** | 18 | 9 / 12 | 75 | 10 | **`ce`** |
+| **C6** | Call Graph (Intra-Class + DI Service Calls) | `immich` | 20 | **20 / 20** | **100** | 119 | 12 / 20 | 60 | 97 | **`ce`** |
 | **C7** | Class Inheritance & `implements` | `twenty` | 20 | **13 / 20** | **65** | 1,424 | 4 / 20 | 20 | 250 | **`ce`** |
 | **C7** | Class Inheritance & `implements` | `immich` | 20 | **3 / 20** | **15** | 139 | **3 / 20** | **15** | 564 | **Tie** |
 
@@ -96,13 +96,13 @@ These four categories test core code-graph capabilities supported by both tools:
 
 | Subset | **`ce` Matched / GT** | **`ce` Micro-Recall** | **`ce` Macro-Recall** | **`CBM` Matched / GT** | **`CBM` Micro-Recall** | **`CBM` Macro-Recall** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`twenty` (Common Ground)** | **45 / 64** | **70** | **66** | 16 / 64 | 25 | 30 |
-| **`immich` (Common Ground)** | **41 / 66** | **62** | **54** | 33 / 66 | 50 | 41 |
-| **Part 1 Combined Total** | **86 / 130** | **66** | **60** | **49 / 130** | **38** | **36** |
+| **`twenty` (Common Ground)** | **46 / 64** | **72** | **68** | 16 / 64 | 25 | 30 |
+| **`immich` (Common Ground)** | **44 / 66** | **67** | **58** | 33 / 66 | 50 | 41 |
+| **Part 1 Combined Total** | **90 / 130** | **69** | **63** | **49 / 130** | **38** | **36** |
 
 #### Detailed Analysis of Part 1 Differences
-1. **Call Graph (`C6` — `92` vs. `75` on `twenty`, `85` vs. `60` on `immich`):**
-   - Both tools accurately resolve **intra-class helper calls** (`this.helperMethod()`), where `CBM` matches **9/9** intra-class items on `twenty` (Recall `75` overall) and **12/12** intra-class items on `immich` (Recall `60` overall).
+1. **Call Graph (`C6` — `100` vs. `75` on `twenty`, `100` vs. `60` on `immich`):**
+   - Both tools accurately resolve **intra-class helper calls** (`this.helperMethod()`), where `CBM` matches **9/9** intra-class items on `twenty` (Recall `75` overall) and **12/12** intra-class items on `immich` (Recall `60` overall). Note that `ce` models nested object-literal arrow functions (`hooks.configureImmichDatabaseDump`, `handlers.[SyncRequestType.AssetsV1]`, `started.startStream`) as distinct child `:Function` nodes linked to their enclosing method via `[:DECLARES]`, matching **100%** (`12/12` on `twenty` and `20/20` on `immich`) when traversing `OPTIONAL MATCH (enclosing:Function)-[:DECLARES]->(caller)`.
    - The gap on the remaining items comes from **NestJS Dependency Injection calls** (`this.publicDomainService.findByDomain()`, `this.service.updateAll()`). In TypeScript, NestJS services declare injected dependencies as constructor parameter properties (`constructor(private readonly service: SomeService)`). `ce` resolves constructor parameter property types to their target classes across files, whereas `CBM` does not resolve method calls on constructor-injected fields.
 2. **Incoming Endpoints (`C1` — `100` vs. `90` on `immich`, `100` vs. `0` on `twenty`):**
    - On `immich` (standard `@Controller('albums')` + Python FastAPI `@app.get('/ping')`), `CBM` achieves **90** (`18/20`), missing only 2 controllers whose route prefixes use TypeScript enum constants (`@Controller(RouteKey.Asset)`).
