@@ -1,4 +1,4 @@
-Perform a comprehensive, 4-part architectural audit on the `twenty` monorepo located at `C:\Work\bench-pilot\repos\twenty` (`24,527` tracked files across `46` packages). Answer all four architectural questions below with 100% completeness (do not guess, truncate, or omit items; exclude `.spec.ts` / `.test.ts` / `__tests__` test files; provide exact class/method names and relative file paths using forward slashes `/`):
+Perform a comprehensive, 4-part architectural audit on the `twenty` monorepo located at `./repos/twenty` (`24,527` tracked files across `46` packages). Answer all four architectural questions below with 100% completeness (do not guess, truncate, or omit items; exclude `.spec.ts` / `.test.ts` / `__tests__` test files; provide exact class/method names and relative file paths using forward slashes `/`):
 
 1. **Task 1 — Service Method Call Graph & DI Fan-In (`Layer 3`)**:
    Identify every non-test caller function/method (`CallerClass.callerMethod`, target `ServiceClass.calleeMethod`, and caller's relative file path) across the monorepo that invokes any method on these 4 core services:
