@@ -1,6 +1,6 @@
 # Case Study 05: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep` vs. `CodeExplorer Graph`)
 
-> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **2.35x faster in time-to-answer** (`5m 08s` → `2m 11s`), required **1.97x fewer LLM turns** (`59` → `30`), made **1.97x fewer tool calls** (`57` → `29`), reduced cumulative LLM input tokens by **2.52x** (`1,594,003` → `633,469` tokens), and cut API cost by **1.87x** (`$0.140` → `$0.075` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
+> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **2.35x faster in time-to-answer** (`5m 08s` → `2m 11s`), required **1.97x fewer LLM turns** (`59` → `30`), made **1.97x fewer tool calls** (`57` → `29`), reduced cumulative LLM input tokens by **2.52x** (`1,594,003` → `633,469` tokens), and cut API cost by **1.87x** (`$0.14` → `$0.08` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
 
 ---
 
@@ -143,10 +143,10 @@ Using standard **Gemini 3.8 Flash** API pricing with a **90% prompt cache discou
 
 | Cost Component | Ripgrep Baseline Agent (`59` turns) | CodeExplorer Graph Agent (`30` turns) | Savings Factor |
 | :--- | :---: | :---: | :---: |
-| **Uncached Input Tokens** (fresh tool outputs) | `47,417` tokens (**\$0.024**) | `30,371` tokens (**\$0.015**) | **1.56x cheaper** |
-| **Cached Input Tokens** (`cum_actual - uncached`) | `1,546,586` tokens (**\$0.077**) | `603,098` tokens (**\$0.030**) | **2.56x cheaper** |
-| **Output & Thinking Tokens** | `12,928` tokens (**\$0.039**) | `9,786` tokens (**\$0.029**) | **1.32x cheaper** |
-| **Total Flash API Cost per Run** | **\$0.140** | **\$0.075** | **1.87x cheaper (`-46.4%`)** |
+| **Uncached Input Tokens** (fresh tool outputs) | `47,417` tokens (**\$0.02**) | `30,371` tokens (**\$0.02**) | **1.56x cheaper** |
+| **Cached Input Tokens** (`cum_actual - uncached`) | `1,546,586` tokens (**\$0.08**) | `603,098` tokens (**\$0.03**) | **2.56x cheaper** |
+| **Output & Thinking Tokens** | `12,928` tokens (**\$0.04**) | `9,786` tokens (**\$0.03**) | **1.32x cheaper** |
+| **Total Flash API Cost per Run** | **\$0.14** | **\$0.08** | **1.87x cheaper (`-46.4%`)** |
 | **Time to Answer** | `5m 08s` (`308.0s`) | `2m 11s` (`131.0s`) | **2.35x faster (`-2m 57s` saved)** |
 
 ---

@@ -199,9 +199,9 @@ Even with a **90% prompt caching discount** on repeated context across turns, th
 | **Uncached Input Tokens** (fresh tool outputs) | `122,332` tokens | `56,444` tokens | **`2.17×` fewer** |
 | **Cached Input Tokens** (`cum_input - uncached`) | `4,291,398` tokens | `211,680` tokens | **`20.27×` fewer** |
 | **Output & Thinking Tokens** (no cache discount) | `57,252` tokens | `29,422` tokens | **`1.95×` fewer** |
-| **Input Token Cost (Gemini Flash / Frontier Pro)** | `$0.276` / `$1.103` | **`$0.039` / `$0.155`** | **`7.11×` cheaper input** |
-| **Total API Cost on Gemini Flash** (`$0.50` / `$0.05` / `$3.00` per 1M) | `$0.447` | **`$0.127`** | **`3.52×` cheaper (`-71.6%`)** |
-| **Total API Cost on Frontier Pro** (`$2.00` / `$0.20` / `$10.00` per 1M) | `$1.675` | **`$0.449`** | **`3.73×` cheaper (`-73.2%`)** |
+| **Input Token Cost (Gemini Flash / Frontier Pro)** | `$0.28` / `$1.10` | **`$0.04` / `$0.16`** | **`7.11×` cheaper input** |
+| **Total API Cost on Gemini Flash** (`$0.50` / `$0.05` / `$3.00` per 1M) | `$0.45` | **`$0.13`** | **`3.52×` cheaper (`-71.6%`)** |
+| **Total API Cost on Frontier Pro** (`$2.00` / `$0.20` / `$10.00` per 1M) | `$1.68` | **`$0.45`** | **`3.73×` cheaper (`-73.2%`)** |
 | **Engineer Waiting Time (`send_message`)** | `16m 46s` (`1,006.0 s`) | **`1m 16s` (`76.0 s`)** | **`13.24×` faster (`-15m 30s` saved)** |
 
 ---

@@ -133,8 +133,8 @@ Below is the itemized cost comparison using the **actual post-compaction cumulat
 | **Uncached Input Tokens** (fresh tool outputs + compaction rebuild) | `177,409` tokens | `23,306` tokens | **7.61x fewer** |
 | **Cached Input Tokens** (`cum_actual - uncached`) | `17,016,732` tokens | `370,160` tokens | **45.97x fewer** |
 | **Output & Thinking Tokens** (no cache discount) | `71,595` tokens | `17,396` tokens | **4.12x fewer** |
-| **Total API Cost on Gemini 3.8 Flash** | **\$1.154** | **\$0.082** | **14.07x cheaper (`-92.9%`)** |
-| **Equivalent API Cost on Frontier Pro** | **\$4.474** | **\$0.295** | **15.17x cheaper (`-93.4%`)** |
+| **Total API Cost on Gemini 3.8 Flash** | **\$1.15** | **\$0.08** | **14.07x cheaper (`-92.9%`)** |
+| **Equivalent API Cost on Frontier Pro** | **\$4.47** | **\$0.30** | **15.17x cheaper (`-93.4%`)** |
 | **Engineer Waiting Time (`send_message`)** | `29m 52s` (`1,792.0s`) | `3m 56s` (`236.0s`) | **7.59x faster (`-25m 56s` saved)** |
 
 ---
