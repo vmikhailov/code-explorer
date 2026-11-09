@@ -337,8 +337,9 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
 .slab-links {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   list-style: none;
 }
 
@@ -881,6 +882,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   font-family: var(--font-outlier);
   color: var(--color-ink-2);
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .data-table tr:last-child td {
@@ -904,6 +907,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .violation-item--ok {
@@ -1187,6 +1192,10 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   }
   .slab-actions .btn--primary {
     display: none;
+  }
+  .btn {
+    white-space: normal;
+    text-align: center;
   }
   .workbench-bar {
     padding: var(--space-sm);

@@ -182,6 +182,8 @@ p code, li code, td code, th code {
   border: 1px solid var(--color-rule);
   border-radius: var(--space-2xs);
   padding: var(--space-3xs) var(--space-xs);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .reading {
@@ -292,12 +294,30 @@ p code, li code, td code, th code {
   gap: var(--space-sm);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1100px) {
   .slab-links {
     display: none;
   }
   .slab-bar {
     grid-template-columns: 1fr auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .slab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding-block: var(--space-xs);
+    gap: var(--space-xs);
+  }
+  .slab-actions {
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+  }
+  .btn {
+    white-space: normal;
+    text-align: center;
   }
 }
 
@@ -399,6 +419,10 @@ p code, li code, td code, th code {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: var(--gap-columns);
   align-items: start;
+}
+
+.hero-top > * {
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -671,6 +695,7 @@ p code, li code, td code, th code {
   padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-rule);
   vertical-align: top;
+  overflow-wrap: break-word;
 }
 
 .bench-table th {
@@ -678,7 +703,6 @@ p code, li code, td code, th code {
   color: var(--color-ink);
   font-weight: 500;
   font-size: var(--text-xs);
-  white-space: nowrap;
 }
 
 .bench-table tbody tr:last-child td {
@@ -731,6 +755,9 @@ pre.code-block {
   font-size: var(--text-xs);
   color: var(--color-ink-2);
   overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.55;
 }
 
