@@ -5,7 +5,7 @@ import math
 import hashlib
 from datetime import datetime, timezone
 
-BASE = r"C:\Work\bench-pilot"
+BASE = os.environ.get("BENCH_BASE", ".")
 REPOS = os.path.join(BASE, "repos")
 GT_DIR = os.path.join(BASE, "groundtruth")
 os.makedirs(GT_DIR, exist_ok=True)

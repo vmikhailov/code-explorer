@@ -6,22 +6,23 @@ import math
 import subprocess
 from datetime import datetime
 
-BASE = r"C:\Work\bench-pilot"
+BASE = os.environ.get("BENCH_BASE", ".")
 REPOS = os.path.join(BASE, "repos")
 GT_DIR = os.path.join(BASE, "groundtruth")
 RAW_CE = os.path.join(BASE, "raw", "ce")
 RAW_CBM = os.path.join(BASE, "raw", "cbm")
 RES_DIR = os.path.join(BASE, "results")
-CBM_BIN = os.path.join(BASE, "tools", "cbm", "codebase-memory-mcp.exe")
-CE_BIN = r"c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe"
-os.environ["CBM_CACHE_DIR"] = r"C:\Users\viach\.cache\cbm-bench-pilot"
+CBM_BIN = os.environ.get("CBM_BIN", "codebase-memory-mcp")
+CE_BIN = os.environ.get("CE_BIN", "ce")
+os.environ.setdefault("CBM_CACHE_DIR", os.path.join(BASE, ".cache", "cbm"))
 
 def norm_path(p: str, repo: str = "") -> str:
     if not p:
         return ""
     p = p.replace("\\", "/")
+    base_norm = BASE.replace("\\", "/").rstrip("/")
     for r_name in ([repo] if repo else ["twenty", "immich"]):
-        prefix = f"C:/Work/bench-pilot/repos/{r_name}/"
+        prefix = f"{base_norm}/repos/{r_name}/"
         if p.lower().startswith(prefix.lower()):
             p = p[len(prefix):]
             break
@@ -43,7 +44,7 @@ def run_ce_query(repo: str, cat: str, cypher: str, attempt: int = 1):
     return data, f"raw/ce/{repo}-{cat}-{attempt}.txt", res.returncode == 0
 
 def run_cbm_query(repo: str, cat: str, cypher: str, attempt: int = 1):
-    proj = f"C-Work-bench-pilot-repos-{repo}"
+    proj = os.environ.get(f"CBM_PROJECT_{repo.upper()}", repo)
     raw_file = os.path.join(RAW_CBM, f"{repo}-{cat}-{attempt}.txt")
     cmd = [CBM_BIN, "cli", "query_graph", "--project", proj, "--query", cypher, "--max-rows", "99998", "--max-output-tokens", "1000000", "--format", "json"]
     res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")

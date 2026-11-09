@@ -7,12 +7,13 @@ import psutil
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-CE_EXE = r"c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe"
+BASE = os.environ.get("BENCH_BASE", ".")
+CE_EXE = os.environ.get("CE_BIN", "ce")
 
 REPOS = {
     "immich": {
-        "path": r"C:\Work\bench-pilot\repos\immich",
-        "graph_json": r"C:\Work\bench-pilot\repos\immich\graphify-out\graph.json",
+        "path": os.path.join(BASE, "repos", "immich"),
+        "graph_json": os.path.join(BASE, "repos", "immich", "graphify-out", "graph.json"),
         "outline_file": "server/src/services/auth.service.ts",
         "path_src": "login",
         "path_tgt": "validate",
@@ -21,8 +22,8 @@ REPOS = {
         "gfy_login_id": "server_src_controllers_auth_controller_authcontroller_login",
     },
     "twenty": {
-        "path": r"C:\Work\bench-pilot\repos\twenty",
-        "graph_json": r"C:\Work\bench-pilot\repos\twenty\graphify-out\graph.json",
+        "path": os.path.join(BASE, "repos", "twenty"),
+        "graph_json": os.path.join(BASE, "repos", "twenty", "graphify-out", "graph.json"),
         "outline_file": "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts",
         "path_src": "login",
         "path_tgt": "validate",
@@ -270,7 +271,7 @@ def main():
     for repo_name, cfg in REPOS.items():
         all_res[repo_name] = benchmark_repo(repo_name, cfg)
 
-    out_path = r"C:\Work\bench-pilot\results-graphify\mcp-benchmark.json"
+    out_path = os.path.join(BASE, "results-graphify", "mcp-benchmark.json")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(all_res, f, indent=2)

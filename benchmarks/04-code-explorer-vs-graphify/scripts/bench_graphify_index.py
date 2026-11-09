@@ -10,12 +10,13 @@ import psutil
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-CE_BIN = r"c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe"
+BASE = os.environ.get("BENCH_BASE", ".")
+CE_BIN = os.environ.get("CE_BIN", "ce")
 REPOS = {
-    "immich": r"C:\Work\bench-pilot\repos\immich",
-    "twenty": r"C:\Work\bench-pilot\repos\twenty",
+    "immich": os.path.join(BASE, "repos", "immich"),
+    "twenty": os.path.join(BASE, "repos", "twenty"),
 }
-OUT_JSON = r"C:\Work\bench-pilot\results\graphify-indexing-telemetry.json"
+OUT_JSON = os.path.join(BASE, "results", "graphify-indexing-telemetry.json")
 
 
 def run_with_tree_memory(cmd, cwd=None, env=None):

@@ -6,21 +6,22 @@ import time
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-CE_EXE = r"c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe"
-CBM_EXE = r"C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe"
-CBM_CACHE = os.path.expanduser(r"~\.cache\cbm-bench-pilot")
+BASE = os.environ.get("BENCH_BASE", ".")
+CE_EXE = os.environ.get("CE_BIN", "ce")
+CBM_EXE = os.environ.get("CBM_BIN", "codebase-memory-mcp")
+CBM_CACHE = os.environ.get("CBM_CACHE_DIR", os.path.join(BASE, ".cache", "cbm"))
 
 REPOS = {
     "immich": {
-        "path": r"C:\Work\bench-pilot\repos\immich",
+        "path": os.path.join(BASE, "repos", "immich"),
         "cbm_cache": CBM_CACHE,
-        "cbm_project": "C-Work-bench-pilot-repos-immich",
+        "cbm_project": "immich",
         "outline_file": "server/src/services/auth.service.ts",
     },
     "twenty": {
-        "path": r"C:\Work\bench-pilot\repos\twenty",
+        "path": os.path.join(BASE, "repos", "twenty"),
         "cbm_cache": CBM_CACHE,
-        "cbm_project": "C-Work-bench-pilot-repos-twenty",
+        "cbm_project": "twenty",
         "outline_file": "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts",
     },
 }

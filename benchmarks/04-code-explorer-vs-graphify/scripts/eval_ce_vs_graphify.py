@@ -5,13 +5,13 @@ import re
 import subprocess
 from collections import Counter
 
-BASE = r"C:\Work\bench-pilot"
+BASE = os.environ.get("BENCH_BASE", ".")
 REPOS = os.path.join(BASE, "repos")
 GT_DIR = os.path.join(BASE, "groundtruth")
 RAW_CE = os.path.join(BASE, "raw", "ce")
 RAW_GFY = os.path.join(BASE, "raw", "graphify")
 RES_DIR = os.path.join(BASE, "results-graphify")
-CE_BIN = r"c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe"
+CE_BIN = os.environ.get("CE_BIN", "ce")
 
 os.makedirs(RAW_CE, exist_ok=True)
 os.makedirs(RAW_GFY, exist_ok=True)
@@ -22,8 +22,9 @@ def norm_path(p: str, repo: str = "") -> str:
     if not p:
         return ""
     p = p.replace("\\", "/")
+    base_norm = BASE.replace("\\", "/").rstrip("/")
     for r_name in ([repo] if repo else ["twenty", "immich"]):
-        prefix = f"C:/Work/bench-pilot/repos/{r_name}/"
+        prefix = f"{base_norm}/repos/{r_name}/"
         if p.lower().startswith(prefix.lower()):
             p = p[len(prefix):]
             break
