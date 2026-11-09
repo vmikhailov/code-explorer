@@ -6,4 +6,19 @@
   <url>
     <loc>https://code-explorer.app/benchmarks.html</loc>
   </url>
+  <url>
+    <loc>https://code-explorer.app/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html</loc>
+  </url>
+  <url>
+    <loc>https://code-explorer.app/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html</loc>
+  </url>
+  <url>
+    <loc>https://code-explorer.app/benchmarks/04-code-explorer-vs-graphify.html</loc>
+  </url>
+  <url>
+    <loc>https://code-explorer.app/benchmarks/02-enterprise-microservices-deep-audit.html</loc>
+  </url>
+  <url>
+    <loc>https://code-explorer.app/benchmarks/01-polyglot-architecture-and-blast-radius.html</loc>
+  </url>
 </urlset>
