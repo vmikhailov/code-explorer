@@ -55,7 +55,8 @@
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
+              <a href="#prompts" class="btn">Inspect Tested Prompts</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/prompts" target="_blank" rel="noopener" class="btn">Prompts on GitHub</a>
             </div>
           </div>
         </div>
@@ -70,14 +71,14 @@
           <div class="panel panel--sunken">
             <span class="reading tone-accent">2.52×</span>
             <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy"><code>632,786</code> cumulative input tokens vs. <code>1,593,421</code> tokens.</p>
+            <p class="panel-copy"><code>633,469</code> cumulative input tokens vs. <code>1,594,003</code> tokens.</p>
             <code class="panel-code">$0.08 vs. $0.14 API cost</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool">3.73×</span>
+            <span class="reading tone-cool">1.56×</span>
             <h2 class="panel-title">Smaller Tool Output</h2>
-            <p class="panel-copy"><code>39.2 KB</code> of raw tool output ingested vs. <code>146.1 KB</code> of <code>rg</code> slices and file reads.</p>
-            <code class="panel-code">9,803 vs. 36,527 tool tokens</code>
+            <p class="panel-copy"><code>121.5 KB</code> of raw tool output ingested vs. <code>189.7 KB</code> of <code>rg</code> slices and file reads.</p>
+            <code class="panel-code">30,371 vs. 47,417 tool tokens</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading">100% Tie</span>
@@ -85,6 +86,104 @@
             <p class="panel-copy">On a 16-project codebase, <code>ripgrep</code> + manual file reading achieved the exact same 100% completeness as the graph agent.</p>
             <code class="panel-code">0 missed callers for both</code>
           </div>
+        </div>
+
+        <div id="prompts" class="prompt-stack">
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Task Prompt</span>
+                <span>prompts/task-prompt.md &mdash; Shared 3-Part Audit Task Given Identically to Both Agents</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Benchmark Task Prompt: Polyglot Architecture Discovery &amp; Blast Radius Analysis
+
+Perform a precise architectural and impact analysis on the `code-explorer` repository and answer all three questions below with 100% completeness (do not guess or omit items; provide exact class names, method names, and relative file paths):
+
+1. **Interface Implementations across the Codebase**:
+   List every class that implements:
+   - `IComponentLibraryParser`
+   - `IMcpTargetAdapter`
+   - `ILibraryConfigurationDescriptor`
+   - `ISyntaxEnricher`
+   For each class, provide its exact class name and the relative file path where it is declared.
+
+2. **Blast Radius &amp; Call Chain of `GateExecutionEngine`**:
+   Identify all **production (non-test)** classes and methods that directly call `CheckGateAsync` or `CheckSuiteAsync` on `GateExecutionEngine`. For each caller, also identify one hop further upstream (which HTTP endpoint, WebSocket message type, CLI command, or MCP tool triggers that caller).
+
+3. **Polyglot `ISemanticExtension` Breakdown**:
+   Count the exact number of classes implementing `ISemanticExtension` in each of the following parser projects:
+   - `CodeExplorer.Parser.CSharp`
+   - `CodeExplorer.Parser.TypeScript`
+   - `CodeExplorer.Parser.Python`
+   - `CodeExplorer.Parser.Go`
+   - `CodeExplorer.Parser.Java`
+   - `CodeExplorer.Parser.Android`
+   And list the exact class names of all `ISemanticExtension` implementations in `CodeExplorer.Parser.Java` and `CodeExplorer.Parser.Android`.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">System Prompt (ce)</span>
+                <span>prompts/graph-agent.md &mdash; System Instructions for CodeExplorer Graph Agent (ce_graph_agent)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions
+
+You are a senior software engineer analyzing a codebase using ONLY the CodeExplorer CLI (`ce`) graph database via `run_command`.
+
+CRITICAL CONSTRAINTS:
+1. You are STRICTLY FORBIDDEN from calling `view_file` or reading any source files or directories directly.
+2. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
+3. 100% of your answers must be derived using the CodeExplorer CLI (`ce.exe`) via `run_command`.
+
+How to use CodeExplorer CLI via `run_command` (in Cwd `.`):
+- Find callers &amp; upstream triggers:
+  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe callers "&lt;target&gt;"`
+- Search identifiers, routes, and symbols:
+  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe search "&lt;query&gt;"`
+- Compute blast radius:
+  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe impact "&lt;target&gt;"`
+- Execute OpenCypher queries directly against the graph database:
+  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe query "&lt;CYPHER_QUERY&gt;" --no-truncate`
+
+Graph Ontology Reference:
+- Node labels: `Type` (`t.kind` is `'class'`, `'interface'`, `'record'`, `'enum'`), `Function` (`f.name`, `f.symbol`, `f.start_line`, `f.end_line`), `Member`, `File` (`f.path`), `Project` (`p.name`, `p.path`), `Endpoint`, `EntryPoint`, `Table`, `Query`, `Topic`, `Package`.
+- Relationships:
+  - `(c:Type)-[:IMPLEMENTS*1..5]-&gt;(i:Type)` (Class implements Interface or inherits Base Class)
+  - `(t:Type)-[:HAS_METHOD]-&gt;(m:Function)` (Type owns Method)
+  - `(caller:Function)-[:CALLS]-&gt;(callee:Function)` (Function/Method invokes another Function/Method)
+  - `(t:Type)-[:DECLARED_IN]-&gt;(f:File)` (Type is declared in File)
+  - `(p1:Project)-[:DEPENDS_ON]-&gt;(p2:Project)` (Project dependency)
+
+Answer all questions completely, accurately, and concisely based strictly on the CLI outputs.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">System Prompt (ripgrep)</span>
+                <span>prompts/baseline-agent.md &mdash; System Instructions for ripgrep Baseline Agent (rg_baseline_agent)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions
+
+You are a senior software engineer analyzing a codebase using standard CLI search and file reading tools:
+1. You MAY use `run_command` to execute standard lexical search and directory commands (`rg` / `ripgrep`, `git grep`, `Get-ChildItem`, `Select-String`) and `view_file` to read files.
+2. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or any CodeExplorer CLI binary.
+3. You are STRICTLY FORBIDDEN from reading, querying, or accessing `.codeexplorer`, `graph.db`, or any files inside `.codeexplorer`.
+4. Answer the user's architectural/codebase question with 100% accuracy and completeness, citing exact relative file paths, class names, and method names.</pre>
+            </div>
+          </details>
         </div>
       </div>
     </section>
@@ -94,7 +193,7 @@
         <div class="band-head">
           <h2 class="band-title">1. Execution telemetry scorecard.</h2>
           <p class="band-lede">
-            Tested across four tasks on <code>code-explorer</code>: (1) 2-hop transitive inheritance &amp; interface realization of <code>ILanguageLibraryParser</code> (70 classes), (2) blast-radius call graph of <code>GraphStore</code>, (3) cross-project dependency fan-in, and (4) Semantic Invariant Gate rule verification.
+            Tested across three tasks on <code>code-explorer</code>: (1) interface implementations of <code>IComponentLibraryParser</code>, <code>IMcpTargetAdapter</code>, <code>ILibraryConfigurationDescriptor</code>, and <code>ISyntaxEnricher</code>, (2) 2-hop upstream blast radius of <code>GateExecutionEngine</code> (<code>CheckGateAsync</code> / <code>CheckSuiteAsync</code>), and (3) polyglot <code>ISemanticExtension</code> breakdown across 6 parser projects.
           </p>
         </div>
 
@@ -126,15 +225,21 @@
                 <td class="cell-win">1.97× fewer turns (-49.2%)</td>
               </tr>
               <tr>
+                <td>Total Tool Calls</td>
+                <td class="cell-loss">57 (28 <code>run_command</code>, 23 <code>view_file</code>, 4 <code>manage_task</code>, 1 <code>schedule</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win">29 (13 <code>run_command</code>, 15 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win">1.97× fewer tool calls</td>
+              </tr>
+              <tr>
                 <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss">146,108 chars (~36,527 tokens)</td>
-                <td class="cell-win">39,212 chars (~9,803 tokens)</td>
-                <td class="cell-win">3.73× less tool payload</td>
+                <td class="cell-loss">189,668 chars (~47,417 tokens)</td>
+                <td class="cell-win">121,485 chars (~30,371 tokens)</td>
+                <td class="cell-win">1.56× less tool payload</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
-                <td class="cell-loss">6,373,684 chars (~1,593,421 tokens)</td>
-                <td class="cell-win">2,531,144 chars (~632,786 tokens)</td>
+                <td class="cell-loss">6,376,014 chars (~1,594,003 tokens)</td>
+                <td class="cell-win">2,533,878 chars (~633,469 tokens)</td>
                 <td class="cell-win">2.52× fewer input tokens</td>
               </tr>
               <tr>
@@ -144,7 +249,7 @@
                 <td class="cell-win">1.87× cheaper</td>
               </tr>
               <tr>
-                <td>Audit Completeness (Tasks 1–4)</td>
+                <td>Audit Completeness (Tasks 1–3)</td>
                 <td class="cell-win">100% (Complete)</td>
                 <td class="cell-win">100% (Complete)</td>
                 <td><strong>Tie on accuracy (both 100%)</strong></td>
@@ -154,7 +259,7 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-md);">
-          <strong>Takeaway on codebase scale:</strong> On a 16-project repository, an agent with <code>ripgrep</code> does not miss callers—it simply needs ~2× more turns (for example, running two sequential searches when discovering that 62 language library parsers inherit from abstract base classes like <code>GoLibraryParserBase</code> rather than implementing <code>ILanguageLibraryParser</code> directly). The accuracy gap between lexical search and a semantic graph emerges on large monorepos like <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01 (24,527 files)</a> and <a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02 (324 services)</a>.
+          <strong>Takeaway on codebase scale:</strong> On a 16-project repository, an agent with <code>ripgrep</code> does not miss callers—it simply needs ~2× more turns (for example, running follow-up searches when discovering that parser classes implement <code>ISemanticExtension</code> transitively through <code>IComponentLibraryParser</code>, <code>ILibraryParser</code>, or abstract base classes like <code>CSharpLibraryParserBase</code>). The accuracy gap between lexical search and a semantic graph emerges on large monorepos like <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01 (24,527 files)</a> and <a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02 (324 services)</a>.
         </div>
       </div>
     </section>

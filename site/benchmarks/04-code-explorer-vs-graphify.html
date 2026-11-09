@@ -55,7 +55,8 @@
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify/scripts" target="_blank" rel="noopener" class="btn btn--primary">Inspect Evaluation Scripts</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify/results" target="_blank" rel="noopener" class="btn">Inspect Results JSON &amp; CSVs</a>
+              <a href="#prompts" class="btn">Inspect Tested Queries &amp; MCP Calls</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify/results" target="_blank" rel="noopener" class="btn">Results JSON &amp; CSVs</a>
             </div>
           </div>
         </div>
@@ -85,6 +86,98 @@
             <p class="panel-copy">On <code>immich</code> Call Graph &amp; DI (<code>C6</code>), <code>Graphify</code> tied <code>ce</code> at <strong>100% (20/20)</strong>, resolving TS constructor DI accurately.</p>
             <code class="panel-code">20/20 on immich C6</code>
           </div>
+        </div>
+
+        <div id="prompts" class="prompt-stack">
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Queries &amp; Matchers</span>
+                <span>scripts/eval_ce_vs_graphify.py &mdash; Exact OpenCypher Queries (ce) &amp; NetworkX Graph Extraction Rules (Graphify)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># CodeExplorer (ce v1.75.0) OpenCypher Queries:
+# C1 (Endpoints):
+MATCH (e:Endpoint)-[:EXPOSED_BY]-&gt;(f:Function) RETURN f.file_path, f.start_line, f.name, e.http_method, e.route_template
+# C2 (Outbound HTTP):
+MATCH (ext:ExternalService)-[r:CALLED_BY]-&gt;(f:Function) WHERE COALESCE(ext.protocol, 'http') &lt;&gt; 'graphql' RETURN f.file_path, COALESCE(r.line, f.start_line), f.name, COALESCE(ext.url, ext.name)
+# C3 &amp; C8 (Queues / Topics):
+MATCH (t:Topic)-[:PUBLISHED_BY]-&gt;(f:Function) RETURN f.file_path, f.start_line, f.name, t.name;
+MATCH (t:Topic)-[:SUBSCRIBED_BY]-&gt;(m:Function) RETURN m.file_path, m.start_line, m.name, t.name
+# C4 &amp; C10 (ORM Tables &amp; Schema):
+MATCH (t:Table) OPTIONAL MATCH (t)-[:IMPLEMENTED_BY]-&gt;(ent:Type) RETURN COALESCE(ent.file_path, t.path), ent.start_line, COALESCE(ent.name, t.name), t.name
+# C5 (Read/Write Lineage):
+MATCH (q:Query)-[r:WRITES_TO|READS_FROM]-&gt;(t:Table) OPTIONAL MATCH (q)-[:ACCESSED_BY]-&gt;(f:Function) RETURN COALESCE(f.file_path, q.file_path), q.start_line, COALESCE(f.name, q.name), type(r), t.name
+# C6 (Call Graph &amp; DI Callers):
+MATCH (caller:Function)-[:CALLS]-&gt;(callee:Function) WHERE callee.name IN [&lt;target_methods&gt;] OPTIONAL MATCH (enclosing:Function)-[:DECLARES]-&gt;(caller) RETURN caller.file_path, COALESCE(enclosing.start_line, caller.start_line), COALESCE(enclosing.name, caller.name), callee.name
+# C7 (Inheritance &amp; implements):
+MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_line, c.name, type(r), p.name
+
+# ------------------------------------------------------------------------------
+# Graphify (v0.9.104) graph.json Node &amp; Link Extraction (eval_ce_vs_graphify.py):
+# - Cold indexing command: `graphify index &lt;repo_path&gt; --code-only`
+# - C6 (Call Graph): Links in `graph.json["links"]` where `relation == "calls"`, matching source function `(source_file, source_line, label)` and target method `.label.split(".")[-1]`.
+# - C7 (Inheritance &amp; implements): Links in `graph.json["links"]` where `relation in ("inherits", "implements")`, matching child class `(source_file, source_line, label)` and parent class/interface label.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">MCP JSON-RPC Suite</span>
+                <span>scripts/bench_mcp_graphify.py &mdash; Exact MCP Tool Invocations Benchmarked Over Persistent stdio</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># 1. Graph Schema / Stats
+# CodeExplorer (`ce serve --mcp`):
+{"name": "get_graph_schema", "arguments": {}}
+# Graphify (`python -m graphify.serve graphify-out/graph.json`):
+{"name": "graph_stats", "arguments": {}}
+
+# 2. Multi-Token Semantic / BFS Search
+# CodeExplorer:
+{"name": "search_symbols", "arguments": {"query": "authentication token validate", "limit": 10}}
+# Graphify:
+{"name": "query_graph", "arguments": {"question": "authentication token validate", "depth": 2, "token_budget": 2000}}
+
+# 3. Direct Symbol Lookup
+# CodeExplorer:
+{"name": "find_symbol", "arguments": {"name": "AuthService"}}
+# Graphify:
+{"name": "get_node", "arguments": {"label": "AuthService"}}
+
+# 4. Inbound Callers by Method Name
+# CodeExplorer:
+{"name": "get_call_chain", "arguments": {"symbolName": "validate", "direction": "upstream", "maxDepth": 1}}
+# Graphify:
+{"name": "get_neighbors", "arguments": {"label": "validate", "relation": "calls"}}
+
+# 5. Shortest Path Between Two Symbols
+# CodeExplorer:
+{"name": "query_graph", "arguments": {"cypherQuery": "MATCH (a:Function {name: 'login'})-[:CALLS*1..3]-&gt;(b:Function {name: 'validate'}) RETURN a.file_path, a.name, b.file_path, b.name LIMIT 10"}}
+# Graphify:
+{"name": "shortest_path", "arguments": {"source": "login", "target": "validate", "max_hops": 4}}</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">Ground-Truth Spec</span>
+                <span>groundtruth/patterns.md &mdash; Deterministic Ground-Truth Sampling Rules (seed = 42, 371 Items)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block">Identical 371 ground-truth items (`seed = 42`) used in Case Study 03 across `twentyhq/twenty` (`12e8fae471865e9dab60c0b0fd59f318505c804e`) and `immich-app/immich` (`2153d22f34349de690cd98890ee4c635808da638`):
+- Part 1 (130 Common-Ground Items across L1–L3): C1 Incoming Endpoints (40), C2 Outbound HTTP Calls (18), C6 Call Graph &amp; DI Callers (32), C7 Class Inheritance &amp; Interface Implementation (40).
+- Part 2 (241 L4–L5 Architectural Items): C3 Queue Producers &amp; Consumers (70), C4 ORM Tables (40), C5 Code-to-Table Read/Write Lineage (40), C8 Topic Resolution (37), C9 Services &amp; Topology Edges (14), C10 Table Columns &amp; Relations (28), C11 End-to-End Architectural Queries (12).</pre>
+            </div>
+          </details>
         </div>
       </div>
     </section>

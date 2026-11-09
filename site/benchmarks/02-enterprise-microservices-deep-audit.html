@@ -55,6 +55,7 @@
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/02-enterprise-microservices-deep-audit/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
+              <a href="#prompts" class="btn">Inspect Tested Prompts</a>
               <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" class="btn">See Public Equivalent on twentyhq/twenty (01)</a>
             </div>
           </div>
@@ -89,6 +90,116 @@
             <p class="panel-copy">Both agents tied at 100% on Tasks 1 &amp; 4. On Task 2, <code>ripgrep</code> missed 9 RTB microservices wired via environment host constants.</p>
             <code class="panel-code">83/83 callers vs. 9 services missed</code>
           </div>
+        </div>
+
+        <div id="prompts" class="prompt-stack">
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Task Prompt</span>
+                <span>prompts/task-prompt.md &mdash; Shared 4-Part Cross-Service Audit Task Given Identically to Both Agents</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block">Perform a comprehensive, cross-service architectural audit on the enterprise microservices monorepo (`src/` contains 320+ services and 90+ shared libraries across TypeScript/NestJS and Go). Answer all four architectural questions below with 100% completeness (do not guess or omit items; provide exact symbol/class/function names and relative file paths using forward slashes `/`):
+
+1. **Cross-Service Database Table Persistence Coupling (Shared ORM Tables)**:
+   Identify every database table (`Table`) in the monorepo that has **3 or more distinct ORM entity classes (`@Entity` / model classes)** mapped/persisted to it across different services or libraries.
+   For each such table, provide:
+   - The exact table name
+   - The total count of distinct entity classes mapped to it
+   - Every mapped entity class name and its relative file path
+
+2. **Cross-Service Synchronous Outbound Call Fan-In (`SERVICE_CALL`)**:
+   Identify every caller service, function/method name, and relative file path across the monorepo that makes an outbound synchronous service call (`linkGenerator` / HTTP client service call) to any of these 5 internal target services:
+   - `svc-worker-core`
+   - `svc-alert-notifier`
+   - `svc-network-telemetry`
+   - `svc-exchange-hub`
+   - `svc-pricing-engine`
+   Group your results by target service.
+
+3. **Polyglot Asynchronous Messaging &amp; Queue Topology (TypeScript &amp; Go)**:
+   For each of the following 5 messaging topics / queue channels across the TypeScript and Go services:
+   - `topic-routing-rule-updated`
+   - `PUB_SUB_PARTNER_NETWORK_TOPIC`
+   - `REALTIME_BID_CACHE_QUEUE`
+   - `TelemetryImpressionTopic` (`ImpressionTopic`)
+   - `TelemetryConversionTopic` (`ConversionTopic`)
+   Identify every function/method name and its declared relative file path that:
+   (a) **Publishes** messages/events to the topic, and
+   (b) **Subscribes / listens** to messages/events from the topic.
+
+4. **Multi-Hop Inheritance &amp; Strategy Realization Across Microservices**:
+   List every class/type and its relative file path across the monorepo that:
+   (a) Inherits (directly or transitively) from `BaseEventController`
+   (b) Implements the `ICloudPubSubService` interface
+   (c) Implements the `IOptimizationCampaignStrategy` interface
+
+&gt; **Confidentiality Note**: All proprietary service, table, topic, class, and interface identifiers in this benchmark artifact have been systematically anonymized to preserve commercial confidentiality while maintaining a 1-to-1 structural correspondence with the underlying enterprise monorepo.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">System Prompt (ce)</span>
+                <span>prompts/graph-agent.md &mdash; System Instructions for CodeExplorer Graph Agent (enterprise_ce_graph_agent)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions
+
+You are an expert software architect and researcher equipped with the CodeExplorer CLI (`ce.exe`).
+You are analyzing a large enterprise polyglot microservices monorepo (`324` services, `93` shared libraries, `13,782` source files across TypeScript/NestJS, Go, and SQL), which is pre-indexed in `.codeexplorer/graph.db`.
+
+CRITICAL INSTRUCTIONS FOR MAXIMUM EFFICIENCY:
+1. ALWAYS run `ce.exe query "&lt;CYPHER&gt;" --no-truncate` via `run_command` to query the semantic knowledge graph!
+2. Known Graph Schema:
+   - Node labels:
+     - `Project` (`Service`, `Library`, `Worker`), `File`, `Type` (`Class`, `Interface`, `Struct`), `Function` (`Method`), `Table`, `Database`, `Query`, `Topic`, `Endpoint`, `EntryPoint`
+   - Key Properties:
+     - `n.name`: symbol, table, topic, or service name
+     - `f.path`: relative file path on `File` nodes
+   - Key Relationships:
+     - `(t:Type)-[:PERSISTED_IN]-&gt;(tbl:Table)` — ORM entity class mapped/persisted to a database table
+     - `(tbl:Table)-[:QUERIED_BY]-&gt;(q:Query)&lt;-[:EXECUTES_QUERY]-(fn:Function)` — raw SQL or query builder queries on a table
+     - `(callerService:Project)-[r:SERVICE_CALL]-&gt;(targetService:Project)` — cross-service synchronous call
+     - `(fn:Function)-[:SERVICE_CALL]-&gt;(targetService:Project)` — function making a cross-service synchronous call to a target service
+     - `(fn:Function)-[:PUBLISHES_TO]-&gt;(top:Topic)` — function publishing an event/message to a messaging topic/queue
+     - `(fn:Function)-[:SUBSCRIBES_TO]-&gt;(top:Topic)` — function subscribing to a messaging topic/queue
+     - `(sub:Type)-[:INHERITS_FROM*1..3]-&gt;(base:Type)` — single or multi-hop class inheritance
+     - `(cls:Type)-[:IMPLEMENTS]-&gt;(iface:Type)` — interface implementation
+     - `(sym)-[:DECLARED_IN]-&gt;(f:File)` — links a `Type` or `Function` to the `File` where it is declared
+     - `(f:File)-[:BELONGS_TO]-&gt;(p:Project)` — links a `File` to its owning `Project` (`Service` / `Library`)
+3. Only use `view_file` if you need to double-check a small detail not returned by the graph query.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">System Prompt (ripgrep)</span>
+                <span>prompts/baseline-agent.md &mdash; System Instructions for ripgrep Baseline Agent (enterprise_rg_baseline_agent)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions
+
+You are an expert software architect and researcher analyzing a large enterprise polyglot microservices monorepo (`324` services, `93` shared libraries, `13,782` source files across TypeScript/NestJS, Go, and SQL).
+You must answer the user's architectural questions with 100% accuracy and completeness based on the actual source code.
+
+CRITICAL BENCHMARK RULES:
+1. You MAY use `run_command` ONLY to execute standard text/filesystem search commands such as `rg` (ripgrep), `git grep`, `Get-ChildItem`, `Select-String`, or custom Python/shell scripts, and you MAY use `view_file` to inspect source files.
+2. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or any CodeExplorer CLI binary.
+3. You are STRICTLY FORBIDDEN from reading, querying, or accessing `.codeexplorer`, `graph.db`, or any `.db` / `.json` files inside `.codeexplorer`. Always add `-g "!.codeexplorer/**"` if needed.
+4. Do NOT modify or create any files inside the repository.
+5. Verify every answer directly in the source code and provide exact symbol names and relative file paths.</pre>
+            </div>
+          </details>
         </div>
       </div>
     </section>

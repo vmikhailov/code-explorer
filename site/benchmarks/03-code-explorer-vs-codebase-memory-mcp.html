@@ -55,7 +55,8 @@
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/03-code-explorer-vs-codebase-memory-mcp/scripts" target="_blank" rel="noopener" class="btn btn--primary">Inspect Evaluation Scripts</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/03-code-explorer-vs-codebase-memory-mcp/groundtruth" target="_blank" rel="noopener" class="btn">Inspect Ground-Truth CSVs</a>
+              <a href="#prompts" class="btn">Inspect Tested Queries &amp; Spec</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/03-code-explorer-vs-codebase-memory-mcp/groundtruth" target="_blank" rel="noopener" class="btn">Ground-Truth CSVs</a>
             </div>
           </div>
         </div>
@@ -85,6 +86,134 @@
             <p class="panel-copy"><code>CBM</code> indexed <code>twenty</code> 1.52× faster with 2.2× lower peak RAM (<code>2.08 GB</code> vs. <code>4.66 GB</code>), and was faster on <code>AuthService</code> symbol lookup.</p>
             <code class="panel-code">CBM faster on 24.5k-file cold scan</code>
           </div>
+        </div>
+
+        <div id="prompts" class="prompt-stack">
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Part 1 Queries (C1, C2, C6, C7)</span>
+                <span>scripts/evaluate_ce_vs_cbm.py &mdash; Exact OpenCypher Queries Executed on Both Tools (130 Common-Ground Items)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># C1: Incoming HTTP / GraphQL / FastAPI Endpoints
+# CodeExplorer (ce):
+MATCH (e:Endpoint)-[:EXPOSED_BY]-&gt;(f:Function)
+RETURN f.file_path, f.start_line, f.name, e.http_method, e.route_template
+
+# codebase-memory-mcp (CBM):
+MATCH (m)-[:HANDLES]-&gt;(r:Route)
+RETURN m.file_path, m.start_line, m.name, r.name
+
+# ------------------------------------------------------------------------------
+# C2: Outbound Inter-Service &amp; External HTTP Calls
+# CodeExplorer (ce):
+MATCH (ext:ExternalService)-[r:CALLED_BY]-&gt;(f:Function)
+WHERE COALESCE(ext.protocol, 'http') &lt;&gt; 'graphql'
+RETURN f.file_path, COALESCE(r.line, f.start_line), f.name, COALESCE(ext.url, ext.name);
+
+MATCH (f:Function)-[r:CALLS_ENDPOINT]-&gt;(ep:Endpoint)
+WHERE COALESCE(ep.protocol, 'REST') &lt;&gt; 'GraphQL'
+RETURN f.file_path, COALESCE(r.line, f.start_line), f.name, COALESCE(ep.route_template, ep.name);
+
+# codebase-memory-mcp (CBM):
+MATCH (a)-[:HTTP_CALLS]-&gt;(b)
+RETURN a.file_path, a.start_line, a.name, b.name
+
+# ------------------------------------------------------------------------------
+# C6: Call Graph (Direct &amp; DI Service Method Callers)
+# CodeExplorer (ce):
+MATCH (caller:Function)-[:CALLS]-&gt;(callee:Function)
+WHERE callee.name IN [&lt;target_methods&gt;]
+OPTIONAL MATCH (enclosing:Function)-[:DECLARES]-&gt;(caller)
+RETURN caller.file_path, COALESCE(enclosing.start_line, caller.start_line), COALESCE(enclosing.name, caller.name), callee.name
+
+# codebase-memory-mcp (CBM):
+MATCH (caller)-[:CALLS]-&gt;(callee)
+WHERE callee.name = '&lt;target_method&gt;'
+RETURN caller.file_path, caller.start_line, caller.name, callee.name
+
+# ------------------------------------------------------------------------------
+# C7: Class Inheritance &amp; Interface Implementation
+# CodeExplorer (ce):
+MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p)
+RETURN c.file_path, c.start_line, c.name, type(r), p.name
+
+# codebase-memory-mcp (CBM):
+MATCH (c)-[r:INHERITS|IMPLEMENTS]-&gt;(p)
+RETURN c.file_path, c.start_line, c.name, type(r), p.name</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">Part 2 Queries (C3–C5, C8–C11)</span>
+                <span>scripts/evaluate_ce_vs_cbm.py &mdash; L4–L5 Queue, ORM Table, Data Lineage &amp; 6 Architectural Queries (241 Items)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># C3 &amp; C8: Message Queue Producers &amp; Consumers (BullMQ / @OnJob)
+MATCH (t:Topic)-[:PUBLISHED_BY]-&gt;(f:Function)
+RETURN f.file_path, f.start_line, f.name, t.name;
+
+MATCH (t:Topic)-[:SUBSCRIBED_BY]-&gt;(m:Function)
+RETURN m.file_path, m.start_line, m.name, t.name;
+
+# C4 &amp; C10: Database Tables, Entities &amp; Schema Members
+MATCH (t:Table) OPTIONAL MATCH (t)-[:IMPLEMENTED_BY]-&gt;(ent:Type)
+RETURN COALESCE(ent.file_path, t.path), ent.start_line, COALESCE(ent.name, t.name), t.name;
+
+MATCH (t:Table)-[:IMPLEMENTED_BY]-&gt;(ent:Type)-[:HAS_MEMBER]-&gt;(m:Member)
+RETURN ent.file_path, m.start_line, m.name, t.name;
+
+# C5: Code-to-Table Read/Write Lineage (TypeORM &amp; Kysely)
+MATCH (q:Query)-[r:WRITES_TO|READS_FROM]-&gt;(t:Table)
+OPTIONAL MATCH (q)-[:ACCESSED_BY]-&gt;(f:Function)
+RETURN COALESCE(f.file_path, q.file_path), q.start_line, COALESCE(f.name, q.name), type(r), t.name;
+
+# C9: Monorepo Services &amp; Sub-Projects
+MATCH (p:Project) RETURN p.path, labels(p), p.name;
+
+# C11: 6 End-to-End Architectural Queries (Single-Query Expressibility)
+# Q1 — Topics with producers but no consumers (or vice versa):
+MATCH (t:Topic) WHERE NOT (t)-[:SUBSCRIBED_BY]-&gt;() OR NOT (t)-[:PUBLISHED_BY]-&gt;() RETURN t.name
+# Q2 — Pairs of projects sharing a database:
+MATCH (p1:Project)-[:USES_DB]-&gt;(d:Database)&lt;-[:USES_DB]-(p2:Project) WHERE p1.name &lt; p2.name RETURN p1.name, p2.name, d.name
+# Q3 — Top written database tables:
+MATCH (q:Query)-[:WRITES_TO]-&gt;(t:Table) RETURN t.name, count(q) AS writes ORDER BY writes DESC LIMIT 10
+# Q4 — Endpoints transitively writing to a database table within 1..4 call hops:
+MATCH (e:Endpoint)-[:EXPOSED_BY]-&gt;(f:Function)-[:CALLS*1..4]-&gt;(w:Function)&lt;-[:DECLARED_IN]-(q:Query)-[:WRITES_TO]-&gt;(t:Table) RETURN e.name, t.name LIMIT 20
+# Q5 — Per-project endpoint and published topic counts:
+MATCH (p:Project) OPTIONAL MATCH (p)-[:EXPOSES]-&gt;(e:Endpoint) OPTIONAL MATCH (p)-[:PUBLISHES_TO]-&gt;(tp:Topic) RETURN p.name, count(DISTINCT e), count(DISTINCT tp)
+# Q6 — End-to-end chain: Endpoint -&gt; Call Chain (0..3 hops) -&gt; Queue Publish -&gt; Queue Subscriber:
+MATCH (e:Endpoint)-[:EXPOSED_BY]-&gt;(f:Function)-[:CALLS*0..3]-&gt;(pub:Function)&lt;-[:PUBLISHED_BY]-(t:Topic)-[:SUBSCRIBED_BY]-&gt;(sub) RETURN e.name, t.name, sub.name LIMIT 20</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">Ground-Truth Spec</span>
+                <span>groundtruth/patterns.md &mdash; Deterministic Ground-Truth Sampling Rules (seed = 42, 371 Items)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block">All patterns were verified against real source files in `twentyhq/twenty` (`12e8fae471865e9dab60c0b0fd59f318505c804e`) and `immich-app/immich` (`2153d22f34349de690cd98890ee4c635808da638`). Test files (`*.spec.ts`, `*.test.ts`, `__tests__`, `test/`, `e2e/`, `fixtures/`, `test_*.py`) are excluded across all categories. Stratified random sampling uses `random.Random(42)`.
+
+- C1 (Incoming HTTP / GraphQL / FastAPI Endpoints): NestJS `@Controller` + `@(Get|Post|Put|Patch|Delete)`, NestJS GraphQL `@Resolver` + `@(Query|Mutation|Subscription)`, and Python FastAPI `@(app|router).(get|post|put|delete|patch)`.
+- C2 (Outbound Inter-Service / External HTTP Calls): `fetch(...)`, `axios.(get|post|put|delete|patch|request)`, `this.httpService.(get|post|...)` (excluding IMAP `imapClient.fetch`).
+- C3 &amp; C8 (Message Queues &amp; Async Jobs): `twenty` `enum MessageQueue` (27 queues), `@InjectMessageQueue` producers, `@Processor` + `@Process` consumers; `immich` `enum QueueName` (19 queues) &amp; `enum JobName`, `jobRepository.queue` producers, `@OnJob` consumers.
+- C4 &amp; C10 (Database Tables &amp; Schema): `twenty` TypeORM `@Entity` + `@Column`/`@ManyToOne`/`@OneToMany`; `immich` `@Table` + `@Column`/`@ForeignKeyColumn`.
+- C5 (Code-to-Table Lineage): `twenty` `@InjectRepository` / `@InjectWorkspaceScopedRepository` read (`find*`, `count`, `createQueryBuilder`) &amp; write (`save`, `insert`, `update`, `delete`, `softDelete`, `upsert`); `immich` Kysely `selectFrom` (read) &amp; `insertInto`/`updateTable`/`deleteFrom` (write).
+- C6 (Call Graph): Deterministic sample of 10 service methods across `*.service.ts`, tracing non-test callers invoking `this.&lt;serviceField&gt;.&lt;methodName&gt;(` or `this.&lt;methodName&gt;(`.
+- C7 (Inheritance &amp; Implementation): Top 5 base classes/interfaces with &ge;3 non-test classes matching `export (abstract )?class &lt;Child&gt; (extends|implements) &lt;Parent&gt;`.</pre>
+            </div>
+          </details>
         </div>
       </div>
     </section>

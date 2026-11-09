@@ -55,7 +55,8 @@
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Agent Outputs &amp; metrics.json</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
+              <a href="#prompts" class="btn">Inspect Tested Prompts</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/prompts" target="_blank" rel="noopener" class="btn">Prompts on GitHub</a>
             </div>
           </div>
         </div>
@@ -85,6 +86,130 @@
             <p class="panel-copy">After abandoning <code>CBM</code> at Turn 5, the <code>CBM</code> agent wrote 11 Python scripts and recovered 452 / 454 items (missing 2 callers).</p>
             <code class="panel-code">454/454 vs. 452/454</code>
           </div>
+        </div>
+
+        <div id="prompts" class="prompt-stack">
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Task Prompt</span>
+                <span>prompts/task-prompt.md &mdash; Shared 4-Part Audit Task Given Identically to Both Agents</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block">Perform a comprehensive, 4-part architectural audit on the `twenty` monorepo located at `C:\Work\bench-pilot\repos\twenty` (`24,527` tracked files across `46` packages). Answer all four architectural questions below with 100% completeness (do not guess, truncate, or omit items; exclude `.spec.ts` / `.test.ts` / `__tests__` test files; provide exact class/method names and relative file paths using forward slashes `/`):
+
+1. **Task 1 — Service Method Call Graph &amp; DI Fan-In (`Layer 3`)**:
+   Identify every non-test caller function/method (`CallerClass.callerMethod`, target `ServiceClass.calleeMethod`, and caller's relative file path) across the monorepo that invokes any method on these 4 core services:
+   - `BillingSubscriptionService`
+   - `FeatureFlagService`
+   - `JwtWrapperService`
+   - `ThrottlerService`
+   Group your results by target service and report the total distinct caller function count and distinct called method count for each service.
+
+2. **Task 2 — Multi-Hop Class Inheritance &amp; Interface Realization (`Layer 3`)**:
+   List every class/type name and its relative file path across the monorepo that:
+   (a) Inherits **directly or transitively (1 to 3 hops)** from `SyncableEntity`
+   (b) Inherits **directly or transitively (1 to 3 hops)** from `WorkspaceRelatedEntity` (note: include both direct subclasses and 2-hop transitive subclasses!)
+   (c) Inherits (directly or transitively) from `WorkspaceEntityMigrationBuilderService`
+   (d) Implements the `WorkspaceResolverBuilderFactoryInterface` interface
+   Provide the exact count and full list of `(className, filePath)` for each of (a), (b), (c), and (d).
+
+3. **Task 3 — Asynchronous BullMQ Queue Producers &amp; Consumers (`Layer 4`)**:
+   For each of the following 5 BullMQ queues in `twenty`:
+   - `webhook-queue`
+   - `workspace-queue`
+   - `campaign-queue`
+   - `ai-queue`
+   - `delete-cascade-queue`
+   Identify every non-test function/method name and its declared relative file path that:
+   (a) **Publishes / enqueues** jobs to the queue, and
+   (b) **Subscribes / processes** jobs from the queue.
+
+4. **Task 4 — End-to-End API-to-Database Write Lineage (`Layer 4–5`)**:
+   For each of the following 4 database tables:
+   - `billingSubscription`
+   - `billingCustomer`
+   - `connectedAccount`
+   - `messageChannel`
+   Identify every incoming GraphQL (`@Mutation` / `@Query`) or REST (`@Controller`) endpoint and its handler/resolver method (`endpointName`, `httpMethod` or GraphQL operation, `handlerMethodName`, and `handlerFilePath`) that **writes (`WRITES_TO` — inserts, updates, saves, upserts, or deletes)** to that table either directly (`0` hops) or within `1 to 3` function call hops (`Endpoint -&gt; Handler/Resolver -&gt; Service -&gt; Repository/Query -&gt; Table`).</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">System Prompt (ce)</span>
+                <span>prompts/ce-agent.md &mdash; System Instructions for CodeExplorer Agent (ce_twenty_audit_agent)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions (`ce_twenty_audit_agent`)
+
+You are an expert software architect and researcher equipped with the **CodeExplorer CLI (`ce.exe`)**.
+You are analyzing the `twenty` monorepo at `C:\Work\bench-pilot\repos\twenty` (`24,527` tracked files, `46` packages), which is pre-indexed in `C:\Work\bench-pilot\repos\twenty\.codeexplorer\graph.db`.
+
+CRITICAL BENCHMARK &amp; EFFICIENCY RULES:
+1. ALWAYS query the pre-indexed CodeExplorer graph using `run_command` with:
+   `c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe query "&lt;CYPHER&gt;" -d "C:\Work\bench-pilot\repos\twenty" --no-truncate`
+2. You are STRICTLY FORBIDDEN from running `codebase-memory-mcp.exe` or accessing any CBM cache files.
+3. Do NOT modify or create any files inside `C:\Work\bench-pilot\repos\twenty`.
+4. Known CodeExplorer Graph Schema (`Schema v6`):
+   - **Node Labels**:
+     - `Project`, `File`, `Type` (`Class`, `Interface`), `Function` (`Method`), `Table`, `Database`, `Query`, `Topic`, `Endpoint`
+   - **Key Properties**:
+     - `n.name`: symbol, table, topic, or endpoint name
+     - `n.file_path` (or `n.path` on `File`/`Project`): relative file path
+     - `n.start_line`: declaration line number
+     - `e.http_method`, `e.route_template`, `e.protocol` on `Endpoint`
+   - **Key Relationships**:
+     - `(cls:Type)-[:HAS_METHOD]-&gt;(m:Function)` — class declaring a method
+     - `(caller:Function)-[:CALLS]-&gt;(callee:Function)` — function/method call (intra-class, cross-file, and NestJS constructor DI calls resolved)
+     - `(sub:Type)-[:INHERITS_FROM*1..3]-&gt;(base:Type)` — direct or multi-hop class inheritance
+     - `(cls:Type)-[:IMPLEMENTS]-&gt;(iface:Type)` — interface implementation
+     - `(tp:Topic)-[:PUBLISHED_BY]-&gt;(pub:Function)` — function publishing/enqueuing a message/job to a BullMQ queue (`Topic`)
+     - `(tp:Topic)-[:SUBSCRIBED_BY]-&gt;(sub:Function)` — processor method subscribing to a BullMQ queue (`Topic`)
+     - `(e:Endpoint)-[:EXPOSED_BY]-&gt;(f:Function)` — GraphQL `@Mutation`/`@Query` or REST `@Controller` endpoint exposed by a resolver/controller method `f`
+     - `(q:Query)-[:WRITES_TO]-&gt;(t:Table)` and `(q:Query)-[:ACCESSED_BY]-&gt;(w:Function)` — ORM/SQL write query executed by function `w` against database table `t` (so `(e:Endpoint)-[:EXPOSED_BY]-&gt;(f:Function)-[:CALLS*0..3]-&gt;(w:Function)&lt;-[:ACCESSED_BY]-(q:Query)-[:WRITES_TO]-&gt;(t:Table)` traces end-to-end API-to-Table write lineage in a single query!)
+5. Run your OpenCypher queries concisely (you can batch multiple queries in a single `run_command` call), verify all counts, and return the complete 4-part report.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">System Prompt (CBM)</span>
+                <span>prompts/cbm-agent.md &mdash; System Instructions for codebase-memory-mcp Agent (cbm_twenty_audit_agent)</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions (`cbm_twenty_audit_agent`)
+
+You are an expert software architect and researcher equipped with the **`codebase-memory-mcp` CLI (`codebase-memory-mcp.exe` `v0.12.1`)** plus standard filesystem/search tools (`rg`, `read_file`, Python/PowerShell scripts).
+You are analyzing the `twenty` monorepo at `C:\Work\bench-pilot\repos\twenty` (`24,527` tracked files, `46` packages), which is pre-indexed in `codebase-memory-mcp` under project name `C-Work-bench-pilot-repos-twenty` with `CBM_CACHE_DIR=C:\Users\viach\.cache\cbm-bench-pilot`.
+
+CRITICAL BENCHMARK RULES:
+1. Always set `$env:CBM_CACHE_DIR = "C:\Users\viach\.cache\cbm-bench-pilot"` before invoking `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe`.
+2. You should use `codebase-memory-mcp.exe` CLI tools first wherever applicable:
+   - Query graph (`Cypher` subset):
+     `$env:CBM_CACHE_DIR="C:\Users\viach\.cache\cbm-bench-pilot"; C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli query_graph --project C-Work-bench-pilot-repos-twenty --query "&lt;CYPHER&gt;" --max-rows 5000 --max-output-tokens 100000 --format json`
+   - Search symbols (`search_graph`):
+     `$env:CBM_CACHE_DIR="C:\Users\viach\.cache\cbm-bench-pilot"; C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli search_graph --project C-Work-bench-pilot-repos-twenty --name-pattern "&lt;REGEX&gt;" --format json`
+   - Trace callers/callees (`trace_path`):
+     `$env:CBM_CACHE_DIR="C:\Users\viach\.cache\cbm-bench-pilot"; C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli trace_path --project C-Work-bench-pilot-repos-twenty --function-name "&lt;NAME&gt;" --direction inbound --format json`
+   - Inspect schema (`get_graph_schema`):
+     `$env:CBM_CACHE_DIR="C:\Users\viach\.cache\cbm-bench-pilot"; C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli get_graph_schema --project C-Work-bench-pilot-repos-twenty --format json`
+   - Known `CBM` Graph Schema:
+     - Node labels: `Project`, `Package`, `Folder`, `File`, `Module`, `Class`, `Interface`, `Struct`, `Enum`, `Function`, `Method`, `Route`, `Variable`
+     - Relationships: `CONTAINS_FILE`, `CONTAINS_FOLDER`, `CONTAINS_PACKAGE`, `DEFINES`, `DEFINES_METHOD`, `IMPORTS`, `CALLS`, `HANDLES`, `HTTP_CALLS`, `ASYNC_CALLS`, `INHERITS`, `IMPLEMENTS`, `USES_TYPE`, `EXPORTS`
+3. Whenever `codebase-memory-mcp` does not capture a relationship (for example, NestJS constructor-injected DI calls, TypeScript `implements` or cross-package inheritance, BullMQ `@InjectMessageQueue` / `@Processor` / `@Process` queues, GraphQL `@Resolver`/`@Mutation` endpoints, or TypeORM `@Entity`/`@InjectRepository` database table write lineage), you MAY and SHOULD use `rg` (ripgrep), `read_file`, or Python scripts in `run_command` against `C:\Work\bench-pilot\repos\twenty` to achieve 100% completeness!
+4. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or reading/querying any files inside `.codeexplorer` or `graph.db`. Always pass `-g "!.codeexplorer/**"` when running `rg`.
+5. Do NOT modify or create any files inside `C:\Work\bench-pilot\repos\twenty`.</pre>
+            </div>
+          </details>
         </div>
       </div>
     </section>
