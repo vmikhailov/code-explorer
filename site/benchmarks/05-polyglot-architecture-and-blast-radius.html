@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Case Study 01: 16-Project Polyglot Audit (CodeExplorer vs. ripgrep)</title>
+  <title>Case Study 05: 16-Project Polyglot Audit (CodeExplorer vs. ripgrep)</title>
   <meta name="description" content="Self-contained paired AI agent benchmark on the CodeExplorer repository (16 projects, C# .NET 10 + TypeScript): 2.35x faster (2m 11s vs. 5m 08s), 2.52x fewer tokens (633K vs. 1.59M), 100% recall for both agents.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,14 +21,14 @@
       </a>
       <ul class="slab-links">
         <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
-        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">1. Agent: vs. CBM (twenty)</a></li>
-        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">2. Agent: 324 Services</a></li>
-        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html" aria-current="page">3. Agent: 16 Projects</a></li>
-        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">4. Indexer: vs. CBM</a></li>
-        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">5. Indexer: vs. Graphify</a></li>
+        <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">01: Agent vs. CBM (twenty)</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: Agent vs. ripgrep (324 Services)</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" aria-current="page">05: Agent vs. ripgrep (16 Projects)</a></li>
       </ul>
       <div class="slab-actions">
-        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
       </div>
     </nav>
   </header>
@@ -40,22 +40,22 @@
           <div class="crumb-trail">
             <a href="/benchmarks.html">Benchmarks Catalog</a>
             <span>/</span>
-            <span class="tone-ink">Case Study 01: 16-Project Polyglot Audit</span>
+            <span class="tone-ink">Case Study 05: 16-Project Polyglot Audit</span>
           </div>
           <span class="measured">Target: vmikhailov/code-explorer (16 projects, C# .NET 10 + TypeScript) · Model: Gemini Flash (n = 1)</span>
         </div>
 
         <div class="hero-top">
           <div>
-            <h1 class="hero-title">Case Study 01: 16-project polyglot repository audit (ce vs. ripgrep).</h1>
+            <h1 class="hero-title">Case Study 05: 16-project polyglot repository audit (ce vs. ripgrep).</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
               Self-contained A/B benchmark executed on the <code>code-explorer</code> repository itself (16 projects across C# .NET 10 and TypeScript VS Code extension). Evaluates how much difference a graph makes on a small-to-medium codebase where <code>ripgrep</code> can still find 100% of answers.
             </p>
             <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
             </div>
           </div>
         </div>
@@ -101,7 +101,7 @@
         <div class="table-surface">
           <div class="table-caption-bar">
             <span>Paired A/B Agent Telemetry on code-explorer (16 Projects, C# + TypeScript)</span>
-            <span class="measured">Source: benchmarks/01-polyglot-architecture-and-blast-radius/results/metrics.json</span>
+            <span class="measured">Source: benchmarks/05-polyglot-architecture-and-blast-radius/results/metrics.json</span>
           </div>
           <table class="bench-table">
             <thead>
@@ -154,7 +154,7 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-md);">
-          <strong>Takeaway on codebase scale:</strong> On a 16-project repository, an agent with <code>ripgrep</code> does not miss callers—it simply needs ~2× more turns (for example, running two sequential searches when discovering that 62 language library parsers inherit from abstract base classes like <code>GoLibraryParserBase</code> rather than implementing <code>ILanguageLibraryParser</code> directly). The accuracy gap between lexical search and a semantic graph emerges on large monorepos like <a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 05 (24,527 files)</a> and <a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02 (324 services)</a>.
+          <strong>Takeaway on codebase scale:</strong> On a 16-project repository, an agent with <code>ripgrep</code> does not miss callers—it simply needs ~2× more turns (for example, running two sequential searches when discovering that 62 language library parsers inherit from abstract base classes like <code>GoLibraryParserBase</code> rather than implementing <code>ILanguageLibraryParser</code> directly). The accuracy gap between lexical search and a semantic graph emerges on large monorepos like <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01 (24,527 files)</a> and <a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02 (324 services)</a>.
         </div>
       </div>
     </section>
@@ -164,7 +164,7 @@
     <div class="wrap">
       <div class="mast-bottom" style="padding-top: 0;">
         <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
-        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener">View Case Study 01 on GitHub</a></span>
+        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener">View Case Study 05 on GitHub</a></span>
       </div>
     </div>
   </footer>

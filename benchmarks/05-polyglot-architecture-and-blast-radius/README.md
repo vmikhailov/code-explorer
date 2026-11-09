@@ -1,4 +1,4 @@
-# Case Study 01: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep` vs. `CodeExplorer Graph`)
+# Case Study 05: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep` vs. `CodeExplorer Graph`)
 
 > **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **2.35x faster in time-to-answer** (`5m 08s` → `2m 11s`), required **1.97x fewer LLM turns** (`59` → `30`), made **1.97x fewer tool calls** (`57` → `29`), reduced cumulative LLM input tokens by **2.52x** (`1,594,003` → `633,469` tokens), and cut API cost by **1.87x** (`$0.140` → `$0.075` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
 

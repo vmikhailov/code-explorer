@@ -12,7 +12,7 @@
   <meta property="og:site_name" content="CodeExplorer (ce)">
   <meta property="og:url" content="https://code-explorer.app/benchmarks.html">
   <meta property="og:title" content="CodeExplorer (ce) Benchmarks Catalog">
-  <meta property="og:description" content="Five benchmarks comparing CodeExplorer against codebase-memory-mcp, Graphify, and ripgrep: what was tested, who won, and where competitors excelled.">
+  <meta property="og:description" content="Five benchmarks comparing CodeExplorer against codebase-memory-mcp, Graphify, and ripgrep.">
   <meta property="og:image" content="https://code-explorer.app/og-image.png?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,11 +31,11 @@
       <ul class="slab-links">
         <li><a href="/index.html">Product Overview</a></li>
         <li><a href="/benchmarks.html" class="nav-framed" aria-current="page">All Benchmarks</a></li>
-        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">1. Agent: vs. CBM (twenty)</a></li>
-        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">2. Agent: 324 Services</a></li>
-        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">3. Agent: 16 Projects</a></li>
-        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">4. Indexer: vs. CBM</a></li>
-        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">5. Indexer: vs. Graphify</a></li>
+        <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">01: Agent vs. CBM (twenty)</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: Agent vs. ripgrep (324 Services)</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">05: Agent vs. ripgrep (16 Projects)</a></li>
       </ul>
 
       <div class="slab-actions">
@@ -46,7 +46,7 @@
   </header>
 
   <main>
-    <section class="hero-stage">
+    <section class="hero-stage" style="border-bottom: none;">
       <div class="wrap">
         <div class="hero-top">
           <div>
@@ -54,226 +54,64 @@
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Five evaluations comparing <code>CodeExplorer</code> against <code>codebase-memory-mcp</code> (<code>CBM</code>), <code>Graphify</code>, and <code>ripgrep</code>: three end-to-end autonomous AI agent audits (ordered from the 2.49M-LOC public <code>twenty</code> monorepo down to 16 projects) and two deterministic indexer &amp; MCP server benchmarks.
+              Five reproducible evaluations comparing <code>CodeExplorer</code> against <code>codebase-memory-mcp</code> (<code>CBM</code>), <code>Graphify</code>, and <code>ripgrep</code>. Select a case study below to inspect the full telemetry, query logs, trade-offs, and raw artifacts.
             </p>
           </div>
         </div>
 
-        <div class="table-surface" style="margin-top: var(--space-xl);" role="region" aria-label="Summary of all five benchmarks">
+        <div class="table-surface" style="margin-top: var(--space-xl);" role="region" aria-label="Catalog of all five benchmarks">
           <div class="table-caption-bar">
-            <span>Overview: What Was Tested &amp; Who Won</span>
-            <span class="measured">Part A: Agent Audits (1–3) · Part B: Indexer &amp; MCP (4–5)</span>
+            <span>Case Studies 01 &ndash; 05</span>
+            <span class="measured">Select a benchmark for full metrics &amp; methodology</span>
           </div>
           <table class="bench-table">
             <thead>
               <tr>
-                <th>Benchmark &amp; Target</th>
+                <th>Case Study</th>
                 <th>What Was Tested</th>
                 <th>Compared Tools</th>
-                <th>Outcome &amp; Key Numbers</th>
-                <th>Where Competitor Won / Tied</th>
-                <th>Details</th>
+                <th>Outcome</th>
+                <th>Report</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><strong>1. Agent Audit on <code>twentyhq/twenty</code></strong><br><span class="tone-muted">24,527 files · 2.49M LOC · Public</span></td>
-                <td>4-part autonomous agent architectural audit on <code>twenty</code> (46 packages): NestJS DI call graph, inheritance, BullMQ queues, GraphQL-to-DB write lineage.</td>
-                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>CBM</code> Agent</td>
-                <td class="cell-win"><strong>CodeExplorer won</strong><br>1m 16s vs. 16m 46s (13.2× faster)<br>268K vs. 4.41M input tokens (16.5× fewer)<br>100% (454/454) vs. 3.96% (18/454) from graph</td>
-                <td>After <code>CBM</code> returned 3.96%, its agent wrote 11 Python scripts and recovered 99.56% (452/454, missing 2 callers).</td>
-                <td><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html" class="btn">Open #1 &rarr;</a></td>
+                <td><strong><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>4-part autonomous AI agent architectural audit on the <code>twentyhq/twenty</code> monorepo (TypeScript, NestJS, GraphQL, TypeORM, BullMQ): cross-module DI call graph, class inheritance, queue producers/consumers, and API-to-database write lineage.</td>
+                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>codebase-memory-mcp</code> Agent</td>
+                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" class="btn btn--primary">Open Case Study 01 &rarr;</a></td>
               </tr>
               <tr>
-                <td><strong>2. Agent Audit on 324 Microservices</strong><br><span class="tone-muted">13,782 files · TS/Go/SQL · Private</span></td>
-                <td>4-part autonomous agent blast-radius audit across 324 microservices, 93 shared libraries, and 33 background workers.</td>
-                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> Agent</td>
-                <td class="cell-win"><strong>CodeExplorer won</strong><br>3m 56s vs. 29m 52s (7.59× faster)<br>393K vs. 17.19M input tokens (43.7× fewer)<br>100% vs. 82% recall (0 vs. 9 missed services)</td>
-                <td>Tied at 100% recall on Task 1 (shared DB tables) and Task 4 (inheritance). Source repo is proprietary (transcripts published).</td>
-                <td><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn">Open #2 &rarr;</a></td>
+                <td><strong><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02</a></strong><br><span class="tone-muted">Enterprise Monorepo</span></td>
+                <td>4-part autonomous AI agent blast-radius audit across a distributed microservices platform (TypeScript, Go, SQL): shared ORM table persistence, synchronous cross-service call fan-in, polyglot Pub/Sub &amp; RabbitMQ queues, and multi-hop inheritance.</td>
+                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> + Python Agent</td>
+                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn">Open Case Study 02 &rarr;</a></td>
               </tr>
               <tr>
-                <td><strong>3. Agent Audit on 16 Projects</strong><br><span class="tone-muted"><code>code-explorer</code> · C#/TS · Public</span></td>
-                <td>Autonomous agent architecture &amp; blast-radius audit on a small-to-medium polyglot repository (16 projects).</td>
-                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> Agent</td>
-                <td class="cell-win"><strong>CodeExplorer won on speed &amp; tokens</strong><br>2m 11s vs. 5m 08s (2.35× faster)<br>30 vs. 59 turns (1.97× fewer)<br>633K vs. 1.59M input tokens (2.52× fewer)</td>
-                <td><strong>Tied at 100% recall</strong>: on a 16-project repository, <code>ripgrep</code> also found 100% of callers (0 missed).</td>
-                <td><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html" class="btn">Open #3 &rarr;</a></td>
-              </tr>
-              <tr>
-                <td><strong>4. Indexer &amp; MCP vs. <code>CBM</code></strong><br><span class="tone-muted"><code>twenty</code> + <code>immich</code> · 371 GT · Public</span></td>
-                <td>Deterministic indexer &amp; MCP server benchmark across 371 ground-truth items (130 L1–L3 Common Ground + 241 L4–L5 Architecture) and JSON-RPC latency.</td>
+                <td><strong><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">Case Study 03</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>Deterministic indexer &amp; MCP server evaluation on <code>twentyhq/twenty</code> and <code>immich-app/immich</code>: cold indexing speed, memory/disk footprint, Layer 1–3 Common Ground recall, Layer 4–5 Architecture recall, and JSON-RPC query latency.</td>
                 <td><code>CodeExplorer</code><br>vs.<br><code>codebase-memory-mcp</code></td>
-                <td class="cell-win"><strong>CodeExplorer won on recall &amp; Cypher</strong><br>L1–L3: 78% vs. 38% (7W / 1T / 0L)<br>L4–L5: 97.5% vs. not modeled<br>Cypher latency: 3.1–4.7 ms vs. 38–71 ms</td>
-                <td><strong>CBM won</strong> on <code>twenty</code> cold index speed (96.9s vs. 147.3s), peak RAM (2.08 GB vs. 4.66 GB), and <code>AuthService</code> symbol lookup.</td>
-                <td><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn">Open #4 &rarr;</a></td>
+                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn">Open Case Study 03 &rarr;</a></td>
               </tr>
               <tr>
-                <td><strong>5. Indexer &amp; MCP vs. <code>Graphify</code></strong><br><span class="tone-muted"><code>twenty</code> + <code>immich</code> · 371 GT · Public</span></td>
-                <td>Deterministic indexer &amp; MCP server benchmark across the same 371 ground-truth items and MCP cold start on <code>twenty</code> and <code>immich</code>.</td>
+                <td><strong><a href="/benchmarks/04-code-explorer-vs-graphify.html">Case Study 04</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>Deterministic indexer &amp; MCP server evaluation on <code>twentyhq/twenty</code> and <code>immich-app/immich</code>: cold indexing scalability, Layer 1–3 Common Ground recall, Layer 4–5 Architecture recall, and MCP cold startup &amp; query latency.</td>
                 <td><code>CodeExplorer</code><br>vs.<br><code>Graphify</code></td>
-                <td class="cell-win"><strong>CodeExplorer won</strong><br><code>immich</code> scan: 17.6s vs. 107.6s (6.1× faster)<br><code>twenty</code> scan: 147.3s vs. DNF (&gt;45m)<br>L1–L3: 78% vs. 18% (<code>immich</code>: 73% vs. 35%)</td>
-                <td><strong>Tied at 100% (20/20)</strong> on <code>immich</code> call graph (<code>C6</code>) and <code>C7</code>. Graphify adds Leiden clustering &amp; Obsidian export.</td>
-                <td><a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn">Open #5 &rarr;</a></td>
+                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td><a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn">Open Case Study 04 &rarr;</a></td>
+              </tr>
+              <tr>
+                <td><strong><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case Study 05</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>Self-contained autonomous AI agent audit on the <code>code-explorer</code> polyglot repository (C# .NET 10 + TypeScript): 2-hop interface realization, call-graph impact analysis, project dependency fan-in, and architectural gate verification.</td>
+                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> Agent</td>
+                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" class="btn">Open Case Study 05 &rarr;</a></td>
               </tr>
             </tbody>
           </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="band">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Part A: Autonomous AI agent audits (1 &ndash; 3).</h2>
-          <p class="band-lede">
-            Paired A/B runs where two identical LLM agents (Gemini Flash) receive the exact same architectural audit prompt and work autonomously until they submit their final report.
-          </p>
-        </div>
-
-        <div class="panels panels--3">
-          <article class="catalog-card">
-            <div>
-              <div class="catalog-meta">
-                <span>1 · AGENT AUDIT · PUBLIC MONOREPO</span>
-                <span class="badge badge--win">Winner: CodeExplorer</span>
-              </div>
-              <h3 class="panel-title" style="margin-top: var(--space-sm);">twentyhq/twenty (24.5k files): CodeExplorer vs. codebase-memory-mcp</h3>
-              <p class="panel-copy" style="margin-top: var(--space-xs);">
-                Tested on the open-source <code>twenty</code> monorepo (46 packages, 24,527 files, 2.49M LOC). Both agents started with pre-built graph indexes.
-              </p>
-              <ul class="kv-list">
-                <li class="kv-row"><span class="kv-label">Time to answer</span><span class="kv-val tone-ok">1m 16s vs. 16m 46s (13.24×)</span></li>
-                <li class="kv-row"><span class="kv-label">LLM turns / Tool calls</span><span class="kv-val">7 / 11 vs. 56 / 62</span></li>
-                <li class="kv-row"><span class="kv-label">Cumulative input tokens</span><span class="kv-val tone-ok">268K vs. 4.41M (16.46×)</span></li>
-                <li class="kv-row"><span class="kv-label">Direct recall from graph</span><span class="kv-val tone-ok">100% (454/454) vs. 3.96% (18/454)</span></li>
-                <li class="kv-row"><span class="kv-label">Final report recall</span><span class="kv-val">100% vs. 99.56% (452/454)</span></li>
-              </ul>
-            </div>
-            <div>
-              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
-                <strong>What happened:</strong> <code>CBM</code> returned 0 cross-file NestJS DI calls and 0 matches on Tasks 2–4. At Turn 5, the <code>CBM</code> agent abandoned the graph, wrote 11 Python scripts, and recovered 452/454 items (missing 2 callers in <code>RecordExportWorkspaceService</code>).
-              </div>
-              <a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html" class="btn btn--primary" style="width: 100%;">Open #1: twenty Agent Audit &rarr;</a>
-            </div>
-          </article>
-
-          <article class="catalog-card">
-            <div>
-              <div class="catalog-meta">
-                <span>2 · AGENT AUDIT · 324 MICROSERVICES</span>
-                <span class="badge badge--win">Winner: CodeExplorer</span>
-              </div>
-              <h3 class="panel-title" style="margin-top: var(--space-sm);">324-Service Platform (13.8k files): CodeExplorer vs. ripgrep</h3>
-              <p class="panel-copy" style="margin-top: var(--space-xs);">
-                Tested on a distributed production platform (450 modules: 324 microservices, 93 shared libraries, 33 workers, 13,782 files across TS, Go, SQL).
-              </p>
-              <ul class="kv-list">
-                <li class="kv-row"><span class="kv-label">Time to answer</span><span class="kv-val tone-ok">3m 56s vs. 29m 52s (7.59×)</span></li>
-                <li class="kv-row"><span class="kv-label">LLM turns / File reads</span><span class="kv-val">23 / 0 vs. 285 / 114</span></li>
-                <li class="kv-row"><span class="kv-label">Cumulative input tokens</span><span class="kv-val tone-ok">393K vs. 17.19M (43.70×)</span></li>
-                <li class="kv-row"><span class="kv-label">Context compactions</span><span class="kv-val">0 vs. 1 (at Turn 162)</span></li>
-                <li class="kv-row"><span class="kv-label">Blast-radius recall</span><span class="kv-val tone-ok">100% vs. ~82% (9 services missed)</span></li>
-              </ul>
-            </div>
-            <div>
-              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
-                <strong>Transparency note:</strong> Both agents tied at 100% on Tasks 1 and 4. On Task 2, <code>ripgrep</code> missed 9 RTB services wired via environment host constants. Because this repo is private, service names are anonymized; use Benchmark #1 for public verification.
-              </div>
-              <a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn" style="width: 100%;">Open #2: 324-Service Audit &rarr;</a>
-            </div>
-          </article>
-
-          <article class="catalog-card">
-            <div>
-              <div class="catalog-meta">
-                <span>3 · AGENT AUDIT · 16 PROJECTS</span>
-                <span class="badge badge--cool">Speed Win / Recall Tie</span>
-              </div>
-              <h3 class="panel-title" style="margin-top: var(--space-sm);">code-explorer (16 projects): CodeExplorer vs. ripgrep</h3>
-              <p class="panel-copy" style="margin-top: var(--space-xs);">
-                Self-contained baseline benchmark on the public <code>code-explorer</code> repository (16 projects, C# .NET 10 + TypeScript).
-              </p>
-              <ul class="kv-list">
-                <li class="kv-row"><span class="kv-label">Time to answer</span><span class="kv-val tone-ok">2m 11s vs. 5m 08s (2.35×)</span></li>
-                <li class="kv-row"><span class="kv-label">LLM turns</span><span class="kv-val">30 vs. 59 (1.97×)</span></li>
-                <li class="kv-row"><span class="kv-label">Cumulative input tokens</span><span class="kv-val tone-ok">633K vs. 1.59M (2.52×)</span></li>
-                <li class="kv-row"><span class="kv-label">API cost (w/ 90% cache)</span><span class="kv-val">$0.075 vs. $0.140 (1.87×)</span></li>
-                <li class="kv-row"><span class="kv-label">Blast-radius recall</span><span class="kv-val">100% vs. 100% (Tie)</span></li>
-              </ul>
-            </div>
-            <div>
-              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
-                <strong>Transparency note:</strong> On a 16-project repository, <code>ripgrep</code> + manual file reading achieved the exact same 100% accuracy as the graph agent, taking 2.35× longer and 2.52× more tokens.
-              </div>
-              <a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html" class="btn" style="width: 100%;">Open #3: 16-Project Audit &rarr;</a>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="band band--deep">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Part B: Deterministic indexer &amp; MCP server benchmarks (4 &ndash; 5).</h2>
-          <p class="band-lede">
-            Direct head-to-head measurements of cold indexing speed, disk/RAM footprint, ground-truth recall (371 items sampled with fixed seed 42), and single-shot MCP JSON-RPC latency on <code>twenty</code> (2.49M LOC) and <code>immich</code> (461k LOC).
-          </p>
-        </div>
-
-        <div class="panels panels--2">
-          <article class="catalog-card">
-            <div>
-              <div class="catalog-meta">
-                <span>4 · INDEXER &amp; MCP · VS. CBM</span>
-                <span class="badge badge--win">Recall: ce · twenty Scan: CBM</span>
-              </div>
-              <h3 class="panel-title" style="margin-top: var(--space-sm);">CodeExplorer vs. codebase-memory-mcp (CBM)</h3>
-              <p class="panel-copy" style="margin-top: var(--space-xs);">
-                Compares <code>ce</code> and <code>CBM</code> across cold indexing, 130 Layer 1–3 Common Ground items, 241 Layer 4–5 Architecture items, and MCP tool latency.
-              </p>
-              <ul class="kv-list">
-                <li class="kv-row"><span class="kv-label">Part 1 Common Ground Recall (L1–L3, 130 GT)</span><span class="kv-val tone-ok">ce 78% (102/130) vs. CBM 38% (49/130)</span></li>
-                <li class="kv-row"><span class="kv-label">Part 2 Architecture Recall (L4–L5, 241 GT)</span><span class="kv-val tone-ok">ce 97.5% (235/241) vs. not modeled</span></li>
-                <li class="kv-row"><span class="kv-label">Cold index on <code>immich</code> (3.2k files)</span><span class="kv-val tone-ok">ce 17.6s (55 MB) vs. CBM 20.6s (282 MB)</span></li>
-                <li class="kv-row"><span class="kv-label">Cold index on <code>twenty</code> (24.5k files)</span><span class="kv-val tone-accent">CBM 96.9s (2.08 GB RAM) vs. ce 147.3s (4.66 GB RAM)</span></li>
-                <li class="kv-row"><span class="kv-label">OpenCypher query latency (warm)</span><span class="kv-val tone-ok">ce 3.1–4.7 ms vs. CBM 38.1–71.2 ms</span></li>
-              </ul>
-            </div>
-            <div>
-              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
-                <strong>Where CBM won:</strong> <code>CBM</code> indexed <code>twenty</code> 1.52× faster with 2.2× lower peak RAM (because it extracts only L1–L3 syntax/call graphs), and was faster on single-symbol lookup (<code>AuthService</code>). <code>CBM</code> also provides <code>compare_graphs</code>, <code>ingest_traces</code>, and <code>manage_adr</code>.
-              </div>
-              <a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn btn--primary" style="width: 100%;">Open #4: vs. CBM Report &rarr;</a>
-            </div>
-          </article>
-
-          <article class="catalog-card">
-            <div>
-              <div class="catalog-meta">
-                <span>5 · INDEXER &amp; MCP · VS. GRAPHIFY</span>
-                <span class="badge badge--win">Winner: CodeExplorer · Call Graph Tie on immich</span>
-              </div>
-              <h3 class="panel-title" style="margin-top: var(--space-sm);">CodeExplorer vs. Graphify</h3>
-              <p class="panel-copy" style="margin-top: var(--space-xs);">
-                Compares <code>ce</code> against <code>graphifyy</code> (Python/NetworkX AST &amp; knowledge-graph tool) on the same <code>twenty</code> and <code>immich</code> repositories and 371 ground-truth items.
-              </p>
-              <ul class="kv-list">
-                <li class="kv-row"><span class="kv-label">Cold index on <code>immich</code> (3.2k files)</span><span class="kv-val tone-ok">ce 17.6s vs. Graphify 107.6s (6.1× faster)</span></li>
-                <li class="kv-row"><span class="kv-label">Cold index on <code>twenty</code> (24.5k files)</span><span class="kv-val tone-ok">ce 147.3s vs. Graphify DNF (&gt;45m timeout)</span></li>
-                <li class="kv-row"><span class="kv-label">Part 1 Common Ground Recall (L1–L3, 130 GT)</span><span class="kv-val tone-ok">ce 78% vs. Graphify 18% (<code>immich</code>: 73% vs. 35%)</span></li>
-                <li class="kv-row"><span class="kv-label">Part 2 Architecture Recall (L4–L5, 241 GT)</span><span class="kv-val tone-ok">ce 97.5% (235/241) vs. not modeled</span></li>
-                <li class="kv-row"><span class="kv-label">MCP server cold init on <code>immich</code></span><span class="kv-val tone-ok">ce 599 ms (64 MB) vs. Graphify 3,683 ms (163 MB)</span></li>
-              </ul>
-            </div>
-            <div>
-              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
-                <strong>Where Graphify tied / differs:</strong> On <code>immich</code>, Graphify tied <code>ce</code> at <strong>100% (20/20)</strong> on Call Graph &amp; DI (<code>C6</code>) and 15% (3/20) on Inheritance (<code>C7</code>). Evaluated in deterministic <code>--code-only</code> mode; Graphify also offers Leiden clustering, Obsidian exports, and optional LLM document synthesis.
-              </div>
-              <a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn btn--primary" style="width: 100%;">Open #5: vs. Graphify Report &rarr;</a>
-            </div>
-          </article>
         </div>
       </div>
     </section>
@@ -295,11 +133,11 @@
         <div class="mast-col">
           <span class="mast-heading">Benchmarks</span>
           <ul class="mast-list">
-            <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">1. Agent vs. CBM (twenty)</a></li>
-            <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">2. Agent vs. ripgrep (324 Services)</a></li>
-            <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">3. Agent vs. ripgrep (16 Projects)</a></li>
-            <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">4. Indexer &amp; MCP vs. CBM</a></li>
-            <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">5. Indexer &amp; MCP vs. Graphify</a></li>
+            <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01: Agent vs. CBM (twenty)</a></li>
+            <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02: Agent vs. ripgrep (324 Services)</a></li>
+            <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">Case Study 03: Indexer &amp; MCP vs. CBM</a></li>
+            <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">Case Study 04: Indexer &amp; MCP vs. Graphify</a></li>
+            <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case Study 05: Agent vs. ripgrep (16 Projects)</a></li>
           </ul>
         </div>
 

@@ -1,4 +1,4 @@
-# Case Study 05: Autonomous Agent Deep Architectural Audit on `twentyhq/twenty` (`CodeExplorer` vs. `codebase-memory-mcp`)
+# Case Study 01: Autonomous Agent Deep Architectural Audit on `twentyhq/twenty` (`CodeExplorer` vs. `codebase-memory-mcp`)
 
 > **Headline Result**: On the public open-source [`twentyhq/twenty`](https://github.com/twentyhq/twenty) monorepo (**commit `b9ef71072c06b5fa1853dd7120c7f3b58da0bc50` — `46` packages, `24,527` tracked files, `~2.49M` LOC** across TypeScript, NestJS, GraphQL, TypeORM, BullMQ, and React), we ran two identical **Gemini Flash** agents simultaneously on a 4-part architectural audit: one equipped with **CodeExplorer (`ce` `v1.75.0`)** and one equipped with **`codebase-memory-mcp` (`CBM` `v0.12.1`)**.
 >
@@ -14,7 +14,7 @@ In [Case Study 02 (`Enterprise Microservices Deep Audit`)](../02-enterprise-micr
 1. **Public Reproducibility**: *Can every file path, class name, line number, and query be inspected on a well-known public repository without any commercial anonymization?*
 2. **Graph-vs-Graph Agent Reality**: *What actually happens when an autonomous AI agent is given another popular code-graph server (`codebase-memory-mcp`, `v0.12.1`) instead of raw `ripgrep`?*
 
-To answer both questions, **Case Study 05** pairs two agents head-to-head on [`twentyhq/twenty`](https://github.com/twentyhq/twenty) (`b9ef71072c06b5fa1853dd7120c7f3b58da0bc50`), where both `CodeExplorer` (`.codeexplorer/graph.db`) and `codebase-memory-mcp` (`CBM` SQLite index) were pre-indexed ahead of time:
+To answer both questions, **Case Study 01** pairs two agents head-to-head on [`twentyhq/twenty`](https://github.com/twentyhq/twenty) (`b9ef71072c06b5fa1853dd7120c7f3b58da0bc50`), where both `CodeExplorer` (`.codeexplorer/graph.db`) and `codebase-memory-mcp` (`CBM` SQLite index) were pre-indexed ahead of time:
 
 | Target Repository Dimension | `twentyhq/twenty` (`b9ef71072c06b5fa1853dd7120c7f3b58da0bc50`) |
 | :--- | :--- |

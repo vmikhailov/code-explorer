@@ -4,8 +4,8 @@
 >
 > Because the two tools target different abstraction depths—**`CBM`** is a fast, lightweight **Layer 1–3 structural AST & call-graph indexer**, whereas **`ce`** runs a **Layer 1–5 semantic and global architectural ontology pipeline** (including ORM tables, SQL/repository read/write lineage, message queue topology, and monorepo sub-project boundaries)—a single flat score across all categories would be methodologically unfair to `CBM`. We therefore separate the evaluation into three distinct parts:
 > 1. **Part 1 — Head-to-Head on Common Ground (`C1`, `C2`, `C6`, `C7` + Cold Indexing Speed & Footprint):** Direct competition strictly on capabilities supported by both tools (`130` deterministically sampled ground-truth items).
-> 2. **Part 2 — Extended L4/L5 Architectural Capabilities (`C3`, `C4`, `C5`, `C8`, `C9`, `C10`, `C11`):** Standalone evaluation of `ce` on architectural and data-lineage categories (`235` ground-truth items) that `CBM` does not model by design.
-> 3. **Part 3 — MCP Server Tool Surface, Warm Stdio Latency & Agent Ergonomics:** Comparison of the MCP tools exposed to AI agents (`36` in `ce` vs. `17` in `CBM`), warm JSON-RPC round-trip latency, and response payload ergonomics.
+> 2. **Part 2 — Extended L4/L5 Architectural Capabilities (`C3`, `C4`, `C5`, `C8`, `C9`, `C10`, `C11`):** Standalone evaluation of `ce` on architectural and data-lineage categories (`241` ground-truth items) that `CBM` does not model by design.
+> 3. **Part 3 — MCP Server Tool Surface, Warm Stdio Latency & Agent Ergonomics:** Comparison of the MCP tools exposed to AI agents (`36` in `ce` vs. `17` in `CBM`), single-shot warm JSON-RPC round-trip latency, and response payload ergonomics.
 >
 > **Transparency Note on Framework Extractors:** During the preparation of this benchmark, several TypeScript framework extractors in `ce` (covering NestJS GraphQL `@Resolver`, BullMQ `@Process` decorators, TypeORM `@Entity` / `@Column`, Kysely `Updateable<T>`, and single-pass topological Layer 3 enrichment) were added or refined (`v1.72.0` → `v1.75.0`). `CBM` `v0.12.1` was evaluated out-of-the-box using its official `win32-x64` release binary.
 
@@ -20,8 +20,8 @@
 ### 1.2 Target Repositories (Pinned Commits)
 | Repository | Pinned Commit SHA | Scale | Primary Stack & Architecture |
 | :--- | :--- | :--- | :--- |
-| **`twenty`** (`twentyhq/twenty`) | `b9ef71072c06b5fa1853dd7120c7f3b58da0bc50` | `24,527` files (`~2.49M` LOC) | Enterprise TypeScript monorepo (`46` packages): NestJS, GraphQL (`@Resolver`), REST (`@Controller`), TypeORM (`WorkspaceScopedRepository`), BullMQ, React |
-| **`immich`** (`immich-app/immich`) | `152accc692fdbe7ed0c1d18a49c007ba0769386a` | `3,205` files (`~461k` LOC) | Polyglot monorepo (`21` sub-projects): TypeScript/NestJS, Kysely ORM, BullMQ (`JobOf<QueueName>`), Python/FastAPI ML service, Dart/Flutter mobile app, Svelte web UI, Rust |
+| **`twenty`** (`twentyhq/twenty`) | `12e8fae471865e9dab60c0b0fd59f318505c804e` | `24,527` files (`~2.49M` LOC) | Enterprise TypeScript monorepo (`46` packages): NestJS, GraphQL (`@Resolver`), REST (`@Controller`), TypeORM (`WorkspaceScopedRepository`), BullMQ, React |
+| **`immich`** (`immich-app/immich`) | `2153d22f34349de690cd98890ee4c635808da638` | `3,205` files (`~461k` LOC) | Polyglot monorepo (`21` sub-projects): TypeScript/NestJS, Kysely ORM, BullMQ (`JobOf<QueueName>`), Python/FastAPI ML service, Dart/Flutter mobile app, Svelte web UI, Rust |
 
 ### 1.3 Ground Truth & Scoring Rules
 - **100% Automated Ground Truth:** All ground-truth files ([`groundtruth/*.csv`](./groundtruth/)) are generated deterministically from repository source files by `build_groundtruth.py` using fixed random seed `42` (`random.Random(42)`) and zero manual CSV curation.
@@ -40,7 +40,7 @@
 | **Part 1: Head-to-Head Micro-Recall (`0–100`)** | **78** | 38 | **`immich`: `73` vs. `50`** (`48/66` vs. `33/66`); **`twenty`: `84` vs. `25`** (`54/64` vs. `16/64`) |
 | **Part 1: Head-to-Head Macro-Recall (`0–100`)** | **79** | 36 | Unweighted average across the 8 head-to-head evaluations |
 | **Part 1: Category Wins / Ties / Losses (of 8)** | **7 W / 1 T / 0 L** | 0 W / 1 T / 7 L | Ties on `immich C7` (`15` vs. `15`); `CBM` scores `90` on `immich C1` and `75` on `twenty C6` |
-| **Part 2: `ce` L4/L5 Ontology Recall (`C3–C5, C8–C11`)** | **97** (`227 / 235`) | *Not modeled (L1–L3 only)* | `ce` achieves **97** micro-recall (**98** macro-recall) across queues, ORM tables, data lineage & services |
+| **Part 2: `ce` L4/L5 Ontology Recall (`C3–C5, C8–C11`)** | **97.5** (`235 / 241`) | *Not modeled (L1–L3 only)* | `ce` achieves **97.5%** micro-recall (**98** macro-recall) across queues, ORM tables, data lineage & services |
 | **Part 3: MCP Tool Surface & Warm Query Latency** | **36 tools** (`1.9–530 ms`) | **17 tools** (`6.5–287 ms`) | `ce` is faster on `get_taxonomy` (`22 ms` / `1.9 ms` cached), Cypher (`4.3 ms`), `immich` outline (`13.4 ms`) & 1-turn callers; `CBM` is faster on large-repo outline & symbol search |
 
 ---
@@ -116,7 +116,7 @@ These four categories test core code-graph capabilities supported by both tools:
 
 ## 4. Part 2: Extended L4/L5 Architectural Capabilities (`ce` Standalone)
 
-In addition to Layer 1–3 AST and call graphs, `ce` executes Layer 4 (Semantic) and Layer 5 (Global) passes to construct an architectural ontology covering asynchronous queues, ORM database tables, code-to-table read/write lineage, and monorepo sub-project boundaries. Because `CBM` does not model these entities, Part 2 evaluates `ce` standalone against the `235` ground-truth items across `twenty` and `immich`:
+In addition to Layer 1–3 AST and call graphs, `ce` executes Layer 4 (Semantic) and Layer 5 (Global) passes to construct an architectural ontology covering asynchronous queues, ORM database tables, code-to-table read/write lineage, and monorepo sub-project boundaries. Because `CBM` does not model these entities, Part 2 evaluates `ce` standalone against the `241` ground-truth items across `twenty` and `immich`:
 
 | Category | Capability Tested | Repo | GT | **`ce` Matched / GT** | **`ce` Recall (`0–100`)** | **`ce` Total Extracted** |
 | :--- | :--- | :--- | :-: | :---: | :---: | :--- |
@@ -136,7 +136,7 @@ In addition to Layer 1–3 AST and call graphs, `ce` executes Layer 4 (Semantic)
 | **C9-services** | Monorepo Sub-Projects (`:Project`) | `immich` | 7 | **7 / 7** | **100** | 21 `:Project` nodes |
 | **C11-queries** | 6 End-to-End Architectural Cypher Queries | `twenty` | 6 | **6 / 6** | **100** | 76 rows across 6 queries |
 | **C11-queries** | 6 End-to-End Architectural Cypher Queries | `immich` | 6 | **6 / 6** | **100** | 82 rows across 6 queries |
-| **Part 2 Total** | **All L4/L5 Architectural Categories** | **Both** | **235** | **227 / 235** | **97** (Micro) / **98** (Macro) | **Full L4/L5 Ontology** |
+| **Part 2 Total** | **All L4/L5 Architectural Categories** | **Both** | **241** | **235 / 241** | **97.5** (Micro) / **98** (Macro) | **Full L4/L5 Ontology** |
 
 **Notes on Part 2 Limitations (`C10-schema` on `twenty`, Recall `76`):**
 - On `twenty`, `ce` matched `13/17` sampled table columns because several TypeORM entities define composite relation columns without explicit `@Column` decorators on the child class.
@@ -194,10 +194,10 @@ Comparing only the total tool count (`36` vs. `17`) does not tell the whole stor
 | **File Outline (`auth.*`)** | `twenty` | `get_file_outline` | `92.7 ms` | `0.9 KB` | `get_file_outline` | **`40.5 ms`** | `7.8 KB` | **`CBM` is 2.3× faster**; `ce` returns a more compact class/method outline |
 | **Cypher Query (`LIMIT 10`)** | `immich` | `execute_custom_read_cypher` | **`4.3 ms`** | `1.0 KB` | `query_graph` | `38.1 ms` | `0.3 KB` | **`ce` is 8.9× faster** (`4.3 ms` vs. `38.1 ms`) |
 | **Cypher Query (`LIMIT 10`)** | `twenty` | `execute_custom_read_cypher` | **`4.7 ms`** | `1.1 KB` | `query_graph` | `71.2 ms` | `0.3 KB` | **`ce` is 15× faster** (`4.7 ms` vs. `71.2 ms`) |
-| **Data Lineage (`user` table)** | `immich` | `inspect_data_lineage` | **`10.9 ms`** | `2.6 KB` | *N/A* | — | — | `ce`-exclusive: traces SQL/ORM readers & writers of `user` in 10.9 ms |
-| **Data Lineage (`user` table)** | `twenty` | `inspect_data_lineage` | **`16.2 ms`** | `5.2 KB` | *N/A* | — | — | `ce`-exclusive: traces repository & query accessors in 16.2 ms |
+| **Data Lineage (`user` substring)** | `immich` | `inspect_data_lineage` | **`10.9 ms`** | `2.6 KB` | *N/A* | — | — | `ce`-exclusive: substring search matching 9 `*user*` tables (`Users`, `user`, `album_user`, etc.) |
+| **Data Lineage (`user` substring)** | `twenty` | `inspect_data_lineage` | **`16.2 ms`** | `5.2 KB` | *N/A* | — | — | `ce`-exclusive: substring search matching 20+ `*user*` tables (`pg_statio_user_tables`, `user`, etc.) |
 | **Project Dependencies** | `twenty` | `get_project_dependencies` | **`9.5 ms`** | `1.0 KB` | *N/A* | — | — | `ce`-exclusive: instant inter-package dependency graph |
-| **Semantic Invariant Gates** | `twenty` | `check_semantic_gates` | **`9.1 ms`** | `0.4 KB` | *N/A* | — | — | `ce`-exclusive: evaluates architectural rules & baseline ratchets |
+| **Semantic Invariant Gates** | `twenty` | `check_semantic_gates` | **`9.1 ms`** | `0.4 KB` | *N/A* | — | — | `ce`-exclusive: empty-suite baseline overhead (`0` gates configured on target repo) |
 
 ---
 
@@ -210,7 +210,7 @@ Comparing only the total tool count (`36` vs. `17`) does not tell the whole stor
 
 ### 6.2 Where `CodeExplorer` (`ce`) Excels
 1. **Higher Recall on Framework-Driven TypeScript (`78` vs. `38` Micro-Recall in Part 1):** `ce` resolves cross-file NestJS constructor-injected service calls and nested object-literal callbacks (`C6`: `100` vs. `60–75`), GraphQL `@Resolver` and template-literal REST controllers (`C1`: `100` vs. `0–90`), outbound HTTP calls (`C2`: `50–83` vs. `0–25`), and TypeScript `implements` + cross-package base classes (`C7`: `80` vs. `20` on `twenty`).
-2. **Layer 4 & Layer 5 Architectural Ontology (`97` Micro-Recall in Part 2):** `ce` models ORM database tables (`TypeORM`, `Kysely`), SQL/repository read/write lineage (`17,382` edges on `twenty`), BullMQ producer/consumer queues (including enum/constant topic resolution), and monorepo sub-project boundaries (`46` packages in `twenty`, `21` in `immich`).
+2. **Layer 4 & Layer 5 Architectural Ontology (`97.5%` Micro-Recall in Part 2, `235/241`):** `ce` models ORM database tables (`TypeORM`, `Kysely`), SQL/repository read/write lineage (`17,382` edges on `twenty`), BullMQ producer/consumer queues (including enum/constant topic resolution), and monorepo sub-project boundaries (`46` packages in `twenty`, `21` in `immich`).
 3. **Incremental In-Memory Taxonomy & Sub-5ms Cypher Execution:** Because `ce` maintains its graph taxonomy incrementally in memory as nodes and relationships are uploaded and persists the snapshot in `metadata`, `get_taxonomy` executes in **`22.3–23.2 ms`** on the first call in a fresh MCP process (**3.1× faster** than `CBM`'s `get_graph_schema` on `twenty`) and **`1.9–2.7 ms`** on cached calls, while read-only Cypher queries (`execute_custom_read_cypher`) execute in **`4.3–4.7 ms`** (8.9–15× faster than `CBM`'s `query_graph`).
 4. **Single-Round-Trip Caller Resolution & 18 Architectural MCP Tools:** `ce`'s `get_callers` returns aggregated callers directly in a compact `1.5–2.5 KB` Markdown table in a single tool call, whereas `CBM`'s `trace_path` returns an `18.6–45.6 KB` `{"status": "ambiguous"}` candidate dump whenever a method name (`validate`, `execute`, `create`) appears in multiple classes. Furthermore, `ce` exposes dedicated tools for data lineage (`inspect_data_lineage` in `10.9–16.2 ms`), service contracts (`get_service_contracts`), test impact (`get_affected_tests`), and Semantic Invariant Gates (`check_semantic_gates`).
 

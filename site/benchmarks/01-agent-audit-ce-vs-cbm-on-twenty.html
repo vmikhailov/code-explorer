@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Case Study 05: Agent Audit on twentyhq/twenty (CodeExplorer vs. codebase-memory-mcp)</title>
+  <title>Case Study 01: Agent Audit on twentyhq/twenty (CodeExplorer vs. codebase-memory-mcp)</title>
   <meta name="description" content="Paired AI agent audit on twentyhq/twenty (24,527 files, 2.49M LOC): CodeExplorer Agent (1m 16s, 7 turns, 268K tokens, 100% recall) vs. codebase-memory-mcp Agent (16m 46s, 56 turns, 4.41M tokens, 99.56% recall after 11 Python scripts).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,14 +21,14 @@
       </a>
       <ul class="slab-links">
         <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
-        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html" aria-current="page">1. Agent: vs. CBM (twenty)</a></li>
-        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">2. Agent: 324 Services</a></li>
-        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">3. Agent: 16 Projects</a></li>
-        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">4. Indexer: vs. CBM</a></li>
-        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">5. Indexer: vs. Graphify</a></li>
+        <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" aria-current="page">01: Agent vs. CBM (twenty)</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: Agent vs. ripgrep (324 Services)</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">05: Agent vs. ripgrep (16 Projects)</a></li>
       </ul>
       <div class="slab-actions">
-        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
       </div>
     </nav>
   </header>
@@ -40,22 +40,22 @@
           <div class="crumb-trail">
             <a href="/benchmarks.html">Benchmarks Catalog</a>
             <span>/</span>
-            <span class="tone-ink">Case Study 05: Agent Audit on twentyhq/twenty</span>
+            <span class="tone-ink">Case Study 01: Agent Audit on twentyhq/twenty</span>
           </div>
           <span class="measured">Target: twentyhq/twenty @ b9ef7107 · Model: Gemini Flash (n = 1 paired run)</span>
         </div>
 
         <div class="hero-top">
           <div>
-            <h1 class="hero-title">Case Study 05: Autonomous agent audit on twentyhq/twenty (ce vs. CBM).</h1>
+            <h1 class="hero-title">Case Study 01: Autonomous agent audit on twentyhq/twenty (ce vs. CBM).</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
               Two identical Gemini Flash agents were given the same 4-part architectural audit on the public <code>twentyhq/twenty</code> monorepo (46 packages, 24,527 tracked files, ~2.49M LOC): one equipped with <code>CodeExplorer</code> (<code>v1.75.0</code>) and one equipped with <code>codebase-memory-mcp</code> (<code>v0.12.1</code>). Both graphs were pre-indexed before the run.
             </p>
             <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Agent Outputs &amp; metrics.json</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Agent Outputs &amp; metrics.json</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
             </div>
           </div>
         </div>
@@ -366,7 +366,7 @@ private getRequestTokenHashOrThrow(request: Request): string {
     <div class="wrap">
       <div class="mast-bottom" style="padding-top: 0;">
         <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
-        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener">View Case Study 05 on GitHub</a></span>
+        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener">View Case Study 01 on GitHub</a></span>
       </div>
     </div>
   </footer>
