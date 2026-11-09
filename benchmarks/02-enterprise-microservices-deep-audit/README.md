@@ -1,6 +1,6 @@
 # Case Study 02: Enterprise Polyglot Microservices Deep Audit (`Ripgrep + 14 Custom Scripts` vs. `CodeExplorer Graph`)
 
-> **Headline Result**: On a production enterprise polyglot microservices monorepo (**450 modules: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), equipping **Gemini 3.8 Flash** with **CodeExplorer's CLI & OpenCypher Architecture Graph (`ce callers` & `ce query`)** accelerated time-to-answer by **7.59x** (**`29m 52s` → `3m 56s`**, saving **25 minutes 56 seconds**), reduced LLM reasoning turns by **12.39x** (`285` → `23`), cut tool calls by **14.95x** (`284` → `19`, with **`0` manual file reads needed**), shrank raw tool output ingested by **7.45x** (`694.9 KB` → `93.2 KB`), eliminated **1 mid-task context compaction** (at Turn 162), and reduced actual post-compaction cumulative LLM input tokens by **43.70x** (**`17,194,141` → `393,466` tokens**), while delivering **complete blast-radius coverage (`100%` — `0` missed callers)** where the exhaustive `ripgrep` + Python script baseline produced an **incomplete audit that missed 9 production RTB microservices and 15+ caller functions** (`~82%` recall).
+> **Headline Result**: On a production enterprise polyglot microservices monorepo (**450 modules: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), equipping **Gemini Flash** with **CodeExplorer's CLI & OpenCypher Architecture Graph (`ce callers` & `ce query`)** accelerated time-to-answer by **7.59x** (**`29m 52s` → `3m 56s`**, saving **25 minutes 56 seconds**), reduced LLM reasoning turns by **12.39x** (`285` → `23`), cut tool calls by **14.95x** (`284` → `19`, with **`0` manual file reads needed**), shrank raw tool output ingested by **7.45x** (`694.9 KB` → `93.2 KB`), eliminated **1 mid-task context compaction** (at Turn 162), and reduced actual post-compaction cumulative LLM input tokens by **43.70x** (**`17,194,141` → `393,466` tokens**), while delivering **complete blast-radius coverage (`100%` — `0` missed callers)** where the exhaustive `ripgrep` + Python script baseline produced an **incomplete audit that missed 9 production RTB microservices and 15+ caller functions** (`~82%` recall).
 
 > [!NOTE]
 > **Commercial Confidentiality & Anonymization**: This benchmark was executed on a real production enterprise distributed platform. To protect commercial intellectual property, all proprietary service names, database table names, messaging topic names, class/interface names, and internal file paths in this public report have been systematically anonymized (`svc-worker-core`, `tbl_traffic_sources`, `BaseEventController`, `ICloudPubSubService`, `IOptimizationCampaignStrategy`), while preserving exact 1-to-1 structural fidelity and verbatim execution telemetry from `transcript_full.jsonl`.
@@ -23,9 +23,9 @@ Unlike Case Study 01 (`code-explorer`, 16 projects), **Case Study 02** evaluates
 
 ---
 
-## 2. Executive Summary & Comparative Scorecard (`Gemini 3.8 Flash`)
+## 2. Executive Summary & Comparative Scorecard (`Gemini Flash`)
 
-Both agents ran on **Gemini 3.8 Flash** (`Model: "flash"`) with zero hints about directory structures or wrapper class names.
+Both agents ran on **Gemini Flash** (`Model: "flash"`) with zero hints about directory structures or wrapper class names.
 
 Without a semantic graph, the **Baseline Agent (`enterprise_rg_baseline_agent`)** had to execute **142 shell commands** (`rg` / `python`), open **114 source files** (`view_file`), and author **14 custom Python analysis scripts** (`write_to_file` in its scratch workspace) to parse ORM decorators, trace service client wrappers, and scan topic constants. Halfway through the audit (after Turn 162, when its active context hit `160,326` tokens), it overflowed its context window threshold and triggered a **context compaction (`CHECKPOINT`)**—and still missed **9 production RTB microservices** whose service calls were wired via environment constants.
 
@@ -51,7 +51,7 @@ By contrast, the **CodeExplorer Graph Agent (`enterprise_ce_graph_agent`)**—us
 
 ```mermaid
 flowchart LR
-    subgraph Harness["Parallel A/B Benchmark on 324-Service Monorepo (Gemini 3.8 Flash)"]
+    subgraph Harness["Parallel A/B Benchmark on 324-Service Monorepo (Gemini Flash)"]
         Prompt["4-Part Cross-Service Architectural Audit\n(Zero Path Hints)"]
         Prompt --> RgBase["Exhaustive Ripgrep + Python Baseline\n(142 CLI/rg runs + 114 file reads + 14 Python scripts)"]
         Prompt --> Graph["CodeExplorer Graph Agent\n(18 CLI ce callers / ce query runs + 0 file reads)"]
@@ -98,7 +98,7 @@ The benchmark prompt ([`prompts/task-prompt.md`](./prompts/task-prompt.md)) test
 Every number in the milestone table below matches [`results/metrics.json`](./results/metrics.json) to the exact token:
 
 ```
-Cumulative Input Tokens Across Agent Turns (Case Study 02 — Gemini 3.8 Flash)
+Cumulative Input Tokens Across Agent Turns (Case Study 02 — Gemini Flash)
 =============================================================================
 
 Ripgrep Baseline (Actual w/ 1 Compaction, 285 turns) : ████████████████████████████████████████ 17,194,141 tokens (68.78 MB chars)
@@ -126,14 +126,14 @@ CodeExplorer Graph Agent (0 Compactions,   23 turns) : █                      
 
 ## 5. Cost & Economic Evaluation (With 90% Prompt Caching Discount)
 
-Below is the itemized cost comparison using the **actual post-compaction cumulative tokens (`17,194,141` vs. `393,466`)** under both **Gemini 3.8 Flash** pricing (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking) and equivalent **Frontier Pro** pricing (\$2.00 / 1M uncached input, \$0.20 / 1M cached input, \$10.00 / 1M output & thinking):
+Below is the itemized cost comparison using the **actual post-compaction cumulative tokens (`17,194,141` vs. `393,466`)** under both **Gemini Flash** pricing (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking) and equivalent **Frontier Pro** pricing (\$2.00 / 1M uncached input, \$0.20 / 1M cached input, \$10.00 / 1M output & thinking):
 
 | Cost Component | Exhaustive Ripgrep + Python Baseline (`285` turns, `1` compaction) | CodeExplorer Graph Agent (`23` turns, `0` compactions) | Savings Factor |
 | :--- | :---: | :---: | :---: |
 | **Uncached Input Tokens** (fresh tool outputs + compaction rebuild) | `177,409` tokens | `23,306` tokens | **7.61x fewer** |
 | **Cached Input Tokens** (`cum_actual - uncached`) | `17,016,732` tokens | `370,160` tokens | **45.97x fewer** |
 | **Output & Thinking Tokens** (no cache discount) | `71,595` tokens | `17,396` tokens | **4.12x fewer** |
-| **Total API Cost on Gemini 3.8 Flash** | **\$1.15** | **\$0.08** | **14.07x cheaper (`-92.9%`)** |
+| **Total API Cost on Gemini Flash** | **\$1.15** | **\$0.08** | **14.07x cheaper (`-92.9%`)** |
 | **Equivalent API Cost on Frontier Pro** | **\$4.47** | **\$0.30** | **15.17x cheaper (`-93.4%`)** |
 | **Engineer Waiting Time (`send_message`)** | `29m 52s` (`1,792.0s`) | `3m 56s` (`236.0s`) | **7.59x faster (`-25m 56s` saved)** |
 

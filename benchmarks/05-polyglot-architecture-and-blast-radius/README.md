@@ -1,6 +1,6 @@
 # Case Study 05: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep` vs. `CodeExplorer Graph`)
 
-> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **2.35x faster in time-to-answer** (`5m 08s` → `2m 11s`), required **1.97x fewer LLM turns** (`59` → `30`), made **1.97x fewer tool calls** (`57` → `29`), reduced cumulative LLM input tokens by **2.52x** (`1,594,003` → `633,469` tokens), and cut API cost by **1.87x** (`$0.14` → `$0.08` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
+> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **2.35x faster in time-to-answer** (`5m 08s` → `2m 11s`), required **1.97x fewer LLM turns** (`59` → `30`), made **1.97x fewer tool calls** (`57` → `29`), reduced cumulative LLM input tokens by **2.52x** (`1,594,003` → `633,469` tokens), and cut API cost by **1.87x** (`$0.14` → `$0.08` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
 
 ---
 
@@ -33,7 +33,7 @@ By contrast, a **CodeExplorer Graph Agent** executes targeted **OpenCypher** que
 The experiment was executed as a **simultaneous, paired A/B test** inside Google Antigravity on the `code-explorer` repository (a polyglot C# .NET 10 + TypeScript/React codebase with 16 production/test projects).
 
 ### 2.1. Strict Tool & Environment Isolation
-Both subagents were spawned in parallel at the exact same second (`2026-10-15T10:30:35Z`) on **Gemini 3.8 Flash** (`Model: "flash"`) with identical user prompts:
+Both subagents were spawned in parallel at the exact same second (`2026-10-15T10:30:35Z`) on **Gemini Flash** (`Model: "flash"`) with identical user prompts:
 
 1. **Ripgrep Baseline Agent ([`prompts/baseline-agent.md`](./prompts/baseline-agent.md))**:
    - **Allowed Tools**: `run_command` (for `rg` / `ripgrep`, `git grep`, `Get-ChildItem`, `Select-String`) + `view_file` + `send_message`.
@@ -43,7 +43,7 @@ Both subagents were spawned in parallel at the exact same second (`2026-10-15T10
 
 ```mermaid
 flowchart LR
-    subgraph Harness["Parallel A/B Benchmark Harness (Gemini 3.8 Flash)"]
+    subgraph Harness["Parallel A/B Benchmark Harness (Gemini Flash)"]
         Prompt["Identical 3-Part Architectural Prompt"]
         Prompt --> RgBase["Ripgrep Baseline Agent\n(rg + git grep + view_file)"]
         Prompt --> Graph["CodeExplorer Graph Agent\n(OpenCypher CLI + Surgical Read)"]
@@ -116,7 +116,7 @@ Perform a precise architectural and impact analysis on the `code-explorer` repos
 Every number in the table below matches [`results/metrics.json`](./results/metrics.json) to the exact token:
 
 ```
-Cumulative Input Tokens Across Agent Turns (Gemini 3.8 Flash)
+Cumulative Input Tokens Across Agent Turns (Gemini Flash)
 =============================================================
 
 Ripgrep Baseline (59 turns) : ████████████████████████████████████████ 1,594,003 tokens (6.38 MB chars)
@@ -139,7 +139,7 @@ Graph Agent      (30 turns) : ████████████████  
 
 ## 6. Cost & Economic Evaluation (With 90% Prompt Caching Discount)
 
-Using standard **Gemini 3.8 Flash** API pricing with a **90% prompt cache discount** on repeated history reads (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking tokens):
+Using standard **Gemini Flash** API pricing with a **90% prompt cache discount** on repeated history reads (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking tokens):
 
 | Cost Component | Ripgrep Baseline Agent (`59` turns) | CodeExplorer Graph Agent (`30` turns) | Savings Factor |
 | :--- | :---: | :---: | :---: |

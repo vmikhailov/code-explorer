@@ -1,7 +1,7 @@
 {
   "benchmark_id": "01-polyglot-architecture-and-blast-radius",
   "repository": "code-explorer",
-  "model": "Gemini 3.8 Flash",
+  "model": "Gemini Flash",
   "comparison_ratios": {
     "speedup_time_to_answer_x": 2.35,
     "speedup_wall_clock_x": 2.16,

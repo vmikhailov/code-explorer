@@ -1,7 +1,7 @@
 {
   "benchmark_id": "02-enterprise-microservices-deep-audit",
   "repository": "Enterprise Distributed Polyglot Monorepo (Anonymized: 324 Services, 93 Shared Libraries, 13,782 Source Files)",
-  "model": "Gemini 3.8 Flash",
+  "model": "Gemini Flash",
   "repository_scale": {
     "total_projects": 450,
     "microservices": 324,

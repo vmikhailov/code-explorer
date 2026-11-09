@@ -1,6 +1,6 @@
 # CodeExplorer Benchmarks: Making AI Coding Agents Production-Safe (`Graph` vs. `ripgrep`)
 
-**AI agents see files, not architecture.** This directory contains reproducible, telemetry-backed benchmarks measuring how **CodeExplorer (`ce`)** gives autonomous AI coding agents (`Gemini 3.8 Flash`) a live cross-service map of APIs, queues, and databases via MCP—compared to traditional CLI exploration (`ripgrep` (`rg`), `git grep`, custom Python scripts, and `view_file`).
+**AI agents see files, not architecture.** This directory contains reproducible, telemetry-backed benchmarks measuring how **CodeExplorer (`ce`)** gives autonomous AI coding agents (`Gemini Flash`) a live cross-service map of APIs, queues, and databases via MCP—compared to traditional CLI exploration (`ripgrep` (`rg`), `git grep`, custom Python scripts, and `view_file`).
 
 ---
 
@@ -34,7 +34,7 @@ When an agent relies purely on `ripgrep` and file reading:
 
 ## Evaluation Methodology
 
-Every benchmark in this suite is executed under strict **paired A/B isolation** (identical model `Gemini 3.8 Flash`, identical prompt, simultaneous execution on the same commit) and evaluated directly from the runtime's `transcript_full.jsonl` logs:
+Every benchmark in this suite is executed under strict **paired A/B isolation** (identical model `Gemini Flash`, identical prompt, simultaneous execution on the same commit) and evaluated directly from the runtime's `transcript_full.jsonl` logs:
 
 1. **Time to Answer (`send_message`)**: Exact elapsed time from initial prompt dispatch to the `send_message` tool call delivering the final report.
 2. **LLM Reasoning Turns & Tool Calls**: Number of model round-trips (`PLANNER_RESPONSE`) and tool invocations (`rg`, Python scripts, Cypher queries, and `view_file` reads).
