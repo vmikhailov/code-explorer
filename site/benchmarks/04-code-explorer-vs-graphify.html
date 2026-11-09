@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Case Study 04: CodeExplorer vs. Graphify on twenty &amp; immich</title>
+  <meta name="description" content="Deterministic benchmark comparing CodeExplorer (v1.75.0) and Graphify (v0.9.104) across cold indexing, 371 ground-truth items (seed=42), and MCP server latency on twenty (2.49M LOC) and immich (461k LOC).">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
+</head>
+<body>
+
+  <header class="slab-header">
+    <nav class="wrap slab-bar" aria-label="Primary">
+      <a href="/index.html" class="brand-lockup">
+        <span class="brand-mark">ce</span>
+        <span>CodeExplorer</span>
+      </a>
+      <ul class="slab-links">
+        <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
+        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">05: Agent vs. CBM</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html" aria-current="page">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: 324 Services</a></li>
+        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">01: 16 Projects</a></li>
+      </ul>
+      <div class="slab-actions">
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify" target="_blank" rel="noopener" class="btn">Raw Scripts &amp; CSVs</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero-stage">
+      <div class="wrap">
+        <div class="crumb-bar">
+          <div class="crumb-trail">
+            <a href="/benchmarks.html">Benchmarks Catalog</a>
+            <span>/</span>
+            <span class="tone-ink">Case Study 04: CodeExplorer vs. Graphify</span>
+          </div>
+          <span class="measured">Targets: twentyhq/twenty @ 12e8fae4 (2.49M LOC) &amp; immich-app/immich @ 2153d22f (461k LOC)</span>
+        </div>
+
+        <div class="hero-top">
+          <div>
+            <h1 class="hero-title">Case Study 04: CodeExplorer vs. Graphify.</h1>
+          </div>
+          <div class="hero-aside">
+            <p class="hero-lede">
+              Deterministic comparison of <code>CodeExplorer</code> (<code>v1.75.0</code>) and <code>Graphify</code> (<code>graphifyy v0.9.104</code>) on the same 371 ground-truth items (seed <code>42</code>) and repositories used in Case Study 03.
+            </p>
+            <div class="hero-controls">
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify/scripts" target="_blank" rel="noopener" class="btn btn--primary">Inspect Evaluation Scripts</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify/results" target="_blank" rel="noopener" class="btn">Inspect Results JSON &amp; CSVs</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="panels panels--4" style="margin-top: var(--space-xl);">
+          <div class="panel panel--sunken">
+            <span class="reading tone-ok">6.1× / &gt;18.6×</span>
+            <h2 class="panel-title">Faster Cold Indexing</h2>
+            <p class="panel-copy"><code>17.60s</code> vs. <code>107.60s</code> on <code>immich</code> (3.2k files), and <code>147.33s</code> vs. <strong>DNF (&gt;45m timeout)</strong> on <code>twenty</code> (24.5k files).</p>
+            <code class="panel-code">SQLite vs. NetworkX JSON</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-accent">78% vs. 18%</span>
+            <h2 class="panel-title">L1–L3 Common Ground</h2>
+            <p class="panel-copy">Across 130 items: <code>ce</code> scored 102/130 vs. <code>Graphify</code> 23/130 (on <code>immich</code> alone: <code>ce</code> 73% vs. <code>Graphify</code> 35%).</p>
+            <code class="panel-code">6 wins, 2 ties, 0 losses</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-cool">97.5%</span>
+            <h2 class="panel-title">L4–L5 Architecture</h2>
+            <p class="panel-copy"><code>ce</code> matched 235 / 241 queue, ORM table, data-lineage, and sub-project items. <code>Graphify</code> does not model L4–L5 categories.</p>
+            <code class="panel-code">235 / 241 verified items</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading">100% Tie</span>
+            <h2 class="panel-title">Where Graphify Tied</h2>
+            <p class="panel-copy">On <code>immich</code> Call Graph &amp; DI (<code>C6</code>), <code>Graphify</code> tied <code>ce</code> at <strong>100% (20/20)</strong>, resolving TS constructor DI accurately.</p>
+            <code class="panel-code">20/20 on immich C6</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">1. Cold indexing &amp; scalability across repository sizes.</h2>
+          <p class="band-lede">
+            On <code>immich</code> (3,205 files), both tools completed cleanly, with <code>ce</code> finishing 6.1× faster. On <code>twenty</code> (24,527 files), <code>Graphify</code>'s Python AST &amp; NetworkX pipeline stalled on a single CPU core in <code>build_from_json</code> and did not finish within the 45-minute timeout.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Cold Indexing Performance on immich (3,205 files) &amp; twenty (24,527 files)</span>
+            <span class="measured">Deterministic --code-only mode</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Repo</th>
+                <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
+                <th>Graphify (<code>v0.9.104</code>)</th>
+                <th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Cold Index Wall Time</td>
+                <td><code>immich</code> (3.2k files)</td>
+                <td class="cell-win">17.60 s (55.1 MB SQLite DB)</td>
+                <td class="cell-loss">107.60 s (32.0 MB JSON / 52.3 MB dir)</td>
+                <td><strong>ce 6.11× faster</strong></td>
+              </tr>
+              <tr>
+                <td>Cold Index Wall Time</td>
+                <td><code>twenty</code> (24.5k files)</td>
+                <td class="cell-win">147.33 s (784.0 MB SQLite DB)</td>
+                <td class="cell-loss">DNF (&gt;2,740 s / &gt;45.6 min timeout)</td>
+                <td><strong>ce &gt;18.6× faster (Graphify timed out)</strong></td>
+              </tr>
+              <tr>
+                <td>Peak Working Set (RAM)</td>
+                <td><code>immich</code> / <code>twenty</code></td>
+                <td class="cell-win">780.5 MB / 4,660.6 MB</td>
+                <td class="cell-loss">956.9 MB / 2,140.0 MB (stalled)</td>
+                <td><strong>ce 1.23× lower RAM on immich</strong></td>
+              </tr>
+              <tr>
+                <td>Parse Warnings / Errors</td>
+                <td><code>immich</code></td>
+                <td class="cell-win">0 warnings</td>
+                <td class="cell-loss">9 syntax errors + 171 empty files</td>
+                <td><strong>ce 0 parse failures</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tradeoff-note" style="margin-top: var(--space-md);">
+          <strong>Methodological note on <code>--code-only</code> vs. LLM synthesis:</strong> Graphify also offers an optional LLM pass for extracting <code>semantic</code> / <code>rationale</code> nodes from Markdown docs, PDFs, and images. This benchmark evaluates deterministic static code extraction (<code>--code-only</code>) so that every result measures the indexer itself rather than an external LLM's token budget or non-deterministic sampling.
+        </div>
+      </div>
+    </section>
+
+    <section class="band band--deep">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">2. Ground-truth recall: Part 1 (Common Ground) &amp; Part 2 (L4–L5 Architecture).</h2>
+          <p class="band-lede">
+            Because <code>Graphify</code> timed out on <code>twenty</code>, we report both combined recall (130 Part 1 items) and <strong><code>immich</code>-only recall (66 Part 1 items where both tools completed indexing)</strong>.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Part 1 Common Ground (130 GT) &amp; Part 2 Architecture (241 GT)</span>
+            <span class="measured">ce: 6 Wins, 2 Ties, 0 Losses vs. Graphify</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Capability</th>
+                <th>Repo</th>
+                <th>GT</th>
+                <th><code>ce v1.75.0</code></th>
+                <th><code>Graphify v0.9.104</code></th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>C1</code></td>
+                <td>Incoming HTTP / FastAPI Endpoints</td>
+                <td><code>immich</code></td>
+                <td class="cell-num">20</td>
+                <td class="cell-win">100% (20/20)</td>
+                <td class="cell-loss">0% (0/20 strict)</td>
+                <td>Graphify emits decorator references without extracting route URLs or HTTP verbs.</td>
+              </tr>
+              <tr>
+                <td><code>C2</code></td>
+                <td>Outbound HTTP Client Calls</td>
+                <td><code>immich</code></td>
+                <td class="cell-num">6</td>
+                <td class="cell-win">83% (5/6)</td>
+                <td class="cell-loss">0% (0/6)</td>
+                <td>Graphify does not extract outbound HTTP client calls.</td>
+              </tr>
+              <tr>
+                <td><code>C6</code></td>
+                <td>Call Graph (Intra-Class + DI Calls)</td>
+                <td><code>immich</code></td>
+                <td class="cell-num">20</td>
+                <td class="cell-win">100% (20/20)</td>
+                <td class="cell-win">100% (20/20)</td>
+                <td><strong>Tie at 100%</strong>: Graphify's TS extractor resolves constructor property types (<code>this.svc.method()</code>) on <code>immich</code>.</td>
+              </tr>
+              <tr>
+                <td><code>C7</code></td>
+                <td>Class Inheritance &amp; <code>implements</code></td>
+                <td><code>immich</code></td>
+                <td class="cell-num">20</td>
+                <td class="cell-num">15% (3/20)</td>
+                <td class="cell-num">15% (3/20)</td>
+                <td><strong>Tie at 15%</strong>: 17 of 20 sampled DTOs use external npm functional mixins (<code>createZodDto</code>).</td>
+              </tr>
+              <tr>
+                <td><code>C1, C2, C6, C7</code></td>
+                <td>All Part 1 Categories on <code>twenty</code></td>
+                <td><code>twenty</code></td>
+                <td class="cell-num">64</td>
+                <td class="cell-win">84% (54/64)</td>
+                <td class="cell-loss">0% (DNF)</td>
+                <td>Graphify timed out during cold indexing on <code>twenty</code>.</td>
+              </tr>
+              <tr class="row-total">
+                <td colspan="3">Part 1 Total on <code>immich</code> Only (Both Tools Completed)</td>
+                <td class="cell-num">66</td>
+                <td class="cell-win">73% (48 / 66)</td>
+                <td class="cell-num">35% (23 / 66)</td>
+                <td>2 outright wins and 2 ties for <code>ce</code> on <code>immich</code>.</td>
+              </tr>
+              <tr class="row-total">
+                <td colspan="3">Part 1 Combined Total (<code>immich</code> + <code>twenty</code>)</td>
+                <td class="cell-num">130</td>
+                <td class="cell-win">78% (102 / 130)</td>
+                <td class="cell-loss">18% (23 / 130)</td>
+                <td>6 wins, 2 ties, 0 losses.</td>
+              </tr>
+              <tr class="row-total">
+                <td colspan="3">Part 2 Total (L4–L5: Queues, ORM Tables, Lineage, Sub-Projects)</td>
+                <td class="cell-num">241</td>
+                <td class="cell-win">97.5% (235 / 241)</td>
+                <td class="cell-loss">Not modeled (0 / 241)</td>
+                <td>Graphify parses raw <code>.sql</code> DDL only and does not model Kysely/TypeORM tables, BullMQ queues, or read/write lineage.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">3. MCP server latency &amp; feature trade-offs on immich.</h2>
+          <p class="band-lede">
+            Because Graphify loads <code>graph.json</code> into an in-memory Python <code>NetworkX</code> graph on startup, cold MCP initialization takes 3.68 seconds vs. 0.60 seconds for <code>ce</code>'s SQLite engine.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>MCP Server Startup &amp; Query Latency on immich</span>
+            <span class="measured">ce (36 tools) vs. Graphify (10 tools + 6 resources)</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>MCP Operation</th>
+                <th><code>ce v1.75.0</code></th>
+                <th><code>Graphify v0.9.104</code></th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Cold MCP Init (<code>initialize</code>)</td>
+                <td class="cell-win">599.0 ms (63.9 MB RSS)</td>
+                <td class="cell-loss">3,682.9 ms (162.8 MB RSS)</td>
+                <td><strong>ce 6.15× faster startup</strong> with 2.55× lower memory.</td>
+              </tr>
+              <tr>
+                <td>Graph Schema / Stats</td>
+                <td class="cell-win">23.3 ms (1.7 ms cached)</td>
+                <td class="cell-loss">76.1 ms (73.0 ms 2nd call)</td>
+                <td>Graphify's <code>graph_stats</code> spawns <code>git rev-parse</code> on every call.</td>
+              </tr>
+              <tr>
+                <td>Multi-Token Search (<code>authentication token validate</code>)</td>
+                <td class="cell-win">41.7 ms (FTS5 search)</td>
+                <td class="cell-loss">333.8 ms (depth-2 BFS)</td>
+                <td><strong>ce 8.0× faster</strong> via SQLite FTS5 index.</td>
+              </tr>
+              <tr>
+                <td>Inbound Callers (<code>validate</code>)</td>
+                <td class="cell-win">76.5 ms (1-turn table across 6 methods)</td>
+                <td class="cell-loss">3.8 ms (<code>Ambiguous: matches 6 nodes</code>)</td>
+                <td>Graphify requires a 2nd call with a single internal node ID.</td>
+              </tr>
+              <tr>
+                <td>Unique Capabilities</td>
+                <td class="cell-num">OpenCypher queries, L4–L5 lineage, 32+ CI gates, VS Code extension</td>
+                <td class="cell-num">Leiden community clustering, Obsidian vault export, D3 HTML export, <code>triage_prs</code></td>
+                <td>Different primary design goals (architecture &amp; CI governance vs. knowledge-graph clustering &amp; visualization).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mast-footer">
+    <div class="wrap">
+      <div class="mast-bottom" style="padding-top: 0;">
+        <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
+        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify" target="_blank" rel="noopener">View Case Study 04 on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

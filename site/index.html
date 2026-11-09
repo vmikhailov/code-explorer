@@ -1782,10 +1782,37 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         </div>
 
         <div class="diff-layout">
+          <div class="diff-surface" role="region" aria-label="Public twentyhq/twenty agent audit against codebase-memory-mcp">
+            <div class="diff-head">
+              <span>Case Study 05: Autonomous agent audit on public <code>twentyhq/twenty</code> (24,527 files, 2.49M LOC)</span>
+              <span class="measured">ce Agent vs. CBM Agent</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>AI Agent + <code>codebase-memory-mcp</code> (abandoned <code>CBM</code> after Turn 5; wrote 11 Python scripts + 27 file reads)</span>
+              <span class="diff-val">16m 46s, 56 turns, 4.41M input tokens</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>AI Agent + <code>CodeExplorer</code> (5 OpenCypher queries, 0 source files read, 0 scripts)</span>
+              <span class="diff-val">1m 16s (13.2× faster), 7 turns, 268K tokens</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>Direct recall from <code>CBM</code> graph / final recall after 11 Python scripts</span>
+              <span class="diff-val">3.96% (18/454) from graph / 99.56% (452/454) final</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>Direct recall from <code>CodeExplorer</code> graph (DI calls, inheritance, BullMQ, GraphQL-to-DB lineage)</span>
+              <span class="diff-val">100% recall (454/454 directly from graph.db)</span>
+            </div>
+          </div>
+
           <div class="diff-surface" role="region" aria-label="Enterprise benchmark comparison">
             <div class="diff-head">
               <span>Case Study 02: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
-              <span class="measured">A/B Paired Eval</span>
+              <span class="measured">ce Agent vs. ripgrep Agent</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
@@ -1812,7 +1839,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
           <div class="diff-surface" role="region" aria-label="Head-to-head MCP graph engine benchmark">
             <div class="diff-head">
               <span>Case Studies 03 &amp; 04: <code>twenty</code> (24,527 files, 2.49M LOC) + <code>immich</code> (3,205 files, 461k LOC)</span>
-              <span class="measured">365 Ground-Truth Items (seed=42)</span>
+              <span class="measured">371 Ground-Truth Items (seed=42)</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
@@ -1822,17 +1849,17 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
               <span>Part 1 Common Ground Recall with CodeExplorer (<code>ce v1.75.0</code>)</span>
-              <span class="diff-val">78% recall (102/130, 7 wins, 1 tie, 0 losses)</span>
+              <span class="diff-val">78% recall (102/130, 6 wins, 2 ties, 0 losses)</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
               <span>Part 2 Architectural Ontology Recall (L4 to L5 Queues, ORM Tables, SQL Lineage)</span>
-              <span class="diff-val">CBM: 0% (not modeled) | graphify: 0% (not modeled)</span>
+              <span class="diff-val">CBM: not modeled | graphify: not modeled</span>
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
               <span>Part 2 Architectural Ontology Recall with CodeExplorer (<code>ce v1.75.0</code>)</span>
-              <span class="diff-val">97% micro-recall (227/235 verified items)</span>
+              <span class="diff-val">97.5% micro-recall (235/241 verified items)</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
@@ -1848,10 +1875,10 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
           <div class="panels panels--3">
             <div class="panel panel--sunken">
-              <span class="reading tone-accent">97%</span>
+              <span class="reading tone-accent">97.5%</span>
               <h3 class="panel-title">Architecture recall</h3>
-              <p class="panel-copy">Matches 227 of 235 L4/L5 queue, ORM table, and data-lineage items where AST tools score 0%.</p>
-              <code class="panel-code">227 / 235 L4-L5 GT</code>
+              <p class="panel-copy">Matches 235 of 241 L4/L5 queue, ORM table, and data-lineage items not modeled by AST indexers.</p>
+              <code class="panel-code">235 / 241 L4-L5 GT</code>
             </div>
             <div class="panel panel--sunken">
               <span class="reading tone-ok">44×</span>

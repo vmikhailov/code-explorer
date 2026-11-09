@@ -3,800 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>CodeExplorer (ce) Benchmarks: vs. codebase-memory-mcp, Graphify &amp; ripgrep</title>
-  <meta name="description" content="Reproducible architectural benchmarks comparing CodeExplorer (ce v1.75.0) against codebase-memory-mcp (CBM), Graphify (YC S26), and ripgrep across twenty (2.49M LOC), immich (461k LOC), and a 324-service platform.">
+  <title>CodeExplorer (ce) Benchmarks Catalog</title>
+  <meta name="description" content="Catalog of reproducible benchmarks comparing CodeExplorer (ce) against codebase-memory-mcp (CBM), Graphify, and ripgrep across twenty (2.49M LOC), immich (461k LOC), and a 324-service monorepo.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="CodeExplorer (ce)">
   <meta property="og:url" content="https://code-explorer.app/benchmarks.html">
-  <meta property="og:title" content="CodeExplorer (ce) Benchmarks: vs. codebase-memory-mcp, Graphify &amp; ripgrep">
-  <meta property="og:description" content="78% vs 38% (CBM) and 18% (Graphify) on Layer 1 to 3 Common Ground, and 97% vs 0% on Layer 4 to 5 Architecture (queues, ORM tables, SQL lineage) across twenty (2.49M LOC) and immich (461k LOC).">
+  <meta property="og:title" content="CodeExplorer (ce) Benchmarks Catalog">
+  <meta property="og:description" content="Five benchmarks comparing CodeExplorer against codebase-memory-mcp, Graphify, and ripgrep: what was tested, who won, and where competitors excelled.">
   <meta property="og:image" content="https://code-explorer.app/og-image.png?v=2">
-  <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="512">
-  <meta property="og:image:height" content="512">
-  <meta property="og:image:alt" content="CodeExplorer (ce) Architectural Benchmarks">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="CodeExplorer (ce) Benchmarks: vs. codebase-memory-mcp, Graphify &amp; ripgrep">
-  <meta name="twitter:description" content="78% vs 38% (CBM) and 18% (Graphify) on Layer 1 to 3 Common Ground, and 97% vs 0% on Layer 4 to 5 Architecture across twenty (2.49M LOC) and immich (461k LOC).">
-  <meta name="twitter:image" content="https://code-explorer.app/og-image.png?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
-
-  <style>
-/* Hallmark · theme: Console · modern-minimal · dark · restrained · host-grotesk + atkinson-hyperlegible-mono · hero: stage · nav: slab · footer: mast · draw: 5f2b5a · copy: verbatim */
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 · weakest: V, shares Console graphite surface system with index.html by design; varied section structure with full-width empirical benchmark matrices, phase breakdown trail, and diff comparisons */
-/* Hallmark · dismissed 46a · all benchmark ratios and timings are measured from committed telemetry in benchmarks/01 through 04 */
-
-:root {
-  color-scheme: dark;
-
-  --space-3xs: 2px;
-  --space-2xs: 4px;
-  --space-xs: 8px;
-  --space-sm: 12px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 40px;
-  --space-2xl: 64px;
-  --space-3xl: 96px;
-  --space-4xl: 144px;
-
-  --text-xs: 0.8125rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.5625rem;
-  --text-2xl: 1.953rem;
-  --text-3xl: 2.441rem;
-
-  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.75rem);
-  --text-display: clamp(2.5rem, 4.2vw + 1rem, 4.25rem);
-  --text-section: clamp(1.875rem, 2.2vw + 1rem, 3rem);
-  --text-title: clamp(1.1875rem, 0.6vw + 0.875rem, 1.5rem);
-  --text-lead: clamp(1.0625rem, 0.35vw + 0.95rem, 1.25rem);
-
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-micro: 120ms;
-  --dur-short: 220ms;
-  --dur-long: 420ms;
-
-  --container: 1440px;
-  --gutter: 64px;
-  --gap-columns: 32px;
-  --section-gap-s: 120px;
-  --section-gap: 144px;
-  --section-gap-l: 176px;
-
-  --z-base: 1;
-  --z-raised: 10;
-  --z-sticky: 200;
-  --z-sticky-nav: 300;
-
-  --color-paper: oklch(17% 0.008 250);
-  --color-paper-2: oklch(21% 0.009 250);
-  --color-paper-3: oklch(13.5% 0.007 250);
-  --color-ink: oklch(95% 0.005 250);
-  --color-ink-2: oklch(83% 0.008 250);
-  --color-muted: oklch(71% 0.01 250);
-  --color-rule: oklch(31% 0.01 250);
-  --color-rule-2: oklch(42% 0.012 250);
-  --color-accent: oklch(82% 0.15 80);
-  --color-accent-ink: oklch(18% 0.04 75);
-  --color-accent-soft: oklch(29% 0.05 80);
-  --color-focus: oklch(82% 0.15 80);
-  --color-cool: oklch(77% 0.12 245);
-  --color-cool-soft: oklch(29% 0.05 245);
-  --color-ok: oklch(76% 0.15 150);
-  --color-ok-soft: oklch(24.5% 0.03 150);
-  --color-bad: oklch(70% 0.17 25);
-  --color-bad-soft: oklch(24.5% 0.035 25);
-
-  --font-display: "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-display);
-  --font-outlier: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
-
-  --radius-card: 10px;
-  --radius-pill: 6px;
-  --rule-hair: 1px;
-  --tracking-display: -0.03em;
-  --display-weight: 500;
-}
-
-@media (max-width: 768px) {
-  :root {
-    --gutter: 24px;
-    --gap-columns: 24px;
-    --section-gap-s: 72px;
-    --section-gap: 96px;
-    --section-gap-l: 112px;
-  }
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html, body {
-  overflow-x: clip;
-}
-
-html {
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  font-synthesis: none;
-  scroll-behavior: smooth;
-  scrollbar-color: var(--color-rule-2) var(--color-paper);
-  caret-color: var(--color-accent);
-}
-
-body {
-  min-height: 100dvh;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  display: flex;
-  flex-direction: column;
-}
-
-::selection {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-  transition: none;
-}
-
-h1, h2, h3, h4 {
-  font-family: var(--font-display);
-  font-weight: var(--display-weight);
-  letter-spacing: var(--tracking-display);
-  line-height: 1.04;
-  color: var(--color-ink);
-  overflow-wrap: break-word;
-  min-width: 0;
-  text-wrap: balance;
-}
-
-h1 { max-width: 22ch; }
-h2 { max-width: 30ch; }
-h3 { max-width: 40ch; }
-
-p {
-  color: var(--color-muted);
-  max-width: 65ch;
-  text-wrap: pretty;
-}
-
-a {
-  color: var(--color-ink);
-  text-decoration: underline;
-  text-decoration-color: var(--color-rule-2);
-  text-underline-offset: 3px;
-  transition: color var(--dur-micro) var(--ease-out), text-decoration-color var(--dur-micro) var(--ease-out);
-}
-
-a:hover {
-  color: var(--color-accent);
-  text-decoration-color: var(--color-accent);
-}
-
-code, pre, .measured {
-  font-family: var(--font-outlier);
-  font-variant-numeric: tabular-nums slashed-zero;
-}
-
-p code, li code, td code, th code {
-  font-size: var(--text-xs);
-  color: var(--color-ink-2);
-  background: var(--color-paper-3);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--space-2xs);
-  padding: var(--space-3xs) var(--space-xs);
-}
-
-.reading {
-  font-family: var(--font-outlier);
-  font-size: var(--text-display-s);
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums slashed-zero;
-  color: var(--color-ink);
-}
-
-.tone-ok { color: var(--color-ok); }
-.tone-bad { color: var(--color-bad); }
-.tone-accent { color: var(--color-accent); }
-.tone-cool { color: var(--color-cool); }
-.tone-muted { color: var(--color-muted); }
-.tone-ink { color: var(--color-ink); }
-.tone-ink-2 { color: var(--color-ink-2); }
-
-.wrap {
-  width: 100%;
-  max-width: var(--container);
-  margin-inline: auto;
-  padding-inline: var(--gutter);
-}
-
-.slab-header {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky-nav);
-  background: var(--color-paper);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.slab-bar {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--gap-columns);
-  min-height: 68px;
-}
-
-.brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  text-decoration: none;
-  color: var(--color-ink);
-  font-weight: 500;
-  font-size: var(--text-md);
-  white-space: nowrap;
-}
-
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-  background: var(--color-paper-2);
-  border: 1px solid var(--color-rule-2);
-  font-family: var(--font-outlier);
-  font-size: var(--text-sm);
-  color: var(--color-accent);
-  flex-shrink: 0;
-}
-
-.slab-links {
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-  list-style: none;
-}
-
-.slab-links a {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.slab-links a:hover,
-.slab-links a[aria-current="page"] {
-  color: var(--color-ink);
-}
-
-.slab-links a.nav-framed {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-2xs) var(--space-sm);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-accent);
-  font-weight: 500;
-  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
-}
-
-.slab-links a.nav-framed:hover {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-}
-
-.slab-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-@media (max-width: 1024px) {
-  .slab-links {
-    display: none;
-  }
-  .slab-bar {
-    grid-template-columns: 1fr auto;
-  }
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  min-height: 44px;
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-rule-2);
-  border-radius: var(--radius-pill);
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
-}
-
-.btn:hover {
-  background: var(--color-paper-3);
-  border-color: var(--color-ink-2);
-  color: var(--color-ink);
-}
-
-.btn:active {
-  transform: translateY(1px);
-}
-
-.btn--primary {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-accent-ink);
-}
-
-.btn--primary:hover {
-  background: var(--color-ink);
-  border-color: var(--color-ink);
-  color: var(--color-accent-ink);
-}
-
-.btn--framed {
-  border: 1px solid var(--color-accent);
-  background: transparent;
-  color: var(--color-accent);
-}
-
-.btn--framed:hover {
-  background: var(--color-paper-2);
-  border-color: var(--color-accent);
-  color: var(--color-ink);
-}
-
-.hero-stage {
-  padding-block: var(--space-xl) var(--section-gap-s);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.hero-top {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: var(--gap-columns);
-  align-items: end;
-  margin-bottom: var(--space-xl);
-}
-
-.hero-title {
-  font-size: var(--text-display);
-  line-height: 1.02;
-}
-
-.hero-aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.hero-lede {
-  font-size: var(--text-lead);
-  color: var(--color-ink-2);
-  line-height: 1.5;
-  max-width: 58ch;
-}
-
-.hero-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-@media (max-width: 1024px) {
-  .hero-top {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-lg);
-  }
-}
-
-.band {
-  padding-block: var(--section-gap);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.band--deep {
-  background: var(--color-paper-3);
-  color: var(--color-ink);
-  padding-block: var(--section-gap-s);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.band-head {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: var(--gap-columns);
-  align-items: end;
-  margin-bottom: var(--space-2xl);
-}
-
-.band-title {
-  font-size: var(--text-section);
-}
-
-.band-lede {
-  font-size: var(--text-lead);
-  color: var(--color-ink-2);
-  line-height: 1.5;
-}
-
-@media (max-width: 960px) {
-  .band-head {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-md);
-  }
-}
-
-.panels {
-  display: grid;
-  gap: var(--rule-hair);
-  background: var(--color-rule);
-  color: var(--color-ink);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-}
-
-.panels--4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.panels--3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.panels--2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@media (max-width: 1080px) {
-  .panels--4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .panels--3 {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 680px) {
-  .panels--4,
-  .panels--2 {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.panel {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-  padding: var(--space-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  min-width: 0;
-}
-
-.panel--sunken {
-  background: var(--color-paper-3);
-  color: var(--color-ink);
-}
-
-.panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
-}
-
-.panel-title {
-  font-size: var(--text-title);
-  color: var(--color-ink);
-}
-
-.panel-copy {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  line-height: 1.55;
-}
-
-.panel-code {
-  margin-top: auto;
-  padding-top: var(--space-xs);
-  font-family: var(--font-outlier);
-  font-size: var(--text-xs);
-  color: var(--color-cool);
-}
-
-.table-surface {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card);
-  background: var(--color-paper-3);
-  overflow-x: auto;
-}
-
-.table-caption-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-lg);
-  background: var(--color-paper-2);
-  border-bottom: 1px solid var(--color-rule);
-  font-size: var(--text-sm);
-  color: var(--color-ink-2);
-}
-
-.bench-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-  min-width: 760px;
-}
-
-.bench-table th,
-.bench-table td {
-  padding: var(--space-sm) var(--space-md);
-  text-align: left;
-  border-bottom: 1px solid var(--color-rule);
-  vertical-align: top;
-}
-
-.bench-table th {
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  background: var(--color-paper-2);
-}
-
-.bench-table tr:last-child td {
-  border-bottom: none;
-}
-
-.bench-table td:first-child {
-  color: var(--color-ink);
-  font-weight: 500;
-}
-
-.bench-table tr.row-total td {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-  font-weight: 500;
-}
-
-.cell-win {
-  background: var(--color-ok-soft);
-  color: var(--color-ok);
-  font-family: var(--font-outlier);
-  font-variant-numeric: tabular-nums slashed-zero;
-}
-
-.cell-loss {
-  background: var(--color-bad-soft);
-  color: var(--color-bad);
-  font-family: var(--font-outlier);
-  font-variant-numeric: tabular-nums slashed-zero;
-}
-
-.cell-num {
-  font-family: var(--font-outlier);
-  font-variant-numeric: tabular-nums slashed-zero;
-  color: var(--color-ink-2);
-}
-
-.sub-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  margin-top: var(--space-2xl);
-}
-
-.sub-title {
-  font-size: var(--text-xl);
-  color: var(--color-ink);
-}
-
-.trail {
-  border-left: 1px solid var(--color-rule-2);
-  display: flex;
-  flex-direction: column;
-}
-
-.trail-item {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 3fr) minmax(0, 6fr) minmax(0, 3fr);
-  gap: var(--space-lg);
-  align-items: baseline;
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--color-rule);
-  background: var(--color-paper-2);
-}
-
-.trail-item:first-child {
-  border-top: 1px solid var(--color-rule);
-}
-
-@media (max-width: 960px) {
-  .trail-item {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-xs);
-  }
-}
-
-.diff-surface {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card);
-  background: var(--color-paper-3);
-  overflow: hidden;
-}
-
-.diff-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-lg);
-  background: var(--color-paper-2);
-  border-bottom: 1px solid var(--color-rule);
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-}
-
-.diff-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: var(--space-md);
-  align-items: baseline;
-  padding: var(--space-sm) var(--space-lg);
-  font-family: var(--font-outlier);
-  font-size: var(--text-sm);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.diff-row:last-child {
-  border-bottom: none;
-}
-
-.diff-row--minus {
-  background: var(--color-bad-soft);
-  color: var(--color-ink-2);
-}
-
-.diff-row--minus .diff-sign,
-.diff-row--minus .diff-val {
-  color: var(--color-bad);
-}
-
-.diff-row--plus {
-  background: var(--color-ok-soft);
-  color: var(--color-ink);
-}
-
-.diff-row--plus .diff-sign,
-.diff-row--plus .diff-val {
-  color: var(--color-ok);
-}
-
-@media (max-width: 768px) {
-  .diff-row {
-    grid-template-columns: 24px minmax(0, 1fr);
-  }
-  .diff-val {
-    grid-column: 2;
-  }
-}
-
-.mast-footer {
-  margin-top: auto;
-  background: var(--color-paper-3);
-  color: var(--color-ink);
-  padding-block: var(--space-2xl) var(--space-xl);
-}
-
-.mast-top {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) repeat(3, minmax(0, 2.33fr));
-  gap: var(--gap-columns);
-  padding-bottom: var(--space-xl);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-@media (max-width: 960px) {
-  .mast-top {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .mast-top {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.mast-col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.mast-heading {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-ink);
-}
-
-.mast-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.mast-list a {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  text-decoration: none;
-}
-
-.mast-list a:hover {
-  color: var(--color-accent);
-}
-
-.mast-bottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding-top: var(--space-lg);
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-  </style>
+  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
 </head>
 <body>
 
@@ -808,178 +29,92 @@ p code, li code, td code, th code {
       </a>
 
       <ul class="slab-links">
-        <li><a href="/index.html" class="nav-framed">Overview</a></li>
-        <li><a href="#matrix">Feature Matrix</a></li>
-        <li><a href="#twenty-immich">vs. CBM &amp; Graphify</a></li>
-        <li><a href="#mcp-latency">MCP Latency</a></li>
-        <li><a href="#ab-audit">vs. ripgrep</a></li>
-        <li><a href="#methodology">Reproducibility</a></li>
-        <li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener" class="tone-accent">CodePassport</a></li>
+        <li><a href="/index.html">Product Overview</a></li>
+        <li><a href="/benchmarks.html" class="nav-framed" aria-current="page">All Benchmarks</a></li>
+        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">05: Agent vs. CBM</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: 324 Services</a></li>
+        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">01: 16 Projects</a></li>
       </ul>
 
       <div class="slab-actions">
-        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured">v1.75.0</a>
-        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">GitHub Benchmarks</a>
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">GitHub Source</a>
         <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
       </div>
     </nav>
   </header>
 
   <main>
-    <section class="hero-stage" id="top">
+    <section class="hero-stage">
       <div class="wrap">
         <div class="hero-top">
           <div>
-            <h1 class="hero-title">Architecture benchmarks on real monorepos.</h1>
+            <h1 class="hero-title">Benchmarks catalog.</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Reproducible evaluations of CodeExplorer (<code>ce v1.75.0</code>) against <code>codebase-memory-mcp</code> (<code>CBM v0.12.1</code>), <code>Graphify</code> (YC S26, <code>v0.9.104</code>), and <code>ripgrep</code> across <code>twenty</code> (2.49M LOC), <code>immich</code> (461k LOC), and a 324-service platform.
+              Five evaluations comparing <code>CodeExplorer</code> against <code>codebase-memory-mcp</code> (<code>CBM</code>), <code>Graphify</code>, and <code>ripgrep</code>. Each benchmark has its own dedicated page with full tables, trade-offs where the other tool won or tied, and raw artifacts.
             </p>
-            <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn btn--primary">Inspect Scripts &amp; Ground Truth</a>
-              <a href="/index.html" class="btn btn--framed">Back to Product Overview</a>
-            </div>
           </div>
         </div>
 
-        <div class="panels panels--4">
-          <div class="panel panel--sunken">
-            <span class="reading tone-accent">97%</span>
-            <h2 class="panel-title">L4/L5 Architecture Recall</h2>
-            <p class="panel-copy">Matches 227 of 235 queue, ORM table, data-lineage, and sub-project items on <code>twenty</code> and <code>immich</code>. Both <code>CBM</code> and <code>Graphify</code> score 0%.</p>
-            <code class="panel-code">227 / 235 vs 0 / 235</code>
-          </div>
-          <div class="panel panel--sunken">
-            <span class="reading tone-ok">78%</span>
-            <h2 class="panel-title">L1/L3 Common Ground</h2>
-            <p class="panel-copy">Wins 7 of 8 head-to-head categories (1 tie, 0 losses) on endpoints, outbound HTTP, DI call graph, and inheritance against <code>CBM</code> (38%) and <code>Graphify</code> (18%).</p>
-            <code class="panel-code">102 / 130 (seed=42)</code>
-          </div>
-          <div class="panel panel--sunken">
-            <span class="reading tone-cool">147s</span>
-            <h2 class="panel-title">2.49M LOC Cold Scan</h2>
-            <p class="panel-copy">Indexes 24,527 tracked files in <code>twenty</code> (456,711 nodes, 960,660 edges) into a 784&nbsp;MB SQLite database with 0 warnings.</p>
-            <code class="panel-code">456k nodes · 960k edges</code>
-          </div>
-          <div class="panel panel--sunken">
-            <span class="reading">43.7×</span>
-            <h2 class="panel-title">Token Compression</h2>
-            <p class="panel-copy">Cuts cumulative agent input tokens from 17.19M to 393K and audit time from 29m 52s to 3m 56s across 324 microservices with 100% blast-radius recall.</p>
-            <code class="panel-code">0 missed callers vs 9 services missed</code>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="band" id="matrix">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Feature comparison across codebase graph tools.</h2>
-          <p class="band-lede">
-            Most code graph indexers focus on syntax trees, files, and function calls (Layers 1 to 3). CodeExplorer also models HTTP/gRPC endpoints, message queues, database tables, and CI architectural rules (Layers 4 and 5).
-          </p>
-        </div>
-
-        <div class="table-surface" role="region" aria-label="Feature comparison across CodeExplorer, codebase-memory-mcp, Graphify, and CodeQL">
+        <div class="table-surface" style="margin-top: var(--space-xl);" role="region" aria-label="Summary of all five benchmarks">
           <div class="table-caption-bar">
-            <span>Capability Matrix</span>
-            <span class="measured">ce v1.75.0 vs. CBM v0.12.1 vs. Graphify v0.9.104</span>
+            <span>Overview: What Was Tested &amp; Who Won</span>
+            <span class="measured">5 Case Studies</span>
           </div>
           <table class="bench-table">
             <thead>
               <tr>
-                <th>Capability</th>
-                <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
-                <th>codebase-memory-mcp (<code>CBM v0.12.1</code>)</th>
-                <th>Graphify (<code>graphifyy v0.9.104</code>, YC S26)</th>
-                <th>CodeQL / Sourcegraph / ArchUnit</th>
+                <th>Benchmark</th>
+                <th>What Was Tested</th>
+                <th>Compared Tools</th>
+                <th>Outcome &amp; Key Numbers</th>
+                <th>Where Competitor Won / Tied</th>
+                <th>Report</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Distribution &amp; Runtime</td>
-                <td class="cell-win">Single native binary + VS Code Extension.</td>
-                <td class="cell-num">Single native Go/CGo binary (<code>win32-x64</code>, <code>darwin</code>, <code>linux</code>).</td>
-                <td>Python package (<code>uv tool install graphifyy</code>), requires Python 3.10+ and NetworkX.</td>
-                <td>Server cluster (Sourcegraph), compiler build wrapper (CodeQL), or single-language test library (ArchUnit).</td>
+                <td><strong>Case Study 05</strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>4-part autonomous agent architectural audit on <code>twentyhq/twenty</code> (46 packages, 24,527 files, 2.49M LOC): DI call graph, inheritance, BullMQ queues, GraphQL-to-DB write lineage.</td>
+                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>CBM</code> Agent</td>
+                <td class="cell-win"><strong>CodeExplorer won</strong><br>1m 16s vs. 16m 46s (13.2× faster)<br>268K vs. 4.41M input tokens (16.5× fewer)<br>100% (454/454) vs. 3.96% (18/454) from graph</td>
+                <td>After <code>CBM</code> returned 3.96%, its agent wrote 11 Python scripts and recovered 99.56% (452/454, missing 2 callers).</td>
+                <td><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html" class="btn">Read 05 &rarr;</a></td>
               </tr>
               <tr>
-                <td>Graph Storage Backend</td>
-                <td class="cell-win">Local SQLite database (<code>.codeexplorer/graph.db</code>) with full-text search (FTS5).</td>
-                <td class="cell-num">Local SQLite database in global user cache directory.</td>
-                <td class="cell-loss">Flat JSON file (<code>graphify-out/graph.json</code>) loaded into RAM via Python <code>NetworkX</code> on server start.</td>
-                <td>Proprietary per-language DB (CodeQL) or Postgres/Rockskip index (Sourcegraph).</td>
+                <td><strong>Case Study 03</strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>Deterministic indexer &amp; MCP server benchmark on <code>twenty</code> (2.49M LOC) and <code>immich</code> (461k LOC) across 371 ground-truth items (130 L1–L3 + 241 L4–L5) and JSON-RPC latency.</td>
+                <td><code>CodeExplorer</code><br>vs.<br><code>codebase-memory-mcp</code></td>
+                <td class="cell-win"><strong>CodeExplorer won on recall &amp; Cypher</strong><br>L1–L3: 78% vs. 38% (7W / 1T / 0L)<br>L4–L5: 97.5% vs. not modeled<br>Cypher latency: 3.1–4.7 ms vs. 38–71 ms</td>
+                <td><strong>CBM won</strong> on <code>twenty</code> cold index speed (96.9s vs. 147.3s), peak RAM (2.08 GB vs. 4.66 GB), and <code>AuthService</code> symbol lookup.</td>
+                <td><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn">Read 03 &rarr;</a></td>
               </tr>
               <tr>
-                <td>Graph Query Language</td>
-                <td class="cell-win">Read-only OpenCypher over SQLite (<code>3.1 to 4.7 ms</code> warm latency) + parameterized saved queries.</td>
-                <td class="cell-num">Cypher subset via <code>query_graph</code> (<code>38.1 to 71.2 ms</code> warm latency) with cursor pagination.</td>
-                <td class="cell-loss">None. Fixed keyword BFS/DFS and undirected <code>shortest_path</code> over NetworkX only.</td>
-                <td>Datalog DSL (CodeQL), keyword/SCIP search (Sourcegraph), or fluent Java/C# test code (ArchUnit).</td>
+                <td><strong>Case Study 04</strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>Deterministic indexer &amp; MCP server benchmark on <code>twenty</code> (2.49M LOC) and <code>immich</code> (461k LOC) across the same 371 ground-truth items and MCP cold start.</td>
+                <td><code>CodeExplorer</code><br>vs.<br><code>Graphify</code></td>
+                <td class="cell-win"><strong>CodeExplorer won</strong><br><code>immich</code> scan: 17.6s vs. 107.6s (6.1× faster)<br><code>twenty</code> scan: 147.3s vs. DNF (&gt;45m)<br>L1–L3: 78% vs. 18% (<code>immich</code>: 73% vs. 35%)</td>
+                <td><strong>Tied at 100% (20/20)</strong> on <code>immich</code> call graph (<code>C6</code>) and <code>C7</code>. Graphify adds Leiden clustering &amp; Obsidian export.</td>
+                <td><a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn">Read 04 &rarr;</a></td>
               </tr>
               <tr>
-                <td>Layer 1 to 3: AST, Call Graph &amp; DI Wiring</td>
-                <td class="cell-win">Tree-sitter AST and call graph across 8 languages, including cross-file constructor DI resolution (NestJS, Spring, .NET).</td>
-                <td class="cell-num">Tree-sitter AST and intra-class call graph; does not resolve method calls on constructor-injected TypeScript fields.</td>
-                <td class="cell-num">Tree-sitter AST across 20+ languages; resolves TS constructor DI on medium repos, times out (&gt;45m) on 24.5k-file monorepos.</td>
-                <td>Compiler-exact within one language (SCIP/CodeQL), requires full project builds.</td>
+                <td><strong>Case Study 02</strong><br><span class="tone-muted">Private Repository</span></td>
+                <td>4-part autonomous agent blast-radius audit across 324 microservices, 93 shared libraries, and 33 workers (13,782 files, TypeScript, Go, SQL).</td>
+                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> Agent</td>
+                <td class="cell-win"><strong>CodeExplorer won</strong><br>3m 56s vs. 29m 52s (7.59× faster)<br>393K vs. 17.19M input tokens (43.7× fewer)<br>100% vs. 82% recall (0 vs. 9 missed services)</td>
+                <td>Tied at 100% recall on Task 1 (shared DB tables) and Task 4 (inheritance). Source repo is proprietary (transcripts published).</td>
+                <td><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn">Read 02 &rarr;</a></td>
               </tr>
               <tr>
-                <td>Layer 4: Framework &amp; Protocol Analyzers</td>
-                <td class="cell-win">250 framework analyzers: REST, GraphQL (<code>@Resolver</code>), gRPC, Dubbo, FastAPI, Spring, Quarkus, Micronaut, Ktor, tRPC, Hono.</td>
-                <td class="cell-num">Basic route extractors; misses NestJS GraphQL <code>@Resolver</code> and template-literal <code>@Controller</code> routes.</td>
-                <td class="cell-loss">Not modeled (<code>0%</code> endpoint recall). Emits decorator line references without HTTP verbs or route URL paths.</td>
-                <td>Not modeled across languages or services.</td>
-              </tr>
-              <tr>
-                <td>Layer 4: Message Queues &amp; Workflows</td>
-                <td class="cell-win"><code>PUBLISHED_BY</code> and <code>SUBSCRIBED_BY</code> links (<code>95 to 100%</code> recall): Kafka, RabbitMQ, SQS, BullMQ, Temporal, Celery, Dramatiq, Watermill, MassTransit.</td>
-                <td class="cell-loss">Not modeled (<code>0%</code> recall).</td>
-                <td class="cell-loss">Not modeled (<code>0%</code> recall).</td>
-                <td>Not modeled.</td>
-              </tr>
-              <tr>
-                <td>Layer 4: ORM Tables &amp; Data Lineage</td>
-                <td class="cell-win">Table and query lineage (<code>READS_FROM</code> / <code>WRITES_TO</code>) across SQL, TypeORM, Kysely, Prisma, EF Core, Dapper, Hibernate, MyBatis, jOOQ, Exposed, GORM, SQLAlchemy.</td>
-                <td class="cell-loss">Not modeled (<code>0%</code> recall).</td>
-                <td class="cell-loss">Raw <code>.sql</code> DDL parser only; <code>0%</code> recall on TypeORM, Kysely, Prisma, and code-to-table read/write lineage.</td>
-                <td>Not modeled as a cross-service code-to-table lineage graph.</td>
-              </tr>
-              <tr>
-                <td>Layer 5: Service Links &amp; Monorepo Packages</td>
-                <td class="cell-win">Monorepo package boundaries, C1/C2/C3 architecture views, cycle detection, and cross-service HTTP/gRPC/broker links.</td>
-                <td class="cell-loss">Indexes repository as a single flat project without monorepo package boundaries or cross-service links.</td>
-                <td class="cell-loss">Models <code>package.json</code> dependencies as flat <code>concept</code> nodes; no sub-project boundaries or service links.</td>
-                <td>Single-project or symbol-only scope.</td>
-              </tr>
-              <tr>
-                <td>CI Architectural Rules (<code>SIG</code>)</td>
-                <td class="cell-win">32+ built-in and custom OpenCypher gates (<code>ce gate check</code>) with baseline ratchets (<code>ce gate ratchet</code>) for CI checks.</td>
-                <td class="cell-loss">None.</td>
-                <td class="cell-loss">None.</td>
-                <td>ArchUnit / NetArchTest support test-time rules in a single language without MCP or cross-service graphs.</td>
-              </tr>
-              <tr>
-                <td>IDE &amp; Visual Exploration</td>
-                <td class="cell-win">VS Code Extension with architecture diagrams, data lineage views, gate editor, and click-to-source navigation.</td>
-                <td>CLI and MCP server only (no IDE extension).</td>
-                <td>Generates static D3 <code>graph.html</code>, <code>GRAPH_REPORT.md</code>, and Obsidian Markdown vault exports.</td>
-                <td>Web search UI (Sourcegraph) or IDE query runner (CodeQL).</td>
-              </tr>
-              <tr>
-                <td>MCP Tool Surface &amp; Disambiguation</td>
-                <td class="cell-win">36 tools. <code>get_callers</code> returns Markdown tables (<code>1.5 KB</code>) across overloaded names in one call.</td>
-                <td>17 tools. <code>trace_path("validate")</code> returns a <code>45.6 KB</code> <code>{"status": "ambiguous"}</code> list of 67 candidates requiring a second call.</td>
-                <td>10 tools + 6 resources. <code>get_node</code> and <code>get_neighbors</code> return <code>"Ambiguous: matches 6 nodes"</code> unless given internal node IDs.</td>
-                <td>Not an MCP graph server.</td>
-              </tr>
-              <tr>
-                <td>Other Capabilities</td>
-                <td>Test impact analysis (<code>get_affected_tests</code>), dead-code/coupling checks, and optional local GGUF domain tagging (<code>ce intent</code>).</td>
-                <td class="cell-num">Snapshot diffing (<code>compare_graphs</code>), OpenTelemetry trace overlay (<code>ingest_traces</code>), ADR management (<code>manage_adr</code>), and regex grep (<code>search_code</code>).</td>
-                <td class="cell-num">Leiden community clustering, LLM doc/PDF pass, docstring <code>rationale</code> nodes, and GitHub PR triage (<code>triage_prs</code>).</td>
-                <td>Compiler-verified interprocedural security taint tracking (CodeQL).</td>
+                <td><strong>Case Study 01</strong><br><span class="tone-muted">Public Open-Source</span></td>
+                <td>Autonomous agent architecture &amp; blast-radius audit on the <code>code-explorer</code> repository itself (16 projects, C# .NET 10 + TypeScript).</td>
+                <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> Agent</td>
+                <td class="cell-win"><strong>CodeExplorer won on speed &amp; tokens</strong><br>2m 11s vs. 5m 08s (2.35× faster)<br>30 vs. 59 turns (1.97× fewer)<br>633K vs. 1.59M input tokens (2.52× fewer)</td>
+                <td><strong>Tied at 100% recall</strong>: on a 16-project repository, <code>ripgrep</code> also found 100% of callers (0 missed).</td>
+                <td><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html" class="btn">Read 01 &rarr;</a></td>
               </tr>
             </tbody>
           </table>
@@ -987,687 +122,158 @@ p code, li code, td code, th code {
       </div>
     </section>
 
-    <section class="band band--deep" id="twenty-immich">
+    <section class="band">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">Head-to-head on twenty (2.49M LOC) and immich (461k LOC).</h2>
+          <h2 class="band-title">Part A: Autonomous AI agent audits.</h2>
           <p class="band-lede">
-            Evaluated on identical pinned commits (<code>twentyhq/twenty</code> at <code>b9ef7107</code> and <code>immich-app/immich</code> at <code>152accc6</code>) against 365 deterministically sampled ground-truth items generated by <code>build_groundtruth.py</code> with fixed random seed <code>42</code>.
+            Paired A/B runs where two identical LLM agents (Gemini Flash) receive the exact same architectural audit prompt and work autonomously until they submit their final report.
           </p>
         </div>
 
-        <div class="sub-block" style="margin-top: 0;">
-          <div class="table-surface" role="region" aria-label="Cold indexing performance on twenty monorepo">
-            <div class="table-caption-bar">
-              <span>Table 1A: Cold Indexing on <code>twenty</code> (24,527 Tracked Files, ~2.49M LOC)</span>
-              <span class="measured">Clean cold run on identical Windows hardware</span>
+        <div class="panels panels--3">
+          <article class="catalog-card">
+            <div>
+              <div class="catalog-meta">
+                <span>CASE STUDY 05</span>
+                <span class="badge badge--win">Winner: CodeExplorer</span>
+              </div>
+              <h3 class="panel-title" style="margin-top: var(--space-sm);">Agent Audit on twentyhq/twenty: CodeExplorer vs. codebase-memory-mcp</h3>
+              <p class="panel-copy" style="margin-top: var(--space-xs);">
+                Tested on the open-source <code>twenty</code> monorepo (24,527 files, 2.49M LOC). Both agents started with pre-built graph indexes.
+              </p>
+              <ul class="kv-list">
+                <li class="kv-row"><span class="kv-label">Time to answer</span><span class="kv-val tone-ok">1m 16s vs. 16m 46s (13.24×)</span></li>
+                <li class="kv-row"><span class="kv-label">LLM turns / Tool calls</span><span class="kv-val">7 / 11 vs. 56 / 62</span></li>
+                <li class="kv-row"><span class="kv-label">Cumulative input tokens</span><span class="kv-val tone-ok">268K vs. 4.41M (16.46×)</span></li>
+                <li class="kv-row"><span class="kv-label">Direct recall from graph</span><span class="kv-val tone-ok">100% (454/454) vs. 3.96% (18/454)</span></li>
+                <li class="kv-row"><span class="kv-label">Final report recall</span><span class="kv-val">100% vs. 99.56% (452/454)</span></li>
+              </ul>
             </div>
-            <table class="bench-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
-                  <th>codebase-memory-mcp (<code>CBM v0.12.1</code>)</th>
-                  <th>Graphify (<code>v0.9.104</code>)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Repository Scale</td>
-                  <td class="cell-num">24,527 tracked (36,644 physical files)</td>
-                  <td class="cell-num">24,527 files (~2.49M LOC)</td>
-                  <td class="cell-num">24,527 tracked (24,048 TS/JS files)</td>
-                </tr>
-                <tr>
-                  <td>Cold Index Wall Time</td>
-                  <td class="cell-win">147.33 s (2.45 min, Layers 1 to 5)</td>
-                  <td class="cell-win">96.90 s (1.6 min, Layers 1 to 3)</td>
-                  <td class="cell-loss">DNF (&gt;2,740 s / &gt;45.6 min timeout)</td>
-                </tr>
-                <tr>
-                  <td>Output Graph Size on Disk</td>
-                  <td class="cell-win">784.0 MB SQLite DB</td>
-                  <td class="cell-num">842.5 MB SQLite DB</td>
-                  <td class="cell-loss">8.1 MB partial cache (no graph.json)</td>
-                </tr>
-                <tr>
-                  <td>Peak Working Set (RAM)</td>
-                  <td class="cell-num">4,660.6 MB</td>
-                  <td class="cell-win">2,076.0 MB</td>
-                  <td class="cell-loss">2,140.0 MB (stalled on 1 CPU core)</td>
-                </tr>
-                <tr>
-                  <td>Graph Nodes &amp; Edges Extracted</td>
-                  <td class="cell-win">456,711 nodes / 960,660 edges</td>
-                  <td class="cell-num">251,750 nodes / 914,479 edges</td>
-                  <td class="cell-loss">DNF (0 output)</td>
-                </tr>
-                <tr>
-                  <td>Parse &amp; Analysis Warnings</td>
-                  <td class="cell-win">0 warnings</td>
-                  <td class="cell-loss">209 parse_partial, 1 unusable</td>
-                  <td class="cell-loss">DNF</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            <div>
+              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
+                <strong>What happened:</strong> <code>CBM</code> returned 0 cross-file NestJS DI calls and 0 matches on Tasks 2–4. At Turn 5, the <code>CBM</code> agent abandoned the graph, wrote 11 Python scripts, and recovered 452/454 items (missing 2 callers in <code>RecordExportWorkspaceService</code>).
+              </div>
+              <a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html" class="btn btn--primary" style="width: 100%;">Open Case Study 05 &rarr;</a>
+            </div>
+          </article>
 
-          <div class="table-surface" role="region" aria-label="Cold indexing performance on immich monorepo">
-            <div class="table-caption-bar">
-              <span>Table 1B: Cold Indexing on <code>immich</code> (3,205 Tracked Files, ~461k LOC)</span>
-              <span class="measured">Clean cold run on identical Windows hardware</span>
+          <article class="catalog-card">
+            <div>
+              <div class="catalog-meta">
+                <span>CASE STUDY 02</span>
+                <span class="badge badge--win">Winner: CodeExplorer</span>
+              </div>
+              <h3 class="panel-title" style="margin-top: var(--space-sm);">324-Service Enterprise Monorepo Audit: CodeExplorer vs. ripgrep</h3>
+              <p class="panel-copy" style="margin-top: var(--space-xs);">
+                Tested on a distributed production platform (450 modules: 324 microservices, 93 shared libraries, 33 workers, 13,782 files across TS, Go, SQL).
+              </p>
+              <ul class="kv-list">
+                <li class="kv-row"><span class="kv-label">Time to answer</span><span class="kv-val tone-ok">3m 56s vs. 29m 52s (7.59×)</span></li>
+                <li class="kv-row"><span class="kv-label">LLM turns / File reads</span><span class="kv-val">23 / 0 vs. 285 / 114</span></li>
+                <li class="kv-row"><span class="kv-label">Cumulative input tokens</span><span class="kv-val tone-ok">393K vs. 17.19M (43.70×)</span></li>
+                <li class="kv-row"><span class="kv-label">Context compactions</span><span class="kv-val">0 vs. 1 (at Turn 162)</span></li>
+                <li class="kv-row"><span class="kv-label">Blast-radius recall</span><span class="kv-val tone-ok">100% vs. ~82% (9 services missed)</span></li>
+              </ul>
             </div>
-            <table class="bench-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
-                  <th>codebase-memory-mcp (<code>CBM v0.12.1</code>)</th>
-                  <th>Graphify (<code>v0.9.104</code>)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Repository Scale</td>
-                  <td class="cell-num">3,205 tracked (1,485 code files)</td>
-                  <td class="cell-num">3,205 files (~461k LOC)</td>
-                  <td class="cell-num">3,205 tracked (1,609 AST files)</td>
-                </tr>
-                <tr>
-                  <td>Cold Index Wall Time</td>
-                  <td class="cell-win">17.60 s</td>
-                  <td class="cell-num">20.60 s</td>
-                  <td class="cell-loss">107.60 s (1.8 min)</td>
-                </tr>
-                <tr>
-                  <td>Output Graph Size on Disk</td>
-                  <td class="cell-win">55.1 MB SQLite DB (5.1× smaller than CBM)</td>
-                  <td class="cell-loss">282.0 MB SQLite DB</td>
-                  <td class="cell-num">32.0 MB JSON (52.3 MB dir)</td>
-                </tr>
-                <tr>
-                  <td>Peak Working Set (RAM)</td>
-                  <td class="cell-num">780.5 MB</td>
-                  <td class="cell-win">595.0 MB</td>
-                  <td class="cell-loss">956.9 MB</td>
-                </tr>
-                <tr>
-                  <td>Graph Nodes &amp; Edges Extracted</td>
-                  <td class="cell-num">54,978 nodes / 117,070 edges</td>
-                  <td class="cell-num">164,125 nodes (141k local vars) / 246,561 edges</td>
-                  <td class="cell-num">31,725 nodes / 76,493 edges</td>
-                </tr>
-                <tr>
-                  <td>Parse &amp; Analysis Warnings</td>
-                  <td class="cell-win">0 warnings</td>
-                  <td class="cell-num">4 parse_partial warnings</td>
-                  <td class="cell-loss">9 syntax errors + 171 empty files</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+            <div>
+              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
+                <strong>Transparency note:</strong> Both agents tied at 100% on Tasks 1 and 4. On Task 2, <code>ripgrep</code> missed 9 RTB services wired via environment host constants. Because this repo is private, service names are anonymized; use Case Study 05 for public verification.
+              </div>
+              <a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn" style="width: 100%;">Open Case Study 02 &rarr;</a>
+            </div>
+          </article>
 
-        <div class="sub-block">
-          <h3 class="sub-title">Part 1: Common Ground Recall (Layers 1 to 3, 130 Ground-Truth Items)</h3>
-          <div class="table-surface" role="region" aria-label="Part 1 Common Ground Recall comparison">
-            <div class="table-caption-bar">
-              <span>Table 2: Direct Comparison on Capabilities Supported by All Tools (0 to 100 Recall Scale)</span>
-              <span class="measured">ce: 7 Wins, 1 Tie, 0 Losses</span>
+          <article class="catalog-card">
+            <div>
+              <div class="catalog-meta">
+                <span>CASE STUDY 01</span>
+                <span class="badge badge--cool">Speed Win / Recall Tie</span>
+              </div>
+              <h3 class="panel-title" style="margin-top: var(--space-sm);">16-Project Polyglot Audit: CodeExplorer vs. ripgrep</h3>
+              <p class="panel-copy" style="margin-top: var(--space-xs);">
+                Self-contained benchmark on the public <code>code-explorer</code> repository (16 projects, C# .NET 10 + TypeScript).
+              </p>
+              <ul class="kv-list">
+                <li class="kv-row"><span class="kv-label">Time to answer</span><span class="kv-val tone-ok">2m 11s vs. 5m 08s (2.35×)</span></li>
+                <li class="kv-row"><span class="kv-label">LLM turns</span><span class="kv-val">30 vs. 59 (1.97×)</span></li>
+                <li class="kv-row"><span class="kv-label">Cumulative input tokens</span><span class="kv-val tone-ok">633K vs. 1.59M (2.52×)</span></li>
+                <li class="kv-row"><span class="kv-label">API cost (w/ 90% cache)</span><span class="kv-val">$0.075 vs. $0.140 (1.87×)</span></li>
+                <li class="kv-row"><span class="kv-label">Blast-radius recall</span><span class="kv-val">100% vs. 100% (Tie)</span></li>
+              </ul>
             </div>
-            <table class="bench-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Capability Tested</th>
-                  <th>Repo</th>
-                  <th>GT</th>
-                  <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
-                  <th><code>CBM v0.12.1</code></th>
-                  <th><code>Graphify v0.9.104</code></th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><code>C1</code></td>
-                  <td>Incoming HTTP / GraphQL Endpoints</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">100 (20/20, 895 extracted)</td>
-                  <td class="cell-loss">0 (0/20, 4 extracted)</td>
-                  <td class="cell-loss">0 (DNF)</td>
-                  <td><code>ce</code> resolves NestJS <code>@Resolver</code> GraphQL queries/mutations and template-literal <code>@Controller</code> prefixes.</td>
-                </tr>
-                <tr>
-                  <td><code>C1</code></td>
-                  <td>Incoming HTTP / FastAPI Endpoints</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">100 (20/20, 321 extracted)</td>
-                  <td class="cell-num">90 (18/20, 271 extracted)</td>
-                  <td class="cell-loss">0 (0/20 strict; 20 decorator refs without URLs)</td>
-                  <td><code>ce</code> resolves TypeScript enum route constants (<code>@Controller(RouteKey.Asset)</code>); Graphify has no route URL nodes.</td>
-                </tr>
-                <tr>
-                  <td><code>C2</code></td>
-                  <td>Outbound HTTP Calls (<code>fetch</code> / clients)</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">12</td>
-                  <td class="cell-win">50 (6/12, 164 extracted)</td>
-                  <td class="cell-num">25 (3/12, 196 extracted)</td>
-                  <td class="cell-loss">0 (DNF)</td>
-                  <td><code>ce</code> extracts <code>fetch</code>, <code>axios</code>, and GraphQL client operations.</td>
-                </tr>
-                <tr>
-                  <td><code>C2</code></td>
-                  <td>Outbound HTTP Calls (<code>fetch</code> / clients)</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">6</td>
-                  <td class="cell-win">83 (5/6, 34 extracted)</td>
-                  <td class="cell-loss">0 (0/6, 48 extracted)</td>
-                  <td class="cell-loss">0 (0/6, 0 extracted)</td>
-                  <td><code>ce</code> resolves variable-URL and template-path HTTP client calls.</td>
-                </tr>
-                <tr>
-                  <td><code>C6</code></td>
-                  <td>Call Graph (Intra-Class + DI Service Calls)</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">12</td>
-                  <td class="cell-win">100 (12/12, 18 extracted)</td>
-                  <td class="cell-num">75 (9/12, 10 extracted)</td>
-                  <td class="cell-loss">0 (DNF)</td>
-                  <td><code>ce</code> resolves NestJS constructor-injected service calls across files.</td>
-                </tr>
-                <tr>
-                  <td><code>C6</code></td>
-                  <td>Call Graph (Intra-Class + DI Service Calls)</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">100 (20/20, 119 extracted)</td>
-                  <td class="cell-num">60 (12/20, 97 extracted)</td>
-                  <td class="cell-win">100 (20/20, 49 extracted)</td>
-                  <td>Tie between <code>ce</code> and <code>Graphify</code> at 100% on <code>immich</code>; <code>CBM</code> misses cross-file DI calls.</td>
-                </tr>
-                <tr>
-                  <td><code>C7</code></td>
-                  <td>Class Inheritance &amp; <code>implements</code></td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">80 (16/20, 1,553 extracted)</td>
-                  <td class="cell-loss">20 (4/20, 250 extracted)</td>
-                  <td class="cell-loss">0 (DNF)</td>
-                  <td><code>ce</code> links cross-package base classes and TypeScript <code>implements</code> interfaces.</td>
-                </tr>
-                <tr>
-                  <td><code>C7</code></td>
-                  <td>Class Inheritance &amp; <code>implements</code></td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-num">15 (3/20, 140 extracted)</td>
-                  <td class="cell-num">15 (3/20, 564 extracted)</td>
-                  <td class="cell-num">15 (3/20, 1,560 extracted)</td>
-                  <td>Three-way tie at 15: 17 of 20 sampled DTOs use external npm functional mixins (<code>extends createZodDto(Schema)</code>).</td>
-                </tr>
-                <tr class="row-total">
-                  <td colspan="3">Part 1 Combined Total (Micro-Recall / Macro-Recall)</td>
-                  <td class="cell-num">130</td>
-                  <td class="cell-win">78 Micro / 79 Macro (102/130)</td>
-                  <td class="cell-num">38 Micro / 36 Macro (49/130)</td>
-                  <td class="cell-loss">18 Micro / 14 Macro (23/130)</td>
-                  <td><code>ce</code>: 102/130 vs. <code>CBM</code>: 49/130 vs. <code>Graphify</code>: 23/130.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="sub-block">
-          <h3 class="sub-title">Part 2: Extended Architectural Ontology (Layers 4 &amp; 5, 235 Ground-Truth Items)</h3>
-          <div class="table-surface" role="region" aria-label="Part 2 Extended L4 and L5 Architectural Ontology Recall">
-            <div class="table-caption-bar">
-              <span>Table 3: Asynchronous Queues, ORM Tables, Read/Write Data Lineage &amp; Sub-Projects</span>
-              <span class="measured">ce: 97% Micro-Recall (227/235) vs. 0% in CBM &amp; Graphify</span>
+            <div>
+              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
+                <strong>Transparency note:</strong> On a 16-project repository, <code>ripgrep</code> + manual file reading achieved the exact same 100% accuracy as the graph agent, taking 2.35× longer and 2.52× more tokens.
+              </div>
+              <a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html" class="btn" style="width: 100%;">Open Case Study 01 &rarr;</a>
             </div>
-            <table class="bench-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Architectural Capability Tested</th>
-                  <th>Repo</th>
-                  <th>GT</th>
-                  <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
-                  <th><code>ce</code> Total Extracted</th>
-                  <th><code>CBM v0.12.1</code></th>
-                  <th><code>Graphify v0.9.104</code></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><code>C3-producers</code></td>
-                  <td>Queue / Job Producers (<code>PUBLISHED_BY</code>)</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">19</td>
-                  <td class="cell-win">100 (19/19)</td>
-                  <td class="cell-num">165 <code>PUBLISHED_BY</code> edges</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C3-producers</code></td>
-                  <td>Queue / Job Producers (<code>PUBLISHED_BY</code>)</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">95 (19/20)</td>
-                  <td class="cell-num">101 <code>PUBLISHED_BY</code> edges</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C3-consumers</code></td>
-                  <td>Queue / Job Consumers (<code>SUBSCRIBED_BY</code>)</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">19</td>
-                  <td class="cell-win">100 (19/19)</td>
-                  <td class="cell-num">192 <code>SUBSCRIBED_BY</code> links</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C3-consumers</code></td>
-                  <td>Queue / Job Consumers (<code>SUBSCRIBED_BY</code>)</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">17</td>
-                  <td class="cell-win">100 (17/17)</td>
-                  <td class="cell-num">135 <code>SUBSCRIBED_BY</code> links</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C8-topics</code></td>
-                  <td>Symbolic &amp; Enum Queue Topic Resolution</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">100 (20/20)</td>
-                  <td class="cell-num">357 producer + consumer links</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C8-topics</code></td>
-                  <td>Symbolic &amp; Enum Queue Topic Resolution</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">19</td>
-                  <td class="cell-win">100 (19/19)</td>
-                  <td class="cell-num">236 producer + consumer links</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C4</code></td>
-                  <td>Database Tables (<code>TypeORM</code> / <code>Kysely</code>)</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">17</td>
-                  <td class="cell-win">100 (17/17)</td>
-                  <td class="cell-num">164 <code>:Table</code> nodes</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (DNF)</td>
-                </tr>
-                <tr>
-                  <td><code>C4</code></td>
-                  <td>Database Tables (<code>TypeORM</code> / <code>Kysely</code>)</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">18</td>
-                  <td class="cell-win">100 (18/18)</td>
-                  <td class="cell-num">100 <code>:Table</code> nodes</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (0/18, Kysely TS not parsed)</td>
-                </tr>
-                <tr>
-                  <td><code>C5</code></td>
-                  <td>Code-to-Table Read/Write Lineage</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">18</td>
-                  <td class="cell-win">100 (18/18)</td>
-                  <td class="cell-num">17,382 <code>READS_FROM</code> / <code>WRITES_TO</code> edges</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C5</code></td>
-                  <td>Code-to-Table Read/Write Lineage</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">10</td>
-                  <td class="cell-win">100 (10/10)</td>
-                  <td class="cell-num">1,206 <code>READS_FROM</code> / <code>WRITES_TO</code> edges</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C10-schema</code></td>
-                  <td>Table Columns &amp; Inherited Entity Members</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">17</td>
-                  <td class="cell-win">76 (13/17)</td>
-                  <td class="cell-num">1,481 <code>Table -&gt; Entity -&gt; Member</code> links</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C10-schema</code></td>
-                  <td>Table Columns &amp; Entity Members</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">20</td>
-                  <td class="cell-win">95 (19/20)</td>
-                  <td class="cell-num">608 <code>Table -&gt; Entity -&gt; Member</code> links</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                </tr>
-                <tr>
-                  <td><code>C9-services</code></td>
-                  <td>Monorepo Sub-Projects (<code>:Project</code>)</td>
-                  <td><code>twenty</code></td>
-                  <td class="cell-num">8</td>
-                  <td class="cell-win">100 (8/8)</td>
-                  <td class="cell-num">46 <code>:Project</code> nodes</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (DNF)</td>
-                </tr>
-                <tr>
-                  <td><code>C9-services</code></td>
-                  <td>Monorepo Sub-Projects (<code>:Project</code>)</td>
-                  <td><code>immich</code></td>
-                  <td class="cell-num">7</td>
-                  <td class="cell-win">100 (7/7)</td>
-                  <td class="cell-num">21 <code>:Project</code> nodes</td>
-                  <td class="cell-loss">0 (Not modeled)</td>
-                  <td class="cell-loss">0 (Models npm deps as concepts)</td>
-                </tr>
-                <tr>
-                  <td><code>C11-queries</code></td>
-                  <td>6 End-to-End Architectural Cypher Queries</td>
-                  <td><code>twenty</code> + <code>immich</code></td>
-                  <td class="cell-num">12</td>
-                  <td class="cell-win">100 (12/12)</td>
-                  <td class="cell-num">158 verified architectural rows</td>
-                  <td class="cell-loss">0 (L4/L5 schema absent)</td>
-                  <td class="cell-loss">0 (No query language)</td>
-                </tr>
-                <tr class="row-total">
-                  <td colspan="3">Part 2 Combined Total (All L4/L5 Architectural Categories)</td>
-                  <td class="cell-num">235</td>
-                  <td class="cell-win">97 Micro / 98 Macro (227/235)</td>
-                  <td class="cell-num">Layers 4 &amp; 5</td>
-                  <td class="cell-loss">0 / 235 (0%)</td>
-                  <td class="cell-loss">0 / 235 (0%)</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          </article>
         </div>
       </div>
     </section>
 
-    <section class="band" id="mcp-latency">
+    <section class="band band--deep">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">MCP server startup and query latency.</h2>
+          <h2 class="band-title">Part B: Deterministic indexer &amp; MCP server benchmarks.</h2>
           <p class="band-lede">
-            Measured over persistent JSON-RPC <code>stdio</code> sessions via <code>bench_mcp.py</code> and <code>bench_mcp_graphify.py</code>. <code>ce</code> queries an indexed SQLite database on demand instead of loading <code>graph.json</code> into Python NetworkX on startup.
-          </p>
-        </div>
-
-        <div class="table-surface" role="region" aria-label="MCP Server Latency and Payload Comparison">
-          <div class="table-caption-bar">
-            <span>Table 4: Cold Initialization &amp; Warm JSON-RPC Round-Trip Latency</span>
-            <span class="measured">ce (36 tools) vs. CBM (17 tools) vs. Graphify (10 tools + 6 resources)</span>
-          </div>
-          <table class="bench-table">
-            <thead>
-              <tr>
-                <th>MCP Operation</th>
-                <th>Repo</th>
-                <th>CodeExplorer (<code>ce v1.75.0</code>)</th>
-                <th><code>CBM v0.12.1</code></th>
-                <th><code>Graphify v0.9.104</code></th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Cold MCP Init (<code>initialize</code>)</td>
-                <td><code>immich</code></td>
-                <td class="cell-win">608.2 ms (64.2 MB RSS)</td>
-                <td class="cell-num">~150 ms (native binary)</td>
-                <td class="cell-loss">3,782.4 ms (162.7 MB RSS)</td>
-                <td><code>ce</code> starts 6.2× faster than Graphify with 2.5× lower memory usage.</td>
-              </tr>
-              <tr>
-                <td>Graph Schema / Taxonomy (1st Call)</td>
-                <td><code>twenty</code></td>
-                <td class="cell-win">23.2 ms (54.7 KB)</td>
-                <td class="cell-num">72.0 ms (1.0 KB)</td>
-                <td class="cell-loss">76.1 ms on immich (DNF on twenty)</td>
-                <td>Returns node and relationship counts with property schemas.</td>
-              </tr>
-              <tr>
-                <td>Graph Schema / Taxonomy (Cached)</td>
-                <td><code>immich</code> / <code>twenty</code></td>
-                <td class="cell-win">1.7 ms / 2.7 ms</td>
-                <td class="cell-num">40.9 ms / 75.3 ms</td>
-                <td class="cell-loss">73.0 ms (spawns git rev-parse every call)</td>
-                <td>21 to 43× faster on subsequent schema calls in the same session.</td>
-              </tr>
-              <tr>
-                <td>Read-Only OpenCypher Query (<code>LIMIT 10</code>)</td>
-                <td><code>immich</code> / <code>twenty</code></td>
-                <td class="cell-win">3.1 ms / 4.7 ms</td>
-                <td class="cell-num">38.1 ms / 71.2 ms</td>
-                <td class="cell-loss">Not supported (no query language)</td>
-                <td>OpenCypher over SQLite runs 9 to 15× faster than <code>CBM</code>.</td>
-              </tr>
-              <tr>
-                <td>Inbound Callers by Method Name (<code>validate</code>)</td>
-                <td><code>immich</code> / <code>twenty</code></td>
-                <td class="cell-win">37.0 ms (1.5 KB) / 530 ms (2.5 KB)</td>
-                <td class="cell-loss">7.5 ms (18.6 KB ambiguous) / 6.5 ms (45.6 KB ambiguous)</td>
-                <td class="cell-loss">3.8 ms (<code>Ambiguous: matches 6 nodes</code>)</td>
-                <td><code>ce</code> resolves callers across overloaded methods in 1 turn; <code>CBM</code> and <code>Graphify</code> require a 2nd disambiguation call.</td>
-              </tr>
-              <tr>
-                <td>Call Chain / Shortest Path (<code>login</code> to <code>validate</code>)</td>
-                <td><code>immich</code></td>
-                <td class="cell-win">23.2 ms (0.8 KB directed chain)</td>
-                <td class="cell-num">19.5 ms (ambiguous without QN)</td>
-                <td class="cell-loss">279.0 ms (0.5 KB undirected)</td>
-                <td>12.0× faster than Graphify&rsquo;s NetworkX path search.</td>
-              </tr>
-              <tr>
-                <td>Keyword / Identifier Search (<code>AuthService</code>)</td>
-                <td><code>immich</code></td>
-                <td class="cell-win">36.1 ms (<code>find_symbol</code>) / 41.7 ms (<code>search_identifiers</code>)</td>
-                <td class="cell-num">55.6 ms (<code>search_graph</code>)</td>
-                <td class="cell-loss">333.8 ms (<code>query_graph</code>)</td>
-                <td>FTS5 search in <code>ce</code> runs 8.0× faster than Graphify keyword search.</td>
-              </tr>
-              <tr>
-                <td>File Outline (<code>auth.service.ts</code>)</td>
-                <td><code>immich</code> / <code>twenty</code></td>
-                <td class="cell-win">12.6 ms (0.4 KB) / 92.7 ms (0.9 KB)</td>
-                <td class="cell-num">17.3 ms (4.8 KB) / 40.5 ms (7.8 KB)</td>
-                <td class="cell-loss">Not supported</td>
-                <td>Returns a compact class/method outline without local-variable nodes.</td>
-              </tr>
-              <tr>
-                <td>Database Table Lineage (<code>user</code> table)</td>
-                <td><code>immich</code> / <code>twenty</code></td>
-                <td class="cell-win">10.9 ms (2.6 KB) / 16.2 ms (5.2 KB)</td>
-                <td class="cell-loss">Not supported</td>
-                <td class="cell-loss">Not supported</td>
-                <td>Traces SQL queries, ORM repositories, and methods reading or writing <code>user</code>.</td>
-              </tr>
-              <tr>
-                <td>Semantic Invariant Gates (<code>check_semantic_gates</code>)</td>
-                <td><code>immich</code> / <code>twenty</code></td>
-                <td class="cell-win">8.9 ms / 9.1 ms (0.4 KB)</td>
-                <td class="cell-loss">Not supported</td>
-                <td class="cell-loss">Not supported</td>
-                <td>Evaluates OpenCypher architectural rules and baseline ratchets.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="band band--deep" id="ab-audit">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Paired A/B agent benchmarks: CodeExplorer Graph vs. ripgrep.</h2>
-          <p class="band-lede">
-            Comparing the same AI agent with and without the CodeExplorer MCP server on a 324-service monorepo and a 16-project polyglot repository.
-          </p>
-        </div>
-
-        <div class="table-surface" role="region" aria-label="Paired A/B Agent Benchmarks against ripgrep">
-          <div class="table-caption-bar">
-            <span>Table 5: End-to-End Autonomous Agent Telemetry (Identical Model: Gemini 3.8 Flash)</span>
-            <span class="measured">Verified from transcript_full.jsonl</span>
-          </div>
-          <table class="bench-table">
-            <thead>
-              <tr>
-                <th>Case Study &amp; Codebase Scale</th>
-                <th>Metric</th>
-                <th>Plain AI Agent (<code>ripgrep</code> + <code>view_file</code>)</th>
-                <th>AI Agent + CodeExplorer Graph</th>
-                <th>Difference</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td rowspan="5">Case Study 02: Enterprise Microservices Deep Audit<br><code>450</code> modules, <code>324</code> services, <code>13,782</code> files (TS + Go + SQL)</td>
-                <td>Wall-Clock Time to Answer</td>
-                <td class="cell-loss">29m 52s</td>
-                <td class="cell-win">3m 56s</td>
-                <td class="cell-win">7.59× faster</td>
-              </tr>
-              <tr>
-                <td>Reasoning Turns &amp; Tool Calls</td>
-                <td class="cell-loss">285 turns (142 shell commands, 114 file reads)</td>
-                <td class="cell-win">23 turns (18 graph queries, 0 file reads)</td>
-                <td class="cell-win">12.39× fewer turns</td>
-              </tr>
-              <tr>
-                <td>Cumulative Input Tokens</td>
-                <td class="cell-loss">17,190,000 tokens</td>
-                <td class="cell-win">393,000 tokens</td>
-                <td class="cell-win">43.70× fewer tokens</td>
-              </tr>
-              <tr>
-                <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss">694.9 KB (~173.7k tokens)</td>
-                <td class="cell-win">93.2 KB (~23.3k tokens)</td>
-                <td class="cell-win">7.45× smaller payload</td>
-              </tr>
-              <tr>
-                <td>Blast-Radius Recall</td>
-                <td class="cell-loss">~82% (missed 9 RTB services &amp; 15+ callers)</td>
-                <td class="cell-win">100% (0 missed services or callers)</td>
-                <td class="cell-win">+18% recall (all 9 services found)</td>
-              </tr>
-              <tr>
-                <td rowspan="4">Case Study 01: Polyglot Architecture &amp; Blast Radius<br><code>16</code> projects (C# .NET 10 + TypeScript)</td>
-                <td>Wall-Clock Time to Answer</td>
-                <td class="cell-loss">5m 08s</td>
-                <td class="cell-win">2m 11s</td>
-                <td class="cell-win">2.35× faster</td>
-              </tr>
-              <tr>
-                <td>Reasoning Turns</td>
-                <td class="cell-loss">59 turns</td>
-                <td class="cell-win">30 turns</td>
-                <td class="cell-win">1.97× fewer turns</td>
-              </tr>
-              <tr>
-                <td>Cumulative Input Tokens</td>
-                <td class="cell-loss">1,590,000 tokens</td>
-                <td class="cell-win">633,000 tokens</td>
-                <td class="cell-win">2.52× fewer tokens</td>
-              </tr>
-              <tr>
-                <td>Blast-Radius Completeness</td>
-                <td class="cell-num">100% (Complete)</td>
-                <td class="cell-win">100% (Complete)</td>
-                <td class="cell-win">Same recall in 2.35× less time</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="band" id="methodology">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Ground truth and evaluation scripts.</h2>
-          <p class="band-lede">
-            All ground-truth CSVs, commit manifests (<code>FREEZE.txt</code>), query scripts, and JSON-RPC latency logs are in the repository.
+            Direct head-to-head measurements of cold indexing speed, disk/RAM footprint, ground-truth recall (371 items sampled with fixed seed 42), and single-shot MCP JSON-RPC latency on <code>twenty</code> (2.49M LOC) and <code>immich</code> (461k LOC).
           </p>
         </div>
 
         <div class="panels panels--2">
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Case Study 03: vs. codebase-memory-mcp</h3>
-              <code class="tone-accent">365 GT Items</code>
+          <article class="catalog-card">
+            <div>
+              <div class="catalog-meta">
+                <span>CASE STUDY 03</span>
+                <span class="badge badge--win">Winner on Recall: CodeExplorer · Faster Index on twenty: CBM</span>
+              </div>
+              <h3 class="panel-title" style="margin-top: var(--space-sm);">CodeExplorer vs. codebase-memory-mcp (CBM)</h3>
+              <p class="panel-copy" style="margin-top: var(--space-xs);">
+                Compares <code>ce</code> and <code>CBM</code> across cold indexing, 130 Layer 1–3 Common Ground items, 241 Layer 4–5 Architecture items, and MCP tool latency.
+              </p>
+              <ul class="kv-list">
+                <li class="kv-row"><span class="kv-label">Part 1 Common Ground Recall (L1–L3, 130 GT)</span><span class="kv-val tone-ok">ce 78% (102/130) vs. CBM 38% (49/130)</span></li>
+                <li class="kv-row"><span class="kv-label">Part 2 Architecture Recall (L4–L5, 241 GT)</span><span class="kv-val tone-ok">ce 97.5% (235/241) vs. not modeled</span></li>
+                <li class="kv-row"><span class="kv-label">Cold index on <code>immich</code> (3.2k files)</span><span class="kv-val tone-ok">ce 17.6s (55 MB) vs. CBM 20.6s (282 MB)</span></li>
+                <li class="kv-row"><span class="kv-label">Cold index on <code>twenty</code> (24.5k files)</span><span class="kv-val tone-accent">CBM 96.9s (2.08 GB RAM) vs. ce 147.3s (4.66 GB RAM)</span></li>
+                <li class="kv-row"><span class="kv-label">OpenCypher query latency (warm)</span><span class="kv-val tone-ok">ce 3.1–4.7 ms vs. CBM 38.1–71.2 ms</span></li>
+              </ul>
             </div>
-            <p class="panel-copy">
-              Contains <code>build_groundtruth.py</code> (deterministic seed <code>42</code>), <code>eval_queries.py</code>, <code>bench_mcp.py</code>, frozen <code>groundtruth/*.csv</code> files, and <code>results/scores.csv</code> comparing <code>ce v1.75.0</code> and <code>CBM v0.12.1</code> on <code>twenty</code> and <code>immich</code>.
-            </p>
-            <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/03-code-explorer-vs-codebase-memory-mcp" target="_blank" rel="noopener" class="btn">Open Case Study 03 on GitHub</a>
+            <div>
+              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
+                <strong>Where CBM won:</strong> <code>CBM</code> indexed <code>twenty</code> 1.52× faster with 2.2× lower peak RAM (because it extracts only L1–L3 syntax/call graphs), and was faster on single-symbol lookup (<code>AuthService</code>). <code>CBM</code> also provides <code>compare_graphs</code>, <code>ingest_traces</code>, and <code>manage_adr</code>.
+              </div>
+              <a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn btn--primary" style="width: 100%;">Open Case Study 03 &rarr;</a>
             </div>
-          </div>
+          </article>
 
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Case Study 04: vs. Graphify (YC S26)</h3>
-              <code class="tone-cool">Same Frozen GT</code>
+          <article class="catalog-card">
+            <div>
+              <div class="catalog-meta">
+                <span>CASE STUDY 04</span>
+                <span class="badge badge--win">Winner: CodeExplorer · Call Graph Tie on immich</span>
+              </div>
+              <h3 class="panel-title" style="margin-top: var(--space-sm);">CodeExplorer vs. Graphify</h3>
+              <p class="panel-copy" style="margin-top: var(--space-xs);">
+                Compares <code>ce</code> against <code>graphifyy</code> (Python/NetworkX AST &amp; knowledge-graph tool) on the same <code>twenty</code> and <code>immich</code> repositories and 371 ground-truth items.
+              </p>
+              <ul class="kv-list">
+                <li class="kv-row"><span class="kv-label">Cold index on <code>immich</code> (3.2k files)</span><span class="kv-val tone-ok">ce 17.6s vs. Graphify 107.6s (6.1× faster)</span></li>
+                <li class="kv-row"><span class="kv-label">Cold index on <code>twenty</code> (24.5k files)</span><span class="kv-val tone-ok">ce 147.3s vs. Graphify DNF (&gt;45m timeout)</span></li>
+                <li class="kv-row"><span class="kv-label">Part 1 Common Ground Recall (L1–L3, 130 GT)</span><span class="kv-val tone-ok">ce 78% vs. Graphify 18% (<code>immich</code>: 73% vs. 35%)</span></li>
+                <li class="kv-row"><span class="kv-label">Part 2 Architecture Recall (L4–L5, 241 GT)</span><span class="kv-val tone-ok">ce 97.5% (235/241) vs. not modeled</span></li>
+                <li class="kv-row"><span class="kv-label">MCP server cold init on <code>immich</code></span><span class="kv-val tone-ok">ce 599 ms (64 MB) vs. Graphify 3,683 ms (163 MB)</span></li>
+              </ul>
             </div>
-            <p class="panel-copy">
-              Contains <code>bench_graphify_index.py</code>, <code>eval_ce_vs_graphify.py</code>, <code>bench_mcp_graphify.py</code>, and evaluation results for <code>graphify v0.9.104</code> across <code>twenty</code> and <code>immich</code>.
-            </p>
-            <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify" target="_blank" rel="noopener" class="btn">Open Case Study 04 on GitHub</a>
+            <div>
+              <div class="tradeoff-note" style="margin-bottom: var(--space-md);">
+                <strong>Where Graphify tied / differs:</strong> On <code>immich</code>, Graphify tied <code>ce</code> at <strong>100% (20/20)</strong> on Call Graph &amp; DI (<code>C6</code>) and 15% (3/20) on Inheritance (<code>C7</code>). Evaluated in deterministic <code>--code-only</code> mode; Graphify also offers Leiden clustering, Obsidian exports, and optional LLM document synthesis.
+              </div>
+              <a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn btn--primary" style="width: 100%;">Open Case Study 04 &rarr;</a>
             </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Case Study 02: 324-Service Enterprise Audit</h3>
-              <code class="tone-ok">A/B Transcripts</code>
-            </div>
-            <p class="panel-copy">
-              Full turn-by-turn token accumulation curves, compaction-aware context calculations, and blast-radius verification across 324 microservices, 93 shared libraries, and 33 background workers.
-            </p>
-            <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/02-enterprise-microservices-deep-audit" target="_blank" rel="noopener" class="btn">Open Case Study 02 on GitHub</a>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Case Study 01: 16-Project Polyglot Repo</h3>
-              <code class="tone-ink-2">Self-Contained</code>
-            </div>
-            <p class="panel-copy">
-              Reproducible A/B benchmark executed on the CodeExplorer polyglot repository itself (C# .NET 10 + TypeScript), measuring transitive interface resolution and impact analysis.
-            </p>
-            <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener" class="btn">Open Case Study 01 on GitHub</a>
-            </div>
-          </div>
+          </article>
         </div>
       </div>
     </section>
@@ -1682,8 +288,19 @@ p code, li code, td code, th code {
             <span>CodeExplorer</span>
           </a>
           <p class="panel-copy">
-            Make AI coding agents production-safe. Live 5-layer polyglot architecture intelligence in VS Code, CLI, and MCP.
+            Local 5-layer code graph for engineers and AI agents in VS Code, CLI, and MCP.
           </p>
+        </div>
+
+        <div class="mast-col">
+          <span class="mast-heading">Benchmarks</span>
+          <ul class="mast-list">
+            <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">05: Agent vs. CBM on twenty</a></li>
+            <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+            <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+            <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: 324-Service Audit</a></li>
+            <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">01: 16-Project Audit</a></li>
+          </ul>
         </div>
 
         <div class="mast-col">
@@ -1697,30 +314,19 @@ p code, li code, td code, th code {
         </div>
 
         <div class="mast-col">
-          <span class="mast-heading">Architecture &amp; Docs</span>
+          <span class="mast-heading">Project</span>
           <ul class="mast-list">
             <li><a href="/index.html">Product Overview</a></li>
-            <li><a href="/presentation.html" target="_blank" rel="noopener">Interactive Presentation</a></li>
-            <li><a href="https://github.com/vmikhailov/code-explorer/tree/main/docs" target="_blank" rel="noopener">Ontology Specification</a></li>
-            <li><a href="/llms.txt" target="_blank" rel="noopener">llms.txt for Agents</a></li>
-          </ul>
-        </div>
-
-        <div class="mast-col">
-          <span class="mast-heading">Project &amp; Legal</span>
-          <ul class="mast-list">
             <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub Repository</a></li>
-            <li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release Notes</a></li>
-            <li><a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
-            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener">Benchmark Scripts &amp; CSVs</a></li>
             <li><a href="/privacy.html">Privacy Policy</a></li>
           </ul>
         </div>
       </div>
 
       <div class="mast-bottom">
-        <span>Built by Viacheslav Mikhailov, 100% local SQLite execution</span>
-        <span class="measured">CodeExplorer CLI &amp; Extension v1.75.0</span>
+        <span>Built by Viacheslav Mikhailov · 100% local SQLite execution</span>
+        <span class="measured">CodeExplorer v1.75.0</span>
       </div>
     </div>
   </footer>

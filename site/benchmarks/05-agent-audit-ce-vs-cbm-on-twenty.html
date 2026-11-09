@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Case Study 05: Agent Audit on twentyhq/twenty (CodeExplorer vs. codebase-memory-mcp)</title>
+  <meta name="description" content="Paired AI agent audit on twentyhq/twenty (24,527 files, 2.49M LOC): CodeExplorer Agent (1m 16s, 7 turns, 268K tokens, 100% recall) vs. codebase-memory-mcp Agent (16m 46s, 56 turns, 4.41M tokens, 99.56% recall after 11 Python scripts).">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
+</head>
+<body>
+
+  <header class="slab-header">
+    <nav class="wrap slab-bar" aria-label="Primary">
+      <a href="/index.html" class="brand-lockup">
+        <span class="brand-mark">ce</span>
+        <span>CodeExplorer</span>
+      </a>
+      <ul class="slab-links">
+        <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
+        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html" aria-current="page">05: Agent vs. CBM</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: 324 Services</a></li>
+        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html">01: 16 Projects</a></li>
+      </ul>
+      <div class="slab-actions">
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero-stage">
+      <div class="wrap">
+        <div class="crumb-bar">
+          <div class="crumb-trail">
+            <a href="/benchmarks.html">Benchmarks Catalog</a>
+            <span>/</span>
+            <span class="tone-ink">Case Study 05: Agent Audit on twentyhq/twenty</span>
+          </div>
+          <span class="measured">Target: twentyhq/twenty @ b9ef7107 · Model: Gemini Flash (n = 1 paired run)</span>
+        </div>
+
+        <div class="hero-top">
+          <div>
+            <h1 class="hero-title">Case Study 05: Autonomous agent audit on twentyhq/twenty (ce vs. CBM).</h1>
+          </div>
+          <div class="hero-aside">
+            <p class="hero-lede">
+              Two identical Gemini Flash agents were given the same 4-part architectural audit on the public <code>twentyhq/twenty</code> monorepo (46 packages, 24,527 tracked files, ~2.49M LOC): one equipped with <code>CodeExplorer</code> (<code>v1.75.0</code>) and one equipped with <code>codebase-memory-mcp</code> (<code>v0.12.1</code>). Both graphs were pre-indexed before the run.
+            </p>
+            <div class="hero-controls">
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Agent Outputs &amp; metrics.json</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="panels panels--4" style="margin-top: var(--space-xl);">
+          <div class="panel panel--sunken">
+            <span class="reading tone-ok">13.24×</span>
+            <h2 class="panel-title">Faster Time-to-Answer</h2>
+            <p class="panel-copy"><code>CodeExplorer</code> agent finished in <strong>1m 16s</strong> (<code>76s</code>); <code>CBM</code> agent took <strong>16m 46s</strong> (<code>1,006s</code>).</p>
+            <code class="panel-code">7 turns vs. 56 turns</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-accent">16.46×</span>
+            <h2 class="panel-title">Fewer Input Tokens</h2>
+            <p class="panel-copy"><code>268,124</code> cumulative input tokens vs. <code>4,413,730</code> tokens (<code>chars/4</code> from <code>transcript_full.jsonl</code>).</p>
+            <code class="panel-code">$0.039 vs. $0.276 input cost</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-cool">100% vs. 4.0%</span>
+            <h2 class="panel-title">Native Graph Recall</h2>
+            <p class="panel-copy"><code>ce</code> resolved <strong>454 / 454</strong> items directly from the graph. <code>CBM</code> returned <strong>18 / 454</strong> (only intra-class calls).</p>
+            <code class="panel-code">0 source files read by ce</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading">100% vs. 99.6%</span>
+            <h2 class="panel-title">Final Report Recall</h2>
+            <p class="panel-copy">After abandoning <code>CBM</code> at Turn 5, the <code>CBM</code> agent wrote 11 Python scripts and recovered 452 / 454 items (missing 2 callers).</p>
+            <code class="panel-code">454/454 vs. 452/454</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">1. Execution telemetry scorecard.</h2>
+          <p class="band-lede">
+            All metrics are extracted directly from the runtime logs (<code>transcript_full.jsonl</code>) of conversations <code>9bbbd78c</code> (<code>ce</code>) and <code>a22ec374</code> (<code>CBM</code>). Neither agent was restricted from using <code>rg</code>, Python scripts, or <code>view_file</code> if its graph tool returned incomplete data.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>End-to-End Agent Execution Telemetry on twentyhq/twenty (24,527 files)</span>
+            <span class="measured">Identical Model: Gemini Flash · Simultaneous Execution</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th><code>CBM</code> Agent (<code>cbm</code> CLI + <code>rg</code> + 11 Python Scripts + 27 File Reads)</th>
+                <th><code>CodeExplorer</code> Agent (<code>ce</code> CLI OpenCypher Graph)</th>
+                <th>Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Time to Answer (until <code>send_message</code> call)</td>
+                <td class="cell-loss">1,006.0 s (16 min 46 sec)</td>
+                <td class="cell-win">76.0 s (1 min 16 sec)</td>
+                <td class="cell-win">13.24× faster (-15m 30s)</td>
+              </tr>
+              <tr>
+                <td>Total Session Wall-Clock (incl. ~105 KB report streaming)</td>
+                <td class="cell-loss">1,234.0 s (20 min 34 sec)</td>
+                <td class="cell-win">261.0 s (4 min 21 sec)</td>
+                <td class="cell-win">4.73× faster (-16m 13s)</td>
+              </tr>
+              <tr>
+                <td>Total Trajectory Steps</td>
+                <td class="cell-num">125 steps</td>
+                <td class="cell-win">19 steps</td>
+                <td class="cell-win">6.58× fewer steps</td>
+              </tr>
+              <tr>
+                <td>LLM Reasoning Turns (<code>PLANNER_RESPONSE</code>)</td>
+                <td class="cell-loss">56 turns</td>
+                <td class="cell-win">7 turns</td>
+                <td class="cell-win">8.00× fewer turns (-87.5%)</td>
+              </tr>
+              <tr>
+                <td>Total Tool Calls</td>
+                <td class="cell-loss">62 (3 <code>cbm</code>, 17 <code>rg</code>/Python, 27 <code>view_file</code>, 11 <code>write_file</code> scripts, 3 <code>manage_task</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win">11 (5 <code>ce query</code>, 5 truncated-output log reads, 0 source file reads, 0 scripts, 1 <code>send_message</code>)</td>
+                <td class="cell-win">5.64× fewer calls (0 source reads)</td>
+              </tr>
+              <tr>
+                <td>Raw Tool Output Ingested</td>
+                <td class="cell-num">489,326 chars (~122,332 tokens)</td>
+                <td class="cell-win">225,775 chars (~56,444 tokens)</td>
+                <td class="cell-win">2.17× smaller tool payload</td>
+              </tr>
+              <tr>
+                <td>Internal Reasoning (<code>thinking</code>)</td>
+                <td class="cell-num">17,758 chars (~4,440 tokens)</td>
+                <td class="cell-win">2,582 chars (~646 tokens)</td>
+                <td class="cell-win">6.87× less reasoning overhead</td>
+              </tr>
+              <tr>
+                <td>Cumulative Input Tokens (<code>&Sigma; ActiveContext<sub>t</sub></code>)</td>
+                <td class="cell-loss">17,654,920 chars (~4,413,730 tokens)</td>
+                <td class="cell-win">1,072,496 chars (~268,124 tokens)</td>
+                <td class="cell-win">16.46× fewer input tokens</td>
+              </tr>
+              <tr>
+                <td>Estimated API Cost w/ 90% Cache Discount (Flash / Pro)</td>
+                <td class="cell-num">$0.447 / $1.675 (input: $0.276 / $1.103)</td>
+                <td class="cell-win">$0.127 / $0.449 (input: $0.039 / $0.155)</td>
+                <td class="cell-win">3.52× cheaper total (7.11× on input)</td>
+              </tr>
+              <tr>
+                <td>Direct Graph Recall (Without <code>rg</code> / Python Fallback)</td>
+                <td class="cell-loss">3.96% (18 / 454 items)</td>
+                <td class="cell-win">100.0% (454 / 454 items)</td>
+                <td class="cell-win">25.2× more items from graph</td>
+              </tr>
+              <tr>
+                <td>Final Report Recall (After <code>CBM</code> Agent's 11 Python Scripts)</td>
+                <td class="cell-num">99.56% (452 / 454 — missed 2 callers in <code>RecordExportWorkspaceService</code>)</td>
+                <td class="cell-win">100.0% (454 / 454 items)</td>
+                <td class="cell-win">0 missed callers</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="band band--deep">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">2. Why the CBM agent abandoned codebase-memory-mcp after Turn 5.</h2>
+          <p class="band-lede">
+            In Turns 1–5, <code>cbm_twenty_audit_agent</code> queried <code>codebase-memory-mcp</code> across all four tasks. Here is what each graph returned directly before the <code>CBM</code> agent switched to writing custom Python scripts:
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Native Graph Output (Turns 1–5) vs. Final Agent Report across Tasks 1–4</span>
+            <span class="measured">454 Total Ground-Truth Items</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Audit Task</th>
+                <th>GT Items</th>
+                <th><code>CBM</code> Graph Only (Turns 1–5)</th>
+                <th><code>CBM</code> Final (+11 Python Scripts)</th>
+                <th><code>CodeExplorer</code> Graph Only (5 Queries)</th>
+                <th>Root Cause of <code>CBM</code> Graph Gap</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Task 1: Cross-Module DI Service Call Fan-In</strong><br><code>BillingSubscriptionService</code> (25), <code>FeatureFlagService</code> (91), <code>JwtWrapperService</code> (32), <code>ThrottlerService</code> (21)</td>
+                <td class="cell-num">169</td>
+                <td class="cell-loss">18 / 169 (10.7%)<br>(0 / 151 cross-file DI calls)</td>
+                <td class="cell-num">167 / 169 (98.8%)<br>(missed 2 on <code>JwtWrapperService</code>)</td>
+                <td class="cell-win">169 / 169 (100%)<br>(+15 test edges)</td>
+                <td><code>CBM</code> tracks intra-class <code>this.method()</code> calls but does not resolve TypeScript constructor-injected fields (<code>private readonly svc: Svc</code>) across files.</td>
+              </tr>
+              <tr>
+                <td><strong>Task 2: Class Inheritance &amp; Interface Realization</strong><br><code>SyncableEntity</code> (43), <code>WorkspaceRelatedEntity</code> (67), <code>WorkspaceEntityMigrationBuilderService</code> (42), <code>WorkspaceResolverBuilderFactoryInterface</code> (15)</td>
+                <td class="cell-num">167</td>
+                <td class="cell-loss">0 / 167 (0.0%)<br>(250 unrelated rows)</td>
+                <td class="cell-win">167 / 167 (100%)<br>(via <code>analyze_task2.py</code>)</td>
+                <td class="cell-win">167 / 167 (100%)</td>
+                <td><code>CBM</code> does not link <code>INHERITS</code> / <code>IMPLEMENTS</code> when the base class or generic interface is imported from another TypeScript module.</td>
+              </tr>
+              <tr>
+                <td><strong>Task 3: BullMQ Asynchronous Queue Topology</strong><br>Producers (39) &amp; <code>@Processor</code> Consumers (37) across <code>MESSAGE_QUEUES</code></td>
+                <td class="cell-num">76</td>
+                <td class="cell-loss">0 / 76 (0.0%)<br>(10 Node <code>.on('data')</code> events)</td>
+                <td class="cell-win">76 / 76 (100%)<br>(via <code>analyze_task3_v2.py</code>)</td>
+                <td class="cell-win">76 / 76 (100%)</td>
+                <td><code>CBM</code> does not model NestJS <code>@InjectMessageQueue</code> or <code>@Processor</code> decorators.</td>
+              </tr>
+              <tr>
+                <td><strong>Task 4: End-to-End API-to-Database Write Lineage</strong><br>GraphQL <code>@Mutation</code> / REST &rarr; Service (0..3 hops) &rarr; TypeORM <code>Table</code></td>
+                <td class="cell-num">42 handlers<br>(40 endpoints)</td>
+                <td class="cell-loss">0 / 42 (0.0%)<br>(10 raw ClickHouse tables)</td>
+                <td class="cell-win">42 / 42 (100%)<br>(via 4 Python scripts + 24 file reads)</td>
+                <td class="cell-win">42 / 42 (100%)<br>(61 write paths across 15 tables)</td>
+                <td><code>CBM</code> does not model TypeORM <code>@Entity</code> tables, repository write methods, or GraphQL <code>@Mutation</code> endpoints.</td>
+              </tr>
+              <tr class="row-total">
+                <td>Total Across All 4 Tasks</td>
+                <td class="cell-num">454</td>
+                <td class="cell-loss">18 / 454 (3.96%)</td>
+                <td class="cell-num">452 / 454 (99.56%)</td>
+                <td class="cell-win">454 / 454 (100.0%)</td>
+                <td><code>CodeExplorer</code> resolved 100% from <code>graph.db</code>; <code>CBM</code> agent had to write 11 Python scripts.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sub-block">
+          <h3 class="sub-title">Verbatim Thinking Trace from CBM Agent (Step 5, 40s into the run)</h3>
+          <pre class="code-block">"Wait: in Task 1, caller_name is in the same class (BillingSubscriptionService, FeatureFlagService, JwtWrapperService, ThrottlerService)!
+That means service dependencies are not being fully captured in the codebase memory. The codebase memory only appears to track intra-class
+method calls, and it misses constructor-injected dependencies across different classes. Let me use rg or python scripts to do a fast and
+accurate check of the codebase."</pre>
+        </div>
+
+        <div class="sub-block">
+          <h3 class="sub-title">Source Proof: The 2 Callers Missed by the CBM Agent's Custom Python Parser</h3>
+          <p class="band-lede" style="margin-bottom: var(--space-md);">
+            In <code>packages/twenty-server/src/engine/core-modules/record-export/services/record-export.workspace-service.ts</code>, the <code>CBM</code> agent's brace-counting Python script (<code>analyze_task1_v2.py</code>) lost track of method boundaries after inline object-literal callbacks and multi-line return type annotations, missing two production calls to <code>JwtWrapperService</code>:
+          </p>
+          <pre class="code-block">// 1. Missed at line 427–433 (return type object literal confused the Python brace counter):
+async verifyDownloadToken(
+  token: string,
+): Promise&lt;{ workspaceId: string; userId: string; tokenHash: string }&gt; {
+  try {
+    await this.jwtWrapperService.verifyJwtToken(token);
+
+// 2. Missed at line 607–611 (curried invocation extractJwtFromRequest()(request)):
+private getRequestTokenHashOrThrow(request: Request): string {
+  const rawToken =
+    this.jwtWrapperService.extractJwtFromRequest()(request);</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">3. Turn-by-turn context accumulation curve.</h2>
+          <p class="band-lede">
+            Every LLM turn re-sends the active conversation history. Because the <code>CodeExplorer</code> agent finished in 7 turns while the <code>CBM</code> agent iterated through 56 turns of script debugging and file reading, cumulative input tokens differed by <strong>16.46×</strong>.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Active Context &amp; Cumulative Input Tokens by Turn Milestone</span>
+            <span class="measured">Source: results/metrics.json</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Milestone</th>
+                <th><code>CBM</code> Agent Active Context (Cumulative Input)</th>
+                <th><code>CodeExplorer</code> Agent Active Context (Cumulative Input)</th>
+                <th>Agent Activity at Milestone</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Turn 1</td>
+                <td class="cell-num">1,034 tokens (762 cum.)</td>
+                <td class="cell-num">1,959 tokens (762 cum.)</td>
+                <td>Both agents dispatch initial graph queries.</td>
+              </tr>
+              <tr>
+                <td>Turn 3</td>
+                <td class="cell-num">2,788 tokens (5,200 cum.)</td>
+                <td class="cell-num">22,584 tokens (29,997 cum.)</td>
+                <td><code>ce</code> retrieves Tasks 1–3; <code>CBM</code> sees 0 results on Tasks 2–4.</td>
+              </tr>
+              <tr>
+                <td>Turn 5</td>
+                <td class="cell-num">4,561 tokens (13,729 cum.)</td>
+                <td class="cell-num">48,457 tokens (123,922 cum.)</td>
+                <td><code>CBM</code> agent diagnoses missing DI edges and abandons <code>cbm</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Turn 7 (<code>ce</code> Done @ 1m 16s)</strong></td>
+                <td class="cell-num">16,034 tokens (35,084 cum.)</td>
+                <td class="cell-win">85,219 tokens (268,124 cum. — Complete)</td>
+                <td><strong><code>ce</code> agent sends complete 103.7 KB report; <code>CBM</code> agent writes <code>analyze_task1.py</code>.</strong></td>
+              </tr>
+              <tr>
+                <td>Turn 15</td>
+                <td class="cell-num">41,194 tokens (264,530 cum.)</td>
+                <td class="cell-num">&mdash;</td>
+                <td><code>CBM</code> agent writing Python scripts for Tasks 2 &amp; 3.</td>
+              </tr>
+              <tr>
+                <td>Turn 30</td>
+                <td class="cell-num">85,602 tokens (1,279,536 cum.)</td>
+                <td class="cell-num">&mdash;</td>
+                <td><code>CBM</code> agent reading GraphQL resolvers and TypeORM services.</td>
+              </tr>
+              <tr>
+                <td>Turn 45</td>
+                <td class="cell-num">124,084 tokens (2,879,781 cum.)</td>
+                <td class="cell-num">&mdash;</td>
+                <td><code>CBM</code> agent iterating on <code>analyze_task4_v3.py</code> / <code>v4.py</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Turn 56 (<code>CBM</code> Done @ 16m 46s)</strong></td>
+                <td class="cell-loss">175,144 tokens (4,413,730 cum.)</td>
+                <td class="cell-num">&mdash;</td>
+                <td><code>CBM</code> agent sends final report at 1,006.0 s.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mast-footer">
+    <div class="wrap">
+      <div class="mast-bottom" style="padding-top: 0;">
+        <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
+        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener">View Case Study 05 on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

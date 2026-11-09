@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Case Study 01: 16-Project Polyglot Audit (CodeExplorer vs. ripgrep)</title>
+  <meta name="description" content="Self-contained paired AI agent benchmark on the CodeExplorer repository (16 projects, C# .NET 10 + TypeScript): 2.35x faster (2m 11s vs. 5m 08s), 2.52x fewer tokens (633K vs. 1.59M), 100% recall for both agents.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
+</head>
+<body>
+
+  <header class="slab-header">
+    <nav class="wrap slab-bar" aria-label="Primary">
+      <a href="/index.html" class="brand-lockup">
+        <span class="brand-mark">ce</span>
+        <span>CodeExplorer</span>
+      </a>
+      <ul class="slab-links">
+        <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
+        <li><a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">05: Agent vs. CBM</a></li>
+        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
+        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
+        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: 324 Services</a></li>
+        <li><a href="/benchmarks/01-polyglot-architecture-and-blast-radius.html" aria-current="page">01: 16 Projects</a></li>
+      </ul>
+      <div class="slab-actions">
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero-stage">
+      <div class="wrap">
+        <div class="crumb-bar">
+          <div class="crumb-trail">
+            <a href="/benchmarks.html">Benchmarks Catalog</a>
+            <span>/</span>
+            <span class="tone-ink">Case Study 01: 16-Project Polyglot Audit</span>
+          </div>
+          <span class="measured">Target: vmikhailov/code-explorer (16 projects, C# .NET 10 + TypeScript) · Model: Gemini Flash (n = 1)</span>
+        </div>
+
+        <div class="hero-top">
+          <div>
+            <h1 class="hero-title">Case Study 01: 16-project polyglot repository audit (ce vs. ripgrep).</h1>
+          </div>
+          <div class="hero-aside">
+            <p class="hero-lede">
+              Self-contained A/B benchmark executed on the <code>code-explorer</code> repository itself (16 projects across C# .NET 10 and TypeScript VS Code extension). Evaluates how much difference a graph makes on a small-to-medium codebase where <code>ripgrep</code> can still find 100% of answers.
+            </p>
+            <div class="hero-controls">
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius/prompts" target="_blank" rel="noopener" class="btn">View Exact Prompts</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="panels panels--4" style="margin-top: var(--space-xl);">
+          <div class="panel panel--sunken">
+            <span class="reading tone-ok">2.35×</span>
+            <h2 class="panel-title">Faster Time-to-Answer</h2>
+            <p class="panel-copy"><code>2m 11s</code> (<code>131s</code>) with CodeExplorer vs. <code>5m 08s</code> (<code>308s</code>) with <code>ripgrep</code> + <code>view_file</code>.</p>
+            <code class="panel-code">30 turns vs. 59 turns</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-accent">2.52×</span>
+            <h2 class="panel-title">Fewer Input Tokens</h2>
+            <p class="panel-copy"><code>632,786</code> cumulative input tokens vs. <code>1,593,421</code> tokens.</p>
+            <code class="panel-code">$0.075 vs. $0.140 API cost</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-cool">3.73×</span>
+            <h2 class="panel-title">Smaller Tool Output</h2>
+            <p class="panel-copy"><code>39.2 KB</code> of raw tool output ingested vs. <code>146.1 KB</code> of <code>rg</code> slices and file reads.</p>
+            <code class="panel-code">9,803 vs. 36,527 tool tokens</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading">100% Tie</span>
+            <h2 class="panel-title">Same Recall on 16 Projects</h2>
+            <p class="panel-copy">On a 16-project codebase, <code>ripgrep</code> + manual file reading achieved the exact same 100% completeness as the graph agent.</p>
+            <code class="panel-code">0 missed callers for both</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">1. Execution telemetry scorecard.</h2>
+          <p class="band-lede">
+            Tested across four tasks on <code>code-explorer</code>: (1) 2-hop transitive inheritance &amp; interface realization of <code>ILanguageLibraryParser</code> (70 classes), (2) blast-radius call graph of <code>GraphStore</code>, (3) cross-project dependency fan-in, and (4) Semantic Invariant Gate rule verification.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Paired A/B Agent Telemetry on code-explorer (16 Projects, C# + TypeScript)</span>
+            <span class="measured">Source: benchmarks/01-polyglot-architecture-and-blast-radius/results/metrics.json</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th><code>ripgrep</code> + File Read Agent</th>
+                <th><code>CodeExplorer</code> Graph Agent</th>
+                <th>Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Time to Answer (<code>send_message</code>)</td>
+                <td class="cell-loss">308.0 s (5 min 08 sec)</td>
+                <td class="cell-win">131.0 s (2 min 11 sec)</td>
+                <td class="cell-win">2.35× faster (-2m 57s)</td>
+              </tr>
+              <tr>
+                <td>LLM Reasoning Turns</td>
+                <td class="cell-loss">59 turns</td>
+                <td class="cell-win">30 turns</td>
+                <td class="cell-win">1.97× fewer turns (-49.2%)</td>
+              </tr>
+              <tr>
+                <td>Raw Tool Output Ingested</td>
+                <td class="cell-loss">146,108 chars (~36,527 tokens)</td>
+                <td class="cell-win">39,212 chars (~9,803 tokens)</td>
+                <td class="cell-win">3.73× less tool payload</td>
+              </tr>
+              <tr>
+                <td>Cumulative Input Tokens</td>
+                <td class="cell-loss">6,373,684 chars (~1,593,421 tokens)</td>
+                <td class="cell-win">2,531,144 chars (~632,786 tokens)</td>
+                <td class="cell-win">2.52× fewer input tokens</td>
+              </tr>
+              <tr>
+                <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
+                <td class="cell-num">$0.140</td>
+                <td class="cell-win">$0.075</td>
+                <td class="cell-win">1.87× cheaper</td>
+              </tr>
+              <tr>
+                <td>Audit Completeness (Tasks 1–4)</td>
+                <td class="cell-win">100% (Complete)</td>
+                <td class="cell-win">100% (Complete)</td>
+                <td><strong>Tie on accuracy (both 100%)</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tradeoff-note" style="margin-top: var(--space-md);">
+          <strong>Takeaway on codebase scale:</strong> On a 16-project repository, an agent with <code>ripgrep</code> does not miss callers—it simply needs ~2× more turns (for example, running two sequential searches when discovering that 62 language library parsers inherit from abstract base classes like <code>GoLibraryParserBase</code> rather than implementing <code>ILanguageLibraryParser</code> directly). The accuracy gap between lexical search and a semantic graph emerges on large monorepos like <a href="/benchmarks/05-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 05 (24,527 files)</a> and <a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02 (324 services)</a>.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mast-footer">
+    <div class="wrap">
+      <div class="mast-bottom" style="padding-top: 0;">
+        <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
+        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener">View Case Study 01 on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
