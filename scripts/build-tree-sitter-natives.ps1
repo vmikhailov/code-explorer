@@ -116,7 +116,7 @@ $zigExe = Resolve-ZigExe
 Write-Host "[tree-sitter-native] Using Zig: $zigExe" -ForegroundColor Cyan
 
 # 3. Fetch pinned C sources into cli/.Build/tree-sitter-native/src
-function Ensure-GrammarRepo([string]$Name, [string]$RepoUrl, [string]$CommitSha, [string]$LocalFallback) {
+function Ensure-GrammarRepo([string]$Name, [string]$RepoUrl, [string]$CommitSha) {
     $dest = Join-Path $workDir "src/$Name"
     $headFile = Join-Path $dest ".commit"
     if ((Test-Path $headFile) -and ((Get-Content $headFile -Raw).Trim() -eq $CommitSha)) {
@@ -128,17 +128,6 @@ function Ensure-GrammarRepo([string]$Name, [string]$RepoUrl, [string]$CommitSha,
     }
     New-Item -ItemType Directory -Force $dest | Out-Null
 
-    if ($LocalFallback -and (Test-Path (Join-Path $LocalFallback ".git"))) {
-        $localHead = (& git -C $LocalFallback rev-parse HEAD 2>$null).Trim()
-        if ($localHead -eq $CommitSha) {
-            Write-Host "[tree-sitter-native] Copying $Name @ $CommitSha from local checkout $LocalFallback ..." -ForegroundColor Cyan
-            & git clone --quiet --no-checkout $LocalFallback $dest
-            & git -C $dest checkout --quiet $CommitSha
-            Set-Content $headFile $CommitSha -NoNewline
-            return $dest
-        }
-    }
-
     Write-Host "[tree-sitter-native] Fetching $Name @ $CommitSha from $RepoUrl ..." -ForegroundColor Cyan
     & git init --quiet $dest
     & git -C $dest remote add origin $RepoUrl
@@ -148,8 +137,8 @@ function Ensure-GrammarRepo([string]$Name, [string]$RepoUrl, [string]$CommitSha,
     return $dest
 }
 
-$csSrc = Ensure-GrammarRepo -Name "tree-sitter-c-sharp" -RepoUrl $csharpRepo -CommitSha $csharpCommit -LocalFallback "C:/Work/Github/tree-sitter-c-sharp"
-$tsSrc = Ensure-GrammarRepo -Name "tree-sitter-typescript" -RepoUrl $tsRepo -CommitSha $tsCommit -LocalFallback "C:/Work/Github/tree-sitter-typescript"
+$csSrc = Ensure-GrammarRepo -Name "tree-sitter-c-sharp" -RepoUrl $csharpRepo -CommitSha $csharpCommit
+$tsSrc = Ensure-GrammarRepo -Name "tree-sitter-typescript" -RepoUrl $tsRepo -CommitSha $tsCommit
 
 # 4. Target mapping for Zig CC
 $targetMap = @{
