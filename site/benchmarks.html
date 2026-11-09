@@ -79,35 +79,35 @@
                 <td><strong><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
                 <td>4-part autonomous AI agent architectural audit on the <code>twentyhq/twenty</code> monorepo (TypeScript, NestJS, GraphQL, TypeORM, BullMQ): cross-module DI call graph, class inheritance, queue producers/consumers, and API-to-database write lineage.</td>
                 <td><code>CodeExplorer</code> Agent<br>vs.<br><code>codebase-memory-mcp</code> Agent</td>
-                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td class="cell-win"><strong>CodeExplorer won</strong> on speed, token usage, and recall</td>
                 <td><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" class="btn btn--primary">Open Case Study 01 &rarr;</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02</a></strong><br><span class="tone-muted">Enterprise Monorepo</span></td>
                 <td>4-part autonomous AI agent blast-radius audit across a distributed microservices platform (TypeScript, Go, SQL): shared ORM table persistence, synchronous cross-service call fan-in, polyglot Pub/Sub &amp; RabbitMQ queues, and multi-hop inheritance.</td>
                 <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> + Python Agent</td>
-                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td class="cell-win"><strong>CodeExplorer won</strong> on speed, token usage, and service-call recall<br><span class="tone-muted">Tied on DB tables &amp; inheritance</span></td>
                 <td><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn">Open Case Study 02 &rarr;</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">Case Study 03</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
                 <td>Deterministic indexer &amp; MCP server evaluation on <code>twentyhq/twenty</code> and <code>immich-app/immich</code>: cold indexing speed, memory/disk footprint, Layer 1–3 Common Ground recall, Layer 4–5 Architecture recall, and JSON-RPC query latency.</td>
                 <td><code>CodeExplorer</code><br>vs.<br><code>codebase-memory-mcp</code></td>
-                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td class="cell-num"><strong class="tone-ok">CodeExplorer won</strong> on recall, DB size &amp; Cypher latency<br><strong class="tone-accent">CBM won</strong> on <code>twenty</code> cold scan speed &amp; peak RAM</td>
                 <td><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn">Open Case Study 03 &rarr;</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/04-code-explorer-vs-graphify.html">Case Study 04</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
                 <td>Deterministic indexer &amp; MCP server evaluation on <code>twentyhq/twenty</code> and <code>immich-app/immich</code>: cold indexing scalability, Layer 1–3 Common Ground recall, Layer 4–5 Architecture recall, and MCP cold startup &amp; query latency.</td>
                 <td><code>CodeExplorer</code><br>vs.<br><code>Graphify</code></td>
-                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td class="cell-win"><strong>CodeExplorer won</strong> on indexing speed, scalability &amp; overall recall<br><span class="tone-muted">Tied on <code>immich</code> call graph &amp; inheritance</span></td>
                 <td><a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn">Open Case Study 04 &rarr;</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case Study 05</a></strong><br><span class="tone-muted">Public Open-Source</span></td>
                 <td>Self-contained autonomous AI agent audit on the <code>code-explorer</code> polyglot repository (C# .NET 10 + TypeScript): 2-hop interface realization, call-graph impact analysis, project dependency fan-in, and architectural gate verification.</td>
                 <td><code>CodeExplorer</code> Agent<br>vs.<br><code>ripgrep</code> Agent</td>
-                <td class="cell-win"><strong>Winner: CodeExplorer</strong></td>
+                <td class="cell-num"><strong class="tone-ok">CodeExplorer won</strong> on speed &amp; token usage<br><strong class="tone-ink">Tied</strong> on recall</td>
                 <td><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" class="btn">Open Case Study 05 &rarr;</a></td>
               </tr>
             </tbody>
