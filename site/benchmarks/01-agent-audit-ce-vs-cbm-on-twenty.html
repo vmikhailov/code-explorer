@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
+  <link rel="stylesheet" href="benchmarks.css">
 </head>
 <body>
 
@@ -20,7 +20,7 @@
         <span>CodeExplorer</span>
       </a>
       <ul class="slab-links">
-        <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
+        <li><a href="/benchmarks.html" class="nav-framed">All Benchmarks</a></li>
         <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" aria-current="page">01: Agent vs. CBM (twenty)</a></li>
         <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: Agent vs. ripgrep (324 Services)</a></li>
         <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
@@ -42,7 +42,7 @@
             <span>/</span>
             <span class="tone-ink">Case Study 01: Agent Audit on twentyhq/twenty</span>
           </div>
-          <span class="measured">Target: twentyhq/twenty @ b9ef7107 · Model: Gemini Flash (n = 1 paired run)</span>
+          <span class="measured">Target: twentyhq/twenty @ b9ef7107, Model: Gemini Flash (n = 1 paired run)</span>
         </div>
 
         <div class="hero-top">
@@ -89,11 +89,15 @@
         </div>
 
         <div id="prompts" class="prompt-stack">
+          <div class="prompt-stack-head">
+            <h2 class="prompt-stack-title">Tested prompts &amp; agent system instructions.</h2>
+            <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
+          </div>
           <details class="prompt-drawer">
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--accent">Task Prompt</span>
-                <span>prompts/task-prompt.md &mdash; Shared 4-Part Audit Task Given Identically to Both Agents</span>
+                <span>prompts/task-prompt.md: Shared 4-Part Audit Task Given Identically to Both Agents</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -141,7 +145,7 @@
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--win">System Prompt (ce)</span>
-                <span>prompts/ce-agent.md &mdash; System Instructions for CodeExplorer Agent (ce_twenty_audit_agent)</span>
+                <span>prompts/ce-agent.md: System Instructions for CodeExplorer Agent (ce_twenty_audit_agent)</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -181,7 +185,7 @@ CRITICAL BENCHMARK &amp; EFFICIENCY RULES:
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--cool">System Prompt (CBM)</span>
-                <span>prompts/cbm-agent.md &mdash; System Instructions for codebase-memory-mcp Agent (cbm_twenty_audit_agent)</span>
+                <span>prompts/cbm-agent.md: System Instructions for codebase-memory-mcp Agent (cbm_twenty_audit_agent)</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -226,7 +230,7 @@ CRITICAL BENCHMARK RULES:
         <div class="table-surface">
           <div class="table-caption-bar">
             <span>End-to-End Agent Execution Telemetry on twentyhq/twenty (24,527 files)</span>
-            <span class="measured">Identical Model: Gemini Flash · Simultaneous Execution</span>
+            <span class="measured">Identical Model: Gemini Flash, Simultaneous Execution</span>
           </div>
           <table class="bench-table">
             <thead>
@@ -299,8 +303,8 @@ CRITICAL BENCHMARK RULES:
                 <td class="cell-win">25.2× more items from graph</td>
               </tr>
               <tr>
-                <td>Final Report Recall (After <code>CBM</code> Agent's 11 Python Scripts)</td>
-                <td class="cell-num">99.56% (452 / 454 — missed 2 callers in <code>RecordExportWorkspaceService</code>)</td>
+                <td>Final Report Recall (After <code>CBM</code> Agent&rsquo;s 11 Python Scripts)</td>
+                <td class="cell-num">99.56% (452 / 454, missed 2 callers in <code>RecordExportWorkspaceService</code>)</td>
                 <td class="cell-win">100.0% (454 / 454 items)</td>
                 <td class="cell-win">0 missed callers</td>
               </tr>
@@ -315,13 +319,13 @@ CRITICAL BENCHMARK RULES:
         <div class="band-head">
           <h2 class="band-title">2. Why the CBM agent abandoned codebase-memory-mcp after Turn 5.</h2>
           <p class="band-lede">
-            In Turns 1–5, <code>cbm_twenty_audit_agent</code> queried <code>codebase-memory-mcp</code> across all four tasks. Here is what each graph returned directly before the <code>CBM</code> agent switched to writing custom Python scripts:
+            In Turns 1 to 5, <code>cbm_twenty_audit_agent</code> queried <code>codebase-memory-mcp</code> across all four tasks. Here is what each graph returned directly before the <code>CBM</code> agent switched to writing custom Python scripts:
           </p>
         </div>
 
         <div class="table-surface">
           <div class="table-caption-bar">
-            <span>Native Graph Output (Turns 1–5) vs. Final Agent Report across Tasks 1–4</span>
+            <span>Native Graph Output (Turns 1 to 5) vs. Final Agent Report across Tasks 1 to 4</span>
             <span class="measured">454 Total Ground-Truth Items</span>
           </div>
           <table class="bench-table">
@@ -329,7 +333,7 @@ CRITICAL BENCHMARK RULES:
               <tr>
                 <th>Audit Task</th>
                 <th>GT Items</th>
-                <th><code>CBM</code> Graph Only (Turns 1–5)</th>
+                <th><code>CBM</code> Graph Only (Turns 1 to 5)</th>
                 <th><code>CBM</code> Final (+11 Python Scripts)</th>
                 <th><code>CodeExplorer</code> Graph Only (5 Queries)</th>
                 <th>Root Cause of <code>CBM</code> Graph Gap</th>
@@ -361,7 +365,7 @@ CRITICAL BENCHMARK RULES:
                 <td><code>CBM</code> does not model NestJS <code>@InjectMessageQueue</code> or <code>@Processor</code> decorators.</td>
               </tr>
               <tr>
-                <td><strong>Task 4: End-to-End API-to-Database Write Lineage</strong><br>GraphQL <code>@Mutation</code> / REST &rarr; Service (0..3 hops) &rarr; TypeORM <code>Table</code></td>
+                <td><strong>Task 4: End-to-End API-to-Database Write Lineage</strong><br>GraphQL <code>@Mutation</code> / REST to Service (0..3 hops) to TypeORM <code>Table</code></td>
                 <td class="cell-num">42 handlers<br>(40 endpoints)</td>
                 <td class="cell-loss">0 / 42 (0.0%)<br>(10 raw ClickHouse tables)</td>
                 <td class="cell-win">42 / 42 (100%)<br>(via 4 Python scripts + 24 file reads)</td>
@@ -389,9 +393,9 @@ accurate check of the codebase."</pre>
         </div>
 
         <div class="sub-block">
-          <h3 class="sub-title">Source Proof: The 2 Callers Missed by the CBM Agent's Custom Python Parser</h3>
+          <h3 class="sub-title">Source Proof: The 2 Callers Missed by the CBM Agent&rsquo;s Custom Python Parser</h3>
           <p class="band-lede" style="margin-bottom: var(--space-md);">
-            In <code>packages/twenty-server/src/engine/core-modules/record-export/services/record-export.workspace-service.ts</code>, the <code>CBM</code> agent's brace-counting Python script (<code>analyze_task1_v2.py</code>) lost track of method boundaries after inline object-literal callbacks and multi-line return type annotations, missing two production calls to <code>JwtWrapperService</code>:
+            In <code>packages/twenty-server/src/engine/core-modules/record-export/services/record-export.workspace-service.ts</code>, the <code>CBM</code> agent&rsquo;s brace-counting Python script (<code>analyze_task1_v2.py</code>) lost track of method boundaries after inline object-literal callbacks and multi-line return type annotations, missing two production calls to <code>JwtWrapperService</code>:
           </p>
           <pre class="code-block">// 1. Missed at line 427–433 (return type object literal confused the Python brace counter):
 async verifyDownloadToken(
@@ -442,7 +446,7 @@ private getRequestTokenHashOrThrow(request: Request): string {
                 <td>Turn 3</td>
                 <td class="cell-num">2,788 tokens (5,200 cum.)</td>
                 <td class="cell-num">22,584 tokens (29,997 cum.)</td>
-                <td><code>ce</code> retrieves Tasks 1–3; <code>CBM</code> sees 0 results on Tasks 2–4.</td>
+                <td><code>ce</code> retrieves Tasks 1 to 3; <code>CBM</code> sees 0 results on Tasks 2 to 4.</td>
               </tr>
               <tr>
                 <td>Turn 5</td>
@@ -453,31 +457,31 @@ private getRequestTokenHashOrThrow(request: Request): string {
               <tr>
                 <td><strong>Turn 7 (<code>ce</code> Done @ 1m 16s)</strong></td>
                 <td class="cell-num">16,034 tokens (35,084 cum.)</td>
-                <td class="cell-win">85,219 tokens (268,124 cum. — Complete)</td>
+                <td class="cell-win">85,219 tokens (268,124 cum., Complete)</td>
                 <td><strong><code>ce</code> agent sends complete 103.7 KB report; <code>CBM</code> agent writes <code>analyze_task1.py</code>.</strong></td>
               </tr>
               <tr>
                 <td>Turn 15</td>
                 <td class="cell-num">41,194 tokens (264,530 cum.)</td>
-                <td class="cell-num">&mdash;</td>
+                <td class="cell-num">Completed at Turn 7</td>
                 <td><code>CBM</code> agent writing Python scripts for Tasks 2 &amp; 3.</td>
               </tr>
               <tr>
                 <td>Turn 30</td>
                 <td class="cell-num">85,602 tokens (1,279,536 cum.)</td>
-                <td class="cell-num">&mdash;</td>
+                <td class="cell-num">Completed at Turn 7</td>
                 <td><code>CBM</code> agent reading GraphQL resolvers and TypeORM services.</td>
               </tr>
               <tr>
                 <td>Turn 45</td>
                 <td class="cell-num">124,084 tokens (2,879,781 cum.)</td>
-                <td class="cell-num">&mdash;</td>
+                <td class="cell-num">Completed at Turn 7</td>
                 <td><code>CBM</code> agent iterating on <code>analyze_task4_v3.py</code> / <code>v4.py</code>.</td>
               </tr>
               <tr>
                 <td><strong>Turn 56 (<code>CBM</code> Done @ 16m 46s)</strong></td>
                 <td class="cell-loss">175,144 tokens (4,413,730 cum.)</td>
-                <td class="cell-num">&mdash;</td>
+                <td class="cell-num">Completed at Turn 7</td>
                 <td><code>CBM</code> agent sends final report at 1,006.0 s.</td>
               </tr>
             </tbody>
@@ -490,7 +494,7 @@ private getRequestTokenHashOrThrow(request: Request): string {
   <footer class="mast-footer">
     <div class="wrap">
       <div class="mast-bottom" style="padding-top: 0;">
-        <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
+        <span><a href="/benchmarks.html">Back to Benchmarks Catalog</a></span>
         <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty" target="_blank" rel="noopener">View Case Study 01 on GitHub</a></span>
       </div>
     </div>

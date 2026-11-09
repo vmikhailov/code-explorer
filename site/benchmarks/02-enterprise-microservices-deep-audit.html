@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
+  <link rel="stylesheet" href="benchmarks.css">
 </head>
 <body>
 
@@ -20,7 +20,7 @@
         <span>CodeExplorer</span>
       </a>
       <ul class="slab-links">
-        <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
+        <li><a href="/benchmarks.html" class="nav-framed">All Benchmarks</a></li>
         <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">01: Agent vs. CBM (twenty)</a></li>
         <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" aria-current="page">02: Agent vs. ripgrep (324 Services)</a></li>
         <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
@@ -42,7 +42,7 @@
             <span>/</span>
             <span class="tone-ink">Case Study 02: 324-Service Enterprise Monorepo Audit</span>
           </div>
-          <span class="measured">450 modules (324 services, 13,782 files, TS + Go + SQL) · Model: Gemini Flash (n = 1)</span>
+          <span class="measured">450 modules (324 services, 13,782 files, TS + Go + SQL), Model: Gemini Flash (n = 1)</span>
         </div>
 
         <div class="hero-top">
@@ -93,11 +93,15 @@
         </div>
 
         <div id="prompts" class="prompt-stack">
+          <div class="prompt-stack-head">
+            <h2 class="prompt-stack-title">Tested prompts &amp; agent system instructions.</h2>
+            <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
+          </div>
           <details class="prompt-drawer">
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--accent">Task Prompt</span>
-                <span>prompts/task-prompt.md &mdash; Shared 4-Part Cross-Service Audit Task Given Identically to Both Agents</span>
+                <span>prompts/task-prompt.md: Shared 4-Part Cross-Service Audit Task Given Identically to Both Agents</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -145,7 +149,7 @@
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--win">System Prompt (ce)</span>
-                <span>prompts/graph-agent.md &mdash; System Instructions for CodeExplorer Graph Agent (enterprise_ce_graph_agent)</span>
+                <span>prompts/graph-agent.md: System Instructions for CodeExplorer Graph Agent (enterprise_ce_graph_agent)</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -182,7 +186,7 @@ CRITICAL INSTRUCTIONS FOR MAXIMUM EFFICIENCY:
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--cool">System Prompt (ripgrep)</span>
-                <span>prompts/baseline-agent.md &mdash; System Instructions for ripgrep Baseline Agent (enterprise_rg_baseline_agent)</span>
+                <span>prompts/baseline-agent.md: System Instructions for ripgrep Baseline Agent (enterprise_rg_baseline_agent)</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -297,7 +301,7 @@ CRITICAL BENCHMARK RULES:
         <div class="table-surface">
           <div class="table-caption-bar">
             <span>Task-Level Comparison Across 450 Modules</span>
-            <span class="measured">175,420 Nodes · 361,890 Edges in .codeexplorer/graph.db</span>
+            <span class="measured">175,420 Nodes, 361,890 Edges in .codeexplorer/graph.db</span>
           </div>
           <table class="bench-table">
             <thead>
@@ -343,7 +347,7 @@ CRITICAL BENCHMARK RULES:
   <footer class="mast-footer">
     <div class="wrap">
       <div class="mast-bottom" style="padding-top: 0;">
-        <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
+        <span><a href="/benchmarks.html">Back to Benchmarks Catalog</a></span>
         <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/02-enterprise-microservices-deep-audit" target="_blank" rel="noopener">View Case Study 02 on GitHub</a></span>
       </div>
     </div>

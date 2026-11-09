@@ -1,4 +1,5 @@
-/* Shared Console Stylesheet for CodeExplorer Benchmark Catalog & Case Study Pages */
+/* Hallmark · theme: Console · modern-minimal · dark · restrained · host-grotesk + atkinson-hyperlegible-mono · hero: stage · nav: slab · footer: mast · redesign: full */
+/* Pre-emit critique: Console (graphite) theme shared across the benchmark catalog and five case study reports. Two faces: Host Grotesk for display, body, labels, and controls; Atkinson Hyperlegible Mono for code, timings, queries, and tabular figures. Warm graphite surfaces oklch(17%/21%/13.5% 0.008 250) with 1px rules oklch(31% 0.01 250) and amber signal oklch(82% 0.15 80). Static top slab header keeps the full viewport free for wide telemetry tables and collapsible prompt drawers. */
 
 :root {
   color-scheme: dark;
@@ -12,6 +13,7 @@
   --space-xl: 40px;
   --space-2xl: 64px;
   --space-3xl: 96px;
+  --space-4xl: 144px;
 
   --text-xs: 0.8125rem;
   --text-sm: 0.875rem;
@@ -47,13 +49,17 @@
   --color-rule: oklch(31% 0.01 250);
   --color-rule-2: oklch(42% 0.012 250);
   --color-accent: oklch(82% 0.15 80);
+  --color-accent-hover: oklch(86% 0.14 80);
   --color-accent-ink: oklch(18% 0.04 75);
   --color-accent-soft: oklch(29% 0.05 80);
+  --color-accent-border: oklch(45% 0.08 80);
   --color-focus: oklch(82% 0.15 80);
   --color-cool: oklch(77% 0.12 245);
   --color-cool-soft: oklch(29% 0.05 245);
+  --color-cool-border: oklch(45% 0.08 245);
   --color-ok: oklch(76% 0.15 150);
   --color-ok-soft: oklch(24.5% 0.03 150);
+  --color-ok-border: oklch(42% 0.08 150);
   --color-bad: oklch(70% 0.17 25);
   --color-bad-soft: oklch(24.5% 0.035 25);
 
@@ -95,7 +101,18 @@ html {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
+  scroll-padding-top: var(--space-xl);
   scrollbar-color: var(--color-rule-2) var(--color-paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 body {
@@ -149,6 +166,10 @@ a:hover {
   text-decoration-color: var(--color-accent);
 }
 
+a:active {
+  color: var(--color-accent-hover);
+}
+
 code, pre, .measured {
   font-family: var(--font-outlier);
   font-variant-numeric: tabular-nums slashed-zero;
@@ -160,7 +181,7 @@ p code, li code, td code, th code {
   background: var(--color-paper-3);
   border: 1px solid var(--color-rule);
   border-radius: var(--space-2xs);
-  padding: 1px 6px;
+  padding: var(--space-3xs) var(--space-xs);
 }
 
 .reading {
@@ -190,9 +211,7 @@ p code, li code, td code, th code {
 
 /* Header & Navigation */
 .slab-header {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky-nav);
+  position: relative;
   background: var(--color-paper);
   border-bottom: 1px solid var(--color-rule);
 }
@@ -254,7 +273,7 @@ p code, li code, td code, th code {
 .slab-links a.nav-framed {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  padding: var(--space-2xs) var(--space-sm);
   border: 1px solid var(--color-rule-2);
   border-radius: var(--radius-pill);
   color: var(--color-ink-2);
@@ -289,7 +308,7 @@ p code, li code, td code, th code {
   justify-content: center;
   gap: var(--space-xs);
   min-height: 38px;
-  padding: 8px 14px;
+  padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--color-rule-2);
   border-radius: var(--radius-pill);
   background: var(--color-paper-2);
@@ -309,6 +328,18 @@ p code, li code, td code, th code {
   color: var(--color-ink);
 }
 
+.btn:active {
+  transform: translateY(1px);
+  background: var(--color-paper-3);
+}
+
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .btn--primary {
   background: var(--color-accent);
   color: var(--color-accent-ink);
@@ -316,9 +347,14 @@ p code, li code, td code, th code {
 }
 
 .btn--primary:hover {
-  background: oklch(86% 0.14 80);
+  background: var(--color-accent-hover);
   color: var(--color-accent-ink);
-  border-color: oklch(86% 0.14 80);
+  border-color: var(--color-accent-hover);
+}
+
+.btn--primary:active {
+  transform: translateY(1px);
+  background: var(--color-accent);
 }
 
 /* Breadcrumb Bar */
@@ -401,6 +437,7 @@ p code, li code, td code, th code {
 
 .band--deep {
   background: var(--color-paper-3);
+  color: var(--color-ink);
 }
 
 .band-head {
@@ -462,12 +499,14 @@ p code, li code, td code, th code {
   gap: var(--space-md);
   padding: var(--space-lg);
   background: var(--color-paper-2);
+  color: var(--color-ink);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-card);
 }
 
 .panel--sunken {
   background: var(--color-paper-3);
+  color: var(--color-ink);
 }
 
 .panel--interactive {
@@ -513,6 +552,7 @@ p code, li code, td code, th code {
   gap: var(--space-md);
   padding: var(--space-lg);
   background: var(--color-paper-2);
+  color: var(--color-ink);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-card);
 }
@@ -532,7 +572,7 @@ p code, li code, td code, th code {
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: var(--space-3xs) var(--space-xs);
   border-radius: var(--space-2xs);
   font-family: var(--font-outlier);
   font-size: var(--text-xs);
@@ -543,19 +583,19 @@ p code, li code, td code, th code {
 
 .badge--win {
   color: var(--color-ok);
-  border-color: oklch(42% 0.08 150);
+  border-color: var(--color-ok-border);
   background: var(--color-ok-soft);
 }
 
 .badge--accent {
   color: var(--color-accent);
-  border-color: oklch(45% 0.08 80);
+  border-color: var(--color-accent-border);
   background: var(--color-accent-soft);
 }
 
 .badge--cool {
   color: var(--color-cool);
-  border-color: oklch(45% 0.08 245);
+  border-color: var(--color-cool-border);
   background: var(--color-cool-soft);
 }
 
@@ -572,7 +612,7 @@ p code, li code, td code, th code {
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-md);
-  padding-block: 6px;
+  padding-block: var(--space-xs);
   border-bottom: 1px dashed var(--color-rule);
   font-size: var(--text-sm);
 }
@@ -628,7 +668,7 @@ p code, li code, td code, th code {
 
 .bench-table th,
 .bench-table td {
-  padding: 11px 14px;
+  padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-rule);
   vertical-align: top;
 }
@@ -699,7 +739,29 @@ pre.code-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  margin-top: var(--space-lg);
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--color-rule);
+  scroll-margin-top: var(--space-xl);
+}
+
+.prompt-stack-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.prompt-stack-title {
+  font-size: var(--text-title);
+  color: var(--color-ink);
+}
+
+.prompt-stack-note {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
 }
 
 details.prompt-drawer {
@@ -721,7 +783,7 @@ details.prompt-drawer > summary {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-sm);
-  padding: 12px 16px;
+  padding: var(--space-sm) var(--space-md);
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -741,6 +803,10 @@ details.prompt-drawer > summary:hover {
   color: var(--color-accent);
 }
 
+details.prompt-drawer > summary:active {
+  background: var(--color-paper-3);
+}
+
 .prompt-drawer-title {
   display: inline-flex;
   align-items: center;
@@ -754,7 +820,7 @@ details.prompt-drawer > summary:hover {
   color: var(--color-muted);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
 }
 
 .prompt-drawer-toggle::before {
@@ -825,7 +891,7 @@ details.prompt-drawer[open] > summary .prompt-drawer-toggle::before {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-xs);
 }
 
 .mast-list a {

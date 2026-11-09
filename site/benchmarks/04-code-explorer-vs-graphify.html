@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/benchmarks/benchmarks.css">
+  <link rel="stylesheet" href="benchmarks.css">
 </head>
 <body>
 
@@ -20,7 +20,7 @@
         <span>CodeExplorer</span>
       </a>
       <ul class="slab-links">
-        <li><a href="/benchmarks.html" class="nav-framed">&larr; All Benchmarks</a></li>
+        <li><a href="/benchmarks.html" class="nav-framed">All Benchmarks</a></li>
         <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">01: Agent vs. CBM (twenty)</a></li>
         <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: Agent vs. ripgrep (324 Services)</a></li>
         <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
@@ -70,14 +70,14 @@
           </div>
           <div class="panel panel--sunken">
             <span class="reading tone-accent">78% vs. 18%</span>
-            <h2 class="panel-title">L1–L3 Common Ground</h2>
+            <h2 class="panel-title">Layer 1 to 3 Common Ground</h2>
             <p class="panel-copy">Across 130 items: <code>ce</code> scored 102/130 vs. <code>Graphify</code> 23/130 (on <code>immich</code> alone: <code>ce</code> 73% vs. <code>Graphify</code> 35%).</p>
             <code class="panel-code">6 wins, 2 ties, 0 losses</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading tone-cool">97.5%</span>
-            <h2 class="panel-title">L4–L5 Architecture</h2>
-            <p class="panel-copy"><code>ce</code> matched 235 / 241 queue, ORM table, data-lineage, and sub-project items. <code>Graphify</code> does not model L4–L5 categories.</p>
+            <h2 class="panel-title">Layer 4 &amp; 5 Architecture</h2>
+            <p class="panel-copy"><code>ce</code> matched 235 / 241 queue, ORM table, data-lineage, and sub-project items. <code>Graphify</code> does not model Layer 4 &amp; 5 categories.</p>
             <code class="panel-code">235 / 241 verified items</code>
           </div>
           <div class="panel panel--sunken">
@@ -89,11 +89,15 @@
         </div>
 
         <div id="prompts" class="prompt-stack">
+          <div class="prompt-stack-head">
+            <h2 class="prompt-stack-title">Tested queries, MCP payloads &amp; ground-truth spec.</h2>
+            <span class="prompt-stack-note">Click any drawer below to expand verbatim queries</span>
+          </div>
           <details class="prompt-drawer">
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--accent">Queries &amp; Matchers</span>
-                <span>scripts/eval_ce_vs_graphify.py &mdash; Exact OpenCypher Queries (ce) &amp; NetworkX Graph Extraction Rules (Graphify)</span>
+                <span>scripts/eval_ce_vs_graphify.py: Exact OpenCypher Queries (ce) &amp; NetworkX Graph Extraction Rules (Graphify)</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -127,7 +131,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--win">MCP JSON-RPC Suite</span>
-                <span>scripts/bench_mcp_graphify.py &mdash; Exact MCP Tool Invocations Benchmarked Over Persistent stdio</span>
+                <span>scripts/bench_mcp_graphify.py: Exact MCP Tool Invocations Benchmarked Over Persistent stdio</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -168,7 +172,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--cool">Ground-Truth Spec</span>
-                <span>groundtruth/patterns.md &mdash; Deterministic Ground-Truth Sampling Rules (seed = 42, 371 Items)</span>
+                <span>groundtruth/patterns.md: Deterministic Ground-Truth Sampling Rules (seed = 42, 371 Items)</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
@@ -187,7 +191,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
         <div class="band-head">
           <h2 class="band-title">1. Cold indexing &amp; scalability across repository sizes.</h2>
           <p class="band-lede">
-            On <code>immich</code> (3,205 files), both tools completed cleanly, with <code>ce</code> finishing 6.1× faster. On <code>twenty</code> (24,527 files), <code>Graphify</code>'s Python AST &amp; NetworkX pipeline stalled on a single CPU core in <code>build_from_json</code> and did not finish within the 45-minute timeout.
+            On <code>immich</code> (3,205 files), both tools completed cleanly, with <code>ce</code> finishing 6.1× faster. On <code>twenty</code> (24,527 files), <code>Graphify</code>&rsquo;s Python AST &amp; NetworkX pipeline stalled on a single CPU core in <code>build_from_json</code> and did not finish within the 45-minute timeout.
           </p>
         </div>
 
@@ -240,7 +244,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-md);">
-          <strong>Methodological note on <code>--code-only</code> vs. LLM synthesis:</strong> Graphify also offers an optional LLM pass for extracting <code>semantic</code> / <code>rationale</code> nodes from Markdown docs, PDFs, and images. This benchmark evaluates deterministic static code extraction (<code>--code-only</code>) so that every result measures the indexer itself rather than an external LLM's token budget or non-deterministic sampling.
+          <strong>Methodological note on <code>--code-only</code> vs. LLM synthesis:</strong> Graphify also offers an optional LLM pass for extracting <code>semantic</code> / <code>rationale</code> nodes from Markdown docs, PDFs, and images. This benchmark evaluates deterministic static code extraction (<code>--code-only</code>) so that every result measures the indexer itself rather than an external LLM&rsquo;s token budget or non-deterministic sampling.
         </div>
       </div>
     </section>
@@ -248,7 +252,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
     <section class="band band--deep">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">2. Ground-truth recall: Part 1 (Common Ground) &amp; Part 2 (L4–L5 Architecture).</h2>
+          <h2 class="band-title">2. Ground-truth recall: Part 1 (Common Ground) &amp; Part 2 (Layer 4 &amp; 5 Architecture).</h2>
           <p class="band-lede">
             Because <code>Graphify</code> timed out on <code>twenty</code>, we report both combined recall (130 Part 1 items) and <strong><code>immich</code>-only recall (66 Part 1 items where both tools completed indexing)</strong>.
           </p>
@@ -297,7 +301,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
                 <td class="cell-num">20</td>
                 <td class="cell-win">100% (20/20)</td>
                 <td class="cell-win">100% (20/20)</td>
-                <td><strong>Tie at 100%</strong>: Graphify's TS extractor resolves constructor property types (<code>this.svc.method()</code>) on <code>immich</code>.</td>
+                <td><strong>Tie at 100%</strong>: Graphify&rsquo;s TS extractor resolves constructor property types (<code>this.svc.method()</code>) on <code>immich</code>.</td>
               </tr>
               <tr>
                 <td><code>C7</code></td>
@@ -332,7 +336,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
                 <td>6 wins, 2 ties, 0 losses.</td>
               </tr>
               <tr class="row-total">
-                <td colspan="3">Part 2 Total (L4–L5: Queues, ORM Tables, Lineage, Sub-Projects)</td>
+                <td colspan="3">Part 2 Total (Layer 4 &amp; 5: Queues, ORM Tables, Lineage, Sub-Projects)</td>
                 <td class="cell-num">241</td>
                 <td class="cell-win">97.5% (235 / 241)</td>
                 <td class="cell-loss">Not modeled (0 / 241)</td>
@@ -349,7 +353,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
         <div class="band-head">
           <h2 class="band-title">3. MCP server latency &amp; feature trade-offs on immich.</h2>
           <p class="band-lede">
-            Because Graphify loads <code>graph.json</code> into an in-memory Python <code>NetworkX</code> graph on startup, cold MCP initialization takes 3.68 seconds vs. 0.60 seconds for <code>ce</code>'s SQLite engine.
+            Because Graphify loads <code>graph.json</code> into an in-memory Python <code>NetworkX</code> graph on startup, cold MCP initialization takes 3.68 seconds vs. 0.60 seconds for <code>ce</code>&rsquo;s SQLite engine.
           </p>
         </div>
 
@@ -378,7 +382,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
                 <td>Graph Schema / Stats</td>
                 <td class="cell-win">23.3 ms (1.7 ms cached)</td>
                 <td class="cell-loss">76.1 ms (73.0 ms 2nd call)</td>
-                <td>Graphify's <code>graph_stats</code> spawns <code>git rev-parse</code> on every call.</td>
+                <td>Graphify&rsquo;s <code>graph_stats</code> spawns <code>git rev-parse</code> on every call.</td>
               </tr>
               <tr>
                 <td>Multi-Token Search (<code>authentication token validate</code>)</td>
@@ -394,7 +398,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
               </tr>
               <tr>
                 <td>Unique Capabilities</td>
-                <td class="cell-num">OpenCypher queries, L4–L5 lineage, 32+ CI gates, VS Code extension</td>
+                <td class="cell-num">OpenCypher queries, Layer 4 &amp; 5 lineage, 32+ CI gates, VS Code extension</td>
                 <td class="cell-num">Leiden community clustering, Obsidian vault export, D3 HTML export, <code>triage_prs</code></td>
                 <td>Different primary design goals (architecture &amp; CI governance vs. knowledge-graph clustering &amp; visualization).</td>
               </tr>
@@ -408,7 +412,7 @@ MATCH (c:Type)-[r:INHERITS_FROM|IMPLEMENTS]-&gt;(p) RETURN c.file_path, c.start_
   <footer class="mast-footer">
     <div class="wrap">
       <div class="mast-bottom" style="padding-top: 0;">
-        <span><a href="/benchmarks.html">&larr; Back to Benchmarks Catalog</a></span>
+        <span><a href="/benchmarks.html">Back to Benchmarks Catalog</a></span>
         <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify" target="_blank" rel="noopener">View Case Study 04 on GitHub</a></span>
       </div>
     </div>
