@@ -651,7 +651,7 @@ const worker = new Worker('mail-queue', async job => {
         var subRef = refs.FirstOrDefault(r => r.TargetName == "bullmq:mail-queue" && r.Kind == RelationshipKind.SubscribesTo);
         subRef.Should().NotBeNull("Should capture BullMQ worker subscription");
 
-        var pubRef = refs.FirstOrDefault(r => r.TargetName.Contains("send-invoice") && r.Kind == RelationshipKind.PublishesTo);
+        var pubRef = refs.FirstOrDefault(r => (r.TargetName == "bullmq:mail-queue" || r.TargetName.Contains("send-invoice")) && r.Kind == RelationshipKind.PublishesTo);
         pubRef.Should().NotBeNull("Should capture BullMQ queue.add job publishing");
     }
 

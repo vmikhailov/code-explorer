@@ -40,6 +40,7 @@ scratch/
 /.scripts/
 /scripts/*
 !/scripts/update-local.ps1
+!/scripts/build-tree-sitter-natives.ps1
 # --- CodeExplorer local databases & locks ---
 .codeexplorer/*.db
 .codeexplorer/*.db-*

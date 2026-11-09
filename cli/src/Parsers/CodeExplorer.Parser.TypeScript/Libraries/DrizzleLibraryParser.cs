@@ -41,7 +41,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
                 return "Drizzle Raw Query";
             }
 
-            if (TryExtractDrizzleOperation(node, out var table, out var op))
+            if (TryExtractDrizzleOperation(node, ctx, out var table, out var op))
             {
                 return $"Drizzle: {op} from {table}";
             }
@@ -62,7 +62,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
                     NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
                 }
             }
-            else if (TryExtractDrizzleOperation(node, out var table, out _))
+            else if (TryExtractDrizzleOperation(node, ctx, out var table, out _))
             {
                 references.Add(new Reference(scopeSymbolId, table, OntologyConstants.Relationships.UsesDb));
             }
@@ -79,15 +79,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
 
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
-        if (AstHelper.TryGetMemberAccess(node, out var objNode, out var propName))
-        {
-            if (propName is "select" or "insert" or "update" or "delete" or "from" or "values" or "set" or "query")
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return TryExtractDrizzleOperation(node, null, out _, out _);
     }
 
     private static bool IsDrizzleRawSql(Node node, out string? sqlText)
@@ -118,37 +110,137 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
         return false;
     }
 
-    private static bool TryExtractDrizzleOperation(Node node, out string table, out string op)
+    private static bool TryExtractDrizzleOperation(Node node, ParsingContext? ctx, out string table, out string op)
     {
         table = "table";
         op = "query";
 
-        var current = node;
-        while (current.Is(TreeSitterSyntax.TypeScript.CallExpression))
-        {
-            if (AstHelper.TryGetMemberAccess(current, out var objNode, out var propName))
-            {
-                if (propName is "from" or "insert" or "update" or "delete")
-                {
-                    var args = AstHelper.GetCallArguments(current);
-                    if (args.Count > 0)
-                    {
-                        table = args[0].Text;
-                        op = propName;
-                        return true;
-                    }
-                }
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
+        if (!AstHelper.TryGetMemberAccess(node, out var objNode, out var propName)) return false;
 
-                if (objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        // 1. db.select(...).from(table) / tx.selectDistinct(...).from(table)
+        if (propName == "from")
+        {
+            if (objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
+                AstHelper.TryGetMemberAccess(objNode, out var selectReceiver, out var selectMethod) &&
+                selectMethod is "select" or "selectDistinct" or "selectDistinctOn" &&
+                IsDrizzleDbReceiver(selectReceiver))
+            {
+                var args = AstHelper.GetCallArguments(node);
+                if (args.Count > 0 && IsValidTableArg(args[0]))
                 {
-                    current = objNode;
-                    continue;
+                    table = ResolveDrizzleTable(args[0], ctx);
+                    op = "select";
+                    return true;
                 }
             }
+            return false;
+        }
 
-            break;
+        // 2. db.insert(table), db.update(table), db.delete(table)
+        if (propName is "insert" or "update" or "delete")
+        {
+            if (IsDrizzleDbReceiver(objNode))
+            {
+                var args = AstHelper.GetCallArguments(node);
+                if (args.Count > 0 && IsValidTableArg(args[0]))
+                {
+                    table = ResolveDrizzleTable(args[0], ctx);
+                    op = propName;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 3. db.query.<table>.findMany(...) / db.query.<table>.findFirst(...)
+        if (propName is "findMany" or "findFirst" &&
+            objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var queryObj = objNode.GetField(TreeSitterSyntax.Fields.Object);
+            var tableProp = objNode.GetField(TreeSitterSyntax.Fields.Property);
+            if (queryObj.IsValid() && tableProp.IsValid() &&
+                queryObj.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                var rootReceiver = queryObj.GetField(TreeSitterSyntax.Fields.Object);
+                var queryProp = queryObj.GetField(TreeSitterSyntax.Fields.Property);
+                if (queryProp.IsValid() && queryProp.Text == "query" && IsDrizzleDbReceiver(rootReceiver))
+                {
+                    table = ResolveDrizzleTable(tableProp, ctx);
+                    op = propName;
+                    return true;
+                }
+            }
         }
 
         return false;
+    }
+
+    private static bool IsDrizzleDbReceiver(Node? receiver)
+    {
+        if (!receiver.IsValid()) return false;
+        var text = receiver.Text.Trim();
+        if (text.StartsWith("this.", StringComparison.Ordinal)) text = text[5..];
+        if (text.Contains('.')) text = text.Split('.')[^1];
+        if (text.EndsWith("()", StringComparison.Ordinal)) text = text[..^2];
+
+        return text is "db" or "tx" or "trx" or "database" or "drizzle" or "conn" or "client" ||
+               text.EndsWith("Db", StringComparison.Ordinal) ||
+               text.EndsWith("DB", StringComparison.Ordinal) ||
+               text.EndsWith("Database", StringComparison.Ordinal) ||
+               text.EndsWith("Tx", StringComparison.Ordinal) ||
+               text.EndsWith("Trx", StringComparison.Ordinal);
+    }
+
+    private static bool IsValidTableArg(Node arg)
+    {
+        if (!arg.IsValid()) return false;
+        return arg.IsAny(
+            TreeSitterSyntax.TypeScript.Identifier,
+            TreeSitterSyntax.TypeScript.MemberExpression);
+    }
+
+    private static string ResolveDrizzleTable(Node tableNode, ParsingContext? ctx)
+    {
+        var clean = tableNode.Text.Trim();
+        if (clean.Contains('.'))
+        {
+            clean = clean.Split('.')[^1];
+        }
+
+        var lookupKey = clean;
+        var src = tableNode.Document?.SourceText;
+        if (!string.IsNullOrEmpty(src) && src.Contains(" as " + clean, StringComparison.Ordinal))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(
+                src,
+                $@"\b([a-zA-Z0-9_]+)\s+as\s+{System.Text.RegularExpressions.Regex.Escape(clean)}\b");
+            if (m.Success)
+            {
+                lookupKey = m.Groups[1].Value;
+            }
+        }
+
+        var drizzleKey = "drizzle_table:" + lookupKey;
+        if ((ctx != null && ConstantRegistry.TryResolve(ctx.WorkspaceId, drizzleKey, out var resolved) && IsValidResolvedTableName(resolved)) ||
+            (ConstantRegistry.TryResolve(null, drizzleKey, out resolved) && IsValidResolvedTableName(resolved)))
+        {
+            return resolved!;
+        }
+
+        return clean;
+    }
+
+    private static bool IsValidResolvedTableName(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return false;
+        if (candidate.Contains("://", StringComparison.Ordinal) ||
+            candidate.Contains('/') ||
+            candidate.Contains(' ') ||
+            candidate.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return ResourceNamingHelper.IsValidTableIdentifier(candidate);
     }
 }

@@ -115,10 +115,18 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
                     }
 
                     // C. Fallback to standard BullMQ `queue.add('job-name', ...)` only when receiver is explicitly named `queue` or `*Queue` (not Set.add, Map, List, etc.)
-                    if (propName == "add" &&
+                    if (propName is "add" or "addBulk" &&
                         (cleanField.Equals("queue", StringComparison.OrdinalIgnoreCase) ||
                          (cleanField.EndsWith("Queue", StringComparison.Ordinal) && !cleanField.EndsWith("Service", StringComparison.Ordinal))))
                     {
+                        if ((ctx != null && ConstantRegistry.TryResolve(ctx.WorkspaceId, cleanField, out var resolvedQueue) && WorkspaceConventions.IsValidTopicOrQueueName(resolvedQueue)) ||
+                            (ConstantRegistry.TryResolve(null, cleanField, out resolvedQueue) && WorkspaceConventions.IsValidTopicOrQueueName(resolvedQueue)) ||
+                            (TryResolveLocalQueueInitializer(node, cleanField, ctx?.WorkspaceId, out resolvedQueue) && WorkspaceConventions.IsValidTopicOrQueueName(resolvedQueue)))
+                        {
+                            references.Add(new Reference(scopeSymbolId, "bullmq:" + resolvedQueue, OntologyConstants.Relationships.PublishesTo));
+                            return;
+                        }
+
                         var jobName = AstHelper.ExtractFirstStringArgument(node);
                         var identifier = !string.IsNullOrEmpty(jobName) ? $"{cleanField}:{jobName}" : cleanField;
 
@@ -377,5 +385,59 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
         }
 
         return null;
+    }
+
+    private static bool TryResolveLocalQueueInitializer(
+        Node callNode,
+        string queueVarName,
+        string? contextOrProject,
+        out string? resolvedQueue)
+    {
+        resolvedQueue = null;
+        var doc = callNode.Document;
+        if (doc == null) return false;
+
+        for (var i = 0; i < doc.AllVariables.Count; i++)
+        {
+            var decl = doc.AllVariables[i];
+            if (!decl.IsDeclarator || !string.Equals(decl.Name, queueVarName, StringComparison.Ordinal)) continue;
+
+            var initNode = decl.Initializer ?? decl.GetField(TreeSitterSyntax.Fields.Value);
+            if (!initNode.IsValid() || !initNode.Is(TreeSitterSyntax.TypeScript.NewExpression)) continue;
+
+            var ctor = initNode.GetField(TreeSitterSyntax.Fields.Constructor) ?? initNode.GetFunctionNode();
+            var ctorText = ctor.IsValid() ? ctor.Text : "";
+            if (ctorText is "Queue" or "Bull" || ctorText.StartsWith("Queue<", StringComparison.Ordinal))
+            {
+                var args = AstHelper.GetCallArguments(initNode);
+                if (args.Count > 0 && args[0].IsValid())
+                {
+                    var argNode = args[0];
+                    if (AstHelper.IsStringLiteralNode(argNode))
+                    {
+                        resolvedQueue = argNode.Text.Trim('\'', '"', '`');
+                        return !string.IsNullOrEmpty(resolvedQueue);
+                    }
+                    if (argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+                    {
+                        var ident = argNode.Text;
+                        if (ConstantRegistry.TryResolve(contextOrProject, ident, out var cVal) ||
+                            ConstantRegistry.TryResolve(null, ident, out cVal))
+                        {
+                            resolvedQueue = cVal;
+                            return !string.IsNullOrEmpty(resolvedQueue);
+                        }
+                        var localConst = AstHelper.FindVariableInitializerInAst(initNode, ident, 0, null, contextOrProject);
+                        if (!string.IsNullOrEmpty(localConst))
+                        {
+                            resolvedQueue = localConst.Trim('\'', '"', '`');
+                            return !string.IsNullOrEmpty(resolvedQueue);
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

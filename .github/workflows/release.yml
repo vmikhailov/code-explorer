@@ -101,6 +101,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Build Patched Tree-sitter Native Grammars (${{ matrix.rid }})
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-tree-sitter-natives.ps1 -Rids ${{ matrix.rid }}
+
       - name: Build and Publish Single-File Binary
         shell: bash
         run: |
@@ -122,26 +126,26 @@ jobs:
             -p:EnableCompressionInSingleFile=true \
             -p:PublishTrimmed=false \
             -p:DebugType=none \
-            -o ./out/${{ matrix.rid }}
+            -o ./cli/.Build/out/${{ matrix.rid }}
 
       - name: Package Artifacts (Unix)
         if: matrix.archive == 'tar.gz'
         run: |
-          cd ./out/${{ matrix.rid }}
+          cd ./cli/.Build/out/${{ matrix.rid }}
           chmod +x ${{ matrix.bin_name }}
-          tar -czf ../../ce-${{ matrix.rid }}.tar.gz ${{ matrix.bin_name }}
+          tar -czf ../ce-${{ matrix.rid }}.tar.gz ${{ matrix.bin_name }}
 
       - name: Package Artifacts (Windows)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
-          Compress-Archive -Path ./out/${{ matrix.rid }}/${{ matrix.bin_name }} -DestinationPath ./ce-${{ matrix.rid }}.zip
+          Compress-Archive -Path ./cli/.Build/out/${{ matrix.rid }}/${{ matrix.bin_name }} -DestinationPath ./cli/.Build/out/ce-${{ matrix.rid }}.zip
 
       - name: Upload Artifact to Job
         uses: actions/upload-artifact@v4
         with:
           name: ce-${{ matrix.rid }}
-          path: ce-${{ matrix.rid }}.${{ matrix.archive }}
+          path: cli/.Build/out/ce-${{ matrix.rid }}.${{ matrix.archive }}
 
   create-release:
     name: Create GitHub Release & Publish NuGet
@@ -157,10 +161,14 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Build Patched Tree-sitter Native Grammars (All RIDs)
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-tree-sitter-natives.ps1
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./dist
+          path: ./cli/.Build/dist
           merge-multiple: true
 
       - name: Build NuGet Tool & SDK Packages
@@ -168,7 +176,7 @@ jobs:
           VERSION="${{ needs.resolve-tag.outputs.version }}"
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then VERSION="1.0.0"; fi
           echo "Building and packing NuGet packages version: $VERSION"
-          mkdir -p cli/.Build/doc_Release
+          mkdir -p cli/.Build/doc_Release cli/.Build/dist
           dotnet build cli/CodeExplorer.slnx -c Release -m:1 \
             -p:Version="$VERSION" \
             -p:PackageVersion="$VERSION" \
@@ -196,28 +204,28 @@ jobs:
             dotnet pack "$proj" -c Release --no-build \
               -p:Version="$VERSION" \
               -p:PackageVersion="$VERSION" \
-              -o ./dist
+              -o ./cli/.Build/dist
           done
 
       - name: Generate Checksums
         run: |
-          cd ./dist
+          cd ./cli/.Build/dist
           sha256sum * > checksums.txt || true
           cat checksums.txt
 
       - name: Generate Rich Release Notes
         run: |
           TAG_NAME="${{ needs.resolve-tag.outputs.tag_name }}"
-          python3 .github/scripts/generate-release-notes.py "$TAG_NAME" CHANGELOG.md RELEASE_BODY.md
+          python3 .github/scripts/generate-release-notes.py "$TAG_NAME" CHANGELOG.md cli/.Build/RELEASE_BODY.md
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag_name }}
           name: "CodeExplorer ${{ needs.resolve-tag.outputs.tag_name }}"
-          body_path: RELEASE_BODY.md
+          body_path: cli/.Build/RELEASE_BODY.md
           files: |
-            ./dist/*
+            ./cli/.Build/dist/*
           draft: false
           prerelease: false
 
@@ -233,8 +241,8 @@ jobs:
           fi
 
           for rid in osx-arm64 osx-x64 linux-arm64 linux-x64; do
-            if [ ! -f "./dist/ce-${rid}.tar.gz" ]; then
-              echo "::warning::./dist/ce-${rid}.tar.gz not found; skipping Homebrew tap formula update."
+            if [ ! -f "./cli/.Build/dist/ce-${rid}.tar.gz" ]; then
+              echo "::warning::./cli/.Build/dist/ce-${rid}.tar.gz not found; skipping Homebrew tap formula update."
               exit 0
             fi
           done
@@ -242,7 +250,7 @@ jobs:
           echo "Updating vmikhailov/homebrew-tap formula for ce v${VERSION} (macOS + Linux, arm64 + x64)..."
 
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/vmikhailov/homebrew-tap.git" /tmp/homebrew-tap
-          python3 .github/scripts/generate-homebrew-formula.py "$VERSION" ./dist /tmp/homebrew-tap/Formula/ce.rb
+          python3 .github/scripts/generate-homebrew-formula.py "$VERSION" ./cli/.Build/dist /tmp/homebrew-tap/Formula/ce.rb
 
           cd /tmp/homebrew-tap
 
@@ -275,7 +283,7 @@ jobs:
           if [ -n "$API_KEY" ]; then
             for i in 1 2 3; do
               echo "Pushing to NuGet.org (attempt $i)..."
-              if dotnet nuget push ./dist/*.nupkg --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 180; then
+              if dotnet nuget push ./cli/.Build/dist/*.nupkg --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 180; then
                 echo "Successfully published to NuGet.org"
                 exit 0
               fi

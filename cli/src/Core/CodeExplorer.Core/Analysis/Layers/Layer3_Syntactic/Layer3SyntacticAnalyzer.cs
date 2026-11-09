@@ -57,8 +57,16 @@ public partial class Layer3SyntacticParser
 
             int bestMatchLength = -1;
             var bestMatches = new List<ProjectNode>();
+            var hasNonScriptProject = l2Result.Projects.Any(pr => pr.EntityKind != ProjectEntityKind.ScriptProject);
+            var isManagedSourceExt = Path.GetExtension(file.Name).ToLowerInvariant() is
+                ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs";
             foreach (var p in l2Result.Projects)
             {
+                if (hasNonScriptProject && isManagedSourceExt && p.EntityKind == ProjectEntityKind.ScriptProject)
+                {
+                    continue;
+                }
+
                 if (string.IsNullOrEmpty(p.Path))
                 {
                     if (bestMatchLength < 0)

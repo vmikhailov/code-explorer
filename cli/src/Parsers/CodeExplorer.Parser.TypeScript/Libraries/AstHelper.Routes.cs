@@ -10,6 +10,10 @@ public static partial class AstHelper
     private const string SchemeHttpPrefix = "http";
     private const string KindShorthandPropId = "shorthand_property_identifier";
     private const string KindShorthandPropPattern = "shorthand_property_identifier_pattern";
+    private const string FieldLeft = "left";
+    private const string FieldRight = "right";
+    private const string UpperConstantIdentifierPattern = @"^[A-Z0-9_]{3,}$";
+    private const string ExplicitServiceFilePattern = @"(?:^(?:create|make|build)-[a-z0-9\-]+-(?:fetch|client|service|driver)|[-.](?:fetch|client|service|driver|api))$";
 
     public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject = null)
     {
@@ -253,6 +257,26 @@ public static partial class AstHelper
             }
         }
 
+        if (argNode is CodeExplorer.Core.Parser.Syntax.BinaryExprSyntax binExpr)
+        {
+            var leftNode = binExpr.Left ?? argNode.GetField(FieldLeft);
+            var rightNode = binExpr.Right ?? argNode.GetField(FieldRight);
+            var leftRes = ResolveStringOrTemplate(leftNode, contextOrProject, depth + 1, visitedVars);
+            if (!string.IsNullOrEmpty(leftRes))
+            {
+                var rightRes = ResolveStringOrTemplate(rightNode, contextOrProject, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(rightRes) &&
+                    (leftRes.StartWithIC(SchemeHttp) || leftRes.StartWithIC(SchemeHttps) || leftRes.StartsWith('/')))
+                {
+                    return NormalizeResolvedUrl($"{leftRes.TrimEnd('/')}/{rightRes.TrimStart('/')}");
+                }
+                if (leftRes.StartWithIC(SchemeHttp) || leftRes.StartWithIC(SchemeHttps) || leftRes.StartsWith('/'))
+                {
+                    return NormalizeResolvedUrl(leftRes);
+                }
+            }
+        }
+
         if (argNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
             var func = argNode.GetFunctionNode();
@@ -273,6 +297,19 @@ public static partial class AstHelper
                 if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
                 {
                     var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+                    if (prop.IsValid() && prop.Text is "toString" or "valueOf" or "trim")
+                    {
+                        var recv = func.GetField(TreeSitterSyntax.Fields.Object) ?? func.GetChildForField(TreeSitterSyntax.Fields.Object);
+                        if (recv.IsValid())
+                        {
+                            var recvRes = ResolveStringOrTemplate(recv, contextOrProject, depth + 1, visitedVars);
+                            if (!string.IsNullOrEmpty(recvRes))
+                            {
+                                return recvRes;
+                            }
+                        }
+                    }
+
                     if (prop.IsValid() && RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
                     {
                         var cleanPath = rPath.Split('?')[0];
@@ -652,7 +689,12 @@ public static partial class AstHelper
             }
 
             // 6. Suffix cleanup: hubUrl -> hub
-            return CleanIdentifierSuffix(cleanIdent);
+            var strippedIdent = CleanIdentifierSuffix(cleanIdent);
+            if (strippedIdent != cleanIdent)
+            {
+                return WorkspaceConventions.IsGenericUrlStemOrVariable(strippedIdent) ? null : strippedIdent;
+            }
+            return Regex.IsMatch(cleanIdent, UpperConstantIdentifierPattern) ? cleanIdent : null;
         }
         finally
         {
@@ -755,7 +797,9 @@ public static partial class AstHelper
 
         static string? CheckMethodNode(Node mNode, string mName, int d, HashSet<string>? visited)
         {
-            if (mNode.Type.Contains("method") || mNode.Type.Contains("function"))
+            if (mNode is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax ||
+                mNode.Type.Contains("method", StringComparison.OrdinalIgnoreCase) ||
+                mNode.Type.Contains("function", StringComparison.OrdinalIgnoreCase))
             {
                 var n = mNode.GetField(TreeSitterSyntax.Fields.Name) ??
                         mNode.GetChildForField(TreeSitterSyntax.Fields.Name) ??
@@ -768,7 +812,8 @@ public static partial class AstHelper
                         var exprNode = ret.Children.LastOrDefault(c => c.IsValid() && c.Type != ";" && c.Type != TreeSitterSyntax.Fields.Return);
                         if (exprNode.IsValid())
                         {
-                            return ResolveTemplateExpression(mNode, exprNode.Text, d + 1, visited);
+                            return ResolveStringOrTemplate(exprNode, null, d + 1, visited) ??
+                                   ResolveTemplateExpression(mNode, exprNode.Text, d + 1, visited);
                         }
                     }
                 }
@@ -909,13 +954,21 @@ public static partial class AstHelper
         var path = relativePath ?? node.Document?.RelativePath ?? node.Document?.FilePath;
         if (!string.IsNullOrEmpty(path))
         {
-            var fileName = Path.GetFileNameWithoutExtension(path);
-            var dotIdx = fileName.IndexOf('.');
-            if (dotIdx > 0) fileName = fileName[..dotIdx];
-            var cleanStem = Regex.Replace(fileName, @"^(create|get|make|build|use)-|-?(fetch|client|service|repository|driver|helper|util|utils)$", "", RegexOptions.IgnoreCase).Trim('-');
-            if (!string.IsNullOrEmpty(cleanStem) && cleanStem.Length >= 3 && !WorkspaceConventions.IsGarbageExternalService(cleanStem))
+            var rawFileName = Path.GetFileNameWithoutExtension(path);
+            var isExplicitServiceFile = Regex.IsMatch(
+                rawFileName,
+                ExplicitServiceFilePattern,
+                RegexOptions.IgnoreCase);
+            if (isExplicitServiceFile)
             {
-                return $"https://{cleanStem.ToLowerInvariant()}";
+                var fileName = rawFileName;
+                var dotIdx = fileName.IndexOf('.');
+                if (dotIdx > 0) fileName = fileName[..dotIdx];
+                var cleanStem = Regex.Replace(fileName, @"^(create|get|make|build|use)-|-?(fetch|client|service|repository|driver|helper|util|utils|api)$", "", RegexOptions.IgnoreCase).Trim('-');
+                if (!string.IsNullOrEmpty(cleanStem) && cleanStem.Length >= 3 && !WorkspaceConventions.IsGarbageExternalService(cleanStem))
+                {
+                    return $"https://{cleanStem.ToLowerInvariant()}";
+                }
             }
         }
 

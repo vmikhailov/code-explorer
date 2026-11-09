@@ -27,6 +27,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Build patched Tree-sitter native grammars (linux-x64)
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-tree-sitter-natives.ps1 -Rids linux-x64
+
       - name: Build solution
         run: dotnet build cli/CodeExplorer.slnx -c Release
 

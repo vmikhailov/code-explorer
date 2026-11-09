@@ -1,17 +1,31 @@
 <Project>
-  <Target Name="OverrideTreeSitterCSharpNativeOnBuild" AfterTargets="CopyFilesToOutputDirectory" Condition="Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes') and (Exists('$(OutDir)runtimes') or Exists('$(OutDir)TreeSitter.dll'))">
+  <PropertyGroup>
+    <TreeSitterNativeRuntimesDir>$(MSBuildThisFileDirectory).Build\runtimes</TreeSitterNativeRuntimesDir>
+    <TreeSitterBuildScript>$(MSBuildThisFileDirectory)..\scripts\build-tree-sitter-natives.ps1</TreeSitterBuildScript>
+  </PropertyGroup>
+
+  <Target Name="EnsureTreeSitterNativeBuilt"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(MSBuildProjectName)' == 'CodeExplorer.Parser.Shared' and !Exists('$(TreeSitterNativeRuntimesDir)\.stamp') and Exists('$(TreeSitterBuildScript)')">
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(TreeSitterBuildScript)&quot;"
+          Condition="'$(RuntimeIdentifier)' == ''" />
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(TreeSitterBuildScript)&quot; -Rids $(RuntimeIdentifier)"
+          Condition="'$(RuntimeIdentifier)' != ''" />
+  </Target>
+
+  <Target Name="OverrideTreeSitterCSharpNativeOnBuild" AfterTargets="CopyFilesToOutputDirectory" Condition="Exists('$(TreeSitterNativeRuntimesDir)') and (Exists('$(OutDir)runtimes') or Exists('$(OutDir)TreeSitter.dll'))">
     <ItemGroup>
-      <_UpdatedTreeSitterCSharpRuntimes Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\**\*.*" Condition="'$(RuntimeIdentifier)' == ''" />
-      <_UpdatedTreeSitterCSharpRid Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native')" />
+      <_UpdatedTreeSitterCSharpRuntimes Include="$(TreeSitterNativeRuntimesDir)\**\*.*" Condition="'$(RuntimeIdentifier)' == '' and '%(Filename)%(Extension)' != '.stamp'" />
+      <_UpdatedTreeSitterCSharpRid Include="$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native')" />
     </ItemGroup>
     <Copy SourceFiles="@(_UpdatedTreeSitterCSharpRuntimes)" DestinationFiles="@(_UpdatedTreeSitterCSharpRuntimes->'$(OutDir)runtimes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_UpdatedTreeSitterCSharpRuntimes)' != ''" />
     <Copy SourceFiles="@(_UpdatedTreeSitterCSharpRid)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(_UpdatedTreeSitterCSharpRid)' != ''" />
   </Target>
 
-  <Target Name="OverrideTreeSitterCSharpNativeOnPublish" AfterTargets="CopyFilesToPublishDirectory;ComputeResolvedFilesToPublishList" Condition="Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes') and Exists('$(PublishDir)')">
+  <Target Name="OverrideTreeSitterCSharpNativeOnPublish" AfterTargets="CopyFilesToPublishDirectory;ComputeResolvedFilesToPublishList" Condition="Exists('$(TreeSitterNativeRuntimesDir)') and Exists('$(PublishDir)')">
     <ItemGroup>
-      <_PublishTreeSitterCSharpRuntimes Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\**\*.*" Condition="'$(RuntimeIdentifier)' == ''" />
-      <_PublishTreeSitterCSharpRid Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native')" />
+      <_PublishTreeSitterCSharpRuntimes Include="$(TreeSitterNativeRuntimesDir)\**\*.*" Condition="'$(RuntimeIdentifier)' == '' and '%(Filename)%(Extension)' != '.stamp'" />
+      <_PublishTreeSitterCSharpRid Include="$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native')" />
     </ItemGroup>
     <Copy SourceFiles="@(_PublishTreeSitterCSharpRuntimes)" DestinationFiles="@(_PublishTreeSitterCSharpRuntimes->'$(PublishDir)runtimes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_PublishTreeSitterCSharpRuntimes)' != ''" />
     <Copy SourceFiles="@(_PublishTreeSitterCSharpRid)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'@(_PublishTreeSitterCSharpRid)' != ''" />

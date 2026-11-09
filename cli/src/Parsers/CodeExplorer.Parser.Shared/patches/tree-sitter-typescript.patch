@@ -1,5 +1,5 @@
 diff --git a/common/define-grammar.js b/common/define-grammar.js
-index efb0b76..6b38018 100644
+index efb0b76..8a7eea6 100644
 --- a/common/define-grammar.js
 +++ b/common/define-grammar.js
 @@ -63,7 +63,6 @@ module.exports = function defineGrammar(dialect) {
@@ -59,11 +59,34 @@ index efb0b76..6b38018 100644
        _type_query_instantiation_expression: $ => seq(
          field('function', choice(
            $.import,
+@@ -1088,6 +1093,9 @@ module.exports = function defineGrammar(dialect) {
+         'boolean',
+         'string',
+         'symbol',
++        'unique',
++        'unknown',
++        'never',
+         'export',
+         'object',
+         'new',
 diff --git a/common/scanner.h b/common/scanner.h
-index 23b78b5..5e9cb1c 100644
+index 23b78b5..48a4329 100644
 --- a/common/scanner.h
 +++ b/common/scanner.h
-@@ -282,25 +282,53 @@ static bool scan_jsx_text(TSLexer *lexer) {
+@@ -27,7 +27,11 @@ static bool scan_template_chars(TSLexer *lexer) {
+             case '`':
+                 return has_content;
+             case '\0':
+-                return false;
++                if (lexer->eof(lexer)) {
++                    return false;
++                }
++                advance(lexer);
++                break;
+             case '$':
+                 advance(lexer);
+                 if (lexer->lookahead == '{') {
+@@ -282,25 +286,53 @@ static bool scan_jsx_text(TSLexer *lexer) {
      bool at_newline = false;
  
      while (lexer->lookahead != 0 && lexer->lookahead != '<' && lexer->lookahead != '>' && lexer->lookahead != '{' &&
@@ -132,7 +155,7 @@ index 23b78b5..5e9cb1c 100644
              at_newline &= is_wspace;
              if (!at_newline) {
                  saw_text = true;
-@@ -310,6 +338,7 @@ static bool scan_jsx_text(TSLexer *lexer) {
+@@ -310,6 +342,7 @@ static bool scan_jsx_text(TSLexer *lexer) {
          advance(lexer);
      }
  

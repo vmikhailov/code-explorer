@@ -7,6 +7,8 @@ namespace CodeExplorer.Core.Analysis;
 /// </summary>
 public static class ProjectEntityClassifierRegistry
 {
+    internal const string BenchmarkSegment = "/benchmark/";
+    internal const string BenchmarksSegment = "/benchmarks/";
     private static readonly List<IProjectEntityClassifier> _classifiers = [];
 
     static ProjectEntityClassifierRegistry()
@@ -91,7 +93,7 @@ public static class ProjectEntityClassifierRegistry
                             normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
                             normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/") ||
                             normRelPath.Contains("/fixtures/") || normRelPath.Contains("/__fixtures__/") ||
-                            normRelPath.Contains("/qa/"));
+                            normRelPath.Contains("/qa/") || normRelPath.Contains(BenchmarkSegment) || normRelPath.Contains(BenchmarksSegment));
 
         if (isTestProject)
         {
@@ -365,7 +367,9 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
         if (normRelPath.Contains("/test/") || normRelPath.Contains("/tests/") ||
             normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
             normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/") ||
-            normRelPath.Contains("/qa/"))
+            normRelPath.Contains("/qa/") ||
+            normRelPath.Contains(ProjectEntityClassifierRegistry.BenchmarkSegment) ||
+            normRelPath.Contains(ProjectEntityClassifierRegistry.BenchmarksSegment))
         {
             return ProjectClassification.Test;
         }

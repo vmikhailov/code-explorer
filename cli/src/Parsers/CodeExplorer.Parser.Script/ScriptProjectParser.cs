@@ -55,9 +55,27 @@ public class ScriptProjectParser : IProjectParser
         return ext is ".ps1" or ".sh" or ".bash" or ".zsh" or ".py" or ".rb" or ".pl" or ".bat" or ".cmd";
     }
 
+    public static bool IsNonScriptSourceFile(string filePath)
+    {
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        return ext is ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs";
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
-        return HasUnmanagedManifest(filesInDirectory, out _, out _) || filesInDirectory.Any(IsScriptFile);
+        if (HasUnmanagedManifest(filesInDirectory, out _, out _))
+        {
+            return true;
+        }
+
+        var scriptCount = filesInDirectory.Count(IsScriptFile);
+        if (scriptCount == 0)
+        {
+            return false;
+        }
+
+        var nonScriptSourceCount = filesInDirectory.Count(IsNonScriptSourceFile);
+        return scriptCount >= nonScriptSourceCount;
     }
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)

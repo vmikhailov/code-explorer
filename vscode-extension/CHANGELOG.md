@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.75.1] - 2026-11-09
+
+### Changed & Fixed
+- **On-the-Fly Tree-sitter Native Grammar Cross-Compilation (`cli/.Build/runtimes`)**:
+  - Removed 18 precompiled `.dll`, `.so`, and `.dylib` native binaries from source control (`cli/src/Parsers/CodeExplorer.Parser.Shared/runtimes/`) and replaced them with on-the-fly cross-compilation into `cli/.Build/runtimes/<rid>/native/` via `scripts/build-tree-sitter-natives.ps1` and `cli/Directory.Build.targets` using portable Zig CC (`0.13.0`).
+  - Consolidated CI release output and intermediate build artifacts under `cli/.Build/`.
+- **TypeScript / TSX Grammar & Semantic Extraction Refinements**:
+  - Extended `tree-sitter-typescript` and `tree-sitter-tsx` grammar patches to support contextual keywords `unique`, `unknown`, and `never` in `_reserved_identifier` (e.g., `i < unique.length`) and embedded NUL bytes (`\0`) inside template literals.
+  - Resolved curried method invocations (`this.service.method()(arg)`), TypeScript enum-backed controller route prefixes (`@Controller(RouteKey.Asset)`), BullMQ `@Processor` / `@OnJob` queue bindings, and Drizzle/SQL table name validation across monorepo packages.
+
 ## [1.75.0] - 2026-11-08
 
 ### Added & Changed

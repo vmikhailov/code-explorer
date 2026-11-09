@@ -8,11 +8,16 @@ public static class SourcePathClassifier
     /// <summary>
     /// Determines whether a source file path represents a unit test, integration test, or spec file.
     /// </summary>
+    private const string BenchmarkRootPrefix = "benchmark/";
+    private const string BenchmarksRootPrefix = "benchmarks/";
+    private const string BenchmarkSegment = "/benchmark/";
+    private const string BenchmarksSegment = "/benchmarks/";
+
     public static bool IsTestFilePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
         var normalized = path.Replace('\\', '/').ToLowerInvariant();
-        return normalized.StartsWith("test/") ||
+        return normalized.StartsWith("test/") || normalized.StartsWith(BenchmarkRootPrefix) || normalized.StartsWith(BenchmarksRootPrefix) || normalized.Contains(BenchmarkSegment) || normalized.Contains(BenchmarksSegment) ||
                normalized.StartsWith("tests/") ||
                normalized.Contains("/test/") ||
                normalized.Contains("/tests/") ||

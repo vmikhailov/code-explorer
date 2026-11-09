@@ -98,6 +98,14 @@ public static class TypeScriptDeclarationExtractor
 
                             FlattenObject(varName, valNode);
                         }
+                        else if (TryExtractSchemaOrQueueCallLiteral(valNode, out var callArgNode, out var isDrizzleTable))
+                        {
+                            register(varName, callArgNode, null);
+                            if (isDrizzleTable)
+                            {
+                                register("drizzle_table:" + varName, callArgNode, null);
+                            }
+                        }
                         else
                         {
                             register(varName, valNode, null);
@@ -140,5 +148,46 @@ public static class TypeScriptDeclarationExtractor
         {
             ExtractInternal(child, currentScope, register);
         }
+    }
+
+    private static bool TryExtractSchemaOrQueueCallLiteral(Node valNode, out Node? argNode, out bool isDrizzleTable)
+    {
+        argNode = null;
+        isDrizzleTable = false;
+        if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var func = valNode.GetFunctionNode();
+            if (!func.IsValid()) return false;
+            var funcText = func.Text;
+            if (funcText is "pgTable" or "mysqlTable" or "sqliteTable" or "pgView" or "mysqlView" or "sqliteView" or "pgMaterializedView" ||
+                funcText.EndsWith(".table", StringComparison.Ordinal))
+            {
+                var args = Libraries.AstHelper.GetCallArguments(valNode);
+                if (args.Count > 0 && args[0].IsValid() && Libraries.AstHelper.IsStringLiteralNode(args[0]))
+                {
+                    argNode = args[0];
+                    isDrizzleTable = true;
+                    return true;
+                }
+            }
+        }
+        else if (valNode.Is(TreeSitterSyntax.TypeScript.NewExpression))
+        {
+            var ctor = valNode.GetField(TreeSitterSyntax.Fields.Constructor) ?? valNode.GetFunctionNode();
+            var ctorText = ctor.IsValid() ? ctor.Text : "";
+            if (ctorText is "Queue" or "Bull" || ctorText.StartsWith("Queue<", StringComparison.Ordinal))
+            {
+                var args = Libraries.AstHelper.GetCallArguments(valNode);
+                if (args.Count > 0 && args[0].IsValid() &&
+                    (Libraries.AstHelper.IsStringLiteralNode(args[0]) ||
+                     args[0].IsAny(TreeSitterSyntax.TypeScript.Identifier, TreeSitterSyntax.TypeScript.MemberExpression)))
+                {
+                    argNode = args[0];
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

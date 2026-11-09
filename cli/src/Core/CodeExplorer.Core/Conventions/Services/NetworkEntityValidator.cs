@@ -18,7 +18,8 @@ public sealed class NetworkEntityValidator
         "serverhttp", "resolvedhttp", "download", "cleanep", "http", "server", "base", "api", "target",
         "request", "full", "ws", "endpoint", "url", "uri", "host", "origin", "client",
         "post", "get", "put", "delete", "patch", "options", "head", "ep",
-        "page", "response", "subscribe", "registry", "presignedupload", "storybook"
+        "page", "response", "subscribe", "registry", "presignedupload", "storybook",
+        "ticket", "english", "he", "en", "ru", "graphql", "ajax", "trimmed"
     };
 
     public static readonly HashSet<string> HttpMethodVerbs = new(StringComparer.OrdinalIgnoreCase)

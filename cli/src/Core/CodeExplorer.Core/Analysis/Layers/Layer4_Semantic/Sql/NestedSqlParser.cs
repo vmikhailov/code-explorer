@@ -323,7 +323,7 @@ public static class NestedSqlParser
                 }
                 else if (word == "WITH")
                 {
-                    var cteMatch = Regex.IsMatch(uncommented, @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+(?:\s*\([^\)]*\))?\s+AS\s*\(", RegexOptions.IgnoreCase) &&
+                    var cteMatch = Regex.IsMatch(uncommented, @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+(?:\s*\([^\)]*\))?\s+AS\s*(?:(?:NOT\s+)?MATERIALIZED\s*)?\(", RegexOptions.IgnoreCase) &&
                                    Regex.IsMatch(uncommented, @"\b(?:SELECT|INSERT|UPDATE|DELETE|MERGE)\b", RegexOptions.IgnoreCase);
                     if (!cteMatch)
                     {
@@ -455,7 +455,8 @@ public static class NestedSqlParser
     {
         if (string.IsNullOrEmpty(part)) return "";
         var clean = part.Trim().Trim('`', '"', '\'', '[', ']');
-        if (ConstantRegistry.TryResolve(null, clean, out var resolved) &&
+        if ((rawText.Contains($"{{{clean}}}", StringComparison.Ordinal) || rawText.Contains($"${clean}", StringComparison.Ordinal) || rawText.Contains($".{clean}}}", StringComparison.Ordinal) || part.StartsWith('$') || part.StartsWith('{')) &&
+            ConstantRegistry.TryResolve(null, clean, out var resolved) &&
             !string.IsNullOrWhiteSpace(resolved) &&
             ResourceNamingHelper.IsValidTableIdentifier(resolved))
         {
@@ -494,7 +495,7 @@ public static class NestedSqlParser
         cleanedSql = StripSqlComments(cleanedSql);
 
         var cteNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match cteMatch in Regex.Matches(cleanedSql, @"(?:\bWITH\s+(?:RECURSIVE\s+)?|,\s*)([a-zA-Z0-9_\[\]""`]+)(?:\s*\([^\)]*\))?\s+AS\s*\(", RegexOptions.IgnoreCase))
+        foreach (Match cteMatch in Regex.Matches(cleanedSql, @"(?:\bWITH\s+(?:RECURSIVE\s+)?|,\s*)([a-zA-Z0-9_\[\]""`]+)(?:\s*\([^\)]*\))?\s+AS\s*(?:(?:NOT\s+)?MATERIALIZED\s*)?\(", RegexOptions.IgnoreCase))
         {
             var cte = CleanSqlIdentifier(cteMatch.Groups[1].Value);
             if (!string.IsNullOrEmpty(cte)) cteNames.Add(cte);
@@ -553,7 +554,7 @@ public static class NestedSqlParser
         // 2. Lexical Fallback: Match identifiers after DML (FROM, JOIN, UPDATE, INTO, MERGE, REFERENCES) and DDL (CREATE/ALTER/DROP/TRUNCATE TABLE/VIEW)
         var tableMatches = Regex.Matches(
             cleanedSql,
-            @"\b(?:FROM|JOIN|(?<!FOR\s+)UPDATE(?:\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK))?|INTO|MERGE|REFERENCES|CREATE\s+(?:OR\s+REPLACE\s+)?(?:EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?|(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?|TRUNCATE\s+TABLE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
+            @"\b(?:(?<!\bDISTINCT\s+)FROM|JOIN|(?<!FOR\s+)UPDATE(?:\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK))?|INTO|MERGE|REFERENCES|CREATE\s+(?:OR\s+REPLACE\s+)?(?:EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?|(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?|TRUNCATE\s+TABLE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
             RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {

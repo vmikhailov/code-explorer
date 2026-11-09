@@ -223,7 +223,14 @@ public class TypeScriptImportCallResolutionTests
         abstract class DerivedField extends BaseField {
             abstract override readonly kind: string;
         }
-        """;
+
+        function checkUnique(unique: string[], unknown: string[], never: string[], a: string, b: string) {
+            for (let i = 0; i < unique.length && i < unknown.length && i < never.length; i += 75) {
+                if (unique[i] === `${a}` + "\0") return `${a}` + "\0" + `${b}`;
+            }
+            return `${a}` + "\0";
+        }
+        """ + "\nconst pairKey = `${'a'}\0${'b'}`;\n";
 
         var tsxSource = """
         import React from 'react';
