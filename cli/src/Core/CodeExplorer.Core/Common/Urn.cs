@@ -37,6 +37,59 @@ public readonly record struct Urn
         Line = line;
     }
 
+    public bool IsSymbol =>
+        !string.IsNullOrEmpty(Domain) &&
+        (Domain.Equals(OntologyConstants.IdPrefixes.Symbol, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.Function, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.Type, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.Member, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals("symbol", StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals("fn", StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals("method", StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals("m", StringComparison.OrdinalIgnoreCase));
+
+    public bool IsFile =>
+        !string.IsNullOrEmpty(Domain) &&
+        (Domain.Equals(OntologyConstants.IdPrefixes.File, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.File, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsProcedure =>
+        !string.IsNullOrEmpty(Domain) &&
+        (Domain.Equals(OntologyConstants.IdPrefixes.Procedure, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.Procedure, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsProject =>
+        !string.IsNullOrEmpty(Domain) &&
+        (Domain.Equals(OntologyConstants.IdPrefixes.Project, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals("proj", StringComparison.OrdinalIgnoreCase));
+
+    public bool IsPackage =>
+        !string.IsNullOrEmpty(Domain) &&
+        (Domain.Equals(OntologyConstants.IdPrefixes.Package, StringComparison.OrdinalIgnoreCase) ||
+         Domain.Equals(OntologyConstants.NodeLabels.Package, StringComparison.OrdinalIgnoreCase));
+
+    public bool HasDeclaringFilePath => IsSymbol || IsFile || IsProcedure;
+
+    public string? DeclaringFilePath
+    {
+        get
+        {
+            if (!HasDeclaringFilePath || string.IsNullOrEmpty(Path))
+            {
+                return null;
+            }
+
+            var p = Path;
+            var colonIdx = p.IndexOf(':');
+            if (colonIdx > 1) // preserve Windows drive letters like C:/
+            {
+                p = p[..colonIdx];
+            }
+            return p.Replace('\\', '/');
+        }
+    }
+
     public bool IsExternalOrPackage
     {
         get
@@ -106,13 +159,13 @@ public readonly record struct Urn
 
         // 2. Standard format: {prefix}:{domain}:{rest}
         var firstColon = text.IndexOf(':');
-        if (firstColon <= 0 || firstColon == text.Length - 1)
+        if (firstColon < 0 || firstColon == text.Length - 1)
         {
             urn = new Urn(text, "", text);
             return true;
         }
 
-        var prefix = text[..firstColon];
+        var prefix = firstColon == 0 ? "" : text[..firstColon];
         var remainder = text[(firstColon + 1)..];
 
         var secondColon = remainder.IndexOf(':');
@@ -137,6 +190,7 @@ public readonly record struct Urn
                 return TryParseSymbol(text, prefix, domain, body, out urn);
 
             case "project":
+            case "proj":
             case "p":
                 var projPath = body.TrimEnd(':');
                 urn = new Urn(text, prefix, domain, path: projPath, name: System.IO.Path.GetFileName(projPath));

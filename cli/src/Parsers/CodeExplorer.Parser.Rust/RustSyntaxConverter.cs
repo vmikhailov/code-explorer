@@ -69,8 +69,10 @@ public sealed class RustSyntaxConverter : TreeSitterSyntaxConverterBase
                 new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Type },
             "field_identifier" =>
                 new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Member },
-            "self" or "super" or "crate" =>
-                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.SelfOrSuper },
+            "self" =>
+                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Self },
+            "super" or "crate" =>
+                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Super },
 
             "field_expression" => new MemberAccessExprSyntax { Span = span },
             "scoped_identifier" => new MemberAccessExprSyntax { Span = span, Operator = "::" },

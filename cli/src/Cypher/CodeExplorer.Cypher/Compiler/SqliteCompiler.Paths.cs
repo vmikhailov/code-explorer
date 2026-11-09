@@ -17,7 +17,40 @@ public partial class SqliteCompiler
 
         if (isOptional && match.Where != null)
         {
+            List<string> tempNodes = [];
+            List<string> tempRels = [];
+            foreach (var p in match.Paths)
+            {
+                if (p.Head.Variable != null && _declaredNodes.Add(p.Head.Variable))
+                {
+                    tempNodes.Add(p.Head.Variable);
+                }
+
+                foreach (var c in p.Chain)
+                {
+                    if (c.Relationship.Variable != null && _declaredRels.Add(c.Relationship.Variable))
+                    {
+                        tempRels.Add(c.Relationship.Variable);
+                    }
+
+                    if (c.Target.Variable != null && _declaredNodes.Add(c.Target.Variable))
+                    {
+                        tempNodes.Add(c.Target.Variable);
+                    }
+                }
+            }
+
             optionalWhereExtra.Add(VisitExpression(match.Where.Predicate));
+
+            foreach (var n in tempNodes)
+            {
+                _declaredNodes.Remove(n);
+            }
+
+            foreach (var r in tempRels)
+            {
+                _declaredRels.Remove(r);
+            }
         }
 
         foreach (var path in match.Paths)
@@ -91,29 +124,52 @@ public partial class SqliteCompiler
         List<string> mainWhereConditions,
         List<string> optionalWhereExtra)
     {
-        var prevNode = path.Head;
-        var prevVar = headVar;
-
-        foreach (var element in path.Chain)
+        var nodes = new NodePattern[path.Chain.Count + 1];
+        var vars = new string[path.Chain.Count + 1];
+        nodes[0] = path.Head;
+        vars[0] = headVar;
+        for (var i = 0; i < path.Chain.Count; i++)
         {
-            ProcessPathElement(element, path, ref prevNode, ref prevVar, isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
+            nodes[i + 1] = path.Chain[i].Target;
+            vars[i + 1] = path.Chain[i].Target.Variable ?? $"_n{_varIndex++}";
+        }
+
+        var anchorIndex = 0;
+        for (var i = 0; i < vars.Length; i++)
+        {
+            if (_declaredNodes.Contains(vars[i]))
+            {
+                anchorIndex = i;
+                break;
+            }
+        }
+
+        for (var i = anchorIndex - 1; i >= 0; i--)
+        {
+            ProcessPathElementAt(path, i, nodes[i], vars[i], nodes[i + 1], vars[i + 1], isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
+        }
+
+        for (var i = anchorIndex; i < path.Chain.Count; i++)
+        {
+            ProcessPathElementAt(path, i, nodes[i], vars[i], nodes[i + 1], vars[i + 1], isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
         }
     }
 
-    private void ProcessPathElement(
-        PathElement element,
+    private void ProcessPathElementAt(
         PathPattern path,
-        ref NodePattern prevNode,
-        ref string prevVar,
+        int elementIndex,
+        NodePattern prevNode,
+        string prevVar,
+        NodePattern targetNode,
+        string targetVar,
         bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
         List<string> mainWhereConditions,
         List<string> optionalWhereExtra)
     {
+        var element = path.Chain[elementIndex];
         var rel = element.Relationship;
-        var targetNode = element.Target;
-        var targetVar = targetNode.Variable ?? $"_n{_varIndex++}";
         var relVar = rel.Variable ?? $"_r{_varIndex++}";
 
         var isVarLen = rel.Range.HasValue || path.IsShortestPath || path.IsAllShortestPaths;
@@ -132,9 +188,6 @@ public partial class SqliteCompiler
             rel, relVar, prevNode, prevVar, targetNode, targetVar,
             isOptional, isVarLen, path.IsShortestPath, joinKeyword,
             fromAndJoins, mainWhereConditions, optionalWhereExtra, path.PathVariable);
-
-        prevNode = targetNode;
-        prevVar = targetVar;
     }
 
     private void ProcessPathHop(

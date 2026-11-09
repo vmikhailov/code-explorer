@@ -21,6 +21,10 @@ public static class ConstantRegistry
     private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _globalConstantsByLeaf =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Fast O(1) index for project-scoped leaf lookup: "{ProjectName}:{leaf}" -> (unique value or null if ambiguous, match count)
+    private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _projectConstantsByLeaf =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Fast O(1) index for project-unspecified lookup: key -> (unique value or null if ambiguous, match count)
     private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _projectConstantsByKey =
         new(StringComparer.OrdinalIgnoreCase);
@@ -33,10 +37,11 @@ public static class ConstantRegistry
         _projectConstants.Clear();
         _globalConstants.Clear();
         _globalConstantsByLeaf.Clear();
+        _projectConstantsByLeaf.Clear();
         _projectConstantsByKey.Clear();
     }
 
-        private static readonly HashSet<string> TechSuffixes = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> TechSuffixes = new(StringComparer.OrdinalIgnoreCase)
     {
         "data", "logic", "graphql", "grapql", "contracts", "contract", "services", "service",
         "host", "api", "client", "tests", "test", "grpc", "common", "infrastructure"
@@ -76,42 +81,34 @@ public static class ConstantRegistry
 
         if (!string.IsNullOrWhiteSpace(projectName))
         {
-            var pKey = $"{projectName.Trim()}:{cleanKey}";
-            _projectConstants[pKey] = cleanVal;
+            var projTrimmed = projectName.Trim();
+            _projectConstants[$"{projTrimmed}:{cleanKey}"] = cleanVal;
+            IndexProjectLeaf(projTrimmed, cleanKey, cleanVal);
             IndexProjectKey(cleanKey, cleanVal);
 
             var domain = ExtractDomainNameFromProject(projectName);
-            if (!string.IsNullOrWhiteSpace(domain) && !domain.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(domain) && !domain.Equals(projTrimmed, StringComparison.OrdinalIgnoreCase))
             {
                 _projectConstants[$"{domain}:{cleanKey}"] = cleanVal;
+                IndexProjectLeaf(domain, cleanKey, cleanVal);
             }
 
             var stripped = EndpointScoringEngine.StripCommonAffixes(projectName);
-            if (!string.IsNullOrWhiteSpace(stripped) && !stripped.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(stripped) && !stripped.Equals(projTrimmed, StringComparison.OrdinalIgnoreCase))
             {
                 _projectConstants[$"{stripped}:{cleanKey}"] = cleanVal;
+                IndexProjectLeaf(stripped, cleanKey, cleanVal);
                 var normStripped = stripped.Replace("-", "_");
                 _projectConstants[$"{normStripped}:{cleanKey}"] = cleanVal;
+                IndexProjectLeaf(normStripped, cleanKey, cleanVal);
             }
 
-            // Only promote to global lookup if it is NOT a generic local/config identifier
-            // and is qualified or PascalCase / SCREAMING_SNAKE_CASE (constants)
-            // or schema getter/default conventions (e.g. get_cpu_db_schema, default_schema_name)
             var leafKey = cleanKey.Contains('.') ? cleanKey[(cleanKey.LastIndexOf('.') + 1)..] : cleanKey;
-            var isInstanceOrConfigPrefix =
-                cleanKey.StartWithIC("this.") ||
-                cleanKey.StartWithIC("self.") ||
-                cleanKey.StartWithIC("config.") ||
-                cleanKey.StartWithIC("pubsubConfig.") ||
-                cleanKey.StartWithIC("brokerConfig.");
             var isGenericKey = GenericVariableNames.Contains(cleanKey) || GenericVariableNames.Contains(leafKey);
-            if (!isGenericKey && !isInstanceOrConfigPrefix)
+            if (!isGenericKey)
             {
                 if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
-                    (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])) ||
-                    cleanKey.StartWithIC("get_") ||
-                    cleanKey.StartWithIC("default_") ||
-                    cleanKey.Contains("schema", StringComparison.OrdinalIgnoreCase))
+                    (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])))
                 {
                     if (_globalConstants.TryAdd(cleanKey, cleanVal))
                     {
@@ -128,6 +125,29 @@ public static class ConstantRegistry
                 _globalConstants[cleanKey] = cleanVal;
                 IndexGlobalLeaf(cleanKey, cleanVal);
             }
+        }
+    }
+
+    private static void IndexProjectLeaf(string projKey, string key, string val)
+    {
+        _projectConstantsByLeaf.AddOrUpdate(
+            $"{projKey}:{key}",
+            _ => (val, 1),
+            (_, existing) => string.Equals(existing.Value, val, StringComparison.OrdinalIgnoreCase)
+                ? existing
+                : (null, existing.MatchCount + 1));
+
+        var dotIdx = key.IndexOf('.');
+        while (dotIdx >= 0 && dotIdx < key.Length - 1)
+        {
+            var suffix = key[(dotIdx + 1)..];
+            _projectConstantsByLeaf.AddOrUpdate(
+                $"{projKey}:{suffix}",
+                _ => (val, 1),
+                (_, existing) => string.Equals(existing.Value, val, StringComparison.OrdinalIgnoreCase)
+                    ? existing
+                    : (null, existing.MatchCount + 1));
+            dotIdx = key.IndexOf('.', dotIdx + 1);
         }
     }
 
@@ -170,33 +190,62 @@ public static class ConstantRegistry
         value = null!;
         if (string.IsNullOrWhiteSpace(projectName)) return false;
 
-        if (_projectConstants.TryGetValue($"{projectName}:{cleanKey}", out var pVal))
+        if (TryResolveExactOrLeafInProjectKey(projectName, cleanKey, out value))
         {
-            value = pVal;
             return true;
         }
         var domain = ExtractDomainNameFromProject(projectName);
-        if (!string.IsNullOrWhiteSpace(domain) && _projectConstants.TryGetValue($"{domain}:{cleanKey}", out var dVal))
+        if (!string.IsNullOrWhiteSpace(domain) && TryResolveExactOrLeafInProjectKey(domain, cleanKey, out value))
         {
-            value = dVal;
             return true;
         }
         var stripped = EndpointScoringEngine.StripCommonAffixes(projectName);
         if (!string.IsNullOrWhiteSpace(stripped))
         {
-            if (_projectConstants.TryGetValue($"{stripped}:{cleanKey}", out var sVal))
+            if (TryResolveExactOrLeafInProjectKey(stripped, cleanKey, out value))
             {
-                value = sVal;
                 return true;
             }
             var normStripped = stripped.Replace("-", "_");
-            if (_projectConstants.TryGetValue($"{normStripped}:{cleanKey}", out var nsVal))
+            if (TryResolveExactOrLeafInProjectKey(normStripped, cleanKey, out value))
             {
-                value = nsVal;
                 return true;
             }
         }
 
+        return false;
+    }
+
+    private static bool TryResolveExactOrLeafInProjectKey(string projKey, string cleanKey, out string value)
+    {
+        if (_projectConstants.TryGetValue($"{projKey}:{cleanKey}", out var exactVal))
+        {
+            value = exactVal;
+            return true;
+        }
+
+        if (_projectConstantsByLeaf.TryGetValue($"{projKey}:{cleanKey}", out var leafEntry) &&
+            leafEntry.MatchCount == 1 &&
+            !string.IsNullOrEmpty(leafEntry.Value))
+        {
+            value = leafEntry.Value;
+            return true;
+        }
+
+        if (cleanKey.Contains('.'))
+        {
+            var lastDot = cleanKey.LastIndexOf('.');
+            var memberLeaf = cleanKey[(lastDot + 1)..];
+            if (_projectConstantsByLeaf.TryGetValue($"{projKey}:{memberLeaf}", out var memberLeafEntry) &&
+                memberLeafEntry.MatchCount == 1 &&
+                !string.IsNullOrEmpty(memberLeafEntry.Value))
+            {
+                value = memberLeafEntry.Value;
+                return true;
+            }
+        }
+
+        value = null!;
         return false;
     }
 
@@ -209,36 +258,12 @@ public static class ConstantRegistry
         }
 
         var cleanKey = key.Trim().Trim('\'', '"', '`');
-
-        // Extract project name if a file path was passed
         var projectName = ExtractProjectName(projectNameOrFilePath);
 
-        // 1. Try project-specific lookup
+        // 1. Try project-specific lookup (exact and project-scoped leaf index)
         if (TryResolveInProject(projectName, cleanKey, out value))
         {
             return true;
-        }
-
-        // 1b. If resolving a generic schema key in a project context, check if any registered schema constant has a domain prefix contained in the project name
-        if (!string.IsNullOrWhiteSpace(projectName) &&
-            cleanKey is "schema" or "schema_name" or "db_schema" or "db_schema_name" or
-                        "self.schema" or "self.schema_name" or "self.db_schema" or "self.db_schema_name")
-        {
-            var normProj = projectName.Replace("-", "_");
-            foreach (var (k, v) in _globalConstants)
-            {
-                if (!k.Contains("schema", StringComparison.OrdinalIgnoreCase)) continue;
-                var schemaIdx = k.IndexOf("schema", StringComparison.OrdinalIgnoreCase);
-                if (schemaIdx > 1)
-                {
-                    var prefix = k[..(schemaIdx - 1)].Trim('_');
-                    if (prefix.Length >= 3 && normProj.Contains(prefix, StringComparison.OrdinalIgnoreCase))
-                    {
-                        value = v;
-                        return true;
-                    }
-                }
-            }
         }
 
         // 2. Try global lookup with exact key
@@ -278,55 +303,7 @@ public static class ConstantRegistry
             }
         }
 
-        // 3. Fallback: strip leading "this.config.", "config.", "this.", or "self." if present
-        if (cleanKey.StartWithIC("this.config."))
-        {
-            var subKey = cleanKey["this.config.".Length..];
-            if (TryResolve(projectName, subKey, out value)) return true;
-        }
-        else if (cleanKey.StartWithIC("config."))
-        {
-            var subKey = cleanKey["config.".Length..];
-            if (TryResolve(projectName, subKey, out value)) return true;
-        }
-        else if (cleanKey.StartWithIC("this."))
-        {
-            var subKey = cleanKey[5..];
-            if (subKey.IndexOf('.') < 0)
-            {
-                if (TryResolveInProject(projectName, subKey, out value)) return true;
-            }
-            else if (TryResolve(projectName, subKey, out value)) return true;
-        }
-        else if (cleanKey.StartWithIC("self."))
-        {
-            var subKey = cleanKey[5..];
-            if (subKey.IndexOf('.') < 0)
-            {
-                if (TryResolveInProject(projectName, subKey, out value)) return true;
-            }
-            else if (TryResolve(projectName, subKey, out value)) return true;
-        }
-
-        // 3b. Fallback: if key is a member expression like this.pubsubConfig.eventBusSubscriptionName or pubSubConfig.subName
-        if (cleanKey.Contains('.'))
-        {
-            var lastDot = cleanKey.LastIndexOf('.');
-            var objPart = cleanKey[..lastDot];
-            var propName = cleanKey[(lastDot + 1)..];
-
-            if (objPart.Contains("config", StringComparison.OrdinalIgnoreCase) ||
-                objPart.Contains("settings", StringComparison.OrdinalIgnoreCase) ||
-                objPart.Contains("options", StringComparison.OrdinalIgnoreCase) ||
-                objPart.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
-                objPart.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
-                objPart.Contains("env", StringComparison.OrdinalIgnoreCase))
-            {
-                if (TryResolve(projectName, propName, out value)) return true;
-            }
-        }
-
-        // 4. Fallback: if key is an unqualified member or suffix (e.g. "SourcesPlacementsBlack" or "SMART_CPA.GLOBAL_PREFIX")
+        // 3. Fallback: if key is an unqualified member or suffix (e.g. "SourcesPlacementsBlack" or "SMART_CPA.GLOBAL_PREFIX")
         if (_globalConstantsByLeaf.TryGetValue(cleanKey, out var leafEntry) &&
             leafEntry.MatchCount == 1 &&
             !string.IsNullOrEmpty(leafEntry.Value))
@@ -335,7 +312,7 @@ public static class ConstantRegistry
             return true;
         }
 
-        // 5. Fallback: if project is unspecified, search _projectConstants for a matching key
+        // 4. Fallback: if project is unspecified, search _projectConstants for a matching key
         if (string.IsNullOrWhiteSpace(projectName))
         {
             if (_projectConstantsByKey.TryGetValue(cleanKey, out var pEntry) &&
@@ -359,6 +336,11 @@ public static class ConstantRegistry
     public static string? ExtractProjectName(string? projectNameOrPath)
     {
         if (string.IsNullOrWhiteSpace(projectNameOrPath)) return null;
+
+        if (Urn.TryParse(projectNameOrPath, out var urn) && urn.HasDeclaringFilePath)
+        {
+            projectNameOrPath = urn.DeclaringFilePath!;
+        }
 
         var s = projectNameOrPath.Replace('\\', '/').Trim();
         if (!s.Contains('/')) return s;
@@ -625,7 +607,6 @@ public static class ConstantRegistry
                 if (!string.IsNullOrEmpty(argVal))
                 {
                     Register(projectName, constName, argVal);
-                    Register(projectName, $"this.{constName}", argVal);
                 }
             }
 
@@ -664,15 +645,6 @@ public static class ConstantRegistry
                         resolvedValue = envVar;
                     }
                     Register(projectName, fieldName, resolvedValue);
-                    Register(projectName, $"this.{fieldName}", resolvedValue);
-                    Register(projectName, $"config.{fieldName}", resolvedValue);
-                    Register(projectName, $"this.config.{fieldName}", resolvedValue);
-                    Register(projectName, $"this.pubsubConfig.{fieldName}", resolvedValue);
-                    Register(projectName, $"pubsubConfig.{fieldName}", resolvedValue);
-                    Register(projectName, $"this.pubSubConfig.{fieldName}", resolvedValue);
-                    Register(projectName, $"pubSubConfig.{fieldName}", resolvedValue);
-                    Register(projectName, $"this.brokerConfig.{fieldName}", resolvedValue);
-                    Register(projectName, $"brokerConfig.{fieldName}", resolvedValue);
                 }
             }
         }

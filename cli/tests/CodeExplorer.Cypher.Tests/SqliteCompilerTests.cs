@@ -308,6 +308,21 @@ public class SqliteCompilerTests
     }
 
     [Test]
+    public void Test_Length_On_VariableLengthRelationship()
+    {
+        var cypher = """
+            MATCH (a:Function)-[r:CALLS*1..2]->(b:Function)
+            WHERE a.id = 'fn:process'
+            RETURN b.id AS to_id, length(r) AS hops, size(r) AS relSize
+            ORDER BY hops
+            """;
+        var rows = ExecuteCypher(cypher);
+        rows.Should().NotBeEmpty();
+        rows[0]["hops"].Should().Be(1L);
+        rows[0]["relSize"].Should().Be(1L);
+    }
+
+    [Test]
     public void Test_Relationship_Functions_Type_StartNode_EndNode_Properties()
     {
         var cypher = @"

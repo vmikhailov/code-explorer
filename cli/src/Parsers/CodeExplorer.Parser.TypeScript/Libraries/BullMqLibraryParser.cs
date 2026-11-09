@@ -4,7 +4,6 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class BullMqLibraryParser : DeclarativeSemanticExtension
 {
-    private const string ThisDotPrefix = "this.";
     private const string PropQueueName = "queueName";
     private const string PropQueue = "queue";
     private const string PropName = "name";
@@ -91,8 +90,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
             {
                 if (propName is "add" or "addBulk" or "bulkAdd" or "addCron")
                 {
-                    var objText = objNode.IsValid() ? objNode.Text : "";
-                    var cleanField = objText.StartWithIC(ThisDotPrefix) ? objText[5..] : objText;
+                    var cleanField = objNode.IsValid() ? objNode.GetCanonicalMemberPath() : "";
 
                     // A. Try resolving the queue bound to the field via @InjectQueue(...) / @InjectMessageQueue(...) in enclosing class constructor
                     var injectedQueue = ResolveInjectedQueueFromEnclosingClass(node, cleanField, ctx?.WorkspaceId);
@@ -155,8 +153,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
         List<Reference> references,
         ParsingContext ctx)
     {
-        var objText = objNode.IsValid() ? objNode.Text : "";
-        var cleanField = objText.StartWithIC(ThisDotPrefix) ? objText[5..] : objText;
+        var cleanField = objNode.IsValid() ? objNode.GetCanonicalMemberPath() : "";
         if (!cleanField.Contains("job", StringComparison.OrdinalIgnoreCase) &&
             !cleanField.Contains("queue", StringComparison.OrdinalIgnoreCase))
         {
@@ -329,10 +326,11 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
 
         // If member expression like MessageQueue.emailQueue and ConstantRegistry hasn't parsed the enum file yet,
         // emit the qualified constant reference so Layer 5 ResolveMessagingReference resolves it via ConstantRegistry!
-        if (argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression) || argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+        if ((argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression) || argNode.Is(TreeSitterSyntax.TypeScript.Identifier)) &&
+            !argNode.StartsWithSelfOrSuper())
         {
             var raw = argNode.Text.Trim();
-            if (!string.IsNullOrEmpty(raw) && !raw.StartsWith("this.", StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(raw))
             {
                 if (ConstantRegistry.TryResolve(contextOrProject, raw, out var cVal) && !string.IsNullOrEmpty(cVal))
                 {

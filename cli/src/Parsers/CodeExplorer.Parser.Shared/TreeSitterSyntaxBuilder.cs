@@ -419,6 +419,7 @@ public abstract class TreeSitterSyntaxConverterBase
             }
 
             PopulateSyntaxNode(syntaxNode, doc);
+            TreeSitterSyntaxPopulator.FinalizeSyntaxNodeSemantics(syntaxNode);
 
             switch (syntaxNode)
             {

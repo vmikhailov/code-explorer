@@ -141,6 +141,12 @@ internal static class TreeSitterSyntaxPopulator
             fn.Receiver = fn.Parameters[0];
         }
 
+        if (fn.Parameters.Count > 0 && fn.Parameters[0].NameSpan is "self" or "cls" or "this")
+        {
+            fn.Parameters[0].PassingMode = ParameterPassingMode.Receiver;
+            fn.Receiver ??= fn.Parameters[0];
+        }
+
         fn.Body = fn.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ?? fn.FirstChildOfType<BlockStmtSyntax>();
         for (int i = 0; i < fn.Children.Count; i++)
         {
@@ -151,7 +157,33 @@ internal static class TreeSitterSyntaxPopulator
             }
         }
 
+        if (fn.Receiver is { HasName: true } recvParam)
+        {
+            var recvNameSpan = recvParam.NameSpan;
+            if (!recvNameSpan.IsEmpty && fn.Body != null)
+            {
+                MarkReceiverIdentifiersRecursive(fn.Body, recvNameSpan);
+            }
+            if (!recvNameSpan.IsEmpty && fn.ExpressionBody != null)
+            {
+                MarkReceiverIdentifiersRecursive(fn.ExpressionBody, recvNameSpan);
+            }
+        }
+
         FunctionDataflowAnalyzer.Analyze(fn);
+    }
+
+    private static void MarkReceiverIdentifiersRecursive(SyntaxNode node, ReadOnlySpan<char> recvNameSpan)
+    {
+        if (node is IdentifierExprSyntax { Role: IdentifierRole.Symbol } id &&
+            id.NameSpan.Equals(recvNameSpan, StringComparison.Ordinal))
+        {
+            id.Role = IdentifierRole.Self;
+        }
+        for (int i = 0; i < node.Children.Count; i++)
+        {
+            MarkReceiverIdentifiersRecursive(node.Children[i], recvNameSpan);
+        }
     }
 
     public static void PopulateLambda(LambdaExprSyntax lambda)
@@ -243,6 +275,24 @@ internal static class TreeSitterSyntaxPopulator
             if (callChild.Arguments.Count > 0)
             {
                 ann.Arguments = callChild.Arguments;
+                return;
+            }
+        }
+
+        for (int i = 0; i < ann.Children.Count; i++)
+        {
+            if (ann.Children[i] is SyntaxList { Kind: SyntaxListKind.General } innerAttr)
+            {
+                if (!ann.HasName && innerAttr.FirstChildOfType<IdentifierExprSyntax>() is { } innerName)
+                {
+                    ann.NameSlice = new SourceSlice(innerName.Span.StartByte, innerName.Span.Length);
+                }
+                var innerArgs = ExtractArguments(innerAttr);
+                if (innerArgs.Count > 0)
+                {
+                    ann.Arguments = innerArgs;
+                    return;
+                }
             }
         }
     }
@@ -272,6 +322,21 @@ internal static class TreeSitterSyntaxPopulator
                 {
                     (args ??= new List<ArgumentSyntax>(argsContainer.Children.Count)).Add(arg);
                 }
+                else if (child is IdentifierExprSyntax keyId &&
+                         i + 1 < argsContainer.Children.Count &&
+                         argsContainer.Children[i + 1] is ExprSyntax nextVal &&
+                         HasEqualsSeparatorBetween(owner.Document, keyId.Span.EndByte, nextVal.Span.StartByte))
+                {
+                    (args ??= new List<ArgumentSyntax>(argsContainer.Children.Count)).Add(new ArgumentSyntax
+                    {
+                        NameSlice = new SourceSlice(keyId.Span.StartByte, keyId.Span.Length),
+                        Value = nextVal,
+                        Span = new TextSpan(keyId.Span.StartByte, nextVal.Span.EndByte, keyId.Span.StartLine, keyId.Span.StartColumn, nextVal.Span.EndLine, nextVal.Span.EndColumn),
+                        Parent = owner,
+                        Document = owner.Document
+                    });
+                    i++;
+                }
                 else if (child is ExprSyntax expr)
                 {
                     (args ??= new List<ArgumentSyntax>(argsContainer.Children.Count)).Add(new ArgumentSyntax
@@ -295,6 +360,16 @@ internal static class TreeSitterSyntaxPopulator
             }
         }
         return directArgs ?? (IReadOnlyList<ArgumentSyntax>)[];
+    }
+
+    private static bool HasEqualsSeparatorBetween(SyntaxDocument? doc, int startByte, int endByte)
+    {
+        if (doc == null || startByte < 0 || endByte <= startByte || endByte > doc.SourceText.Length || endByte - startByte > 16)
+        {
+            return false;
+        }
+        var between = doc.SourceText.AsSpan(startByte, endByte - startByte).Trim();
+        return between is "=" or ":";
     }
 
     public static void PopulateArgument(ArgumentSyntax argSyntax)
@@ -712,6 +787,78 @@ internal static class TreeSitterSyntaxPopulator
                 implDecl.TargetType = firstType;
             }
         }
+    }
+
+    public static void FinalizeSyntaxNodeSemantics(SyntaxNode node)
+    {
+        switch (node)
+        {
+            case MemberAccessExprSyntax memExpr:
+                if (memExpr.Object is IdentifierExprSyntax { NameSpan: "env" or "environ" } or
+                    MemberAccessExprSyntax { MemberNameSpan: "env" or "environ" })
+                {
+                    memExpr.IsEnvironmentLookup = true;
+                }
+                break;
+
+            case CallExprSyntax callExpr:
+                callExpr.ValueSemantics = ClassifyCallValueSemantics(callExpr);
+                break;
+        }
+    }
+
+    private static CallValueSemantics ClassifyCallValueSemantics(CallExprSyntax callExpr)
+    {
+        var methodSpan = callExpr.MethodNameSpan;
+        if (callExpr.CallKind == CallSyntaxKind.Macro)
+        {
+            if (methodSpan is "format" or "format!")
+            {
+                return CallValueSemantics.StringFormat;
+            }
+            return CallValueSemantics.None;
+        }
+
+        if (methodSpan.IsEmpty) return CallValueSemantics.None;
+
+        var argCount = callExpr.Arguments.Count;
+
+        if (argCount == 0 && callExpr.Receiver != null &&
+            methodSpan is "to_string" or "toString" or "ToString" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
+        {
+            return CallValueSemantics.IdentityConversion;
+        }
+
+        if (argCount == 1 && callExpr.Receiver == null &&
+            methodSpan is "String" or "ToString" or "str")
+        {
+            return CallValueSemantics.IdentityConversion;
+        }
+
+        if (argCount >= 2 &&
+            methodSpan is "Sprintf" or "Format" or "format")
+        {
+            return CallValueSemantics.StringFormat;
+        }
+
+        if (methodSpan is "from" or "alloc" or "fromCharCode" or "atob" or "b64decode" or "FromBase64String")
+        {
+            return CallValueSemantics.ByteOrBase64Decode;
+        }
+
+        if (argCount is 1 or 2)
+        {
+            if (methodSpan is "Getenv" or "getenv" or "GetEnvironmentVariable" or "GetValue" or "GetConnectionString" or "GetString" or "getString" or "getOrThrow")
+            {
+                return CallValueSemantics.EnvironmentOrConfigLookup;
+            }
+            if (methodSpan is "get" or "var" && callExpr.Receiver != null)
+            {
+                return CallValueSemantics.EnvironmentOrConfigLookup;
+            }
+        }
+
+        return CallValueSemantics.None;
     }
 
     private static void PropagateVariableDeclMetadata(VariableDeclSyntax parent, VariableDeclSyntax child)

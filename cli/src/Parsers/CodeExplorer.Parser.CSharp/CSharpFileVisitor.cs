@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp;
@@ -336,7 +337,6 @@ public class CSharpFileVisitor : BaseParserVisitor
                             resolvedTypeName = resolvedTypeName.TrimEnd('?');
                             var scopeName = GetContainingScopeName(node);
                             RawTypeBindings.Add(new RawTypeBinding(varName, resolvedTypeName, "", scopeName));
-                            RawTypeBindings.Add(new RawTypeBinding("this." + varName, resolvedTypeName, "", scopeName));
                         }
                     }
                 }
@@ -355,7 +355,6 @@ public class CSharpFileVisitor : BaseParserVisitor
             var cleanType = typeNode.Text.TrimEnd('?');
             var scopeName = GetContainingScopeName(node);
             RawTypeBindings.Add(new RawTypeBinding(nameNode.Text, cleanType, "", scopeName));
-            RawTypeBindings.Add(new RawTypeBinding("this." + nameNode.Text, cleanType, "", scopeName));
 
             var parent = node.Parent;
             if (parent.IsValid() && parent.Is(TreeSitterSyntax.CSharp.ParameterList))
@@ -424,15 +423,10 @@ public class CSharpFileVisitor : BaseParserVisitor
                 var rightName = right.Text.Trim();
                 if (paramTypes.TryGetValue(rightName, out var typeName))
                 {
-                    var leftName = left.Text.Trim();
-                    RawTypeBindings.Add(new RawTypeBinding(leftName, typeName, "", scopeName));
-                    if (leftName.StartsWith("this."))
+                    var leftName = left.GetCanonicalMemberPath();
+                    if (!string.IsNullOrEmpty(leftName))
                     {
-                        RawTypeBindings.Add(new RawTypeBinding(leftName["this.".Length..], typeName, "", scopeName));
-                    }
-                    else
-                    {
-                        RawTypeBindings.Add(new RawTypeBinding("this." + leftName, typeName, "", scopeName));
+                        RawTypeBindings.Add(new RawTypeBinding(leftName, typeName, "", scopeName));
                     }
                 }
             }
@@ -479,7 +473,8 @@ public class CSharpFileVisitor : BaseParserVisitor
             {
                 if (expressionChild.IsValid())
                 {
-                    return $"{expressionChild.Text}.{nameChild.Text}";
+                    var recvPath = expressionChild.GetCanonicalMemberPath();
+                    return string.IsNullOrEmpty(recvPath) ? nameChild.Text : $"{recvPath}.{nameChild.Text}";
                 }
                 return nameChild.Text;
             }
@@ -494,12 +489,17 @@ public class CSharpFileVisitor : BaseParserVisitor
         {
             foreach (var child in node.Children)
             {
-                if (child.Type.Contains("identifier") || child.Type.Contains("name"))
+                if (child is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax ||
+                    child.Type.Contains("identifier") || child.Type.Contains("name"))
                 {
                     var baseName = child.Text;
-                    var refKind = baseName.StartsWith('I') && baseName.Length > 1 && char.IsUpper(baseName[1])
-                        ? "IMPLEMENTS"
-                        : "INHERITS_FROM";
+                    var ltIdx = baseName.IndexOf('<');
+                    if (ltIdx > 0) baseName = baseName[..ltIdx].Trim();
+                    var lastDot = baseName.LastIndexOf('.');
+                    var shortName = lastDot >= 0 ? baseName[(lastDot + 1)..] : baseName;
+                    var refKind = shortName.StartsWith('I') && shortName.Length > 1 && char.IsUpper(shortName[1])
+                        ? CodeExplorer.Cypher.Common.RelationshipKind.Implements
+                        : CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom;
                     currentScope.References.Add(new Reference("", baseName, refKind));
                 }
             }
@@ -576,7 +576,6 @@ public class CSharpFileVisitor : BaseParserVisitor
                 {
                     var scopeName = GetContainingScopeName(node);
                     RawTypeBindings.Add(new RawTypeBinding(name, typeNode.Text, "", scopeName));
-                    RawTypeBindings.Add(new RawTypeBinding("this." + name, typeNode.Text, "", scopeName));
                 }
             }
         }

@@ -181,11 +181,7 @@ public class UndiciLibraryParser : DeclarativeSemanticExtension
         var objNode = func.GetField(TreeSitterSyntax.Fields.Object);
         if (!objNode.IsValid()) return null;
 
-        var varName = objNode.Text.Trim();
-        if (varName.StartWithIC("this."))
-        {
-            varName = varName[5..].Trim();
-        }
+        var varName = objNode.GetCanonicalMemberPath();
 
         // 1. Direct lexical search in parent statement blocks / functions
         var curr = callNode.Parent;

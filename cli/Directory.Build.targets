@@ -15,7 +15,7 @@
 
   <Target Name="OverrideTreeSitterCSharpNativeOnBuild" AfterTargets="CopyFilesToOutputDirectory" Condition="Exists('$(TreeSitterNativeRuntimesDir)') and (Exists('$(OutDir)runtimes') or Exists('$(OutDir)TreeSitter.dll'))">
     <ItemGroup>
-      <_UpdatedTreeSitterCSharpRuntimes Include="$(TreeSitterNativeRuntimesDir)\**\*.*" Condition="'$(RuntimeIdentifier)' == '' and '%(Filename)%(Extension)' != '.stamp'" />
+      <_UpdatedTreeSitterCSharpRuntimes Include="$(TreeSitterNativeRuntimesDir)\**\*.*" Exclude="$(TreeSitterNativeRuntimesDir)\.stamp" Condition="'$(RuntimeIdentifier)' == ''" />
       <_UpdatedTreeSitterCSharpRid Include="$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native')" />
     </ItemGroup>
     <Copy SourceFiles="@(_UpdatedTreeSitterCSharpRuntimes)" DestinationFiles="@(_UpdatedTreeSitterCSharpRuntimes->'$(OutDir)runtimes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_UpdatedTreeSitterCSharpRuntimes)' != ''" />
@@ -24,7 +24,7 @@
 
   <Target Name="OverrideTreeSitterCSharpNativeOnPublish" AfterTargets="CopyFilesToPublishDirectory;ComputeResolvedFilesToPublishList" Condition="Exists('$(TreeSitterNativeRuntimesDir)') and Exists('$(PublishDir)')">
     <ItemGroup>
-      <_PublishTreeSitterCSharpRuntimes Include="$(TreeSitterNativeRuntimesDir)\**\*.*" Condition="'$(RuntimeIdentifier)' == '' and '%(Filename)%(Extension)' != '.stamp'" />
+      <_PublishTreeSitterCSharpRuntimes Include="$(TreeSitterNativeRuntimesDir)\**\*.*" Exclude="$(TreeSitterNativeRuntimesDir)\.stamp" Condition="'$(RuntimeIdentifier)' == ''" />
       <_PublishTreeSitterCSharpRid Include="$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(TreeSitterNativeRuntimesDir)\$(RuntimeIdentifier)\native')" />
     </ItemGroup>
     <Copy SourceFiles="@(_PublishTreeSitterCSharpRuntimes)" DestinationFiles="@(_PublishTreeSitterCSharpRuntimes->'$(PublishDir)runtimes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_PublishTreeSitterCSharpRuntimes)' != ''" />

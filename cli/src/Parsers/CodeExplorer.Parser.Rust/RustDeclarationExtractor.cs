@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust;
@@ -112,7 +111,8 @@ public static class RustDeclarationExtractor
                         {
                             var attr = child.FindChildOfType(TreeSitterSyntax.Rust.AttributeItem);
                             var effectiveAttr = attr.IsValid() ? attr : lastAttr;
-                            if (effectiveAttr.IsValid() && Regex.IsMatch(effectiveAttr.Text, @"default\s*=\s*""([A-Za-z0-9_]+)"""))
+                            if (effectiveAttr is CodeExplorer.Core.Parser.Syntax.AnnotationSyntax ann &&
+                                ann.Arguments.Any(a => a.NameSpan is "default"))
                             {
                                 var fieldNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                                     child.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
@@ -122,8 +122,8 @@ public static class RustDeclarationExtractor
                                     if (isPubStruct)
                                     {
                                         register(fieldName, effectiveAttr, null);
-                                        register($"self.{fieldName}", effectiveAttr, null);
                                     }
+                                    register($"{name}.{fieldName}", effectiveAttr, null);
                                     register($"{name}::{fieldName}", effectiveAttr, null);
                                 }
                             }
@@ -161,8 +161,8 @@ public static class RustDeclarationExtractor
                 register(name, node, null);
                 if (!string.IsNullOrEmpty(currentScope))
                 {
+                    register($"{currentScope}.{name}", node, null);
                     register($"{currentScope}::{name}", node, null);
-                    register($"self.{name}", node, null);
                 }
             }
 

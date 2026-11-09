@@ -97,6 +97,10 @@ public sealed class PythonSyntaxConverter : TreeSitterSyntaxConverterBase
 
         switch (node)
         {
+            case IdentifierExprSyntax idExpr when idExpr.Role == IdentifierRole.Symbol && idExpr.NameSpan is "self" or "cls":
+                idExpr.Role = IdentifierRole.Self;
+                break;
+
             case CallExprSyntax callExpr:
                 var fnNode = callExpr.GetChildForField("function");
                 if (fnNode is ExprSyntax fnExpr) callExpr.Callee = fnExpr;

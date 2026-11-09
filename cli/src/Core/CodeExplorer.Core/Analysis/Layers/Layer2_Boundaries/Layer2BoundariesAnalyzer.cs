@@ -111,6 +111,12 @@ public partial class Layer2ProjectParser
             var pPath = p.Path.NormalizeSlashes().Trim('/');
             if (pPath == "")
             {
+                var isRootScriptFallback = p.EntityKind == ProjectEntityKind.ScriptProject ||
+                                           p.ProjectType is ProjectLanguage.Script or ProjectLanguage.Batch or ProjectLanguage.PowerShell or ProjectLanguage.Shell;
+                if (isRootScriptFallback && cleanPath.Contains('/'))
+                {
+                    continue;
+                }
                 if (bestMatchLength < 0)
                 {
                     bestMatch = p;

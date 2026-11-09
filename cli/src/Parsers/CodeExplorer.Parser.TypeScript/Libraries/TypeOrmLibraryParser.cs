@@ -340,17 +340,45 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
         if (!isWrite && !IsRepositoryReadMethod(propName)) return false;
 
         var objText = objNode.IsValid() ? objNode.Text.Trim() : "";
-        var fieldName = objText.StartsWith("this.", StringComparison.Ordinal) ? objText[5..] : objText;
-        if (fieldName.Contains('.')) fieldName = fieldName[(fieldName.LastIndexOf('.') + 1)..];
+        string? entityOrTable = null;
 
-        var entityOrTable = ResolveEntityFromEnclosingClass(callNode, fieldName);
+        if (objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
+            AstHelper.TryGetMemberAccess(objNode, out _, out var innerProp) &&
+            innerProp is "getRepository" or "getCustomRepository")
+        {
+            var innerArgs = AstHelper.GetCallArguments(objNode);
+            if (innerArgs.Count > 0 && innerArgs[0].IsValid())
+            {
+                entityOrTable = StripEntityOrTableSuffix(innerArgs[0].Text.Trim());
+            }
+        }
+        else if (objText.Contains("manager", StringComparison.OrdinalIgnoreCase))
+        {
+            var callArgs = AstHelper.GetCallArguments(callNode);
+            if (callArgs.Count > 0 && callArgs[0].IsValid())
+            {
+                var firstArg = callArgs[0].Text.Trim();
+                if (firstArg.EndsWith("Entity", StringComparison.Ordinal) || firstArg.EndsWith("Table", StringComparison.Ordinal))
+                {
+                    entityOrTable = StripEntityOrTableSuffix(firstArg);
+                }
+            }
+        }
+
         if (string.IsNullOrEmpty(entityOrTable))
         {
-            entityOrTable = StripRepositorySuffix(fieldName);
-        }
-        else
-        {
-            entityOrTable = StripEntityOrTableSuffix(entityOrTable);
+            var fieldName = objNode.IsValid() ? objNode.GetCanonicalMemberPath() : objText;
+            if (fieldName.Contains('.')) fieldName = fieldName[(fieldName.LastIndexOf('.') + 1)..];
+
+            entityOrTable = ResolveEntityFromEnclosingClass(callNode, fieldName);
+            if (string.IsNullOrEmpty(entityOrTable))
+            {
+                entityOrTable = StripRepositorySuffix(fieldName);
+            }
+            else
+            {
+                entityOrTable = StripEntityOrTableSuffix(entityOrTable);
+            }
         }
 
         if (string.IsNullOrWhiteSpace(entityOrTable) ||

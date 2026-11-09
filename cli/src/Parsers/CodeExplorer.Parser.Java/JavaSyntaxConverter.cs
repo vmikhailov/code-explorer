@@ -82,8 +82,10 @@ public sealed class JavaSyntaxConverter : TreeSitterSyntaxConverterBase
                 new IdentifierExprSyntax { Span = span },
             "type_identifier" =>
                 new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Type },
-            "this" or "super" =>
-                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.SelfOrSuper },
+            "this" =>
+                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Self },
+            "super" =>
+                new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Super },
 
             "field_access" => new MemberAccessExprSyntax { Span = span },
             "scoped_identifier" => new MemberAccessExprSyntax { Span = span, Operator = "::" },

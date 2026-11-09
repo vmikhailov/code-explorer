@@ -397,6 +397,7 @@ public partial class SqliteCompiler
         EmitVarLenRelAndNodeJoin(cteName, rVar, EscapeVar(boundVar), relOnConditions, nodeOnConditions, joinKeyword, fromAndJoins, forceCrossJoin);
 
         _declaredRels.Add(relVar);
+        _varLenRels.Add(relVar);
         _declaredNodes.Add(boundVar);
     }
 
@@ -426,6 +427,7 @@ public partial class SqliteCompiler
         fromAndJoins.AppendLine();
         fromAndJoins.Append($"{joinKeyword} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
         _declaredRels.Add(relVar);
+        _varLenRels.Add(relVar);
     }
 
     private static void EmitVarLenRelAndNodeJoin(

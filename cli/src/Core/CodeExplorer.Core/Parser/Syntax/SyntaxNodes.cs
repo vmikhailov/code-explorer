@@ -177,7 +177,9 @@ public enum IdentifierRole : byte
     Symbol,
     Type,
     Member,
-    SelfOrSuper
+    Self,
+    Super,
+    SelfOrSuper = Self
 }
 
 public enum PatternKind : byte
@@ -269,6 +271,15 @@ public enum CallSyntaxKind : byte
     Macro,
     SuperConstructor,
     ThisConstructor
+}
+
+public enum CallValueSemantics : byte
+{
+    None = 0,
+    IdentityConversion,
+    StringFormat,
+    EnvironmentOrConfigLookup,
+    ByteOrBase64Decode
 }
 
 public enum ControlFlowKind : byte
@@ -545,6 +556,97 @@ public abstract class SyntaxNode
 
     public string? GetFieldNameForChild(int index) =>
         index >= 0 && index < Children.Count ? Children[index].FieldRole : null;
+
+    /// <summary>
+    /// True when this node defines a lexical scope boundary in the UAST.
+    /// </summary>
+    public bool IsScopeBoundary =>
+        this is BlockStmtSyntax or FunctionDeclSyntax or LambdaExprSyntax or SyntaxDocument or NamespaceDeclSyntax;
+
+    /// <summary>
+    /// True when this node is a language-level self/this/cls or super/base receiver identifier in the UAST.
+    /// </summary>
+    public bool IsSelfOrSuper =>
+        this is IdentifierExprSyntax { Role: IdentifierRole.Self or IdentifierRole.Super };
+
+    /// <summary>
+    /// True when this node is a language-level self/this/cls receiver identifier in the UAST.
+    /// </summary>
+    public bool IsSelf =>
+        this is IdentifierExprSyntax { Role: IdentifierRole.Self };
+
+    /// <summary>
+    /// True when this node is a language-level super/base receiver identifier in the UAST.
+    /// </summary>
+    public bool IsSuper =>
+        this is IdentifierExprSyntax { Role: IdentifierRole.Super };
+
+    /// <summary>
+    /// True when this node is a self/super identifier or a member access / call chain rooted at a self/super receiver.
+    /// </summary>
+    public bool StartsWithSelfOrSuper()
+    {
+        var curr = this;
+        for (int depth = 0; depth < 8; depth++)
+        {
+            if (curr is MemberAccessExprSyntax mem)
+            {
+                var obj = mem.Object ?? (mem.Children.Count > 0 ? mem.Children[0] : null);
+                if (obj == null || ReferenceEquals(obj, curr)) break;
+                curr = obj;
+            }
+            else if (curr is CallExprSyntax { Callee: { } callee })
+            {
+                curr = callee;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return curr.IsSelfOrSuper;
+    }
+
+    /// <summary>
+    /// Returns the canonical member access path with any leading self/super receiver structurally stripped.
+    /// If this node is itself a self/super receiver identifier, returns <see cref="string.Empty"/>.
+    /// </summary>
+    public string GetCanonicalMemberPath(string separator = ".")
+    {
+        if (IsSelfOrSuper) return string.Empty;
+
+        if (this is MemberAccessExprSyntax mem)
+        {
+            var obj = mem.Object ?? (mem.Children.Count > 0 ? mem.Children[0] : null);
+            var memberName = !string.IsNullOrEmpty(mem.MemberName)
+                ? mem.MemberName
+                : (mem.Children.Count > 1 ? mem.Children[^1].Text.Trim() : string.Empty);
+
+            if (obj == null || obj.IsSelfOrSuper)
+            {
+                return memberName;
+            }
+
+            var op = !string.IsNullOrEmpty(mem.Operator) ? mem.Operator : separator;
+            var objPath = obj is MemberAccessExprSyntax or IdentifierExprSyntax or CallExprSyntax
+                ? obj.GetCanonicalMemberPath(separator)
+                : obj.Text.Trim();
+
+            return string.IsNullOrEmpty(objPath) ? memberName : $"{objPath}{op}{memberName}";
+        }
+
+        if (this is CallExprSyntax { Arguments.Count: 0, Callee: MemberAccessExprSyntax calleeMem })
+        {
+            return $"{calleeMem.GetCanonicalMemberPath(separator)}()";
+        }
+
+        if (this is IdentifierExprSyntax id)
+        {
+            return id.Name.Trim();
+        }
+
+        return Text.Trim();
+    }
 
     public override string ToString() => $"{GetType().Name}({SyntaxKind}) [{Span.StartLine + 1}:{Span.StartColumn + 1}]";
 }
@@ -1150,7 +1252,7 @@ public sealed class IdentifierExprSyntax : ExprSyntax
     {
         IdentifierRole.Type => "type_identifier",
         IdentifierRole.Member => "property_identifier",
-        IdentifierRole.SelfOrSuper => "this",
+        IdentifierRole.Self or IdentifierRole.Super => "this",
         _ => "identifier"
     };
 }
@@ -1175,6 +1277,7 @@ public sealed class MemberAccessExprSyntax : ExprSyntax
     }
 
     public string Operator { get; set; } = ".";
+    public bool IsEnvironmentLookup { get; set; }
 
     protected override string GetCanonicalKindString() => Operator == "::" ? "scoped_identifier" : "member_access_expression";
 }
@@ -1228,6 +1331,23 @@ public sealed class CallExprSyntax : ExprSyntax
         get => _explicitMethodName ?? (MethodNameSlice.Length > 0 && Document != null ? (_explicitMethodName = Document.GetText(MethodNameSlice)) : string.Empty);
         set => _explicitMethodName = value;
     }
+
+    public string? ExplicitReceiverPath
+    {
+        get
+        {
+            if (Receiver == null || Receiver.IsSelfOrSuper)
+            {
+                return null;
+            }
+            var path = Receiver.GetCanonicalMemberPath();
+            return string.IsNullOrEmpty(path) ? null : path;
+        }
+    }
+
+    public bool HasExplicitReceiver => !string.IsNullOrEmpty(ExplicitReceiverPath);
+
+    public CallValueSemantics ValueSemantics { get; set; }
 
     public IReadOnlyList<ArgumentSyntax> Arguments { get; set; } = [];
 

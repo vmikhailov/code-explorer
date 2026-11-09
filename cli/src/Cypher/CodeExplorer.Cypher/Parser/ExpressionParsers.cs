@@ -318,7 +318,7 @@ public static class ExpressionParsers
             }
             if (suffix.Kind == PostfixSuffixKind.Index)
             {
-                return new FunctionCallExpression("item_at", false, [current, suffix.IndexExpr!]);
+                return new FunctionCallExpression(FuncItemAt, false, [current, suffix.IndexExpr!]);
             }
             if (current is IdentifierExpression idExpr)
             {
@@ -328,8 +328,10 @@ public static class ExpressionParsers
             {
                 return new PropertyAccessExpression($"{propExpr.Variable}.{propExpr.PropertyName}", suffix.Property);
             }
-            return new PropertyAccessExpression(current.ToString()!, suffix.Property);
+            return new FunctionCallExpression(FuncItemAt, false, [current, new StringLiteralExpression(suffix.Property)]);
         });
+
+    private const string FuncItemAt = "item_at";
 
     // Unary prefix: -, +
     public static TokenListParser<CypherToken, Expression> UnaryExpression { get; } =

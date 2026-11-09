@@ -116,6 +116,20 @@ public static class TypeScriptDeclarationExtractor
             return;
         }
 
+        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax
+            {
+                Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface
+            } classDecl)
+        {
+            var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
+            var className = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(classDecl.Name) ? classDecl.Name : currentScope);
+            foreach (var child in node.Children)
+            {
+                ExtractInternal(child, className, register);
+            }
+            return;
+        }
+
         if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax
             {
                 Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Property
@@ -130,6 +144,10 @@ public static class TypeScriptDeclarationExtractor
                 if (valNode is CodeExplorer.Core.Parser.Syntax.ConditionalExprSyntax condField)
                 {
                     valNode = condField.WhenTrue ?? condField.WhenFalse ?? valNode;
+                }
+                if (!string.IsNullOrEmpty(currentScope))
+                {
+                    register($"{currentScope}.{fieldName}", valNode, null);
                 }
                 register(fieldName, valNode, null);
             }

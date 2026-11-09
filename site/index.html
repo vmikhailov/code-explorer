@@ -22,9 +22,7 @@
   <meta name="twitter:title" content="CodeExplorer (ce): Understand, Query &amp; Guard Your Codebase Architecture">
   <meta name="twitter:description" content="Always-accurate architecture diagrams from real code, instant MCP memory for AI coding agents, and automated Semantic Invariant Gates in CI, powered by a local SQLite graph.">
   <meta name="twitter:image" content="https://code-explorer.app/og-image.png?v=2">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="fonts/fonts.css?v=1">
 
   <style>
 /* Hallmark · theme: Console · modern-minimal · dark · restrained · host-grotesk + atkinson-hyperlegible-mono · hero: workbench · nav: slab · footer: mast · redesign: full */
@@ -387,6 +385,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
+  min-height: 44px;
   padding: var(--space-xs) var(--space-md);
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-rule-2);
@@ -502,6 +501,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 .cmd-strip {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-md);
   background: var(--color-paper-3);
@@ -679,7 +680,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
 .panel-head {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
 }
@@ -1193,10 +1195,6 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   .slab-actions .btn--primary {
     display: none;
   }
-  .btn {
-    white-space: normal;
-    text-align: center;
-  }
   .workbench-bar {
     padding: var(--space-sm);
   }
@@ -1304,7 +1302,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </ul>
 
       <div class="slab-actions">
-        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.75.0</a>
+        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.75.1</a>
         <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">GitHub</a>
         <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
       </div>
@@ -1327,11 +1325,11 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
               <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
               <a href="/benchmarks.html" class="btn btn--framed">Competitor Benchmarks</a>
               <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">Star on GitHub</a>
-              <button type="button" class="cmd-strip" onclick="copyText('brew install vmikhailov/tap/ce', 'Copied Homebrew command to clipboard!')" title="Click to copy Homebrew command">
-                <span class="cmd-prompt">$</span>
-                <span>brew install vmikhailov/tap/ce</span>
-              </button>
             </div>
+            <button type="button" class="cmd-strip" onclick="copyText('brew install vmikhailov/tap/ce', 'Copied Homebrew command to clipboard!')" title="Click to copy Homebrew command">
+              <span class="cmd-prompt">$</span>
+              <span>brew install vmikhailov/tap/ce</span>
+            </button>
           </div>
         </div>
 
@@ -1709,7 +1707,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             <code class="tone-cool">Layer 4</code>
             <h3 class="panel-title">Semantic &amp; Domain Roles</h3>
             <p class="panel-copy">Classifies REST, gRPC, GraphQL, and messaging endpoints, CQRS handlers, repositories, and SQL tables.</p>
-            <code class="tone-muted">Endpoint ·SqlTable · HANDLES · READS_FROM · WRITES_TO</code>
+            <code class="tone-muted">Endpoint · SqlTable · HANDLES · READS_FROM · WRITES_TO</code>
           </div>
 
           <div class="trail-item">
@@ -1794,53 +1792,53 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
           <div class="diff-surface" role="region" aria-label="Public twentyhq/twenty agent audit against codebase-memory-mcp">
             <div class="diff-head">
               <span>Case Study 01: Autonomous agent audit on public <code>twentyhq/twenty</code> (24,527 files, 2.49M LOC)</span>
-              <span class="measured">ce Agent vs. CBM Agent</span>
+              <span class="measured">CodeExplorer vs CBM (Symmetric Prompts)</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
-              <span>AI Agent + <code>codebase-memory-mcp</code> (abandoned <code>CBM</code> after Turn 5; wrote 11 Python scripts + 27 file reads)</span>
-              <span class="diff-val">16m 46s, 56 turns, 4.41M input tokens</span>
+              <span><code>codebase-memory-mcp</code> (abandoned <code>CBM</code> after 8 queries; wrote 3 AST scripts + 10 file reads)</span>
+              <span class="diff-val">9m 15s, 28 turns, ~1.7M tokens</span>
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
-              <span>AI Agent + <code>CodeExplorer</code> (5 OpenCypher queries, 0 source files read, 0 scripts)</span>
-              <span class="diff-val">1m 16s (13.2× faster), 7 turns, 268K tokens</span>
+              <span><code>CodeExplorer</code> (1 ontology view + 5 OpenCypher queries, 0 source files read, 0 scripts)</span>
+              <span class="diff-val">41s (~14× faster), 4 turns, ~80K tokens</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
-              <span>Direct recall from <code>CBM</code> graph / final recall after 11 Python scripts</span>
-              <span class="diff-val">3.96% (18/454) from graph / 99.56% (452/454) final</span>
+              <span>Direct recall from <code>CBM</code> graph (only intra-class calls; 0% on DI, inheritance, BullMQ &amp; DB lineage)</span>
+              <span class="diff-val">~3% (13/381) from CBM graph</span>
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
               <span>Direct recall from <code>CodeExplorer</code> graph (DI calls, inheritance, BullMQ, GraphQL-to-DB lineage)</span>
-              <span class="diff-val">100% recall (454/454 directly from graph.db)</span>
+              <span class="diff-val">99% (378/381) directly from graph.db</span>
             </div>
           </div>
 
           <div class="diff-surface" role="region" aria-label="Enterprise benchmark comparison">
             <div class="diff-head">
               <span>Case Study 02: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
-              <span class="measured">ce Agent vs. ripgrep Agent</span>
+              <span class="measured">CodeExplorer vs ripgrep + Python</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
-              <span>Plain AI Agent (<code>ripgrep</code> + 114 file reads + 14 scripts)</span>
-              <span class="diff-val">29m 52s, 284 tool calls, 17.2M tokens</span>
+              <span><code>ripgrep + Python</code> (142 CLI commands + 114 file reads + 14 scripts)</span>
+              <span class="diff-val">29m 52s, 284 tool calls, ~17.2M tokens</span>
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
-              <span>AI Agent + CodeExplorer (<code>ce callers</code> &amp; <code>ce query</code>)</span>
-              <span class="diff-val">3m 56s, 19 tool calls, 393K tokens</span>
+              <span><code>CodeExplorer</code> (<code>ce callers</code> &amp; <code>ce query</code>, 0 file reads)</span>
+              <span class="diff-val">3m 56s (~8× faster), 19 tool calls, ~393K tokens</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
-              <span>Downstream services &amp; async Pub/Sub callers discovered (baseline)</span>
+              <span>Downstream services &amp; async Pub/Sub callers discovered (<code>ripgrep</code>)</span>
               <span class="diff-val">~82% recall (missed 9 services &amp; 15+ callers)</span>
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
-              <span>Downstream services &amp; async Pub/Sub callers discovered (CodeExplorer)</span>
+              <span>Downstream services &amp; async Pub/Sub callers discovered (<code>CodeExplorer</code>)</span>
               <span class="diff-val">100% recall (0 missed services or callers)</span>
             </div>
           </div>
@@ -1848,7 +1846,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
           <div class="diff-surface" role="region" aria-label="Head-to-head MCP graph engine benchmark">
             <div class="diff-head">
               <span>Case Studies 03 &amp; 04: <code>twenty</code> (24,527 files, 2.49M LOC) + <code>immich</code> (3,205 files, 461k LOC)</span>
-              <span class="measured">371 Ground-Truth Items (seed=42)</span>
+              <span class="measured">CodeExplorer vs CBM &amp; Graphify (371 GT)</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
@@ -1857,7 +1855,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
-              <span>Part 1 Common Ground Recall with CodeExplorer (<code>ce v1.75.0</code>)</span>
+              <span>Part 1 Common Ground Recall with CodeExplorer</span>
               <span class="diff-val">78% recall (102/130, 6 wins, 2 ties, 0 losses)</span>
             </div>
             <div class="diff-row diff-row--minus">
@@ -1867,33 +1865,33 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
-              <span>Part 2 Architectural Ontology Recall with CodeExplorer (<code>ce v1.75.0</code>)</span>
-              <span class="diff-val">97.5% micro-recall (235/241 verified items)</span>
+              <span>Part 2 Architectural Ontology Recall with CodeExplorer</span>
+              <span class="diff-val">~98% micro-recall (235/241 verified items)</span>
             </div>
             <div class="diff-row diff-row--minus">
               <span class="diff-sign">-</span>
               <span>Cold Indexing on <code>twenty</code> Monorepo (24,527 files, 2.49M LOC)</span>
-              <span class="diff-val">graphify: DNF (&gt;45m timeout) | CBM: 96.9s (843 MB DB)</span>
+              <span class="diff-val">graphify: DNF (&gt;45m timeout) | CBM: ~97s (843 MB DB)</span>
             </div>
             <div class="diff-row diff-row--plus">
               <span class="diff-sign">+</span>
               <span>Cold Indexing on <code>twenty</code> with CodeExplorer (Full L1 to L5 Pipeline)</span>
-              <span class="diff-val">147.3s (784 MB SQLite DB, 0 parse warnings)</span>
+              <span class="diff-val">~147s (784 MB SQLite DB, 0 parse warnings)</span>
             </div>
           </div>
 
           <div class="panels panels--3">
             <div class="panel panel--sunken">
-              <span class="reading tone-accent">97.5%</span>
+              <span class="reading tone-accent">~98%</span>
               <h3 class="panel-title">Architecture recall</h3>
               <p class="panel-copy">Matches 235 of 241 L4/L5 queue, ORM table, and data-lineage items not modeled by AST indexers.</p>
               <code class="panel-code">235 / 241 L4-L5 GT</code>
             </div>
             <div class="panel panel--sunken">
-              <span class="reading tone-ok">44×</span>
+              <span class="reading tone-ok">~44×</span>
               <h3 class="panel-title">Token compression</h3>
-              <p class="panel-copy">Reduced cumulative input tokens from 17.2M to 393K across 324 services with zero blind spots.</p>
-              <code class="panel-code">17.2M to 393K tokens</code>
+              <p class="panel-copy">Reduced cumulative input tokens from ~17.2M to ~393K across 324 services with zero blind spots.</p>
+              <code class="panel-code">~17.2M to ~393K tokens</code>
             </div>
             <div class="panel panel--sunken">
               <span class="reading">250</span>
@@ -1904,8 +1902,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
           </div>
 
           <div class="hero-controls">
-            <a href="/benchmarks.html" class="btn btn--primary">Explore Full Competitor Comparison &amp; Benchmarks</a>
-            <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">Reproduce From GitHub Scripts</a>
+            <a href="/benchmarks.html" class="btn btn--primary">View Full Benchmarks</a>
+            <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">Reproduce From GitHub</a>
           </div>
         </div>
       </div>

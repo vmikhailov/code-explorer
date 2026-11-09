@@ -131,19 +131,19 @@ public static partial class AstHelper
                 return directConst;
             }
 
-            if (argNode.Text.StartWithIC("this."))
+            if (argNode.StartsWithSelfOrSuper())
             {
-                var propName = argNode.Text[5..].Trim();
+                var propName = argNode.GetCanonicalMemberPath();
                 if (ConstantRegistry.TryResolve(contextOrProject, argNode.Text, out var thisConst) && !string.IsNullOrEmpty(thisConst))
                 {
                     return thisConst;
                 }
-                if (ConstantRegistry.TryResolve(contextOrProject, propName, out var propConst) && !string.IsNullOrEmpty(propConst))
+                if (!string.IsNullOrEmpty(propName) && ConstantRegistry.TryResolve(contextOrProject, propName, out var propConst) && !string.IsNullOrEmpty(propConst))
                 {
                     return propConst;
                 }
 
-                var classVal = FindClassFieldInitializerInAst(argNode, propName, depth + 1, visitedVars);
+                var classVal = !string.IsNullOrEmpty(propName) ? FindClassFieldInitializerInAst(argNode, propName, depth + 1, visitedVars) : null;
                 if (!string.IsNullOrEmpty(classVal))
                 {
                     var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth, visitedVars);
@@ -282,11 +282,7 @@ public static partial class AstHelper
             var func = argNode.GetFunctionNode();
             if (func.IsValid())
             {
-                var funcText = func.Text;
-                if (funcText.StartWithIC("this."))
-                {
-                    funcText = funcText[5..];
-                }
+                var funcText = func.GetCanonicalMemberPath();
 
                 if (RouteDictionaryRegistry.TryResolve(funcText, out var rPath, out var rService))
                 {

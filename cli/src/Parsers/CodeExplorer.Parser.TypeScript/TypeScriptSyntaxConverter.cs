@@ -89,7 +89,8 @@ public sealed class TypeScriptSyntaxConverter : TreeSitterSyntaxConverterBase
             "type_identifier" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Type },
             "property_identifier" or "private_property_identifier" or "shorthand_property_identifier" or "shorthand_property_identifier_pattern" =>
                 new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Member },
-            "this" or "super" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.SelfOrSuper },
+            "this" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Self },
+            "super" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Super },
 
             "member_expression" => new MemberAccessExprSyntax { Span = span },
             "subscript_expression" => new IndexExprSyntax { Span = span },

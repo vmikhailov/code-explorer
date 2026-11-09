@@ -82,7 +82,8 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
                 new CollectionExprSyntax { Span = span, Kind = CollectionSyntaxKind.Tuple },
 
             "identifier" => new IdentifierExprSyntax { Span = span },
-            "this" or "base" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.SelfOrSuper },
+            "this" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Self },
+            "base" => new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Super },
             "predefined_type" when parentRawKind is "member_access_expression" =>
                 new IdentifierExprSyntax { Span = span, Role = IdentifierRole.Type },
 

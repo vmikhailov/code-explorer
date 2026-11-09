@@ -153,8 +153,13 @@ public class QueryCommandHandler : BaseCommandHandler
             }
 
             var result = await client.ExecuteCypherAsync(cypherQuery, parameters);
+            if (opts.Limit is > 0 && result.Rows.Count > opts.Limit.Value)
+            {
+                result = new CypherQueryResult(result.Columns, result.Rows.Take(opts.Limit.Value).ToList());
+            }
 
-            if (string.Equals(opts.Format, "toon", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(opts.Format, "toon", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(opts.Format, "llm", StringComparison.OrdinalIgnoreCase))
             {
                 Console.WriteLine(ToonYamlSerializer.SerializeToon(result));
                 return 0;
@@ -171,7 +176,31 @@ public class QueryCommandHandler : BaseCommandHandler
 
             if (opts.Compact || isJsonFormat)
             {
-                Console.WriteLine(result.ToJson(indented: !opts.Compact));
+                if (!opts.Compact && Console.IsOutputRedirected && result.Rows.Count > 20)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendLine("[");
+                    for (var i = 0; i < result.Rows.Count; i++)
+                    {
+                        var rowBuf = new System.Buffers.ArrayBufferWriter<byte>(256);
+                        using (var writer = new Utf8JsonWriter(rowBuf, new JsonWriterOptions { Indented = false }))
+                        {
+                            result.Rows[i].WriteTo(writer);
+                        }
+                        sb.Append("  ").Append(System.Text.Encoding.UTF8.GetString(rowBuf.WrittenSpan));
+                        if (i < result.Rows.Count - 1)
+                        {
+                            sb.Append(',');
+                        }
+                        sb.AppendLine();
+                    }
+                    sb.Append(']');
+                    Console.WriteLine(sb.ToString());
+                    return 0;
+                }
+
+                bool useIndented = !opts.Compact && (!Console.IsOutputRedirected || result.Rows.Count <= 20);
+                Console.WriteLine(result.ToJson(indented: useIndented));
                 return 0;
             }
 
@@ -185,7 +214,9 @@ public class QueryCommandHandler : BaseCommandHandler
             }
 
             var columns = result.Columns.ToList();
-            var maxLimit = opts.NoTruncate ? int.MaxValue : 80;
+            bool compactPipeTable = (opts.NoTruncate || Console.IsOutputRedirected) &&
+                                    !string.Equals(opts.Format, "table", StringComparison.OrdinalIgnoreCase);
+            var maxLimit = compactPipeTable ? int.MaxValue : 80;
 
             static string FormatColumnHeader(string rawCol)
             {
@@ -240,7 +271,7 @@ public class QueryCommandHandler : BaseCommandHandler
                     var singleLine = Regex.Replace(rawStr, @"[\r\n\t]+", " ").Trim();
                     rowData[col] = singleLine;
 
-                    var displayLen = opts.NoTruncate
+                    var displayLen = compactPipeTable
                         ? singleLine.Length
                         : Math.Min(singleLine.Length, maxLimit);
 
@@ -255,8 +286,15 @@ public class QueryCommandHandler : BaseCommandHandler
 
             // Print header
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine(string.Join(" | ", columns.Select(c => displayHeaders[c].PadRight(colWidths[c]))));
-            Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
+            if (compactPipeTable)
+            {
+                Console.WriteLine(string.Join(" | ", columns.Select(c => displayHeaders[c])));
+            }
+            else
+            {
+                Console.WriteLine(string.Join(" | ", columns.Select(c => displayHeaders[c].PadRight(colWidths[c]))));
+                Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
+            }
             Console.ResetColor();
 
             // Print rows
@@ -266,13 +304,13 @@ public class QueryCommandHandler : BaseCommandHandler
                 {
                     var valStr = row[c];
 
-                    if (!opts.NoTruncate && valStr.Length > maxLimit)
+                    if (!compactPipeTable && valStr.Length > maxLimit)
                     {
                         wasTruncated = true;
                         valStr = valStr[..(maxLimit - 3)] + "...";
                     }
 
-                    return valStr.PadRight(colWidths[c]);
+                    return compactPipeTable ? valStr : valStr.PadRight(colWidths[c]);
                 }));
                 Console.WriteLine(line);
             }

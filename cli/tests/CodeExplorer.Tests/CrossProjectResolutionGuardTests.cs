@@ -45,7 +45,7 @@ public class CrossProjectResolutionGuardTests
 
         // Reference emitted by parser for this.http.get(...)
         ctx.AddGlobalReferences([
-            new Reference(callerSymbolId, "this.http.get", OntologyConstants.Relationships.Calls)
+            new Reference(callerSymbolId, "http.get", OntologyConstants.Relationships.Calls)
         ]);
 
         var layer5 = new Layer5AnalysisParser();
@@ -84,7 +84,7 @@ public class CrossProjectResolutionGuardTests
 
         var callerSymbolId = $"ws:symbol:{feFile}:Function:stream";
         ctx.AddGlobalReferences([
-            new Reference(callerSymbolId, "this.http.get", OntologyConstants.Relationships.Calls)
+            new Reference(callerSymbolId, "http.get", OntologyConstants.Relationships.Calls)
         ]);
 
         var layer5 = new Layer5AnalysisParser();
@@ -327,6 +327,52 @@ public class CrossProjectResolutionGuardTests
         var rels = await (Task<List<Relationship>>)resolveMethod.Invoke(layer5, [ctx])!;
 
         rels.Should().BeEmpty("local variable binding in fileA must not leak into unrelated fileB");
+    }
+
+    [Test]
+    public async Task PartialTypeUnification_CrossRegistersMethodsAcrossSiblingPartialFiles()
+    {
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        var client = new InMemoryGraphRepository();
+        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        ctx.WorkspaceId = "ws";
+
+        var part1File = "Analysis/Layer5Analyzer.cs";
+        var part2File = "Analysis/Layer5Analyzer.Messaging.cs";
+        var callerFile = "Analysis/PipelineRunner.cs";
+
+        var typePart1Id = $"ws:symbol:{part1File}:Type:Layer5Analyzer";
+        var typePart2Id = $"ws:symbol:{part2File}:Type:Layer5Analyzer";
+        var methodInPart2Id = $"ws:symbol:{part2File}:Function:ResolveCalls";
+        var callerId = $"ws:symbol:{callerFile}:Function:PipelineRunner.Run";
+
+        ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Type, "Layer5Analyzer", typePart1Id);
+        ctx.AddFileScopedSymbol(part1File, OntologyConstants.NodeLabels.Type, "Layer5Analyzer", typePart1Id);
+        ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Type, "Layer5Analyzer", typePart2Id);
+        ctx.AddFileScopedSymbol(part2File, OntologyConstants.NodeLabels.Type, "Layer5Analyzer", typePart2Id);
+
+        ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Function, "ResolveCalls", methodInPart2Id);
+        ctx.AddFileScopedSymbol(part2File, OntologyConstants.NodeLabels.Function, "ResolveCalls", methodInPart2Id);
+
+        ctx.SymbolScopes[typePart1Id] = new SymbolScopeInfo(typePart1Id, part1File, "Analysis", "CodeExplorer.Analysis", null, SymbolVisibility.Internal);
+        ctx.SymbolScopes[typePart2Id] = new SymbolScopeInfo(typePart2Id, part2File, "Analysis", "CodeExplorer.Analysis", null, SymbolVisibility.Internal);
+        ctx.SymbolScopes[methodInPart2Id] = new SymbolScopeInfo(methodInPart2Id, part2File, "Analysis", "CodeExplorer.Analysis", "Layer5Analyzer", SymbolVisibility.Internal);
+        ctx.SymbolScopes[callerId] = new SymbolScopeInfo(callerId, callerFile, "Analysis", "CodeExplorer.Analysis", "PipelineRunner", SymbolVisibility.Public);
+
+        ctx.RawTypeBindings.Add(new RawTypeBinding("analyzer", "Layer5Analyzer", callerFile, "Run"));
+        ctx.AddGlobalReferences([
+            new Reference(callerId, "analyzer.ResolveCalls", OntologyConstants.Relationships.Calls)
+        ]);
+
+        var layer5 = new Layer5AnalysisParser();
+        var resolveMethod = typeof(Layer5AnalysisParser).GetMethod(
+            "ResolveAndUploadGlobalReferencesAsync",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        var rels = await (Task<List<Relationship>>)resolveMethod.Invoke(layer5, [ctx])!;
+
+        rels.Should().ContainSingle(r => r.From == callerId && r.To == methodInPart2Id,
+            "partial type declarations in the same project and namespace should unify their member lookup tables");
     }
 }
 

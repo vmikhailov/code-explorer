@@ -22,9 +22,9 @@
   --text-xl: 1.5625rem;
   --text-2xl: 1.953rem;
 
-  --text-display-s: clamp(1.75rem, 2.8vw + 0.5rem, 2.75rem);
+  --text-display-s: clamp(1.5rem, 1.85vw + 0.4rem, 2.1rem);
   --text-display: clamp(2rem, 3.2vw + 0.75rem, 3.25rem);
-  --text-section: clamp(1.5rem, 1.8vw + 0.75rem, 2.25rem);
+  --text-section: clamp(1.75rem, 2.2vw + 0.85rem, 2.65rem);
   --text-title: clamp(1.125rem, 0.5vw + 0.85rem, 1.35rem);
   --text-lead: clamp(1rem, 0.25vw + 0.92rem, 1.15rem);
 
@@ -32,11 +32,11 @@
   --dur-micro: 120ms;
   --dur-short: 220ms;
 
-  --container: 1360px;
+  --container: 1380px;
   --gutter: 48px;
   --gap-columns: 24px;
-  --section-gap-s: 64px;
-  --section-gap: 88px;
+  --section-gap-s: 120px;
+  --section-gap: 136px;
 
   --z-sticky-nav: 300;
 
@@ -182,8 +182,13 @@ p code, li code, td code, th code {
   border: 1px solid var(--color-rule);
   border-radius: var(--space-2xs);
   padding: var(--space-3xs) var(--space-xs);
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.catalog-table td code,
+.bench-table th code {
+  white-space: nowrap;
 }
 
 .reading {
@@ -191,9 +196,10 @@ p code, li code, td code, th code {
   font-size: var(--text-display-s);
   font-weight: 400;
   letter-spacing: -0.03em;
-  line-height: 1;
+  line-height: 1.08;
   font-variant-numeric: tabular-nums slashed-zero;
   color: var(--color-ink);
+  white-space: nowrap;
 }
 
 .tone-ok { color: var(--color-ok); }
@@ -220,7 +226,7 @@ p code, li code, td code, th code {
 
 .slab-bar {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--gap-columns);
   min-height: 64px;
@@ -257,7 +263,13 @@ p code, li code, td code, th code {
   align-items: center;
   gap: var(--space-md);
   list-style: none;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.slab-links::-webkit-scrollbar {
+  display: none;
 }
 
 .slab-links a {
@@ -292,9 +304,10 @@ p code, li code, td code, th code {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  flex-shrink: 0;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 720px) {
   .slab-links {
     display: none;
   }
@@ -315,9 +328,8 @@ p code, li code, td code, th code {
     flex-wrap: wrap;
     gap: var(--space-xs);
   }
-  .btn {
-    white-space: normal;
-    text-align: center;
+  .slab-actions .btn--primary {
+    display: none;
   }
 }
 
@@ -327,7 +339,7 @@ p code, li code, td code, th code {
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  min-height: 38px;
+  min-height: 44px;
   padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--color-rule-2);
   border-radius: var(--radius-pill);
@@ -479,6 +491,7 @@ p code, li code, td code, th code {
 .band-lede {
   font-size: var(--text-md);
   color: var(--color-muted);
+  max-width: 64ch;
 }
 
 /* Panels & Cards */
@@ -519,13 +532,14 @@ p code, li code, td code, th code {
 .panel {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-md);
+  justify-content: flex-start;
+  gap: var(--space-sm);
   padding: var(--space-lg);
   background: var(--color-paper-2);
   color: var(--color-ink);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-card);
+  min-width: 0;
 }
 
 .panel--sunken {
@@ -562,6 +576,7 @@ p code, li code, td code, th code {
 }
 
 .panel-code {
+  margin-top: auto;
   font-size: var(--text-xs);
   color: var(--color-muted);
   padding-top: var(--space-xs);
@@ -709,6 +724,11 @@ p code, li code, td code, th code {
   border-bottom: none;
 }
 
+.bench-table td.cell-win,
+.bench-table td.cell-loss {
+  min-width: 132px;
+}
+
 .bench-table td.cell-win {
   color: var(--color-ok);
   background: var(--color-ok-soft);
@@ -727,6 +747,47 @@ p code, li code, td code, th code {
   font-family: var(--font-outlier);
   font-size: var(--text-xs);
   color: var(--color-ink-2);
+}
+
+.catalog-table td:first-child,
+.catalog-table td:last-child {
+  white-space: nowrap;
+}
+
+.catalog-table td:nth-child(3) {
+  min-width: 190px;
+}
+
+@media (max-width: 720px) {
+  .catalog-table thead {
+    display: none;
+  }
+  .catalog-table,
+  .catalog-table tbody,
+  .catalog-table tr,
+  .catalog-table td {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    white-space: normal !important;
+  }
+  .catalog-table tr {
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--color-rule-2);
+  }
+  .catalog-table tr:last-child {
+    border-bottom: none;
+  }
+  .catalog-table td {
+    padding: var(--space-xs) 0;
+    border-bottom: none;
+  }
+  .catalog-table td.cell-win,
+  .catalog-table td.cell-num {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--space-2xs);
+    margin-block: var(--space-xs);
+  }
 }
 
 .bench-table tr.row-total td {

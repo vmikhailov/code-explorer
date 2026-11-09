@@ -759,6 +759,11 @@ public partial class Layer2ProjectParser
                 var parentNormPath = candidateParent.Path.Replace('\\', '/').Trim('/');
                 if (string.IsNullOrEmpty(parentNormPath))
                 {
+                    if (candidateParent.EntityKind == ProjectEntityKind.ScriptProject ||
+                        candidateParent.ProjectType is ProjectLanguage.Script or ProjectLanguage.Batch or ProjectLanguage.PowerShell or ProjectLanguage.Shell)
+                    {
+                        continue;
+                    }
                     if (bestParentLen < 0)
                     {
                         bestParent = candidateParent;

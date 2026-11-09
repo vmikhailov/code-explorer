@@ -7,9 +7,15 @@
 
 ---
 
-## 1. Target Repository Scale & Architectural Characteristics
+## 1. Target Repository Scale & Tested Versions
 
-Unlike Case Study 01 (`code-explorer`, 16 projects), **Case Study 02** evaluates agent performance on a massive, real-world distributed microservices monorepo where lexical search (`ripgrep`) faces high fan-out across hundreds of independent services and shared libraries:
+- **Compared Tools**:
+  - **`CodeExplorer` (`ce`)**: `v1.75.0` (.NET 10, SQLite + OpenCypher graph, `ce callers` & `ce query`)
+  - **Lexical Baseline**: `ripgrep` (`rg` `v14.1.1`) + Python `3.10` scripts + `view_file`
+- **LLM Model**: `Gemini 3.8 Flash` (simultaneous paired A/B execution)
+- **Public Open-Source Equivalents**: For 100% public, non-anonymized benchmarks on open-source codebases, see [Case Study 01 (`twentyhq/twenty @ b9ef7107`)](../01-agent-audit-ce-vs-cbm-on-twenty/README.md) and [Case Study 05 (`OrchardCMS/OrchardCore`)](../05-polyglot-architecture-and-blast-radius/README.md).
+
+**Case Study 02** evaluates agent performance on a massive, real-world distributed microservices monorepo where lexical search (`ripgrep`) faces high fan-out across hundreds of independent services and shared libraries:
 
 | Dimension | Enterprise Monorepo Scale |
 | :--- | :--- |
@@ -31,7 +37,7 @@ Without a semantic graph, the **Baseline Agent (`enterprise_rg_baseline_agent`)*
 
 By contrast, the **CodeExplorer Graph Agent (`enterprise_ce_graph_agent`)**—using `ce callers <target>` and `ce query`—completed the entire 4-part audit with **zero blind spots (`100%` completeness)** in **3 minutes 56 seconds** (`23` turns, **0 compactions**, **0 `view_file` reads needed** because `ce callers` outputs `path:line` directly):
 
-| Metric | Exhaustive Ripgrep + Python Baseline (`rg` + `14` Python Scripts + `view_file`) | CodeExplorer Graph Agent (`ce callers` + `ce query`) | Improvement / Delta |
+| Metric | `ripgrep` + Python (`rg` + `14` Scripts + `114` File Reads) | `CodeExplorer` (`ce callers` + `ce query`) | Improvement / Delta |
 | :--- | :---: | :---: | :---: |
 | **Time to Answer (`send_message`)** | `1,792.0 s` (**29 min 52 sec**) | `236.0 s` (**3 min 56 sec**) | **7.59x faster** (`-25 min 56 sec` saved) |
 | **Total Session Wall-Clock** | `1,962.0 s` (`32 min 42 sec`) | `354.0 s` (`5 min 54 sec`) | **5.54x faster** (`-26 min 48 sec` saved) |
@@ -106,21 +112,21 @@ CodeExplorer Graph Agent (0 Compactions,   23 turns) : █                      
                                                          ^ 43.70x reduction in actual input tokens!
 ```
 
-| Milestone | Ripgrep Baseline Active Context (`actual cum.`) | Graph Agent Active Context (`actual cum.`) |
+| Milestone | Ripgrep Baseline Active Context (`actual cumulative`) | Graph Agent Active Context (`actual cumulative`) |
 | :--- | :---: | :---: |
-| **Turn 5** | `1,375 tokens` (`5,792` cum.) | `7,140 tokens` (`22,181` cum.) |
-| **Turn 10** | `4,587 tokens` (`19,679` cum.) | `13,507 tokens` (`79,363` cum.) |
-| **Turn 15** | `6,196 tokens` (`48,348` cum.) | `21,433 tokens` (`172,433` cum.) |
-| **Turn 20** | `9,107 tokens` (`88,135` cum.) | `27,073 tokens` (`294,362` cum.) |
-| **Turn 23 (Graph Agent Done @ 3m 56s)** | `12,269 tokens` (`124,070` cum.) *(still on Task 1)* | **`41,767 tokens` (`393,466` cum. — 100% Complete)** |
-| **Turn 50** | `35,317 tokens` (`795,644` cum.) | — |
-| **Turn 100** | `89,049 tokens` (`4,050,530` cum.) | — |
-| **Turn 150** | `142,300 tokens` (`9,874,708` cum.) | — |
-| **Turn 162 (Pre-Compaction Peak)** | `160,326 tokens` (`11,715,243` cum.) | — |
-| **Turn 163 (Post-Compaction Reset)** | `3,687 tokens` (`11,718,931` cum.) | — |
-| **Turn 200** | `25,653 tokens` (`12,260,325` cum.) | — |
-| **Turn 250** | `62,699 tokens` (`14,577,659` cum.) | — |
-| **Turn 285 (Ripgrep Baseline Done @ 29m 52s)** | **`104,177 tokens` (`17,194,141` cum.)** | — |
+| **Turn 5** | `1,375 tokens` (`5,792` total) | `7,140 tokens` (`22,181` total) |
+| **Turn 10** | `4,587 tokens` (`19,679` total) | `13,507 tokens` (`79,363` total) |
+| **Turn 15** | `6,196 tokens` (`48,348` total) | `21,433 tokens` (`172,433` total) |
+| **Turn 20** | `9,107 tokens` (`88,135` total) | `27,073 tokens` (`294,362` total) |
+| **Turn 23 (Graph Agent Done @ 3m 56s)** | `12,269 tokens` (`124,070` total) *(still on Task 1)* | **`41,767 tokens` (`393,466` total — 100% Complete)** |
+| **Turn 50** | `35,317 tokens` (`795,644` total) | — |
+| **Turn 100** | `89,049 tokens` (`4,050,530` total) | — |
+| **Turn 150** | `142,300 tokens` (`9,874,708` total) | — |
+| **Turn 162 (Pre-Compaction Peak)** | `160,326 tokens` (`11,715,243` total) | — |
+| **Turn 163 (Post-Compaction Reset)** | `3,687 tokens` (`11,718,931` total) | — |
+| **Turn 200** | `25,653 tokens` (`12,260,325` total) | — |
+| **Turn 250** | `62,699 tokens` (`14,577,659` total) | — |
+| **Turn 285 (Ripgrep Baseline Done @ 29m 52s)** | **`104,177 tokens` (`17,194,141` total)** | — |
 
 ---
 

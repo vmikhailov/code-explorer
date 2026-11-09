@@ -30,20 +30,17 @@ public static partial class AstHelper
         }
 
         // 2. MemberExpression (process.env.ORDERS_TOPIC, this.config.ruleTreeTopic, this.queueName)
-        if (argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        if (argNode is MemberAccessExprSyntax memAccess)
         {
-            var envMatch = Regex.Match(argNode.Text, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
-            if (envMatch.Success)
+            var propName = memAccess.MemberName;
+            if (memAccess.IsEnvironmentLookup && !string.IsNullOrEmpty(propName))
             {
-                var envKey = envMatch.Groups[1].Value;
-
-                if (ConstantRegistry.TryDeriveParentTopicFromSubscriptionKey(envKey, out var parentTopic))
+                if (ConstantRegistry.TryDeriveParentTopicFromSubscriptionKey(propName, out var parentTopic))
                 {
                     return parentTopic;
                 }
 
-                // Look up in ConstantRegistry (including .env)
-                if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
+                if (ConstantRegistry.TryResolve(contextOrProject, propName, out var envVal) && !string.IsNullOrEmpty(envVal))
                 {
                     if (IsValidTopicOrQueueLiteral(envVal))
                     {
@@ -52,13 +49,12 @@ public static partial class AstHelper
                     }
                 }
 
-                // If not in .env, derive only if it's an explicit messaging key convention
-                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var derivedVal))
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(propName, out var derivedVal))
                 {
                     return derivedVal;
                 }
 
-                if (WorkspaceConventions.TryGetTopicAlias(envKey, out var aliasVal))
+                if (WorkspaceConventions.TryGetTopicAlias(propName, out var aliasVal))
                 {
                     return aliasVal;
                 }
@@ -66,7 +62,7 @@ public static partial class AstHelper
                 return null;
             }
 
-            // Normal member expression: this.topicName, this.ruleTreeTopic
+            // Normal member expression: this.topicName, this.ruleTreeTopic, this.brokerConfig.ordersTopic
             var memberVal = ResolveStringOrTemplate(argNode, contextOrProject, depth + 1, visitedVars);
             if (!string.IsNullOrEmpty(memberVal) && IsValidTopicOrQueueLiteral(memberVal))
             {
@@ -74,36 +70,16 @@ public static partial class AstHelper
                 return memberVal;
             }
 
-            if (argNode.Text.Contains('.'))
+            if (!string.IsNullOrEmpty(propName))
             {
-                var fullText = argNode.Text;
-                var lastDot = fullText.LastIndexOf('.');
-                var objPart = fullText[..lastDot];
-                var leafProp = fullText[(lastDot + 1)..];
-
-                if (objPart.Contains("config", StringComparison.OrdinalIgnoreCase) ||
-                    objPart.Contains("settings", StringComparison.OrdinalIgnoreCase) ||
-                    objPart.Contains("options", StringComparison.OrdinalIgnoreCase) ||
-                    objPart.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
-                    objPart.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
-                    objPart.Contains("env", StringComparison.OrdinalIgnoreCase))
+                if (ConstantRegistry.TryDeriveParentTopicFromSubscriptionKey(propName, out var leafParent))
                 {
-                    if (ConstantRegistry.TryDeriveParentTopicFromSubscriptionKey(leafProp, out var leafParent))
-                    {
-                        return leafParent;
-                    }
+                    return leafParent;
+                }
 
-                    if (ConstantRegistry.TryResolve(contextOrProject, leafProp, out var leafVal) &&
-                        !string.IsNullOrEmpty(leafVal) && IsValidTopicOrQueueLiteral(leafVal))
-                    {
-                        if (WorkspaceConventions.TryGetTopicAlias(leafVal, out var mapped)) return mapped;
-                        return leafVal;
-                    }
-
-                    if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(leafProp, out var derVal))
-                    {
-                        return derVal;
-                    }
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(propName, out var derVal))
+                {
+                    return derVal;
                 }
             }
 

@@ -607,46 +607,8 @@ public partial class Layer5AnalysisParser
         return false;
     }
 
-    internal static string? ExtractFilePathFromSymbolId(string scopeSymbolId)
-    {
-        if (Urn.TryParse(scopeSymbolId, out var urn) && !string.IsNullOrEmpty(urn.Path))
-        {
-            var p = urn.Path;
-            var colonIdx = p.IndexOf(':');
-            if (colonIdx > 1) // preserve Windows drive letters like C:/
-            {
-                p = p[..colonIdx];
-            }
-            return p.Replace('\\', '/');
-        }
-        string[] markers =
-        [
-            $":{OntologyConstants.IdPrefixes.Symbol}:", ":symbol:", ":sym:",
-            ":function:", ":fn:",
-            $":{OntologyConstants.IdPrefixes.Procedure}:", ":procedure:", ":proc:",
-            ":m:", ":method:", ":type:"
-        ];
-        foreach (var marker in markers)
-        {
-            var markerIdx = scopeSymbolId.IndexOf(marker, StringComparison.Ordinal);
-            if (markerIdx >= 0)
-            {
-                var start = markerIdx + marker.Length;
-                var searchStart = (start + 2 < scopeSymbolId.Length &&
-                                   char.IsLetter(scopeSymbolId[start]) &&
-                                   scopeSymbolId[start + 1] == ':' &&
-                                   (scopeSymbolId[start + 2] == '/' || scopeSymbolId[start + 2] == '\\'))
-                    ? start + 2
-                    : start;
-                var end = scopeSymbolId.IndexOf(':', searchStart);
-                if (end > start)
-                {
-                    return scopeSymbolId[start..end].Replace('\\', '/');
-                }
-            }
-        }
-        return null;
-    }
+    internal static string? ExtractFilePathFromSymbolId(string scopeSymbolId) =>
+        Urn.TryParse(scopeSymbolId, out var urn) ? urn.DeclaringFilePath : null;
 
     private static string NormalizeRelativePath(string path)
     {

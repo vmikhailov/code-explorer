@@ -14,6 +14,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private readonly Dictionary<string, object?> _parameters = new();
     private readonly HashSet<string> _declaredNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _declaredRels = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _varLenRels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _pathVariables = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<PathHop>> _pathHops = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _unwindVariables = new(StringComparer.OrdinalIgnoreCase);
@@ -484,6 +485,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters);
         foreach (var node in _declaredNodes) subCompiler._declaredNodes.Add(node);
         foreach (var rel in _declaredRels) subCompiler._declaredRels.Add(rel);
+        foreach (var rel in _varLenRels) subCompiler._varLenRels.Add(rel);
         foreach (var (k, v) in _pathVariables) subCompiler._pathVariables[k] = v;
         foreach (var (k, v) in _pathHops) subCompiler._pathHops[k] = [..v];
         foreach (var (k, v) in _withAliases) subCompiler._withAliases[k] = v;

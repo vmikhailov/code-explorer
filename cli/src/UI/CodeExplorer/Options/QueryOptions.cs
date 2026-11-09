@@ -45,8 +45,11 @@ public class QueryOptions
     [Option('p', "param", Required = false, HelpText = "Key-value parameter to pass to the Cypher query (e.g. -p tableName=users). Can be repeated.")]
     public IEnumerable<string>? Params { get; set; }
 
-    [Option("format", Default = "table", HelpText = "Output format: 'table', 'json', 'yaml', or 'toon'.")]
-    public string Format { get; set; } = "table";
+    [Option("format", Default = "auto", HelpText = "Output format: 'auto' (padded table in terminal, unpadded pipe rows when redirected or with --no-truncate), 'table', 'json', 'yaml', 'toon', or 'llm'.")]
+    public string Format { get; set; } = "auto";
+
+    [Option("limit", Required = false, HelpText = "Maximum number of rows to return.")]
+    public int? Limit { get; set; }
 }
 
 [Verb("queries", HelpText = "Lists all available built-in and workspace custom queries.")]

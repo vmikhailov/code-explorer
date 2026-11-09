@@ -207,24 +207,120 @@ public static class AstScopeResolver
     }
 
     public static bool IsScopeBoundary(Node node) =>
-        node is BlockStmtSyntax or FunctionDeclSyntax or LambdaExprSyntax or SyntaxDocument or NamespaceDeclSyntax
-        || IsScopeBoundary(node.Type);
+        node.IsScopeBoundary;
 
-    public static bool IsScopeBoundary(string type) =>
-        type is "block" or
-                "statement_block" or
-                "compound_statement" or
-                "method_declaration" or
-                "function_declaration" or
-                "function_definition" or
-                "function_item" or
-                "local_function_statement" or
-                "arrow_function" or
-                "compilation_unit" or
-                "program" or
-                "module" or
-                "source_file" or
-                "document";
+    public static string? TryResolveExpressionTypeName(Node? expr)
+    {
+        if (!expr.IsValid()) return null;
+
+        var canonicalName = expr.GetCanonicalMemberPath();
+        if (string.IsNullOrEmpty(canonicalName)) return null;
+
+        // If chained (e.g. options.Value), resolve the root identifier first
+        var rootIdx = canonicalName.IndexOf('.');
+        var targetName = rootIdx > 0 ? canonicalName[..rootIdx] : canonicalName;
+        var cleanField = targetName.TrimStart('_');
+
+        var curr = expr.Parent;
+        while (curr.IsValid())
+        {
+            if (curr is FunctionDeclSyntax fn)
+            {
+                for (int i = 0; i < fn.Parameters.Count; i++)
+                {
+                    var p = fn.Parameters[i];
+                    if (p.Name == targetName || p.Name.TrimStart('_') == cleanField)
+                    {
+                        var unwrapped = UnwrapDeclaredTypeName(p.ParameterType);
+                        if (!string.IsNullOrEmpty(unwrapped)) return unwrapped;
+                    }
+                }
+            }
+
+            if (curr.IsScopeBoundary)
+            {
+                for (int i = 0; i < curr.Children.Count; i++)
+                {
+                    var child = curr.Children[i];
+                    if (child is VariableDeclSyntax varDecl && (varDecl.Name == targetName || varDecl.Name.TrimStart('_') == cleanField))
+                    {
+                        var unwrapped = UnwrapDeclaredTypeName(varDecl.VariableType);
+                        if (!string.IsNullOrEmpty(unwrapped)) return unwrapped;
+                    }
+                }
+            }
+
+            if (curr is TypeDeclSyntax typeDecl)
+            {
+                var foundFieldType = SearchMemberDeclaredType(typeDecl, targetName, cleanField);
+                if (!string.IsNullOrEmpty(foundFieldType)) return foundFieldType;
+            }
+
+            curr = curr.Parent;
+        }
+
+        return null;
+    }
+
+    private static string? SearchMemberDeclaredType(Node container, string fieldName, string cleanField)
+    {
+        for (int i = 0; i < container.Children.Count; i++)
+        {
+            var child = container.Children[i];
+            if (child is MemberDeclSyntax memDecl)
+            {
+                if (memDecl.Name == fieldName || memDecl.Name.TrimStart('_') == cleanField)
+                {
+                    var unwrapped = UnwrapDeclaredTypeName(memDecl.MemberType);
+                    if (!string.IsNullOrEmpty(unwrapped)) return unwrapped;
+                }
+            }
+            else if (child is FunctionDeclSyntax { Kind: FunctionSyntaxKind.Constructor } ctor)
+            {
+                for (int j = 0; j < ctor.Parameters.Count; j++)
+                {
+                    var p = ctor.Parameters[j];
+                    if (p.Name == fieldName || p.Name.TrimStart('_') == cleanField)
+                    {
+                        var unwrapped = UnwrapDeclaredTypeName(p.ParameterType);
+                        if (!string.IsNullOrEmpty(unwrapped)) return unwrapped;
+                    }
+                }
+            }
+            else if (child is not TypeDeclSyntax and not FunctionDeclSyntax)
+            {
+                var nested = SearchMemberDeclaredType(child, fieldName, cleanField);
+                if (!string.IsNullOrEmpty(nested)) return nested;
+            }
+        }
+        return null;
+    }
+
+    private static string? UnwrapDeclaredTypeName(TypeRefSyntax? typeRef)
+    {
+        if (typeRef == null) return null;
+        var raw = typeRef.Name.Trim().TrimStart('&').TrimEnd('?');
+        if (raw.StartsWith("mut ", StringComparison.Ordinal))
+        {
+            raw = raw[4..].Trim();
+        }
+        var openAngle = raw.IndexOf('<');
+        var closeAngle = raw.LastIndexOf('>');
+        if (openAngle > 0 && closeAngle > openAngle + 1)
+        {
+            var inner = raw[(openAngle + 1)..closeAngle].Trim();
+            if (!inner.Contains(','))
+            {
+                raw = inner;
+            }
+        }
+        var lastSep = Math.Max(raw.LastIndexOf('.'), raw.LastIndexOf(':'));
+        if (lastSep >= 0 && lastSep + 1 < raw.Length)
+        {
+            raw = raw[(lastSep + 1)..];
+        }
+        return string.IsNullOrEmpty(raw) ? null : raw;
+    }
 
     public static Node? FindEnclosingFunctionItem(Node node, string funcName)
     {
@@ -327,11 +423,11 @@ public static class AstScopeResolver
         {
             foreach (var p in fn.Parameters)
             {
-                if (p.PassingMode is ParameterPassingMode.Receiver or ParameterPassingMode.RefBorrow or ParameterPassingMode.MutBorrow && p.Name is "self" or "&self" or "&mut self")
+                if (p.PassingMode is ParameterPassingMode.Receiver or ParameterPassingMode.MutBorrow)
                     continue;
-                if (!string.IsNullOrEmpty(p.Name) && p.Name != "self") return p.Name;
+                if (!string.IsNullOrEmpty(p.Name)) return p.Name;
                 var pat = p.GetField(SyntaxFields.Pattern) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
-                if (pat.IsValid() && pat.Text != "self") return pat.Text;
+                if (pat.IsValid() && !pat.IsSelfOrSuper) return pat.Text;
             }
         }
 
@@ -340,11 +436,11 @@ public static class AstScopeResolver
             if (!child.IsValid()) continue;
             foreach (var p in child.Children)
             {
-                if (p is ParameterDeclSyntax pd && pd.PassingMode != ParameterPassingMode.Receiver)
+                if (p is ParameterDeclSyntax pd && pd.PassingMode is not (ParameterPassingMode.Receiver or ParameterPassingMode.MutBorrow))
                 {
-                    if (!string.IsNullOrEmpty(pd.Name) && pd.Name != "self") return pd.Name;
+                    if (!string.IsNullOrEmpty(pd.Name)) return pd.Name;
                     var pat = pd.GetField(SyntaxFields.Pattern) ?? pd.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
-                    if (pat.IsValid() && pat.Text != "self") return pat.Text;
+                    if (pat.IsValid() && !pat.IsSelfOrSuper) return pat.Text;
                 }
             }
         }

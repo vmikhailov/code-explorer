@@ -179,8 +179,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
     private static bool IsDrizzleDbReceiver(Node? receiver)
     {
         if (!receiver.IsValid()) return false;
-        var text = receiver.Text.Trim();
-        if (text.StartsWith("this.", StringComparison.Ordinal)) text = text[5..];
+        var text = receiver.GetCanonicalMemberPath();
         if (text.Contains('.')) text = text.Split('.')[^1];
         if (text.EndsWith("()", StringComparison.Ordinal)) text = text[..^2];
 

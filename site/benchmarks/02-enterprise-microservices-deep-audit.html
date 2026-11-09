@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Case Study 02: 324-Service Enterprise Monorepo Audit (CodeExplorer vs. ripgrep)</title>
-  <meta name="description" content="Paired AI agent audit across 324 microservices (13,782 files): CodeExplorer Agent (3m 56s, 23 turns, 393K tokens, 100% recall) vs. ripgrep Agent (29m 52s, 285 turns, 17.19M tokens, 82% recall).">
+  <title>Case Study 02: 324-Service Enterprise Monorepo Audit (CodeExplorer vs ripgrep)</title>
+  <meta name="description" content="Paired AI agent audit across 324 microservices (13,782 files): CodeExplorer Agent (3m 56s, 23 turns, ~393K tokens, 100% recall) vs ripgrep Agent (29m 52s, 285 turns, ~17.2M tokens, ~82% recall).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="benchmarks.css?v=1.75.1">
+  <link rel="stylesheet" href="../fonts/fonts.css?v=1">
+  <link rel="stylesheet" href="benchmarks.css?v=1.75.4">
 </head>
 <body>
 
@@ -20,12 +18,8 @@
         <span>CodeExplorer</span>
       </a>
       <ul class="slab-links">
+        <li><a href="/index.html">Overview</a></li>
         <li><a href="/benchmarks.html" class="nav-framed">All Benchmarks</a></li>
-        <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">01: Agent vs. CBM (twenty)</a></li>
-        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" aria-current="page">02: Agent vs. ripgrep (324 Services)</a></li>
-        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
-        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
-        <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">05: Agent vs. ripgrep (16 Projects)</a></li>
       </ul>
       <div class="slab-actions">
         <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/02-enterprise-microservices-deep-audit" target="_blank" rel="noopener" class="btn">Raw Transcripts &amp; Metrics</a>
@@ -42,59 +36,201 @@
             <span>/</span>
             <span class="tone-ink">Case Study 02: 324-Service Enterprise Monorepo Audit</span>
           </div>
-          <span class="measured">450 modules (324 services, 13,782 files, TS + Go + SQL), Model: Gemini Flash (n = 1)</span>
+          <span class="measured">450 modules (324 services, 13,782 files, TS + Go + SQL)</span>
         </div>
 
         <div class="hero-top">
           <div>
-            <h1 class="hero-title">Case Study 02: 324-service enterprise monorepo audit (ce vs. ripgrep).</h1>
+            <h1 class="hero-title">Case Study 02: 324-service enterprise monorepo audit (ce vs ripgrep).</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Two identical Gemini Flash agents executed a 4-part cross-service architectural audit on a distributed microservices monorepo (324 microservices, 93 shared libraries, 33 workers, 13,782 source files): one using <code>ripgrep</code> + Python scripts + <code>view_file</code>, and one using <code>CodeExplorer</code> (<code>ce callers</code> &amp; <code>ce query</code>).
+              Two identical AI agents executed a 4-part cross-service architectural audit on a distributed microservices monorepo (324 microservices, 93 shared libraries, 33 workers, 13,782 source files): one using <code>ripgrep</code> + Python scripts + <code>view_file</code>, and one using <code>CodeExplorer</code> (<code>ce callers</code> &amp; <code>ce query</code>).
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/02-enterprise-microservices-deep-audit/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
               <a href="#prompts" class="btn">Inspect Tested Prompts</a>
-              <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" class="btn">See Public Equivalent on twentyhq/twenty (01)</a>
             </div>
           </div>
         </div>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
-          <strong>Transparency note on repository access:</strong> This benchmark was run on a private production monorepo. Service, table, and topic names in the published outputs are anonymized 1-to-1 while preserving exact execution telemetry from <code>transcript_full.jsonl</code>. For a 100% public, non-anonymized equivalent on open-source code, see <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01 (<code>twentyhq/twenty</code>)</a> and <a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case Study 05 (<code>code-explorer</code>)</a>.
-        </div>
-
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok">7.59×</span>
+            <span class="reading tone-ok">~8×</span>
             <h2 class="panel-title">Faster Time-to-Answer</h2>
-            <p class="panel-copy"><code>3m 56s</code> (<code>236s</code>) with CodeExplorer vs. <code>29m 52s</code> (<code>1,792s</code>) with <code>ripgrep</code> + Python scripts.</p>
-            <code class="panel-code">23 turns vs. 285 turns</code>
+            <p class="panel-copy"><code>3m 56s</code> (<code>236s</code>) with CodeExplorer vs <code>29m 52s</code> (<code>1,792s</code>) with <code>ripgrep</code> + Python scripts.</p>
+            <code class="panel-code">23 turns vs 285 turns</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent">43.70×</span>
+            <span class="reading tone-accent">~44×</span>
             <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy"><code>393,466</code> cumulative input tokens vs. <code>17,194,141</code> post-compaction tokens.</p>
-            <code class="panel-code">$0.08 vs. $1.15 on Flash</code>
+            <p class="panel-copy"><code>~393K</code> cumulative input tokens vs <code>~17.2M</code> post-compaction tokens.</p>
+            <code class="panel-code">$0.08 vs $1.15 (~14×)</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool">0 vs. 114</span>
+            <span class="reading tone-cool">0 vs 114</span>
             <h2 class="panel-title">Manual File Reads</h2>
             <p class="panel-copy"><code>ce callers</code> and <code>ce query</code> returned exact <code>path:line</code> directly, requiring 0 <code>view_file</code> reads and 0 context compactions.</p>
-            <code class="panel-code">18 graph queries vs. 142 shell runs</code>
+            <code class="panel-code">18 graph queries vs 142 shell runs</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading">100% vs. 82%</span>
+            <span class="reading">100% vs ~82%</span>
             <h2 class="panel-title">Blast-Radius Recall</h2>
             <p class="panel-copy">Both agents tied at 100% on Tasks 1 &amp; 4. On Task 2, <code>ripgrep</code> missed 9 RTB microservices wired via environment host constants.</p>
-            <code class="panel-code">83/83 callers vs. 9 services missed</code>
+            <code class="panel-code">83/83 callers vs 9 services missed</code>
           </div>
         </div>
 
-        <div id="prompts" class="prompt-stack">
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
+          <strong>Tested participants:</strong><br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0</code> (.NET 10, SQLite + OpenCypher)<br>
+          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + Python <code>3.10</code> + <code>view_file</code><br>
+          3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (simultaneous paired A/B run)<br>
+          4. <strong>Target Repository:</strong> Enterprise Microservices Monorepo (450 modules, 324 services, 13,782 files; service names anonymized 1-to-1)
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">1. Execution telemetry scorecard.</h2>
+          <p class="band-lede">
+            Extracted from <code>transcript_full.jsonl</code> and committed in <code>benchmarks/02-enterprise-microservices-deep-audit/results/metrics.json</code>.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Paired A/B Agent Telemetry Across 324 Microservices (13,782 files)</span>
+            <span class="measured">Simultaneous Paired A/B Run</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th><code>ripgrep</code> + Python (142 CLI runs + 114 file reads)</th>
+                <th><code>CodeExplorer</code> (<code>ce callers</code> + <code>ce query</code>)</th>
+                <th>Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Time to Answer (<code>send_message</code>)</td>
+                <td class="cell-loss">1,792.0 s (29 min 52 sec)</td>
+                <td class="cell-win">236.0 s (3 min 56 sec)</td>
+                <td class="cell-win">7.59× faster (-25m 56s)</td>
+              </tr>
+              <tr>
+                <td>Total Session Wall-Clock</td>
+                <td class="cell-loss">1,962.0 s (32 min 42 sec)</td>
+                <td class="cell-win">354.0 s (5 min 54 sec)</td>
+                <td class="cell-win">5.54× faster (-26m 48s)</td>
+              </tr>
+              <tr>
+                <td>LLM Reasoning Turns</td>
+                <td class="cell-loss">285 turns</td>
+                <td class="cell-win">23 turns</td>
+                <td class="cell-win">12.39× fewer turns (-91.9%)</td>
+              </tr>
+              <tr>
+                <td>Total Tool Calls</td>
+                <td class="cell-loss">284 (142 <code>run_command</code>, 114 <code>view_file</code>, 14 <code>write_to_file</code>, 13 <code>manage_task</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win">19 (18 <code>run_command</code>, 0 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win">14.95× fewer tool calls</td>
+              </tr>
+              <tr>
+                <td>Raw Tool Output Ingested</td>
+                <td class="cell-loss">694,891 chars (~173,722 tokens)</td>
+                <td class="cell-win">93,224 chars (~23,306 tokens)</td>
+                <td class="cell-win">7.45× smaller tool payload</td>
+              </tr>
+              <tr>
+                <td>Context Window Compactions</td>
+                <td class="cell-loss">1 compaction (at Turn 162, 160.3K tokens)</td>
+                <td class="cell-win">0 compactions</td>
+                <td class="cell-win">0 context resets</td>
+              </tr>
+              <tr>
+                <td>Cumulative Input Tokens (post-compaction)</td>
+                <td class="cell-loss">68,776,567 chars (~17,194,141 tokens)</td>
+                <td class="cell-win">1,573,864 chars (~393,466 tokens)</td>
+                <td class="cell-win">43.70× fewer input tokens</td>
+              </tr>
+              <tr>
+                <td>API Cost w/ 90% Cache Discount (Flash / Pro)</td>
+                <td class="cell-loss">$1.15 / $4.47</td>
+                <td class="cell-win">$0.08 / $0.30</td>
+                <td class="cell-win">14.07× to 15.17× cheaper</td>
+              </tr>
+              <tr>
+                <td>Task-by-Task Recall</td>
+                <td class="cell-num">100% on Tasks 1 &amp; 4; ~81% on Tasks 2 &amp; 3 (missed 9 RTB services &amp; 15+ callers)</td>
+                <td class="cell-win">100% on all 4 tasks (83/83 outbound service callers verified in source)</td>
+                <td class="cell-win">0 missed services</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="band band--deep">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">2. Breakdown of the 4 audit tasks (where ripgrep tied vs where it failed).</h2>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Task-Level Comparison Across 450 Modules</span>
+            <span class="measured">175,420 Nodes, 361,890 Edges in .codeexplorer/graph.db</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th><code>ripgrep</code> + Python</th>
+                <th><code>CodeExplorer</code></th>
+                <th>Explanation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Task 1: Shared DB Tables (&ge;3 ORM Entities)</strong></td>
+                <td class="cell-win">100% (8/8 tables)</td>
+                <td class="cell-win">100% (8/8 tables)</td>
+                <td><strong>Tie on accuracy:</strong> <code>ripgrep</code> agent wrote Python scripts to scan <code>@Entity</code> / <code>@Table</code> decorators; <code>ce</code> ran 1 Cypher query over <code>(:Type)-[:PERSISTED_IN]-&gt;(:Table)</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Task 2: Outbound Service Call Fan-In (5 target services)</strong></td>
+                <td class="cell-loss">~81% (missed 9 partner RTB services &amp; 15+ callers)</td>
+                <td class="cell-win">100% (83/83 caller functions, 0 false positives)</td>
+                <td><code>ripgrep</code> missed <code>WorkerCoreClientService.updateEndpoint</code> across 9 RTB services because the host URL was injected via an environment constant (<code>WORKER_CORE_API</code>) rather than a literal service string.</td>
+              </tr>
+              <tr>
+                <td><strong>Task 3: Polyglot Messaging Topology (TS + Go)</strong></td>
+                <td class="cell-num">Found core TS &amp; Go handlers; missed shared strategy publishers</td>
+                <td class="cell-win">100% (incl. all 26 <code>PUB_SUB_PARTNER_NETWORK_TOPIC</code> publishers &amp; Go <code>StreamEventIngester.Start</code>)</td>
+                <td><code>ce</code> linked both TypeScript Pub/Sub &amp; RabbitMQ wrappers and Go streaming consumer methods via <code>PUBLISHES_TO</code> / <code>SUBSCRIBES_TO</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Task 4: Multi-Hop Inheritance &amp; Strategy Realization</strong></td>
+                <td class="cell-win">100% (13 + 5 + 8 = 26 classes)</td>
+                <td class="cell-win">100% (13 + 5 + 8 = 26 classes)</td>
+                <td><strong>Tie on accuracy:</strong> Both agents identified the exact same 26 subclasses and strategy implementations.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" style="border-bottom: none;">
+      <div class="wrap">
+        <div id="prompts" class="prompt-stack" style="margin-top: 0; padding-top: 0; border-top: none;">
           <div class="prompt-stack-head">
-            <h2 class="prompt-stack-title">Tested prompts &amp; agent system instructions.</h2>
+            <h2 class="prompt-stack-title">3. Reproducibility: tested prompts &amp; agent system instructions.</h2>
             <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
           </div>
           <details class="prompt-drawer">
@@ -204,141 +340,6 @@ CRITICAL BENCHMARK RULES:
 5. Verify every answer directly in the source code and provide exact symbol names and relative file paths.</pre>
             </div>
           </details>
-        </div>
-      </div>
-    </section>
-
-    <section class="band">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">1. Execution telemetry scorecard.</h2>
-          <p class="band-lede">
-            Extracted from <code>transcript_full.jsonl</code> and committed in <code>benchmarks/02-enterprise-microservices-deep-audit/results/metrics.json</code>.
-          </p>
-        </div>
-
-        <div class="table-surface">
-          <div class="table-caption-bar">
-            <span>Paired A/B Agent Telemetry Across 324 Microservices (13,782 files)</span>
-            <span class="measured">Identical Model: Gemini Flash</span>
-          </div>
-          <table class="bench-table">
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th><code>ripgrep</code> + Python Baseline (142 CLI runs + 114 file reads + 14 scripts)</th>
-                <th><code>CodeExplorer</code> Graph Agent (<code>ce callers</code> + <code>ce query</code>)</th>
-                <th>Delta</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Time to Answer (<code>send_message</code>)</td>
-                <td class="cell-loss">1,792.0 s (29 min 52 sec)</td>
-                <td class="cell-win">236.0 s (3 min 56 sec)</td>
-                <td class="cell-win">7.59× faster (-25m 56s)</td>
-              </tr>
-              <tr>
-                <td>Total Session Wall-Clock</td>
-                <td class="cell-loss">1,962.0 s (32 min 42 sec)</td>
-                <td class="cell-win">354.0 s (5 min 54 sec)</td>
-                <td class="cell-win">5.54× faster (-26m 48s)</td>
-              </tr>
-              <tr>
-                <td>LLM Reasoning Turns</td>
-                <td class="cell-loss">285 turns</td>
-                <td class="cell-win">23 turns</td>
-                <td class="cell-win">12.39× fewer turns (-91.9%)</td>
-              </tr>
-              <tr>
-                <td>Total Tool Calls</td>
-                <td class="cell-loss">284 (142 <code>run_command</code>, 114 <code>view_file</code>, 14 <code>write_to_file</code>, 13 <code>manage_task</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win">19 (18 <code>run_command</code>, 0 <code>view_file</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win">14.95× fewer tool calls</td>
-              </tr>
-              <tr>
-                <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss">694,891 chars (~173,722 tokens)</td>
-                <td class="cell-win">93,224 chars (~23,306 tokens)</td>
-                <td class="cell-win">7.45× smaller tool payload</td>
-              </tr>
-              <tr>
-                <td>Context Window Compactions</td>
-                <td class="cell-loss">1 compaction (at Turn 162, 160.3K tokens)</td>
-                <td class="cell-win">0 compactions</td>
-                <td class="cell-win">0 context resets</td>
-              </tr>
-              <tr>
-                <td>Cumulative Input Tokens (post-compaction)</td>
-                <td class="cell-loss">68,776,567 chars (~17,194,141 tokens)</td>
-                <td class="cell-win">1,573,864 chars (~393,466 tokens)</td>
-                <td class="cell-win">43.70× fewer input tokens</td>
-              </tr>
-              <tr>
-                <td>API Cost w/ 90% Cache Discount (Flash / Pro)</td>
-                <td class="cell-loss">$1.15 / $4.47</td>
-                <td class="cell-win">$0.08 / $0.30</td>
-                <td class="cell-win">14.07× to 15.17× cheaper</td>
-              </tr>
-              <tr>
-                <td>Task-by-Task Recall</td>
-                <td class="cell-num">100% on Tasks 1 &amp; 4; ~81% on Tasks 2 &amp; 3 (missed 9 RTB services &amp; 15+ callers)</td>
-                <td class="cell-win">100% on all 4 tasks (83/83 outbound service callers verified in source)</td>
-                <td class="cell-win">0 missed services</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="band band--deep">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">2. Breakdown of the 4 audit tasks (where ripgrep tied vs. where it failed).</h2>
-        </div>
-
-        <div class="table-surface">
-          <div class="table-caption-bar">
-            <span>Task-Level Comparison Across 450 Modules</span>
-            <span class="measured">175,420 Nodes, 361,890 Edges in .codeexplorer/graph.db</span>
-          </div>
-          <table class="bench-table">
-            <thead>
-              <tr>
-                <th>Task</th>
-                <th><code>ripgrep</code> + Python Agent</th>
-                <th><code>CodeExplorer</code> Agent</th>
-                <th>Explanation</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Task 1: Shared DB Tables (&ge;3 ORM Entities)</strong></td>
-                <td class="cell-win">100% (8/8 tables)</td>
-                <td class="cell-win">100% (8/8 tables)</td>
-                <td><strong>Tie on accuracy:</strong> <code>ripgrep</code> agent wrote Python scripts to scan <code>@Entity</code> / <code>@Table</code> decorators; <code>ce</code> ran 1 Cypher query over <code>(:Type)-[:PERSISTED_IN]-&gt;(:Table)</code>.</td>
-              </tr>
-              <tr>
-                <td><strong>Task 2: Outbound Service Call Fan-In (5 target services)</strong></td>
-                <td class="cell-loss">~81% (missed 9 partner RTB services &amp; 15+ callers)</td>
-                <td class="cell-win">100% (83/83 caller functions, 0 false positives)</td>
-                <td><code>ripgrep</code> missed <code>WorkerCoreClientService.updateEndpoint</code> across 9 RTB services because the host URL was injected via an environment constant (<code>WORKER_CORE_API</code>) rather than a literal service string.</td>
-              </tr>
-              <tr>
-                <td><strong>Task 3: Polyglot Messaging Topology (TS + Go)</strong></td>
-                <td class="cell-num">Found core TS &amp; Go handlers; missed shared strategy publishers</td>
-                <td class="cell-win">100% (incl. all 26 <code>PUB_SUB_PARTNER_NETWORK_TOPIC</code> publishers &amp; Go <code>StreamEventIngester.Start</code>)</td>
-                <td><code>ce</code> linked both TypeScript Pub/Sub &amp; RabbitMQ wrappers and Go streaming consumer methods via <code>PUBLISHES_TO</code> / <code>SUBSCRIBES_TO</code>.</td>
-              </tr>
-              <tr>
-                <td><strong>Task 4: Multi-Hop Inheritance &amp; Strategy Realization</strong></td>
-                <td class="cell-win">100% (13 + 5 + 8 = 26 classes)</td>
-                <td class="cell-win">100% (13 + 5 + 8 = 26 classes)</td>
-                <td><strong>Tie on accuracy:</strong> Both agents identified the exact same 26 subclasses and strategy implementations.</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
     </section>

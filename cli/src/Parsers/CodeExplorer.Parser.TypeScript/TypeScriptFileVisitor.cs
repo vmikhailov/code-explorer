@@ -76,13 +76,24 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
                 if (!string.IsNullOrEmpty(targetName))
                 {
-                    symbolNode.References.Add(new Reference("", targetName, "TRIGGERS"));
+                    var line = (int)node.StartPosition.Row + 1;
+                    var col = (int)node.StartPosition.Column + 1;
+                    symbolNode.References.Add(new Reference(string.Empty, targetName, OntologyConstants.Relationships.Triggers, line, col, argFlow: RelativePath));
                 }
             }
         }
         else if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) && symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
             ExtractExpressRouteReferences(node, symbolNode, parentNode);
+        }
+        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
+                 parentNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
+                 !string.IsNullOrEmpty(symbolNode.Name) &&
+                 !parentNode.References.Any(r => r.TargetName == symbolNode.Name && r.Kind == RelationshipKind.Calls))
+        {
+            var line = (int)node.StartPosition.Row + 1;
+            var col = (int)node.StartPosition.Column + 1;
+            parentNode.References.Add(new Reference("", symbolNode.Name, OntologyConstants.Relationships.Calls, line, col, argFlow: RelativePath));
         }
     }
 
@@ -382,7 +393,6 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 var typeName = typeNode.Text;
                 var scopeName = GetContainingScopeName(node);
                 RawTypeBindings.Add(new RawTypeBinding(varName, typeName, "", scopeName));
-                RawTypeBindings.Add(new RawTypeBinding("this." + varName, typeName, "", scopeName));
             }
         }
 
@@ -439,7 +449,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                         }
                     }
 
-                    return $"{objChild.Text}.{propChild.Text}";
+                    var recvPath = objChild.GetCanonicalMemberPath();
+                    return string.IsNullOrEmpty(recvPath) ? propChild.Text : $"{recvPath}.{propChild.Text}";
                 }
                 return propChild.Text;
             }

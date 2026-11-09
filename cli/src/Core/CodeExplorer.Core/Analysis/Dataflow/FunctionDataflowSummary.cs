@@ -197,7 +197,7 @@ public static class FunctionDataflowAnalyzer
         }
         else if (assign.Left is MemberAccessExprSyntax mem)
         {
-            if (mem.Object is IdentifierExprSyntax objId && objId.NameSpan is "this" or "self" && !mem.MemberNameSpan.IsEmpty)
+            if (mem.Object is IdentifierExprSyntax objId && objId.IsSelfOrSuper && !mem.MemberNameSpan.IsEmpty)
             {
                 var memberName = mem.MemberName;
                 if (!summary.FieldWrites.TryGetValue(memberName, out var fw))
@@ -272,7 +272,7 @@ public static class FunctionDataflowAnalyzer
                 if (mem.Object is IdentifierExprSyntax objId)
                 {
                     var objSpan = objId.NameSpan;
-                    if (objSpan is "this" or "self")
+                    if (objId.IsSelfOrSuper)
                     {
                         list.Add(new DataflowOrigin(FlowSourceKind.InstanceField, $"this.{mem.MemberName}"));
                     }

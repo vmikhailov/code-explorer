@@ -61,25 +61,23 @@ public class AxiosLibraryParser : DeclarativeSemanticExtension
             var obj = func.GetField(TreeSitterSyntax.Fields.Object);
             if (!obj.IsValid()) return false;
 
-            var objText = obj.Text.ToLowerInvariant();
+            var objPath = obj.GetCanonicalMemberPath().ToLowerInvariant();
 
             // Exclude common false positives like Map.get, Map.delete, Headers.get, URLSearchParams.get, etc.
-            if (objText is "map" or "set" or "headers" or "params" or "searchparams" or "cache" or "store")
+            if (objPath is "map" or "set" or "headers" or "params" or "searchparams" or "cache" or "store")
             {
                 return false;
             }
 
-            var cleanObjText = objText.Trim('(', ')', ' ', '\t');
+            var cleanObjText = objPath.Trim('(', ')', ' ', '\t');
             if (cleanObjText.Contains("axios") ||
                 cleanObjText.Contains("http") ||
                 cleanObjText.Contains("apiclient") ||
                 cleanObjText.EndsWith("client") ||
                 cleanObjText.EndsWith(".client") ||
                 cleanObjText.Equals("client") ||
-                cleanObjText.Equals("this.client") ||
                 cleanObjText.Equals("api") ||
-                cleanObjText.Equals("this.api") ||
-                ((cleanObjText is "this" or "super") && IsEnclosingClassApiClient(node)))
+                (obj.IsSelfOrSuper && IsEnclosingClassApiClient(node)))
             {
                 var args = AstHelper.GetCallArguments(node);
                 if (args.Count > 0 && args[0].Is(TreeSitterSyntax.TypeScript.Object))

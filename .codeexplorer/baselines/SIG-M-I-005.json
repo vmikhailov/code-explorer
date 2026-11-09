@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-I-005",
-  "allowedViolations": 130,
+  "allowedViolations": 129,
   "entries": [
     {
       "fingerprint": "1d728bbd7fee839f25c5be56e4cc55d2e345f30d6076309b9a0785eb359cc5eb",
@@ -36,16 +36,6 @@
       "fingerprint": "5f2d44bcc3f0d7e736ab7f258c2894ae80c8db2708f99546741d2429c782e349",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
       "line": 194,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "a7e0c18b573c3e733e679fc33cd84e0a6bdd3fec2cbdf99b2db160b2a585539f",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
-      "line": 172,
       "column": 0,
       "symbol": "",
       "target": "catch",

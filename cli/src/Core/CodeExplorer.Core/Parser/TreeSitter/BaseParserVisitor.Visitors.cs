@@ -291,7 +291,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             {
                 currentScope.References.Add(new Reference("", callName, "CALLS",
                     node.StartPosition.Row + 1,
-                    node.StartPosition.Column + 1));
+                    node.StartPosition.Column + 1, receiverName: (node as CallExprSyntax)?.ExplicitReceiverPath, memberName: (node as CallExprSyntax) is { MethodName.Length: > 0 } ce ? ce.MethodName : null));
             }
 
 

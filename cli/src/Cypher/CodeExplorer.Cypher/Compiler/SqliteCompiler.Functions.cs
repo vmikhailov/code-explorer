@@ -65,9 +65,17 @@ public partial class SqliteCompiler
     private string? TryVisitPathLengthFunction(string fn, FunctionCallExpression func)
     {
         if ((fn != "length" && fn != "size") || func.Arguments.Count != 1) return null;
-        if (func.Arguments[0] is IdentifierExpression pathId && (_pathHops.ContainsKey(pathId.Name) || _pathVariables.ContainsKey(pathId.Name)))
+        if (func.Arguments[0] is IdentifierExpression pathId)
         {
-            return GetPathLengthSql(pathId.Name);
+            if (_varLenRels.Contains(pathId.Name))
+            {
+                return $"{EscapeVar(pathId.Name)}.depth";
+            }
+
+            if (_pathHops.ContainsKey(pathId.Name) || _pathVariables.ContainsKey(pathId.Name))
+            {
+                return GetPathLengthSql(pathId.Name);
+            }
         }
         return null;
     }
@@ -82,7 +90,7 @@ public partial class SqliteCompiler
 
         if (_pathVariables.TryGetValue(pathVarName, out var relVar))
         {
-            return _declaredRels.Contains(relVar) ? "1" : $"{EscapeVar(relVar)}.depth";
+            return (_declaredRels.Contains(relVar) && !_varLenRels.Contains(relVar)) ? "1" : $"{EscapeVar(relVar)}.depth";
         }
 
         return "0";
@@ -101,6 +109,27 @@ public partial class SqliteCompiler
                 var kSrc = _nodeKindSource.TryGetValue(nodeVar.Name, out var src) ? src : $"{EscapeVar(nodeVar.Name)}.kind";
                 return $"ce_node_kind({kSrc})";
             }
+        }
+
+        if (func.Arguments[0] is FunctionCallExpression { Arguments: [IdentifierExpression epRelVar] } epFunc &&
+            _declaredRels.Contains(epRelVar.Name) &&
+            func.Arguments[1] is StringLiteralExpression epPropKey &&
+            (epFunc.FunctionName.Equals("startNode", StringComparison.OrdinalIgnoreCase) ||
+             epFunc.FunctionName.Equals("start_node", StringComparison.OrdinalIgnoreCase) ||
+             epFunc.FunctionName.Equals("endNode", StringComparison.OrdinalIgnoreCase) ||
+             epFunc.FunctionName.Equals("end_node", StringComparison.OrdinalIgnoreCase)))
+        {
+            var fkCol = epFunc.FunctionName.StartsWith("start", StringComparison.OrdinalIgnoreCase) ? "from_id" : "to_id";
+            var rEsc = EscapeVar(epRelVar.Name);
+            if (epPropKey.Value.Equals("id", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"(SELECT id FROM nodes WHERE rowid = {rEsc}.{fkCol})";
+            }
+            if (epPropKey.Value.Equals("kind", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"(SELECT ce_node_kind(kind) FROM nodes WHERE rowid = {rEsc}.{fkCol})";
+            }
+            return $"(SELECT json_extract(properties, '$.{epPropKey.Value}') FROM nodes WHERE rowid = {rEsc}.{fkCol})";
         }
 
         var targetList = VisitExpression(func.Arguments[0]);

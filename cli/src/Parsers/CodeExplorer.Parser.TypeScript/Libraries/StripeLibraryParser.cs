@@ -56,14 +56,13 @@ public class StripeLibraryParser : DeclarativeSemanticExtension
         if (actionName == null || !StripeActions.Contains(actionName)) return null;
         if (!objNode.IsValid()) return null;
 
-        var fullReceiver = objNode.Text;
+        var fullReceiver = objNode.GetCanonicalMemberPath();
         if (string.IsNullOrEmpty(fullReceiver)) return null;
 
         var parts = fullReceiver.Split('.');
         if (parts.Length < 2) return null;
 
         var root = parts[0].ToLowerInvariant();
-        if (root.StartsWith("this.")) root = root[5..];
         if (!root.Contains("stripe")) return null;
 
         var resourceSegments = parts.Skip(1).Select(CamelToSnake).ToArray();

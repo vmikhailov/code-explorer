@@ -29,27 +29,17 @@ public partial class Layer5AnalysisParser
         string? targetTypeName = null;
         string? methodName = null;
         var isExternalStaticClass = false;
+        ctx.SymbolScopes.TryGetValue(refItem.ScopeSymbolId, out var scopeForFile);
         var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
+                         ?? (!string.IsNullOrEmpty(scopeForFile.FilePath) ? scopeForFile.FilePath : null)
                          ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
         var normCallerFile = Layer5SymbolVisibilityResolver.NormalizeWorkspaceRelativeFilePath(callerFile, ctx);
-        var hasExplicitReceiver = false;
+        var hasExplicitReceiver = refItem.HasExplicitReceiver;
 
-        if (targetName.Contains('.'))
+        if (hasExplicitReceiver)
         {
-            var dotIdx = targetName.LastIndexOf('.');
-            var varName = targetName[..dotIdx];
-            methodName = targetName[(dotIdx + 1)..];
-
-            var cleanVar = varName;
-            if (cleanVar.StartsWith("this.", StringComparison.Ordinal) ||
-                cleanVar.StartsWith("self.", StringComparison.Ordinal) ||
-                cleanVar.StartsWith("base.", StringComparison.Ordinal))
-            {
-                cleanVar = cleanVar[(cleanVar.IndexOf('.') + 1)..];
-            }
-
-            var isThisReceiver = cleanVar is "this" or "self" or "base" || string.IsNullOrEmpty(cleanVar) || varName is "this" or "self";
-            hasExplicitReceiver = !isThisReceiver;
+            var varName = refItem.ReceiverName!;
+            methodName = refItem.MemberName;
 
             // Check if varName is a namespace or default/CommonJS module import in callerFile
             if (normCallerFile != null &&
@@ -72,85 +62,79 @@ public partial class Layer5AnalysisParser
                 }
             }
 
-            if (hasExplicitReceiver)
+            if (normCallerFile != null &&
+                bindings.BindingsLookup.TryGetValue((normCallerFile, varName), out var candidates))
             {
-                if (normCallerFile != null &&
-                    (bindings.BindingsLookup.TryGetValue((normCallerFile, varName), out var candidates) ||
-                     bindings.BindingsLookup.TryGetValue((normCallerFile, cleanVar), out candidates)))
+                for (int i = 0; i < candidates.Count; i++)
                 {
-                    for (int i = 0; i < candidates.Count; i++)
+                    var candidate = candidates[i];
+                    if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                        (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
+                         refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                         (normCallerFile != null && (normCallerFile.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) || normCallerFile.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase))) ||
+                         (scopeForFile.EnclosingTypeName != null && string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.OrdinalIgnoreCase))))
                     {
-                        var candidate = candidates[i];
-                        if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
-                            (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
-                             refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
-                             refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
-                             refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                             refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            targetTypeName = candidate.TypeName;
-                            break;
-                        }
+                        targetTypeName = candidate.TypeName;
+                        break;
                     }
-                    targetTypeName ??= candidates[0].TypeName;
                 }
-                else if (bindings.BindingsLookup.TryGetValue(("", varName), out var emptyFileCandidates) ||
-                         bindings.BindingsLookup.TryGetValue(("", cleanVar), out emptyFileCandidates))
+                targetTypeName ??= candidates[0].TypeName;
+            }
+            else if (bindings.BindingsLookup.TryGetValue(("", varName), out var emptyFileCandidates))
+            {
+                targetTypeName = emptyFileCandidates[0].TypeName;
+            }
+            else if (bindings.GlobalBindingsLookup.TryGetValue(varName, out var globalCandidates))
+            {
+                foreach (var candidate in globalCandidates)
                 {
-                    targetTypeName = emptyFileCandidates[0].TypeName;
-                }
-                else if (bindings.GlobalBindingsLookup.TryGetValue(varName, out var globalCandidates) ||
-                         bindings.GlobalBindingsLookup.TryGetValue(cleanVar, out globalCandidates))
-                {
-                    foreach (var candidate in globalCandidates)
+                    if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                        (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
+                         refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                         (normCallerFile != null && (normCallerFile.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) || normCallerFile.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase))) ||
+                         (scopeForFile.EnclosingTypeName != null && string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.OrdinalIgnoreCase))))
                     {
-                        if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
-                            (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
-                             refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
-                             refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
-                             refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                             refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            targetTypeName = candidate.TypeName;
-                            break;
-                        }
-                    }
-
-                    if (targetTypeName == null && (normCallerFile == null || string.IsNullOrEmpty(globalCandidates[0].FilePath)))
-                    {
-                        targetTypeName = globalCandidates[0].TypeName;
+                        targetTypeName = candidate.TypeName;
+                        break;
                     }
                 }
 
-                if (targetTypeName != null)
+                if (targetTypeName == null && (normCallerFile == null || string.IsNullOrEmpty(globalCandidates[0].FilePath)))
                 {
-                    targetName = $"{targetTypeName}.{methodName}";
+                    targetTypeName = globalCandidates[0].TypeName;
                 }
-                else if (symbols.TypeSymbols.ContainsKey(varName))
-                {
-                    targetTypeName = varName;
-                    targetName = $"{varName}.{methodName}";
-                }
-                else if (symbols.TypeSymbols.ContainsKey(cleanVar))
-                {
-                    targetTypeName = cleanVar;
-                    targetName = $"{cleanVar}.{methodName}";
-                }
-                else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
-                {
-                    targetName = $"{varName}.{methodName}";
-                    isExternalStaticClass = true;
-                }
-                else
-                {
-                    // Explicit receiver has no known type binding in workspace; do not strip receiver and match unrelated functions
-                    return;
-                }
+            }
+
+            if (targetTypeName != null)
+            {
+                targetName = $"{targetTypeName}.{methodName}";
+            }
+            else if (symbols.TypeSymbols.ContainsKey(varName))
+            {
+                targetTypeName = varName;
+                targetName = $"{varName}.{methodName}";
+            }
+            else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
+            {
+                targetName = $"{varName}.{methodName}";
+                isExternalStaticClass = true;
             }
             else
             {
-                targetName = methodName;
+                // Explicit receiver has no known type binding in workspace; do not strip receiver and match unrelated functions
+                return;
             }
+        }
+        else if (!string.Equals(refItem.MemberName, targetName, StringComparison.Ordinal))
+        {
+            methodName = refItem.MemberName;
+            targetName = methodName;
         }
 
         var callAdded = false;
@@ -256,7 +240,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        // If receiver was bound to a known workspace TypeSymbol, check if the method is registered under short name in that type's file
+        // If receiver was bound to a known workspace TypeSymbol, check if the method is registered under short name in that type's canonical file
         if (!callAdded && hasExplicitReceiver && targetTypeName != null && methodName != null &&
             Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(targetTypeName, refItem.ScopeSymbolId, ctx, symbols) is { } resolvedTypeId)
         {
@@ -509,7 +493,7 @@ public partial class Layer5AnalysisParser
         HashSet<(string From, string To, string Kind)> existingRefRels)
     {
         var targetName = refItem.TargetName;
-        var shortName = targetName.Contains('.') ? targetName[(targetName.LastIndexOf('.') + 1)..] : targetName;
+        var shortName = refItem.MemberName;
         var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
                          ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
         var callerProj = callerFile != null ? ConstantRegistry.ExtractProjectName(callerFile) : ExtractProjectFromScopeId(refItem.ScopeSymbolId, symbols);
@@ -526,14 +510,14 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        // 2. Same project lookup
+        // 2. Same project lookup (only when unambiguous in project or when callerFile is known)
         if (targetId == null && callerProj != null && symbols.FunctionsByProject.TryGetValue(callerProj, out var projFns))
         {
-            if (projFns.TryGetValue(targetName, out var ids) && ids.Count > 0)
+            if (projFns.TryGetValue(targetName, out var ids) && (ids.Count == 1 || callerFile != null))
             {
                 targetId = ids[0];
             }
-            else if (projFns.TryGetValue(shortName, out ids) && ids.Count > 0)
+            else if (projFns.TryGetValue(shortName, out ids) && (ids.Count == 1 || callerFile != null))
             {
                 targetId = ids[0];
             }
@@ -547,11 +531,15 @@ public partial class Layer5AnalysisParser
             {
                 if (callerProj != null)
                 {
-                    targetId = candidates.FirstOrDefault(c =>
+                    var projMatches = candidates.Where(c =>
                     {
                         var cFile = ExtractFilePathFromSymbolId(c);
                         return cFile != null && string.Equals(ConstantRegistry.ExtractProjectName(cFile), callerProj, StringComparison.OrdinalIgnoreCase);
-                    });
+                    }).ToList();
+                    if (projMatches.Count == 1 || (projMatches.Count > 0 && callerFile != null))
+                    {
+                        targetId = projMatches[0];
+                    }
                 }
                 else if (candidates.Count == 1)
                 {
@@ -1227,5 +1215,101 @@ internal static partial class Layer5SymbolVisibilityResolver
         }
 
         return null;
+    }
+
+    internal static void UnifyPartialTypeDeclarations(
+        Dictionary<string, List<string>> typesByName,
+        Dictionary<string, string> typeSymbols,
+        Dictionary<(string FilePath, string FuncName), string> functionSymbolsByFile,
+        Dictionary<string, List<(string FuncName, string FuncId)>> functionsInFile,
+        ParsingContext ctx)
+    {
+        foreach (var (typeName, tList) in typesByName)
+        {
+            if (tList.Count <= 1) continue;
+
+            for (var i = 0; i < tList.Count; i++)
+            {
+                var idA = tList[i];
+                var scopeA = GetOrInferSymbolScope(idA, null, ctx);
+                if (string.IsNullOrEmpty(scopeA.Namespace)) continue;
+
+                List<string>? siblingFiles = null;
+                for (var j = tList.Count - 1; j > i; j--)
+                {
+                    var idB = tList[j];
+                    var scopeB = GetOrInferSymbolScope(idB, null, ctx);
+                    if (!string.Equals(scopeA.Namespace, scopeB.Namespace, StringComparison.Ordinal) ||
+                        !string.Equals(scopeA.EnclosingTypeName ?? "", scopeB.EnclosingTypeName ?? "", StringComparison.Ordinal) ||
+                        !IsSameProjectScope(scopeA, scopeB))
+                    {
+                        continue;
+                    }
+
+                    siblingFiles ??= !string.IsNullOrEmpty(scopeA.FilePath) ? [scopeA.FilePath.Replace('\\', '/')] : [];
+                    if (!string.IsNullOrEmpty(scopeB.FilePath))
+                    {
+                        siblingFiles.Add(scopeB.FilePath.Replace('\\', '/'));
+                    }
+
+                    if (IsPreferredCanonicalPartialDeclaration(typeName, idB, scopeB, idA, scopeA))
+                    {
+                        tList[i] = idB;
+                        idA = idB;
+                        scopeA = scopeB;
+                    }
+                    tList.RemoveAt(j);
+                }
+
+                if (siblingFiles is { Count: > 1 })
+                {
+                    typeSymbols[typeName] = idA;
+                    CrossRegisterPartialTypeFunctions(siblingFiles, functionSymbolsByFile, functionsInFile);
+                }
+            }
+        }
+    }
+
+    private static void CrossRegisterPartialTypeFunctions(
+        List<string> siblingFiles,
+        Dictionary<(string FilePath, string FuncName), string> functionSymbolsByFile,
+        Dictionary<string, List<(string FuncName, string FuncId)>> functionsInFile)
+    {
+        for (var i = 0; i < siblingFiles.Count; i++)
+        {
+            var srcFile = siblingFiles[i];
+            if (!functionsInFile.TryGetValue(srcFile, out var fns)) continue;
+            for (var j = 0; j < siblingFiles.Count; j++)
+            {
+                if (i == j) continue;
+                var dstFile = siblingFiles[j];
+                for (var k = 0; k < fns.Count; k++)
+                {
+                    var (fnName, fnId) = fns[k];
+                    functionSymbolsByFile.TryAdd((dstFile, fnName), fnId);
+                }
+            }
+        }
+    }
+
+    private static bool IsPreferredCanonicalPartialDeclaration(
+        string typeName,
+        string candId,
+        in SymbolScopeInfo candScope,
+        string existingId,
+        in SymbolScopeInfo existingScope)
+    {
+        var candFileStem = !string.IsNullOrEmpty(candScope.FilePath) ? Path.GetFileNameWithoutExtension(candScope.FilePath) : "";
+        var existFileStem = !string.IsNullOrEmpty(existingScope.FilePath) ? Path.GetFileNameWithoutExtension(existingScope.FilePath) : "";
+        var candExact = string.Equals(candFileStem, typeName, StringComparison.OrdinalIgnoreCase);
+        var existExact = string.Equals(existFileStem, typeName, StringComparison.OrdinalIgnoreCase);
+        if (candExact != existExact) return candExact;
+
+        if (candFileStem.Length != existFileStem.Length && candFileStem.Length > 0 && existFileStem.Length > 0)
+        {
+            return candFileStem.Length < existFileStem.Length;
+        }
+
+        return string.CompareOrdinal(candId, existingId) < 0;
     }
 }

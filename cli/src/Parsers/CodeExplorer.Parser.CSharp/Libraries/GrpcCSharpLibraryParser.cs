@@ -230,9 +230,7 @@ public class GrpcCSharpLibraryParser : DeclarativeSemanticExtension
             or "GetStringAsync" or "GetByteArrayAsync" or "GetStreamAsync" or "CreateClient")
             return false;
 
-        var rText = exprChild.Text.Trim();
-        if (rText.StartWithIC("this."))
-            rText = rText[5..].Trim();
+        var rText = exprChild.GetCanonicalMemberPath();
         if (rText.EndsWith("()", StringComparison.Ordinal))
             rText = rText[..^2].Trim();
         if (rText.Contains('.'))
@@ -339,8 +337,6 @@ public class GrpcCSharpLibraryParser : DeclarativeSemanticExtension
     public static string ExtractServiceStem(Node node, string receiverText)
     {
         var clean = receiverText.Trim();
-        if (clean.StartWithIC("this."))
-            clean = clean[5..].Trim();
         if (clean.EndsWith("()", StringComparison.Ordinal))
             clean = clean[..^2].Trim();
         if (clean.Contains('.'))

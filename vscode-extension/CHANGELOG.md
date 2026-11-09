@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.75.2] - 2026-11-09
+
+### Changed & Refactored
+- **Ontology-Driven UAST Value & Scope Resolution (`AstValueResolver`, `AstScopeResolver`, `ConstantRegistry`)**:
+  - Eliminated string-based receiver and configuration heuristics (`"this."`, `"self."`, `"base."`, `"config."`, `"settings"`, `"broker"`) across `AstValueResolver`, `AstScopeResolver`, `ConstantRegistry`, and `AstHelper` in favor of first-class UAST properties (`ParameterPassingMode.Receiver`, `MemberAccessExprSyntax.IsSelfOrSuperAccess`, `MemberAccessExprSyntax.IsEnvironmentLookup`, `CallExprSyntax.ValueSemantics`, and `SyntaxNode.IsScopeBoundary`).
+  - Added project-scoped leaf constant indexing (`_projectConstantsByLeaf`) and lexical receiver-type resolution (`AstScopeResolver.TryResolveExpressionTypeName`) so cross-class configuration properties (`this.pubSubConfig.topicName`, `brokerConfig.OrdersTopic`) resolve deterministically without cross-project leakage.
+  - Added `Urn` ontology predicates (`IsSymbol`, `IsFile`, `IsProcedure`, `HasDeclaringFilePath`, `DeclaringFilePath`) and `Reference` / `CallExprSyntax` receiver metadata (`ReceiverName`, `MemberName`, `HasExplicitReceiver`), replacing ad-hoc URN and dot-splitting in Layer 3 and Layer 5.
+  - Extended `TreeSitterSyntaxPopulator` to populate `AnnotationSyntax.Arguments` for key-value attribute arguments (e.g. Rust `#[serde(default = "fn")]`) and `AstValueResolver.TryResolveBinary` to evaluate nullish/logical fallback expressions (`||`, `??`).
+
 ## [1.75.1] - 2026-11-09
 
 ### Changed & Fixed

@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Case Study 05: 16-Project Polyglot Audit (CodeExplorer vs. ripgrep)</title>
-  <meta name="description" content="Self-contained paired AI agent benchmark on the CodeExplorer repository (16 projects, C# .NET 10 + TypeScript): 2.35x faster (2m 11s vs. 5m 08s), 2.52x fewer tokens (633K vs. 1.59M), 100% recall for both agents.">
+  <title>Case Study 05: OrchardCore Modular .NET Audit (CodeExplorer vs ripgrep)</title>
+  <meta name="description" content="Paired AI agent benchmark on OrchardCMS/OrchardCore (~180 C# .NET projects, ~6,000 files) comparing CodeExplorer against ripgrep across cross-module interface hierarchies, DI call chains, and YesSql index lineage.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="benchmarks.css?v=1.75.1">
+  <link rel="stylesheet" href="../fonts/fonts.css?v=1">
+  <link rel="stylesheet" href="benchmarks.css?v=1.75.4">
 </head>
 <body>
 
@@ -20,12 +18,8 @@
         <span>CodeExplorer</span>
       </a>
       <ul class="slab-links">
+        <li><a href="/index.html">Overview</a></li>
         <li><a href="/benchmarks.html" class="nav-framed">All Benchmarks</a></li>
-        <li><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">01: Agent vs. CBM (twenty)</a></li>
-        <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">02: Agent vs. ripgrep (324 Services)</a></li>
-        <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">03: Indexer vs. CBM</a></li>
-        <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">04: Indexer vs. Graphify</a></li>
-        <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" aria-current="page">05: Agent vs. ripgrep (16 Projects)</a></li>
       </ul>
       <div class="slab-actions">
         <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
@@ -40,154 +34,59 @@
           <div class="crumb-trail">
             <a href="/benchmarks.html">Benchmarks Catalog</a>
             <span>/</span>
-            <span class="tone-ink">Case Study 05: 16-Project Polyglot Audit</span>
+            <span class="tone-ink">Case Study 05: OrchardCore Modular .NET Audit</span>
           </div>
-          <span class="measured">Target: vmikhailov/code-explorer (16 projects, C# .NET 10 + TypeScript), Model: Gemini Flash (n = 1)</span>
+          <span class="measured">[TBD ~180] C# projects, [TBD ~6,000] files</span>
         </div>
 
         <div class="hero-top">
           <div>
-            <h1 class="hero-title">Case Study 05: 16-project polyglot repository audit (ce vs. ripgrep).</h1>
+            <h1 class="hero-title">Case Study 05: OrchardCore modular .NET monolith audit (ce vs ripgrep).</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Self-contained A/B benchmark executed on the <code>code-explorer</code> repository itself (16 projects across C# .NET 10 and TypeScript VS Code extension). Evaluates how much difference a graph makes on a small-to-medium codebase where <code>ripgrep</code> can still find 100% of answers.
+              Paired A/B agent benchmark on <code>OrchardCMS/OrchardCore</code> (open-source modular .NET CMS &amp; framework with <code>[TBD ~180]</code> projects and <code>[TBD ~6,000]</code> C# files). Measures how an AI agent resolves multi-hop C# interface hierarchies, cross-module DI call chains, and database index lineage.
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
               <a href="#prompts" class="btn">Inspect Tested Prompts</a>
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/prompts" target="_blank" rel="noopener" class="btn">Prompts on GitHub</a>
             </div>
           </div>
         </div>
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok">2.35×</span>
+            <span class="reading tone-ok">~0.0× [TBD]</span>
             <h2 class="panel-title">Faster Time-to-Answer</h2>
-            <p class="panel-copy"><code>2m 11s</code> (<code>131s</code>) with CodeExplorer vs. <code>5m 08s</code> (<code>308s</code>) with <code>ripgrep</code> + <code>view_file</code>.</p>
-            <code class="panel-code">30 turns vs. 59 turns</code>
+            <p class="panel-copy"><code>[TBD]</code> with <code>CodeExplorer</code> vs <code>[TBD]</code> with <code>ripgrep</code> + <code>view_file</code> across <code>OrchardCore</code> modules.</p>
+            <code class="panel-code">[TBD] turns vs [TBD] turns</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent">2.52×</span>
+            <span class="reading tone-accent">~0.0× [TBD]</span>
             <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy"><code>633,469</code> cumulative input tokens vs. <code>1,594,003</code> tokens.</p>
-            <code class="panel-code">$0.08 vs. $0.14 API cost</code>
+            <p class="panel-copy"><code>[TBD]</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>[TBD]</code> tokens with <code>ripgrep</code>.</p>
+            <code class="panel-code">$[TBD] vs $[TBD] API cost</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool">1.56×</span>
-            <h2 class="panel-title">Smaller Tool Output</h2>
-            <p class="panel-copy"><code>121.5 KB</code> of raw tool output ingested vs. <code>189.7 KB</code> of <code>rg</code> slices and file reads.</p>
-            <code class="panel-code">30,371 vs. 47,417 tool tokens</code>
+            <span class="reading tone-cool">~0.0× [TBD]</span>
+            <h2 class="panel-title">Fewer File Reads</h2>
+            <p class="panel-copy"><code>[TBD]</code> source files read manually by the graph agent vs <code>[TBD]</code> file reads by the <code>ripgrep</code> agent.</p>
+            <code class="panel-code">[TBD] KB vs [TBD] KB tool output</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading">100% Tie</span>
-            <h2 class="panel-title">Same Recall on 16 Projects</h2>
-            <p class="panel-copy">On a 16-project codebase, <code>ripgrep</code> + manual file reading achieved the exact same 100% completeness as the graph agent.</p>
-            <code class="panel-code">0 missed callers for both</code>
+            <span class="reading">100% vs [TBD]</span>
+            <h2 class="panel-title">Cross-Module Recall</h2>
+            <p class="panel-copy">Completeness on transitive C# base classes (<code>ContentPartDisplayDriver&lt;T&gt;</code>, <code>ContentHandlerBase</code>) and DI callers.</p>
+            <code class="panel-code">[TBD] matched implementations</code>
           </div>
         </div>
 
-        <div id="prompts" class="prompt-stack">
-          <div class="prompt-stack-head">
-            <h2 class="prompt-stack-title">Tested prompts &amp; agent system instructions.</h2>
-            <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
-          </div>
-          <details class="prompt-drawer">
-            <summary>
-              <span class="prompt-drawer-title">
-                <span class="badge badge--accent">Task Prompt</span>
-                <span>prompts/task-prompt.md: Shared 3-Part Audit Task Given Identically to Both Agents</span>
-              </span>
-              <span class="prompt-drawer-toggle"></span>
-            </summary>
-            <div class="prompt-drawer-body">
-              <pre class="code-block"># Benchmark Task Prompt: Polyglot Architecture Discovery &amp; Blast Radius Analysis
-
-Perform a precise architectural and impact analysis on the `code-explorer` repository and answer all three questions below with 100% completeness (do not guess or omit items; provide exact class names, method names, and relative file paths):
-
-1. **Interface Implementations across the Codebase**:
-   List every class that implements:
-   - `IComponentLibraryParser`
-   - `IMcpTargetAdapter`
-   - `ILibraryConfigurationDescriptor`
-   - `ISyntaxEnricher`
-   For each class, provide its exact class name and the relative file path where it is declared.
-
-2. **Blast Radius &amp; Call Chain of `GateExecutionEngine`**:
-   Identify all **production (non-test)** classes and methods that directly call `CheckGateAsync` or `CheckSuiteAsync` on `GateExecutionEngine`. For each caller, also identify one hop further upstream (which HTTP endpoint, WebSocket message type, CLI command, or MCP tool triggers that caller).
-
-3. **Polyglot `ISemanticExtension` Breakdown**:
-   Count the exact number of classes implementing `ISemanticExtension` in each of the following parser projects:
-   - `CodeExplorer.Parser.CSharp`
-   - `CodeExplorer.Parser.TypeScript`
-   - `CodeExplorer.Parser.Python`
-   - `CodeExplorer.Parser.Go`
-   - `CodeExplorer.Parser.Java`
-   - `CodeExplorer.Parser.Android`
-   And list the exact class names of all `ISemanticExtension` implementations in `CodeExplorer.Parser.Java` and `CodeExplorer.Parser.Android`.</pre>
-            </div>
-          </details>
-
-          <details class="prompt-drawer">
-            <summary>
-              <span class="prompt-drawer-title">
-                <span class="badge badge--win">System Prompt (ce)</span>
-                <span>prompts/graph-agent.md: System Instructions for CodeExplorer Graph Agent (ce_graph_agent)</span>
-              </span>
-              <span class="prompt-drawer-toggle"></span>
-            </summary>
-            <div class="prompt-drawer-body">
-              <pre class="code-block"># Agent System Instructions
-
-You are a senior software engineer analyzing a codebase using ONLY the CodeExplorer CLI (`ce`) graph database via `run_command`.
-
-CRITICAL CONSTRAINTS:
-1. You are STRICTLY FORBIDDEN from calling `view_file` or reading any source files or directories directly.
-2. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
-3. 100% of your answers must be derived using the CodeExplorer CLI (`ce.exe`) via `run_command`.
-
-How to use CodeExplorer CLI via `run_command` (in Cwd `.`):
-- Find callers &amp; upstream triggers:
-  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe callers "&lt;target&gt;"`
-- Search identifiers, routes, and symbols:
-  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe search "&lt;query&gt;"`
-- Compute blast radius:
-  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe impact "&lt;target&gt;"`
-- Execute OpenCypher queries directly against the graph database:
-  `.\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.exe query "&lt;CYPHER_QUERY&gt;" --no-truncate`
-
-Graph Ontology Reference:
-- Node labels: `Type` (`t.kind` is `'class'`, `'interface'`, `'record'`, `'enum'`), `Function` (`f.name`, `f.symbol`, `f.start_line`, `f.end_line`), `Member`, `File` (`f.path`), `Project` (`p.name`, `p.path`), `Endpoint`, `EntryPoint`, `Table`, `Query`, `Topic`, `Package`.
-- Relationships:
-  - `(c:Type)-[:IMPLEMENTS*1..5]-&gt;(i:Type)` (Class implements Interface or inherits Base Class)
-  - `(t:Type)-[:HAS_METHOD]-&gt;(m:Function)` (Type owns Method)
-  - `(caller:Function)-[:CALLS]-&gt;(callee:Function)` (Function/Method invokes another Function/Method)
-  - `(t:Type)-[:DECLARED_IN]-&gt;(f:File)` (Type is declared in File)
-  - `(p1:Project)-[:DEPENDS_ON]-&gt;(p2:Project)` (Project dependency)
-
-Answer all questions completely, accurately, and concisely based strictly on the CLI outputs.</pre>
-            </div>
-          </details>
-
-          <details class="prompt-drawer">
-            <summary>
-              <span class="prompt-drawer-title">
-                <span class="badge badge--cool">System Prompt (ripgrep)</span>
-                <span>prompts/baseline-agent.md: System Instructions for ripgrep Baseline Agent (rg_baseline_agent)</span>
-              </span>
-              <span class="prompt-drawer-toggle"></span>
-            </summary>
-            <div class="prompt-drawer-body">
-              <pre class="code-block"># Agent System Instructions
-
-You are a senior software engineer analyzing a codebase using standard CLI search and file reading tools:
-1. You MAY use `run_command` to execute standard lexical search and directory commands (`rg` / `ripgrep`, `git grep`, `Get-ChildItem`, `Select-String`) and `view_file` to read files.
-2. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or any CodeExplorer CLI binary.
-3. You are STRICTLY FORBIDDEN from reading, querying, or accessing `.codeexplorer`, `graph.db`, or any files inside `.codeexplorer`.
-4. Answer the user's architectural/codebase question with 100% accuracy and completeness, citing exact relative file paths, class names, and method names.</pre>
-            </div>
-          </details>
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
+          <strong>Tested participants:</strong><br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.x</code> (.NET 10, SQLite + OpenCypher)<br>
+          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + <code>view_file</code><br>
+          3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (100% symmetric system prompts)<br>
+          4. <strong>Target Repository:</strong> <code>OrchardCMS/OrchardCore</code> (commit <code>[TBD]</code>, <code>[TBD ~180]</code> C# projects, <code>[TBD ~6,000]</code> files)
         </div>
       </div>
     </section>
@@ -195,75 +94,176 @@ You are a senior software engineer analyzing a codebase using standard CLI searc
     <section class="band">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">1. Execution telemetry scorecard.</h2>
+          <h2 class="band-title">1. What the agents had to solve on OrchardCore.</h2>
           <p class="band-lede">
-            Tested across three tasks on <code>code-explorer</code>: (1) interface implementations of <code>IComponentLibraryParser</code>, <code>IMcpTargetAdapter</code>, <code>ILibraryConfigurationDescriptor</code>, and <code>ISyntaxEnricher</code>, (2) 2-hop upstream blast radius of <code>GateExecutionEngine</code> (<code>CheckGateAsync</code> / <code>CheckSuiteAsync</code>), and (3) polyglot <code>ISemanticExtension</code> breakdown across 6 parser projects.
+            In a modular .NET monolith like <code>OrchardCore</code>, classes rarely implement root interfaces directly: they inherit through generic base classes (such as <code>ContentPartDisplayDriver&lt;TPart&gt;</code> or <code>ContentHandlerBase</code>) across <code>[TBD ~180]</code> separate <code>.csproj</code> modules.
+          </p>
+        </div>
+
+        <div class="panels panels--3">
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Display Drivers &amp; Content Handlers</h3>
+              <span class="badge badge--accent">Task 1</span>
+            </div>
+            <p class="panel-copy">Find all classes implementing <code>IDisplayDriver</code> and <code>IContentHandler</code> (including indirect subclasses via generic base classes) across key content modules.</p>
+            <code class="panel-code">Tests transitive :INHERITS_FROM|IMPLEMENTS*1..5</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Upstream Callers &amp; Endpoints</h3>
+              <span class="badge badge--win">Task 2</span>
+            </div>
+            <p class="panel-copy">Trace production callers of core content management services across module boundaries up to the triggering Razor/MVC controller endpoints and background tasks.</p>
+            <code class="panel-code">Tests C# constructor DI resolution &amp; :CALLS</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Project Fan-In &amp; YesSql Indexes</h3>
+              <span class="badge badge--cool">Task 3</span>
+            </div>
+            <p class="panel-copy">Identify which modules depend on core abstractions and map document index providers to their underlying storage tables.</p>
+            <code class="panel-code">Tests :DEPENDS_ON &amp; data lineage</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band band--deep">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">2. Execution telemetry scorecard.</h2>
+          <p class="band-lede">
+            Measured from paired A/B agent runs on the same <code>OrchardCMS/OrchardCore</code> commit with identical symmetric system prompts.
           </p>
         </div>
 
         <div class="table-surface">
           <div class="table-caption-bar">
-            <span>Paired A/B Agent Telemetry on code-explorer (16 Projects, C# + TypeScript)</span>
+            <span>Paired A/B Agent Telemetry on OrchardCMS/OrchardCore ([TBD ~180] C# Projects)</span>
             <span class="measured">Source: benchmarks/05-polyglot-architecture-and-blast-radius/results/metrics.json</span>
           </div>
           <table class="bench-table">
             <thead>
               <tr>
                 <th>Metric</th>
-                <th><code>ripgrep</code> + File Read Agent</th>
-                <th><code>CodeExplorer</code> Graph Agent</th>
+                <th><code>ripgrep</code> + File Reads</th>
+                <th><code>CodeExplorer</code></th>
                 <th>Delta</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>Time to Answer (<code>send_message</code>)</td>
-                <td class="cell-loss">308.0 s (5 min 08 sec)</td>
-                <td class="cell-win">131.0 s (2 min 11 sec)</td>
-                <td class="cell-win">2.35× faster (-2m 57s)</td>
+                <td class="cell-loss">[TBD s] ([TBD min])</td>
+                <td class="cell-win">[TBD s] ([TBD min])</td>
+                <td class="cell-win">[TBD ×] faster</td>
               </tr>
               <tr>
                 <td>LLM Reasoning Turns</td>
-                <td class="cell-loss">59 turns</td>
-                <td class="cell-win">30 turns</td>
-                <td class="cell-win">1.97× fewer turns (-49.2%)</td>
+                <td class="cell-loss">[TBD] turns</td>
+                <td class="cell-win">[TBD] turns</td>
+                <td class="cell-win">[TBD ×] fewer turns</td>
               </tr>
               <tr>
                 <td>Total Tool Calls</td>
-                <td class="cell-loss">57 (28 <code>run_command</code>, 23 <code>view_file</code>, 4 <code>manage_task</code>, 1 <code>schedule</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win">29 (13 <code>run_command</code>, 15 <code>view_file</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win">1.97× fewer tool calls</td>
+                <td class="cell-loss">[TBD] (<code>rg</code> + <code>view_file</code>)</td>
+                <td class="cell-win">[TBD] (<code>ce</code> + <code>view_file</code>)</td>
+                <td class="cell-win">[TBD ×] fewer tool calls</td>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss">189,668 chars (~47,417 tokens)</td>
-                <td class="cell-win">121,485 chars (~30,371 tokens)</td>
-                <td class="cell-win">1.56× less tool payload</td>
+                <td class="cell-loss">[TBD] chars (~[TBD] tokens)</td>
+                <td class="cell-win">[TBD] chars (~[TBD] tokens)</td>
+                <td class="cell-win">[TBD ×] less tool payload</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
-                <td class="cell-loss">6,376,014 chars (~1,594,003 tokens)</td>
-                <td class="cell-win">2,533,878 chars (~633,469 tokens)</td>
-                <td class="cell-win">2.52× fewer input tokens</td>
+                <td class="cell-loss">[TBD] tokens</td>
+                <td class="cell-win">[TBD] tokens</td>
+                <td class="cell-win">[TBD ×] fewer input tokens</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
-                <td class="cell-num">$0.14</td>
-                <td class="cell-win">$0.08</td>
-                <td class="cell-win">1.87× cheaper</td>
+                <td class="cell-num">$[TBD]</td>
+                <td class="cell-win">$[TBD]</td>
+                <td class="cell-win">[TBD ×] cheaper</td>
               </tr>
               <tr>
                 <td>Audit Completeness (Tasks 1 to 3)</td>
-                <td class="cell-win">100% (Complete)</td>
-                <td class="cell-win">100% (Complete)</td>
-                <td><strong>Tie on accuracy (both 100%)</strong></td>
+                <td class="cell-num">[TBD %]</td>
+                <td class="cell-win">[TBD %]</td>
+                <td><strong>[TBD]</strong></td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-md);">
-          <strong>Takeaway on codebase scale:</strong> On a 16-project repository, an agent with <code>ripgrep</code> does not miss callers: it simply needs ~2× more turns (for example, running follow-up searches when discovering that parser classes implement <code>ISemanticExtension</code> transitively through <code>IComponentLibraryParser</code>, <code>ILibraryParser</code>, or abstract base classes like <code>CSharpLibraryParserBase</code>). The accuracy gap between lexical search and a semantic graph emerges on large monorepos like <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01 (24,527 files)</a> and <a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02 (324 services)</a>.
+    <section class="band" style="border-bottom: none;">
+      <div class="wrap">
+        <div id="prompts" class="prompt-stack" style="margin-top: 0; padding-top: 0; border-top: none;">
+          <div class="prompt-stack-head">
+            <h2 class="prompt-stack-title">3. Reproducibility: symmetric prompts &amp; task specification.</h2>
+            <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
+          </div>
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Task Prompt</span>
+                <span>prompts/task-prompt.md: Shared 3-Part OrchardCore Audit Task Given Identically to Both Agents</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block">[TBD: Exact 3-part OrchardCore architectural audit prompt]</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">System Prompt (ce)</span>
+                <span>prompts/graph-agent.md: Symmetric System Instructions for CodeExplorer Agent</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions
+
+You are a senior software engineer analyzing the `OrchardCore` repository.
+Answer all architectural questions with 100% accuracy and completeness, citing exact relative file paths, class names, and method names.
+
+CRITICAL BENCHMARK RULES:
+1. You have access to the CodeExplorer CLI (`ce`) via `run_command` (which queries the pre-indexed `.codeexplorer/graph.db` semantic graph) and `view_file` to inspect source files when needed.
+2. To discover available `ce` commands or inspect the graph schema/taxonomy, run `ce --help` or `ce status` / `ce query` via `run_command`.
+3. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
+4. Do NOT modify or create any files inside the repository.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">System Prompt (ripgrep)</span>
+                <span>prompts/baseline-agent.md: Symmetric System Instructions for ripgrep Baseline Agent</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block"># Agent System Instructions
+
+You are a senior software engineer analyzing the `OrchardCore` repository.
+Answer all architectural questions with 100% accuracy and completeness, citing exact relative file paths, class names, and method names.
+
+CRITICAL BENCHMARK RULES:
+1. You have access to standard CLI search tools (`rg` / `ripgrep`, `git grep`, `Get-ChildItem`, `Select-String`) via `run_command` and `view_file` to inspect source files.
+2. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or accessing `.codeexplorer/graph.db`.
+3. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
+4. Do NOT modify or create any files inside the repository.</pre>
+            </div>
+          </details>
         </div>
       </div>
     </section>

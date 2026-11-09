@@ -44,7 +44,7 @@ if ($BumpPatch) {
             $minor = [int]$matches[2]
             $patch = [int]$matches[3] + 1
             $newVer = "$major.$minor.$patch"
-            $content = $content -replace '<Version[^>]*>\d+\.\d+\.\d+</Version>', "<Version Condition=`"'\`$(Version)' == ''`">$newVer</Version>"
+            $content = $content -replace '<Version[^>]*>\d+\.\d+\.\d+</Version>', "<Version Condition=`"'`$(Version)' == ''`">$newVer</Version>"
             Set-Content $propsFile $content -NoNewline
             Write-Host "Bumped version to $newVer in $propsFile" -ForegroundColor Yellow
         }

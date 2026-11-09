@@ -53,16 +53,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "8a1fe825ab33936b1d06c4891f3c95da8950baa54efe79ed4fd3fdba06d9857a",
-      "file": "vscode-extension/src/webview/components/DeclarativeInspector.tsx",
-      "line": 182,
-      "column": 25,
-      "symbol": "renderSection",
-      "target": "648 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
       "fingerprint": "05ef34731aebed545c47eeac94c36aba24b328bea6d069a9ee0d52911753e2b3",
       "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
       "line": 966,
@@ -71,36 +61,6 @@
       "target": "5293 lines",
       "acknowledgedAt": "2026-10-30T11:08:37.565868+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 11:08:37"
-    },
-    {
-      "fingerprint": "d8d20873d3659e1ead3c1f33fd781032915d99169e1463bdaaf8969933327350",
-      "file": "vscode-extension/src/webview/components/GateEditorView.tsx",
-      "line": 125,
-      "column": 62,
-      "symbol": "GateEditorView",
-      "target": "1108 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "3e0ccafb632e29eb8ce4a76850a252c98ab41813be0c397e6c01eb41a890c439",
-      "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
-      "line": 42,
-      "column": 51,
-      "symbol": "FlowInner",
-      "target": "1284 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "6988ea807292343ea1ac0b096d4d7be32fa6d5e57a9beffc4892e5146b58639c",
-      "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
-      "line": 320,
-      "column": 68,
-      "symbol": "UniversalGraphMap",
-      "target": "1724 lines",
-      "acknowledgedAt": "2026-11-05T17:10:05.4885605+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-05 17:10:05"
     },
     {
       "fingerprint": "11077e0c911e686bdaf2c85f006f8e9ea9040e7aa4035375245c1d899a459c9d",
@@ -133,12 +93,52 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
+      "fingerprint": "3e0ccafb632e29eb8ce4a76850a252c98ab41813be0c397e6c01eb41a890c439",
+      "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
+      "line": 42,
+      "column": 51,
+      "symbol": "FlowInner",
+      "target": "1284 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "d8d20873d3659e1ead3c1f33fd781032915d99169e1463bdaaf8969933327350",
+      "file": "vscode-extension/src/webview/components/GateEditorView.tsx",
+      "line": 125,
+      "column": 62,
+      "symbol": "GateEditorView",
+      "target": "1108 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "6988ea807292343ea1ac0b096d4d7be32fa6d5e57a9beffc4892e5146b58639c",
+      "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
+      "line": 320,
+      "column": 68,
+      "symbol": "UniversalGraphMap",
+      "target": "1724 lines",
+      "acknowledgedAt": "2026-11-05T17:10:05.4885605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-05 17:10:05"
+    },
+    {
       "fingerprint": "bf7d98df2438d70b9a384ab9eb0d6650f5608acb883e9616961702edd36391a5",
       "file": "vscode-extension/src/webview/layout/concentricSectorsLayout.ts",
       "line": 63,
       "column": 8,
       "symbol": "computeConcentricSectorsLayout",
       "target": "543 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "8a1fe825ab33936b1d06c4891f3c95da8950baa54efe79ed4fd3fdba06d9857a",
+      "file": "vscode-extension/src/webview/components/DeclarativeInspector.tsx",
+      "line": 182,
+      "column": 25,
+      "symbol": "renderSection",
+      "target": "648 lines",
       "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     }

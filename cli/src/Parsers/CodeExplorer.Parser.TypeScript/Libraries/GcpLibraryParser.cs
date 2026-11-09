@@ -347,7 +347,7 @@ public class GcpLibraryParser : DeclarativeSemanticExtension
         }
 
         var recvText = receiverObj.Text.Trim();
-        var cleanName = recvText.StartWithIC("this.") ? recvText[5..].Trim() : recvText;
+        var cleanName = receiverObj.GetCanonicalMemberPath();
         if (cleanName.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ||
             cleanName.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
             cleanName.Equals("pubsub", StringComparison.OrdinalIgnoreCase))
@@ -359,7 +359,7 @@ public class GcpLibraryParser : DeclarativeSemanticExtension
         var curr = callNode.Parent;
         while (curr.IsValid())
         {
-            if (AstScopeResolver.IsScopeBoundary(curr.Type))
+            if (curr.IsScopeBoundary)
             {
                 var declarators = curr.FindDescendantsOfType(TreeSitterSyntax.TypeScript.VariableDeclarator);
                 foreach (var decl in declarators)
@@ -402,7 +402,7 @@ public class GcpLibraryParser : DeclarativeSemanticExtension
         }
 
         // 4. Try ConstantRegistry with receiver variable name
-        return ResolveTopicVariableInScope(callNode, recvText, scopeSymbolId);
+        return ResolveTopicVariableInScope(callNode, cleanName, scopeSymbolId);
     }
 
     private static string? ExtractTopicFromExpression(Node expr, string? scopeSymbolId)
@@ -519,10 +519,8 @@ public class GcpLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static string? ResolveTopicVariableInScope(Node node, string varName, string? scopeSymbolId = null)
+    private static string? ResolveTopicVariableInScope(Node node, string cleanName, string? scopeSymbolId = null)
     {
-        var cleanName = varName.StartWithIC("this.") ? varName[5..] : varName;
-
         if (ConstantRegistry.TryResolve(scopeSymbolId, cleanName, out var resolved) && IsValidTopicName(resolved))
         {
             return resolved;

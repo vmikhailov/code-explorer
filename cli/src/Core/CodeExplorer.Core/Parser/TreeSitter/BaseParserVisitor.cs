@@ -265,7 +265,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     var recNode = callNode.GetField(recField);
                     if (recNode.IsValid() && (recNode.EndIndex - recNode.StartIndex) <= 128)
                     {
-                        return $"{recNode.Text}{Profile.CallMemberSeparator}{methodName}";
+                        var recPath = recNode.GetCanonicalMemberPath(Profile.CallMemberSeparator);
+                        return string.IsNullOrEmpty(recPath) ? methodName : $"{recPath}{Profile.CallMemberSeparator}{methodName}";
                     }
                 }
             }
@@ -313,7 +314,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                             var rChild = funcNode.GetField(rf);
                             if (rChild.IsValid() && (rChild.EndIndex - rChild.StartIndex) <= 128)
                             {
-                                return $"{rChild.Text}{Profile.CallMemberSeparator}{memberPart}";
+                                var recPath = rChild.GetCanonicalMemberPath(Profile.CallMemberSeparator);
+                                return string.IsNullOrEmpty(recPath) ? memberPart : $"{recPath}{Profile.CallMemberSeparator}{memberPart}";
                             }
                         }
                     }
@@ -365,7 +367,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     {
                         if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
                         {
-                            symbolNode.References.Add(new Reference("", typeChild.Text, "INHERITS"));
+                            symbolNode.References.Add(new Reference("", typeChild.Text, CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom));
                             break;
                         }
                     }
@@ -376,7 +378,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     {
                         if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
                         {
-                            symbolNode.References.Add(new Reference("", typeChild.Text, "IMPLEMENTS"));
+                            symbolNode.References.Add(new Reference("", typeChild.Text, CodeExplorer.Cypher.Common.RelationshipKind.Implements));
                         }
                     }
                 }

@@ -210,6 +210,8 @@ public static class OntologyEnumMaps
         relByName["hasfield"] = RelationshipKind.HasMember;
         relByName["EXTENDS"] = RelationshipKind.InheritsFrom;
         relByName["extends"] = RelationshipKind.InheritsFrom;
+        relByName["INHERITS"] = RelationshipKind.InheritsFrom;
+        relByName["inherits"] = RelationshipKind.InheritsFrom;
 
         RelKindByName = relByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByRelKind = nameByRel.ToFrozenDictionary();
