@@ -148,20 +148,20 @@ All outbound synchronous calls (HTTP clients, service wrappers, and controllers 
 
 ---
 
-### Target Service: `nw-stcore-end` (9 outbound caller functions across 6 services/libraries)
+### Target Service: `svc-network-telemetry` (9 outbound caller functions across 6 services/libraries)
 - **`lib-consumer-core`**:
-  - [`add`] — `src/integrations/libs/lib-consumer-core/src/shared/nw-stcore-end/nw-stcore-end.service.ts`
+  - [`add`] — `src/integrations/libs/lib-consumer-core/src/shared/svc-network-telemetry/svc-network-telemetry.service.ts`
 - **`lib-consumer-legacy`**:
-  - [`add`] — `src/integrations/libs/lib-consumer-legacy/src/services/nw-stcore-end.ts`
+  - [`add`] — `src/integrations/libs/lib-consumer-legacy/src/services/svc-network-telemetry.ts`
 - **`lib-consumer-direct`**:
-  - [`add`] — `src/integrations/libs/lib-consumer-direct/src/shared/nw-stcore-end/nw-stcore-end.service.ts`
+  - [`add`] — `src/integrations/libs/lib-consumer-direct/src/shared/svc-network-telemetry/svc-network-telemetry.service.ts`
 - **`svc-orchestrator-main`**:
   - [`getLoss`] — `src/integrations/services/svc-orchestrator-main/src/controllers/tbl_partner_networks.controller.ts`
   - [`telemetrySyncActionHandler`] — `src/integrations/services/svc-orchestrator-main/src/ads-handlers/action-handlers/telemetry_sync-action-handler.ts`
 - **`svc-direct-allocation`**:
   - [`telemetrySyncActionHandler`] — `src/integrations/services/svc-direct-allocation/src/ads-handlers/action-handlers/telemetry_sync-action-handler.ts`
 - **`triggers`**:
-  - [`add`] — `src/integrations/services/triggers/src/trigger/stcore-end.service.ts`
+  - [`add`] — `src/integrations/services/svc-triggers/src/trigger/network-telemetry.service.ts`
 - **`partner-upsilon-adapter`**:
   - [`getLoss`] — `src/integrations/services/partner-upsilon-adapter/src/controllers/tbl_partner_networks.controller.ts`
   - [`telemetrySyncActionHandler`] — `src/integrations/services/partner-upsilon-adapter/src/ads-handlers/action-handlers/telemetry_sync-action-handler.ts`
@@ -274,21 +274,21 @@ Analysis of publishers and subscribers for the 5 target topics across TypeScript
 
 ---
 
-### 4. `TelemetryTelemetryImpressionTopic` (and canonical topic `telemetry-telemetry-impression-topic`)
+### 4. `TelemetryImpressionTopic` (and canonical topic `telemetry-impression-topic`)
 - **(a) Publishers:**
-  - `svc-event-hub`: [`sendTelemetryImpressionToPubSubQueue`] (publishes to configured `USER_DATA_TOPIC_NAME` = `telemetry-telemetry-impression-topic`) — `src/services/svc-event-hub/src/CloudEventPublisher.ts`
+  - `svc-event-hub`: [`sendTelemetryImpressionToPubSubQueue`] (publishes to configured `USER_DATA_TOPIC_NAME` = `telemetry-impression-topic`) — `src/services/svc-event-hub/src/CloudEventPublisher.ts`
 - **(b) Subscribers / Listeners:**
-  - **Go service** `svc-telemetry-stream-ingester`: [`Start`] (spawns `WorkerDef` listening on `p.base.pc.TelemetryTelemetryImpressionTopic` / `AGG_PUBSUB_TELEMETRY_IMPRESSION_TOPIC`) — `src/services/svc-telemetry-stream-ingester/internal/ingest/stream_ingester.go`
-  - **TypeScript service** `svc-webhook-dispatcher`: [`subscribeToTelemetryImpressionMessages`] (subscribes to `telemetry-impressionSubName` on `telemetry-telemetry-impression-topic`) — `src/services/svc-webhook-dispatcher/src/modules/pub-sub/pub-sub.service.ts`
+  - **Go service** `svc-telemetry-stream-ingester`: [`Start`] (spawns `WorkerDef` listening on `p.base.pc.TelemetryImpressionTopic` / `AGG_PUBSUB_TELEMETRY_IMPRESSION_TOPIC`) — `src/services/svc-telemetry-stream-ingester/internal/ingest/stream_ingester.go`
+  - **TypeScript service** `svc-webhook-dispatcher`: [`subscribeToTelemetryImpressionMessages`] (subscribes to `telemetry-impressionSubName` on `telemetry-impression-topic`) — `src/services/svc-webhook-dispatcher/src/modules/pub-sub/pub-sub.service.ts`
 
 ---
 
-### 5. `TelemetryTelemetryConversionTopic` (and canonical topic `telemetry-telemetry-conversion-topic` / `telemetry-conversions`)
+### 5. `TelemetryConversionTopic` (and canonical topic `telemetry-conversion-topic` / `telemetry-conversions`)
 - **(a) Publishers:**
-  - `svc-event-hub`: [`sendTelemetryConversionToPubSubQueue`] (publishes telemetry-conversions to configured `TELEMETRY_CONVERSION_TOPIC_NAME` = `telemetry-telemetry-conversion-topic`) — `src/services/svc-event-hub/src/CloudEventPublisher.ts`
+  - `svc-event-hub`: [`sendTelemetryConversionToPubSubQueue`] (publishes telemetry-conversions to configured `TELEMETRY_CONVERSION_TOPIC_NAME` = `telemetry-conversion-topic`) — `src/services/svc-event-hub/src/CloudEventPublisher.ts`
   - `svc-webhook-dispatcher`: [`publishMessage`] (publishes to `config.topicName` = `TELEMETRY_CONVERSION_TOPIC_NAME`) — `src/services/svc-webhook-dispatcher/src/modules/pub-sub/pub-sub.service.ts`
 - **(b) Subscribers / Listeners:**
-  - **Go service** `svc-telemetry-stream-ingester`: [`Start`] (spawns `WorkerDef` listening on `p.base.pc.TelemetryTelemetryConversionTopic` / `AGG_PUBSUB_TELEMETRY_CONVERSION_TOPIC`) — `src/services/svc-telemetry-stream-ingester/internal/ingest/stream_ingester.go`
+  - **Go service** `svc-telemetry-stream-ingester`: [`Start`] (spawns `WorkerDef` listening on `p.base.pc.TelemetryConversionTopic` / `AGG_PUBSUB_TELEMETRY_CONVERSION_TOPIC`) — `src/services/svc-telemetry-stream-ingester/internal/ingest/stream_ingester.go`
   - **TypeScript service** `svc-webhook-dispatcher`: [`subscribeToWebhookDispatcherMessages`] (subscribes to `webhookDispatcherSubName` on `TELEMETRY_CONVERSION_TOPIC_NAME`) — `src/services/svc-webhook-dispatcher/src/modules/pub-sub/pub-sub.service.ts`
   - **TypeScript service** `svc-event-tracker`: [`queueConsumerKeepAlive`] (subscribes to legacy/bridged `telemetry-conversions` queue) — `src/services/svc-event-tracker/src/RabbitController.ts`
 

@@ -77,7 +77,7 @@
             <span class="reading" data-bind="cs02.card_recall">100% vs ~82%</span>
             <h2 class="panel-title">Blast-Radius Recall</h2>
             <p class="panel-copy">Both agents tied at 100% on Tasks 1 &amp; 4. On Task 2, <code>ripgrep</code> missed 9 RTB microservices wired via environment host constants.</p>
-            <code class="panel-code" data-bind="cs02.card_recall_footer">105/105 callers vs 9 services missed</code>
+            <code class="panel-code" data-bind="cs02.card_recall_footer">83/83 callers vs 9 services missed</code>
           </div>
         </div>
 
@@ -263,7 +263,7 @@
    - `topic-routing-rule-updated`
    - `PUB_SUB_PARTNER_NETWORK_TOPIC`
    - `REALTIME_BID_CACHE_QUEUE`
-   - ` TelemetryImpressionTopic` (`ImpressionTopic`)
+   - `TelemetryImpressionTopic` (`ImpressionTopic`)
    - `TelemetryConversionTopic` (`ConversionTopic`)
    Identify every function/method name and its declared relative file path that:
    (a) **Publishes** messages/events to the topic, and

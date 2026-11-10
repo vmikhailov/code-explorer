@@ -2,7 +2,7 @@
 
 > **Headline Result**: On a production enterprise polyglot multi-repo microservices workspace (**450 independent service/library repositories: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), we ran **Gemini 3.8 Flash** with **100% symmetric system prompts and zero schema hints** (no pre-baked Cypher templates).
 >
-> Even when starting cold without schema hints, **CodeExplorer (`ce v1.77.0`, schema `v6`)** accelerated time-to-answer by **7.00×** (**`29m 52s` → `4m 16s`**, saving **25 minutes 36 seconds**), reduced LLM reasoning turns by **15.83×** (`285` → `18`), cut tool calls by **10.52×** (`284` → `27`: `10` CLI commands + `16` `view_file` reads + `0` scripts vs `142` CLI commands + `114` `view_file` reads + `14` Python scripts), eliminated **1 mid-task context compaction** (at Turn 162), reduced cumulative input tokens by **25.07×** (**`17.19M` → `685.7K` char-estimated / `1.31M` API tokens**, `$1.15` → `$0.11` char-est. / `$0.17` API, **10.45× cheaper** on equal char-basis), and delivered **complete blast-radius coverage (`100%` — `0` missed callers)** where the exhaustive `ripgrep` + Python script baseline produced an **incomplete audit that missed 9 production RTB microservices and 15+ caller functions** (`~82%` recall).
+> Even when starting cold without schema hints, **CodeExplorer (`ce v1.77.0`, schema `v6`)** accelerated time-to-answer by **7.00×** (**`29m 52s` → `4m 16s`**, saving **25 minutes 36 seconds**), reduced LLM reasoning turns by **15.83×** (`285` → `18`), cut tool calls by **10.52×** (`284` → `27`: `10` CLI commands + `16` `view_file` reads + `0` scripts vs `142` CLI commands + `114` `view_file` reads + `14` Python scripts), eliminated **1 mid-task context compaction** (at Turn 162), reduced cumulative input tokens by **25.07×** (**`17.19M` → `685.7K` char-estimated / `1.31M` API tokens**, `$1.15` → `$0.10` char-est. / `$0.17` API, **11.50× cheaper** on equal char-basis), and delivered **complete blast-radius coverage (`100%` — `0` missed callers)** where the exhaustive `ripgrep` + Python script baseline produced an **incomplete audit that missed 9 production RTB microservices and 15+ caller functions** (`~82%` recall).
 
 > [!NOTE]
 > **Commercial Confidentiality & Anonymization**: This benchmark was executed on a real production enterprise distributed platform. To protect commercial intellectual property, all proprietary service names, database table names, messaging topic names, class/interface names, and internal file paths in this public report have been systematically anonymized (`svc-worker-core`, `tbl_traffic_sources`, `BaseEventController`, `ICloudPubSubService`, `IOptimizationCampaignStrategy`), while preserving exact 1-to-1 structural fidelity and verbatim execution telemetry from `transcript_full.jsonl`.
@@ -23,9 +23,9 @@
 | **Total Indexed Modules (`Project` nodes)** | **450 modules** (`324` Microservices, `93` Shared Libraries, `33` Background Workers) |
 | **Source Code Footprint** | **13,782 source files** |
 | **Primary Languages & Frameworks** | **TypeScript** (`NestJS`, `Express`, `TypeORM`, `Sequelize`, `Angular`), **Go** (`1.22+` streaming workers), **SQL** |
-| **Data & Persistence Layer** | **63 Canonical Databases**, **768 Tables**, **4,061 SQL / ORM Queries** |
-| **Asynchronous Messaging Layer** | **70 Topics / Queues** (`Google Cloud Pub/Sub` & `RabbitMQ` across TypeScript and Go) |
-| **API & Service Mesh Surface** | **1,688 HTTP/RPC Endpoints**, **298 EntryPoints** |
+| **Data & Persistence Layer** | **163 Canonical Databases**, **375 Tables**, **2,494 SQL / ORM Queries** |
+| **Asynchronous Messaging Layer** | **57 Topics / Queues** (`Google Cloud Pub/Sub` & `RabbitMQ` across TypeScript and Go) |
+| **API & Service Mesh Surface** | **1,945 HTTP/RPC Endpoints**, **298 EntryPoints** |
 | **CodeExplorer Graph Size (`.codeexplorer/graph.db`, schema `v6`)** | **209,271 Nodes** & **454,394 Semantic Relationships** |
 
 ---
@@ -46,10 +46,10 @@ By contrast, the **CodeExplorer Agent (`ats_ce_symmetric_v3_agent`, `3e1e9d36`)*
 | **LLM Reasoning Turns** | `285` | `18` | **15.83× fewer turns** (`-93.7%`) |
 | **Total Tool Calls** | `284` (`142` `run_command`, `114` `view_file`, `14` `write_to_file`, `13` `manage_task`, `1` `send_message`) | `27` (`10` `run_command`, `16` `view_file`, `0` scripts written, `1` `send_message`) | **10.52× fewer tool calls** (`7.13×` fewer `view_file` reads) |
 | **Raw Tool Output Ingested** | `694,891 chars` (**~173,722 tokens**) | `262,638 chars` (**~65,659 tokens**) | **2.65× less context payload** |
-| **Internal Reasoning (`thinking`)** | `46,712 chars` (`~11,678 tokens`) | `5,839 chars` (`~1,459 tokens`) | **8.00× less reasoning overhead** |
+| **Internal Reasoning (`thinking`)** | `46,712 chars` (`~11,678 tokens`) | `5,720 chars` (`~1,430 tokens`) | **8.17× less reasoning overhead** |
 | **Context Window Compactions** | **1 compaction** (after Turn `162` at `160.3K` tokens) | **0 compactions** | **Zero context loss / compaction delay** |
 | **Cumulative Input Tokens** | `68,776,567 chars` (**~17,194,141 tokens** post-compaction) | `2,742,953 chars` (**~685,738 est. / `1,314,308` API tokens**) | **25.07× lower cumulative input load** (`13.08×` vs API tokens) |
-| **API Cost w/ 90% Cache Discount (Flash / Pro)** | `$1.15 / $4.47` | **`$0.11 / $0.40` char-est. (`$0.17 / $0.66` API)** (`133K` uncached + `1.18M` cached) | **10.45× cheaper on Flash** (`6.76×` vs API tokens) |
+| **API Cost w/ 90% Cache Discount (Flash / Pro)** | `$1.15 / $4.47` | **`$0.10 / $0.38` char-est. (`$0.17 / $0.66` API)** (`133K` uncached + `1.18M` cached) | **11.50× cheaper on Flash** (`6.76×` vs API tokens) |
 | **Blast-Radius Completeness** | **Incomplete (`~82%`)** — **missed 9 RTB microservices & 15+ callers** (`100%` on Tasks 1 & 4; `~81%` on Tasks 2 & 3) | **Complete (`100%` — `0` missed services or callers)** | **Zero blind spots vs 9 broken downstream services** |
 
 > [!IMPORTANT]
@@ -115,11 +115,11 @@ CodeExplorer Graph Agent (0 Compactions,   18 turns) : ██                   
 
 | Milestone | Ripgrep Baseline Active Context (`cumulative`) | Graph Agent Active Context (`cumulative`) |
 | :--- | :---: | :---: |
-| **Turns 1 to 2** | `1,061 tokens` (`2,013` total) | `3,991 tokens` (`4,663` est. / `37,370` API total — `ce taxonomy` + Tasks 1 & 4 Done) |
-| **Turns 3 to 5** | `1,375 tokens` (`5,792` total) | `21,716 tokens` (`46,077` est. / `136,416` API total — Task 2 `CALLED_BY` & Task 3 Topics) |
-| **Turns 6 to 12** | `3,962 tokens` (`25,409` total) *(still on Task 1)* | `52,659 tokens` (`306,818` est. / `632,126` API total — Task 3 Constant-Wired Topics) |
-| **Turns 13 to 16** | `7,448 tokens` (`53,759` total) | `69,899 tokens` (`558,645` est. / `1,073,718` API total — Final Verification Across All 4 Tasks) |
-| **Turns 17 to 18 (Graph Agent Done @ 4m 16s)** | `8,805 tokens` (`70,050` total) | **`80,992 tokens` (`685,738` char-est. / `1,314,308` API total — 100% Complete)** |
+| **Turns 1 to 2** | `1,061 tokens` (`2,013` total) | `2,251 tokens` (`2,878` est. / `37,370` API total — `ce taxonomy` + Tasks 1 & 4 Done) |
+| **Turns 3 to 5** | `1,375 tokens` (`5,792` total) | `15,886 tokens` (`37,037` est. / `135,721` API total — Task 2 `CALLED_BY` & Task 3 Topics) |
+| **Turns 6 to 12** | `3,962 tokens` (`25,409` total) *(still on Task 1)* | `48,210 tokens` (`285,906` est. / `647,915` API total — Task 3 Constant-Wired Topics) |
+| **Turns 13 to 16** | `7,448 tokens` (`53,759` total) | `70,125 tokens` (`538,571` est. / `1,073,881` API total — Final Verification Across All 4 Tasks) |
+| **Turns 17 to 18 (Graph Agent Done @ 4m 16s)** | `8,805 tokens` (`70,050` total) | **`76,864 tokens` (`685,738` char-est. / `1,314,308` API total — 100% Complete)** |
 | **Turn 100** | `89,049 tokens` (`4,050,530` total) | — |
 | **Turn 150** | `142,300 tokens` (`9,874,708` total) | — |
 | **Turn 162 (Pre-Compaction Peak)** | `160,326 tokens` (`11,715,243` total) | — |
@@ -136,11 +136,11 @@ Below is the itemized cost comparison using the **actual cumulative tokens** und
 
 | Cost Component | Exhaustive Ripgrep + Python Baseline (`285` turns, `1` compaction) | CodeExplorer Graph Agent (`18` turns, `0` compactions) | Savings Factor |
 | :--- | :---: | :---: | :---: |
-| **Uncached Input Tokens** | `177,409` tokens | `80,992` char-est. (`132,616` API tokens) | **2.19x fewer** (`1.34x` vs API) |
-| **Cached Input Tokens** | `17,016,732` tokens | `604,746` char-est. (`1,181,692` API tokens) | **28.14x fewer** (`14.40x` vs API) |
-| **Output & Thinking Tokens** | `71,595` tokens | `12,158` char-est. (`15,999` API tokens) | **5.89x fewer** (`4.48x` vs API) |
-| **Total API Cost on Gemini Flash** | **\$1.15** | **\$0.11 char-est. (\$0.17 API)** | **10.45x cheaper (`-90.4%`, `6.76x` vs API)** |
-| **Equivalent API Cost on Frontier Pro** | **\$4.47** | **\$0.40 char-est. (\$0.66 API)** | **11.18x cheaper (`-91.1%`, `6.77x` vs API)** |
+| **Uncached Input Tokens** | `177,409` tokens | `76,864` char-est. (`132,616` API tokens) | **2.31x fewer** (`1.34x` vs API) |
+| **Cached Input Tokens** | `17,016,732` tokens | `608,874` char-est. (`1,181,692` API tokens) | **27.95x fewer** (`14.40x` vs API) |
+| **Output & Thinking Tokens** | `71,595` tokens | `10,602` char-est. (`15,999` API tokens) | **6.75x fewer** (`4.48x` vs API) |
+| **Total API Cost on Gemini Flash** | **\$1.15** | **\$0.10 char-est. (\$0.17 API)** | **11.50x cheaper (`-91.3%`, `6.76x` vs API)** |
+| **Equivalent API Cost on Frontier Pro** | **\$4.47** | **\$0.38 char-est. (\$0.66 API)** | **11.76x cheaper (`-91.5%`, `6.77x` vs API)** |
 | **Engineer Waiting Time (`send_message`)** | `29m 52s` (`1,792.0s`) | `4m 16s` (`256.0s`) | **7.00x faster (`-25m 36s` saved)** |
 
 ---

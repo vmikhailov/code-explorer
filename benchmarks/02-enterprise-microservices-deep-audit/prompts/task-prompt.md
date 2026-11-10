@@ -21,7 +21,7 @@ Perform a comprehensive, cross-service architectural audit on the enterprise mul
    - `topic-routing-rule-updated`
    - `PUB_SUB_PARTNER_NETWORK_TOPIC`
    - `REALTIME_BID_CACHE_QUEUE`
-   - ` TelemetryImpressionTopic` (`ImpressionTopic`)
+   - `TelemetryImpressionTopic` (`ImpressionTopic`)
    - `TelemetryConversionTopic` (`ConversionTopic`)
    Identify every function/method name and its declared relative file path that:
    (a) **Publishes** messages/events to the topic, and

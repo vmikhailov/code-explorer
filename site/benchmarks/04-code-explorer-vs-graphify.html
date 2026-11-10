@@ -278,26 +278,38 @@
                 <td><strong>ce 6.15× faster startup</strong> with 2.55× lower memory.</td>
               </tr>
               <tr>
-                <td>Graph Schema / Stats</td>
-                <td class="cell-win">23.3 ms (1.7 ms cached)</td>
-                <td class="cell-loss">76.1 ms (73.0 ms 2nd call)</td>
-                <td>Graphify&rsquo;s <code>graph_stats</code> spawns <code>git rev-parse</code> on every call.</td>
+                <td>Architecture / Hub Overview (<code>get_architecture_map</code> / <code>god_nodes</code>)</td>
+                <td class="cell-num">239.2 ms (4.5 KB, 21 sub-projects &amp; DBs)</td>
+                <td class="cell-win">21.8 ms (0.7 KB, top 20 high-degree nodes)</td>
+                <td><strong>Graphify faster</strong> from in-memory NetworkX graph; <code>ce</code> maps sub-projects, DBs, ingress &amp; egress.</td>
+              </tr>
+              <tr>
+                <td>Graph Schema / Stats (1st / Cached)</td>
+                <td class="cell-win">23.3 ms (1.7 ms cached, 51.2 KB)</td>
+                <td class="cell-loss">76.1 ms (73.0 ms 2nd call, 0.2 KB)</td>
+                <td><strong>ce 3.3× faster (43× cached)</strong>; Graphify&rsquo;s <code>graph_stats</code> spawns <code>git rev-parse</code> on every call.</td>
+              </tr>
+              <tr>
+                <td>Symbol Lookup by Name / ID (<code>AuthService</code>)</td>
+                <td class="cell-win">36.1 ms by name (0.4 KB table)</td>
+                <td class="cell-num">3.7 ms (<code>Ambiguous: 5 nodes</code>) / 9.6 ms by ID</td>
+                <td><strong>ce resolves in 1 turn</strong>; Graphify is fast (9.6 ms) once given the exact slug ID.</td>
               </tr>
               <tr>
                 <td>Multi-Token Search (<code>authentication token validate</code>)</td>
-                <td class="cell-win">41.7 ms (FTS5 search)</td>
-                <td class="cell-loss">333.8 ms (depth-2 BFS)</td>
+                <td class="cell-win">41.7 ms (3.0 KB, FTS5 search)</td>
+                <td class="cell-loss">333.8 ms (3.6 KB, depth-2 BFS)</td>
                 <td><strong>ce 8.0× faster</strong> via SQLite FTS5 index.</td>
               </tr>
               <tr>
-                <td>Inbound Callers (<code>validate</code>)</td>
-                <td class="cell-win">76.5 ms (1-turn table across 6 methods)</td>
-                <td class="cell-loss">3.8 ms (<code>Ambiguous: matches 6 nodes</code>)</td>
-                <td>Graphify requires a 2nd call with a single internal node ID.</td>
+                <td>Inbound Callers by Name / ID (<code>validate</code>)</td>
+                <td class="cell-win">37.0 ms by name / 19.0 ms by ID (1.5 KB, 8 callers)</td>
+                <td class="cell-num">3.8 ms (<code>Ambiguous: 6 nodes</code>) / 2.4 ms by ID</td>
+                <td><strong>ce resolves all 8 callers in 1 turn</strong>; Graphify is fast (2.4 ms) once disambiguated to 1 node ID.</td>
               </tr>
               <tr>
                 <td>Unique Capabilities</td>
-                <td class="cell-num">OpenCypher queries, DB &amp; queue lineage, 32+ CI gates, VS Code extension</td>
+                <td class="cell-num">OpenCypher queries (3.1 ms), DB &amp; queue lineage, 32+ CI gates, VS Code extension</td>
                 <td class="cell-num">Leiden community clustering, Obsidian vault export, D3 HTML export, <code>triage_prs</code></td>
                 <td>Different primary design goals (architecture &amp; CI governance vs knowledge-graph clustering &amp; visualization).</td>
               </tr>

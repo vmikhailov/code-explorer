@@ -68,9 +68,9 @@
             <code class="panel-code">235 / 241 verified items</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool">~3 to 5ms</span>
+            <span class="reading tone-cool">~4.3 to 4.7ms</span>
             <h2 class="panel-title">OpenCypher Latency</h2>
-            <p class="panel-copy">Single-shot warm OpenCypher round-trip in <code>ce</code> (<code>3 to 5 ms</code>) vs <code>38 to 71 ms</code> in <code>CBM</code> over persistent JSON-RPC stdio.</p>
+            <p class="panel-copy">Single-shot warm OpenCypher round-trip in <code>ce</code> (<code>4.3 to 4.7 ms</code>) vs <code>38.1 to 71.2 ms</code> in <code>CBM</code> over persistent JSON-RPC stdio.</p>
             <code class="panel-code">~8.9× to 15× faster Cypher query</code>
           </div>
           <div class="panel panel--sunken">
@@ -291,34 +291,40 @@
             </thead>
             <tbody>
               <tr>
+                <td>Architecture Overview (<code>get_architecture_map</code> / <code>get_architecture</code>)</td>
+                <td class="cell-num">267.7 ms (4.4 KB) / 371.7 ms (11.0 KB)</td>
+                <td class="cell-win">117.5 ms (3.4 KB) / 286.9 ms (6.1 KB)</td>
+                <td><strong>CBM faster</strong>; <code>ce</code> lists all 21 / 46 sub-projects and DBs.</td>
+              </tr>
+              <tr>
                 <td>Graph Schema / Taxonomy (1st / Cached)</td>
-                <td class="cell-win">22.3 ms (1.8 ms cached, 51 to 55 KB)</td>
-                <td class="cell-num">35.6 ms / 72.0 ms (1.0 KB)</td>
-                <td><strong>ce faster</strong> (returns full property schema; CBM returns 1 KB label counts).</td>
+                <td class="cell-win">22.3 ms (1.9 ms cached) / 23.2 ms (2.7 ms cached)</td>
+                <td class="cell-num">35.6 ms (40.9 ms 2nd) / 72.0 ms (75.3 ms 2nd)</td>
+                <td><strong>ce 1.6× to 3.1× faster (21× to 28× cached)</strong> with full property schema (51.5 to 54.7 KB vs 1.0 KB).</td>
               </tr>
               <tr>
                 <td>Read-Only Cypher Query (<code>LIMIT 10</code>)</td>
-                <td class="cell-win">3.1 to 4.3 ms / 3.8 to 4.7 ms</td>
-                <td class="cell-num">38.1 ms / 71.2 ms</td>
-                <td><strong>ce 9× to 15× faster</strong> on single-shot Cypher execution.</td>
+                <td class="cell-win">4.3 ms (1.0 KB) / 4.7 ms (1.1 KB)</td>
+                <td class="cell-num">38.1 ms (0.3 KB) / 71.2 ms (0.3 KB)</td>
+                <td><strong>ce 8.9× to 15× faster</strong> on single-shot Cypher execution.</td>
               </tr>
               <tr>
                 <td>Inbound Callers by Method Name (<code>validate</code>)</td>
-                <td class="cell-win">37.0 ms (1.5 KB) / 35.6 ms (2.5 KB)</td>
+                <td class="cell-win">76.5 ms (1.5 KB) / 530.1 ms (2.5 KB)</td>
                 <td class="cell-loss">7.5 ms (18.6 KB ambiguous) / 6.5 ms (45.6 KB ambiguous)</td>
-                <td><strong>ce resolves in 1 turn</strong>; <code>CBM</code> returns 67 ambiguous candidates requiring a 2nd call.</td>
+                <td><strong>ce resolves callers in 1 turn</strong>; <code>CBM</code> returns 62 / 67 ambiguous candidates requiring a 2nd call.</td>
               </tr>
               <tr>
                 <td>Symbol Lookup by Name (<code>AuthService</code>)</td>
-                <td class="cell-num">36.1 to 80.8 ms / 62.3 to 367.3 ms</td>
-                <td class="cell-win">55.6 ms / 97.5 ms</td>
-                <td><strong>CBM faster on twenty</strong> in Case Study 03 log.</td>
+                <td class="cell-num">80.8 ms (0.4 KB) / 367.3 ms (1.1 KB)</td>
+                <td class="cell-win">55.6 ms (1.1 KB) / 97.5 ms (0.8 KB)</td>
+                <td><strong>CBM 1.5× to 3.8× faster</strong> on symbol lookup by name.</td>
               </tr>
               <tr>
                 <td>File Outline (<code>auth.service.ts</code> / <code>auth.resolver.ts</code>)</td>
-                <td class="cell-win">12.6 ms (0.4 KB) / 11.6 ms (0.9 KB)</td>
+                <td class="cell-num">13.4 ms (0.4 KB) / 92.7 ms (0.9 KB)</td>
                 <td class="cell-num">17.3 ms (4.8 KB) / 40.5 ms (7.8 KB)</td>
-                <td><strong>ce 1.4× to 3.5× faster</strong> with 8× smaller payload.</td>
+                <td><strong>ce 1.3× faster on immich; CBM 2.3× faster on twenty</strong> (<code>ce</code> payload 8× to 12× smaller).</td>
               </tr>
               <tr>
                 <td>Unique Capabilities</td>

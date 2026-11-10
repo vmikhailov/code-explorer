@@ -88,11 +88,15 @@ function fmtSavedShort(savedSec) {
   return `-${m}m ${String(rem).padStart(2, '0')}s`;
 }
 
-function calcApiCost(uncached, cached, output, rates) {
-  const usd =
+function calcApiCostRaw(uncached, cached, output, rates) {
+  return (
     (uncached * rates.input + cached * rates.cached_input + output * rates.output) /
-    1_000_000;
-  return Math.round(usd * 100) / 100;
+    1_000_000
+  );
+}
+
+function calcApiCost(uncached, cached, output, rates) {
+  return Math.round(calcApiCostRaw(uncached, cached, output, rates) * 100) / 100;
 }
 
 function parseScoresCsv(relPath) {
@@ -269,7 +273,7 @@ function ingestRawSources(data) {
     const repoMatches = (m05.repository || '')
       .toLowerCase()
       .includes((data.cs05.expected_repo_match || '').toLowerCase());
-    if (repoMatches || data.cs05.status === 'ready') {
+    if ((repoMatches && m05.status !== 'pending' && m05.graph_agent) || data.cs05.status === 'ready') {
       data.cs05.status = 'ready';
       const g = m05.graph_agent;
       const b = m05.baseline_agent;
@@ -322,7 +326,10 @@ function buildBindings(data, rawMilestones01) {
     const payloadRatio = cbm.raw_tool_chars / ce.raw_tool_chars;
     const tokRatio = cbm.cum_input_tokens / ce.cum_input_tokens;
     const outTokRatio = cbm.output_tokens / ce.output_tokens;
-    const costRatio = cbm.cost_flash_usd / ce.cost_flash_usd;
+    const flashRates = data.meta.pricing_usd_per_1m.gemini_3_8_flash;
+    const ceCostExact = calcApiCostRaw(ce.input_tokens_uncached, ce.cache_read_tokens, ce.output_tokens, flashRates);
+    const cbmCostExact = calcApiCostRaw(cbm.input_tokens_uncached, cbm.cache_read_tokens, cbm.output_tokens, flashRates);
+    const costRatio = cbmCostExact / ceCostExact;
 
     const ceRecPct = fmtDisplayPct((c1.recall.ce_matched / c1.recall.gt_total) * 100);
     const cbmRecExact = ((c1.recall.cbm_graph_matched / c1.recall.gt_total) * 100).toFixed(1);

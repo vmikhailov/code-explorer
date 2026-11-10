@@ -20,8 +20,8 @@ To answer both questions, **Case Study 01** pairs two agents head-to-head on [`t
 | :--- | :--- |
 | **Workspace Scale** | **46 packages** (`twenty-server`, `twenty-front`, `twenty-shared`, `twenty-sdk`, `twenty-ui`, `twenty-emails`, etc.), **24,527 tracked files**, **~2.49M LOC** |
 | **Backend Architecture** | **TypeScript / NestJS**, **GraphQL** (`@Mutation`, `@Query`, `@Resolver`), **REST** (`@Controller`), **TypeORM** (`@Entity`, `InjectRepository`), **ClickHouse**, **BullMQ** (`InjectMessageQueue`, `@Processor`) |
-| **CodeExplorer Graph (`.codeexplorer/graph.db`)** | **150,492 Nodes** & **417,869 Semantic Edges** (`784.0 MB`, indexed in `147.33 s`) |
-| **`codebase-memory-mcp` Graph (`CBM` `v0.12.1`)** | **138,142 Nodes** & **274,918 Edges** (`842.5 MB`, indexed in `96.90 s`) |
+| **CodeExplorer Graph (`.codeexplorer/graph.db`)** | **456,711 Nodes** & **960,660 Semantic Edges** (`784.0 MB`, indexed in `147.33 s`) |
+| **`codebase-memory-mcp` Graph (`CBM` `v0.12.1`)** | **251,750 Nodes** & **914,479 Edges** (`842.5 MB`, indexed in `96.90 s`) |
 
 ---
 
