@@ -96,10 +96,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET 10
+      - name: Setup .NET 11
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Build Patched Tree-sitter Native Grammars (${{ matrix.rid }})
         shell: pwsh
@@ -159,7 +159,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Build Patched Tree-sitter Native Grammars (All RIDs)
         shell: pwsh

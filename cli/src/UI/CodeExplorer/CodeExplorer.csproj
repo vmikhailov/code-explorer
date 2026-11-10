@@ -35,14 +35,14 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>ce</AssemblyName>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <!-- Runtime compatibility -->
     <RollForward>Major</RollForward>
     <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
-    <RuntimeFrameworkVersion>10.0.0</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion>11.0.0</RuntimeFrameworkVersion>
 
     <!-- Single-file self-contained publish settings -->
     <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">true</PublishSingleFile>
