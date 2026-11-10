@@ -10,7 +10,7 @@
 
 ## 1. Why This Benchmark Exists: 100% Symmetric Prompts & Zero Spoilers
 
-In [Case Study 02 (`Enterprise Microservices Deep Audit`)](../02-enterprise-microservices-deep-audit/README.md), we compared `CodeExplorer` against an agent with only `ripgrep` (`rg`) on a private 324-service monorepo. Two natural questions from engineers evaluating MCP code-graph servers are:
+In [Case Study 02 (`Enterprise Microservices Deep Audit`)](../02-enterprise-microservices-deep-audit/README.md), we compared `CodeExplorer` against an agent with only `ripgrep` (`rg`) on a private 324-service multi-repo workspace. Two natural questions from engineers evaluating MCP code-graph servers are:
 1. **Public Reproducibility**: *Can every file path, class name, line number, and query be inspected on a well-known public repository without any commercial anonymization?*
 2. **Strict Prompt Symmetry (No Query Spoilers)**: *What happens when both agents receive the exact same word-for-word system instructions—with zero pre-baked Cypher queries and zero hints about graph limitations—so both agents must inspect their tool's schema on Turn 1 and formulate their own queries?*
 

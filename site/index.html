@@ -162,6 +162,7 @@ html {
   text-rendering: optimizeLegibility;
   font-synthesis: none;
   scroll-behavior: smooth;
+  scroll-padding-top: 76px;
   scrollbar-color: var(--color-rule-2) var(--color-paper);
   caret-color: var(--color-accent);
 }
@@ -304,7 +305,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
 .slab-bar {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--gap-columns);
   min-height: 60px;
@@ -315,6 +316,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   align-items: center;
   gap: var(--space-sm);
   text-decoration: none;
+  font-size: var(--text-md);
   font-weight: 500;
   color: var(--color-ink);
   white-space: nowrap;
@@ -331,11 +333,12 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   font-family: var(--font-outlier);
   font-size: var(--text-xs);
   color: var(--color-accent);
+  flex-shrink: 0;
 }
 
 .slab-links {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-md);
   list-style: none;
@@ -348,11 +351,13 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 .slab-links a {
   text-decoration: none;
   font-size: var(--text-sm);
+  line-height: 1.25;
   color: var(--color-ink-2);
   white-space: nowrap;
 }
 
-.slab-links a:hover {
+.slab-links a:hover,
+.slab-links a[aria-current="page"] {
   color: var(--color-ink);
 }
 
@@ -365,10 +370,12 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   background: transparent;
   color: var(--color-accent);
   font-weight: 500;
+  line-height: 1.25;
   transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
 }
 
-.slab-links a.nav-framed:hover {
+.slab-links a.nav-framed:hover,
+.slab-links a.nav-framed[aria-current="page"] {
   background: var(--color-paper-2);
   color: var(--color-ink);
 }
@@ -377,6 +384,31 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+@media (max-width: 1420px) {
+  .slab-bar {
+    gap: var(--space-md);
+  }
+  .slab-links {
+    gap: var(--space-sm);
+  }
+}
+
+@media (max-width: 1240px) {
+  #heroReleaseBadge {
+    display: none;
+  }
+}
+
+@media (max-width: 1120px) {
+  .slab-links {
+    display: none;
+  }
+  .slab-bar {
+    grid-template-columns: 1fr auto;
+  }
 }
 
 /* Controls & Buttons (single filled primary recipe on page) */
@@ -1022,6 +1054,10 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   gap: var(--space-md);
 }
 
+.install-pane p {
+  max-width: none;
+}
+
 .install-cmd-row {
   display: flex;
   align-items: center;
@@ -1304,7 +1340,6 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       <div class="slab-actions">
         <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.75.1</a>
         <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">GitHub</a>
-        <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
       </div>
     </nav>
   </header>
@@ -1322,14 +1357,9 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
               CodeExplorer compiles your repositories (C#, Java, Kotlin, TS/JS, Python, Go, Rust, SQL) into one fast local SQLite graph: giving you live architecture diagrams that never go stale, deterministic memory for your AI coding agents (MCP), and automated architectural rules in CI.
             </p>
             <div class="hero-controls">
-              <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
-              <a href="/benchmarks.html" class="btn btn--framed">Competitor Benchmarks</a>
-              <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">Star on GitHub</a>
+              <a href="#install" class="btn btn--framed">Installation</a>
+              <a href="/benchmarks.html" class="btn">Competitor Benchmarks</a>
             </div>
-            <button type="button" class="cmd-strip" onclick="copyText('brew install vmikhailov/tap/ce', 'Copied Homebrew command to clipboard!')" title="Click to copy Homebrew command">
-              <span class="cmd-prompt">$</span>
-              <span>brew install vmikhailov/tap/ce</span>
-            </button>
           </div>
         </div>
 
@@ -1612,7 +1642,6 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
               <button type="button" class="preset-btn" onclick="loadGatePreset('literal', this)">4. Hardcoded Secrets &amp; Literals</button>
               <button type="button" class="preset-btn" onclick="loadGatePreset('ratchet', this)">5. Legacy Baseline Ratchet</button>
             </div>
-            <button type="button" class="btn" id="runGateBtn" onclick="runGateCheckAnimation()">Run ce gate check</button>
           </div>
 
           <div class="split-bench">
@@ -1778,138 +1807,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </div>
     </section>
 
-    <!-- Section 5: Enterprise Benchmark Diff -->
-    <section class="band" id="benchmark">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Measured against ripgrep and competing MCP graph engines.</h2>
-          <p class="band-lede">
-            Tested on a 324-service enterprise platform and two open-source monorepos (<code>twenty</code> at 2.49M LOC and <code>immich</code> at 461k LOC). Other graph tools stop at Layer 1 to 3 file ASTs; CodeExplorer resolves the full Layer 4 to 5 architecture.
-          </p>
-        </div>
-
-        <div class="diff-layout">
-          <div class="diff-surface" role="region" aria-label="Public twentyhq/twenty agent audit against codebase-memory-mcp">
-            <div class="diff-head">
-              <span>Case Study 01: Autonomous agent audit on public <code>twentyhq/twenty</code> (24,527 files, 2.49M LOC)</span>
-              <span class="measured">CodeExplorer vs CBM (Symmetric Prompts)</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span><code>codebase-memory-mcp</code> (abandoned <code>CBM</code> after 8 queries; wrote 3 AST scripts + 10 file reads)</span>
-              <span class="diff-val">9m 15s, 28 turns, ~1.7M tokens</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span><code>CodeExplorer</code> (1 ontology view + 5 OpenCypher queries, 0 source files read, 0 scripts)</span>
-              <span class="diff-val">41s (~14× faster), 4 turns, ~80K tokens</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Direct recall from <code>CBM</code> graph (only intra-class calls; 0% on DI, inheritance, BullMQ &amp; DB lineage)</span>
-              <span class="diff-val">~3% (13/381) from CBM graph</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>Direct recall from <code>CodeExplorer</code> graph (DI calls, inheritance, BullMQ, GraphQL-to-DB lineage)</span>
-              <span class="diff-val">99% (378/381) directly from graph.db</span>
-            </div>
-          </div>
-
-          <div class="diff-surface" role="region" aria-label="Enterprise benchmark comparison">
-            <div class="diff-head">
-              <span>Case Study 02: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
-              <span class="measured">CodeExplorer vs ripgrep + Python</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span><code>ripgrep + Python</code> (142 CLI commands + 114 file reads + 14 scripts)</span>
-              <span class="diff-val">29m 52s, 284 tool calls, ~17.2M tokens</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span><code>CodeExplorer</code> (<code>ce callers</code> &amp; <code>ce query</code>, 0 file reads)</span>
-              <span class="diff-val">3m 56s (~8× faster), 19 tool calls, ~393K tokens</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Downstream services &amp; async Pub/Sub callers discovered (<code>ripgrep</code>)</span>
-              <span class="diff-val">~82% recall (missed 9 services &amp; 15+ callers)</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>Downstream services &amp; async Pub/Sub callers discovered (<code>CodeExplorer</code>)</span>
-              <span class="diff-val">100% recall (0 missed services or callers)</span>
-            </div>
-          </div>
-
-          <div class="diff-surface" role="region" aria-label="Head-to-head MCP graph engine benchmark">
-            <div class="diff-head">
-              <span>Case Studies 03 &amp; 04: <code>twenty</code> (24,527 files, 2.49M LOC) + <code>immich</code> (3,205 files, 461k LOC)</span>
-              <span class="measured">CodeExplorer vs CBM &amp; Graphify (371 GT)</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Part 1 Common Ground Recall (L1 to L3 Endpoints, HTTP, Call Graph, Inheritance)</span>
-              <span class="diff-val">CBM: 38% (49/130) | graphify: 18% (23/130)</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>Part 1 Common Ground Recall with CodeExplorer</span>
-              <span class="diff-val">78% recall (102/130, 6 wins, 2 ties, 0 losses)</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Part 2 Architectural Ontology Recall (L4 to L5 Queues, ORM Tables, SQL Lineage)</span>
-              <span class="diff-val">CBM: not modeled | graphify: not modeled</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>Part 2 Architectural Ontology Recall with CodeExplorer</span>
-              <span class="diff-val">~98% micro-recall (235/241 verified items)</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Cold Indexing on <code>twenty</code> Monorepo (24,527 files, 2.49M LOC)</span>
-              <span class="diff-val">graphify: DNF (&gt;45m timeout) | CBM: ~97s (843 MB DB)</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>Cold Indexing on <code>twenty</code> with CodeExplorer (Full L1 to L5 Pipeline)</span>
-              <span class="diff-val">~147s (784 MB SQLite DB, 0 parse warnings)</span>
-            </div>
-          </div>
-
-          <div class="panels panels--3">
-            <div class="panel panel--sunken">
-              <span class="reading tone-accent">~98%</span>
-              <h3 class="panel-title">Architecture recall</h3>
-              <p class="panel-copy">Matches 235 of 241 L4/L5 queue, ORM table, and data-lineage items not modeled by AST indexers.</p>
-              <code class="panel-code">235 / 241 L4-L5 GT</code>
-            </div>
-            <div class="panel panel--sunken">
-              <span class="reading tone-ok">~44×</span>
-              <h3 class="panel-title">Token compression</h3>
-              <p class="panel-copy">Reduced cumulative input tokens from ~17.2M to ~393K across 324 services with zero blind spots.</p>
-              <code class="panel-code">~17.2M to ~393K tokens</code>
-            </div>
-            <div class="panel panel--sunken">
-              <span class="reading">250</span>
-              <h3 class="panel-title">Framework parsers</h3>
-              <p class="panel-copy">Framework and ORM analyzers across C#, TS/JS, Java, Kotlin, Go, Python, Rust, and SQL.</p>
-              <code class="panel-code">8 Languages</code>
-            </div>
-          </div>
-
-          <div class="hero-controls">
-            <a href="/benchmarks.html" class="btn btn--primary">View Full Benchmarks</a>
-            <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">Reproduce From GitHub</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 6: Installation & CLI Reference -->
+    <!-- Section 5: Installation & CLI Reference -->
     <section class="band--tight" id="install">
       <div class="wrap">
         <div class="band-head">
@@ -2449,18 +2347,6 @@ query: |
         </div>
       `).join('');
       document.getElementById('gateViolationsArea').innerHTML = listHtml;
-    }
-
-    function runGateCheckAnimation() {
-      const btn = document.getElementById('runGateBtn');
-      const statusBadge = document.getElementById('gateStatusBadge');
-      const preset = gatePresets[activeGateKey];
-      btn.textContent = 'Checking...';
-      statusBadge.textContent = 'Evaluating graph invariants...';
-      setTimeout(() => {
-        btn.textContent = 'Run ce gate check';
-        statusBadge.textContent = preset.status;
-      }, 180);
     }
 
     function copyCurrentGateYaml() {

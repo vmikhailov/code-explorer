@@ -7,7 +7,7 @@
   <meta name="description" content="Deterministic benchmark comparing CodeExplorer (v1.75.0) and codebase-memory-mcp (v0.12.1) across cold indexing, 371 ground-truth items (seed=42), and MCP server latency on twenty (2.49M LOC) and immich (461k LOC).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="benchmarks.css?v=1.75.4">
+  <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
 </head>
 <body>
 
@@ -45,7 +45,7 @@
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Head-to-head indexer and MCP server comparison on <code>twenty</code> (24,527 files) and <code>immich</code> (3,205 files): how accurately each engine extracts routes, function calls, inheritance, queues, and database tables across 371 source-verified items.
+              Head-to-head indexer and MCP server comparison on <code>twenty</code> and <code>immich</code>: how accurately each engine extracts routes, function calls, inheritance, queues, and database tables across 371 source-verified items.
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/03-code-explorer-vs-codebase-memory-mcp/scripts" target="_blank" rel="noopener" class="btn btn--primary">Inspect Evaluation Scripts</a>
@@ -56,13 +56,13 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok">78% vs 38%</span>
+            <span class="reading tone-ok" data-bind="cs03.card_group_a">78% vs 38%</span>
             <h2 class="panel-title">Basic Code &amp; Call Graph</h2>
             <p class="panel-copy">Across 130 basic items supported by both tools (routes, HTTP calls, DI method calls, class inheritance): <code>ce</code> scored 102/130 vs <code>CBM</code> 49/130 (7 wins, 1 tie, 0 losses).</p>
             <code class="panel-code">102 / 130 vs 49 / 130</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent">~98%</span>
+            <span class="reading tone-accent" data-bind="cs03.card_group_b">~98%</span>
             <h2 class="panel-title">Queues, DB Tables &amp; SQL</h2>
             <p class="panel-copy">Across 241 message queue, ORM table, SQL read/write lineage, and sub-project items: <code>ce</code> matched 235/241. <code>CBM</code> does not index these.</p>
             <code class="panel-code">235 / 241 verified items</code>
@@ -71,22 +71,20 @@
             <span class="reading tone-cool">~3 to 5ms</span>
             <h2 class="panel-title">OpenCypher Latency</h2>
             <p class="panel-copy">Single-shot warm OpenCypher round-trip in <code>ce</code> (<code>3 to 5 ms</code>) vs <code>38 to 71 ms</code> in <code>CBM</code> over persistent JSON-RPC stdio.</p>
-            <code class="panel-code">~9× to 15× faster Cypher query</code>
+            <code class="panel-code">~8.9× to 15× faster Cypher query</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading">97s vs 147s</span>
+            <span class="reading" data-bind="cs03.card_scan">97s vs 147s</span>
             <h2 class="panel-title">Where CBM Won</h2>
             <p class="panel-copy"><code>CBM</code> indexed <code>twenty</code> ~1.5× faster with ~2.2× lower peak RAM (<code>2.1 GB</code> vs <code>4.7 GB</code>), while <code>ce</code> was faster on <code>immich</code> with a 5.1× smaller DB.</p>
             <code class="panel-code">CBM faster on 24.5k-file cold scan</code>
           </div>
         </div>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
-          <strong>Tested participants:</strong><br>
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs03.participants_html"><strong>Tested participants:</strong><br>
           1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
           2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (<code>win32-x64</code> Go + SQLite binary, 17 MCP tools)<br>
-          3. <strong>Target Repositories:</strong> <code>twentyhq/twenty</code> (commit <code>12e8fae4</code>, 24,527 files, 2.49M LOC) &amp; <code>immich-app/immich</code> (commit <code>2153d22f</code>, 3,205 files, 461k LOC)
-        </div>
+          3. <strong>Target Repositories:</strong> <code>twentyhq/twenty</code> (commit <code>12e8fae4</code>, 24,527 files, 2.49M LOC) &amp; <code>immich-app/immich</code> (commit <code>2153d22f</code>, 3,205 files, 461k LOC)</div>
       </div>
     </section>
 

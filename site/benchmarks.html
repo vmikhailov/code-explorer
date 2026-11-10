@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>CodeExplorer (ce) Benchmarks Catalog</title>
-  <meta name="description" content="Catalog of reproducible benchmarks comparing CodeExplorer (ce) against codebase-memory-mcp (CBM), Graphify, and ripgrep across twenty (2.49M LOC), immich (461k LOC), and a 324-service monorepo.">
+  <meta name="description" content="Catalog of reproducible benchmarks comparing CodeExplorer (ce) against codebase-memory-mcp (CBM), Graphify, and ripgrep across twenty (2.49M LOC), immich (461k LOC), and a 324-service multi-repo workspace.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
@@ -15,7 +15,7 @@
   <meta property="og:description" content="Five benchmarks comparing CodeExplorer against codebase-memory-mcp, Graphify, and ripgrep.">
   <meta property="og:image" content="https://code-explorer.app/og-image.png?v=2">
   <link rel="stylesheet" href="fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="benchmarks/benchmarks.css?v=1.75.4">
+  <link rel="stylesheet" href="benchmarks/benchmarks.css?v=1.75.7">
 </head>
 <body>
 
@@ -33,7 +33,6 @@
 
       <div class="slab-actions">
         <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks" target="_blank" rel="noopener" class="btn">GitHub Source</a>
-        <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
       </div>
     </nav>
   </header>
@@ -85,21 +84,21 @@
                 <td><strong><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01</a></strong><br><span class="tone-muted">twentyhq/twenty</span></td>
                 <td>Find all DI service callers, class inheritance chains, BullMQ queue producers/consumers, and API-to-database write paths across 46 TypeScript packages (24,527 files, 2.49M LOC).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>CBM</code></td>
-                <td class="cell-win"><strong>13.5× faster</strong> (41s vs 9m 15s)<br><strong>20.9× fewer tokens</strong> (80K vs 1.68M)<br><strong>99% vs 3.4%</strong> native graph recall</td>
+                <td class="cell-win" data-bind-html="catalog.cs01_outcome"><strong>~14× faster</strong> (41s vs 9m 15s)<br><strong>~21× fewer tokens</strong> (~80K vs ~1.7M)<br><strong>99% vs 3.4%</strong> native graph recall</td>
                 <td><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" class="btn btn--primary">Read Case 01</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case Study 02</a></strong><br><span class="tone-muted">324 Microservices</span></td>
-                <td>Full blast-radius audit across shared ORM tables, synchronous cross-service HTTP/RPC fan-in, and RabbitMQ/PubSub queues (13,782 files, TS + Go + SQL).</td>
+                <td>Full blast-radius audit across shared ORM tables, synchronous cross-service HTTP/RPC fan-in, and RabbitMQ/PubSub queues (13,782 files, TS + Go + SQL, zero schema hints).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>ripgrep</code> + Python</td>
-                <td class="cell-win"><strong>7.59× faster</strong> (3m 56s vs 29m 52s)<br><strong>43.70× fewer tokens</strong> (393K vs 17.19M)<br><strong>100% vs ~82%</strong> (rg missed 9 services)</td>
+                <td class="cell-win" data-bind-html="catalog.cs02_outcome"><strong>~7.0× faster</strong> (4m 16s vs 29m 52s)<br><strong>~25× fewer tokens</strong> (~686K vs ~17.2M)<br><strong>100% vs ~82%</strong> (rg missed 9 services)</td>
                 <td><a href="/benchmarks/02-enterprise-microservices-deep-audit.html" class="btn">Read Case 02</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case Study 05</a></strong><br><span class="tone-muted">OrchardCore</span></td>
                 <td>Cross-module interface implementations (<code>IDisplayDriver</code>, <code>IContentHandler</code>), DI call chains, and YesSql index lineage across <code>[TBD ~180]</code> C# projects (<code>[TBD ~6,000]</code> files).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>ripgrep</code></td>
-                <td class="cell-num"><strong class="tone-ok">[TBD ×] faster</strong> ([TBD] vs [TBD])<br><strong class="tone-ok">[TBD ×] fewer tokens</strong> ([TBD] vs [TBD])<br><strong>[TBD %] vs [TBD %]</strong> module recall</td>
+                <td class="cell-num" data-bind-html="catalog.cs05_outcome"><strong class="tone-ok">[TBD ×] faster</strong> ([TBD] vs [TBD])<br><strong class="tone-ok">[TBD ×] fewer tokens</strong> ([TBD] vs [TBD])<br><strong>[TBD %] vs [TBD %]</strong> module recall</td>
                 <td><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" class="btn">Read Case 05</a></td>
               </tr>
             </tbody>
@@ -137,29 +136,27 @@
                 <td><strong><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">Case Study 03</a></strong><br><span class="tone-muted">twenty + immich</span></td>
                 <td>Cold indexing speed, RAM &amp; SQLite DB size, warm JSON-RPC query latency, basic code recall (130 items: routes, HTTP, calls, inheritance), and architecture recall (241 items: queues, ORM tables, SQL lineage).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>CBM</code></td>
-                <td class="cell-num"><strong class="tone-ok">Basic Code: 78%</strong> vs 38% (102/130 vs 49/130)<br><strong class="tone-ok">DB &amp; Queues: 97.5%</strong> vs 0% (235/241)<br><strong class="tone-accent">Scan:</strong> <code>ce</code> faster on <code>immich</code>; <code>CBM</code> faster on <code>twenty</code></td>
+                <td class="cell-num" data-bind-html="catalog.cs03_outcome"><strong class="tone-ok">Basic Code: 78%</strong> vs 38% (102/130 vs 49/130)<br><strong class="tone-ok">DB &amp; Queues: ~98%</strong> vs 0% (235/241)<br><strong class="tone-accent">Scan:</strong> <code>ce</code> faster on <code>immich</code>; <code>CBM</code> faster on <code>twenty</code></td>
                 <td><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html" class="btn">Read Case 03</a></td>
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/04-code-explorer-vs-graphify.html">Case Study 04</a></strong><br><span class="tone-muted">twenty + immich</span></td>
                 <td>Monorepo indexing scalability from 461k LOC (<code>immich</code>) to 2.49M LOC (<code>twenty</code>), cold MCP server startup time, and graph recall across all 371 items.</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>Graphify</code></td>
-                <td class="cell-win"><strong>6.1× faster scan</strong> on <code>immich</code> (17.6s vs 107.6s)<br><strong>&gt;18.6× faster</strong> on <code>twenty</code> (147.3s vs DNF &gt;45m)<br><strong>Basic Code: 78%</strong> vs 18% · <strong>DB &amp; Queues: 97.5%</strong></td>
+                <td class="cell-win" data-bind-html="catalog.cs04_outcome"><strong>~6.1× faster scan</strong> on <code>immich</code> (~18s vs ~108s)<br><strong>&gt;18× faster</strong> on <code>twenty</code> (~147s vs DNF &gt;45m)<br><strong>Basic Code: 78%</strong> vs 18% · <strong>DB &amp; Queues: ~98%</strong></td>
                 <td><a href="/benchmarks/04-code-explorer-vs-graphify.html" class="btn">Read Case 04</a></td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-xl);">
-          <strong>Tested participants &amp; versions across the benchmark suite:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0</code> / <code>v1.75.1</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
+        <div class="tradeoff-note" style="margin-top: var(--space-xl);" data-bind-html="catalog.participants_html"><strong>Tested participants &amp; versions across the benchmark suite:</strong><br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.77.0</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
           2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (<code>win32-x64</code> Go + SQLite binary, 17 MCP tools)<br>
           3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>v0.9.104</code> (Python 3.10, Tree-sitter + NetworkX <code>--code-only</code>, 10 MCP tools)<br>
           4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + Python <code>3.10</code> + <code>view_file</code><br>
           5. <strong>LLM Model (Track 1):</strong> <code>Gemini 3.8 Flash</code> (100% symmetric system prompts)<br>
-          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ b9ef7107</code> (Case 01), <code>twentyhq/twenty @ 12e8fae4</code> &amp; <code>immich-app/immich @ 2153d22f</code> (Cases 03 &amp; 04), <code>OrchardCMS/OrchardCore @ [TBD]</code> (Case 05)
-        </div>
+          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ b9ef7107</code> (Case 01), <code>twentyhq/twenty @ 12e8fae4</code> &amp; <code>immich-app/immich @ 2153d22f</code> (Cases 03 &amp; 04), <code>OrchardCMS/OrchardCore @ [TBD]</code> (Case 05)</div>
       </div>
     </section>
   </main>

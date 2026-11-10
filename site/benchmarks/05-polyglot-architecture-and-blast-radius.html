@@ -7,7 +7,7 @@
   <meta name="description" content="Paired AI agent benchmark on OrchardCMS/OrchardCore (~180 C# .NET projects, ~6,000 files) comparing CodeExplorer against ripgrep across cross-module interface hierarchies, DI call chains, and YesSql index lineage.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="benchmarks.css?v=1.75.4">
+  <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
 </head>
 <body>
 
@@ -56,19 +56,19 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok">~0.0× [TBD]</span>
-            <h2 class="panel-title">Faster Time-to-Answer</h2>
-            <p class="panel-copy"><code>[TBD]</code> with <code>CodeExplorer</code> vs <code>[TBD]</code> with <code>ripgrep</code> + <code>view_file</code> across <code>OrchardCore</code> modules.</p>
-            <code class="panel-code">[TBD] turns vs [TBD] turns</code>
+            <span class="reading tone-ok" data-bind="cs05.card_speedup">~0.0× [TBD]</span>
+            <h2 class="panel-title">Shorter Time to Answer</h2>
+            <p class="panel-copy" data-bind-html="cs05.card_speed_copy"><code>[TBD]</code> with <code>CodeExplorer</code> vs <code>[TBD]</code> with <code>ripgrep</code> + <code>view_file</code> across <code>OrchardCore</code> modules.</p>
+            <code class="panel-code" data-bind="cs05.card_turns_footer">[TBD] turns vs [TBD] turns</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent">~0.0× [TBD]</span>
+            <span class="reading tone-accent" data-bind="cs05.card_tokens">~0.0× [TBD]</span>
             <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy"><code>[TBD]</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>[TBD]</code> tokens with <code>ripgrep</code>.</p>
-            <code class="panel-code">$[TBD] vs $[TBD] API cost</code>
+            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>[TBD]</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>[TBD]</code> tokens with <code>ripgrep</code>.</p>
+            <code class="panel-code" data-bind="cs05.card_cost_footer">$[TBD] vs $[TBD] API cost</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool">~0.0× [TBD]</span>
+            <span class="reading tone-cool" data-bind="cs05.card_reads">~0.0× [TBD]</span>
             <h2 class="panel-title">Fewer File Reads</h2>
             <p class="panel-copy"><code>[TBD]</code> source files read manually by the graph agent vs <code>[TBD]</code> file reads by the <code>ripgrep</code> agent.</p>
             <code class="panel-code">[TBD] KB vs [TBD] KB tool output</code>
@@ -155,39 +155,39 @@
             <tbody>
               <tr>
                 <td>Time to Answer (<code>send_message</code>)</td>
-                <td class="cell-loss">[TBD s] ([TBD min])</td>
-                <td class="cell-win">[TBD s] ([TBD min])</td>
-                <td class="cell-win">[TBD ×] faster</td>
+                <td class="cell-loss" data-bind="cs05.tbl_time_rg">[TBD s] ([TBD min])</td>
+                <td class="cell-win" data-bind="cs05.tbl_time_ce">[TBD s] ([TBD min])</td>
+                <td class="cell-win" data-bind="cs05.tbl_time_delta">[TBD ×] faster</td>
               </tr>
               <tr>
                 <td>LLM Reasoning Turns</td>
-                <td class="cell-loss">[TBD] turns</td>
-                <td class="cell-win">[TBD] turns</td>
-                <td class="cell-win">[TBD ×] fewer turns</td>
+                <td class="cell-loss" data-bind="cs05.tbl_turns_rg">[TBD] turns</td>
+                <td class="cell-win" data-bind="cs05.tbl_turns_ce">[TBD] turns</td>
+                <td class="cell-win" data-bind="cs05.tbl_turns_delta">[TBD ×] fewer turns</td>
               </tr>
               <tr>
                 <td>Total Tool Calls</td>
-                <td class="cell-loss">[TBD] (<code>rg</code> + <code>view_file</code>)</td>
-                <td class="cell-win">[TBD] (<code>ce</code> + <code>view_file</code>)</td>
-                <td class="cell-win">[TBD ×] fewer tool calls</td>
+                <td class="cell-loss" data-bind-html="cs05.tbl_calls_rg">[TBD] (<code>rg</code> + <code>view_file</code>)</td>
+                <td class="cell-win" data-bind-html="cs05.tbl_calls_ce">[TBD] (<code>ce</code> + <code>view_file</code>)</td>
+                <td class="cell-win" data-bind="cs05.tbl_calls_delta">[TBD ×] fewer tool calls</td>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss">[TBD] chars (~[TBD] tokens)</td>
-                <td class="cell-win">[TBD] chars (~[TBD] tokens)</td>
-                <td class="cell-win">[TBD ×] less tool payload</td>
+                <td class="cell-loss" data-bind="cs05.tbl_payload_rg">[TBD] chars (~[TBD] tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_payload_ce">[TBD] chars (~[TBD] tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_payload_delta">[TBD ×] less tool payload</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
-                <td class="cell-loss">[TBD] tokens</td>
-                <td class="cell-win">[TBD] tokens</td>
-                <td class="cell-win">[TBD ×] fewer input tokens</td>
+                <td class="cell-loss" data-bind="cs05.tbl_in_rg">[TBD] tokens</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_ce">[TBD] tokens</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_delta">[TBD ×] fewer input tokens</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
-                <td class="cell-num">$[TBD]</td>
-                <td class="cell-win">$[TBD]</td>
-                <td class="cell-win">[TBD ×] cheaper</td>
+                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$[TBD]</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$[TBD]</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_delta">[TBD ×] cheaper</td>
               </tr>
               <tr>
                 <td>Audit Completeness (Tasks 1 to 3)</td>

@@ -7,7 +7,7 @@
   <meta name="description" content="Deterministic benchmark comparing CodeExplorer (v1.75.0) and Graphify (v0.9.104) across cold indexing, 371 ground-truth items (seed=42), and MCP server latency on twenty (2.49M LOC) and immich (461k LOC).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="benchmarks.css?v=1.75.4">
+  <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
 </head>
 <body>
 
@@ -45,7 +45,7 @@
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Head-to-head indexer and MCP server comparison on <code>immich</code> (3,205 files, 461k LOC) and <code>twenty</code> (24,527 files, 2.49M LOC): cold indexing scalability, MCP startup latency, and graph completeness across 371 verified items.
+              Head-to-head indexer and MCP server comparison on <code>immich</code> and <code>twenty</code>: cold indexing scalability, MCP startup latency, and graph completeness across 371 verified items.
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/04-code-explorer-vs-graphify/scripts" target="_blank" rel="noopener" class="btn btn--primary">Inspect Evaluation Scripts</a>
@@ -56,19 +56,19 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok">~6× / &gt;18×</span>
+            <span class="reading tone-ok" data-bind-html="cs04.card_speedup">~6.1× / &gt;18×</span>
             <h2 class="panel-title">Faster Cold Indexing</h2>
             <p class="panel-copy"><code>~18s</code> vs <code>~108s</code> on <code>immich</code> (3.2k files), and <code>~147s</code> vs <strong>DNF (&gt;45m timeout)</strong> on <code>twenty</code> (24.5k files).</p>
             <code class="panel-code">SQLite vs NetworkX JSON</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent">78% vs 18%</span>
+            <span class="reading tone-accent" data-bind="cs04.card_group_a">78% vs 18%</span>
             <h2 class="panel-title">Basic Code &amp; Call Graph</h2>
             <p class="panel-copy">Across 130 basic items: <code>ce</code> scored 102/130 vs <code>Graphify</code> 23/130 (on <code>immich</code> alone: <code>ce</code> 73% vs <code>Graphify</code> 35%).</p>
             <code class="panel-code">6 wins, 2 ties, 0 losses</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool">~98%</span>
+            <span class="reading tone-cool" data-bind="cs04.card_group_b">~98%</span>
             <h2 class="panel-title">Queues, DB Tables &amp; SQL</h2>
             <p class="panel-copy"><code>ce</code> matched 235/241 queue, ORM table, data-lineage, and sub-project items. <code>Graphify</code> does not index these.</p>
             <code class="panel-code">235 / 241 verified items</code>
@@ -81,12 +81,10 @@
           </div>
         </div>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
-          <strong>Tested participants:</strong><br>
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs04.participants_html"><strong>Tested participants:</strong><br>
           1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
           2. <strong>Graphify (<code>graphifyy</code>):</strong> <code>v0.9.104</code> (Python 3.10, Tree-sitter + NetworkX <code>--code-only</code>, 10 MCP tools)<br>
-          3. <strong>Target Repositories:</strong> <code>twentyhq/twenty</code> (commit <code>12e8fae4</code>, 24,527 files, 2.49M LOC) &amp; <code>immich-app/immich</code> (commit <code>2153d22f</code>, 3,205 files, 461k LOC)
-        </div>
+          3. <strong>Target Repositories:</strong> <code>twentyhq/twenty</code> (commit <code>12e8fae4</code>, 24,527 files, 2.49M LOC) &amp; <code>immich-app/immich</code> (commit <code>2153d22f</code>, 3,205 files, 461k LOC)</div>
       </div>
     </section>
 
@@ -95,7 +93,7 @@
         <div class="band-head">
           <h2 class="band-title">1. Cold indexing &amp; scalability across repository sizes.</h2>
           <p class="band-lede">
-            On <code>immich</code> (3,205 files), both tools completed cleanly, with <code>ce</code> finishing ~6× faster. On <code>twenty</code> (24,527 files), <code>Graphify</code>&rsquo;s Python AST &amp; NetworkX pipeline stalled on a single CPU core in <code>build_from_json</code> and did not finish within the 45-minute timeout.
+            On <code>immich</code> (3,205 files), both tools completed cleanly, with <code>ce</code> finishing ~6.1× faster. On <code>twenty</code> (24,527 files), <code>Graphify</code>&rsquo;s Python AST &amp; NetworkX pipeline stalled on a single CPU core in <code>build_from_json</code> and did not finish within the 45-minute timeout.
           </p>
         </div>
 

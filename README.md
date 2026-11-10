@@ -21,12 +21,14 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
 ### Benchmarks: Autonomous AI Agents & MCP Graph Engines
 *(We run two distinct types of benchmarks: **1. End-to-End AI Agent Workflows** (measuring how much time, tokens, and missed dependencies a graph saves an LLM on real tasks) and **2. Deterministic Graph Engine Head-to-Head** (cold indexing speed, RAM, MCP latency, and extraction recall across `371` verified items without an LLM). Full catalog: [benchmarks/README.md](./benchmarks/README.md) and [code-explorer.app/benchmarks.html](https://code-explorer.app/benchmarks.html).)*
 
-| Metric | **`twentyhq/twenty` (`24.5k` files): `CBM` → `CodeExplorer`** ([Case Study 01](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)) | **324-Service Monorepo (`13.8k` files): `ripgrep` → `CodeExplorer`** ([Case Study 02](./benchmarks/02-enterprise-microservices-deep-audit/README.md)) |
+<!-- BEGIN:md.root_agent_table -->
+| Metric | **`twentyhq/twenty` (`24.5k` files): `CBM` → `CodeExplorer`** ([Case Study 01](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)) | **324-Service Multi-Repo (`13.8k` files): `ripgrep` → `CodeExplorer`** ([Case Study 02](./benchmarks/02-enterprise-microservices-deep-audit/README.md)) |
 | :--- | :--- | :--- |
-| **Time to Answer** | `9m 15s` → **`41s` (`13.5×` faster)** | `29m 52s` → **`3m 56s` (`7.59×` faster)** |
-| **Cumulative Input Tokens** | `1.68M` → **`80.2K` tokens (`20.9×` fewer tokens)** | `17.19M` → **`393K` tokens (`43.7×` fewer tokens)** |
-| **Agent Effort** | `28` turns (`8` `CBM` queries + `3` AST scripts + `10` file reads) → **`4` turns (`5` graph queries, `0` source reads)** | `285` turns (`142` shell commands, `114` file reads, `14` scripts) → **`23` turns (`18` graph queries, `0` file reads)** |
+| **Time to Answer** | `9m 15s` → **`41s` (`13.5×` faster)** | `29m 52s` → **`4m 16s` (`7.00×` faster, symmetric prompts)** |
+| **Cumulative Input Tokens** | `1.68M` → **`80.2K` tokens (`20.9×` fewer tokens)** | `17.19M` → **`686K` tokens (`25.07×` fewer tokens, `11.50×` cheaper)** |
+| **Agent Effort** | `28` turns (`8` `CBM` queries + `3` AST scripts + `10` file reads) → **`4` turns (`5` graph queries, `0` source reads)** | `285` turns (`142` shell commands, `114` file reads, `14` scripts) → **`18` turns (`10` CLI runs, `16` file reads, `0` scripts)** |
 | **Blast-Radius Recall** | `3.4%` (`13 / 381`) from `CBM` graph → **`99%` (`378 / 381`) directly from `graph.db`** | `82%` *(missed 9 RTB services behind env constants)* → **`100%` recall (`0` blind spots)** |
+<!-- END:md.root_agent_table -->
 
 ### Head-to-Head vs. Other MCP Code Graphs (`immich` & `twenty`)
 *(Evaluated on `immich-app/immich` (`3,205` files, `461k` LOC) and `twentyhq/twenty` (`24,527` files, `2.49M` LOC) against a frozen seed-42 ground-truth dataset (`371` items across `C1–C11`: `130` Group A Basic Code + `241` Group B Architecture, DB & Queues). Full reproducible reports and scripts: [Case Study 03 (`ce` vs. `codebase-memory-mcp`)](./benchmarks/03-code-explorer-vs-codebase-memory-mcp/README.md) and [Case Study 04 (`ce` vs. `graphify`)](./benchmarks/04-code-explorer-vs-graphify/README.md).)*

@@ -1,0 +1,373 @@
+{
+  "$comment": "Canonical single source of truth for CodeExplorer benchmarks. Run `node scripts/sync-benchmarks.mjs` after updating any benchmark or `results/metrics.json` to propagate numbers across `site/` HTML and GitHub `README.md` files.",
+  "meta": {
+    "llm_model": "Gemini 3.8 Flash",
+    "tools": {
+      "ce_suite_versions": "v1.75.0 to v1.77.0",
+      "ce_mcp_tools": 36,
+      "ce_framework_parsers": 250,
+      "ce_languages": 8,
+      "cbm_version": "v0.12.1",
+      "cbm_mcp_tools": 17,
+      "graphify_version": "v0.9.104",
+      "graphify_mcp_tools": 10,
+      "ripgrep_version": "v14.1.1",
+      "python_version": "3.10"
+    },
+    "pricing_usd_per_1m": {
+      "gemini_3_8_flash": {
+        "input": 0.5,
+        "cached_input": 0.05,
+        "output": 3
+      },
+      "gemini_3_8_pro": {
+        "input": 2,
+        "cached_input": 0.2,
+        "output": 10
+      }
+    }
+  },
+  "cs01": {
+    "id": "01-agent-audit-ce-vs-cbm-on-twenty",
+    "status": "ready",
+    "source_metrics": "benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/results/metrics.json",
+    "ce_version": "v1.75.1",
+    "cbm_version": "v0.12.1",
+    "model": "Gemini 3.8 Flash",
+    "repo": {
+      "name": "twentyhq/twenty",
+      "commit": "b9ef7107",
+      "packages": 46,
+      "files": 24527,
+      "loc": "2.49M"
+    },
+    "recall": {
+      "gt_total": 381,
+      "ce_matched": 378,
+      "cbm_graph_matched": 13,
+      "cbm_with_scripts_matched": 381
+    },
+    "effort_details": {
+      "ce_ontology_calls": 1,
+      "ce_cypher_calls": 5,
+      "ce_file_reads": 0,
+      "ce_scripts": 0,
+      "cbm_queries": 8,
+      "cbm_rg_node_runs": 15,
+      "cbm_file_reads": 10,
+      "cbm_scripts": 3,
+      "cbm_scripts_loc": 1037
+    },
+    "telemetry": {
+      "ce": {
+        "conversation_short": "bedf356b",
+        "time_to_answer_s": 41,
+        "wall_clock_s": 109,
+        "turns": 4,
+        "steps": 12,
+        "tool_calls": 7,
+        "raw_tool_chars": 36834,
+        "raw_tool_tokens": 9208,
+        "input_tokens_uncached": 31563,
+        "cache_read_tokens": 48614,
+        "cum_input_tokens": 80177,
+        "output_tokens": 8255,
+        "cost_flash_usd": 0.04,
+        "cost_pro_usd": 0.16
+      },
+      "cbm": {
+        "conversation_short": "9a849d22",
+        "time_to_answer_s": 555,
+        "wall_clock_s": 634,
+        "turns": 28,
+        "steps": 67,
+        "tool_calls": 37,
+        "raw_tool_chars": 243355,
+        "raw_tool_tokens": 60838,
+        "input_tokens_uncached": 129424,
+        "cache_read_tokens": 1549489,
+        "cum_input_tokens": 1678913,
+        "output_tokens": 29139,
+        "cost_flash_usd": 0.23,
+        "cost_pro_usd": 0.86
+      }
+    },
+    "turn_stages": [
+      {
+        "label": "Turn 1",
+        "end_turn": 1,
+        "ce_turn": 1,
+        "activity": "Both agents inspect their graph schema (<code>get_graph_schema</code> vs <code>ce view ontology</code>)."
+      },
+      {
+        "label": "Turn 2",
+        "end_turn": 2,
+        "ce_turn": 2,
+        "activity": "Both agents dispatch parallel Cypher queries (3 in <code>CBM</code>, 5 in <code>ce</code>)."
+      },
+      {
+        "label": "Turn 3 (<code>ce</code> Answers @ 41s)",
+        "end_turn": 3,
+        "ce_turn": 3,
+        "ce_win": true,
+        "activity": "<code>ce</code> agent receives all 5 query results inline and calls <code>send_message</code> at 41.0 s."
+      },
+      {
+        "label": "Turn 4 (<code>ce</code> Done @ 1m 49s)",
+        "end_turn": 4,
+        "ce_turn": 4,
+        "ce_win": true,
+        "activity": "<code>ce</code> session finishes at 109.0 s; <code>CBM</code> agent retries <code>INHERITS|IMPLEMENTS</code> (0 rows)."
+      },
+      {
+        "label": "Turns 5 to 8",
+        "end_turn": 8,
+        "ce_turn": null,
+        "activity": "<code>CBM</code> agent runs its 8th empty <code>CBM</code> query, switches to <code>rg</code>, and locates the local <code>typescript</code> compiler package."
+      },
+      {
+        "label": "Turns 9 to 10",
+        "end_turn": 10,
+        "ce_turn": null,
+        "activity": "Writes and executes <code>audit_part123.cjs</code> (342 LOC of custom TS Compiler AST code) for Tasks 1 to 3."
+      },
+      {
+        "label": "Turns 11 to 16",
+        "end_turn": 16,
+        "ce_turn": null,
+        "activity": "Writes and executes <code>audit_part4.cjs</code> (345 LOC), inspects truncated tool outputs, and runs follow-up <code>rg</code> checks."
+      },
+      {
+        "label": "Turns 17 to 19",
+        "end_turn": 19,
+        "ce_turn": null,
+        "activity": "Writes and executes <code>verify_part3_and_4.cjs</code> (350 LOC) to refine TypeORM repository and <code>entityManager</code> write detection."
+      },
+      {
+        "label": "Turns 20 to 26",
+        "end_turn": 26,
+        "ce_turn": null,
+        "activity": "Runs <code>rg</code> and reads 6 source files (GraphQL resolvers, services, and <code>ApiPath.ts</code>) via <code>view_file</code> to verify routes."
+      },
+      {
+        "label": "Turn 27 (<code>CBM</code> Answers @ 9m 15s)",
+        "end_turn": 27,
+        "ce_turn": null,
+        "cbm_loss": true,
+        "activity": "<code>CBM</code> agent sends its final audit report via <code>send_message</code> at 555.0 s."
+      },
+      {
+        "label": "Turn 28 (<code>CBM</code> Done @ 10m 34s)",
+        "end_turn": 28,
+        "ce_turn": null,
+        "cbm_loss": true,
+        "activity": "<code>CBM</code> session finishes at 634.0 s total wall-clock."
+      }
+    ]
+  },
+  "cs02": {
+    "id": "02-enterprise-microservices-deep-audit",
+    "status": "ready",
+    "source_metrics": "benchmarks/02-enterprise-microservices-deep-audit/results/metrics.json",
+    "ce_version": "v1.77.0",
+    "schema_version": "v6",
+    "ripgrep_version": "v14.1.1",
+    "python_version": "3.10",
+    "model": "Gemini 3.8 Flash",
+    "repo": {
+      "modules": 450,
+      "services": 324,
+      "shared_libraries": 93,
+      "workers": 33,
+      "files": 13782,
+      "graph_nodes": 209271,
+      "graph_edges": 454394
+    },
+    "recall": {
+      "ce_pct": "100%",
+      "rg_pct_round": "~82%",
+      "rg_tasks23_pct": "~81%",
+      "rg_missed_services": 9,
+      "ce_verified_callers": 105
+    },
+    "telemetry": {
+      "ce": {
+        "conversation_short": "3e1e9d36",
+        "time_to_answer_s": 256,
+        "wall_clock_s": 332,
+        "turns": 18,
+        "steps": 46,
+        "tool_calls": 27,
+        "run_command_calls": 10,
+        "view_file_calls": 16,
+        "scripts_written": 0,
+        "compactions": 0,
+        "raw_tool_chars": 262638,
+        "raw_tool_tokens": 65659,
+        "cum_input_chars": 2742953,
+        "cum_input_est_tokens": 685738,
+        "api_total_input_tokens": 1314308,
+        "cost_flash_usd": 0.1,
+        "cost_pro_usd": 0.38,
+        "api_cost_flash_usd": 0.17,
+        "api_cost_pro_usd": 0.66
+      },
+      "rg": {
+        "conversation_short": "ede04347",
+        "time_to_answer_s": 1792,
+        "wall_clock_s": 1962,
+        "turns": 285,
+        "steps": 584,
+        "tool_calls": 284,
+        "run_command_calls": 142,
+        "view_file_calls": 114,
+        "scripts_written": 14,
+        "manage_task_calls": 13,
+        "compactions": 1,
+        "compaction_turn": 162,
+        "compaction_peak_k": "160.3K",
+        "raw_tool_chars": 694891,
+        "raw_tool_tokens": 173722,
+        "cum_input_chars": 68776567,
+        "cum_input_est_tokens": 17194141,
+        "cost_flash_usd": 1.15,
+        "cost_pro_usd": 4.47
+      }
+    }
+  },
+  "cs03": {
+    "id": "03-code-explorer-vs-codebase-memory-mcp",
+    "status": "ready",
+    "source_scores_csv": "benchmarks/03-code-explorer-vs-codebase-memory-mcp/results/scores.csv",
+    "ce_version": "v1.75.0",
+    "cbm_version": "v0.12.1",
+    "repos": {
+      "twenty": {
+        "commit": "12e8fae4",
+        "files": 24527,
+        "loc": "2.49M"
+      },
+      "immich": {
+        "commit": "2153d22f",
+        "files": 3205,
+        "loc": "461k"
+      }
+    },
+    "indexing": {
+      "immich": {
+        "ce_s": 17.6,
+        "cbm_s": 20.6,
+        "ce_db_mb": 55.1,
+        "cbm_db_mb": 282,
+        "ce_ram_mb": 780.5,
+        "cbm_ram_mb": 595
+      },
+      "twenty": {
+        "ce_s": 147.33,
+        "cbm_s": 96.9,
+        "ce_db_mb": 784,
+        "cbm_db_mb": 842.5,
+        "ce_ram_mb": 4660.6,
+        "cbm_ram_mb": 2076
+      }
+    },
+    "recall": {
+      "group_a_gt": 130,
+      "group_a_ce_matched": 102,
+      "group_a_cbm_matched": 49,
+      "group_a_wins": 7,
+      "group_a_ties": 1,
+      "group_a_losses": 0,
+      "immich_gt": 66,
+      "immich_ce_matched": 48,
+      "immich_cbm_matched": 33,
+      "group_b_gt": 241,
+      "group_b_ce_matched": 235
+    },
+    "cypher_latency": {
+      "ce_min_ms": 3.1,
+      "ce_max_ms": 4.7,
+      "cbm_min_ms": 38.1,
+      "cbm_max_ms": 71.2
+    }
+  },
+  "cs04": {
+    "id": "04-code-explorer-vs-graphify",
+    "status": "ready",
+    "source_scores_csv": "benchmarks/04-code-explorer-vs-graphify/results/scores.csv",
+    "ce_version": "v1.75.0",
+    "graphify_version": "v0.9.104",
+    "repos": {
+      "twenty": {
+        "commit": "12e8fae4",
+        "files": 24527,
+        "loc": "2.49M"
+      },
+      "immich": {
+        "commit": "2153d22f",
+        "files": 3205,
+        "loc": "461k"
+      }
+    },
+    "indexing": {
+      "immich": {
+        "ce_s": 17.6,
+        "graphify_s": 107.6,
+        "ce_db_mb": 55.1,
+        "graphify_json_mb": 32,
+        "graphify_dir_mb": 52.3,
+        "ce_ram_mb": 780.5,
+        "graphify_ram_mb": 956.9
+      },
+      "twenty": {
+        "ce_s": 147.33,
+        "graphify_timeout_s": 2740,
+        "ce_db_mb": 784,
+        "ce_ram_mb": 4660.6,
+        "graphify_stalled_ram_mb": 2140
+      }
+    },
+    "recall": {
+      "group_a_gt": 130,
+      "group_a_ce_matched": 102,
+      "group_a_graphify_matched": 23,
+      "group_a_wins": 6,
+      "group_a_ties": 2,
+      "group_a_losses": 0,
+      "immich_gt": 66,
+      "immich_ce_matched": 48,
+      "immich_graphify_matched": 23,
+      "group_b_gt": 241,
+      "group_b_ce_matched": 235
+    },
+    "mcp_init": {
+      "ce_ms": 599,
+      "ce_rss_mb": 63.9,
+      "graphify_ms": 3682.9,
+      "graphify_rss_mb": 162.8,
+      "ce_search_ms": 41.7,
+      "graphify_search_ms": 333.8
+    }
+  },
+  "cs05": {
+    "id": "05-polyglot-architecture-and-blast-radius",
+    "status": "pending",
+    "expected_repo_match": "orchard",
+    "source_metrics": "benchmarks/05-polyglot-architecture-and-blast-radius/results/metrics.json",
+    "ce_version": "v1.75.2",
+    "ripgrep_version": "v14.1.1",
+    "model": "Gemini 3.8 Flash",
+    "repo": {
+      "name": "OrchardCMS/OrchardCore",
+      "commit": "[TBD]",
+      "projects": "[TBD ~180]",
+      "files": "[TBD ~6,000]"
+    },
+    "recall": {
+      "ce_pct": "100%",
+      "rg_pct": "[TBD %]",
+      "summary_note": "[TBD]"
+    },
+    "telemetry": null
+  }
+}
