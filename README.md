@@ -24,10 +24,10 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
 <!-- BEGIN:md.root_agent_table -->
 | Metric | **`twentyhq/twenty` (`24.5k` files): `CBM` → `CodeExplorer`** ([Case Study 01](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)) | **324-Service Multi-Repo (`13.8k` files): `ripgrep` → `CodeExplorer`** ([Case Study 02](./benchmarks/02-enterprise-microservices-deep-audit/README.md)) |
 | :--- | :--- | :--- |
-| **Time to Answer** | `9m 15s` → **`41s` (`13.5×` faster)** | `29m 52s` → **`4m 16s` (`7.00×` faster, symmetric prompts)** |
-| **Cumulative Input Tokens** | `1.68M` → **`80.2K` tokens (`20.9×` fewer tokens)** | `17.19M` → **`686K` tokens (`25.07×` fewer tokens, `11.50×` cheaper)** |
-| **Agent Effort** | `28` turns (`8` `CBM` queries + `3` AST scripts + `10` file reads) → **`4` turns (`5` graph queries, `0` source reads)** | `285` turns (`142` shell commands, `114` file reads, `14` scripts) → **`18` turns (`10` CLI runs, `16` file reads, `0` scripts)** |
-| **Blast-Radius Recall** | `3.4%` (`13 / 381`) from `CBM` graph → **`99%` (`378 / 381`) directly from `graph.db`** | `82%` *(missed 9 RTB services behind env constants)* → **`100%` recall (`0` blind spots)** |
+| **Time to Answer** | `9m 15s` → **`1m 33s` (`6.0×` faster)** | `29m 52s` → **`4m 16s` (`7.00×` faster, symmetric prompts)** |
+| **Cumulative Input Tokens** | `1.68M` → **`242K` tokens (`7.0×` fewer tokens)** | `17.19M` → **`686K` tokens (`25.07×` fewer tokens, `11.50×` cheaper)** |
+| **Agent Effort** | `28` turns (`8` `CBM` queries + `3` AST scripts + `10` file reads) → **`7` turns (`13` graph queries, `0` source reads)** | `285` turns (`142` shell commands, `114` file reads, `14` scripts) → **`18` turns (`10` CLI runs, `16` file reads, `0` scripts)** |
+| **Blast-Radius Recall** | `3.4%` (`13 / 381`) from `CBM` graph → **`100%` (`381 / 381`) directly from `graph.db`** | `82%` *(missed 9 RTB services behind env constants)* → **`100%` recall (`0` blind spots)** |
 <!-- END:md.root_agent_table -->
 
 ### Head-to-Head vs. Other MCP Code Graphs (`immich` & `twenty`)

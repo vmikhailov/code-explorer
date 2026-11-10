@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.77.0",
+      "ce_suite_versions": "v1.75.0 to v1.77.2",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -31,7 +31,7 @@
     "id": "01-agent-audit-ce-vs-cbm-on-twenty",
     "status": "ready",
     "source_metrics": "benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/results/metrics.json",
-    "ce_version": "v1.75.1",
+    "ce_version": "v1.77.2",
     "cbm_version": "v0.12.1",
     "model": "Gemini 3.8 Flash",
     "repo": {
@@ -43,13 +43,13 @@
     },
     "recall": {
       "gt_total": 381,
-      "ce_matched": 378,
+      "ce_matched": 381,
       "cbm_graph_matched": 13,
       "cbm_with_scripts_matched": 381
     },
     "effort_details": {
       "ce_ontology_calls": 1,
-      "ce_cypher_calls": 5,
+      "ce_cypher_calls": 13,
       "ce_file_reads": 0,
       "ce_scripts": 0,
       "cbm_queries": 8,
@@ -60,20 +60,20 @@
     },
     "telemetry": {
       "ce": {
-        "conversation_short": "bedf356b",
-        "time_to_answer_s": 41,
-        "wall_clock_s": 109,
-        "turns": 4,
-        "steps": 12,
-        "tool_calls": 7,
-        "raw_tool_chars": 36834,
-        "raw_tool_tokens": 9208,
-        "input_tokens_uncached": 31563,
-        "cache_read_tokens": 48614,
-        "cum_input_tokens": 80177,
-        "output_tokens": 8255,
-        "cost_flash_usd": 0.04,
-        "cost_pro_usd": 0.16
+        "conversation_short": "4a49e7f1",
+        "time_to_answer_s": 93,
+        "wall_clock_s": 134,
+        "turns": 7,
+        "steps": 23,
+        "tool_calls": 15,
+        "raw_tool_chars": 82146,
+        "raw_tool_tokens": 20536,
+        "input_tokens_uncached": 52517,
+        "cache_read_tokens": 189011,
+        "cum_input_tokens": 241528,
+        "output_tokens": 7741,
+        "cost_flash_usd": 0.06,
+        "cost_pro_usd": 0.22
       },
       "cbm": {
         "conversation_short": "9a849d22",
@@ -97,7 +97,7 @@
         "label": "Turn 1",
         "end_turn": 1,
         "ce_turn": 1,
-        "activity": "Both agents inspect their graph schema (<code>get_graph_schema</code> vs <code>ce view ontology</code>)."
+        "activity": "Both agents inspect their graph schema (<code>get_graph_schema</code> vs <code>ce taxonomy</code>)."
       },
       {
         "label": "Turn 2",
@@ -106,24 +106,42 @@
         "activity": "Both agents dispatch parallel Cypher queries (3 in <code>CBM</code>, 5 in <code>ce</code>)."
       },
       {
-        "label": "Turn 3 (<code>ce</code> Answers @ 41s)",
+        "label": "Turn 3",
         "end_turn": 3,
         "ce_turn": 3,
-        "ce_win": true,
-        "activity": "<code>ce</code> agent receives all 5 query results inline and calls <code>send_message</code> at 41.0 s."
+        "activity": "<code>ce</code> queries Task 1 and Task 3 without file paths and inspects Task 4 tables/endpoints; <code>CBM</code> gets 0 rows on <code>INHERITS|IMPLEMENTS</code>."
       },
       {
-        "label": "Turn 4 (<code>ce</code> Done @ 1m 49s)",
+        "label": "Turn 4",
         "end_turn": 4,
         "ce_turn": 4,
-        "ce_win": true,
-        "activity": "<code>ce</code> session finishes at 109.0 s; <code>CBM</code> agent retries <code>INHERITS|IMPLEMENTS</code> (0 rows)."
+        "activity": "<code>ce</code> runs 0 to 3 hop <code>Endpoint &rarr; Function &rarr; WRITES_TO &rarr; Table</code> lineage queries for Task 4; <code>CBM</code> retries <code>INHERITS|IMPLEMENTS</code> (0 rows)."
       },
       {
-        "label": "Turns 5 to 8",
+        "label": "Turn 5",
+        "end_turn": 5,
+        "ce_turn": 5,
+        "activity": "<code>ce</code> verifies <code>Query</code> write paths and max inheritance depth; <code>CBM</code> runs its 8th empty query and switches to <code>rg</code>."
+      },
+      {
+        "label": "Turn 6 (<code>ce</code> Answers @ 1m 33s)",
+        "end_turn": 6,
+        "ce_turn": 6,
+        "ce_win": true,
+        "activity": "<code>ce</code> agent sends its complete 4-part audit report (381 / 381 items, 100% recall) via <code>send_message</code> at 93.0 s."
+      },
+      {
+        "label": "Turn 7 (<code>ce</code> Done @ 2m 14s)",
+        "end_turn": 7,
+        "ce_turn": 7,
+        "ce_win": true,
+        "activity": "<code>ce</code> session finishes at 134.0 s; <code>CBM</code> agent locates the local <code>typescript</code> compiler package."
+      },
+      {
+        "label": "Turn 8",
         "end_turn": 8,
         "ce_turn": null,
-        "activity": "<code>CBM</code> agent runs its 8th empty <code>CBM</code> query, switches to <code>rg</code>, and locates the local <code>typescript</code> compiler package."
+        "activity": "<code>CBM</code> agent inspects TypeORM entities and BullMQ queue decorators via <code>rg</code> before writing custom AST scripts."
       },
       {
         "label": "Turns 9 to 10",

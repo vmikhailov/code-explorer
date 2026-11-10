@@ -7,7 +7,7 @@ CRITICAL BENCHMARK RULES:
 1. Use your assigned graph CLI (`ce`) as your primary source of truth. First inspect the graph schema to understand available node labels and relationships. If and only if the graph does not contain the relationships needed to answer a question completely, you may fall back to `rg`, `read_file`, or scripts.
 2. Available graph CLI commands (run via `run_command`):
    - Inspect schema & ontology:
-     `ce view ontology -d "./repos/twenty"` (or `ce --help`)
+     `ce taxonomy -d "./repos/twenty"` (or `ce --help`)
    - Query graph (`Cypher`):
      `ce query "<CYPHER>" -d "./repos/twenty" --no-truncate`
    - Search symbols:

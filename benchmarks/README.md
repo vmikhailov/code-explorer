@@ -15,7 +15,7 @@ Two identical AI agents receive the exact same multi-hop architectural audit tas
 <!-- BEGIN:md.catalog_agent_table -->
 | Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Recall & Outcome |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **[Case Study 01: Public Monorepo Audit](./01-agent-audit-ce-vs-cbm-on-twenty/README.md)**<br>DI fan-in, inheritance, BullMQ queues & API-to-DB write lineage | `twentyhq/twenty`<br>`46` packages, `24,527` files, `2.49M` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | `CodeExplorer`<br>vs<br>`CBM` | **`13.5×` faster**<br>`41s` vs `9m 15s`<br>`4` turns vs `28` turns | **`20.9×` fewer tokens**<br>`80,177` vs `1,678,913`<br>(`$0.04` vs `$0.23`) | **Native Graph: `99%` vs `3.4%`**<br>`378/381` from `ce` (`0` file reads) vs `13/381` from `CBM` (wrote `3` AST scripts + `10` file reads) |
+| **[Case Study 01: Public Monorepo Audit](./01-agent-audit-ce-vs-cbm-on-twenty/README.md)**<br>DI fan-in, inheritance, BullMQ queues & API-to-DB write lineage | `twentyhq/twenty`<br>`46` packages, `24,527` files, `2.49M` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | `CodeExplorer`<br>vs<br>`CBM` | **`6.0×` faster**<br>`1m 33s` vs `9m 15s`<br>`7` turns vs `28` turns | **`7.0×` fewer tokens**<br>`241,528` vs `1,678,913`<br>(`$0.06` vs `$0.23`) | **Native Graph: `100%` vs `3.4%`**<br>`381/381` from `ce` (`0` file reads) vs `13/381` from `CBM` (wrote `3` AST scripts + `10` file reads) |
 | **[Case Study 02: 324-Service Enterprise Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>Shared ORM tables, outbound HTTP fan-in, Pub/Sub & RabbitMQ topology (zero schema hints) | Enterprise Multi-Repo Workspace<br>`450` independent service/library repos (`324` services, `13,782` files, TS, Go, SQL) | `CodeExplorer`<br>vs<br>`ripgrep` + Python | **`7.00×` faster**<br>`4m 16s` vs `29m 52s`<br>`18` turns vs `285` turns | **`25.07×` fewer tokens**<br>`685,738` vs `17,194,141`<br>(`$0.10` vs `$1.15`, `11.50×` cheaper) | **`100%` vs `~82%`**<br>`0` missed services (`16` file reads, `0` scripts) vs `9` RTB services missed (`114` file reads + `14` scripts) |
 | **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | `OrchardCMS/OrchardCore`<br>`[TBD ~180]` C# projects, `[TBD ~6,000]` files (.NET, ASP.NET Core, YesSql) | `CodeExplorer`<br>vs<br>`ripgrep` | **`[TBD ×]` faster**<br>`[TBD]` vs `[TBD]`<br>`[TBD]` turns vs `[TBD]` turns | **`[TBD ×]` fewer tokens**<br>`[TBD]` vs `[TBD]`<br>(`$[TBD]` vs `$[TBD]`) | **`[TBD %]` vs `[TBD %]`**<br>`[TBD]` file reads vs `[TBD]` file reads |
 <!-- END:md.catalog_agent_table -->
@@ -36,7 +36,7 @@ No LLM in the loop. Both tools index the same commits of `twentyhq/twenty` (`24,
 ## Tested Participants & Versions
 
 <!-- BEGIN:md.catalog_participants -->
-1. **CodeExplorer (`ce`)**: `v1.75.0 to v1.77.0` (.NET 10, SQLite + OpenCypher, `36` MCP tools)
+1. **CodeExplorer (`ce`)**: `v1.75.0 to v1.77.2` (.NET 10, SQLite + OpenCypher, `36` MCP tools)
 2. **codebase-memory-mcp (`CBM`)**: `v0.12.1` (`win32-x64` Go + SQLite binary, `17` MCP tools)
 3. **Graphify (`graphifyy`)**: `v0.9.104` (Python 3.10, Tree-sitter + NetworkX `--code-only`, `10` MCP tools)
 4. **Lexical CLI Baseline**: `ripgrep` (`rg v14.1.1`) + Python `3.10` + `view_file`

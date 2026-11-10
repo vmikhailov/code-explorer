@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Case Study 01: Agent Audit on twentyhq/twenty (CodeExplorer vs codebase-memory-mcp)</title>
-  <meta name="description" data-bind-meta="cs01.meta_desc" content="Paired AI agent audit on twentyhq/twenty (24,527 files, 2.49M LOC) with 100% symmetric system prompts: CodeExplorer Agent (41s answer / 1m 49s wall, 4 turns, ~80K tokens, 0 files read) vs codebase-memory-mcp Agent (9m 15s answer / 10m 34s wall, 28 turns, ~1.7M tokens, 3 TS AST scripts).">
+  <meta name="description" data-bind-meta="cs01.meta_desc" content="Paired AI agent audit on twentyhq/twenty (24,527 files, 2.49M LOC) with 100% symmetric system prompts: CodeExplorer Agent (1m 33s answer / 2m 14s wall, 7 turns, ~242K tokens, 0 files read) vs codebase-memory-mcp Agent (9m 15s answer / 10m 34s wall, 28 turns, ~1.7M tokens, 3 TS AST scripts).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
   <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
@@ -56,21 +56,21 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok" data-bind="cs01.card_speedup">~14×</span>
+            <span class="reading tone-ok" data-bind="cs01.card_speedup">~6.0×</span>
             <h2 class="panel-title">Shorter Time to Answer</h2>
-            <p class="panel-copy" data-bind-html="cs01.card_speed_copy"><code>CodeExplorer</code> answered in <strong>41s</strong> (<strong>1m 49s</strong> wall); <code>CBM</code> took <strong>9m 15s</strong> (<strong>10m 34s</strong> wall).</p>
-            <code class="panel-code" data-bind="cs01.card_turns_footer">4 turns vs 28 turns</code>
+            <p class="panel-copy" data-bind-html="cs01.card_speed_copy"><code>CodeExplorer</code> answered in <strong>1m 33s</strong> (<strong>2m 14s</strong> wall); <code>CBM</code> took <strong>9m 15s</strong> (<strong>10m 34s</strong> wall).</p>
+            <code class="panel-code" data-bind="cs01.card_turns_footer">7 turns vs 28 turns</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent" data-bind="cs01.card_tokens">~21×</span>
+            <span class="reading tone-accent" data-bind="cs01.card_tokens">~7.0×</span>
             <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy" data-bind-html="cs01.card_tokens_copy"><code>~80K</code> cumulative input tokens vs <code>~1.7M</code> tokens across the session.</p>
-            <code class="panel-code" data-bind="cs01.card_cost_footer">$0.04 vs $0.23 (~5.3×)</code>
+            <p class="panel-copy" data-bind-html="cs01.card_tokens_copy"><code>~242K</code> cumulative input tokens vs <code>~1.7M</code> tokens across the session.</p>
+            <code class="panel-code" data-bind="cs01.card_cost_footer">$0.06 vs $0.23 (~3.9×)</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool" data-bind="cs01.card_recall">99% vs 3.4%</span>
+            <span class="reading tone-cool" data-bind="cs01.card_recall">100% vs 3.4%</span>
             <h2 class="panel-title">Native Graph Recall</h2>
-            <p class="panel-copy" data-bind-html="cs01.card_recall_copy"><code>ce</code> resolved <strong>378 / 381</strong> items directly from <code>graph.db</code>. <code>CBM</code> returned <strong>13 / 381</strong> (only self-calls).</p>
+            <p class="panel-copy" data-bind-html="cs01.card_recall_copy"><code>ce</code> resolved <strong>381 / 381</strong> items directly from <code>graph.db</code>. <code>CBM</code> returned <strong>13 / 381</strong> (only self-calls).</p>
             <code class="panel-code" data-bind="cs01.card_recall_footer">0 source files read by ce</code>
           </div>
           <div class="panel panel--sunken">
@@ -82,7 +82,7 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs01.participants_html"><strong>Tested participants:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.1</code> (.NET 10, SQLite + OpenCypher)<br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.77.2</code> (.NET 10, SQLite + OpenCypher)<br>
           2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (Go + SQLite)<br>
           3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (100% symmetric system prompts)<br>
           4. <strong>Target Repository:</strong> <code>twentyhq/twenty</code> (commit <code>b9ef7107</code>, 46 packages, 24,527 files, 2.49M LOC)</div>
@@ -116,55 +116,55 @@
               <tr>
                 <td>Time to Answer (<code>send_message</code>)</td>
                 <td class="cell-loss" data-bind="cs01.tbl_time_cbm">555 s (9m 15s)</td>
-                <td class="cell-win" data-bind="cs01.tbl_time_ce">41 s (0m 41s)</td>
-                <td class="cell-win" data-bind="cs01.tbl_time_delta">13.5× faster (-8m 34s)</td>
+                <td class="cell-win" data-bind="cs01.tbl_time_ce">93 s (1m 33s)</td>
+                <td class="cell-win" data-bind="cs01.tbl_time_delta">6.0× faster (-7m 42s)</td>
               </tr>
               <tr>
                 <td>Total Session Wall-Clock</td>
                 <td class="cell-loss" data-bind="cs01.tbl_wall_cbm">634 s (10m 34s)</td>
-                <td class="cell-win" data-bind="cs01.tbl_wall_ce">109 s (1m 49s)</td>
-                <td class="cell-win" data-bind="cs01.tbl_wall_delta">5.8× faster (-8m 45s)</td>
+                <td class="cell-win" data-bind="cs01.tbl_wall_ce">134 s (2m 14s)</td>
+                <td class="cell-win" data-bind="cs01.tbl_wall_delta">4.7× faster (-8m 20s)</td>
               </tr>
               <tr>
                 <td>LLM Reasoning Turns</td>
                 <td class="cell-loss" data-bind="cs01.tbl_turns_cbm">28 turns (67 steps)</td>
-                <td class="cell-win" data-bind="cs01.tbl_turns_ce">4 turns (12 steps)</td>
-                <td class="cell-win" data-bind="cs01.tbl_turns_delta">7.0× fewer turns</td>
+                <td class="cell-win" data-bind="cs01.tbl_turns_ce">7 turns (23 steps)</td>
+                <td class="cell-win" data-bind="cs01.tbl_turns_delta">4.0× fewer turns</td>
               </tr>
               <tr>
                 <td>Total Tool Calls</td>
                 <td class="cell-loss" data-bind-html="cs01.tbl_calls_cbm">37 (8 <code>cbm</code>, 15 <code>rg</code>/Node, 10 <code>view_file</code>, 3 scripts, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind-html="cs01.tbl_calls_ce">7 (1 <code>ce view ontology</code>, 5 <code>ce query</code>, 0 file reads, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind="cs01.tbl_calls_delta">5.3× fewer calls (0 file reads)</td>
+                <td class="cell-win" data-bind-html="cs01.tbl_calls_ce">15 (1 <code>ce taxonomy</code>, 13 <code>ce query</code>, 0 file reads, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind="cs01.tbl_calls_delta">2.5× fewer calls (0 file reads)</td>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
                 <td class="cell-num" data-bind="cs01.tbl_payload_cbm">243 KB (~60.8K tokens)</td>
-                <td class="cell-win" data-bind="cs01.tbl_payload_ce">36.8 KB (~9.2K tokens)</td>
-                <td class="cell-win" data-bind="cs01.tbl_payload_delta">6.6× smaller payload</td>
+                <td class="cell-win" data-bind="cs01.tbl_payload_ce">82.1 KB (~20.5K tokens)</td>
+                <td class="cell-win" data-bind="cs01.tbl_payload_delta">3.0× smaller payload</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
                 <td class="cell-loss" data-bind="cs01.tbl_in_cbm">1,678,913 tokens (129K uncached + 1.55M cached)</td>
-                <td class="cell-win" data-bind="cs01.tbl_in_ce">80,177 tokens (31.6K uncached + 48.6K cached)</td>
-                <td class="cell-win" data-bind="cs01.tbl_in_delta">20.9× fewer input tokens</td>
+                <td class="cell-win" data-bind="cs01.tbl_in_ce">241,528 tokens (52.5K uncached + 189.0K cached)</td>
+                <td class="cell-win" data-bind="cs01.tbl_in_delta">7.0× fewer input tokens</td>
               </tr>
               <tr>
                 <td>Generated Output Tokens</td>
                 <td class="cell-num" data-bind="cs01.tbl_out_cbm">29,139 tokens</td>
-                <td class="cell-win" data-bind="cs01.tbl_out_ce">8,255 tokens</td>
-                <td class="cell-win" data-bind="cs01.tbl_out_delta">3.5× fewer output tokens</td>
+                <td class="cell-win" data-bind="cs01.tbl_out_ce">7,741 tokens</td>
+                <td class="cell-win" data-bind="cs01.tbl_out_delta">3.8× fewer output tokens</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Flash / Pro)</td>
                 <td class="cell-num" data-bind="cs01.tbl_cost_cbm">$0.23 / $0.86</td>
-                <td class="cell-win" data-bind="cs01.tbl_cost_ce">$0.04 / $0.16</td>
-                <td class="cell-win" data-bind="cs01.tbl_cost_delta">5.3× cheaper</td>
+                <td class="cell-win" data-bind="cs01.tbl_cost_ce">$0.06 / $0.22</td>
+                <td class="cell-win" data-bind="cs01.tbl_cost_delta">3.9× cheaper</td>
               </tr>
               <tr>
                 <td>Direct Graph Recall (No Fallback)</td>
                 <td class="cell-loss" data-bind="cs01.tbl_rec_cbm">3.4% (13 / 381 items)</td>
-                <td class="cell-win" data-bind="cs01.tbl_rec_ce">99% (378 / 381 items)</td>
+                <td class="cell-win" data-bind="cs01.tbl_rec_ce">100% (381 / 381 items)</td>
                 <td class="cell-win" data-bind="cs01.tbl_rec_delta">29× more items from graph</td>
               </tr>
             </tbody>
@@ -228,7 +228,7 @@
                 <td class="cell-num">45</td>
                 <td class="cell-loss">0 / 45 (0%)</td>
                 <td class="cell-win">45 / 45 (100%)</td>
-                <td class="cell-win">42 / 45 (93%)</td>
+                <td class="cell-win">45 / 45 (100%)</td>
                 <td>Does not model TypeORM <code>@Entity</code> tables, repository write methods, or GraphQL <code>@Mutation</code> endpoints.</td>
               </tr>
               <tr class="row-total">
@@ -236,8 +236,8 @@
                 <td class="cell-num">381</td>
                 <td class="cell-loss">13 / 381 (3.4%)</td>
                 <td class="cell-win">381 / 381 (100%)</td>
-                <td class="cell-win">378 / 381 (99%)</td>
-                <td><code>ce</code> solved the audit in 41s from <code>graph.db</code>; <code>CBM</code> required 3 custom AST scripts + 10 file reads.</td>
+                <td class="cell-win">381 / 381 (100%)</td>
+                <td><code>ce</code> solved the audit in 1m 33s from <code>graph.db</code>; <code>CBM</code> required 3 custom AST scripts + 10 file reads.</td>
               </tr>
             </tbody>
           </table>
@@ -261,7 +261,7 @@ either in Python or Node.js with the TypeScript compiler, is needed to accuratel
       <div class="wrap">
         <div class="band-head">
           <h2 class="band-title">3. Turn-by-turn context accumulation curve.</h2>
-          <p class="band-lede" data-bind-html="cs01.sec3_lede">Every LLM turn re-sends the active conversation history. Because the <code>CodeExplorer</code> agent finished in 4 turns while the <code>CBM</code> agent iterated through 28 turns of AST script writing and file reading, cumulative billed input tokens differed by <strong>~21×</strong> (<code>~80K</code> vs <code>~1.7M</code>).</p>
+          <p class="band-lede" data-bind-html="cs01.sec3_lede">Every LLM turn re-sends the active conversation history. Because the <code>CodeExplorer</code> agent finished in 7 turns while the <code>CBM</code> agent iterated through 28 turns of AST script writing and file reading, cumulative billed input tokens differed by <strong>~7.0×</strong> (<code>~242K</code> vs <code>~1.7M</code>).</p>
         </div>
 
         <div class="table-surface">
@@ -282,32 +282,50 @@ either in Python or Node.js with the TypeScript compiler, is needed to accuratel
               <tr>
                 <td>Turn 1</td>
                 <td class="cell-num">13,697&nbsp;tokens<br><span class="tone-muted">13,697&nbsp;total</span></td>
-                <td class="cell-num">13,598&nbsp;tokens<br><span class="tone-muted">13,598&nbsp;total</span></td>
-                <td>Both agents inspect their graph schema (<code>get_graph_schema</code> vs <code>ce view ontology</code>).</td>
+                <td class="cell-num">18,091&nbsp;tokens<br><span class="tone-muted">18,091&nbsp;total</span></td>
+                <td>Both agents inspect their graph schema (<code>get_graph_schema</code> vs <code>ce taxonomy</code>).</td>
               </tr>
               <tr>
                 <td>Turn 2</td>
                 <td class="cell-num">14,644&nbsp;tokens<br><span class="tone-muted">28,341&nbsp;total</span></td>
-                <td class="cell-num">14,589&nbsp;tokens<br><span class="tone-muted">28,187&nbsp;total</span></td>
+                <td class="cell-num">19,921&nbsp;tokens<br><span class="tone-muted">38,012&nbsp;total</span></td>
                 <td>Both agents dispatch parallel Cypher queries (3 in <code>CBM</code>, 5 in <code>ce</code>).</td>
               </tr>
               <tr>
-                <td>Turn 3 (<code>ce</code> Answers @ 41s)</td>
+                <td>Turn 3</td>
                 <td class="cell-num">19,412&nbsp;tokens<br><span class="tone-muted">47,753&nbsp;total</span></td>
-                <td class="cell-win">22,479&nbsp;tokens<br>50,666&nbsp;total</td>
-                <td><code>ce</code> agent receives all 5 query results inline and calls <code>send_message</code> at 41.0 s.</td>
+                <td class="cell-num">30,559&nbsp;tokens<br><span class="tone-muted">68,571&nbsp;total</span></td>
+                <td><code>ce</code> queries Task 1 and Task 3 without file paths and inspects Task 4 tables/endpoints; <code>CBM</code> gets 0 rows on <code>INHERITS|IMPLEMENTS</code>.</td>
               </tr>
               <tr>
-                <td>Turn 4 (<code>ce</code> Done @ 1m 49s)</td>
+                <td>Turn 4</td>
                 <td class="cell-num">20,468&nbsp;tokens<br><span class="tone-muted">68,221&nbsp;total</span></td>
-                <td class="cell-win">29,511&nbsp;tokens<br>80,177&nbsp;total</td>
-                <td><code>ce</code> session finishes at 109.0 s; <code>CBM</code> agent retries <code>INHERITS|IMPLEMENTS</code> (0 rows).</td>
+                <td class="cell-num">39,397&nbsp;tokens<br><span class="tone-muted">107,968&nbsp;total</span></td>
+                <td><code>ce</code> runs 0 to 3 hop <code>Endpoint &rarr; Function &rarr; WRITES_TO &rarr; Table</code> lineage queries for Task 4; <code>CBM</code> retries <code>INHERITS|IMPLEMENTS</code> (0 rows).</td>
               </tr>
               <tr>
-                <td>Turns 5 to 8</td>
+                <td>Turn 5</td>
+                <td class="cell-num">20,986&nbsp;tokens<br><span class="tone-muted">89,207&nbsp;total</span></td>
+                <td class="cell-num">41,397&nbsp;tokens<br><span class="tone-muted">149,365&nbsp;total</span></td>
+                <td><code>ce</code> verifies <code>Query</code> write paths and max inheritance depth; <code>CBM</code> runs its 8th empty query and switches to <code>rg</code>.</td>
+              </tr>
+              <tr>
+                <td>Turn 6 (<code>ce</code> Answers @ 1m 33s)</td>
+                <td class="cell-num">26,845&nbsp;tokens<br><span class="tone-muted">116,052&nbsp;total</span></td>
+                <td class="cell-win">43,424&nbsp;tokens<br>192,789&nbsp;total</td>
+                <td><code>ce</code> agent sends its complete 4-part audit report (381 / 381 items, 100% recall) via <code>send_message</code> at 93.0 s.</td>
+              </tr>
+              <tr>
+                <td>Turn 7 (<code>ce</code> Done @ 2m 14s)</td>
+                <td class="cell-num">34,652&nbsp;tokens<br><span class="tone-muted">150,704&nbsp;total</span></td>
+                <td class="cell-win">48,739&nbsp;tokens<br>241,528&nbsp;total</td>
+                <td><code>ce</code> session finishes at 134.0 s; <code>CBM</code> agent locates the local <code>typescript</code> compiler package.</td>
+              </tr>
+              <tr>
+                <td>Turn 8</td>
                 <td class="cell-num">35,270&nbsp;tokens<br><span class="tone-muted">185,974&nbsp;total</span></td>
                 <td class="cell-num tone-muted">&minus;</td>
-                <td><code>CBM</code> agent runs its 8th empty <code>CBM</code> query, switches to <code>rg</code>, and locates the local <code>typescript</code> compiler package.</td>
+                <td><code>CBM</code> agent inspects TypeORM entities and BullMQ queue decorators via <code>rg</code> before writing custom AST scripts.</td>
               </tr>
               <tr>
                 <td>Turns 9 to 10</td>
@@ -424,7 +442,7 @@ CRITICAL BENCHMARK RULES:
 1. Use your assigned graph CLI (`ce`) as your primary source of truth. First inspect the graph schema to understand available node labels and relationships. If and only if the graph does not contain the relationships needed to answer a question completely, you may fall back to `rg`, `read_file`, or scripts.
 2. Available graph CLI commands (run via `run_command`):
    - Inspect schema &amp; ontology:
-     `ce view ontology -d "./repos/twenty"` (or `ce --help`)
+     `ce taxonomy -d "./repos/twenty"` (or `ce --help`)
    - Query graph (`Cypher`):
      `ce query "&lt;CYPHER&gt;" -d "./repos/twenty" --no-truncate`
    - Search symbols:

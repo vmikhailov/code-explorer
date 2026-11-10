@@ -1,65 +1,86 @@
 {
   "ce": {
-    "conversation_id": "bedf356b-ec71-4183-b324-5887ce9e397d",
-    "start_time": "2026-11-09T14:20:21Z",
-    "send_message_time": "2026-11-09T14:21:02Z",
-    "end_time": "2026-11-09T14:22:10Z",
-    "time_to_answer_s": 41.0,
-    "total_wall_s": 109.0,
-    "total_steps": 12,
-    "llm_turns": 4,
-    "tool_calls_total": 7,
+    "conversation_id": "4a49e7f1-4409-412d-b24b-a70a3172e37c",
+    "start_time": "2026-10-11T08:18:01Z",
+    "send_message_time": "2026-10-11T08:19:34Z",
+    "end_time": "2026-10-11T08:20:15Z",
+    "time_to_answer_s": 93.0,
+    "total_wall_s": 134.0,
+    "total_steps": 23,
+    "llm_turns": 7,
+    "tool_calls_total": 15,
     "tool_by_name": {
-      "run_command": 6,
+      "run_command": 14,
       "send_message": 1
     },
     "cmd_breakdown": {
-      "ce_cli": 6,
+      "ce_cli": 14,
       "cbm_cli": 0,
       "rg_or_script": 0
     },
-    "raw_tool_chars": 36834,
-    "raw_tool_tokens": 9208,
-    "thinking_chars": 2660,
-    "thinking_tokens": 665,
-    "output_chars": 27255,
-    "output_tokens": 8255,
-    "input_tokens": 31563,
-    "cache_read_tokens": 48614,
+    "raw_tool_chars": 82146.0,
+    "raw_tool_tokens": 20536,
+    "thinking_chars": 0.0,
+    "thinking_tokens": 0,
+    "output_chars": 31124,
+    "output_tokens": 7741,
+    "input_tokens": 52517,
+    "cache_read_tokens": 189011,
     "compactions": 0,
     "compaction_turns": [],
-    "cum_input_tokens": 80177,
+    "cum_input_tokens": 241528,
     "milestones": {
       "turn_1": {
-        "input_tokens": 13598,
+        "input_tokens": 18091,
         "cache_read_tokens": 0,
-        "output_tokens": 117,
-        "active_tokens": 13598,
-        "cum_input_tokens": 13598
+        "output_tokens": 53,
+        "active_tokens": 18091,
+        "cum_input_tokens": 18091
       },
       "turn_2": {
-        "input_tokens": 3045,
-        "cache_read_tokens": 11544,
-        "output_tokens": 1174,
-        "active_tokens": 14589,
-        "cum_input_tokens": 28187
+        "input_tokens": 2743,
+        "cache_read_tokens": 17178,
+        "output_tokens": 863,
+        "active_tokens": 19921,
+        "cum_input_tokens": 38012
       },
       "turn_3": {
-        "input_tokens": 7889,
-        "cache_read_tokens": 14590,
-        "output_tokens": 6911,
-        "active_tokens": 22479,
-        "cum_input_tokens": 50666
+        "input_tokens": 10637,
+        "cache_read_tokens": 19922,
+        "output_tokens": 671,
+        "active_tokens": 30559,
+        "cum_input_tokens": 68571
       },
       "turn_4": {
-        "input_tokens": 7031,
-        "cache_read_tokens": 22480,
-        "output_tokens": 53,
-        "active_tokens": 29511,
-        "cum_input_tokens": 80177
+        "input_tokens": 8837,
+        "cache_read_tokens": 30560,
+        "output_tokens": 525,
+        "active_tokens": 39397,
+        "cum_input_tokens": 107968
+      },
+      "turn_5": {
+        "input_tokens": 3394,
+        "cache_read_tokens": 38003,
+        "output_tokens": 396,
+        "active_tokens": 41397,
+        "cum_input_tokens": 149365
+      },
+      "turn_6": {
+        "input_tokens": 3501,
+        "cache_read_tokens": 39923,
+        "output_tokens": 5199,
+        "active_tokens": 43424,
+        "cum_input_tokens": 192789
+      },
+      "turn_7": {
+        "input_tokens": 5314,
+        "cache_read_tokens": 43425,
+        "output_tokens": 34,
+        "active_tokens": 48739,
+        "cum_input_tokens": 241528
       }
     },
-    "final_report_chars": 23297
+    "final_report_chars": 22434
   },
   "cbm": {
     "conversation_id": "9a849d22-410a-4a6e-89ae-ad22d2a1c049",

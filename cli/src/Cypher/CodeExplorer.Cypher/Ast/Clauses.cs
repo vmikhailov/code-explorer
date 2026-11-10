@@ -4,7 +4,13 @@ public record MatchClause(bool IsOptional, List<PathPattern> Paths, WhereClause?
 
 public record WhereClause(Expression Predicate);
 
-public record WithClause(bool IsDistinct, List<ProjectionItem> Items, WhereClause? Where = null);
+public record WithClause(
+    bool IsDistinct,
+    List<ProjectionItem> Items,
+    WhereClause? Where = null,
+    OrderByClause? OrderBy = null,
+    SkipClause? Skip = null,
+    LimitClause? Limit = null);
 
 public record UnwindClause(Expression Expression, string Alias);
 

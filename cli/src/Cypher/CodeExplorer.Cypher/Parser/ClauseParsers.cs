@@ -34,37 +34,6 @@ public static class ClauseParsers
             select new ProjectionItem(expr, alias)
         );
 
-    // WITH [DISTINCT] item, item... [WHERE ...]
-    public static TokenListParser<CypherToken, WithClause> With { get; } =
-        from withTok in Token.EqualTo(CypherToken.With)
-        from distinct in Token.EqualTo(CypherToken.Distinct).Optional()
-        from items in ProjectionItem.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
-        from whereClause in Where.OptionalOrDefault()
-        select new WithClause(distinct.HasValue, [.. items], whereClause);
-
-    // UNWIND expr AS alias
-    public static TokenListParser<CypherToken, UnwindClause> Unwind { get; } =
-        from unwindTok in Token.EqualTo(CypherToken.Unwind)
-        from expr in ExpressionParsers.ExpressionParser
-        from asTok in Token.EqualTo(CypherToken.As)
-        from alias in ExpressionParsers.PropertyNameText
-        select new UnwindClause(expr, alias);
-
-    // CALL { query }
-    public static TokenListParser<CypherToken, CallClause> Call { get; } =
-        from callTok in Token.EqualTo(CypherToken.Call)
-        from open in Token.EqualTo(CypherToken.LBrace)
-        from subquery in Parse.Ref(() => CypherQueryParser.Query)
-        from close in Token.EqualTo(CypherToken.RBrace)
-        select new CallClause(subquery);
-
-    // RETURN [DISTINCT] item, item...
-    public static TokenListParser<CypherToken, ReturnClause> Return { get; } =
-        from returnTok in Token.EqualTo(CypherToken.Return)
-        from distinct in Token.EqualTo(CypherToken.Distinct).Optional()
-        from items in ProjectionItem.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
-        select new ReturnClause(distinct.HasValue, [.. items]);
-
     // ORDER BY item [ASC|DESC], ...
     public static TokenListParser<CypherToken, OrderByClause> OrderBy { get; } =
         from order in Token.EqualTo(CypherToken.Order)
@@ -90,4 +59,39 @@ public static class ClauseParsers
         from limit in Token.EqualTo(CypherToken.Limit)
         from expr in ExpressionParsers.ExpressionParser
         select new LimitClause(expr, expr is NumberLiteralExpression num && num.IsInteger ? (int)num.Value : null);
+
+    // WITH [DISTINCT] item, item... [WHERE ...] [ORDER BY ...] [SKIP ...] [LIMIT ...] [WHERE ...]
+    public static TokenListParser<CypherToken, WithClause> With { get; } =
+        from withTok in Token.EqualTo(CypherToken.With)
+        from distinct in Token.EqualTo(CypherToken.Distinct).Optional()
+        from items in ProjectionItem.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+        from whereBefore in Where.OptionalOrDefault()
+        from orderBy in OrderBy.OptionalOrDefault()
+        from skip in Skip.OptionalOrDefault()
+        from limit in Limit.OptionalOrDefault()
+        from whereAfter in Where.OptionalOrDefault()
+        select new WithClause(distinct.HasValue, [.. items], whereAfter ?? whereBefore, orderBy, skip, limit);
+
+    // UNWIND expr AS alias
+    public static TokenListParser<CypherToken, UnwindClause> Unwind { get; } =
+        from unwindTok in Token.EqualTo(CypherToken.Unwind)
+        from expr in ExpressionParsers.ExpressionParser
+        from asTok in Token.EqualTo(CypherToken.As)
+        from alias in ExpressionParsers.PropertyNameText
+        select new UnwindClause(expr, alias);
+
+    // CALL { query }
+    public static TokenListParser<CypherToken, CallClause> Call { get; } =
+        from callTok in Token.EqualTo(CypherToken.Call)
+        from open in Token.EqualTo(CypherToken.LBrace)
+        from subquery in Parse.Ref(() => CypherQueryParser.Query)
+        from close in Token.EqualTo(CypherToken.RBrace)
+        select new CallClause(subquery);
+
+    // RETURN [DISTINCT] item, item...
+    public static TokenListParser<CypherToken, ReturnClause> Return { get; } =
+        from returnTok in Token.EqualTo(CypherToken.Return)
+        from distinct in Token.EqualTo(CypherToken.Distinct).Optional()
+        from items in ProjectionItem.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+        select new ReturnClause(distinct.HasValue, [.. items]);
 }

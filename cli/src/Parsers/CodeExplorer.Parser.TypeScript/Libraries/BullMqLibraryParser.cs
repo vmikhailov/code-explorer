@@ -57,6 +57,16 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
                     var classNode = node.Parent;
                     while (classNode.IsValid() && !classNode.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
                     {
+                        if (classNode.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+                        {
+                            var exportedClass = classNode.FindChildOfType(TreeSitterSyntax.TypeScript.ClassDeclaration)
+                                             ?? classNode.FindChildOfType(TreeSitterSyntax.TypeScript.ClassExpression);
+                            if (exportedClass.IsValid())
+                            {
+                                classNode = exportedClass;
+                                break;
+                            }
+                        }
                         classNode = classNode.Parent;
                     }
 

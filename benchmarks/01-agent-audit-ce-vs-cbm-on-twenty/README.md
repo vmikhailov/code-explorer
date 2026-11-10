@@ -4,7 +4,7 @@
 >
 > Because `CBM`'s static graph returned only **`3.4%` (`13 / 381`)** of ground-truth items (`13 / 93` intra-class calls on Task 1 and `0%` on Tasks 2, 3, 4), the **`CBM` Agent abandoned `codebase-memory-mcp` after Turn 5** and spent **23 turns running `15` `rg`/Node.js commands, writing `3` custom TypeScript Compiler AST scripts (`1,037` LOC), and reading `10` source files**.
 >
-> By contrast, the **`CodeExplorer` Agent** inspected the graph ontology on Turn 1 (`ce view ontology`) and solved all 4 tasks directly from `.codeexplorer/graph.db` in **5 OpenCypher queries on Turn 2 (`0` source files read, `0` scripts written)**—finishing in **`41s` vs. `9m 15s` (`13.5×` faster)**, using **`7×` fewer LLM turns (`28` → `4`)**, **`20.9×` fewer input tokens (`1.68M` → `80.2K`)**, and **`5.3×` lower API cost**.
+> By contrast, the **`CodeExplorer` Agent** inspected the layered YAML graph taxonomy on Turn 1 (`ce taxonomy`) and solved all 4 tasks directly from `.codeexplorer/graph.db` in **13 OpenCypher queries (`0` source files read, `0` scripts written)**—finishing in **`1m 33s` (`93s`) vs. `9m 15s` (`6.0×` faster)**, using **`4.0×` fewer LLM turns (`28` → `7`)**, **`7.0×` fewer input tokens (`1.68M` → `241.5K`)**, **`3.9×` lower API cost**, and achieving **`100%` (`381 / 381`) direct graph recall**.
 
 ---
 
@@ -20,42 +20,42 @@ To answer both questions, **Case Study 01** pairs two agents head-to-head on [`t
 | :--- | :--- |
 | **Workspace Scale** | **46 packages** (`twenty-server`, `twenty-front`, `twenty-shared`, `twenty-sdk`, `twenty-ui`, `twenty-emails`, etc.), **24,527 tracked files**, **~2.49M LOC** |
 | **Backend Architecture** | **TypeScript / NestJS**, **GraphQL** (`@Mutation`, `@Query`, `@Resolver`), **REST** (`@Controller`), **TypeORM** (`@Entity`, `InjectRepository`), **ClickHouse**, **BullMQ** (`InjectMessageQueue`, `@Processor`) |
-| **CodeExplorer Graph (`.codeexplorer/graph.db`)** | **456,711 Nodes** & **960,660 Semantic Edges** (`784.0 MB`, indexed in `147.33 s`) |
+| **CodeExplorer Graph (`.codeexplorer/graph.db`, `v1.77.2`)** | **455,958 Nodes** & **1,002,362 Semantic Edges** |
 | **`codebase-memory-mcp` Graph (`CBM` `v0.12.1`)** | **251,750 Nodes** & **914,479 Edges** (`842.5 MB`, indexed in `96.90 s`) |
 
 ---
 
 ## 2. Executive Summary & Telemetry Scorecard
 
-Both agents (`ce` conversation `bedf356b-ec71-4183-b324-5887ce9e397d` and `cbm` conversation `9a849d22-410a-4a6e-89ae-ad22d2a1c049`) were launched simultaneously (`14:20:21 UTC` and `14:20:22 UTC`) with the exact same model (`Model: "inherit"` — **Gemini 3.8 Flash**), identical task prompt ([`prompts/task-prompt.md`](./prompts/task-prompt.md)), and word-for-word symmetric system prompts ([`prompts/ce-agent.md`](./prompts/ce-agent.md) vs. [`prompts/cbm-agent.md`](./prompts/cbm-agent.md)). All token counts below are exact API-billed token counts (`input_tokens`, `cache_read_tokens`, `output_tokens`) extracted directly from `transcript_full.jsonl`:
+Both agents (`ce` conversation `4a49e7f1-4409-412d-b24b-a70a3172e37c` and `cbm` conversation `9a849d22-410a-4a6e-89ae-ad22d2a1c049`) were evaluated with the exact same model (`Model: "inherit"` — **Gemini 3.8 Flash**), identical task prompt ([`prompts/task-prompt.md`](./prompts/task-prompt.md)), and word-for-word symmetric system prompts ([`prompts/ce-agent.md`](./prompts/ce-agent.md) vs. [`prompts/cbm-agent.md`](./prompts/cbm-agent.md)). All token counts below are exact API-billed token counts (`input_tokens`, `cache_read_tokens`, `output_tokens`) extracted directly from `transcript_full.jsonl`:
 
-| Metric | `CBM` Agent (`8` `cbm` CLI + `15` `rg`/Node Runs + `3` AST Scripts + `10` File Reads) | `CodeExplorer` Agent (`1` `ce view ontology` + `5` `ce query`) | Improvement / Delta |
+| Metric | `CBM` Agent (`8` `cbm` CLI + `15` `rg`/Node Runs + `3` AST Scripts + `10` File Reads) | `CodeExplorer` Agent (`1` `ce taxonomy` + `13` `ce query`) | Improvement / Delta |
 | :--- | :---: | :---: | :---: |
-| **Time to Answer (`send_message` start)** | `555.0 s` (**9 min 15 sec**) | **`41.0 s` (0 min 41 sec)** | **`13.54×` faster** (`-8 min 34 sec` saved) |
-| **Total Session Wall-Clock (incl. report streaming)** | `634.0 s` (**10 min 34 sec**) | **`109.0 s` (1 min 49 sec)** | **`5.82×` faster** (`-8 min 45 sec` saved) |
-| **Total Trajectory Steps** | `67` | **`12`** | **`5.58×` fewer steps** |
-| **LLM Reasoning Turns (`PLANNER_RESPONSE`)** | `28` | **`4`** | **`7.00×` fewer turns** (`-85.7%`) |
-| **Total Tool Calls** | `37` (`8` `cbm` CLI, `15` `rg`/Node runs, `10` `view_file`, `3` `write_file` scripts, `1` `send_message`) | **`7`** (`1` `ce view ontology`, `5` `ce query`, **`0` `view_file`**, **`0` scripts written**, `1` `send_message`) | **`5.29×` fewer tool calls** (`10` → `0` file reads) |
-| **Raw Tool Output Ingested** | `243,355 chars` (`~60,838 tokens`) | **`36,834 chars` (`~9,208 tokens`)** | **`6.61×` less tool output** (`-84.9%`) |
-| **Uncached Input Tokens (`input_tokens`)** | `129,424 tokens` | **`31,563 tokens`** | **`4.10×` fewer uncached input tokens** |
-| **Cached Input Tokens (`cache_read_tokens`)** | `1,549,489 tokens` | **`48,614 tokens`** | **`31.87×` fewer cached input tokens** |
-| **Cumulative Input Tokens (`uncached + cached`)** | **`1,678,913 tokens`** | **`80,177 tokens`** | **`20.94×` fewer input tokens** (`-1.60M` tokens saved!) |
-| **Generated Output Tokens (`output_tokens`)** | `29,139 tokens` | **`8,255 tokens`** | **`3.53×` fewer output tokens** |
-| **Direct Graph Recall (Without `rg`/AST Script Fallback)** | **`3.4%` (`13 / 381`)** — `13 / 93` on Task 1 (`0` cross-file DI calls); `0%` on Tasks 2, 3, 4 | **`99%` (`378 / 381`)** | **`99%` vs. `3.4%` native graph coverage** |
-| **Final Audit Completeness (After `CBM` Agent's 3 TS Compiler Scripts)** | **`100%`** *(required writing 1,037 LOC of custom TypeScript Compiler AST scripts)* | **`99%` (`378 / 381`)** | **Solved directly from `graph.db` (`0` scripts, `0` file reads)** |
+| **Time to Answer (`send_message` start)** | `555.0 s` (**9 min 15 sec**) | **`93.0 s` (1 min 33 sec)** | **`5.97×` faster** (`-7 min 42 sec` saved) |
+| **Total Session Wall-Clock (incl. report streaming)** | `634.0 s` (**10 min 34 sec**) | **`134.0 s` (2 min 14 sec)** | **`4.73×` faster** (`-8 min 20 sec` saved) |
+| **Total Trajectory Steps** | `67` | **`23`** | **`2.91×` fewer steps** |
+| **LLM Reasoning Turns (`PLANNER_RESPONSE`)** | `28` | **`7`** | **`4.00×` fewer turns** (`-75.0%`) |
+| **Total Tool Calls** | `37` (`8` `cbm` CLI, `15` `rg`/Node runs, `10` `view_file`, `3` `write_file` scripts, `1` `send_message`) | **`15`** (`1` `ce taxonomy`, `13` `ce query`, **`0` `view_file`**, **`0` scripts written**, `1` `send_message`) | **`2.47×` fewer tool calls** (`10` → `0` file reads) |
+| **Raw Tool Output Ingested** | `243,355 chars` (`~60,838 tokens`) | **`82,146 chars` (`~20,536 tokens`)** | **`2.96×` less tool output** (`-66.2%`) |
+| **Uncached Input Tokens (`input_tokens`)** | `129,424 tokens` | **`52,517 tokens`** | **`2.46×` fewer uncached input tokens** |
+| **Cached Input Tokens (`cache_read_tokens`)** | `1,549,489 tokens` | **`189,011 tokens`** | **`8.20×` fewer cached input tokens** |
+| **Cumulative Input Tokens (`uncached + cached`)** | **`1,678,913 tokens`** | **`241,528 tokens`** | **`6.95×` fewer input tokens** (`-1.44M` tokens saved!) |
+| **Generated Output Tokens (`output_tokens`)** | `29,139 tokens` | **`7,741 tokens`** | **`3.76×` fewer output tokens** |
+| **Direct Graph Recall (Without `rg`/AST Script Fallback)** | **`3.4%` (`13 / 381`)** — `13 / 93` on Task 1 (`0` cross-file DI calls); `0%` on Tasks 2, 3, 4 | **`100%` (`381 / 381`)** | **`100%` vs. `3.4%` native graph coverage** |
+| **Final Audit Completeness (After `CBM` Agent's 3 TS Compiler Scripts)** | **`100%`** *(required writing 1,037 LOC of custom TypeScript Compiler AST scripts)* | **`100%` (`381 / 381`)** | **Solved directly from `graph.db` (`0` scripts, `0` file reads)** |
 
 ```mermaid
 flowchart LR
-    subgraph Harness["Simultaneous A/B Agent Audit on twentyhq/twenty (100% Symmetric Prompts)"]
+    subgraph Harness["A/B Agent Audit on twentyhq/twenty (100% Symmetric Prompts)"]
         Prompt["Symmetric System Prompt + 4-Part Audit Task\n(Turn 1: Inspect Graph Schema -> Query Graph)"]
         Prompt --> CbmAgent["CBM Agent (codebase-memory-mcp v0.12.1)"]
-        Prompt --> CeAgent["CodeExplorer Agent (ce v1.75.1)"]
+        Prompt --> CeAgent["CodeExplorer Agent (ce v1.77.2)"]
     end
 
     CbmAgent -->|"Turns 1–5: 8 CBM CLI calls\nReturns 13/93 intra-class calls (0 DI calls)\nand 0% on Tasks 2, 3, 4"| Fallback["Turns 5–26: Abandons CBM Graph\nRuns 15 rg/Node commands + 10 file reads\nWrites 3 TS Compiler AST scripts (1,037 LOC)"]
     Fallback -->|"Turn 27–28: 9m 15s time-to-answer\n10m 34s total wall-clock\n1.68M cumulative input tokens"| CbmResult["CBM Agent Final\n634s Wall / 28 Turns / 1.68M Tokens"]
 
-    CeAgent -->|"Turn 1: ce view ontology\nTurn 2: 5 parallel OpenCypher queries\n0 source files read, 0 scripts written"| CeResult["CodeExplorer Agent Final\n41s Answer (109s Wall) / 4 Turns / 80.2K Tokens"]
+    CeAgent -->|"Turn 1: ce taxonomy\nTurns 2–5: 13 OpenCypher queries\n0 source files read, 0 scripts written"| CeResult["CodeExplorer Agent Final\n93s Answer (134s Wall) / 7 Turns / 241.5K Tokens"]
 ```
 
 ---
@@ -63,18 +63,18 @@ flowchart LR
 ## 3. What Happened Inside Both Agents Under 100% Symmetric Prompts
 
 Because neither system prompt contained any Cypher examples or hints about tool capabilities, both agents started identically on **Turn 1**:
-- **`ce` Agent (`Step 1` @ `14:20:21Z`)**: Ran `ce view ontology -d "./repos/twenty"`, receiving the compact node/edge schema (`Type`, `Function`, `Endpoint`, `Topic`, `Query`, `Table`, `HAS_METHOD`, `CALLS`, `INHERITS_FROM`, `IMPLEMENTS`, `PUBLISHED_BY`, `SUBSCRIBED_BY`, `EXPOSED_BY`, `ACCESSED_BY`, `WRITES_TO`).
+- **`ce` Agent (`Step 1` @ `10:18:01Z`)**: Ran `ce taxonomy -d "./repos/twenty"`, receiving the 5-layer YAML ontology (`L1_physical`, `L2_boundaries`, `L3_syntactic`, `L4_semantic`, `L5_logical` nodes and `HAS_METHOD`, `CALLS`, `INHERITS_FROM`, `IMPLEMENTS`, `PUBLISHED_BY`, `SUBSCRIBED_BY`, `EXPOSED_BY`, `ACCESSED_BY`, `WRITES_TO` relationships).
 - **`cbm` Agent (`Step 1` @ `14:20:22Z`)**: Ran `codebase-memory-mcp cli get_graph_schema --project twenty --format json`, receiving `CBM`'s schema (`Class`, `Method`, `Function`, `Interface`, `Route`, `Channel`, `Table`, `CALLS`, `INHERITS`, `IMPLEMENTS`, etc.).
 
-On **Turn 2 (`Step 3`)**, both agents dispatched parallel Cypher queries against their respective graphs. Here is what each graph returned natively:
+Both agents then dispatched parallel Cypher queries against their respective graphs. Here is what each graph returned natively:
 
-| Audit Task | Total Ground-Truth Items | What `codebase-memory-mcp` (`v0.12.1`) Returned (`Turns 1–5`, `8` CLI calls) | What `CodeExplorer` (`v1.75.1`) Returned (`Turn 2`, `5` Queries) | Why `codebase-memory-mcp` Failed on `twentyhq/twenty` |
+| Audit Task | Total Ground-Truth Items | What `codebase-memory-mcp` (`v0.12.1`) Returned (`Turns 1–5`, `8` CLI calls) | What `CodeExplorer` (`v1.77.2`) Returned (`13` Queries) | Why `codebase-memory-mcp` Failed on `twentyhq/twenty` |
 | :--- | :---: | :---: | :---: | :--- |
-| **Task 1: Cross-Module DI Service Call Fan-In**<br>(`BillingSubscriptionService` `54`, `ThrottlerService` `24`, `AccessTokenService` `15`) | **`93`** distinct call pairs<br>(`80` cross-class DI + `13` intra-class) | **`13 / 93` (`14.0%`)**<br>*(Only `this.method()` intra-class self-calls; **`0 / 80` (`0%`)** cross-file DI calls)* | **`93 / 93` (`100%`)**<br>(`54 + 24 + 15` exact match in 1 query) | `CBM` does not resolve TypeScript constructor property promotion (`constructor(private readonly throttlerService: ThrottlerService)`) across files. |
+| **Task 1: Cross-Module DI Service Call Fan-In**<br>(`BillingSubscriptionService` `54`, `ThrottlerService` `24`, `AccessTokenService` `15`) | **`93`** distinct call pairs<br>(`80` cross-class DI + `13` intra-class) | **`13 / 93` (`14.0%`)**<br>*(Only `this.method()` intra-class self-calls; **`0 / 80` (`0%`)** cross-file DI calls)* | **`93 / 93` (`100%`)**<br>(`54 + 24 + 15` exact match) | `CBM` does not resolve TypeScript constructor property promotion (`constructor(private readonly throttlerService: ThrottlerService)`) across files. |
 | **Task 2: Class Inheritance & Interface Realization**<br>(`SyncableEntity` `43`, `WorkspaceRelatedEntity` `67`, `WorkspaceEntityMigrationBuilderService` `42`, `WorkspaceResolverBuilderFactoryInterface` `15`) | **`167`** classes<br>(`43 + 67 + 42 + 15`) | **`0 / 167` (`0.0%`)**<br>*(First failed with syntax error on `*1..3`, then returned `0` rows on 1-hop and undirected `INHERITS\|IMPLEMENTS`)* | **`167 / 167` (`100%`)**<br>(`43`, `67`, `42`, `15` exact match by hop distance) | `CBM` fails to link `INHERITS` / `IMPLEMENTS` when the base class or interface is imported across TypeScript files, and does not support `[r:INHERITS\|IMPLEMENTS*1..3]` syntax. |
-| **Task 3: BullMQ Asynchronous Queue Topology**<br>(`webhook-queue`, `workspace-queue`, `campaign-queue`, `ai-queue`, `delete-cascade-queue`) | **`76`** methods<br>(`39` producers + `37` consumers) | **`0 / 76` (`0.0%`)**<br>*(Returned 5 Socket.IO `data`/`close`/`error` channels and noisy `Route` strings)* | **`76 / 76` (`100%`)**<br>(`39` `PUBLISHED_BY` + `37` `SUBSCRIBED_BY` in 1 query) | `CBM` does not model NestJS `@InjectMessageQueue(MessageQueue.x)` producers or `@Processor` / `@Process` consumers. |
-| **Task 4: End-to-End API-to-Database Write Lineage**<br>(`billingSubscription` `10`, `billingCustomer` `12`, `connectedAccount` `13`, `messageChannel` `10`) | **`45`** endpoint-to-table pairs | **`0 / 45` (`0.0%`)**<br>*(Returned 10 ClickHouse analytics tables; `0` TypeORM tables or GraphQL mutations)* | **`42 / 45` (`93.3%`)** | `CBM` has no ontology for TypeORM `@Entity` table mapping, repository write calls (`WRITES_TO`), or NestJS GraphQL `@Mutation` endpoints. |
-| **Total Native Graph Coverage** | **`381` items** | **`13 / 381` (`3.4%`)** | **`378 / 381` (`99%`)** | **`CodeExplorer` resolved `29×` more ground-truth items directly from the graph (`99%` vs. `3.4%`).** |
+| **Task 3: BullMQ Asynchronous Queue Topology**<br>(`webhook-queue`, `workspace-queue`, `campaign-queue`, `ai-queue`, `delete-cascade-queue`) | **`76`** methods<br>(`39` producers + `37` consumers) | **`0 / 76` (`0.0%`)**<br>*(Returned 5 Socket.IO `data`/`close`/`error` channels and noisy `Route` strings)* | **`76 / 76` (`100%`)**<br>(`39` `PUBLISHED_BY` + `37` `SUBSCRIBED_BY`) | `CBM` does not model NestJS `@InjectMessageQueue(MessageQueue.x)` producers or `@Processor` / `@Process` consumers. |
+| **Task 4: End-to-End API-to-Database Write Lineage**<br>(`billingSubscription` `10`, `billingCustomer` `12`, `connectedAccount` `13`, `messageChannel` `10`) | **`45`** endpoint-to-table pairs | **`0 / 45` (`0.0%`)**<br>*(Returned 10 ClickHouse analytics tables; `0` TypeORM tables or GraphQL mutations)* | **`45 / 45` (`100%`)** | `CBM` has no ontology for TypeORM `@Entity` table mapping, repository write calls (`WRITES_TO`), or NestJS GraphQL `@Mutation` endpoints. |
+| **Total Native Graph Coverage** | **`381` items** | **`13 / 381` (`3.4%`)** | **`381 / 381` (`100%`)** | **`CodeExplorer` resolved `29×` more ground-truth items directly from the graph (`100%` vs. `3.4%`).** |
 
 At **Step 7 (`14:21:13Z`)** and **Step 16 (`14:22:19Z`)**, `cbm_twenty_v2_agent` recorded the following verbatim diagnosis in its `thinking` trace:
 
@@ -145,9 +145,9 @@ When we first stripped the pre-baked Cypher queries out of the system prompt and
 | :--- | :---: | :---: | :---: | :---: |
 | `billingSubscription` | `10` (`9` GraphQL `@Mutation` + `1` REST `POST`) | `0 / 10` (`0%`) | `10 / 10` (`100%`) | **`10 / 10` (`100%`)** |
 | `billingCustomer` | `12` (`11` GraphQL `@Mutation` + `1` REST `POST`) | `0 / 12` (`0%`) | `12 / 12` (`100%`) | **`12 / 12` (`100%`)** |
-| `connectedAccount` | `13` (`6` GraphQL `@Mutation` + `7` REST) | `0 / 13` (`0%`) | `13 / 13` (`100%`) | **`11 / 13` (`84.6%`)** $\to$ **`13 / 13` (`100%`)** post-fix |
-| `messageChannel` | `10` (`8` GraphQL `@Mutation` + `2` REST `GET`) | `0 / 10` (`0%`) | `10 / 10` (`100%`) | **`9 / 10` (`90.0%`)** $\to$ **`10 / 10` (`100%`)** post-fix |
-| **Task 4 Total** | **`45`** | **`0 / 45` (`0.0%`)** | **`45 / 45` (`100.0%`)** | **`42 / 45` (`93.3%`)** $\to$ **`45 / 45` (`100.0%`)** |
+| `connectedAccount` | `13` (`6` GraphQL `@Mutation` + `7` REST) | `0 / 13` (`0%`) | `13 / 13` (`100%`) | **`13 / 13` (`100%`)** |
+| `messageChannel` | `10` (`8` GraphQL `@Mutation` + `2` REST `GET`) | `0 / 10` (`0%`) | `10 / 10` (`100%`) | **`10 / 10` (`100%`)** |
+| **Task 4 Total** | **`45`** | **`0 / 45` (`0.0%`)** | **`45 / 45` (`100.0%`)** | **`45 / 45` (`100.0%`)** |
 
 ---
 
@@ -160,23 +160,26 @@ Cumulative Billed Input Tokens Across Agent Turns (Case Study 01 — twentyhq/tw
 ===================================================================================
 
 CBM Agent (28 turns, 8 CBM + 15 rg/Node + 3 AST scripts + 10 files): ████████████████████████████████████████ 1,678,913 tokens
-CodeExplorer Agent (4 turns, 1 ontology + 5 Cypher queries, 0 files): ██                                          80,177 tokens
-                                                                      ^ 20.94x reduction in cumulative input tokens!
+CodeExplorer Agent (7 turns, 1 taxonomy + 13 Cypher queries, 0 files): ██████                                    241,528 tokens
+                                                                        ^ 6.95x reduction in cumulative input tokens!
 ```
 
 | Turn / Stage | `CBM` Agent Context (`cumulative input`) | `CodeExplorer` Agent Context (`cumulative input`) | Agent Activity |
 | :--- | :---: | :---: | :--- |
-| **Turn 1** | `13,697 tokens` (`13,697` total) | `13,598 tokens` (`13,598` total) | Both agents inspect their respective graph schema (`get_graph_schema` vs `ce view ontology`). |
-| **Turn 2** | `14,644 tokens` (`28,341` total) | `14,589 tokens` (`28,187` total) | Both agents dispatch initial parallel Cypher queries (`3` in `cbm`, `5` in `ce`). |
-| **Turn 3 (`ce` Answers @ `41s`)** | `19,412 tokens` (`47,753` total) | **`22,479 tokens` (`50,666` total — Sends Report)** | **`ce` Agent receives all 5 query results inline and calls `send_message` at `41.0 s`**; `cbm` Agent sees `0` cross-file DI calls and `0` rows on Tasks 2–4. |
-| **Turn 4 (`ce` Done @ `1m 49s`)** | `20,468 tokens` (`68,221` total) | **`29,511 tokens` (`80,177` total — Complete)** | **`ce` Agent completes session at `109.0 s`**; `cbm` Agent retries undirected `INHERITS\|IMPLEMENTS` in `CBM` (`0` rows). |
-| **Turns 5 to 8** | `35,270 tokens` (`185,974` total) | — | `cbm` Agent runs its 8th empty `CBM` query, switches to `rg`, and locates the local `typescript` compiler package. |
+| **Turn 1** | `13,697 tokens` (`13,697` total) | `18,091 tokens` (`18,091` total) | Both agents inspect their respective graph schema (`get_graph_schema` vs `ce taxonomy`). |
+| **Turn 2** | `14,644 tokens` (`28,341` total) | `19,921 tokens` (`38,012` total) | Both agents dispatch initial parallel Cypher queries (`3` in `cbm`, `5` in `ce`). |
+| **Turn 3** | `19,412 tokens` (`47,753` total) | `30,559 tokens` (`68,571` total) | `ce` queries Task 1 and Task 3 without file paths and inspects Task 4 tables/endpoints; `cbm` gets `0` rows on `INHERITS\|IMPLEMENTS`. |
+| **Turn 4** | `20,468 tokens` (`68,221` total) | `39,397 tokens` (`107,968` total) | `ce` runs `0..3` hop `Endpoint -> Function -> WRITES_TO -> Table` lineage queries for Task 4; `cbm` retries `INHERITS\|IMPLEMENTS` (`0` rows). |
+| **Turn 5** | `20,986 tokens` (`89,207` total) | `41,397 tokens` (`149,365` total) | `ce` verifies `Query` write paths and max inheritance depth; `cbm` runs its 8th empty query and switches to `rg`. |
+| **Turn 6 (`ce` Answers @ `1m 33s`)** | `26,845 tokens` (`116,052` total) | **`43,424 tokens` (`192,789` total — Sends Report)** | **`ce` Agent sends its complete 4-part audit report (`381 / 381` items, `100%` recall) via `send_message` at `93.0 s`**. |
+| **Turn 7 (`ce` Done @ `2m 14s`)** | `34,652 tokens` (`150,704` total) | **`48,739 tokens` (`241,528` total — Complete)** | **`ce` Agent completes session at `134.0 s`**; `cbm` Agent locates the local `typescript` compiler package. |
+| **Turn 8** | `35,270 tokens` (`185,974` total) | — | `cbm` Agent inspects TypeORM entities and BullMQ queue decorators via `rg` before writing custom AST scripts. |
 | **Turns 9 to 10** | `40,330 tokens` (`261,810` total) | — | Writes and executes `audit_part123.cjs` (`342` lines of TS Compiler AST code) for Tasks 1–3. |
 | **Turns 11 to 16** | `66,022 tokens` (`591,310` total) | — | Writes and executes `audit_part4.cjs` (`345` lines), inspects truncated tool outputs, and runs follow-up `rg` checks. |
 | **Turns 17 to 19** | `78,629 tokens` (`817,158` total) | — | Writes and executes `verify_part3_and_4.cjs` (`350` lines) to refine TypeORM `getRepository` and `entityManager` write detection. |
 | **Turns 20 to 26** | `99,628 tokens` (`1,469,621` total) | — | Runs `rg` and reads 6 source files (GraphQL resolvers, services, and `ApiPath.ts`) via `view_file` to verify routes. |
-| **Turn 27 (`cbm` Answers @ `9m 15s`)** | `100,346 tokens` (`1,569,967` total — Sends Report) | — | **`cbm` Agent calls `send_message` at `555.0 s`** (`13.5×` slower than `ce`). |
-| **Turn 28 (`cbm` Done @ `10m 34s`)** | **`108,946 tokens` (`1,678,913` total — Complete)** | — | **`cbm` Agent finishes session at `634.0 s`** (`5.8×` slower total wall-clock). |
+| **Turn 27 (`cbm` Answers @ `9m 15s`)** | `100,346 tokens` (`1,569,967` total — Sends Report) | — | **`cbm` Agent calls `send_message` at `555.0 s`** (`6.0×` slower than `ce`). |
+| **Turn 28 (`cbm` Done @ `10m 34s`)** | **`108,946 tokens` (`1,678,913` total — Complete)** | — | **`cbm` Agent finishes session at `634.0 s`** (`4.7×` slower total wall-clock). |
 
 ---
 
@@ -184,16 +187,16 @@ CodeExplorer Agent (4 turns, 1 ontology + 5 Cypher queries, 0 files): ██    
 
 Using exact API-billed token counts from `transcript_full.jsonl` and a **90% prompt caching discount** on `cache_read_tokens`:
 
-| Cost Component | `CBM` Agent (`28` turns, `8` `cbm` + `15` `rg`/Node + `3` AST scripts + `10` file reads) | `CodeExplorer` Agent (`4` turns, `1` ontology + `5` Cypher queries, `0` file reads) | Savings Factor |
+| Cost Component | `CBM` Agent (`28` turns, `8` `cbm` + `15` `rg`/Node + `3` AST scripts + `10` file reads) | `CodeExplorer` Agent (`7` turns, `1` taxonomy + `13` Cypher queries, `0` file reads) | Savings Factor |
 | :--- | :---: | :---: | :---: |
-| **Uncached Input Tokens (`input_tokens`)** | `129,424` tokens | **`31,563` tokens** | **`4.10×` fewer** |
-| **Cached Input Tokens (`cache_read_tokens`)** | `1,549,489` tokens | **`48,614` tokens** | **`31.87×` fewer** |
-| **Total Cumulative Input Tokens** | `1,678,913` tokens | **`80,177` tokens** | **`20.94×` fewer** |
-| **Generated Output Tokens (`output_tokens`)** | `29,139` tokens | **`8,255` tokens** | **`3.53×` fewer** |
-| **Input Token Cost (Gemini Flash / Frontier Pro)** | `$0.142` / `$0.569` | **`$0.018` / `$0.073`** | **`7.81×` cheaper input** |
-| **Total API Cost on Gemini Flash** (`$0.50` / `$0.05` / `$3.00` per 1M) | `$0.230` | **`$0.043`** | **`5.34×` cheaper (`-81.3%`)** |
-| **Total API Cost on Frontier Pro** (`$2.00` / `$0.20` / `$10.00` per 1M) | `$0.860` | **`$0.155`** | **`5.54×` cheaper (`-81.9%`)** |
-| **Time to Answer / Total Session Wall-Clock** | `9m 15s` (`555s`) / `10m 34s` (`634s`) | **`41s` / `1m 49s` (`109s`)** | **`13.54×` faster answer / `5.82×` faster wall-clock** |
+| **Uncached Input Tokens (`input_tokens`)** | `129,424` tokens | **`52,517` tokens** | **`2.46×` fewer** |
+| **Cached Input Tokens (`cache_read_tokens`)** | `1,549,489` tokens | **`189,011` tokens** | **`8.20×` fewer** |
+| **Total Cumulative Input Tokens** | `1,678,913` tokens | **`241,528` tokens** | **`6.95×` fewer** |
+| **Generated Output Tokens (`output_tokens`)** | `29,139` tokens | **`7,741` tokens** | **`3.76×` fewer** |
+| **Input Token Cost (Gemini Flash / Frontier Pro)** | `$0.142` / `$0.569` | **`$0.036` / `$0.143`** | **`3.98×` cheaper input** |
+| **Total API Cost on Gemini Flash** (`$0.50` / `$0.05` / `$3.00` per 1M) | `$0.230` | **`$0.059`** | **`3.90×` cheaper (`-74.4%`)** |
+| **Total API Cost on Frontier Pro** (`$2.00` / `$0.20` / `$10.00` per 1M) | `$0.860` | **`$0.220`** | **`3.91×` cheaper (`-74.4%`)** |
+| **Time to Answer / Total Session Wall-Clock** | `9m 15s` (`555s`) / `10m 34s` (`634s`) | **`1m 33s` (`93s`) / `2m 14s` (`134s`)** | **`5.97×` faster answer / `4.73×` faster wall-clock** |
 
 ---
 
@@ -202,8 +205,8 @@ Using exact API-billed token counts from `transcript_full.jsonl` and a **90% pro
 Because `twentyhq/twenty` is public open-source software, **zero anonymization** was applied to any file in this folder—every query, file path, class name, and method name can be verified directly against [`twentyhq/twenty` commit `b9ef71072c06b5fa1853dd7120c7f3b58da0bc50`](https://github.com/twentyhq/twenty/tree/b9ef71072c06b5fa1853dd7120c7f3b58da0bc50):
 
 - [`prompts/task-prompt.md`](./prompts/task-prompt.md) — Exact 4-part architectural audit prompt dispatched identically to both agents.
-- [`prompts/ce-agent.md`](./prompts/ce-agent.md) — Symmetric system instructions for the `CodeExplorer` Agent (`ce` `v1.75.1`).
+- [`prompts/ce-agent.md`](./prompts/ce-agent.md) — Symmetric system instructions for the `CodeExplorer` Agent (`ce` `v1.77.2`).
 - [`prompts/cbm-agent.md`](./prompts/cbm-agent.md) — Symmetric system instructions for the `codebase-memory-mcp` Agent (`CBM` `v0.12.1`).
-- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry (`28` turns vs. `4` turns, turn-by-turn `input_tokens`, `cache_read_tokens`, `output_tokens`, and tool call breakdowns) extracted from `transcript_full.jsonl`.
-- [`results/ce-agent-output.md`](./results/ce-agent-output.md) — Verbatim final report produced by the `CodeExplorer` Agent (`41s` time-to-answer, `1m 49s` total wall-clock, `4` turns, `0` source files read).
+- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry (`28` turns vs. `7` turns, turn-by-turn `input_tokens`, `cache_read_tokens`, `output_tokens`, and tool call breakdowns) extracted from `transcript_full.jsonl`.
+- [`results/ce-agent-output.md`](./results/ce-agent-output.md) — Verbatim final report produced by the `CodeExplorer` Agent (`1m 33s` time-to-answer, `2m 14s` total wall-clock, `7` turns, `0` source files read, `100%` recall).
 - [`results/cbm-agent-output.md`](./results/cbm-agent-output.md) — Verbatim final report produced by the `CBM` Agent (`9m 15s` time-to-answer, `10m 34s` total wall-clock, `28` turns, `3` custom TypeScript Compiler AST scripts, `10` source files read).

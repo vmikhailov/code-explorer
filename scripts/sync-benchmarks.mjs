@@ -376,7 +376,7 @@ function buildBindings(data, rawMilestones01) {
 
     // Scorecard table cells
     b['cs01.tbl_time_cbm'] = `${Math.round(cbm.time_to_answer_s)} s (${fmtDurShort(cbm.time_to_answer_s)})`;
-    b['cs01.tbl_time_ce'] = `${Math.round(ce.time_to_answer_s)} s (0m ${Math.round(ce.time_to_answer_s)}s)`;
+    b['cs01.tbl_time_ce'] = `${Math.round(ce.time_to_answer_s)} s (${fmtDurShort(ce.time_to_answer_s)})`;
     b['cs01.tbl_time_delta'] = `${speedup.toFixed(1)}× faster (${fmtSavedShort(cbm.time_to_answer_s - ce.time_to_answer_s)})`;
 
     b['cs01.tbl_wall_cbm'] = `${Math.round(cbm.wall_clock_s)} s (${fmtDurShort(cbm.wall_clock_s)})`;
@@ -390,7 +390,7 @@ function buildBindings(data, rawMilestones01) {
     b['cs01.tbl_calls_cbm'] =
       `${cbm.tool_calls} (${c1.effort_details.cbm_queries} <code>cbm</code>, ${c1.effort_details.cbm_rg_node_runs} <code>rg</code>/Node, ${c1.effort_details.cbm_file_reads} <code>view_file</code>, ${c1.effort_details.cbm_scripts} scripts, 1 <code>send_message</code>)`;
     b['cs01.tbl_calls_ce'] =
-      `${ce.tool_calls} (${c1.effort_details.ce_ontology_calls} <code>ce view ontology</code>, ${c1.effort_details.ce_cypher_calls} <code>ce query</code>, ${c1.effort_details.ce_file_reads} file reads, 1 <code>send_message</code>)`;
+      `${ce.tool_calls} (${c1.effort_details.ce_ontology_calls} <code>ce taxonomy</code>, ${c1.effort_details.ce_cypher_calls} <code>ce query</code>, ${c1.effort_details.ce_file_reads} file reads, 1 <code>send_message</code>)`;
     b['cs01.tbl_calls_delta'] = `${callsRatio.toFixed(1)}× fewer calls (${c1.effort_details.ce_file_reads} file reads)`;
 
     b['cs01.tbl_payload_cbm'] = `${Math.round(cbm.raw_tool_chars / 1000)} KB (~${(cbm.raw_tool_tokens / 1000).toFixed(1)}K tokens)`;

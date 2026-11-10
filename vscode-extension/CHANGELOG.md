@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.77.2] - 2026-11-10
+
+### Fixed & Optimized
+- **Recursive CTE Neighbor Anchor Pushdown & `WITH ... ORDER BY ...` Support (`CodeExplorer.Cypher`)**:
+  - Extended `BuildAnchorFilterConditions` and `ScoreAnchorSelectivity` in `SqliteCompiler.VariablePaths` to push 1-hop non-optional neighbor constraints (`EXISTS` semi-join over adjacent edges/nodes and `WHERE` predicates) into recursive CTE anchors and walk from the higher-selectivity endpoint (`5.7×` faster multi-hop `Endpoint -> Function -> CALLS*0..3 -> Function -> Table` lineage queries on large monorepos).
+  - Added support for `ORDER BY`, `SKIP`, and `LIMIT` clauses inside `WITH` pipeline stages (`ClauseParsers.With` and `SqliteCompiler.ProcessStageSplitCte`).
+- **Compact Tabular YAML Serialization for Multi-Row Scalar Queries (`ToonYamlSerializer`)**:
+  - Updated `ToonYamlSerializer.SerializeYaml(CypherQueryResult)` to emit `columns: [...]\nrows:\n- [...]` for flat scalar query results with `> 25` rows, avoiding repeated column keys per row and keeping multi-row CLI/MCP query responses within inline output budgets.
+- **BullMQ Exported Class `@Processor` Scope Resolution (`BullMqLibraryParser`)**:
+  - Fixed `BullMqLibraryParser` to inspect `ClassDeclaration` children inside `ExportStatement` parents when resolving `@Processor(...)` decorators on `export class ...` workers, preventing duplicate `<module_init>` `SUBSCRIBED_BY` edges.
+
 ## [1.77.1] - 2026-11-10
 
 ### Changed & Refactored

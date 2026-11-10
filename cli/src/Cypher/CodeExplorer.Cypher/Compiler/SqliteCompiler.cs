@@ -216,9 +216,11 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         for (var withIndex = 0; withIndex < query.WithClauses.Count; withIndex++)
         {
             var with = query.WithClauses[withIndex];
+            var prevWith = withIndex > 0 ? query.WithClauses[withIndex - 1] : null;
             var isStageSplit = with.Items.Any(item =>
                 HasAggregation(item.Expression) &&
-                GetReferencedIdentifiers(item.Expression).Any(id => _aggregatedAliases.Contains(id)));
+                (GetReferencedIdentifiers(item.Expression).Any(id => _aggregatedAliases.Contains(id)) ||
+                 prevWith is { IsDistinct: true } or { OrderBy: not null } or { Skip: not null } or { Limit: not null }));
 
             if (isStageSplit)
             {
@@ -241,15 +243,31 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         var stage1Name = $"_stage_{_ctes.Count + 1}";
         var remainingReferenced = CollectRemainingReferencedIdentifiers(query, withIndex);
         var stage1SelectColumns = BuildStage1SelectColumns(stage1Name, remainingReferenced);
-        var stage1GroupingKeys = DetermineStage1GroupingKeys(query, withIndex, groupByColumns);
+        var prevWith = withIndex > 0 ? query.WithClauses![withIndex - 1] : null;
+        var stage1GroupingKeys = prevWith is { IsDistinct: true } && groupByColumns.Count == 0
+            ? []
+            : DetermineStage1GroupingKeys(query, withIndex, groupByColumns);
 
         var stage1Where = whereConditions.Count > 0 ? $"\nWHERE {string.Join(" AND ", whereConditions)}" : "";
         var stage1GroupBy = stage1GroupingKeys.Count > 0 ? $"\nGROUP BY {string.Join(", ", stage1GroupingKeys.Distinct())}" : "";
         var stage1Having = havingConditions.Count > 0 ? $"\nHAVING {string.Join(" AND ", havingConditions)}" : "";
 
         var with = query.WithClauses![withIndex];
-        var stage1Distinct = with.IsDistinct ? "DISTINCT " : "";
-        var stage1Cte = $"{stage1Name} AS (\nSELECT {stage1Distinct}{string.Join(", ", stage1SelectColumns)}\n{fromAndJoins}{stage1Where}{stage1GroupBy}{stage1Having}\n)";
+        var stage1Distinct = (prevWith?.IsDistinct == true || with.IsDistinct) ? "DISTINCT " : "";
+        var stage1OrderBy = "";
+        if (prevWith?.OrderBy is { Items.Count: > 0 })
+        {
+            var ordItems = prevWith.OrderBy.Items.Select(item =>
+                $"{VisitExpression(item.Expression)} {(item.IsDescending ? "DESC" : "ASC")}");
+            stage1OrderBy = $"\nORDER BY {string.Join(", ", ordItems)}";
+        }
+        var stage1LimitOffset = "";
+        if (prevWith?.Limit != null || prevWith?.Skip != null)
+        {
+            var lim = prevWith.Limit != null ? VisitExpression(prevWith.Limit.Expression) : "-1";
+            stage1LimitOffset = $"\nLIMIT {lim}" + (prevWith.Skip != null ? $" OFFSET {VisitExpression(prevWith.Skip.Expression)}" : "");
+        }
+        var stage1Cte = $"{stage1Name} AS (\nSELECT {stage1Distinct}{string.Join(", ", stage1SelectColumns)}\n{fromAndJoins}{stage1Where}{stage1GroupBy}{stage1Having}{stage1OrderBy}{stage1LimitOffset}\n)";
         _ctes.Add(stage1Cte);
 
         RemapWithAliasesToStage(stage1Name, remainingReferenced);
@@ -549,24 +567,28 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         List<string> groupByColumns,
         List<string> havingConditions)
     {
+        var lastWith = query.WithClauses?.LastOrDefault();
+        var effectiveOrderBy = query.OrderBy ?? (query.WithClauses is { Count: 1 } ? lastWith?.OrderBy : null);
         List<string> orderItems = [];
-        if (query.OrderBy is { Items.Count: > 0 })
+        if (effectiveOrderBy is { Items.Count: > 0 })
         {
             orderItems =
             [
-                .. query.OrderBy.Items.Select(item =>
+                .. effectiveOrderBy.Items.Select(item =>
                     $"{VisitExpression(item.Expression)} {(item.IsDescending ? "DESC" : "ASC")}")
             ];
         }
 
+        var effectiveLimit = query.Limit ?? (query.WithClauses is { Count: 1 } ? lastWith?.Limit : null);
+        var effectiveSkip = query.Skip ?? (query.WithClauses is { Count: 1 } ? lastWith?.Skip : null);
         string? limitVal = null;
         string? offsetVal = null;
-        if (query.Limit != null || query.Skip != null)
+        if (effectiveLimit != null || effectiveSkip != null)
         {
-            limitVal = query.Limit != null ? VisitExpression(query.Limit.Expression) : "-1";
-            if (query.Skip != null)
+            limitVal = effectiveLimit != null ? VisitExpression(effectiveLimit.Expression) : "-1";
+            if (effectiveSkip != null)
             {
-                offsetVal = VisitExpression(query.Skip.Expression);
+                offsetVal = VisitExpression(effectiveSkip.Expression);
             }
         }
 

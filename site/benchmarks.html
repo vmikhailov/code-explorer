@@ -84,7 +84,7 @@
                 <td><strong><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html">Case Study 01</a></strong><br><span class="tone-muted">twentyhq/twenty</span></td>
                 <td>Find all DI service callers, class inheritance chains, BullMQ queue producers/consumers, and API-to-database write paths across 46 TypeScript packages (24,527 files, 2.49M LOC).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>CBM</code></td>
-                <td class="cell-win" data-bind-html="catalog.cs01_outcome"><strong>~14× faster</strong> (41s vs 9m 15s)<br><strong>~21× fewer tokens</strong> (~80K vs ~1.7M)<br><strong>99% vs 3.4%</strong> native graph recall</td>
+                <td class="cell-win" data-bind-html="catalog.cs01_outcome"><strong>~6.0× faster</strong> (1m 33s vs 9m 15s)<br><strong>~7.0× fewer tokens</strong> (~242K vs ~1.7M)<br><strong>100% vs 3.4%</strong> native graph recall</td>
                 <td><a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html" class="btn btn--primary">Read Case 01</a></td>
               </tr>
               <tr>
@@ -151,7 +151,7 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-xl);" data-bind-html="catalog.participants_html"><strong>Tested participants &amp; versions across the benchmark suite:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.77.0</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.77.2</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
           2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (<code>win32-x64</code> Go + SQLite binary, 17 MCP tools)<br>
           3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>v0.9.104</code> (Python 3.10, Tree-sitter + NetworkX <code>--code-only</code>, 10 MCP tools)<br>
           4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + Python <code>3.10</code> + <code>view_file</code><br>

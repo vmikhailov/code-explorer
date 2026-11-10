@@ -23,7 +23,40 @@ public static class ToonYamlSerializer
 
     public static string SerializeYaml(CypherQueryResult result)
     {
+        if (result.Count > 25 && result.Columns.Count >= 2 && IsScalarTableResult(result))
+        {
+            var sb = new StringBuilder();
+            var cols = result.Columns.Select(EscapeYamlKey);
+            sb.Append($"columns: [{string.Join(", ", cols)}]\nrows:\n");
+            foreach (var row in result.Rows)
+            {
+                var cells = new List<string>(result.Columns.Count);
+                var count = Math.Min(row.Columns.Count, row.Values.Count);
+                for (var i = 0; i < count; i++)
+                {
+                    var v = row.Values[i];
+                    cells.Add(IsEmptyYamlValue(v) ? "null" : FormatYamlPrimitive(v));
+                }
+                sb.Append($"- [{string.Join(", ", cells)}]\n");
+            }
+            return sb.ToString().TrimEnd();
+        }
         return SerializeYaml(ResultToValue(result));
+    }
+
+    private static bool IsScalarTableResult(CypherQueryResult result)
+    {
+        foreach (var row in result.Rows)
+        {
+            foreach (var val in row.Values)
+            {
+                if (val.Kind is CypherValueKind.Object or CypherValueKind.Array)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public static string SerializeYaml(CypherValue element)

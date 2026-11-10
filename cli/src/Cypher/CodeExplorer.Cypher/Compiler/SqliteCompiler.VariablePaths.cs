@@ -30,11 +30,13 @@ public partial class SqliteCompiler
         var isIncoming = rel.Direction == Direction.Incoming;
         var startNode = isIncoming ? targetNode : prevNode;
         var startVar = isIncoming ? targetVar : prevVar;
+        var startDeclared = isIncoming ? targetDeclared : prevDeclared;
         var endNode = isIncoming ? prevNode : targetNode;
         var endVar = isIncoming ? prevVar : targetVar;
+        var endDeclared = isIncoming ? prevDeclared : targetDeclared;
 
-        var startFilterConditions = BuildAnchorFilterConditions(startNode, startVar, isOptional);
-        var endFilterConditions = BuildAnchorFilterConditions(endNode, endVar, isOptional);
+        var startFilterConditions = BuildAnchorFilterConditions(startNode, startVar, isOptional && !startDeclared);
+        var endFilterConditions = BuildAnchorFilterConditions(endNode, endVar, isOptional && !endDeclared);
 
         var needsPathNodes = pathVariable != null;
         BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startFilterConditions, endFilterConditions, needsPathNodes);
@@ -48,12 +50,15 @@ public partial class SqliteCompiler
             fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions);
     }
 
+    private const string SourceAnchorAlias = "_src_anc";
+    private const string NeighborAnchorAlias = "_nbr_anc";
+
     private List<string> BuildAnchorFilterConditions(NodePattern node, string nodeVar, bool isOptional)
     {
         List<string> conditions = [];
         if (node.Labels.Count > 0 || node.Properties != null)
         {
-            AddNodeFiltersToConditions(node, "_src_anc", conditions);
+            AddNodeFiltersToConditions(node, SourceAnchorAlias, conditions);
         }
 
         if (!isOptional && !string.IsNullOrEmpty(nodeVar) && !nodeVar.StartsWith("_n", StringComparison.Ordinal))
@@ -76,13 +81,138 @@ public partial class SqliteCompiler
             {
                 if (CanPushDownToAnchor(conj, nodeVar))
                 {
-                    var rewritten = RewriteVariable(conj, nodeVar, "_src_anc");
+                    var rewritten = RewriteVariable(conj, nodeVar, SourceAnchorAlias);
                     conditions.Add(VisitExpression(rewritten));
+                }
+            }
+
+            foreach (var match in _query.Matches)
+            {
+                if (match.IsOptional) continue;
+                foreach (var path in match.Paths)
+                {
+                    if (string.Equals(path.Head.Variable, nodeVar, StringComparison.OrdinalIgnoreCase) &&
+                        (path.Head.Labels.Count > 0 || path.Head.Properties != null))
+                    {
+                        AddNodeFiltersToConditions(path.Head, SourceAnchorAlias, conditions);
+                    }
+
+                    var curNode = path.Head;
+                    foreach (var step in path.Chain)
+                    {
+                        if (string.Equals(step.Target.Variable, nodeVar, StringComparison.OrdinalIgnoreCase) &&
+                            (step.Target.Labels.Count > 0 || step.Target.Properties != null))
+                        {
+                            AddNodeFiltersToConditions(step.Target, SourceAnchorAlias, conditions);
+                        }
+
+                        if (step.Relationship.Range == null && step.Relationship.Direction != Direction.Undirected)
+                        {
+                            var leftMatches = string.Equals(curNode.Variable, nodeVar, StringComparison.OrdinalIgnoreCase);
+                            var rightMatches = string.Equals(step.Target.Variable, nodeVar, StringComparison.OrdinalIgnoreCase);
+                            if (leftMatches ^ rightMatches)
+                            {
+                                var nbrNode = leftMatches ? step.Target : curNode;
+                                var nbrVar = nbrNode.Variable;
+                                var nodeIsFrom = leftMatches
+                                    ? step.Relationship.Direction != Direction.Incoming
+                                    : step.Relationship.Direction == Direction.Incoming;
+
+                                var nbrConds = new List<string>
+                                {
+                                    nodeIsFrom ? "_ae.from_id = _src_anc.rowid" : "_ae.to_id = _src_anc.rowid"
+                                };
+
+                                if (step.Relationship.RelationshipKinds.Count == 1)
+                                {
+                                    var k = step.Relationship.RelationshipKinds[0];
+                                    var tName = k != RelationshipKind.Unspecified ? k.ToCypherType() : step.Relationship.Types[0];
+                                    nbrConds.Add($"_ae.kind = {GraphKindCodec.EncodeRelKind(tName)}");
+                                }
+                                else if (step.Relationship.RelationshipKinds.Count > 1)
+                                {
+                                    var ks = string.Join(", ", step.Relationship.RelationshipKinds.Select((k, idx) =>
+                                        GraphKindCodec.EncodeRelKind(k != RelationshipKind.Unspecified ? k.ToCypherType() : step.Relationship.Types[idx])));
+                                    nbrConds.Add($"_ae.kind IN ({ks})");
+                                }
+
+                                AddNeighborNodeFilters(nbrNode, nbrVar, conjuncts, nbrConds);
+                                var joinCol = nodeIsFrom ? "_ae.to_id" : "_ae.from_id";
+                                conditions.Add($"EXISTS (SELECT 1 FROM edges _ae JOIN nodes _nbr_anc ON _nbr_anc.rowid = {joinCol} WHERE {string.Join(" AND ", nbrConds.Distinct())})");
+                            }
+                        }
+
+                        curNode = step.Target;
+                    }
                 }
             }
         }
 
-        return conditions;
+        return conditions.Distinct().ToList();
+    }
+
+    private void AddNeighborNodeFilters(NodePattern nbrNode, string? nbrVar, List<Expression> conjuncts, List<string> nbrConds)
+    {
+        if (nbrNode.Labels.Count > 0 || nbrNode.Properties != null)
+        {
+            AddNodeFiltersToConditions(nbrNode, NeighborAnchorAlias, nbrConds);
+        }
+
+        if (string.IsNullOrEmpty(nbrVar) || nbrVar.StartsWith("_n", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        foreach (var match in _query.Matches)
+        {
+            if (match.IsOptional) continue;
+            foreach (var path in match.Paths)
+            {
+                if (string.Equals(path.Head.Variable, nbrVar, StringComparison.OrdinalIgnoreCase) &&
+                    (path.Head.Labels.Count > 0 || path.Head.Properties != null))
+                {
+                    AddNodeFiltersToConditions(path.Head, NeighborAnchorAlias, nbrConds);
+                }
+                foreach (var step in path.Chain)
+                {
+                    if (string.Equals(step.Target.Variable, nbrVar, StringComparison.OrdinalIgnoreCase) &&
+                        (step.Target.Labels.Count > 0 || step.Target.Properties != null))
+                    {
+                        AddNodeFiltersToConditions(step.Target, NeighborAnchorAlias, nbrConds);
+                    }
+                }
+            }
+        }
+
+        foreach (var conj in conjuncts)
+        {
+            if (CanPushDownToAnchor(conj, nbrVar))
+            {
+                var rewritten = RewriteVariable(conj, nbrVar, NeighborAnchorAlias);
+                nbrConds.Add(VisitExpression(rewritten));
+            }
+        }
+    }
+
+    private static int ScoreAnchorSelectivity(List<string> conditions)
+    {
+        var score = 0;
+        foreach (var c in conditions)
+        {
+            if (c.StartsWith("EXISTS (", StringComparison.Ordinal))
+            {
+                score += c.Contains("json_extract(", StringComparison.Ordinal) ? 50 : 15;
+            }
+            else if (c.Contains("json_extract(", StringComparison.Ordinal) || c.Contains(".id =", StringComparison.Ordinal))
+            {
+                score += 20;
+            }
+            else
+            {
+                score += 1;
+            }
+        }
+        return score;
     }
 
     private static void CollectTopLevelConjuncts(Expression? expr, List<Expression> conjuncts)
@@ -209,7 +339,7 @@ public partial class SqliteCompiler
         }
 
         var isUndirected = rel.Direction == Direction.Undirected;
-        var walkBackwardsFromEnd = !isUndirected && !needsPathNodes && startFilterConditions.Count == 0 && endFilterConditions.Count > 0;
+        var walkBackwardsFromEnd = !isUndirected && !needsPathNodes && ScoreAnchorSelectivity(endFilterConditions) > ScoreAnchorSelectivity(startFilterConditions);
         var activeAnchorFilters = walkBackwardsFromEnd ? endFilterConditions : startFilterConditions;
 
         var edgeSourceTable = isUndirected
