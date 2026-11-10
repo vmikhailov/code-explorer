@@ -445,6 +445,23 @@ public partial class WebSocketServerHandler
                     }, cancellationToken);
                     break;
 
+                case WsMessageTypes.UpgradeSchemaRequest:
+                case "UPGRADE_SCHEMA":
+                    if (!TriggerSchemaUpgrade())
+                    {
+                        const string errCode = "SCAN_IN_PROGRESS";
+                        const string errMsg = "A workspace scan or schema upgrade is already in progress.";
+                        await SendErrorAsync(session, reqId, errCode, errMsg, cancellationToken);
+                        break;
+                    }
+
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    {
+                        Success = true,
+                        RawJson = "{\"status\":\"upgrade_started\"}"
+                    }, cancellationToken);
+                    break;
+
                 case WsMessageTypes.GetGatesRequest:
                 case "GET_GATES":
                 case WsMessageTypes.EvaluateGatesRequest:

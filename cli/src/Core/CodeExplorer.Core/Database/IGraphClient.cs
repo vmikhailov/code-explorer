@@ -190,6 +190,7 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     bool WasMigratedOnOpen => false;
     int? MigratedFromVersion => null;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
+    Task<bool> UpgradeSchemaAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
 
     Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix) =>
         Task.FromResult(new PostIndexGraphData(

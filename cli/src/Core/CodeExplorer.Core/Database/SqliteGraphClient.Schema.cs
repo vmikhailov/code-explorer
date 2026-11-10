@@ -6,6 +6,15 @@ namespace CodeExplorer.Core.Database;
 
 public partial class SqliteGraphClient
 {
+    private void ThrowIfSchemaOutdated()
+    {
+        if (IsSchemaOutdated)
+        {
+            throw new InvalidOperationException(
+                $"Database schema version is outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Please convert the database schema or run 'ce scan'.");
+        }
+    }
+
     private void InitializePragmas()
     {
         using var cmd = _conn.CreateCommand();
@@ -56,6 +65,7 @@ public partial class SqliteGraphClient
 
             if (ver == 0)
             {
+                CreateIndices();
                 cmd.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
                 cmd.ExecuteNonQuery();
                 SchemaVersion = CurrentSchemaVersion;
@@ -63,20 +73,7 @@ public partial class SqliteGraphClient
             }
         }
 
-        if (ver < CurrentSchemaVersion)
-        {
-            if (TryRunSchemaMigrator(ver, CurrentSchemaVersion))
-            {
-                WasMigratedOnOpen = true;
-                MigratedFromVersion = ver;
-                SchemaVersion = CurrentSchemaVersion;
-            }
-            else
-            {
-                SchemaVersion = ver;
-            }
-        }
-        else if (ver > CurrentSchemaVersion)
+        if (ver > CurrentSchemaVersion)
         {
             SchemaVersion = ver;
             _logger.LogWarning("Database was created with a newer schema version (v{Ver} > v{Current}). Consider upgrading CodeExplorer CLI.", ver, CurrentSchemaVersion);
@@ -87,7 +84,38 @@ public partial class SqliteGraphClient
         }
     }
 
-    public bool TryRunSchemaMigrator(int fromVersion, int toVersion)
+    public async Task<bool> UpgradeSchemaAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!IsSchemaOutdated)
+            {
+                return true;
+            }
+
+            var fromVersion = SchemaVersion;
+            var upgraded = await TryRunSchemaMigratorAsync(fromVersion, CurrentSchemaVersion, cancellationToken);
+            if (upgraded)
+            {
+                WasMigratedOnOpen = true;
+                MigratedFromVersion = fromVersion;
+                SchemaVersion = CurrentSchemaVersion;
+                return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public bool TryRunSchemaMigrator(int fromVersion, int toVersion) =>
+        TryRunSchemaMigratorAsync(fromVersion, toVersion).GetAwaiter().GetResult();
+
+    public async Task<bool> TryRunSchemaMigratorAsync(int fromVersion, int toVersion, CancellationToken cancellationToken = default)
     {
         if (toVersion > CurrentSchemaVersion)
         {
@@ -99,7 +127,8 @@ public partial class SqliteGraphClient
         {
             _logger.LogInformation("Upgrading database schema from v{From} to v{To}...", fromVersion, toVersion);
 
-            using var migrateCmd = _conn.CreateCommand();
+            await using var migrateCmd = _conn.CreateCommand();
+            migrateCmd.CommandTimeout = 0;
             var sb = new System.Text.StringBuilder();
 
             if (fromVersion < 3)
@@ -212,16 +241,17 @@ public partial class SqliteGraphClient
 
             sb.AppendLine($"PRAGMA user_version = {toVersion};");
             migrateCmd.CommandText = sb.ToString();
-            migrateCmd.ExecuteNonQuery();
+            await migrateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (fromVersion < 6)
             {
-                using var colCmd = _conn.CreateCommand();
+                CreateTablesAndAuxiliaryIndices();
+                await using var colCmd = _conn.CreateCommand();
                 colCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('file_registry') WHERE name = 'size_bytes';";
-                if (Convert.ToInt32(colCmd.ExecuteScalar()) == 0)
+                if (Convert.ToInt32(await colCmd.ExecuteScalarAsync(cancellationToken)) == 0)
                 {
                     colCmd.CommandText = "ALTER TABLE file_registry ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT -1;";
-                    colCmd.ExecuteNonQuery();
+                    await colCmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
                 CreateGraphSecondaryIndices();
@@ -413,26 +443,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
-            ResetBulkLoadStateUnlocked();
-            using var tx = _conn.BeginTransaction();
-            try
-            {
-                await _conn.ExecuteAsync("""
-                    DELETE FROM edges;
-                    DELETE FROM nodes;
-                    DELETE FROM file_registry;
-                    DELETE FROM metadata;
-                    """, transaction: tx);
-                tx.Commit();
-                ResetTaxonomyInMemory();
-            }
-            catch
-            {
-                tx.Rollback();
-                throw;
-            }
-
-            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            await WipeDatabaseFastAsync();
         }
         finally
         {
@@ -450,6 +461,11 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
+            if (IsSchemaOutdated)
+            {
+                await WipeDatabaseFastAsync();
+                return true;
+            }
             if (_isBulkLoading)
             {
                 await CommitBulkLoadUnlockedAsync();
@@ -569,6 +585,22 @@ public partial class SqliteGraphClient
     private async Task WipeDatabaseFastAsync()
     {
         ResetBulkLoadStateUnlocked();
+        if (IsSchemaOutdated)
+        {
+            await _conn.ExecuteAsync($"""
+                DROP TABLE IF EXISTS edges;
+                DROP TABLE IF EXISTS nodes;
+                DROP TABLE IF EXISTS file_registry;
+                DROP TABLE IF EXISTS metadata;
+                PRAGMA user_version = {CurrentSchemaVersion};
+                """);
+            CreateIndices();
+            SchemaVersion = CurrentSchemaVersion;
+            ResetTaxonomyInMemory();
+            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            return;
+        }
+
         using var tx = _conn.BeginTransaction();
         try
         {

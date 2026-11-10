@@ -31,38 +31,55 @@ public static class StatusCommandHandler
 
             string wsName = new DirectoryInfo(ws.RootDirectory).Name;
             DateTime? lastIndexedAt = null;
+            var projects = new List<(string Name, string Language, string Layer, string Role)>();
+            long nodeCount = 0;
 
-            var repo = client.AsRepository();
-            var wsNode = await repo.GetWorkspaceAsync();
-            if (wsNode != null)
+            if (!client.IsSchemaOutdated)
             {
-                if (!string.IsNullOrWhiteSpace(wsNode.Name))
+                var repo = client.AsRepository();
+                var wsNode = await repo.GetWorkspaceAsync();
+                if (wsNode != null)
                 {
-                    wsName = wsNode.Name;
+                    if (!string.IsNullOrWhiteSpace(wsNode.Name))
+                    {
+                        wsName = wsNode.Name;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(wsNode.IndexedAt) &&
+                        DateTime.TryParse(wsNode.IndexedAt, out var dt))
+                    {
+                        lastIndexedAt = dt.ToLocalTime();
+                    }
                 }
 
-                if (!string.IsNullOrWhiteSpace(wsNode.IndexedAt) &&
-                    DateTime.TryParse(wsNode.IndexedAt, out var dt))
+                var projectEntities = await client.Graph.Projects.ToListAsync();
+                projects = projectEntities
+                    .OrderBy(p => p.Name, StringComparer.Ordinal)
+                    .Select(p => (
+                        Name: !string.IsNullOrEmpty(p.Name) ? p.Name : "unknown",
+                        Language: !string.IsNullOrEmpty(p.Language) ? p.Language : "unknown",
+                        Layer: p.Layer ?? string.Empty,
+                        Role: p.Role ?? string.Empty))
+                    .ToList();
+
+                var (totalNodes, _) = await client.GetGraphCountsAsync();
+                nodeCount = totalNodes;
+            }
+            else
+            {
+                try
                 {
-                    lastIndexedAt = dt.ToLocalTime();
+                    var (totalNodes, _) = await client.GetGraphCountsAsync();
+                    nodeCount = totalNodes;
+                }
+                catch
+                {
+                    // Ignore if outdated schema has missing tables
                 }
             }
 
             var lastUpdated = lastIndexedAt ?? fileInfo.LastWriteTime;
             var lastUpdatedText = FormatRelativeTime(lastUpdated);
-
-            var projectEntities = await client.Graph.Projects.ToListAsync();
-            var projects = projectEntities
-                .OrderBy(p => p.Name, StringComparer.Ordinal)
-                .Select(p => (
-                    Name: !string.IsNullOrEmpty(p.Name) ? p.Name : "unknown",
-                    Language: !string.IsNullOrEmpty(p.Language) ? p.Language : "unknown",
-                    Layer: p.Layer ?? string.Empty,
-                    Role: p.Role ?? string.Empty))
-                .ToList();
-
-            var (totalNodes, _) = await client.GetGraphCountsAsync();
-            long nodeCount = totalNodes;
 
             var queryManager = new ProjectQueryManager();
             var savedQueries = queryManager.ListQueries(ws.RootDirectory);

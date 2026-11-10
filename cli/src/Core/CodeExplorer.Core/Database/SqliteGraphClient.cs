@@ -25,7 +25,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private bool _bulkIsFreshDb;
     private bool _bulkDropIdentifierIndex;
     private readonly Dictionary<string, (NodeKind Kind, string PropsJson)> _bulkNodes = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string From, string To, RelationshipKind Kind), string> _bulkRelationships = new();
+    private readonly Dictionary<(string From, string To, RelationshipKind Kind), Relationship> _bulkRelationships = new();
     private readonly Dictionary<string, List<string>> _bulkProjectExternalApis = new(StringComparer.Ordinal);
 
     public ILogger Logger
@@ -59,7 +59,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         InitializePragmas();
         SqliteCypherFunctions.Register(_conn);
         CheckSchemaVersion();
-        CreateIndices();
     }
 
     private static string ResolveConnectionString(string connectionStringOrPath)
@@ -290,7 +289,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                     var pProps = relCmd.Parameters.Add(paramP, SqliteType.Text);
                     relCmd.Prepare();
 
-                    foreach (var ((fromId, toId, kind), propsJson) in _bulkRelationships)
+                    var bufferWriter = new ArrayBufferWriter<byte>(512);
+                    using var jsonWriter = new Utf8JsonWriter(bufferWriter);
+
+                    foreach (var ((fromId, toId, kind), rel) in _bulkRelationships)
                     {
                         if (!nodeRowIds.TryGetValue(fromId, out var fromRowId) ||
                             !nodeRowIds.TryGetValue(toId, out var toRowId))
@@ -301,7 +303,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                         pFrom.Value = fromRowId;
                         pTo.Value = toRowId;
                         pKind.Value = (int)kind;
-                        pProps.Value = propsJson;
+                        pProps.Value = rel.SerializeJsonProperties(bufferWriter, jsonWriter);
                         relCmd.ExecuteNonQuery();
                     }
                 }
@@ -517,7 +519,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            const string emptyPropsJson = "{}";
             var distinctRels = DeduplicateAndMergeRelationships(rels);
 
             var bufferWriter = new ArrayBufferWriter<byte>(512);
@@ -528,20 +529,15 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 for (var i = 0; i < distinctRels.Count; i++)
                 {
                     var rel = distinctRels[i];
-                    string propsJson;
-                    if (!rel.HasTelemetry)
+                    var key = (rel.From, rel.To, rel.Kind);
+                    if (!_bulkRelationships.TryGetValue(key, out var existing))
                     {
-                        propsJson = emptyPropsJson;
+                        _bulkRelationships[key] = rel;
                     }
-                    else
+                    else if (rel.HasTelemetry)
                     {
-                        bufferWriter.Clear();
-                        jsonWriter.Reset(bufferWriter);
-                        rel.WriteJsonProperties(jsonWriter);
-                        jsonWriter.Flush();
-                        propsJson = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
+                        EvidenceProvenanceHelper.MergeRelationships(existing, rel);
                     }
-                    _bulkRelationships[(rel.From, rel.To, rel.Kind)] = propsJson;
                 }
 
                 RecordRelationshipsInTaxonomy(distinctRels);
@@ -568,18 +564,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 pFrom.Value = rel.From;
                 pTo.Value = rel.To;
                 pKind.Value = (int)rel.Kind;
-                if (!rel.HasTelemetry)
-                {
-                    pProps.Value = emptyPropsJson;
-                }
-                else
-                {
-                    bufferWriter.Clear();
-                    jsonWriter.Reset(bufferWriter);
-                    rel.WriteJsonProperties(jsonWriter);
-                    jsonWriter.Flush();
-                    pProps.Value = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
-                }
+                pProps.Value = rel.SerializeJsonProperties(bufferWriter, jsonWriter);
                 cmd.ExecuteNonQuery();
 
                 if (distinctRels.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctRels.Count) &&
@@ -670,6 +655,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         Func<SqliteDataReader, CancellationToken, Task<TResult>> readerFunc,
         CancellationToken cancellationToken)
     {
+        ThrowIfSchemaOutdated();
         var sw = Stopwatch.StartNew();
         ValidateQuerySecurity(query);
         var paramDict = ExtractParameters(parameters);
@@ -735,6 +721,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {
+        ThrowIfSchemaOutdated();
         await _lock.WaitAsync(ct);
         try
         {
@@ -749,6 +736,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<bool> ExecuteAnyAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {
+        ThrowIfSchemaOutdated();
         await _lock.WaitAsync(ct);
         try
         {
@@ -763,6 +751,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<List<TElement>> ExecuteListAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {
+        ThrowIfSchemaOutdated();
         await _lock.WaitAsync(ct);
         try
         {
@@ -777,6 +766,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {
+        ThrowIfSchemaOutdated();
         await _lock.WaitAsync(ct);
         try
         {

@@ -75,6 +75,12 @@ public record TypeNode(
     [JsonPropertyName("extends"), OntologyProperty("Declared base type or component inherited by this type.")]
     public string? Extends { get; set; }
 
+    [JsonPropertyName("implements"), OntologyProperty("Declared interfaces implemented by this type.")]
+    public string? Implements { get; set; }
+
+    [JsonPropertyName("attributes"), OntologyProperty("Comma-separated annotations, attributes, or decorators applied to this type.")]
+    public string? Attributes { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Type;
 }

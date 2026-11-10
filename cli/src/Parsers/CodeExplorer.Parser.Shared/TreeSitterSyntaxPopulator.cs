@@ -40,6 +40,11 @@ internal static class TreeSitterSyntaxPopulator
         {
             doc.PackageOrNamespace = ns.Name;
         }
+
+        if (decl is not AnnotationSyntax)
+        {
+            decl.Annotations = SyntaxAnnotationPopulator.ExtractAnnotations(decl);
+        }
     }
 
     public static void PopulateImport(ImportDeclSyntax imp)
@@ -86,9 +91,13 @@ internal static class TreeSitterSyntaxPopulator
         {
             for (int i = 0; i < imp.Children.Count; i++)
             {
-                if (imp.Children[i] is DeclarationSyntax childDecl)
+                if (imp.Children[i] is DeclarationSyntax childDecl && childDecl is not AnnotationSyntax)
                 {
                     childDecl.Modifiers |= SyntaxModifiers.Export;
+                    if (imp.Annotations.Count > 0 && childDecl.Annotations.Count == 0)
+                    {
+                        childDecl.Annotations = imp.Annotations;
+                    }
                 }
             }
         }
@@ -804,6 +813,18 @@ internal static class TreeSitterSyntaxPopulator
             case CallExprSyntax callExpr:
                 callExpr.ValueSemantics = ClassifyCallValueSemantics(callExpr);
                 break;
+
+            case SyntaxList { Kind: SyntaxListKind.Declarations or SyntaxListKind.General } container:
+                SyntaxAnnotationPopulator.PropagatePrecedingSiblingAnnotations(container);
+                break;
+
+            case BlockStmtSyntax block:
+                SyntaxAnnotationPopulator.PropagatePrecedingSiblingAnnotations(block);
+                break;
+
+            case NamespaceDeclSyntax nsDecl:
+                SyntaxAnnotationPopulator.PropagatePrecedingSiblingAnnotations(nsDecl);
+                break;
         }
     }
 
@@ -874,6 +895,69 @@ internal static class TreeSitterSyntaxPopulator
             if (child.Children[i] is VariableDeclSyntax grandChild)
             {
                 PropagateVariableDeclMetadata(child, grandChild);
+            }
+        }
+    }
+}
+
+internal static class SyntaxAnnotationPopulator
+{
+    internal static IReadOnlyList<AnnotationSyntax> ExtractAnnotations(DeclarationSyntax decl)
+    {
+        List<AnnotationSyntax>? list = null;
+        for (int i = 0; i < decl.Children.Count; i++)
+        {
+            var child = decl.Children[i];
+            if (child is AnnotationSyntax directAnn)
+            {
+                (list ??= new List<AnnotationSyntax>(2)).Add(directAnn);
+            }
+            else if (child is SyntaxList { Kind: SyntaxListKind.Attributes or SyntaxListKind.General })
+            {
+                for (int j = 0; j < child.Children.Count; j++)
+                {
+                    if (child.Children[j] is AnnotationSyntax nestedAnn)
+                    {
+                        (list ??= new List<AnnotationSyntax>(2)).Add(nestedAnn);
+                    }
+                }
+            }
+        }
+        return list ?? (IReadOnlyList<AnnotationSyntax>)[];
+    }
+
+    internal static void PropagatePrecedingSiblingAnnotations(SyntaxNode container)
+    {
+        if (container.Children.Count < 2) return;
+        List<AnnotationSyntax>? pending = null;
+        for (int i = 0; i < container.Children.Count; i++)
+        {
+            var child = container.Children[i];
+            if (child is AnnotationSyntax ann)
+            {
+                (pending ??= new List<AnnotationSyntax>(2)).Add(ann);
+            }
+            else if (child is DeclarationSyntax decl && decl is not ImportDeclSyntax)
+            {
+                if (pending is { Count: > 0 })
+                {
+                    if (decl.Annotations.Count == 0)
+                    {
+                        decl.Annotations = pending;
+                    }
+                    else
+                    {
+                        var combined = new List<AnnotationSyntax>(pending.Count + decl.Annotations.Count);
+                        combined.AddRange(pending);
+                        combined.AddRange(decl.Annotations);
+                        decl.Annotations = combined;
+                    }
+                    pending = null;
+                }
+            }
+            else if (pending != null)
+            {
+                pending = null;
             }
         }
     }

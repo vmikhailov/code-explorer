@@ -49,3 +49,7 @@ public record ReduceExpression(string Accumulator, Expression Initial, string Va
 public record MapProjectionElement(string PropertyName, Expression? ValueExpression, bool IsAllProperties);
 
 public record MapProjectionExpression(Expression BaseExpression, List<MapProjectionElement> Elements) : Expression;
+
+public record ExistsSubqueryExpression(List<MatchClause> Matches, WhereClause? Where, CypherQuery? FullQuery = null) : Expression;
+
+public record CountSubqueryExpression(List<MatchClause> Matches, WhereClause? Where, CypherQuery? FullQuery = null) : Expression;

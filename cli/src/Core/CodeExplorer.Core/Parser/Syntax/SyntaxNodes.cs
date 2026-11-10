@@ -916,6 +916,7 @@ public abstract class DeclarationSyntax : SyntaxNode
     }
 
     public SyntaxModifiers Modifiers { get; set; }
+    public IReadOnlyList<AnnotationSyntax> Annotations { get; set; } = [];
 }
 
 public sealed class NamespaceDeclSyntax : DeclarationSyntax
@@ -1555,7 +1556,7 @@ public static class SyntaxKindResolver
             "scoped_identifier" or "qualified_name" =>
                 node is MemberAccessExprSyntax { Operator: "::" } or MemberAccessExprSyntax,
             "attribute" =>
-                node is AnnotationSyntax or MemberAccessExprSyntax,
+                node is AnnotationSyntax || (node is MemberAccessExprSyntax && node.Document?.LanguageName == "python"),
             "decorator" or "annotation" or "marker_annotation" or "attribute_item" or "inner_attribute_item" =>
                 node is AnnotationSyntax,
             "class_declaration" or "class_definition" or "class_expression" or "abstract_class_declaration" =>
@@ -1757,8 +1758,10 @@ public static class SyntaxKindResolver
                 ["member_access_expression"],
             "scoped_identifier" or "qualified_name" =>
                 ["scoped_identifier", "member_access_expression"],
-            "attribute" or "decorator" or "annotation" or "marker_annotation" or "attribute_item" or "inner_attribute_item" =>
+            "attribute" =>
                 ["attribute", "member_access_expression"],
+            "decorator" or "annotation" or "marker_annotation" or "attribute_item" or "inner_attribute_item" =>
+                ["attribute"],
             "class_declaration" or "class_definition" or "class_expression" or "abstract_class_declaration" =>
                 ["class_declaration"],
             "struct_declaration" or "struct_item" or "struct_type" or "type_spec" =>

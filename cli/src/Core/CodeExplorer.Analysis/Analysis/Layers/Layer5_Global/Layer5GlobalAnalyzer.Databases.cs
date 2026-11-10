@@ -139,7 +139,10 @@ public partial class Layer5AnalysisParser
         Dictionary<string, List<string>>? TypesByName = null,
         Dictionary<string, HashSet<string>>? ReachableProjects = null,
         HashSet<string>? ProjectsInDepGraph = null,
-        HashSet<(string From, string To)>? InheritanceRels = null)
+        HashSet<(string From, string To)>? InheritanceRels = null,
+        Dictionary<(string FilePath, string TypeName, string MemberName), string>? MembersByType = null,
+        List<(string MemberId, string TypeId, string DataType)>? MemberTypeCandidates = null,
+        HashSet<(string DerivedName, string BaseName)>? InheritedTypeNames = null)
     {
         public Dictionary<string, Dictionary<string, List<string>>> FunctionsByProject { get; init; } = FunctionsByProject ?? new(StringComparer.OrdinalIgnoreCase);
         public List<string> ProjectsSortedByLengthDesc { get; init; } = ProjectsSortedByLengthDesc ?? [];
@@ -147,6 +150,9 @@ public partial class Layer5AnalysisParser
         public Dictionary<string, HashSet<string>> ReachableProjects { get; init; } = ReachableProjects ?? new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> ProjectsInDepGraph { get; init; } = ProjectsInDepGraph ?? new(StringComparer.OrdinalIgnoreCase);
         public HashSet<(string From, string To)> InheritanceRels { get; init; } = InheritanceRels ?? [];
+        public Dictionary<(string FilePath, string TypeName, string MemberName), string> MembersByType { get; init; } = MembersByType ?? [];
+        public List<(string MemberId, string TypeId, string DataType)> MemberTypeCandidates { get; init; } = MemberTypeCandidates ?? [];
+        public HashSet<(string DerivedName, string BaseName)> InheritedTypeNames { get; init; } = InheritedTypeNames ?? [];
     }
 
     private record ImportedSymbolEntry(
@@ -278,6 +284,40 @@ public partial class Layer5AnalysisParser
             }
         }
 
+        foreach (var (filePath, kind, name, id) in ctx.OverloadedFileScopedSymbols)
+        {
+            var normFuncFile = filePath.Replace('\\', '/');
+            var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
+            string? scopeProj = null;
+            if (ctx.SymbolScopes.TryGetValue(id, out var scopeInfo) &&
+                !string.IsNullOrEmpty(scopeInfo.ProjectName) &&
+                !string.Equals(scopeInfo.ProjectName, proj, StringComparison.OrdinalIgnoreCase))
+            {
+                scopeProj = scopeInfo.ProjectName;
+            }
+
+            if (kind == OntologyConstants.NodeLabels.Type || kind is "Class" or "Interface" or "Struct" or "Enum" or "Record")
+            {
+                if (!typesByName.TryGetValue(name, out var tList))
+                {
+                    tList = [];
+                    typesByName[name] = tList;
+                }
+                if (!tList.Contains(id)) tList.Add(id);
+            }
+            else if (kind == OntologyConstants.NodeLabels.Function && !string.Equals(name, "<module_init>", StringComparison.Ordinal))
+            {
+                RegisterFunctionInProject(proj, name, id);
+                RegisterFunctionInProject(scopeProj, name, id);
+                if (!functionsByName.TryGetValue(name, out var fnList))
+                {
+                    fnList = [];
+                    functionsByName[name] = fnList;
+                }
+                if (!fnList.Contains(id)) fnList.Add(id);
+            }
+        }
+
         foreach (var (key, id) in ctx.GlobalSymbols)
         {
             switch (key.Kind)
@@ -363,6 +403,14 @@ public partial class Layer5AnalysisParser
             CollectTableSymbols(l4Result.SemanticStructure, tableSymbols);
         }
 
+        var membersByType = new Dictionary<(string FilePath, string TypeName, string MemberName), string>();
+        var memberTypeCandidates = new List<(string MemberId, string TypeId, string DataType)>();
+        var syntaxStruct = l4Result?.Prev.SyntaxStructure ?? ctx.SyntaxStructure;
+        if (syntaxStruct != null)
+        {
+            CollectMemberSymbols(syntaxStruct, null, membersByType, memberTypeCandidates);
+        }
+
         Layer5SymbolVisibilityResolver.UnifyPartialTypeDeclarations(typesByName, typeSymbols, functionSymbolsByFile, functionsInFile, ctx);
 
         var (reachableProjects, projectsInDepGraph) = Layer5SymbolVisibilityResolver.BuildProjectReachabilityMatrix(ctx, l4Result);
@@ -383,7 +431,37 @@ public partial class Layer5AnalysisParser
             projectsSortedByLengthDesc,
             typesByName,
             reachableProjects,
-            projectsInDepGraph);
+            projectsInDepGraph,
+            null,
+            membersByType,
+            memberTypeCandidates);
+    }
+
+    private static void CollectMemberSymbols(
+        IOntologyNode node,
+        CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode? enclosingType,
+        Dictionary<(string FilePath, string TypeName, string MemberName), string> membersByType,
+        List<(string MemberId, string TypeId, string DataType)> memberTypeCandidates)
+    {
+        if (node is CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode tn)
+        {
+            enclosingType = tn;
+        }
+        else if (node is CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.MemberNode mn && enclosingType != null)
+        {
+            var normFile = (enclosingType.FilePath ?? "").Replace('\\', '/');
+            membersByType.TryAdd((normFile, enclosingType.Name, mn.Name), mn.Id);
+            membersByType.TryAdd(("", enclosingType.Name, mn.Name), mn.Id);
+            if (!string.IsNullOrWhiteSpace(mn.DataType))
+            {
+                memberTypeCandidates.Add((mn.Id, enclosingType.Id, mn.DataType));
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            CollectMemberSymbols(child, enclosingType, membersByType, memberTypeCandidates);
+        }
     }
 
     private static void CollectTableSymbols(IOntologyNode node, Dictionary<string, string> tableSymbols)
@@ -468,6 +546,7 @@ public partial class Layer5AnalysisParser
                     var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
                     if (!string.IsNullOrEmpty(className))
                     {
+                        symbols.InheritedTypeNames.Add((className, refItem.TargetName));
                         if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
                         {
                             implList = [];
@@ -497,9 +576,9 @@ public partial class Layer5AnalysisParser
         SymbolLookups symbols,
         Dictionary<string, List<string>> interfaceToImplementors)
     {
-        if (directInherits.Count == 0 || directImplements.Count == 0) return;
+        if (directInherits.Count == 0) return;
 
-        const int maxInheritanceDepth = 5;
+        const int maxInheritanceDepth = 8;
         var visited = new HashSet<string>(StringComparer.Ordinal);
         var queue = new Queue<(string BaseId, int Depth)>();
 
@@ -518,6 +597,15 @@ public partial class Layer5AnalysisParser
             while (queue.Count > 0)
             {
                 var (currBaseId, depth) = queue.Dequeue();
+                symbols.InheritanceRels.Add((derivedId, currBaseId));
+                if (!string.IsNullOrEmpty(derivedClassName))
+                {
+                    var currBaseName = ExtractSymbolNameFromId(currBaseId);
+                    if (!string.IsNullOrEmpty(currBaseName))
+                    {
+                        symbols.InheritedTypeNames.Add((derivedClassName, currBaseName));
+                    }
+                }
                 if (directImplements.TryGetValue(currBaseId, out var implementedIfaces))
                 {
                     for (var i = 0; i < implementedIfaces.Count; i++)
@@ -530,6 +618,7 @@ public partial class Layer5AnalysisParser
                         }
                         if (!string.IsNullOrEmpty(derivedClassName))
                         {
+                            symbols.InheritedTypeNames.Add((derivedClassName, ifaceName));
                             if (!interfaceToImplementors.TryGetValue(ifaceName, out var implList))
                             {
                                 implList = [];
@@ -835,10 +924,40 @@ public partial class Layer5AnalysisParser
 
         return new ImportLookups(fileImports, starImportsByFile, workspacePackages, tsConfigPaths);
     }
+}
 
-    private static void ResolveDependsOnReference(
+internal static partial class Layer5SymbolVisibilityResolver
+{
+    private const string PluralSuffixS = "s";
+    private const string PluralSuffixEs = "es";
+    private const string SnakeCaseRegexPattern = "([a-z0-9])([A-Z])";
+    private const string SnakeCaseRegexReplacement = "$1_$2";
+
+    internal static void ResolveMemberOfTypeRelationships(
+        ParsingContext ctx,
+        Layer5AnalysisParser.SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        if (symbols.MemberTypeCandidates.Count == 0) return;
+
+        foreach (var (memberId, enclosingTypeId, rawDataType) in symbols.MemberTypeCandidates)
+        {
+            var cleanType = rawDataType.Trim().TrimEnd('?', '[', ']');
+            var ltIdx = cleanType.IndexOf('<');
+            if (ltIdx > 0) cleanType = cleanType[..ltIdx].Trim();
+            if (string.IsNullOrEmpty(cleanType)) continue;
+
+            var targetTypeId = ResolveVisibleTypeSymbol(cleanType, enclosingTypeId, ctx, symbols);
+            if (!string.IsNullOrEmpty(targetTypeId))
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new OfTypeRelationship(memberId, targetTypeId)));
+            }
+        }
+    }
+
+    internal static void ResolveDependsOnReference(
         Reference refItem,
-        SymbolLookups symbols,
+        Layer5AnalysisParser.SymbolLookups symbols,
         List<Relationship> referenceRelationships)
     {
         var found = symbols.TableSymbols.TryGetValue(refItem.TargetName, out var targetTableId);
@@ -850,7 +969,7 @@ public partial class Layer5AnalysisParser
 
         if (found && targetTableId != null)
         {
-            var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+            var filePath = Layer5AnalysisParser.ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
             var cleanFilePath = !string.IsNullOrEmpty(filePath) ? filePath : null;
 
             referenceRelationships.Add(
@@ -872,10 +991,10 @@ public partial class Layer5AnalysisParser
         }
     }
 
-    private static void ResolvePersistedInReference(
+    internal static void ResolvePersistedInReference(
         Reference refItem,
         ParsingContext ctx,
-        SymbolLookups symbols,
+        Layer5AnalysisParser.SymbolLookups symbols,
         List<Relationship> referenceRelationships,
         HashSet<(string From, string To, string Kind)> existingRefRels)
     {
@@ -892,7 +1011,7 @@ public partial class Layer5AnalysisParser
                 : $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Table}:{refItem.TargetName.ToLowerInvariant()}";
             if (tid != targetTableId)
             {
-                var filePath = ExtractFilePathFromSymbolId(tid);
+                var filePath = Layer5AnalysisParser.ExtractFilePathFromSymbolId(tid);
                 var cleanFilePath = !string.IsNullOrEmpty(filePath) ? filePath : null;
                 if (existingRefRels.Add((targetTableId, tid, OntologyConstants.Relationships.ImplementedBy)))
                 {
@@ -915,23 +1034,6 @@ public partial class Layer5AnalysisParser
             }
         }
     }
-
-    private static void ResolveUsesTypeReference(Reference refItem, ParsingContext ctx, SymbolLookups symbols, List<Relationship> referenceRelationships) =>
-        Layer5SymbolVisibilityResolver.ResolveUsesTypeReference(refItem, ctx, symbols, referenceRelationships);
-
-    private static void ResolveAccessedByOrImplementedByReference(Reference refItem, ParsingContext ctx, SymbolLookups symbols, List<Relationship> referenceRelationships) =>
-        Layer5SymbolVisibilityResolver.ResolveAccessedByOrImplementedByReference(refItem, symbols, referenceRelationships);
-
-    private static void ResolveReadsOrWritesReference(Reference refItem, SymbolLookups symbols, List<Relationship> referenceRelationships) =>
-        Layer5SymbolVisibilityResolver.ResolveReadsOrWritesReference(refItem, symbols, referenceRelationships);
-}
-
-internal static partial class Layer5SymbolVisibilityResolver
-{
-    private const string PluralSuffixS = "s";
-    private const string PluralSuffixEs = "es";
-    private const string SnakeCaseRegexPattern = "([a-z0-9])([A-Z])";
-    private const string SnakeCaseRegexReplacement = "$1_$2";
 
     internal static void ResolveUsesTypeReference(
         Reference refItem,

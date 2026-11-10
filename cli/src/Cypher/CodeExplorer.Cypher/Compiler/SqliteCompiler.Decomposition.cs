@@ -4,11 +4,12 @@ namespace CodeExplorer.Cypher.Compiler;
 
 public partial class SqliteCompiler
 {
+    private const string CollectFuncName = "collect";
+
     private sealed class DecomposedOptionalBranch
     {
         public required MatchClause Match { get; init; }
         public required PathPattern Path { get; init; }
-        public required string RootVar { get; init; }
         public required HashSet<string> IntroducedVars { get; init; }
         public bool IsCompiled { get; set; }
     }
@@ -18,73 +19,31 @@ public partial class SqliteCompiler
 
     private void DetectDecomposedOptionalMatches(CypherQuery query)
     {
-        if (query.Matches.Count(m => m.IsOptional) < 2) return;
-
-        var declaredSoFar = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var match in query.Matches.Where(m => !m.IsOptional))
+        if (query.Matches.Count(static m => m.IsOptional) < 2 || !HasQueryAggregation(query))
         {
-            foreach (var path in match.Paths)
+            return;
+        }
+
+        var declaredSoFar = CollectRequiredDeclaredVars(query);
+        List<DecomposedOptionalBranch> candidateBranches = [];
+        var undecomposedOptionalVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in query.Matches.Where(static m => m.IsOptional))
+        {
+            var candidate = TryCreateCandidateOptionalBranch(query, match, declaredSoFar);
+            if (candidate != null)
             {
-                if (path.Head.Variable != null) declaredSoFar.Add(path.Head.Variable);
-                foreach (var elem in path.Chain)
-                {
-                    if (elem.Relationship.Variable != null) declaredSoFar.Add(elem.Relationship.Variable);
-                    if (elem.Target.Variable != null) declaredSoFar.Add(elem.Target.Variable);
-                }
+                candidateBranches.Add(candidate);
+            }
+            else
+            {
+                CollectMatchIntroducedVars(match, declaredSoFar, undecomposedOptionalVars);
             }
         }
 
-        var candidateBranches = new List<DecomposedOptionalBranch>();
-        foreach (var match in query.Matches.Where(m => m.IsOptional))
-        {
-            if (match.Paths.Count != 1) continue;
-            var path = match.Paths[0];
-            var headVar = path.Head.Variable;
-            if (headVar == null || !declaredSoFar.Contains(headVar) || path.Chain.Count == 0) continue;
+        FilterCrossBranchAggregatedCandidates(query, candidateBranches, undecomposedOptionalVars);
 
-            var introduced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var referencesOtherOptional = false;
-
-            foreach (var elem in path.Chain)
-            {
-                if (elem.Relationship.Variable != null)
-                {
-                    if (declaredSoFar.Contains(elem.Relationship.Variable))
-                        referencesOtherOptional = true;
-                    else
-                        introduced.Add(elem.Relationship.Variable);
-                }
-
-                if (elem.Target.Variable != null)
-                {
-                    if (declaredSoFar.Contains(elem.Target.Variable))
-                        referencesOtherOptional = true;
-                    else
-                        introduced.Add(elem.Target.Variable);
-                }
-            }
-
-            if (referencesOtherOptional || introduced.Count == 0) continue;
-
-            // Check that all introduced variables are ONLY used inside aggregations (collect, count)
-            // and never used in subsequent MATCH clauses, list comprehensions, or non-agg expressions
-            var allAggregated = introduced.All(v =>
-                !HasVariableOutsideAggregation(query, match, v));
-
-            if (allAggregated)
-            {
-                candidateBranches.Add(new DecomposedOptionalBranch
-                {
-                    Match = match,
-                    Path = path,
-                    RootVar = headVar,
-                    IntroducedVars = introduced
-                });
-            }
-        }
-
-        // Only decompose if we have 2 or more independent optional branches
-        if (candidateBranches.Count >= 2)
+        if (candidateBranches.Count >= 1)
         {
             foreach (var branch in candidateBranches)
             {
@@ -94,6 +53,215 @@ public partial class SqliteCompiler
                 }
             }
         }
+    }
+
+    private static bool HasQueryAggregation(CypherQuery query) =>
+        query.Return.Items.Any(static i => HasAggregation(i.Expression)) ||
+        (query.WithClauses?.Any(static w => w.Items.Any(static i => HasAggregation(i.Expression))) ?? false);
+
+    private static HashSet<string> CollectRequiredDeclaredVars(CypherQuery query)
+    {
+        var declared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var match in query.Matches.Where(static m => !m.IsOptional))
+        {
+            foreach (var path in match.Paths)
+            {
+                if (path.Head.Variable != null) declared.Add(path.Head.Variable);
+                foreach (var elem in path.Chain)
+                {
+                    if (elem.Relationship.Variable != null) declared.Add(elem.Relationship.Variable);
+                    if (elem.Target.Variable != null) declared.Add(elem.Target.Variable);
+                }
+            }
+        }
+
+        return declared;
+    }
+
+    private static void CollectMatchIntroducedVars(
+        MatchClause match,
+        HashSet<string> declaredSoFar,
+        HashSet<string> target)
+    {
+        foreach (var path in match.Paths)
+        {
+            if (path.PathVariable != null && !declaredSoFar.Contains(path.PathVariable))
+            {
+                target.Add(path.PathVariable);
+            }
+
+            if (path.Head.Variable != null && !declaredSoFar.Contains(path.Head.Variable))
+            {
+                target.Add(path.Head.Variable);
+            }
+
+            foreach (var elem in path.Chain)
+            {
+                if (elem.Relationship.Variable != null && !declaredSoFar.Contains(elem.Relationship.Variable))
+                {
+                    target.Add(elem.Relationship.Variable);
+                }
+
+                if (elem.Target.Variable != null && !declaredSoFar.Contains(elem.Target.Variable))
+                {
+                    target.Add(elem.Target.Variable);
+                }
+            }
+        }
+    }
+
+    private static DecomposedOptionalBranch? TryCreateCandidateOptionalBranch(
+        CypherQuery query,
+        MatchClause match,
+        HashSet<string> declaredSoFar)
+    {
+        if (match.Paths.Count != 1) return null;
+        var path = match.Paths[0];
+        if (path.Chain.Count == 0 ||
+            path.PathVariable != null ||
+            path.IsShortestPath ||
+            path.IsAllShortestPaths ||
+            path.Chain.Any(static e => e.Relationship.Range.HasValue))
+        {
+            return null;
+        }
+
+        var anchorCount = 0;
+        var introduced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (path.Head.Variable != null)
+        {
+            if (declaredSoFar.Contains(path.Head.Variable)) anchorCount++;
+            else introduced.Add(path.Head.Variable);
+        }
+
+        foreach (var elem in path.Chain)
+        {
+            if (elem.Relationship.Variable != null)
+            {
+                if (declaredSoFar.Contains(elem.Relationship.Variable)) return null;
+                introduced.Add(elem.Relationship.Variable);
+            }
+
+            if (elem.Target.Variable != null)
+            {
+                if (declaredSoFar.Contains(elem.Target.Variable)) anchorCount++;
+                else introduced.Add(elem.Target.Variable);
+            }
+        }
+
+        if (anchorCount == 0 || introduced.Count == 0) return null;
+        if (match.Where != null &&
+            GetReferencedIdentifiers(match.Where.Predicate).Any(id => !declaredSoFar.Contains(id) && !introduced.Contains(id)))
+        {
+            return null;
+        }
+
+        var referencedAnywhere = introduced.Any(v => IsVariableReferencedInQuery(query, match, v));
+        var allAggregated = introduced.All(v => !HasVariableOutsideAggregation(query, match, v));
+        if (!referencedAnywhere || !allAggregated) return null;
+
+        return new DecomposedOptionalBranch
+        {
+            Match = match,
+            Path = path,
+            IntroducedVars = introduced
+        };
+    }
+
+    private static void FilterCrossBranchAggregatedCandidates(
+        CypherQuery query,
+        List<DecomposedOptionalBranch> candidates,
+        HashSet<string> undecomposedOptionalVars)
+    {
+        if (candidates.Count == 0) return;
+
+        List<FunctionCallExpression> aggCalls = [];
+        if (query.WithClauses != null)
+        {
+            foreach (var with in query.WithClauses)
+            {
+                foreach (var item in with.Items) CollectAggregationFunctions(item.Expression, aggCalls);
+            }
+        }
+
+        foreach (var item in query.Return.Items) CollectAggregationFunctions(item.Expression, aggCalls);
+        if (query.OrderBy != null)
+        {
+            foreach (var item in query.OrderBy.Items) CollectAggregationFunctions(item.Expression, aggCalls);
+        }
+
+        candidates.RemoveAll(branch => aggCalls.Any(fn =>
+        {
+            var refs = GetReferencedIdentifiers(fn);
+            if (!refs.Overlaps(branch.IntroducedVars)) return false;
+            return refs.Overlaps(undecomposedOptionalVars) ||
+                   candidates.Any(other => !ReferenceEquals(other, branch) && refs.Overlaps(other.IntroducedVars));
+        }));
+    }
+
+    private static void CollectAggregationFunctions(Expression expr, List<FunctionCallExpression> target)
+    {
+        switch (expr)
+        {
+            case FunctionCallExpression fn:
+                if (AggregateFunctionNames.Contains(fn.FunctionName)) target.Add(fn);
+                foreach (var arg in fn.Arguments) CollectAggregationFunctions(arg, target);
+                break;
+            case BinaryExpression b:
+                CollectAggregationFunctions(b.Left, target);
+                CollectAggregationFunctions(b.Right, target);
+                break;
+            case UnaryExpression u:
+                CollectAggregationFunctions(u.Operand, target);
+                break;
+            case ListSliceExpression ls:
+                CollectAggregationFunctions(ls.List, target);
+                if (ls.From != null) CollectAggregationFunctions(ls.From, target);
+                if (ls.To != null) CollectAggregationFunctions(ls.To, target);
+                break;
+            case CaseExpression c:
+                if (c.TestExpression != null) CollectAggregationFunctions(c.TestExpression, target);
+                foreach (var w in c.WhenBranches)
+                {
+                    CollectAggregationFunctions(w.When, target);
+                    CollectAggregationFunctions(w.Then, target);
+                }
+
+                if (c.ElseExpression != null) CollectAggregationFunctions(c.ElseExpression, target);
+                break;
+            case ListComprehensionExpression lc:
+                CollectAggregationFunctions(lc.List, target);
+                if (lc.Filter != null) CollectAggregationFunctions(lc.Filter, target);
+                if (lc.Projection != null) CollectAggregationFunctions(lc.Projection, target);
+                break;
+            case ListPredicateExpression lp:
+                CollectAggregationFunctions(lp.List, target);
+                CollectAggregationFunctions(lp.Predicate, target);
+                break;
+            case ReduceExpression red:
+                CollectAggregationFunctions(red.Initial, target);
+                CollectAggregationFunctions(red.List, target);
+                CollectAggregationFunctions(red.Expression, target);
+                break;
+        }
+    }
+
+    private static bool IsVariableReferencedInQuery(CypherQuery query, MatchClause currentMatch, string varName)
+    {
+        if (query.Where != null && HasVariable(query.Where.Predicate, varName)) return true;
+        if (query.WithClauses != null && query.WithClauses.Any(w =>
+                w.Items.Any(i => HasVariable(i.Expression, varName)) ||
+                (w.Where != null && HasVariable(w.Where.Predicate, varName))))
+        {
+            return true;
+        }
+
+        if (query.Return.Items.Any(i => HasVariable(i.Expression, varName))) return true;
+        if (query.OrderBy != null && query.OrderBy.Items.Any(i => HasVariable(i.Expression, varName))) return true;
+
+        return query.Matches.Any(m => !ReferenceEquals(m, currentMatch) &&
+                                      m.Where != null &&
+                                      HasVariable(m.Where.Predicate, varName));
     }
 
     private static bool HasVariableOutsideAggregation(CypherQuery query, MatchClause currentMatch, string varName)
@@ -188,45 +356,15 @@ public partial class SqliteCompiler
         return false;
     }
 
-    private static bool HasVariable(Expression expr, string varName)
-    {
-        switch (expr)
-        {
-            case IdentifierExpression id:
-                return id.Name.Equals(varName, StringComparison.OrdinalIgnoreCase);
-            case PropertyAccessExpression prop:
-                return prop.Variable.Equals(varName, StringComparison.OrdinalIgnoreCase);
-            case BinaryExpression b:
-                return HasVariable(b.Left, varName) || HasVariable(b.Right, varName);
-            case UnaryExpression u:
-                return HasVariable(u.Operand, varName);
-            case FunctionCallExpression fn:
-                return fn.Arguments.Any(a => HasVariable(a, varName));
-            case ListExpression l:
-                return l.Items.Any(i => HasVariable(i, varName));
-            case MapLiteralExpression m:
-                return m.Properties.Values.Any(v => HasVariable(v, varName));
-            case CaseExpression c:
-                return (c.TestExpression != null && HasVariable(c.TestExpression, varName)) ||
-                       c.WhenBranches.Any(w => HasVariable(w.When, varName) || HasVariable(w.Then, varName)) ||
-                       (c.ElseExpression != null && HasVariable(c.ElseExpression, varName));
-            case ListComprehensionExpression comp:
-                return HasVariable(comp.List, varName) ||
-                       (comp.Filter != null && HasVariable(comp.Filter, varName)) ||
-                       (comp.Projection != null && HasVariable(comp.Projection, varName));
-            case ListPredicateExpression pred:
-                return HasVariable(pred.List, varName) || HasVariable(pred.Predicate, varName);
-            default:
-                return false;
-        }
-    }
+    private static bool HasVariable(Expression expr, string varName) =>
+        GetReferencedIdentifiers(expr).Contains(varName);
 
     private static bool HasVariableOutsideAggregation(Expression expr, string varName, bool insideAgg)
     {
         switch (expr)
         {
-            case FunctionCallExpression fn when fn.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase) ||
-                                                fn.FunctionName.Equals("count", StringComparison.OrdinalIgnoreCase):
+            case FunctionCallExpression fn when fn.FunctionName.Equals(CollectFuncName, StringComparison.OrdinalIgnoreCase) ||
+                                                fn.FunctionName.Equals(CountFuncName, StringComparison.OrdinalIgnoreCase):
                 return fn.Arguments.Any(arg => HasVariableOutsideAggregation(arg, varName, true));
 
             case IdentifierExpression id when id.Name.Equals(varName, StringComparison.OrdinalIgnoreCase):
@@ -242,6 +380,11 @@ public partial class SqliteCompiler
             case UnaryExpression u:
                 return HasVariableOutsideAggregation(u.Operand, varName, insideAgg);
 
+            case ListSliceExpression ls:
+                return HasVariableOutsideAggregation(ls.List, varName, insideAgg) ||
+                       (ls.From != null && HasVariableOutsideAggregation(ls.From, varName, insideAgg)) ||
+                       (ls.To != null && HasVariableOutsideAggregation(ls.To, varName, insideAgg));
+
             case ListExpression l:
                 return l.Items.Any(i => HasVariableOutsideAggregation(i, varName, insideAgg));
 
@@ -250,6 +393,13 @@ public partial class SqliteCompiler
 
             case MapLiteralExpression m:
                 return m.Properties.Values.Any(v => HasVariableOutsideAggregation(v, varName, insideAgg));
+
+            case MapProjectionExpression mp:
+                return HasVariableOutsideAggregation(mp.BaseExpression, varName, insideAgg) ||
+                       mp.Elements.Any(e => e.ValueExpression != null && HasVariableOutsideAggregation(e.ValueExpression, varName, insideAgg));
+
+            case HasLabelExpression hl:
+                return HasVariableOutsideAggregation(hl.Expression, varName, insideAgg);
 
             case CaseExpression c:
                 return (c.TestExpression != null && HasVariableOutsideAggregation(c.TestExpression, varName, insideAgg)) ||
@@ -265,27 +415,37 @@ public partial class SqliteCompiler
                 return HasVariableOutsideAggregation(pred.List, varName, insideAgg) ||
                        HasVariableOutsideAggregation(pred.Predicate, varName, insideAgg);
 
+            case ReduceExpression red:
+                return HasVariableOutsideAggregation(red.Initial, varName, insideAgg) ||
+                       HasVariableOutsideAggregation(red.List, varName, insideAgg) ||
+                       HasVariableOutsideAggregation(red.Expression, varName, insideAgg);
+
             default:
-                return false;
+                return GetReferencedIdentifiers(expr).Contains(varName);
         }
     }
 
     private string? TryCompileDecomposedAggregation(FunctionCallExpression func, string distinctStr)
     {
+        _ = distinctStr;
         if (func.Arguments.Count != 1) return null;
 
         var referenced = GetReferencedIdentifiers(func.Arguments[0]);
-        var branch = referenced.Select(id => _decomposedBranches.TryGetValue(id, out var b) ? b : null)
-                               .FirstOrDefault(b => b != null);
+        var matchingBranches = referenced
+            .Select(id => _decomposedBranches.GetValueOrDefault(id))
+            .Where(static b => b != null)
+            .Distinct()
+            .ToList();
 
-        if (branch == null) return null;
+        if (matchingBranches.Count != 1) return null;
+        var branch = matchingBranches[0]!;
 
         // Build subquery path for this branch
         var (fromJoins, conditions) = BuildSubqueryPath(branch.Path, "_dec");
 
         // Temporarily register branch variables so VisitExpression resolves them correctly
-        var addedNodes = new List<string>();
-        var addedRels = new List<string>();
+        List<string> addedNodes = [];
+        List<string> addedRels = [];
 
         if (branch.Path.Head.Variable != null && _declaredNodes.Add(branch.Path.Head.Variable))
             addedNodes.Add(branch.Path.Head.Variable);
@@ -317,15 +477,26 @@ public partial class SqliteCompiler
         var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
         branch.IsCompiled = true;
 
-        if (func.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase))
+        if (func.FunctionName.Equals(CollectFuncName, StringComparison.OrdinalIgnoreCase))
         {
             return SqlTemplates.RenderCollectSubquery(func.IsDistinct, projSql, fromJoins.ToString(), whereSql);
         }
 
-        if (func.FunctionName.Equals("count", StringComparison.OrdinalIgnoreCase))
+        if (func.FunctionName.Equals(CountFuncName, StringComparison.OrdinalIgnoreCase))
         {
-            var countTarget = func.Arguments[0] is WildcardExpression ? "*" : "1";
-            return SqlTemplates.RenderCountSubquery(func.IsDistinct, countTarget, fromJoins.ToString(), whereSql);
+            const string wildcardStar = "*";
+            var countTarget = func.Arguments[0] switch
+            {
+                WildcardExpression => wildcardStar,
+                IdentifierExpression id when addedNodes.Contains(id.Name, StringComparer.OrdinalIgnoreCase) => $"{EscapeVar(id.Name)}.id",
+                IdentifierExpression relId when addedRels.Contains(relId.Name, StringComparer.OrdinalIgnoreCase) => $"{EscapeVar(relId.Name)}.rowid",
+                _ => projSql
+            };
+            return SqlTemplates.RenderCountSubquery(
+                func.IsDistinct && func.Arguments[0] is not WildcardExpression,
+                countTarget,
+                fromJoins.ToString(),
+                whereSql);
         }
 
         return null;

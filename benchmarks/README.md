@@ -17,7 +17,7 @@ Two identical AI agents receive the exact same multi-hop architectural audit tas
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[Case Study 01: Public Monorepo Audit](./01-agent-audit-ce-vs-cbm-on-twenty/README.md)**<br>DI fan-in, inheritance, BullMQ queues & API-to-DB write lineage | `twentyhq/twenty`<br>`46` packages, `24,527` files, `2.49M` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | `CodeExplorer`<br>vs<br>`CBM` | **`6.0×` faster**<br>`1m 33s` vs `9m 15s`<br>`7` turns vs `28` turns | **`7.0×` fewer tokens**<br>`241,528` vs `1,678,913`<br>(`$0.06` vs `$0.23`) | **Native Graph: `100%` vs `3.4%`**<br>`381/381` from `ce` (`0` file reads) vs `13/381` from `CBM` (wrote `3` AST scripts + `10` file reads) |
 | **[Case Study 02: 324-Service Enterprise Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>Shared ORM tables, outbound HTTP fan-in, Pub/Sub & RabbitMQ topology (zero schema hints) | Enterprise Multi-Repo Workspace<br>`450` independent service/library repos (`324` services, `13,782` files, TS, Go, SQL) | `CodeExplorer`<br>vs<br>`ripgrep` + Python | **`7.00×` faster**<br>`4m 16s` vs `29m 52s`<br>`18` turns vs `285` turns | **`25.07×` fewer tokens**<br>`685,738` vs `17,194,141`<br>(`$0.10` vs `$1.15`, `11.50×` cheaper) | **`100%` vs `~82%`**<br>`0` missed services (`16` file reads, `0` scripts) vs `9` RTB services missed (`114` file reads + `14` scripts) |
-| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | `OrchardCMS/OrchardCore`<br>`[TBD ~180]` C# projects, `[TBD ~6,000]` files (.NET, ASP.NET Core, YesSql) | `CodeExplorer`<br>vs<br>`ripgrep` | **`[TBD ×]` faster**<br>`[TBD]` vs `[TBD]`<br>`[TBD]` turns vs `[TBD]` turns | **`[TBD ×]` fewer tokens**<br>`[TBD]` vs `[TBD]`<br>(`$[TBD]` vs `$[TBD]`) | **`[TBD %]` vs `[TBD %]`**<br>`[TBD]` file reads vs `[TBD]` file reads |
+| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>AppSec `AuthorizeAsync` audit, `YesSql.ISession` layer violations, `PublishedAsync` side-effects & `IContentManager` blast radius | `OrchardCMS/OrchardCore`<br>`334` projects, `7,837` files (.NET, ASP.NET Core, YesSql) | `CodeExplorer`<br>vs<br>`ripgrep` + `view_file` | **`2.32×` faster**<br>`6m 24s` vs `14m 49s`<br>`15` turns (`61` steps) vs `38` turns (`227` steps) | **`4.91×` fewer tokens** (`6.01×` less tool output)<br>`651,686` vs `3,197,058`<br>(`$0.23` vs `$0.65`, `2.83×` cheaper) | **`100%` vs `100%`** (`0` vs `2` compactions)<br>`15` file reads vs `163` file reads (`10.87×` fewer) |
 <!-- END:md.catalog_agent_table -->
 
 ---
@@ -36,10 +36,10 @@ No LLM in the loop. Both tools index the same commits of `twentyhq/twenty` (`24,
 ## Tested Participants & Versions
 
 <!-- BEGIN:md.catalog_participants -->
-1. **CodeExplorer (`ce`)**: `v1.75.0 to v1.77.2` (.NET 10, SQLite + OpenCypher, `36` MCP tools)
+1. **CodeExplorer (`ce`)**: `v1.75.0 to v1.78.1` (.NET 10, SQLite + OpenCypher, `36` MCP tools)
 2. **codebase-memory-mcp (`CBM`)**: `v0.12.1` (`win32-x64` Go + SQLite binary, `17` MCP tools)
 3. **Graphify (`graphifyy`)**: `v0.9.104` (Python 3.10, Tree-sitter + NetworkX `--code-only`, `10` MCP tools)
-4. **Lexical CLI Baseline**: `ripgrep` (`rg v14.1.1`) + Python `3.10` + `view_file`
-5. **LLM Model (Track 1)**: `Gemini 3.8 Flash` (`100%` symmetric system prompts)
-6. **Pinned Target Commits**: `twentyhq/twenty @ b9ef7107` (Case 01), `twentyhq/twenty @ 12e8fae4` & `immich-app/immich @ 2153d22f` (Cases 03 & 04), `OrchardCMS/OrchardCore @ [TBD]` (Case 05)
+4. **Lexical CLI Baseline**: `ripgrep` (`rg v14.1.1`) + Python `3.10` (Case 02) + `view_file`
+5. **LLM Model (Track 1)**: `Gemini 3.8 Flash` (symmetric system prompts across paired runs)
+6. **Pinned Target Commits**: `twentyhq/twenty @ b9ef7107` (Case 01), `twentyhq/twenty @ 12e8fae4` & `immich-app/immich @ 2153d22f` (Cases 03 & 04), `OrchardCMS/OrchardCore @ 05ad2d9a` (Case 05)
 <!-- END:md.catalog_participants -->

@@ -33,6 +33,8 @@ public partial class SqliteCompiler
             PatternComprehensionExpression patComp => VisitPatternComprehension(patComp),
             ReduceExpression red => VisitReduce(red),
             MapProjectionExpression mapProj => VisitMapProjection(mapProj),
+            ExistsSubqueryExpression ex => VisitExistsSubquery(ex),
+            CountSubqueryExpression cnt => VisitCountSubquery(cnt),
             _ => throw new NotSupportedException($"Expression type {expression.GetType().Name} is not supported.")
         };
     }
@@ -78,6 +80,12 @@ public partial class SqliteCompiler
 
     private string? TryVisitRelIdentifier(string name, string escaped)
     {
+        var stageRel = TryVisitStageRelIdentifier(name);
+        if (stageRel != null)
+        {
+            return stageRel;
+        }
+
         if (_declaredRels.Contains(name))
         {
             return $"json_object('type', ce_rel_kind({escaped}.kind), 'from', (SELECT id FROM nodes WHERE rowid = {escaped}.from_id), 'to', (SELECT id FROM nodes WHERE rowid = {escaped}.to_id), 'properties', json({escaped}.properties))";
@@ -97,6 +105,12 @@ public partial class SqliteCompiler
         if (_nodePropertySource.TryGetValue(prop.Variable, out var propSrc))
         {
             return VisitSourcePropertyAccess(prop.Variable, propSrc, prop.PropertyName);
+        }
+
+        var stageRelProp = TryVisitStageRelPropertyAccess(prop.Variable, prop.PropertyName);
+        if (stageRelProp != null)
+        {
+            return stageRelProp;
         }
 
         if (_withAliases.TryGetValue(prop.Variable, out var withSql))
@@ -405,8 +419,21 @@ public partial class SqliteCompiler
         return $"(EXISTS (SELECT 1 FROM json_each({rightSql}) WHERE json_each.value = {leftSql}))";
     }
 
-    private static string VisitAddOperator(Expression leftExpr, Expression rightExpr, string leftSql, string rightSql)
+    private string VisitAddOperator(Expression leftExpr, Expression rightExpr, string leftSql, string rightSql)
     {
+        var leftIsList = IsListExpression(leftExpr);
+        var rightIsList = IsListExpression(rightExpr);
+        if (leftIsList || rightIsList)
+        {
+            var leftArr = leftIsList
+                ? $"CASE WHEN json_valid({leftSql}) AND json_type({leftSql}) = 'array' THEN json({leftSql}) ELSE '[]' END"
+                : $"CASE WHEN {leftSql} IS NOT NULL AND json_valid({leftSql}) AND json_type({leftSql}) = 'array' THEN json({leftSql}) ELSE json_array({leftSql}) END";
+            var rightArr = rightIsList
+                ? $"CASE WHEN json_valid({rightSql}) AND json_type({rightSql}) = 'array' THEN json({rightSql}) ELSE '[]' END"
+                : $"CASE WHEN {rightSql} IS NOT NULL AND json_valid({rightSql}) AND json_type({rightSql}) = 'array' THEN json({rightSql}) ELSE json_array({rightSql}) END";
+            return SqlTemplates.RenderJsonArrayConcat(leftArr, rightArr);
+        }
+
         if (IsDefinitelyString(leftExpr) || IsDefinitelyString(rightExpr))
         {
             return $"({leftSql} || {rightSql})";
@@ -447,7 +474,8 @@ public partial class SqliteCompiler
 
     private string VisitCase(CaseExpression caseExpr)
     {
-        var sb = new StringBuilder("CASE");
+        const string casePrefix = "CASE";
+        var sb = new StringBuilder(casePrefix);
         if (caseExpr.TestExpression != null)
         {
             sb.Append(' ').Append(VisitExpression(caseExpr.TestExpression));
@@ -573,6 +601,9 @@ public partial class SqliteCompiler
                 if (ls.From != null) CollectIdentifiers(ls.From, set);
                 if (ls.To != null) CollectIdentifiers(ls.To, set);
                 break;
+            case ExistsSubqueryExpression or CountSubqueryExpression:
+                CollectSubqueryIdentifiers(expr, set);
+                break;
         }
     }
 
@@ -590,7 +621,8 @@ public partial class SqliteCompiler
             if (elem.ValueExpression != null)
             {
                 var exprSql = VisitExpression(elem.ValueExpression);
-                if (elem.ValueExpression is IdentifierExpression valId && _withCollectExpressions.ContainsKey(valId.Name))
+                if (elem.ValueExpression is IdentifierExpression valId &&
+                    (_withCollectExpressions.ContainsKey(valId.Name) || _listValuedAliases.Contains(valId.Name)))
                 {
                     exprSql = $"json(coalesce({exprSql}, '[]'))";
                 }

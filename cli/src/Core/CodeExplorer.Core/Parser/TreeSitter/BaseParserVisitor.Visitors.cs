@@ -279,6 +279,11 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
+    private const string CallsRelationshipKind = "CALLS";
+    private const string NodeTypeArgumentList = "argument_list";
+    private const string NodeTypeArguments = "arguments";
+    private const string NodeTypeAttributeArgumentList = "attribute_argument_list";
+
     protected override void VisitCallExpression(Node node, int depth)
     {
         VisitSymbolOrBase(node, depth, () =>
@@ -289,9 +294,18 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             if (!string.IsNullOrEmpty(callName) && currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
             {
-                currentScope.References.Add(new Reference("", callName, "CALLS",
+                var callRef = new Reference(string.Empty, callName, CallsRelationshipKind,
                     node.StartPosition.Row + 1,
-                    node.StartPosition.Column + 1, receiverName: (node as CallExprSyntax)?.ExplicitReceiverPath, memberName: (node as CallExprSyntax) is { MethodName.Length: > 0 } ce ? ce.MethodName : null));
+                    node.StartPosition.Column + 1, receiverName: (node as CallExprSyntax)?.ExplicitReceiverPath, memberName: (node as CallExprSyntax) is { MethodName.Length: > 0 } ce ? ce.MethodName : null);
+                currentScope.References.Add(callRef);
+                if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+                {
+                    var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
+                    if (enclosingFunc != null && !enclosingFunc.References.Contains(callRef))
+                    {
+                        enclosingFunc.References.Add(callRef);
+                    }
+                }
             }
 
 
@@ -312,9 +326,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         var (role, isDecorator) = CallSemanticClassifier.Classify(callNode, callName);
 
         var argsNode = callNode.GetField(SyntaxFields.Arguments) ??
-                       callNode.FindChildOfType("argument_list") ??
-                       callNode.FindChildOfType("arguments") ??
-                       callNode.FindChildOfType("attribute_argument_list");
+                       callNode.FindChildOfType(NodeTypeArgumentList) ??
+                       callNode.FindChildOfType(NodeTypeArguments) ??
+                       callNode.FindChildOfType(NodeTypeAttributeArgumentList);
 
         if (!argsNode.IsValid())
         {

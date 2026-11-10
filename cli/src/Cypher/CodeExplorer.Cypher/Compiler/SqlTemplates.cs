@@ -18,6 +18,9 @@ public record SqlQueryModel
 
 public static class SqlTemplates
 {
+    private const string FromClausePrefix = "FROM ";
+    private const string SingleRowFallbackFrom = "FROM (SELECT 1)";
+
     public static string RenderQuery(SqlQueryModel m)
     {
         var sb = new StringBuilder();
@@ -35,7 +38,12 @@ public static class SqlTemplates
         if (!string.IsNullOrEmpty(m.FromAndJoins))
         {
             sb.AppendLine();
-            sb.Append(m.FromAndJoins.Trim('\r', '\n'));
+            var trimmedFrom = m.FromAndJoins.Trim('\r', '\n');
+            if (!trimmedFrom.StartsWith(FromClausePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                sb.Append(SingleRowFallbackFrom).AppendLine();
+            }
+            sb.Append(trimmedFrom);
         }
 
         if (m.WhereConditions.Count > 0)
@@ -120,5 +128,12 @@ public static class SqlTemplates
         var dist = isDistinct ? "DISTINCT " : "";
         var filterClause = !string.IsNullOrEmpty(filterSql) ? $" FILTER (WHERE {filterSql})" : "";
         return $"json_group_array({dist}{projSql}){filterClause}";
+    }
+
+    public static string RenderJsonArrayConcat(string leftArraySql, string rightArraySql)
+    {
+        return $"(CASE WHEN json_array_length({leftArraySql}) = 0 THEN {rightArraySql} " +
+               $"WHEN json_array_length({rightArraySql}) = 0 THEN {leftArraySql} " +
+               $"ELSE substr({leftArraySql}, 1, length({leftArraySql}) - 1) || ',' || substr({rightArraySql}, 2) END)";
     }
 }

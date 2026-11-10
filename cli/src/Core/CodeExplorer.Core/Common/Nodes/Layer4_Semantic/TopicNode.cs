@@ -15,6 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]
+[OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record TopicNode(
     string Id,
     [property: OntologyProperty("The name of the topic or exchange.")] string Name,

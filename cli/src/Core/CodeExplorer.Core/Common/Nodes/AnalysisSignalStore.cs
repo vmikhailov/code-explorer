@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Semantics;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
@@ -68,6 +69,7 @@ public sealed class ProjectAnalysisSignals
 public sealed class FunctionAnalysisSignals
 {
     public string? EnclosingTypeName { get; set; }
+    public string? ExtensionReceiverTypeName { get; set; }
     public string? DataflowReturn { get; set; }
     public string? DataflowWrites { get; set; }
     public string? DataflowSummary { get; set; }
@@ -75,6 +77,8 @@ public sealed class FunctionAnalysisSignals
     public string? GraphqlSchema { get; set; }
     public string? GraphqlAliases { get; set; }
     public string? MessagingDirection { get; set; }
+    public List<SemanticParamSignal>? SemanticParams { get; set; }
+    public List<SemanticArgumentSlice>? OutgoingCallSlices { get; set; }
 }
 
 /// <summary>

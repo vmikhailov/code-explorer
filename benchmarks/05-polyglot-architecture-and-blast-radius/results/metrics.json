@@ -1,7 +1,91 @@
 {
   "benchmark_id": "05-polyglot-architecture-and-blast-radius",
-  "status": "pending",
   "repository": "OrchardCMS/OrchardCore",
+  "commit": "05ad2d9a",
   "model": "Gemini 3.8 Flash",
-  "note": "Pending paired A/B agent benchmark run on OrchardCMS/OrchardCore. Once populated with graph_agent and baseline_agent telemetry, run `node scripts/sync-benchmarks.mjs`."
+  "repository_scale": {
+    "total_projects": 334,
+    "source_files": 7837,
+    "graph_nodes": 134067,
+    "graph_relationships": 288527
+  },
+  "comparison_ratios": {
+    "speedup_time_to_answer_x": 2.32,
+    "speedup_wall_clock_x": 2.05,
+    "turns_reduction_x": 2.53,
+    "steps_reduction_x": 3.72,
+    "tool_calls_reduction_x": 4.13,
+    "file_reads_reduction_x": 10.87,
+    "tool_output_reduction_x": 6.01,
+    "cumulative_actual_input_tokens_reduction_x": 4.91,
+    "api_total_input_tokens_reduction_x": 4.62,
+    "api_cost_reduction_x": 2.83
+  },
+  "graph_agent": {
+    "agent_label": "orchard_ce_graph_agent (CodeExplorer MCP + view_file)",
+    "conversation_id": "3882e500-11cc-4a1a-9f03-a72d654c5a2c",
+    "started_at": "2026-11-10T21:58:36Z",
+    "send_message_at": "2026-11-10T22:05:00Z",
+    "completed_at": "2026-11-10T22:07:27Z",
+    "time_to_answer_seconds": 384.0,
+    "wall_clock_seconds": 531.0,
+    "total_steps": 61,
+    "llm_turns": 15,
+    "context_compactions": 0,
+    "compaction_after_turns": [],
+    "total_tool_calls": 45,
+    "tool_breakdown": {
+      "list_resources": 1,
+      "view_file": 15,
+      "call_mcp_tool": 28,
+      "send_message": 1
+    },
+    "mcp_tool_breakdown": {
+      "get_taxonomy": 1,
+      "execute_custom_read_cypher": 22,
+      "fetch_code_snippets": 5
+    },
+    "tool_output_chars": 270470,
+    "tool_output_est_tokens": 67618,
+    "cumulative_actual_input_chars": 2606745,
+    "cumulative_actual_input_est_tokens": 651686,
+    "api_uncached_input_tokens": 126846,
+    "api_cached_input_tokens": 757496,
+    "api_total_input_tokens": 884342,
+    "api_output_tokens": 42402,
+    "cost_flash_usd": 0.23,
+    "cost_pro_usd": 0.83
+  },
+  "baseline_agent": {
+    "agent_label": "orchard_rg_baseline_agent (ripgrep + view_file, no custom AST scripts)",
+    "conversation_id": "af28679a-4698-4b74-a74c-231bea94a4be",
+    "started_at": "2026-11-10T18:02:07Z",
+    "send_message_at": "2026-11-10T18:16:56Z",
+    "completed_at": "2026-11-10T18:20:18Z",
+    "time_to_answer_seconds": 889.0,
+    "wall_clock_seconds": 1091.0,
+    "total_steps": 227,
+    "llm_turns": 38,
+    "context_compactions": 2,
+    "compaction_after_turns": [
+      20,
+      31
+    ],
+    "total_tool_calls": 186,
+    "tool_breakdown": {
+      "run_command": 22,
+      "view_file": 163,
+      "send_message": 1
+    },
+    "tool_output_chars": 1625077,
+    "tool_output_est_tokens": 406269,
+    "cumulative_actual_input_chars": 12788230,
+    "cumulative_actual_input_est_tokens": 3197058,
+    "api_uncached_input_tokens": 551090,
+    "api_cached_input_tokens": 3538477,
+    "api_total_input_tokens": 4089567,
+    "api_output_tokens": 66376,
+    "cost_flash_usd": 0.65,
+    "cost_pro_usd": 2.47
+  }
 }

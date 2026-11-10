@@ -389,7 +389,7 @@ public static class EvidenceProvenanceHelper
             target.TargetSinkClassification ??= source.TargetSinkClassification;
             if (target.LineEnd == 0 && source.LineEnd > 0) target.LineEnd = source.LineEnd;
             target.FilePath ??= source.FilePath;
-            target.Operation ??= source.Operation;
+            target.Operation = MergeDistinctCsv(target.Operation, source.Operation);
             target.EvidenceKind ??= source.EvidenceKind;
             target.DependencyType ??= source.DependencyType;
             target.Category ??= source.Category;
@@ -464,6 +464,7 @@ public static class EvidenceProvenanceHelper
 
         MergeProvenance(targetProperties, sourceProperties, cap);
         MergeCallSites(targetProperties, sourceProperties, cap);
+        MergeOperationProperty(targetProperties, sourceProperties);
 
         foreach (var (key, value) in sourceProperties)
         {
@@ -471,6 +472,49 @@ public static class EvidenceProvenanceHelper
             {
                 targetProperties[key] = value;
             }
+        }
+    }
+
+    public static string? MergeDistinctCsv(string? existing, string? incoming)
+    {
+        if (string.IsNullOrEmpty(existing)) return incoming;
+        if (string.IsNullOrEmpty(incoming) || string.Equals(existing, incoming, StringComparison.Ordinal)) return existing;
+
+        const string separator = ", ";
+        var parts = new List<string>(4);
+        AppendDistinctTokens(parts, existing);
+        var beforeCount = parts.Count;
+        AppendDistinctTokens(parts, incoming);
+        return parts.Count == beforeCount ? existing : string.Join(separator, parts);
+    }
+
+    private static void AppendDistinctTokens(List<string> target, string csv)
+    {
+        foreach (var raw in csv.Split(','))
+        {
+            var token = raw.Trim();
+            if (token.Length > 0 && !target.Contains(token, StringComparer.Ordinal))
+            {
+                target.Add(token);
+            }
+        }
+    }
+
+    private static void MergeOperationProperty(
+        Dictionary<string, object> targetProperties,
+        IReadOnlyDictionary<string, object> sourceProperties)
+    {
+        var opKey = OntologyConstants.PropertyNames.Operation;
+        if (!targetProperties.TryGetValue(opKey, out var existingObj) ||
+            !sourceProperties.TryGetValue(opKey, out var incomingObj))
+        {
+            return;
+        }
+
+        var merged = MergeDistinctCsv(existingObj?.ToString(), incomingObj?.ToString());
+        if (!string.IsNullOrEmpty(merged))
+        {
+            targetProperties[opKey] = merged;
         }
     }
 

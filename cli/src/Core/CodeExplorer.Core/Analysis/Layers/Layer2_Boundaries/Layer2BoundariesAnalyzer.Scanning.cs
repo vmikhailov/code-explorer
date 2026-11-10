@@ -715,6 +715,7 @@ public partial class Layer2ProjectParser
             foreach (var extPack in depInfo.ExternalPackages)
             {
                 if (string.IsNullOrWhiteSpace(extPack.Name)) continue;
+                if (string.Equals(extPack.Scope, "dev", StringComparison.OrdinalIgnoreCase)) continue;
 
                 var matched = packageToProjectMap.TryGetValue(extPack.Name, out var targetProj) ||
                               packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{extPack.Name.ToLowerInvariant()}", out targetProj);
@@ -756,6 +757,7 @@ public partial class Layer2ProjectParser
             foreach (var candidateParent in projects)
             {
                 if (string.Equals(candidateParent.Id, childProj.Id, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!CodeExplorer.Core.Analysis.ProjectNodeFactory.AreCompatibleEcosystems(candidateParent.ProjectType, childProj.ProjectType)) continue;
                 var parentNormPath = candidateParent.Path.Replace('\\', '/').Trim('/');
                 if (string.IsNullOrEmpty(parentNormPath))
                 {
@@ -789,7 +791,8 @@ public partial class Layer2ProjectParser
                     dependencies.Add(containsProjRel);
                 }
 
-                if (childProj.IsLibrary && !bestParent.IsLibrary &&
+                if (childProj.IsLibrary && !bestParent.IsLibrary && bestParent.IsBuildOrchestrator != true &&
+                    bestParent.ProjectType != ProjectLanguage.CSharp &&
                     !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
                 {
                     var depRel = Relationship.FromRelationship(new DependsOnRelationship(bestParent.Id, childProj.Id, new() { ["dependency_type"] = "library" }));
@@ -829,8 +832,9 @@ public partial class Layer2ProjectParser
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            const string layer2Name = "Layer2_Boundaries", manifestErr = "manifest_error", depParseErr = "DependencyParseError";
             ctx.Layer2Log.DependencyParseFailed(projectParser.ProjectType, projectDir, ex.Message, ex);
-            ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", projectDir, $"Error parsing dependencies for {projectParser.ProjectType}: {ex.Message}", name: "DependencyParseError", exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
+            ctx.RecordScanIssue(layer2Name, manifestErr, projectDir, $"Error parsing dependencies for {projectParser.ProjectType}: {ex.Message}", name: depParseErr, exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
             return null;
         }
     }
@@ -957,8 +961,9 @@ public partial class Layer2ProjectParser
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            const string layer2Name = "Layer2_Boundaries", manifestErr = "manifest_error", prodPkgErr = "ProducedPackageParseError";
             ctx.Layer2Log.ProducedPackageParseFailed(projectParser.ProjectType, projectDir, ex.Message, ex);
-            ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", projectDir, $"Error getting produced package for {projectParser.ProjectType}: {ex.Message}", name: "ProducedPackageParseError", exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
+            ctx.RecordScanIssue(layer2Name, manifestErr, projectDir, $"Error getting produced package for {projectParser.ProjectType}: {ex.Message}", name: prodPkgErr, exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
         }
 
         if (!packageDetected)
@@ -967,12 +972,13 @@ public partial class Layer2ProjectParser
 
             if (!string.IsNullOrEmpty(dirName))
             {
+                const string defaultInternalPkgVersion = "1.0.0";
                 var ecosystem = projectParser.ProjectType.ToLowerInvariant();
                 var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{dirName.ToLowerInvariant()}";
                 var packageNode = new PackageNode(
                     Id: packageNodeId,
                     Name: dirName,
-                    Version: "1.0.0",
+                    Version: defaultInternalPkgVersion,
                     IsInternal: true,
                     Ecosystem: ecosystem,
                     Path: projectNode.Path);

@@ -18,6 +18,7 @@ public static class WsMessageTypes
     public const string GetImpactRequest = "GET_IMPACT_REQUEST";
     public const string ExecuteCypherRequest = "EXECUTE_CYPHER_REQUEST";
     public const string TriggerScanRequest = "TRIGGER_SCAN_REQUEST";
+    public const string UpgradeSchemaRequest = "UPGRADE_SCHEMA_REQUEST";
     public const string GetOntologyLayersRequest = "GET_ONTOLOGY_LAYERS_REQUEST";
     public const string GetBoundedContextsRequest = "GET_BOUNDED_CONTEXTS_REQUEST";
     public const string GetDomainsRequest = "GET_DOMAINS_REQUEST";
@@ -411,6 +412,15 @@ public class MetadataResponseDto
 
     [JsonPropertyName("totalEdges")]
     public long TotalEdges { get; set; }
+
+    [JsonPropertyName("isSchemaOutdated")]
+    public bool IsSchemaOutdated { get; set; }
+
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("currentSchemaVersion")]
+    public int CurrentSchemaVersion { get; set; }
 }
 
 public class NodesResponseDto

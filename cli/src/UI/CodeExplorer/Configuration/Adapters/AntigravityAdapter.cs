@@ -10,11 +10,17 @@ public class AntigravityAdapter : IMcpTargetAdapter
     public bool SupportsWorkspaceScope => true;
     public bool SupportsGlobalScope => true;
 
+    private const string DirGemini = ".gemini";
+    private const string DirAntigravity = "antigravity";
+    private const string DirConfig = "config";
+    private const string DirAgents = ".agents";
+    private const string FileMcpConfig = "mcp_config.json";
+
     public bool IsInstalled(string workspaceRoot)
     {
-        var agentsDir = Path.Combine(workspaceRoot, ".agents");
+        var agentsDir = Path.Combine(workspaceRoot, DirAgents);
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var geminiDir = Path.Combine(userProfile, ".gemini");
+        var geminiDir = Path.Combine(userProfile, DirGemini);
         return Directory.Exists(agentsDir) || Directory.Exists(geminiDir);
     }
 
@@ -23,33 +29,45 @@ public class AntigravityAdapter : IMcpTargetAdapter
         if (scope == ConfigScope.Global)
         {
             var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(userProfile, ".gemini", "config", "mcp_config.json");
+            var agyDir = Path.Combine(userProfile, DirGemini, DirAntigravity);
+            if (Directory.Exists(agyDir))
+            {
+                return Path.Combine(agyDir, FileMcpConfig);
+            }
+
+            return Path.Combine(userProfile, DirGemini, DirConfig, FileMcpConfig);
         }
-        return Path.Combine(workspaceRoot, ".agents", "mcp_config.json");
+        return Path.Combine(workspaceRoot, DirAgents, FileMcpConfig);
     }
+
+    private const string KeyCommand = "command";
+    private const string KeyArgs = "args";
+    private const string KeyEnv = "env";
+    private const string EnvWorkspaceRoot = "WORKSPACE_ROOT";
+    private const string DefaultCommand = "ce";
+    private const string ArgMcp = "mcp";
+    private const string ArgQuiet = "-q";
+    private const string WorkspaceFolderPlaceholder = "${workspaceFolder}";
 
     public JsonObject GenerateMcpConfig(string workspaceRoot, ConfigScope scope)
     {
+        var procPath = Environment.ProcessPath;
+        var command = !string.IsNullOrEmpty(procPath) &&
+                      string.Equals(Path.GetFileNameWithoutExtension(procPath), DefaultCommand, StringComparison.OrdinalIgnoreCase)
+            ? procPath
+            : DefaultCommand;
+
         var config = new JsonObject
         {
-            ["command"] = "ce",
-            ["args"] = new JsonArray("mcp")
+            [KeyCommand] = command,
+            [KeyArgs] = new JsonArray(ArgMcp, ArgQuiet)
         };
 
         if (scope == ConfigScope.Workspace)
         {
-            config["cwd"] = "${workspaceFolder}";
-            config["env"] = new JsonObject
+            config[KeyEnv] = new JsonObject
             {
-                ["WORKSPACE_ROOT"] = "${workspaceFolder}"
-            };
-        }
-        else if (!string.IsNullOrEmpty(workspaceRoot))
-        {
-            config["cwd"] = workspaceRoot;
-            config["env"] = new JsonObject
-            {
-                ["WORKSPACE_ROOT"] = workspaceRoot
+                [EnvWorkspaceRoot] = WorkspaceFolderPlaceholder
             };
         }
 

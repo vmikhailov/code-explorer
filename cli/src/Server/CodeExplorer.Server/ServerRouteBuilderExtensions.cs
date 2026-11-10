@@ -262,6 +262,8 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        MapDatabaseUpgradeRoute(endpoints, wsHandler, logger);
+
         endpoints.MapGet("/api/nodes", async (IArchitectureQueryService archQueryService, string? kind, int? offset, int? limit, string? search, string? service, CancellationToken ct) =>
         {
             try
@@ -481,5 +483,72 @@ public static class ServerRouteBuilderExtensions
         });
 
         return endpoints;
+    }
+
+    private static void MapDatabaseUpgradeRoute(
+        IEndpointRouteBuilder endpoints,
+        WebSocketServerHandler wsHandler,
+        ILogger logger)
+    {
+        const string routePath = "/api/database/upgrade";
+        const string logStart = "[REST] POST /api/database/upgrade";
+        const string logFail = "[REST] Failed /api/database/upgrade";
+
+        endpoints.MapPost(routePath, async (IGraphClient graphClient, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation(logStart);
+                var fromVersion = graphClient.SchemaVersion;
+                if (!graphClient.IsSchemaOutdated)
+                {
+                    return Results.Ok(new
+                    {
+                        upgraded = true,
+                        fromVersion,
+                        currentVersion = SqliteGraphClient.CurrentSchemaVersion,
+                        message = $"Database schema is already up to date (v{SqliteGraphClient.CurrentSchemaVersion})."
+                    });
+                }
+
+                var upgraded = await graphClient.UpgradeSchemaAsync(ct);
+                wsHandler.InvalidateGatesCache();
+                if (upgraded)
+                {
+                    var (nodesCount, relsCount) = await graphClient.GetGraphCountsAsync(ct);
+                    await wsHandler.BroadcastAsync(Core.Protocol.WsMessageTypes.ScanProgressEvent, new Core.Protocol.ScanProgressEventDto
+                    {
+                        Phase = "Completed",
+                        Percentage = 100,
+                        TotalFiles = nodesCount,
+                        ProcessedFiles = nodesCount,
+                        CurrentFile = $"Database schema converted from v{fromVersion} to v{SqliteGraphClient.CurrentSchemaVersion} ({nodesCount} nodes, {relsCount} relationships)."
+                    }, ct);
+
+                    return Results.Ok(new
+                    {
+                        upgraded = true,
+                        fromVersion,
+                        currentVersion = SqliteGraphClient.CurrentSchemaVersion,
+                        totalNodes = nodesCount,
+                        totalEdges = relsCount,
+                        message = $"Database schema converted from v{fromVersion} to v{SqliteGraphClient.CurrentSchemaVersion}."
+                    });
+                }
+
+                return Results.Ok(new
+                {
+                    upgraded = false,
+                    fromVersion,
+                    currentVersion = SqliteGraphClient.CurrentSchemaVersion,
+                    message = $"In-place conversion from v{fromVersion} to v{SqliteGraphClient.CurrentSchemaVersion} could not complete; a full rescan is required."
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, logFail);
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
     }
 }

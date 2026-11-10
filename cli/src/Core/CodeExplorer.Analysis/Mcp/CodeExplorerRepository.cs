@@ -39,8 +39,23 @@ public partial class CodeExplorerRepository
             {
                 return _clientCache.GetOrAdd(ws.DbPath, path => new SqliteGraphClient(path));
             }
+
+            var hasDifferentDefault = !string.IsNullOrWhiteSpace(DefaultWorkspacePath) &&
+                !PathsEqualNormalized(DefaultWorkspacePath, workspacePath);
+            if (hasDifferentDefault || await IsEmptyStandbyAsync(_defaultDbClient))
+            {
+                throw new InvalidOperationException(
+                    $"No indexed CodeExplorer workspace (.codeexplorer/graph.db) found at '{workspacePath}'. Run 'ce init' and 'ce scan' in that workspace first.");
+            }
         }
         return _defaultDbClient;
+    }
+
+    private static bool PathsEqualNormalized(string pathA, string pathB)
+    {
+        var normA = Path.GetFullPath(pathA).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normB = Path.GetFullPath(pathB).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return string.Equals(normA, normB, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<bool> IsEmptyStandbyAsync(IGraphClient client)
@@ -49,11 +64,14 @@ public partial class CodeExplorerRepository
         if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath)) return false;
         try
         {
-            const string countOneQuery = "MATCH (n) RETURN count(n) AS cnt LIMIT 1;";
-            var cnt = await client.QueryScalarAsync<long>(countOneQuery);
-            return cnt == 0;
+            const string hasAnyNodeQuery = "MATCH (n) RETURN n.id LIMIT 1";
+            var res = await client.ExecuteCypherAsync(hasAnyNodeQuery);
+            return res.Count == 0;
         }
-        catch { }
+        catch
+        {
+            // Ignore transient schema/connection errors on non-standard mocks
+        }
         return false;
     }
 

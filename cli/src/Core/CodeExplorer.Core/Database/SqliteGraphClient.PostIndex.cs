@@ -546,13 +546,14 @@ public partial class SqliteGraphClient
 
                 foreach (var rel in result.TransitivelyCalls)
                 {
-                    _bulkRelationships[(rel.From, rel.To, RelationshipKind.TransitivelyCalls)] = $"{{\"hops\":{rel.Hops}}}";
+                    _bulkRelationships[(rel.From, rel.To, RelationshipKind.TransitivelyCalls)] =
+                        new Relationship(rel.From, rel.To, RelationshipKind.TransitivelyCalls) { Hops = rel.Hops };
                 }
 
                 foreach (var rel in result.AttributedTo)
                 {
                     _bulkRelationships[(rel.EpId, rel.SinkId, RelationshipKind.AttributedTo)] =
-                        JsonSerializer.Serialize(new { hops = rel.Hops, sink_kind = rel.SinkKind });
+                        new Relationship(rel.EpId, rel.SinkId, RelationshipKind.AttributedTo) { Hops = rel.Hops, TargetSinkClassification = rel.SinkKind };
                 }
 
                 foreach (var (projId, domains) in result.ProjectExternalApis)

@@ -74,11 +74,30 @@ public partial class ArchitectureViewEngine
         var verStr = asmVer != null ? $"{asmVer.Major}.{asmVer.Minor}.{asmVer.Build}" : "";
         var result = new MetadataResponseDto
         {
-            Version = verStr
+            Version = verStr,
+            SchemaVersion = db.SchemaVersion,
+            CurrentSchemaVersion = IGraphClient.CurrentSchemaVersion,
+            IsSchemaOutdated = db.IsSchemaOutdated
         };
 
         if (db is SqliteGraphClient sqliteClient)
         {
+            if (sqliteClient.IsSchemaOutdated)
+            {
+                try
+                {
+                    var (totalNodes, totalEdges) = await sqliteClient.GetGraphCountsAsync(ct);
+                    result.TotalNodes = totalNodes;
+                    result.TotalEdges = totalEdges;
+                }
+                catch
+                {
+                    // Ignore if outdated schema tables are inaccessible
+                }
+
+                return result;
+            }
+
             try
             {
                 var (nodeCounts, relCounts, totalNodes, totalEdges) = await sqliteClient.ExecuteRawAsync(async conn =>

@@ -18,6 +18,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ProcedureNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record DatabaseNode(
     string Id,
     [property: OntologyProperty("The database engine or catalog name.")] string Name,

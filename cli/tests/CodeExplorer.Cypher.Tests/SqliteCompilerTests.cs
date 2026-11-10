@@ -92,14 +92,15 @@ public class SqliteCompilerTests
         cmd.ExecuteNonQuery();
     }
 
-    private void InsertEdge(string fromId, string toId, string kind)
+    private void InsertEdge(string fromId, string toId, string kind, Dictionary<string, object>? props = null)
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, jsonb('{}'))";
+        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, jsonb(@props))";
         cmd.Parameters.AddWithValue("@from", fromId);
         cmd.Parameters.AddWithValue("@to", toId);
         cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeRelKind(kind));
+        cmd.Parameters.AddWithValue("@props", props != null ? JsonSerializer.Serialize(props) : "{}");
         cmd.ExecuteNonQuery();
     }
 
@@ -750,5 +751,269 @@ public class SqliteCompilerTests
         rows.Should().HaveCount(1);
         Convert.ToInt64(rows[0]["fnCount"]).Should().Be(1);
         ((string)rows[0]["slicedTags"]!).Should().Contain("t1").And.Contain("t2");
+    }
+
+    [Test]
+    public void Test_OptionalMatch_MultiHop_WithConjunctsAcrossMultipleHops_DoesNotReferenceRightTablesInOnClause()
+    {
+        InsertNode("proj:1", "Project", new() { ["name"] = "ModA" });
+        InsertNode("proj:2", "Project", new() { ["name"] = "ModB" });
+        InsertNode("proj:abs", "Project", new() { ["name"] = "Abstractions" });
+        InsertEdge("proj:1", "proj:abs", "DEPENDS_ON");
+        InsertEdge("proj:2", "proj:abs", "DEPENDS_ON");
+
+        InsertNode("type:mgr", "Type", new() { ["name"] = "IContentManager" });
+        InsertNode("fn:get", "Function", new() { ["name"] = "GetAsync" });
+        InsertEdge("type:mgr", "fn:get", "HAS_METHOD");
+
+        InsertNode("fn:caller1", "Function", new() { ["name"] = "ActionA", ["project_name"] = "ModA", ["is_test"] = false });
+        InsertEdge("fn:caller1", "fn:get", "CALLS");
+
+        var cypher = @"
+            MATCH (p:Project)-[:DEPENDS_ON]->(target:Project {name: 'Abstractions'})
+            OPTIONAL MATCH (caller:Function)-[:CALLS]->(cm:Function)<-[:HAS_METHOD]-(t:Type {name: 'IContentManager'})
+            WHERE caller.project_name = p.name AND caller.is_test = false AND cm.name IN ['GetAsync', 'CreateAsync']
+            WITH p.name AS mod, count(caller) AS callCount
+            WHERE callCount = 0
+            RETURN mod
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(1);
+        rows[0]["mod"].Should().Be("ModB");
+
+        var reverseCypher = @"
+            MATCH (p:Project)-[:DEPENDS_ON]->(target:Project {name: 'Abstractions'})
+            OPTIONAL MATCH (t:Type {name: 'IContentManager'})-[:HAS_METHOD]->(cm:Function)<-[:CALLS]-(caller:Function)
+            WHERE cm.name IN ['GetAsync', 'CreateAsync'] AND caller.project_name = p.name AND caller.is_test = false
+            WITH p.name AS mod, count(DISTINCT caller.id) AS callCount
+            WHERE callCount = 0
+            RETURN count(mod) AS totalZero, collect(mod) AS mods
+        ";
+
+        var revRows = ExecuteCypher(reverseCypher);
+        revRows.Should().HaveCount(1);
+        Convert.ToInt64(revRows[0]["totalZero"]).Should().Be(1);
+        ((string)revRows[0]["mods"]!).Should().Contain("ModB");
+    }
+
+    [Test]
+    public void Test_UnaliasedReturnItems_UseCanonicalCypherColumnNames()
+    {
+        var cypher = @"
+            MATCH (c:Type)-[r:HAS_METHOD]->(m:Function)
+            WHERE c.name = 'OrderService'
+            RETURN c.name, labels(c), type(r), count(DISTINCT m)
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(1);
+        rows[0].Keys.Should().BeEquivalentTo(["c.name", "labels(c)", "type(r)", "count(DISTINCT m)"]);
+        rows[0]["c.name"].Should().Be("OrderService");
+        rows[0]["type(r)"].Should().Be("HAS_METHOD");
+        Convert.ToInt64(rows[0]["count(DISTINCT m)"]).Should().Be(3);
+    }
+
+    [Test]
+    public void Test_ExistsAndCountBraceSubqueries_WithVariableLengthPaths()
+    {
+        InsertNode("type:baseCtrl", "Type", new() { ["name"] = "ControllerBase", ["extends"] = "Object" });
+        InsertNode("type:adminCtrl", "Type", new() { ["name"] = "AdminController", ["extends"] = "ControllerBase" });
+        InsertNode("type:itemCtrl", "Type", new() { ["name"] = "ItemController", ["extends"] = "AdminController" });
+        InsertNode("fn:edit", "Function", new() { ["name"] = "Edit" });
+        InsertEdge("type:itemCtrl", "type:adminCtrl", "INHERITS_FROM");
+        InsertEdge("type:adminCtrl", "type:baseCtrl", "INHERITS_FROM");
+        InsertEdge("type:itemCtrl", "fn:edit", "HAS_METHOD");
+
+        var cypher = @"
+            MATCH (c:Type)-[:HAS_METHOD]->(fn:Function)
+            WHERE EXISTS {
+                MATCH (c)-[:INHERITS_FROM*1..5]->(b:Type)
+                WHERE b.name IN ['Controller', 'ControllerBase'] OR b.extends CONTAINS 'Controller'
+            }
+            RETURN c.name AS cls, fn.name AS method, COUNT { (c)-[:HAS_METHOD]->(:Function) } AS methodCount
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(1);
+        rows[0]["cls"].Should().Be("ItemController");
+        rows[0]["method"].Should().Be("Edit");
+        Convert.ToInt64(rows[0]["methodCount"]).Should().Be(1);
+    }
+
+    [Test]
+    public void Test_WithCollectAncestors_WhereAnyQuantifier_PreservesRelationshipProperties()
+    {
+        InsertNode("type:baseDriver", "Type", new() { ["name"] = "DisplayDriverBase" });
+        InsertNode("type:partDriver", "Type", new() { ["name"] = "ContentPartDisplayDriver", ["extends"] = "DisplayDriverBase" });
+        InsertNode("type:concreteDriver", "Type", new() { ["name"] = "AutoroutePartDisplayDriver", ["extends"] = "ContentPartDisplayDriver", ["project_name"] = "OrchardCore.Autoroute" });
+        InsertNode("fn:update", "Function", new() { ["name"] = "UpdateAsync" });
+        InsertNode("mem:session", "Member", new() { ["name"] = "_session", ["type"] = "YesSql.ISession" });
+
+        InsertEdge("type:concreteDriver", "type:partDriver", "INHERITS_FROM");
+        InsertEdge("type:partDriver", "type:baseDriver", "INHERITS_FROM");
+        InsertEdge("type:concreteDriver", "fn:update", "HAS_METHOD");
+        InsertEdge("mem:session", "fn:update", "ACCESSED_BY", new() { ["operation"] = "QueryIndex, SaveAsync" });
+
+        var cypher = @"
+            MATCH (mem:Member)-[r:ACCESSED_BY]->(fn:Function)<-[:HAS_METHOD]-(c:Type)
+            WHERE mem.type CONTAINS 'ISession'
+            OPTIONAL MATCH (c)-[:INHERITS_FROM|IMPLEMENTS*1..6]->(anc:Type)
+            WITH c, fn, mem, r, collect(DISTINCT anc.name) AS ancestors
+            WHERE c.extends CONTAINS 'Controller'
+               OR any(a IN ancestors WHERE a IN ['Controller', 'ControllerBase'] OR a CONTAINS 'DisplayDriver')
+            RETURN c.project_name AS module, c.name AS class_name, fn.name AS method_name, mem.name AS member_name, r.operation AS operations
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(1);
+        rows[0]["module"].Should().Be("OrchardCore.Autoroute");
+        rows[0]["class_name"].Should().Be("AutoroutePartDisplayDriver");
+        rows[0]["method_name"].Should().Be("UpdateAsync");
+        rows[0]["member_name"].Should().Be("_session");
+        rows[0]["operations"].Should().Be("QueryIndex, SaveAsync");
+    }
+
+    [Test]
+    public void Test_ReturnListSliceOverCollect_UngroupedAndGrouped_ExecutesCleanly()
+    {
+        for (var i = 1; i <= 7; i++)
+        {
+            InsertNode($"proj:s{i}", "Project", new()
+            {
+                ["name"] = $"Proj{i}",
+                ["path"] = $"src/Proj{i}/Proj{i}.csproj",
+                ["is_test"] = i >= 6
+            });
+        }
+
+        var ungroupedRows = ExecuteCypher(@"
+            MATCH (p:Project)
+            WHERE p.name STARTS WITH 'Proj'
+            RETURN count(p) AS total,
+                   sum(CASE WHEN p.is_test = true THEN 1 ELSE 0 END) AS tests,
+                   collect(p.name)[0..5] AS sample_names,
+                   collect(p.path)[0..3] AS sample_paths
+        ");
+
+        ungroupedRows.Should().HaveCount(1);
+        Convert.ToInt64(ungroupedRows[0]["total"]).Should().Be(7);
+        Convert.ToInt64(ungroupedRows[0]["tests"]).Should().Be(2);
+        System.Text.Json.JsonSerializer.Deserialize<string[]>((string)ungroupedRows[0]["sample_names"]!)!.Should().HaveCount(5);
+        System.Text.Json.JsonSerializer.Deserialize<string[]>((string)ungroupedRows[0]["sample_paths"]!)!.Should().HaveCount(3);
+
+        InsertNode("type:sliceCtrl", "Type", new() { ["name"] = "SliceController" });
+        for (var i = 1; i <= 4; i++)
+        {
+            InsertNode($"fn:sliceM{i}", "Function", new() { ["name"] = $"Action{i}" });
+            InsertEdge("type:sliceCtrl", $"fn:sliceM{i}", "HAS_METHOD");
+        }
+
+        var groupedRows = ExecuteCypher(@"
+            MATCH (c:Type {name: 'SliceController'})-[:HAS_METHOD]->(m:Function)
+            RETURN c.name AS cls, collect(m.name)[0..2] AS sample_methods
+        ");
+
+        groupedRows.Should().HaveCount(1);
+        groupedRows[0]["cls"].Should().Be("SliceController");
+        System.Text.Json.JsonSerializer.Deserialize<string[]>((string)groupedRows[0]["sample_methods"]!)!.Should().HaveCount(2);
+    }
+
+    [Test]
+    public void Test_DecomposedOptionalMatch_PreservesRelVariablesVarLenAndTailAnchors()
+    {
+        InsertNode("type:authCtrl", "Type", new() { ["name"] = "WorkflowTypeController", ["attributes"] = "Authorize" });
+        InsertNode("fn:index", "Function", new() { ["name"] = "Index", ["visibility"] = "public", ["attributes"] = "HttpGet" });
+        InsertNode("fn:helper", "Function", new() { ["name"] = "EnsurePermissionAsync", ["visibility"] = "private" });
+        InsertNode("fn:authTarget", "Function", new() { ["name"] = "AuthorizeAsync" });
+        InsertNode("mem:authSvc1", "Member", new() { ["name"] = "_authorizationService" });
+        InsertNode("mem:authSvc2", "Member", new() { ["name"] = "_helperAuthService" });
+
+        InsertEdge("type:authCtrl", "fn:index", "HAS_METHOD");
+        InsertEdge("fn:index", "fn:helper", "CALLS");
+        InsertEdge("fn:helper", "fn:authTarget", "CALLS");
+        InsertEdge("mem:authSvc1", "fn:index", "ACCESSED_BY", new() { ["operation"] = "AuthorizeAsync" });
+        InsertEdge("mem:authSvc2", "fn:helper", "ACCESSED_BY", new() { ["operation"] = "AuthorizeAsync" });
+
+        var cypher = @"
+            MATCH (c:Type)-[:HAS_METHOD]->(fn:Function)
+            WHERE c.name = 'WorkflowTypeController' AND fn.visibility = 'public'
+            OPTIONAL MATCH (fn)-[:CALLS*1..2]->(callee:Function)
+            WHERE callee.name = 'AuthorizeAsync'
+            OPTIONAL MATCH (m:Member)-[acc:ACCESSED_BY]->(fn)
+            WHERE acc.operation CONTAINS 'AuthorizeAsync'
+            OPTIONAL MATCH (fn)-[:CALLS]->(h:Function)<-[acc2:ACCESSED_BY]-(m2:Member)
+            WHERE acc2.operation CONTAINS 'AuthorizeAsync'
+            RETURN c.name AS ctrl,
+                   fn.name AS method,
+                   collect(DISTINCT callee.name) AS called_fn,
+                   collect(DISTINCT acc.operation) AS direct_mem_op,
+                   collect(DISTINCT h.name + ':' + acc2.operation) AS hop2_mem_op,
+                   count(DISTINCT acc) AS direct_acc_count
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(1);
+        rows[0]["ctrl"].Should().Be("WorkflowTypeController");
+        rows[0]["method"].Should().Be("Index");
+        rows[0]["called_fn"].Should().Be("[\"AuthorizeAsync\"]");
+        rows[0]["direct_mem_op"].Should().Be("[\"AuthorizeAsync\"]");
+        rows[0]["hop2_mem_op"].Should().Be("[\"EnsurePermissionAsync:AuthorizeAsync\"]");
+        Convert.ToInt64(rows[0]["direct_acc_count"]).Should().Be(1);
+    }
+
+    [Test]
+    public void Test_ListConcatenationPlusOperator_WithCollectAndAnyQuantifier()
+    {
+        InsertNode("type:acctBase", "Type", new() { ["name"] = "AccountBaseController", ["extends"] = "Controller", ["project_name"] = "OrchardCore.Users" });
+        InsertNode("type:extAuth", "Type", new() { ["name"] = "ExternalAuthenticationsController", ["extends"] = "AccountBaseController", ["project_name"] = "OrchardCore.Users" });
+        InsertNode("type:tenantApi", "Type", new() { ["name"] = "TenantApiController", ["extends"] = "ControllerBase", ["attributes"] = "ApiController", ["project_name"] = "OrchardCore.Tenants" });
+        InsertNode("type:plainDto", "Type", new() { ["name"] = "LoginViewModel", ["project_name"] = "OrchardCore.Users" });
+
+        InsertEdge("type:extAuth", "type:acctBase", "INHERITS_FROM");
+
+        var rows = ExecuteCypher(@"
+            MATCH (t:Type)
+            WHERE t.project_name IN ['OrchardCore.Users', 'OrchardCore.Tenants']
+            OPTIONAL MATCH (t)-[:INHERITS_FROM*1..5]->(b:Type)
+            WITH t, collect(b.extends) + [t.extends] AS all_ext, collect(b.attributes) + [t.attributes] AS all_attr
+            WHERE any(x IN all_ext WHERE x CONTAINS 'Controller')
+               OR any(x IN all_attr WHERE x CONTAINS 'Controller')
+            RETURN t.name AS cls
+            ORDER BY cls
+        ");
+
+        rows.Select(r => (string)r["cls"]!).Should().Equal(
+            "AccountBaseController",
+            "ExternalAuthenticationsController",
+            "TenantApiController");
+
+        var litRows = ExecuteCypher(@"MATCH (t:Type {name: 'AccountBaseController'}) RETURN ['a', 'b'] + ['c'] AS l1, ['x'] + 'y' AS l2");
+        litRows.Should().HaveCount(1);
+        litRows[0]["l1"].Should().Be("[\"a\",\"b\",\"c\"]");
+        litRows[0]["l2"].Should().Be("[\"x\",\"y\"]");
+    }
+
+    [Test]
+    public void Test_NonAggregatingWithFollowedByReturnCollect_GroupsByReturnKeysOnly()
+    {
+        InsertNode("type:ctrl", "Type", new() { ["name"] = "AdminController", ["project_name"] = "ModA" });
+        InsertNode("fn:a1", "Function", new() { ["name"] = "CreatePost" });
+        InsertNode("fn:a2", "Function", new() { ["name"] = "DeletePost" });
+        InsertNode("fn:helper", "Function", new() { ["name"] = "AuthorizeAsync" });
+
+        InsertEdge("type:ctrl", "fn:a1", "HAS_METHOD");
+        InsertEdge("type:ctrl", "fn:a2", "HAS_METHOD");
+        InsertEdge("fn:a1", "fn:helper", "CALLS");
+
+        var rows = ExecuteCypher(@"
+            MATCH (c:Type {project_name: 'ModA'})-[:HAS_METHOD]->(m:Function)
+            WITH c, m, EXISTS { MATCH (m)-[:CALLS]->(:Function {name: 'AuthorizeAsync'}) } AS hasAuth
+            RETURN c.project_name AS mod, c.name AS cls, collect(m.name + ':' + toString(hasAuth)) AS actions
+        ");
+
+        rows.Should().HaveCount(1);
+        rows[0]["cls"].Should().Be("AdminController");
+        rows[0]["actions"].Should().Be("[\"CreatePost:1\",\"DeletePost:0\"]");
     }
 }

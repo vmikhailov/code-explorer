@@ -133,4 +133,24 @@ public static class ProjectNodeFactory
         "Library" or "SharedLibrary" or "UiComponentLibrary" => "Library",
         _ => null
     };
+
+    public static bool AreCompatibleEcosystems(ProjectLanguage parentType, ProjectLanguage childType)
+    {
+        if (parentType == ProjectLanguage.Unspecified || childType == ProjectLanguage.Unspecified) return false;
+        if (parentType == childType) return true;
+        if (parentType is ProjectLanguage.TypeScript or ProjectLanguage.JavaScript &&
+            childType is ProjectLanguage.TypeScript or ProjectLanguage.JavaScript)
+        {
+            return true;
+        }
+
+        if (parentType is ProjectLanguage.Java or ProjectLanguage.Kotlin or ProjectLanguage.Scala &&
+            childType is ProjectLanguage.Java or ProjectLanguage.Kotlin or ProjectLanguage.Scala)
+        {
+            return true;
+        }
+
+        return parentType is ProjectLanguage.C or ProjectLanguage.Cpp &&
+               childType is ProjectLanguage.C or ProjectLanguage.Cpp;
+    }
 }

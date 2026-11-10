@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>CodeExplorer (ce) Benchmarks Catalog</title>
-  <meta name="description" content="Catalog of reproducible benchmarks comparing CodeExplorer (ce) against codebase-memory-mcp (CBM), Graphify, and ripgrep across twenty (2.49M LOC), immich (461k LOC), and a 324-service multi-repo workspace.">
+  <meta name="description" content="Catalog of reproducible benchmarks comparing CodeExplorer (ce) against codebase-memory-mcp (CBM), Graphify, and ripgrep across twenty (2.49M LOC), immich (461k LOC), OrchardCore (334 projects), and a 324-service multi-repo workspace.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
@@ -96,9 +96,9 @@
               </tr>
               <tr>
                 <td><strong><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case Study 05</a></strong><br><span class="tone-muted">OrchardCore</span></td>
-                <td>Cross-module interface implementations (<code>IDisplayDriver</code>, <code>IContentHandler</code>), DI call chains, and YesSql index lineage across <code>[TBD ~180]</code> C# projects (<code>[TBD ~6,000]</code> files).</td>
+                <td>4-part architectural governance, AppSec <code>AuthorizeAsync</code> audit, <code>YesSql.ISession</code> layer violations, <code>PublishedAsync</code> reactive pipeline, and <code>IContentManager</code> blast radius across 334 projects (7,837 files).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>ripgrep</code></td>
-                <td class="cell-num" data-bind-html="catalog.cs05_outcome"><strong class="tone-ok">[TBD ×] faster</strong> ([TBD] vs [TBD])<br><strong class="tone-ok">[TBD ×] fewer tokens</strong> ([TBD] vs [TBD])<br><strong>[TBD %] vs [TBD %]</strong> module recall</td>
+                <td class="cell-win" data-bind-html="catalog.cs05_outcome"><strong class="tone-ok">~2.3× faster</strong> (6m 24s vs 14m 49s, 15 vs 38 turns)<br><strong class="tone-ok">~11× fewer file reads</strong> (15 vs 163, ~2.8× cheaper)<br><strong>100% vs 100%</strong> (0 vs 2 compactions)</td>
                 <td><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" class="btn">Read Case 05</a></td>
               </tr>
             </tbody>
@@ -151,12 +151,12 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-xl);" data-bind-html="catalog.participants_html"><strong>Tested participants &amp; versions across the benchmark suite:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.77.2</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.78.1</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
           2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (<code>win32-x64</code> Go + SQLite binary, 17 MCP tools)<br>
           3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>v0.9.104</code> (Python 3.10, Tree-sitter + NetworkX <code>--code-only</code>, 10 MCP tools)<br>
-          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + Python <code>3.10</code> + <code>view_file</code><br>
-          5. <strong>LLM Model (Track 1):</strong> <code>Gemini 3.8 Flash</code> (100% symmetric system prompts)<br>
-          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ b9ef7107</code> (Case 01), <code>twentyhq/twenty @ 12e8fae4</code> &amp; <code>immich-app/immich @ 2153d22f</code> (Cases 03 &amp; 04), <code>OrchardCMS/OrchardCore @ [TBD]</code> (Case 05)</div>
+          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + Python <code>3.10</code> (Case 02) + <code>view_file</code><br>
+          5. <strong>LLM Model (Track 1):</strong> <code>Gemini 3.8 Flash</code> (symmetric system prompts across paired runs)<br>
+          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ b9ef7107</code> (Case 01), <code>twentyhq/twenty @ 12e8fae4</code> &amp; <code>immich-app/immich @ 2153d22f</code> (Cases 03 &amp; 04), <code>OrchardCMS/OrchardCore @ 05ad2d9a</code> (Case 05)</div>
       </div>
     </section>
   </main>
@@ -181,7 +181,7 @@
             <li><a href="/benchmarks/02-enterprise-microservices-deep-audit.html">Case 02: 324 Services</a></li>
             <li><a href="/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html">Case 03: vs CBM</a></li>
             <li><a href="/benchmarks/04-code-explorer-vs-graphify.html">Case 04: vs Graphify</a></li>
-            <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case 05: OrchardCore (.NET)</a></li>
+            <li><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html">Case 05: OrchardCore</a></li>
           </ul>
         </div>
 
@@ -208,7 +208,7 @@
 
       <div class="mast-bottom">
         <span>Built by Viacheslav Mikhailov, 100% local execution</span>
-        <span class="measured">CodeExplorer v1.75.1</span>
+        <span class="measured">CodeExplorer v1.77.2</span>
       </div>
     </div>
   </footer>

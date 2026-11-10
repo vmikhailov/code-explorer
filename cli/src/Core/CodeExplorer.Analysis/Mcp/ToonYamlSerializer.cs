@@ -21,9 +21,12 @@ public static class ToonYamlSerializer
         return SerializeYaml(CypherValue.TryParseJsonText(json));
     }
 
+    private const int TabularRowThreshold = 5;
+    private const string NullLiteral = "null";
+
     public static string SerializeYaml(CypherQueryResult result)
     {
-        if (result.Count > 25 && result.Columns.Count >= 2 && IsScalarTableResult(result))
+        if (result.Count >= TabularRowThreshold && result.Columns.Count >= 2 && IsScalarTableResult(result))
         {
             var sb = new StringBuilder();
             var cols = result.Columns.Select(EscapeYamlKey);
@@ -35,7 +38,13 @@ public static class ToonYamlSerializer
                 for (var i = 0; i < count; i++)
                 {
                     var v = row.Values[i];
-                    cells.Add(IsEmptyYamlValue(v) ? "null" : FormatYamlPrimitive(v));
+                    var cell = v.Kind switch
+                    {
+                        CypherValueKind.Null => NullLiteral,
+                        CypherValueKind.Array => FormatInlineScalarArray(v.AsArray()),
+                        _ => FormatYamlPrimitive(v)
+                    };
+                    cells.Add(cell);
                 }
                 sb.Append($"- [{string.Join(", ", cells)}]\n");
             }
@@ -50,7 +59,12 @@ public static class ToonYamlSerializer
         {
             foreach (var val in row.Values)
             {
-                if (val.Kind is CypherValueKind.Object or CypherValueKind.Array)
+                if (val.Kind == CypherValueKind.Object)
+                {
+                    return false;
+                }
+
+                if (val.Kind == CypherValueKind.Array && !IsScalarYamlArray(val.AsArray()))
                 {
                     return false;
                 }
@@ -87,6 +101,16 @@ public static class ToonYamlSerializer
     {
         if (result.Count == 0) return CypherValue.FromArray([]);
         var list = new List<CypherValue>(result.Count);
+
+        if (result.Columns.Count == 1)
+        {
+            foreach (var row in result.Rows)
+            {
+                list.Add(row.Values.Count > 0 ? row.Values[0] : CypherValue.Null);
+            }
+            return CypherValue.FromArray(list);
+        }
+
         foreach (var row in result.Rows)
         {
             var props = new List<KeyValuePair<string, CypherValue>>(row.FieldCount);
@@ -185,14 +209,16 @@ public static class ToonYamlSerializer
                 break;
 
             case CypherValueKind.Array:
-                var items = element.AsArray().Where(i => !IsEmptyYamlValue(i)).ToList();
+                var items = indentLevel == 0
+                    ? element.AsArray()
+                    : element.AsArray().Where(i => !IsEmptyYamlValue(i)).ToList();
                 if (items.Count == 0)
                 {
                     sb.AppendLine($"{indent}[]");
                     return;
                 }
 
-                if (IsScalarYamlArray(items))
+                if (indentLevel > 0 && IsScalarYamlArray(items))
                 {
                     sb.AppendLine($"{indent}{FormatInlineScalarArray(items)}");
                     return;
@@ -292,9 +318,9 @@ public static class ToonYamlSerializer
 
     private static CypherValue FinalizeSequenceItem(List<string> itemLines)
     {
-        if (itemLines.Count == 1 && !itemLines[0].Contains(':'))
+        if (itemLines.Count == 1 && (itemLines[0].StartsWith('[') || !itemLines[0].Contains(':')))
         {
-            return ParseYamlScalar(itemLines[0]);
+            return ParseYamlScalarOrFlow(itemLines[0]);
         }
         return ParseYamlObject(itemLines);
     }
@@ -321,8 +347,11 @@ public static class ToonYamlSerializer
                 var childLines = new List<string>();
                 while (i + 1 < lines.Count)
                 {
-                    var nextIndent = lines[i + 1].Length - lines[i + 1].TrimStart().Length;
-                    if (nextIndent <= baseIndent) break;
+                    const string dashItemPrefix = "- ";
+                    var nextTrimmed = lines[i + 1].TrimStart();
+                    var nextIndent = lines[i + 1].Length - nextTrimmed.Length;
+                    var isSameIndentListItem = nextIndent == baseIndent && (nextTrimmed.StartsWith(dashItemPrefix, StringComparison.Ordinal) || nextTrimmed == "-");
+                    if (nextIndent < baseIndent || (nextIndent == baseIndent && !isSameIndentListItem)) break;
                     childLines.Add(lines[++i]);
                 }
 
@@ -346,8 +375,8 @@ public static class ToonYamlSerializer
             if (!jsonTry.IsNull) return jsonTry;
             var inner = text[1..^1].Trim();
             if (string.IsNullOrEmpty(inner)) return CypherValue.FromArray([]);
-            var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return CypherValue.FromArray(parts.Select(ParseYamlScalar).ToList());
+            var parts = SplitTopLevelFlowItems(inner);
+            return CypherValue.FromArray(parts.Select(ParseYamlScalarOrFlow).ToList());
         }
         if (text.StartsWith('{') && text.EndsWith('}'))
         {
@@ -409,12 +438,53 @@ public static class ToonYamlSerializer
         if (str.Equals("true", StringComparison.OrdinalIgnoreCase) ||
             str.Equals("false", StringComparison.OrdinalIgnoreCase) ||
             str.Equals("null", StringComparison.OrdinalIgnoreCase) ||
-            str.Contains(':') || str.Contains('#') || str.Contains('\n') || str.Contains('"') ||
-            str.StartsWith(' ') || str.EndsWith(' ') || str.StartsWith('-') || str.StartsWith('[') || str.StartsWith('{'))
+            str == "~" ||
+            str.Contains(',') || str.Contains(':') || str.Contains('#') || str.Contains('\n') || str.Contains('"') ||
+            str.Contains('[') || str.Contains(']') || str.Contains('{') || str.Contains('}') ||
+            str.StartsWith(' ') || str.EndsWith(' ') || str.StartsWith('-'))
         {
             return $"\"{str.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "")}\"";
         }
         return str;
+    }
+
+    private static List<string> SplitTopLevelFlowItems(string inner)
+    {
+        List<string> items = [];
+        var depth = 0;
+        var inDoubleQuote = false;
+        var inSingleQuote = false;
+        var start = 0;
+
+        for (var i = 0; i < inner.Length; i++)
+        {
+            var ch = inner[i];
+            if (ch == '\\' && inDoubleQuote)
+            {
+                i++;
+                continue;
+            }
+            if (ch == '"' && !inSingleQuote) inDoubleQuote = !inDoubleQuote;
+            else if (ch == '\'' && !inDoubleQuote) inSingleQuote = !inSingleQuote;
+            else if (!inDoubleQuote && !inSingleQuote)
+            {
+                if (ch is '[' or '{') depth++;
+                else if (ch is ']' or '}' && depth > 0) depth--;
+                else if (ch == ',' && depth == 0)
+                {
+                    items.Add(inner[start..i].Trim());
+                    start = i + 1;
+                }
+            }
+        }
+
+        if (start <= inner.Length)
+        {
+            var tail = inner[start..].Trim();
+            if (tail.Length > 0) items.Add(tail);
+        }
+
+        return items;
     }
 
     #endregion

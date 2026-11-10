@@ -275,30 +275,55 @@ function ingestRawSources(data) {
       .includes((data.cs05.expected_repo_match || '').toLowerCase());
     if ((repoMatches && m05.status !== 'pending' && m05.graph_agent) || data.cs05.status === 'ready') {
       data.cs05.status = 'ready';
+      if (m05.repository_scale) {
+        data.cs05.repo.projects = m05.repository_scale.total_projects;
+        data.cs05.repo.files = m05.repository_scale.source_files;
+        data.cs05.repo.graph_nodes = m05.repository_scale.graph_nodes;
+        data.cs05.repo.graph_edges = m05.repository_scale.graph_relationships;
+      }
       const g = m05.graph_agent;
       const b = m05.baseline_agent;
       data.cs05.telemetry = {
         ce: {
+          conversation_short: g.conversation_id.slice(0, 8),
           time_to_answer_s: g.time_to_answer_seconds,
           wall_clock_s: g.wall_clock_seconds,
           turns: g.llm_turns,
+          steps: g.total_steps,
           tool_calls: g.total_tool_calls,
+          mcp_calls: (g.tool_breakdown?.call_mcp_tool || 0) + (g.tool_breakdown?.list_resources || 0),
+          run_command_calls: g.tool_breakdown?.run_command || 0,
           view_file_calls: g.tool_breakdown?.view_file || 0,
+          compactions: g.context_compactions || 0,
           raw_tool_chars: g.tool_output_chars,
           raw_tool_tokens: g.tool_output_est_tokens,
           cum_input_tokens: g.cumulative_actual_input_est_tokens,
-          cost_flash_usd: g.cost_flash_usd || 0.08,
+          api_uncached_input_tokens: g.api_uncached_input_tokens || 0,
+          api_cached_input_tokens: g.api_cached_input_tokens || 0,
+          api_total_input_tokens: g.api_total_input_tokens || g.cumulative_actual_input_est_tokens,
+          api_output_tokens: g.api_output_tokens || 0,
+          cost_flash_usd: g.cost_flash_usd || 0.26,
+          cost_pro_usd: g.cost_pro_usd || 0.97,
         },
         rg: {
+          conversation_short: b.conversation_id.slice(0, 8),
           time_to_answer_s: b.time_to_answer_seconds,
           wall_clock_s: b.wall_clock_seconds,
           turns: b.llm_turns,
+          steps: b.total_steps,
           tool_calls: b.total_tool_calls,
+          run_command_calls: b.tool_breakdown?.run_command || 0,
           view_file_calls: b.tool_breakdown?.view_file || 0,
+          compactions: b.context_compactions || 0,
           raw_tool_chars: b.tool_output_chars,
           raw_tool_tokens: b.tool_output_est_tokens,
           cum_input_tokens: b.cumulative_actual_input_est_tokens,
-          cost_flash_usd: b.cost_flash_usd || 0.14,
+          api_uncached_input_tokens: b.api_uncached_input_tokens || 0,
+          api_cached_input_tokens: b.api_cached_input_tokens || 0,
+          api_total_input_tokens: b.api_total_input_tokens || b.cumulative_actual_input_est_tokens,
+          api_output_tokens: b.api_output_tokens || 0,
+          cost_flash_usd: b.cost_flash_usd || 0.52,
+          cost_pro_usd: b.cost_pro_usd || 2.02,
         },
       };
     }
@@ -365,6 +390,9 @@ function buildBindings(data, rawMilestones01) {
       `After ${c1.effort_details.cbm_queries} <code>CBM</code> queries returned 0 cross-file edges, the <code>CBM</code> agent wrote ${c1.effort_details.cbm_scripts} custom TS AST scripts &amp; read ${c1.effort_details.cbm_file_reads} files.`;
     b['cs01.card_scripts_footer'] =
       `${c1.effort_details.ce_scripts} scripts vs ${fmtInt(c1.effort_details.cbm_scripts_loc)} LOC of JS`;
+
+    b['cs01.conv_ce'] = ce.conversation_short;
+    b['cs01.conv_cbm'] = cbm.conversation_short;
 
     b['cs01.participants_html'] = [
       `<strong>Tested participants:</strong><br>`,
@@ -609,8 +637,8 @@ function buildBindings(data, rawMilestones01) {
       `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${data.meta.tools.ce_suite_versions}</code> (.NET 10, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
       `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${data.meta.tools.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
       `          3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>${data.meta.tools.graphify_version}</code> (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX <code>--code-only</code>, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
-      `          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${data.meta.tools.ripgrep_version}</code>) + Python <code>${data.meta.tools.python_version}</code> + <code>view_file</code><br>`,
-      `          5. <strong>LLM Model (Track 1):</strong> <code>${data.meta.llm_model}</code> (100% symmetric system prompts)<br>`,
+      `          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${data.meta.tools.ripgrep_version}</code>) + Python <code>${data.meta.tools.python_version}</code> (Case 02) + <code>view_file</code><br>`,
+      `          5. <strong>LLM Model (Track 1):</strong> <code>${data.meta.llm_model}</code> (symmetric system prompts across paired runs)<br>`,
       `          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ ${data.cs01.repo.commit}</code> (Case 01), <code>twentyhq/twenty @ ${c3.repos.twenty.commit}</code> &amp; <code>immich-app/immich @ ${c3.repos.immich.commit}</code> (Cases 03 &amp; 04), <code>${data.cs05.repo.name} @ ${data.cs05.repo.commit}</code> (Case 05)`,
     ].join('\n');
 
@@ -626,50 +654,82 @@ function buildBindings(data, rawMilestones01) {
     const ce = c5.telemetry.ce;
     const rg = c5.telemetry.rg;
     const speedup = rg.time_to_answer_s / ce.time_to_answer_s;
+    const wallSpeedup = rg.wall_clock_s / ce.wall_clock_s;
     const tokRatio = rg.cum_input_tokens / ce.cum_input_tokens;
     const readsRatio = rg.view_file_calls / Math.max(1, ce.view_file_calls);
     const turnsRatio = rg.turns / ce.turns;
+    const stepsRatio = rg.steps / ce.steps;
     const callsRatio = rg.tool_calls / ce.tool_calls;
     const payloadRatio = rg.raw_tool_chars / ce.raw_tool_chars;
     const costRatio = rg.cost_flash_usd / ce.cost_flash_usd;
 
+    b['cs05.meta_desc'] =
+      `Paired AI agent benchmark on ${c5.repo.name} (${c5.repo.projects} projects, ${fmtInt(c5.repo.files)} files): ` +
+      `CodeExplorer Agent (${fmtDurShort(ce.time_to_answer_s)} answer / ${fmtDurShort(ce.wall_clock_s)} wall, ${ce.turns} turns / ${ce.steps} steps, ${ce.view_file_calls} file reads, 0 compactions) vs ` +
+      `ripgrep + view_file Agent (${fmtDurShort(rg.time_to_answer_s)} answer / ${fmtDurShort(rg.wall_clock_s)} wall, ${rg.turns} turns / ${rg.steps} steps, ${rg.view_file_calls} file reads, ${rg.compactions} compactions).`;
+
+    b['cs05.crumb_scale'] = `${c5.repo.projects} projects, ${fmtInt(c5.repo.files)} files`;
+
     b['cs05.card_speedup'] = fmtRoundMult(speedup);
     b['cs05.card_speed_copy'] =
-      `<code>${fmtDurShort(ce.time_to_answer_s, true)}</code> with <code>CodeExplorer</code> vs <code>${fmtDurShort(rg.time_to_answer_s, true)}</code> with <code>ripgrep</code> + <code>view_file</code> across <code>OrchardCore</code> modules.`;
-    b['cs05.card_turns_footer'] = `${ce.turns} turns vs ${rg.turns} turns`;
+      `<code>${fmtDurShort(ce.time_to_answer_s, true)}</code> with <code>CodeExplorer</code> vs <code>${fmtDurShort(rg.time_to_answer_s, true)}</code> with <code>ripgrep</code> + <code>view_file</code> across <code>${c5.repo.projects}</code> projects.`;
+    b['cs05.card_turns_footer'] = `${ce.turns} turns / ${ce.steps} steps vs ${rg.turns} turns / ${rg.steps} steps`;
 
-    b['cs05.card_tokens'] = fmtRoundMult(tokRatio);
+    b['cs05.card_tokens'] = fmtRoundMult(payloadRatio);
     b['cs05.card_tokens_copy'] =
-      `<code>${fmtRoundTokens(ce.cum_input_tokens)}</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>${fmtRoundTokens(rg.cum_input_tokens)}</code> tokens with <code>ripgrep</code>.`;
-    b['cs05.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${rg.cost_flash_usd.toFixed(2)} API cost`;
+      `<code>${fmtRoundTokens(ce.raw_tool_tokens)}</code> tool output tokens with <code>CodeExplorer</code> vs <code>${fmtRoundTokens(rg.raw_tool_tokens)}</code> with <code>ripgrep</code> (<code>${fmtRoundMult(costRatio)}</code> lower API cost).`;
+    b['cs05.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${rg.cost_flash_usd.toFixed(2)} (${fmtRoundMult(tokRatio)} fewer input tokens)`;
 
     b['cs05.card_reads'] = rg.view_file_calls > 0 && ce.view_file_calls === 0
       ? `0 vs ${rg.view_file_calls}`
       : fmtRoundMult(readsRatio);
+    b['cs05.card_reads_copy'] =
+      `<code>${ce.view_file_calls}</code> <code>view_file</code> reads (<code>0</code> repo source files) by the graph agent vs <code>${rg.view_file_calls}</code> reads by <code>ripgrep</code>.`;
+    b['cs05.card_reads_footer'] = `${Math.round(ce.raw_tool_chars / 1024)} KB vs ${fmtInt(Math.round(rg.raw_tool_chars / 1024))} KB tool output`;
 
-    b['cs05.tbl_time_rg'] = `${fmtInt(rg.time_to_answer_s)} s (${fmtDurMinSec(rg.time_to_answer_s)})`;
-    b['cs05.tbl_time_ce'] = `${fmtInt(ce.time_to_answer_s)} s (${fmtDurMinSec(ce.time_to_answer_s)})`;
-    b['cs05.tbl_time_delta'] = `${speedup.toFixed(2)}× faster`;
-    b['cs05.tbl_turns_rg'] = `${rg.turns} turns`;
-    b['cs05.tbl_turns_ce'] = `${ce.turns} turns`;
-    b['cs05.tbl_turns_delta'] = `${turnsRatio.toFixed(2)}× fewer turns`;
-    b['cs05.tbl_calls_rg'] = `${rg.tool_calls} (<code>rg</code> + <code>view_file</code>)`;
-    b['cs05.tbl_calls_ce'] = `${ce.tool_calls} (<code>ce</code> + <code>view_file</code>)`;
-    b['cs05.tbl_calls_delta'] = `${callsRatio.toFixed(2)}× fewer tool calls`;
+    b['cs05.card_recall'] = `${c5.recall.ce_pct} vs ${c5.recall.rg_pct}`;
+    b['cs05.card_recall_copy'] =
+      `Both reached 100% recall across all 4 tasks; <code>CodeExplorer</code> stayed in one window while <code>ripgrep</code> hit <code>${rg.compactions}</code> compactions.`;
+    b['cs05.card_recall_footer'] = `0 vs ${rg.compactions} context compactions`;
+
+    b['cs05.participants_html'] = [
+      `<strong>Tested participants:</strong><br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c5.ce_version}</code> (.NET 10, SQLite + OpenCypher MCP server, <code>${fmtInt(c5.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c5.repo.graph_edges)}</code> edges)<br>`,
+      `          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${c5.ripgrep_version}</code>) + <code>view_file</code> (pure lexical search + file reading; custom AST scripts disallowed, complementing Case 02)<br>`,
+      `          3. <strong>LLM Model:</strong> <code>${c5.model}</code> (matched subagent prompts without <code>write_to_file</code>; see methodological note below)<br>`,
+      `          4. <strong>Target Repository:</strong> <code>${c5.repo.name}</code> (commit <code>${c5.repo.commit}</code>, <code>${c5.repo.projects}</code> projects, <code>${fmtInt(c5.repo.files)}</code> files)`,
+    ].join('\n');
+
+    b['cs05.tbl_time_rg'] = `${fmtInt(rg.time_to_answer_s)} s (${fmtDurMinSec(rg.time_to_answer_s)}) / ${fmtInt(rg.wall_clock_s)} s wall`;
+    b['cs05.tbl_time_ce'] = `${fmtInt(ce.time_to_answer_s)} s (${fmtDurMinSec(ce.time_to_answer_s)}) / ${fmtInt(ce.wall_clock_s)} s wall`;
+    b['cs05.tbl_time_delta'] = `${speedup.toFixed(2)}× faster (${wallSpeedup.toFixed(2)}× wall)`;
+    b['cs05.tbl_turns_rg'] = `${rg.turns} turns / ${rg.steps} steps (${rg.compactions} compactions)`;
+    b['cs05.tbl_turns_ce'] = `${ce.turns} turns / ${ce.steps} steps (0 compactions)`;
+    b['cs05.tbl_turns_delta'] = ce.turns < rg.turns
+      ? `${turnsRatio.toFixed(2)}× fewer turns (${stepsRatio.toFixed(2)}× fewer steps)`
+      : `${stepsRatio.toFixed(2)}× fewer steps (rg used fewer turns via batched reads)`;
+    b['cs05.tbl_calls_rg'] = `${rg.tool_calls} (${rg.run_command_calls} <code>rg</code> + ${rg.view_file_calls} <code>view_file</code>, 1 <code>send_message</code>)`;
+    b['cs05.tbl_calls_ce'] = ce.mcp_calls > 0
+      ? `${ce.tool_calls} (${ce.mcp_calls} <code>mcp</code> + ${ce.view_file_calls} <code>view_file</code>, 1 <code>send_message</code>)`
+      : `${ce.tool_calls} (${ce.run_command_calls} <code>ce</code> + ${ce.view_file_calls} <code>view_file</code>, 1 <code>send_message</code>)`;
+    b['cs05.tbl_calls_delta'] = `${callsRatio.toFixed(2)}× fewer calls (${readsRatio.toFixed(2)}× fewer reads)`;
     b['cs05.tbl_payload_rg'] = `${fmtInt(rg.raw_tool_chars)} chars (~${fmtInt(rg.raw_tool_tokens)} tokens)`;
     b['cs05.tbl_payload_ce'] = `${fmtInt(ce.raw_tool_chars)} chars (~${fmtInt(ce.raw_tool_tokens)} tokens)`;
     b['cs05.tbl_payload_delta'] = `${payloadRatio.toFixed(2)}× less tool payload`;
-    b['cs05.tbl_in_rg'] = `${fmtInt(rg.cum_input_tokens)} tokens`;
-    b['cs05.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} tokens`;
-    b['cs05.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens`;
-    b['cs05.tbl_cost_rg'] = `$${rg.cost_flash_usd.toFixed(2)}`;
-    b['cs05.tbl_cost_ce'] = `$${ce.cost_flash_usd.toFixed(2)}`;
+    b['cs05.tbl_in_rg'] = `${fmtInt(rg.cum_input_tokens)} est. (${fmtInt(rg.api_total_input_tokens)} API tokens)`;
+    b['cs05.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} est. (${fmtInt(ce.api_total_input_tokens)} API tokens)`;
+    b['cs05.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens (${(rg.api_uncached_input_tokens / ce.api_uncached_input_tokens).toFixed(2)}× uncached)`;
+    b['cs05.tbl_cost_rg'] = `$${rg.cost_flash_usd.toFixed(2)} Flash ($${rg.cost_pro_usd.toFixed(2)} Pro)`;
+    b['cs05.tbl_cost_ce'] = `$${ce.cost_flash_usd.toFixed(2)} Flash ($${ce.cost_pro_usd.toFixed(2)} Pro)`;
     b['cs05.tbl_cost_delta'] = `${costRatio.toFixed(2)}× cheaper`;
+    b['cs05.tbl_recall_rg'] = `${c5.recall.rg_pct} symbol recall (${rg.compactions} context compactions)`;
+    b['cs05.tbl_recall_ce'] = `${c5.recall.ce_pct} symbol recall (single uncompacted window)`;
+    b['cs05.tbl_recall_delta'] = `<strong>0 compactions vs ${rg.compactions} compactions</strong>`;
 
     b['catalog.cs05_outcome'] =
-      `<strong class="tone-ok">${fmtRoundMult(speedup)} faster</strong> (${fmtDurShort(ce.time_to_answer_s, true)} vs ${fmtDurShort(rg.time_to_answer_s, true)})<br>` +
-      `<strong class="tone-ok">${fmtRoundMult(tokRatio)} fewer tokens</strong> (${fmtRoundTokens(ce.cum_input_tokens)} vs ${fmtRoundTokens(rg.cum_input_tokens)})<br>` +
-      `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> module recall`;
+      `<strong class="tone-ok">${fmtRoundMult(speedup)} faster</strong> (${fmtDurShort(ce.time_to_answer_s, true)} vs ${fmtDurShort(rg.time_to_answer_s, true)}, ${ce.turns} vs ${rg.turns} turns)<br>` +
+      `<strong class="tone-ok">${fmtRoundMult(readsRatio)} fewer file reads</strong> (${ce.view_file_calls} vs ${rg.view_file_calls}, ${fmtRoundMult(costRatio)} cheaper)<br>` +
+      `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> (0 vs ${rg.compactions} compactions)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
@@ -689,18 +749,27 @@ function buildBindings(data, rawMilestones01) {
     const tk2 = (rg2.cum_input_est_tokens / ce2.cum_input_est_tokens).toFixed(2);
     const cost2Ratio = (rg2.cost_flash_usd / ce2.cost_flash_usd).toFixed(2);
 
+    const c5 = data.cs05;
+    const ce5 = c5.telemetry.ce;
+    const rg5 = c5.telemetry.rg;
+    const sp5 = (rg5.time_to_answer_s / ce5.time_to_answer_s).toFixed(2);
+    const tk5 = (rg5.cum_input_tokens / ce5.cum_input_tokens).toFixed(2);
+    const pl5 = (rg5.raw_tool_chars / ce5.raw_tool_chars).toFixed(2);
+    const rd5 = (rg5.view_file_calls / ce5.view_file_calls).toFixed(2);
+    const cost5Ratio = (rg5.cost_flash_usd / ce5.cost_flash_usd).toFixed(2);
+
     b['md.root_agent_table'] = [
-      `| Metric | **\`twentyhq/twenty\` (\`24.5k\` files): \`CBM\` → \`CodeExplorer\`** ([Case Study 01](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)) | **324-Service Multi-Repo (\`13.8k\` files): \`ripgrep\` → \`CodeExplorer\`** ([Case Study 02](./benchmarks/02-enterprise-microservices-deep-audit/README.md)) |`,
-      `| :--- | :--- | :--- |`,
-      `| **Time to Answer** | \`${fmtDurShort(cbm1.time_to_answer_s)}\` → **\`${fmtDurShort(ce1.time_to_answer_s)}\` (\`${sp1}×\` faster)** | \`${fmtDurShort(rg2.time_to_answer_s)}\` → **\`${fmtDurShort(ce2.time_to_answer_s)}\` (\`${sp2}×\` faster, symmetric prompts)** |`,
-      `| **Cumulative Input Tokens** | \`${fmtCompactTokens(cbm1.cum_input_tokens, 2)}\` → **\`${fmtCompactTokens(ce1.cum_input_tokens, 1)}\` tokens (\`${tk1}×\` fewer tokens)** | \`${fmtCompactTokens(rg2.cum_input_est_tokens, 2)}\` → **\`${fmtCompactTokens(ce2.cum_input_est_tokens, 2)}\` tokens (\`${tk2}×\` fewer tokens, \`${cost2Ratio}×\` cheaper)** |`,
-      `| **Agent Effort** | \`${cbm1.turns}\` turns (\`${c1.effort_details.cbm_queries}\` \`CBM\` queries + \`${c1.effort_details.cbm_scripts}\` AST scripts + \`${c1.effort_details.cbm_file_reads}\` file reads) → **\`${ce1.turns}\` turns (\`${c1.effort_details.ce_cypher_calls}\` graph queries, \`${c1.effort_details.ce_file_reads}\` source reads)** | \`${rg2.turns}\` turns (\`${rg2.run_command_calls}\` shell commands, \`${rg2.view_file_calls}\` file reads, \`${rg2.scripts_written}\` scripts) → **\`${ce2.turns}\` turns (\`${ce2.run_command_calls}\` CLI runs, \`${ce2.view_file_calls}\` file reads, \`${ce2.scripts_written}\` scripts)** |`,
-      `| **Blast-Radius Recall** | \`${cbm1Rec}%\` (\`${c1.recall.cbm_graph_matched} / ${c1.recall.gt_total}\`) from \`CBM\` graph → **\`${ce1Rec}%\` (\`${c1.recall.ce_matched} / ${c1.recall.gt_total}\`) directly from \`graph.db\`** | \`82%\` *(missed ${c2.recall.rg_missed_services} RTB services behind env constants)* → **\`${c2.recall.ce_pct}\` recall (\`0\` blind spots)** |`,
+      `| Metric | **\`twentyhq/twenty\` (\`24.5k\` files): \`CBM\` → \`CodeExplorer\`** ([Case 01](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)) | **324-Service Multi-Repo (\`13.8k\` files): \`ripgrep\` → \`CodeExplorer\`** ([Case 02](./benchmarks/02-enterprise-microservices-deep-audit/README.md)) | **\`OrchardCore\` (\`334\` .NET projects): \`ripgrep\` → \`CodeExplorer\`** ([Case 05](./benchmarks/05-polyglot-architecture-and-blast-radius/README.md)) |`,
+      `| :--- | :--- | :--- | :--- |`,
+      `| **Time to Answer** | \`${fmtDurShort(cbm1.time_to_answer_s)}\` → **\`${fmtDurShort(ce1.time_to_answer_s)}\` (\`${sp1}×\` faster)** | \`${fmtDurShort(rg2.time_to_answer_s)}\` → **\`${fmtDurShort(ce2.time_to_answer_s)}\` (\`${sp2}×\` faster)** | \`${fmtDurShort(rg5.time_to_answer_s, true)}\` → **\`${fmtDurShort(ce5.time_to_answer_s, true)}\` (\`${sp5}×\` faster)** |`,
+      `| **Cumulative Input Tokens** | \`${fmtCompactTokens(cbm1.cum_input_tokens, 2)}\` → **\`${fmtCompactTokens(ce1.cum_input_tokens, 1)}\` (\`${tk1}×\` fewer)** | \`${fmtCompactTokens(rg2.cum_input_est_tokens, 2)}\` → **\`${fmtCompactTokens(ce2.cum_input_est_tokens, 2)}\` (\`${tk2}×\` fewer, \`${cost2Ratio}×\` cheaper)** | \`${fmtCompactTokens(rg5.cum_input_tokens, 2)}\` → **\`${fmtCompactTokens(ce5.cum_input_tokens, 2)}\` (\`${tk5}×\` fewer, \`${pl5}×\` less tool output, \`${cost5Ratio}×\` cheaper)** |`,
+      `| **Agent Effort** | \`${cbm1.turns}\` turns (\`${c1.effort_details.cbm_queries}\` \`CBM\` + \`${c1.effort_details.cbm_scripts}\` AST scripts + \`${c1.effort_details.cbm_file_reads}\` reads) → **\`${ce1.turns}\` turns (\`${c1.effort_details.ce_cypher_calls}\` queries, \`${c1.effort_details.ce_file_reads}\` reads)** | \`${rg2.turns}\` turns (\`${rg2.run_command_calls}\` CLI, \`${rg2.view_file_calls}\` reads, \`${rg2.scripts_written}\` scripts) → **\`${ce2.turns}\` turns (\`${ce2.run_command_calls}\` CLI, \`${ce2.view_file_calls}\` reads, \`0\` scripts)** | \`${rg5.turns}\` turns / \`${rg5.steps}\` steps (\`${rg5.view_file_calls}\` file reads) → **\`${ce5.turns}\` turns / \`${ce5.steps}\` steps (\`${ce5.view_file_calls}\` file reads, \`${rd5}×\` fewer)** |`,
+      `| **Recall & Context Health** | \`${cbm1Rec}%\` (\`${c1.recall.cbm_graph_matched} / ${c1.recall.gt_total}\`) from \`CBM\` graph → **\`${ce1Rec}%\` (\`${c1.recall.ce_matched} / ${c1.recall.gt_total}\`) from \`graph.db\`** | \`82%\` *(missed ${c2.recall.rg_missed_services} RTB services, 1 compaction)* → **\`${c2.recall.ce_pct}\` recall (\`0\` blind spots)** | \`${c5.recall.rg_pct}\` *(${rg5.compactions} compactions)* → **\`${c5.recall.ce_pct}\` symbol recall (\`0\` compactions)** |`,
     ].join('\n');
 
     const cs05Row =
       data.cs05.status === 'ready' && data.cs05.telemetry
-        ? `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | \`${data.cs05.repo.name}\`<br>\`${data.cs05.repo.projects}\` C# projects, \`${data.cs05.repo.files}\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`${(data.cs05.telemetry.rg.time_to_answer_s / data.cs05.telemetry.ce.time_to_answer_s).toFixed(2)}×\` faster**<br>\`${fmtDurShort(data.cs05.telemetry.ce.time_to_answer_s, true)}\` vs \`${fmtDurShort(data.cs05.telemetry.rg.time_to_answer_s, true)}\`<br>\`${data.cs05.telemetry.ce.turns}\` turns vs \`${data.cs05.telemetry.rg.turns}\` turns | **\`${(data.cs05.telemetry.rg.cum_input_tokens / data.cs05.telemetry.ce.cum_input_tokens).toFixed(2)}×\` fewer tokens**<br>\`${fmtInt(data.cs05.telemetry.ce.cum_input_tokens)}\` vs \`${fmtInt(data.cs05.telemetry.rg.cum_input_tokens)}\`<br>(\`$${data.cs05.telemetry.ce.cost_flash_usd.toFixed(2)}\` vs \`$${data.cs05.telemetry.rg.cost_flash_usd.toFixed(2)}\`) | **\`${data.cs05.recall.ce_pct}\` vs \`${data.cs05.recall.rg_pct}\`**<br>\`${data.cs05.telemetry.ce.view_file_calls}\` file reads vs \`${data.cs05.telemetry.rg.view_file_calls}\` file reads |`
+        ? `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>AppSec \`AuthorizeAsync\` audit, \`YesSql.ISession\` layer violations, \`PublishedAsync\` side-effects & \`IContentManager\` blast radius | \`${c5.repo.name}\`<br>\`${c5.repo.projects}\` projects, \`${fmtInt(c5.repo.files)}\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` + \`view_file\` | **\`${sp5}×\` faster**<br>\`${fmtDurShort(ce5.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg5.time_to_answer_s, true)}\`<br>\`${ce5.turns}\` turns (\`${ce5.steps}\` steps) vs \`${rg5.turns}\` turns (\`${rg5.steps}\` steps) | **\`${tk5}×\` fewer tokens** (\`${pl5}×\` less tool output)<br>\`${fmtInt(ce5.cum_input_tokens)}\` vs \`${fmtInt(rg5.cum_input_tokens)}\`<br>(\`$${ce5.cost_flash_usd.toFixed(2)}\` vs \`$${rg5.cost_flash_usd.toFixed(2)}\`, \`${cost5Ratio}×\` cheaper) | **\`${c5.recall.ce_pct}\` vs \`${c5.recall.rg_pct}\`** (\`0\` vs \`${rg5.compactions}\` compactions)<br>\`${ce5.view_file_calls}\` file reads vs \`${rg5.view_file_calls}\` file reads (\`${rd5}×\` fewer) |`
         : `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | \`OrchardCMS/OrchardCore\`<br>\`[TBD ~180]\` C# projects, \`[TBD ~6,000]\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`[TBD ×]\` faster**<br>\`[TBD]\` vs \`[TBD]\`<br>\`[TBD]\` turns vs \`[TBD]\` turns | **\`[TBD ×]\` fewer tokens**<br>\`[TBD]\` vs \`[TBD]\`<br>(\`$[TBD]\` vs \`$[TBD]\`) | **\`[TBD %]\` vs \`[TBD %]\`**<br>\`[TBD]\` file reads vs \`[TBD]\` file reads |`;
 
     b['md.catalog_agent_table'] = [
@@ -715,8 +784,8 @@ function buildBindings(data, rawMilestones01) {
       `1. **CodeExplorer (\`ce\`)**: \`${data.meta.tools.ce_suite_versions}\` (.NET 10, SQLite + OpenCypher, \`${data.meta.tools.ce_mcp_tools}\` MCP tools)`,
       `2. **codebase-memory-mcp (\`CBM\`)**: \`${data.meta.tools.cbm_version}\` (\`win32-x64\` Go + SQLite binary, \`${data.meta.tools.cbm_mcp_tools}\` MCP tools)`,
       `3. **Graphify (\`graphifyy\`)**: \`${data.meta.tools.graphify_version}\` (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX \`--code-only\`, \`${data.meta.tools.graphify_mcp_tools}\` MCP tools)`,
-      `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` + \`view_file\``,
-      `5. **LLM Model (Track 1)**: \`${data.meta.llm_model}\` (\`100%\` symmetric system prompts)`,
+      `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` (Case 02) + \`view_file\``,
+      `5. **LLM Model (Track 1)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
       `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` & \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05)`,
     ].join('\n');
   }

@@ -172,9 +172,25 @@ public partial class CodeExplorerRepository
             return "nodes: {}\nrelationships: {}";
         }
 
+        const string relPropsLine = "relationship_properties: [call_count, category, dependency_type, file_path, hops, line, operation]";
+        const string semanticsHeader = "semantics:";
+        const string semanticsAttributes = "  attributes: Direct AST annotations/decorators declared on that symbol only (comma-separated, never inherited or rolled up from child methods)";
+        const string semanticsInheritance = "  inheritance: Type.extends and Type.implements hold declared base/interface names (including external framework types); INHERITS_FROM and IMPLEMENTS edges connect types defined inside the workspace";
+        const string semanticsMemberAccess = "  member_access: (Member)-[r:ACCESSED_BY]->(Function) is emitted only when methods/operations are invoked on Member inside Function (r.operation holds comma-separated invoked method names; unused injections or plain argument passing do not emit ACCESSED_BY)";
+        const string semanticsCallResolution = "  call_resolution: (caller:Function)-[:CALLS]->(callee:Function) resolves each call site to its declaring Type ((Type)-[:HAS_METHOD]->(callee), distinguishing interface methods from static extension/helper methods and overloads via Function.id)";
+        const string semanticsSnippets = "  source_snippets: Use fetch_code_snippets (nodes YAML list of {file_path, start_line, end_line}, workspacePath) to batch-read exact node line ranges";
+        const string nodesHeader = "nodes:";
+
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"common_properties: [{string.Join(", ", OntologyRegistry.CommonPropertyKeys)}]");
-        sb.AppendLine("nodes:");
+        sb.AppendLine(relPropsLine);
+        sb.AppendLine(semanticsHeader);
+        sb.AppendLine(semanticsAttributes);
+        sb.AppendLine(semanticsInheritance);
+        sb.AppendLine(semanticsMemberAccess);
+        sb.AppendLine(semanticsCallResolution);
+        sb.AppendLine(semanticsSnippets);
+        sb.AppendLine(nodesHeader);
 
         var nodesByLayer = new SortedDictionary<(int Order, string Key), SortedDictionary<string, string>>();
         var relsByType = new SortedDictionary<string, SortedDictionary<string, SortedSet<string>>>(StringComparer.Ordinal);
@@ -405,13 +421,19 @@ public partial class CodeExplorerRepository
     }
 
 
+    private const string TaxonomyLabelKey = "label";
+    private const string TaxonomyKeyKey = "key";
+    private const string TaxonomyFromLabelKey = "fromLabel";
+    private const string TaxonomyRelTypeKey = "relType";
+    private const string TaxonomyToLabelKey = "toLabel";
+
     private static void PopulateTaxonomyProperties(
         Dictionary<string, (List<string> properties, HashSet<(string relationship, string target)> outgoing, HashSet<(string relationship, string source)> incoming)> nodes,
         List<Dictionary<string, string>> properties)
     {
         foreach (var prop in properties)
         {
-            if (prop.TryGetValue("label", out var label) && prop.TryGetValue("key", out var key))
+            if (prop.TryGetValue(TaxonomyLabelKey, out var label) && prop.TryGetValue(TaxonomyKeyKey, out var key))
             {
                 if (!nodes.ContainsKey(label)) nodes[label] = ([], [], []);
                 nodes[label].properties.Add(key);
@@ -425,8 +447,8 @@ public partial class CodeExplorerRepository
     {
         foreach (var triplet in triplets)
         {
-            if (triplet.TryGetValue("fromLabel", out var from) && triplet.TryGetValue("relType", out var rel) &&
-                triplet.TryGetValue("toLabel", out var to))
+            if (triplet.TryGetValue(TaxonomyFromLabelKey, out var from) && triplet.TryGetValue(TaxonomyRelTypeKey, out var rel) &&
+                triplet.TryGetValue(TaxonomyToLabelKey, out var to))
             {
                 if (!nodes.ContainsKey(from)) nodes[from] = ([], [], []);
                 if (!nodes.ContainsKey(to)) nodes[to] = ([], [], []);

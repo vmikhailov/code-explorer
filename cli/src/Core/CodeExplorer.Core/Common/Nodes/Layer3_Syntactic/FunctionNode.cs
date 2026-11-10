@@ -18,6 +18,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.UsesType)]
 [OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Implements)]
+[OntologyEdge<ParameterNode>(OntologyConstants.Relationships.HasParameter)]
+[OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.PassesArgument)]
 public record FunctionNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
@@ -82,6 +84,9 @@ public record FunctionNode(
 
     [JsonPropertyName("graphql_fields"), OntologyProperty("Comma-separated GraphQL root selection fields.")]
     public string? GraphqlFields { get; set; }
+
+    [JsonPropertyName("attributes"), OntologyProperty("Comma-separated annotations, attributes, or decorators applied to this function.")]
+    public string? Attributes { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Function;

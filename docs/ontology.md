@@ -30,10 +30,12 @@ graph TD
     end
 
     subgraph Layer3 ["Layer 3: Syntax Structure"]
+        CallArgument["CallArgument"]
         CallLiteral["CallLiteral"]
         CatchClause["CatchClause"]
         Function["Function"]
         Member["Member"]
+        Parameter["Parameter"]
         ProjectSyntax["ProjectSyntax"]
         SyntaxStructure["SyntaxStructure"]
         Type["Type"]
@@ -95,6 +97,8 @@ graph TD
     BoundedContext -->|CONTAINS| Database
     BoundedContext -->|CONTAINS| Topic
     BoundedContext -->|DEFINES| Type
+    CallArgument -->|DECLARED_IN| File
+    CallArgument -->|FLOWS_TO| Parameter
     CallLiteral -->|DECLARED_IN| File
     CatchClause -->|DECLARED_IN| File
     CliTool -->|LOCATED_IN| Folder
@@ -120,17 +124,20 @@ graph TD
     Database -->|CONTAINS| Table
     Database -->|CONTAINS| Procedure
     Database -->|CONTAINS| Query
+    Database -->|TARGETED_BY| CallArgument
     DataSet -->|CONTAINS| Table
     Domain -->|CONTAINS| BoundedContext
     Endpoint -->|TRIGGERS| Function
     Endpoint -->|EXPOSED_BY| Type
     Endpoint -->|EXPOSED_BY| Function
     Endpoint -->|SUBSCRIBES_TO| Topic
+    Endpoint -->|TARGETED_BY| CallArgument
     EntryPoint -->|DECLARED_IN| File
     EntryPoint -->|TRIGGERS| File
     EntryPoint -->|BELONGS_TO| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
+    ExternalService -->|TARGETED_BY| CallArgument
     File -->|CONTAINS| ScanIssue
     FilesStructure -->|CONTAINS| Folder
     FilesStructure -->|CONTAINS| File
@@ -143,6 +150,8 @@ graph TD
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
     Function -->|IMPLEMENTS| EntryPoint
+    Function -->|HAS_PARAMETER| Parameter
+    Function -->|PASSES_ARGUMENT| CallArgument
     Library -->|LOCATED_IN| Folder
     Library -->|LOCATED_IN| Workspace
     Library -->|IMPLEMENTED_BY| Project
@@ -164,9 +173,13 @@ graph TD
     LogicalStructure -->|CONTAINS| Domain
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
+    Member -->|ACCESSED_BY| Function
     Package -->|PRODUCES| Project
     Package -->|IMPLEMENTED_BY| Project
+    Parameter -->|DECLARED_IN| File
+    Parameter -->|FLOWS_TO| CallArgument
     Procedure -->|CONTAINS| Query
+    Procedure -->|TARGETED_BY| CallArgument
     Project -->|LOCATED_IN| Folder
     Project -->|LOCATED_IN| Workspace
     Project -->|CONTAINS| Project
@@ -225,6 +238,7 @@ graph TD
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|ACCESSED_BY| Function
     Table -->|ACCESSED_BY| Type
+    Table -->|TARGETED_BY| CallArgument
     TestSuite -->|LOCATED_IN| Folder
     TestSuite -->|LOCATED_IN| Workspace
     TestSuite -->|IMPLEMENTED_BY| Project
@@ -236,6 +250,7 @@ graph TD
     TestSuite -->|TESTS| CliTool
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
+    Topic -->|TARGETED_BY| CallArgument
     Type -->|DECLARED_IN| File
     Type -->|USES_TYPE| Type
     Type -->|IMPLEMENTS| Type
@@ -341,6 +356,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `CallArgument` | `DECLARED_IN` |
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
 | `EntryPoint` | `DECLARED_IN` |
@@ -349,6 +365,7 @@ graph TD
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
+| `Parameter` | `DECLARED_IN` |
 | `Project` | `CONTAINS` |
 | `ScanIssue` | `DECLARED_IN` |
 | `Type` | `DECLARED_IN` |
@@ -660,6 +677,55 @@ graph TD
 
 ### 📂 Layer 3: Syntax Structure
 
+#### `CallArgument`
+
+> Represents a semantically colored invocation argument sliced backward to its provenance origin.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `FLOWS_TO` | `Parameter` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Database` | `TARGETED_BY` |
+| `Endpoint` | `TARGETED_BY` |
+| `ExternalService` | `TARGETED_BY` |
+| `Function` | `PASSES_ARGUMENT` |
+| `Parameter` | `FLOWS_TO` |
+| `Procedure` | `TARGETED_BY` |
+| `Table` | `TARGETED_BY` |
+| `Topic` | `TARGETED_BY` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | Display label or slot representation of the argument. |
+| `Callee` | `string` | The method, function, or constructor being invoked. |
+| `ArgIndex` | `int` | The 0-indexed positional slot of the argument. |
+| `PropertyKey` | `string?` | The object property key when passed via an options object (e.g. sql, text, url, topic). |
+| `RawExpression` | `string` | The syntactic expression passed at the call site. |
+| `ResolvedValue` | `string?` | The concrete value resolved via backward constant/template slicing, if determinable. |
+| `Nature` | `ParameterNature` | The semantic nature of the argument slot. |
+| `Provenance` | `ArgumentProvenance` | Where the argument's value originates (InternalConstant, CallerParameter, ConfigOrEnv, MemberOrField, etc.). |
+| `Role` | `ExpressionRole` | How the expression participates in constructing the argument value. |
+| `ValueKind` | `ConstantValueKind` | Fine-grained classification of the resolved constant or template value. |
+| `FilePath` | `string` | The relative file path where the call occurs. |
+| `Line` | `int` | The 1-indexed line number of the call argument. |
+| `OriginFile` | `string?` | The relative file path where the value was originally defined, if distinct. |
+| `OriginLine` | `int?` | The 1-indexed line number where the value was originally defined. |
+| `OriginSymbol` | `string?` | The variable, constant, field, parameter, or config key from which the value originated. |
+| `IsTest` | `bool` | Indicates whether the call occurs within test code. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
+
+---
+
 #### `CallLiteral`
 
 > Represents a raw literal argument passed directly into a method or constructor invocation.
@@ -685,6 +751,7 @@ graph TD
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `Role` | `string` | The semantic role of the literal argument (e.g. Business, Routing, ParamBinding, Config, Logging, QueryBuilder, DI). |
 | `IsDecorator` | `bool` | Indicates whether the literal argument occurs within a decorator or attribute. |
+| `Nature` | `ParameterNature` | The semantic nature of the parameter/argument (e.g. SqlQuery, UrlOrRoute, ConnectionString, FilePath). |
 
 ---
 
@@ -727,6 +794,8 @@ graph TD
 | `CALLS` | `Function` |
 | `USES_TYPE` | `Type` |
 | `IMPLEMENTS` | `EntryPoint` |
+| `HAS_PARAMETER` | `Parameter` |
+| `PASSES_ARGUMENT` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -742,6 +811,7 @@ graph TD
 | `Function` | `CALLS` |
 | `Library` | `CONTAINS` |
 | `Library` | `CALLED_BY` |
+| `Member` | `ACCESSED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
 | `Service` | `CALLED_BY` |
@@ -773,6 +843,7 @@ graph TD
 | `GraphqlOperation` | `string?` | GraphQL client operation name or flag. |
 | `OperationType` | `string?` | Operation type for GraphQL or RPC operations. |
 | `GraphqlFields` | `string?` | Comma-separated GraphQL root selection fields. |
+| `Attributes` | `string?` | Comma-separated annotations, attributes, or decorators applied to this function. |
 
 ---
 
@@ -786,6 +857,7 @@ graph TD
 | :--- | :--- |
 | `DECLARED_IN` | `File` |
 | `OF_TYPE` | `Type` |
+| `ACCESSED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -808,6 +880,43 @@ graph TD
 | `VariableClassification` | `string?` | Variable classification tags (e.g. parameter, config, etl, constant, global, property, field). |
 | `InitializerExpression` | `string?` | Bounded initializer expression text. |
 | `IsConstant` | `bool?` | Indicates whether the member is a compile-time or immutable constant. |
+| `Attributes` | `string?` | Comma-separated annotations, attributes, or decorators applied to this member. |
+
+---
+
+#### `Parameter`
+
+> Represents a semantically colored function or method parameter that flows into an architectural sink.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `FLOWS_TO` | `CallArgument` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `CallArgument` | `FLOWS_TO` |
+| `Function` | `HAS_PARAMETER` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The parameter identifier name. |
+| `FunctionSymbol` | `string` | The symbol ID of the declaring function or method. |
+| `ParamIndex` | `int` | The 0-indexed position of the parameter in the function signature. |
+| `DataType` | `string?` | The declared parameter type annotation, if present. |
+| `FilePath` | `string` | The relative file path of the declaring function. |
+| `Line` | `int` | The 1-indexed declaration line number. |
+| `Nature` | `ParameterNature` | The semantic nature inferred from intra- or inter-procedural sink usage. |
+| `SinkCallee` | `string?` | The primary sink callee that determined the parameter's semantic nature. |
+| `IsTest` | `bool` | Indicates whether the parameter belongs to test code. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
 
 ---
 
@@ -915,6 +1024,8 @@ graph TD
 | `Loc` | `int?` | Lines of code span for this type declaration. |
 | `IsExported` | `bool?` | Indicates whether the type is publicly exported from its module. |
 | `Extends` | `string?` | Declared base type or component inherited by this type. |
+| `Implements` | `string?` | Declared interfaces implemented by this type. |
+| `Attributes` | `string?` | Comma-separated annotations, attributes, or decorators applied to this type. |
 
 ---
 
@@ -1108,6 +1219,7 @@ graph TD
 | `CONTAINS` | `Table` |
 | `CONTAINS` | `Procedure` |
 | `CONTAINS` | `Query` |
+| `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1155,6 +1267,7 @@ graph TD
 | `EXPOSED_BY` | `Type` |
 | `EXPOSED_BY` | `Function` |
 | `SUBSCRIBES_TO` | `Topic` |
+| `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1195,6 +1308,7 @@ graph TD
 | :--- | :--- |
 | `CALLS_ENDPOINT` | `Endpoint` |
 | `CALLED_BY` | `Function` |
+| `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1298,6 +1412,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CONTAINS` | `Query` |
+| `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1437,6 +1552,7 @@ graph TD
 | :--- | :--- |
 | `ACCESSED_BY` | `Function` |
 | `ACCESSED_BY` | `Type` |
+| `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1499,6 +1615,7 @@ graph TD
 | :--- | :--- |
 | `PUBLISHED_BY` | `Function` |
 | `SUBSCRIBED_BY` | `Function` |
+| `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1690,9 +1807,11 @@ graph TD
 | `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
 | `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
 | `EXPOSES` | Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes. |
+| `FLOWS_TO` | Traces semantic dataflow between call arguments and parameters across intra- and inter-procedural hops. |
 | `HAS_ENTRYPOINT` | Links an executable ProjectNode to its binary or process EntryPointNode. |
 | `HAS_MEMBER` | Links a type declaration to its declared member variables or fields. |
 | `HAS_METHOD` | Links a type declaration to its declared methods or functions. |
+| `HAS_PARAMETER` | Links a function or method to one of its semantically colored parameters. |
 | `HAS_VARIABLE` | Links a function scope to its declared local variables or parameters. |
 | `IMPLEMENTED_BY` | Links a library package to the project that implements or encapsulates it. |
 | `IMPLEMENTS` | Links a class/struct declaration to the interface it implements. |
@@ -1700,6 +1819,7 @@ graph TD
 | `INSTANTIATES` | Links a host component to a runtime UI or subsystem component it instantiates. |
 | `LOCATED_IN` | Links a project to the physical folder or files structure where it is located. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
+| `PASSES_ARGUMENT` | Links a calling function or scope to a semantically colored call argument. |
 | `PASSES_LITERAL` | Links a calling function or scope to a literal argument passed directly into an invocation. |
 | `PERSISTED_IN` | Links an ORM entity or model class to its physical database table. |
 | `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
@@ -1711,6 +1831,7 @@ graph TD
 | `SERVICE_CALL` | Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API. |
 | `SUBSCRIBED_BY` | Links a topic to the function that subscribes to it. |
 | `SUBSCRIBES_TO` | Links a service or handler function to a message queue or topic it listens to or consumes events from. |
+| `TARGETED_BY` | Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it. |
 | `TRANSFORMS_TO` | Links a data model or dataset representing a transformation step to its destination structure. |
 | `TRIGGERS` | Links an entry point or API endpoint to the handler function it triggers. |
 | `USES_API` | Links a project, file, or class to an external API library or client model. |
@@ -1739,10 +1860,12 @@ graph TD
 | Layer 2: Project Structure | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
 | Layer 2: Project Structure | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
 | Layer 2: Project Structure | `ProjectsStructure` | `{workspaceId}:ps` |
+| Layer 3: Syntax Structure | `CallArgument` | `{workspaceId}:arg:{filePath}:{line}:{col}:{slot}` |
 | Layer 3: Syntax Structure | `CallLiteral` | `{workspaceId}:lit:{filePath}:{line}:{col}` |
 | Layer 3: Syntax Structure | `CatchClause` | `{workspaceId}:catch:{filePath}:{line}:{col}` |
 | Layer 3: Syntax Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntax Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
+| Layer 3: Syntax Structure | `Parameter` | `{workspaceId}:param:{functionSymbol}:{index}:{name}` |
 | Layer 3: Syntax Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |
 | Layer 3: Syntax Structure | `SyntaxStructure` | `{workspaceId}:ss` |
 | Layer 3: Syntax Structure | `Type` | `{workspaceId}:sym:{filePath}:Type:{name}:{line}` |

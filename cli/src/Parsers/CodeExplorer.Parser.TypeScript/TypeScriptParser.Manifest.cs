@@ -151,6 +151,7 @@ public partial class TypeScriptParser
     {
         Components.AngularComponentParser.ExtractWorkspaceSubProjects(directoryPath, this, sourceRoots, excludedSubpaths, subProjects);
         Components.NestJsComponentParser.ExtractWorkspaceSubProjects(directoryPath, this, sourceRoots, excludedSubpaths, subProjects);
+        Components.NxComponentParser.ExtractWorkspaceSubProjects(directoryPath, this, sourceRoots, excludedSubpaths, subProjects);
     }
 
     private static void DetectBuildOrchestratorProperties(
@@ -238,6 +239,9 @@ public partial class TypeScriptParser
                     if (pt == "library")
                     {
                         props["manifest_type"] = "library";
+                        props["is_library"] = "true";
+                        props["role"] = "SharedLibrary";
+                        props["primary_role"] = "Library";
                     }
                     else if (pt == "application")
                     {

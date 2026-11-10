@@ -18,7 +18,7 @@ This directory stores the upstream grammar and scanner patches used to build the
 
 ## 2. `tree-sitter-typescript` ([`tree-sitter-typescript.patch`](./tree-sitter-typescript.patch))
 
-- **Fork Repository:** `https://github.com/vmikhailov/tree-sitter-typescript.git` (branch: `fix-typescript-tsx-grammar-and-scanner`, commit: `8bed1df777b440b029da3230f48799c431eabf6b`)
+- **Fork Repository:** `https://github.com/vmikhailov/tree-sitter-typescript.git` (branch: `fix-typescript-tsx-grammar-and-scanner`, commit: `e660d046fcbc92427ed5fba098fed002a58f642a`)
 - **Upstream Repository:** `https://github.com/tree-sitter/tree-sitter-typescript.git`
 - **Base Tag / Commit:** `v0.23.2` (`75b3874edb2dc714fb1fd77a32013d0f8699989f`)
 - **Output Binaries (in `cli/.Build/runtimes/`):**
@@ -37,6 +37,8 @@ This directory stores the upstream grammar and scanner patches used to build the
      Adds `'unique'`, `'unknown'`, and `'never'` (all contextual keywords from `predefined_type`) to `_reserved_identifier` so expressions like `i < unique.length`, `i < unknown.length`, and `i < never.length` parse as identifiers instead of failing when the context-aware lexer prioritizes `predefined_type` tokens after `<`.
   6. **Embedded NUL byte (`\0`) inside template strings (`common/scanner.h`):**
      Updates `scan_template_chars` to check `lexer->eof(lexer)` on `case '\0':` instead of unconditionally returning `false`, allowing template literals containing literal NUL bytes (e.g. `` `${a}\0${b}` ``) to scan cleanly until real EOF.
+  7. **Bare `&` and URL query parameters in JSX string attributes (`common/define-grammar.js`):**
+     Overrides `unescaped_double_jsx_string_fragment` and `unescaped_single_jsx_string_fragment` to allow arbitrary query strings and unescaped ampersands (`/[^"]+/` and `/[^']+/`) in JSX attributes (e.g. `href="https://example.com?foo=1&bar=2"`, `src="./iframe.html?id=desktop&viewMode=story"`) without spurious syntax errors.
 
 ---
 

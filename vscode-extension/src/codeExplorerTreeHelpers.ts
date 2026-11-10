@@ -18,6 +18,9 @@ export interface MetadataDto {
   totalEdges: number;
   version?: string;
   lastUpdatedUtc?: string;
+  isSchemaOutdated?: boolean;
+  schemaVersion?: number;
+  currentSchemaVersion?: number;
 }
 
 export interface NodeDto {
@@ -811,14 +814,24 @@ export function buildManagementItems(
     'Graph',
     vscode.TreeItemCollapsibleState.None
   );
-  if (meta && meta.totalNodes > 0) {
+  graphItem.iconPath = new vscode.ThemeIcon('database');
+  if (meta?.isSchemaOutdated) {
+    const warningIconId = 'warning';
+    const warningColorId = 'problemsWarningIcon.foreground';
+    graphItem.description = `Schema outdated (v${meta.schemaVersion ?? 1} -> v${meta.currentSchemaVersion ?? 6}) · Click to convert`;
+    graphItem.tooltip = `Database schema version is outdated (v${meta.schemaVersion ?? 1} < v${meta.currentSchemaVersion ?? 6}).\nClick to convert the database schema to v${meta.currentSchemaVersion ?? 6}.`;
+    graphItem.iconPath = new vscode.ThemeIcon(warningIconId, new vscode.ThemeColor(warningColorId));
+    graphItem.command = {
+      command: 'codeExplorer.upgradeSchema',
+      title: 'Convert Database Schema',
+    };
+  } else if (meta && meta.totalNodes > 0) {
     graphItem.description = `${meta.totalNodes.toLocaleString()} nodes · ${updateStr}`;
     graphItem.tooltip = `Knowledge Graph Storage: .codeexplorer/graph.db\nTotal Nodes: ${meta.totalNodes.toLocaleString()}\nTotal Relationships: ${meta.totalEdges.toLocaleString()}\nLast Updated: ${dbMtime ? dbMtime.toLocaleString() : 'Unknown'}\nUse inline buttons to scan workspace incrementally or run a full re-index.`;
   } else {
     graphItem.description = 'Not indexed yet';
     graphItem.tooltip = 'Knowledge graph has not been indexed yet. Use inline button to scan workspace.';
   }
-  graphItem.iconPath = new vscode.ThemeIcon('database');
 
   let intentMtime: Date | null = null;
   if (wsRoot) {

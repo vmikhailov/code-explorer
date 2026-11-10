@@ -14,35 +14,33 @@ namespace CodeExplorer.Core.Mcp;
 public partial class McpGraphHandler(
     CodeExplorerRepository repository,
     IHttpContextAccessor httpContextAccessor,
-    ILogger<McpGraphHandler>? logger = null)
+    ILogger<McpGraphHandler>? logger = null,
+    McpServer? mcpServer = null)
 {
+    private const string QueryParamWs = "ws";
+    private const string QueryParamWorkspacePath = "workspacePath";
+    private const string AsyncMethodSuffix = "Async";
+    private const string RootListSeparator = ", ";
+    private const string RootsListFailedLogMessage = "[MCP] Client roots/list request failed or timed out; falling back to standby.";
+    private static readonly TimeSpan ClientRootsRequestTimeout = TimeSpan.FromSeconds(2);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, CachedClientRoots> SessionRootsCache = new();
+
     private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
-    private string? GetCurrentWorkspacePath(string? explicitWorkspace = null)
+    internal Func<CancellationToken, Task<IReadOnlyList<string>>>? CustomRootsProvider { get; set; }
+
+    private sealed class CachedClientRoots
     {
-        string? ws = null;
-        if (!string.IsNullOrWhiteSpace(explicitWorkspace))
+        public bool HandlerRegistered;
+        public volatile bool IsPopulated;
+        public IReadOnlyList<string> RawUris = [];
+    }
+
+    internal async Task<string?> ResolveWorkspacePathAsync(string? explicitWorkspace = null, CancellationToken cancellationToken = default)
+    {
+        var ws = TryResolveImmediateWorkspacePath(explicitWorkspace);
+        if (string.IsNullOrEmpty(ws))
         {
-            ws = explicitWorkspace;
-        }
-        else
-        {
-            var httpContext = httpContextAccessor?.HttpContext;
-            if (httpContext != null)
-            {
-                var workspacePath = httpContext.Request.Query["ws"].ToString();
-                if (string.IsNullOrEmpty(workspacePath))
-                {
-                    workspacePath = httpContext.Request.Query["workspacePath"].ToString();
-                }
-                if (!string.IsNullOrEmpty(workspacePath))
-                {
-                    ws = workspacePath;
-                }
-            }
-            if (string.IsNullOrEmpty(ws))
-            {
-                ws = repository.DefaultWorkspacePath ?? WorkspaceLocator.FindWithFallbacks()?.RootDirectory;
-            }
+            ws = await TryResolveWorkspaceFromClientRootsAsync(cancellationToken);
         }
 
         if (!string.IsNullOrEmpty(ws))
@@ -50,6 +48,178 @@ public partial class McpGraphHandler(
             WorkspaceConventions.LoadFromWorkspace(ws);
         }
         return ws;
+    }
+
+    private string? TryResolveImmediateWorkspacePath(string? explicitWorkspace)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitWorkspace))
+        {
+            return explicitWorkspace;
+        }
+
+        var httpContext = httpContextAccessor?.HttpContext;
+        if (httpContext != null)
+        {
+            var workspacePath = httpContext.Request.Query[QueryParamWs].ToString();
+            if (string.IsNullOrEmpty(workspacePath))
+            {
+                workspacePath = httpContext.Request.Query[QueryParamWorkspacePath].ToString();
+            }
+            if (!string.IsNullOrEmpty(workspacePath))
+            {
+                return workspacePath;
+            }
+        }
+
+        return repository.DefaultWorkspacePath;
+    }
+
+    private async Task<string?> TryResolveWorkspaceFromClientRootsAsync(CancellationToken cancellationToken)
+    {
+        var rawUris = await FetchClientRootUrisAsync(cancellationToken);
+        if (rawUris.Count == 0)
+        {
+            return null;
+        }
+
+        var localDirs = new List<string>(rawUris.Count);
+        var indexedWorkspaces = new List<WorkspaceInfo>();
+        var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rawUri in rawUris)
+        {
+            var localPath = ConvertRootUriToLocalPath(rawUri);
+            if (string.IsNullOrWhiteSpace(localPath) || !Directory.Exists(localPath))
+            {
+                continue;
+            }
+
+            localDirs.Add(localPath);
+            var found = WorkspaceLocator.Find(localPath);
+            if (found != null && File.Exists(found.DbPath))
+            {
+                var normRoot = Path.GetFullPath(found.RootDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (seenRoots.Add(normRoot))
+                {
+                    indexedWorkspaces.Add(found);
+                }
+            }
+        }
+
+        if (indexedWorkspaces.Count == 1)
+        {
+            return indexedWorkspaces[0].RootDirectory;
+        }
+
+        if (indexedWorkspaces.Count > 1)
+        {
+            var names = string.Join(RootListSeparator, indexedWorkspaces.Select(w => w.RootDirectory));
+            throw new InvalidOperationException(
+                $"Multiple indexed CodeExplorer workspaces are open in client roots ({names}). Specify 'workspacePath' on the tool call to select one.");
+        }
+
+        return localDirs.Count == 1 ? localDirs[0] : null;
+    }
+
+    private async Task<IReadOnlyList<string>> FetchClientRootUrisAsync(CancellationToken cancellationToken)
+    {
+        if (CustomRootsProvider != null)
+        {
+            return await CustomRootsProvider(cancellationToken);
+        }
+
+        if (mcpServer?.ClientCapabilities?.Roots == null)
+        {
+            return [];
+        }
+
+        var cacheEntry = SessionRootsCache.GetOrCreateValue(mcpServer);
+        lock (cacheEntry)
+        {
+            if (!cacheEntry.HandlerRegistered)
+            {
+                cacheEntry.HandlerRegistered = true;
+                mcpServer.RegisterNotificationHandler(NotificationMethods.RootsListChangedNotification, (_, _) =>
+                {
+                    cacheEntry.IsPopulated = false;
+                    return ValueTask.CompletedTask;
+                });
+            }
+        }
+
+        if (cacheEntry.IsPopulated)
+        {
+            return cacheEntry.RawUris;
+        }
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(ClientRootsRequestTimeout);
+            var rootsResult = await mcpServer.RequestRootsAsync(new ListRootsRequestParams(), cts.Token);
+            var uris = rootsResult.Roots?
+                .Select(r => r.Uri)
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .ToArray() ?? [];
+            cacheEntry.RawUris = uris;
+            cacheEntry.IsPopulated = true;
+            return uris;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug(ex, RootsListFailedLogMessage);
+            return [];
+        }
+    }
+
+    private const string FileUriSchemePrefix = "file:///";
+    private const string EncodedColonUpper = "%3A";
+    private const string EncodedColonLower = "%3a";
+    private const string ColonString = ":";
+
+    internal static string? ConvertRootUriToLocalPath(string rawUri)
+    {
+        if (string.IsNullOrWhiteSpace(rawUri))
+        {
+            return null;
+        }
+
+        var normalizedUri = rawUri;
+        if (normalizedUri.StartsWith(FileUriSchemePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedUri = normalizedUri
+                .Replace(EncodedColonUpper, ColonString, StringComparison.Ordinal)
+                .Replace(EncodedColonLower, ColonString, StringComparison.Ordinal);
+        }
+
+        if (Uri.TryCreate(normalizedUri, UriKind.Absolute, out var parsed) && parsed.IsFile)
+        {
+            var localPath = parsed.LocalPath;
+            if (OperatingSystem.IsWindows() &&
+                localPath.Length >= 3 &&
+                (localPath[0] == '\\' || localPath[0] == '/') &&
+                char.IsAsciiLetter(localPath[1]) &&
+                localPath[2] == ':')
+            {
+                return localPath[1..];
+            }
+            return localPath;
+        }
+
+        return rawUri;
+    }
+
+    private Task<CallToolResult> ExecuteForWorkspaceAsync(
+        string? explicitWorkspace,
+        Func<string?, Task<string>> action,
+        CancellationToken cancellationToken,
+        [CallerMemberName] string toolName = "")
+    {
+        return ExecuteAsync(async () =>
+        {
+            var resolvedWs = await ResolveWorkspacePathAsync(explicitWorkspace, cancellationToken);
+            return await action(resolvedWs);
+        }, toolName);
     }
 
     private static CallToolResult WrapResult(string text)
@@ -73,7 +243,7 @@ public partial class McpGraphHandler(
 
     private static string NormalizeToolName(string name)
     {
-        if (name.EndsWith("Async", StringComparison.Ordinal))
+        if (name.EndsWith(AsyncMethodSuffix, StringComparison.Ordinal))
             name = name[..^5];
         return name;
     }
@@ -138,7 +308,7 @@ public partial class McpGraphHandler(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetArchitectureViewAsync(level, scope, includeLibraries, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetArchitectureViewAsync(level, scope, includeLibraries, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -148,7 +318,7 @@ public partial class McpGraphHandler(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetBoundedContextsAsync(GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetBoundedContextsAsync(ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -158,7 +328,7 @@ public partial class McpGraphHandler(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetArchitectureOverviewAsync(GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetArchitectureOverviewAsync(ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -169,7 +339,7 @@ public partial class McpGraphHandler(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetArchitectureMapAsync(projectName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetArchitectureMapAsync(projectName, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -182,7 +352,7 @@ public partial class McpGraphHandler(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter, limit, type, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetProjectDependenciesAsync(projectFilter, limit, type, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -198,7 +368,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'serviceName' argument.");
         }
-        return await ExecuteAsync(() => repository.GetServiceContractsAsync(serviceName, direction, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetServiceContractsAsync(serviceName, direction, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -215,7 +385,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'startService' argument.");
         }
-        return await ExecuteAsync(() => repository.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -230,7 +400,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'filePath' argument.");
         }
-        return await ExecuteAsync(() => repository.GetFileOutlineAsync(filePath, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetFileOutlineAsync(filePath, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -247,7 +417,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'name' argument.");
         }
-        return await ExecuteAsync(() => repository.FindSymbolAsync(name, symbolType, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.FindSymbolAsync(name, symbolType, limit, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -264,7 +434,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'startFunction' or 'endFunction' argument.");
         }
-        return await ExecuteAsync(() => repository.GetCallChainAsync(startFunction, endFunction, maxDepth, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetCallChainAsync(startFunction, endFunction, maxDepth, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -280,7 +450,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'interfaceName' or 'methodName' argument.");
         }
-        return await ExecuteAsync(() => repository.ResolveCallTargetAsync(interfaceName, methodName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ResolveCallTargetAsync(interfaceName, methodName, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -296,7 +466,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'target' argument.");
         }
-        return await ExecuteAsync(() => repository.GetCallersAsync(target, includeTests, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetCallersAsync(target, includeTests, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -313,7 +483,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'query' argument.");
         }
-        return await ExecuteAsync(() => repository.SearchIdentifiersAsync(query, kind, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.SearchIdentifiersAsync(query, kind, limit, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -328,6 +498,6 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'symbolName' argument.");
         }
-        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.AnalyzeCodeImpactAsync(symbolName, ws, cancellationToken), cancellationToken);
     }
 }

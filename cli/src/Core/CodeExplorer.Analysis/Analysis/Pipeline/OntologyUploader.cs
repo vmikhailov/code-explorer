@@ -25,7 +25,9 @@ public static class OntologyUploader
             for (var r = 0; r < refList.Count; r++)
             {
                 var refItem = refList[r];
-                if (refItem.Kind == RelationshipKind.Calls && !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
+                if (refItem.Kind == RelationshipKind.Calls &&
+                    !refItem.HasExplicitReceiver &&
+                    !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
                 {
                     continue;
                 }
@@ -208,17 +210,36 @@ public static class OntologyUploader
                             ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind.ToCypherLabel(), $"{parentName}.{nameStr}", node.Id);
                         }
                     }
+
+                    if (node is FunctionNode fnWithExt &&
+                        fnWithExt.TryGetSignals()?.ExtensionReceiverTypeName is { Length: > 0 } extRecvType)
+                    {
+                        var shortExtType = extRecvType.Contains('.') ? extRecvType[(extRecvType.LastIndexOf('.') + 1)..] : extRecvType;
+                        ctx.AddGlobalSymbol(node.Kind, $"{shortExtType}.{nameStr}", node.Id);
+                        if (!string.IsNullOrEmpty(filePath))
+                        {
+                            ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind.ToCypherLabel(), $"{shortExtType}.{nameStr}", node.Id);
+                        }
+                    }
                 }
             }
         }
 
-        // Special: If CallLiteral, CatchClause, or EntryPoint, link it to File via DECLARED_IN
-        if (node.Kind is NodeKind.CallLiteral or NodeKind.CatchClause or NodeKind.EntryPoint or NodeKind.ScanIssue)
+        // Special: If CallLiteral, Parameter, CallArgument, CatchClause, or EntryPoint, link it to File via DECLARED_IN
+        if (node.Kind is NodeKind.CallLiteral or NodeKind.Parameter or NodeKind.CallArgument or NodeKind.CatchClause or NodeKind.EntryPoint or NodeKind.ScanIssue)
         {
             var filePath = node.Path;
             if (string.IsNullOrEmpty(filePath) && node is CallLiteralNode cln)
             {
                 filePath = cln.FilePath;
+            }
+            else if (string.IsNullOrEmpty(filePath) && node is ParameterNode prm)
+            {
+                filePath = prm.FilePath;
+            }
+            else if (string.IsNullOrEmpty(filePath) && node is CallArgumentNode ca)
+            {
+                filePath = ca.FilePath;
             }
             else if (string.IsNullOrEmpty(filePath) && node is CatchClauseNode ccn)
             {
@@ -462,6 +483,24 @@ public static class OntologyUploader
             return new PassesLiteralRelationship(parentId, child.Id);
         }
 
+        if (child.Kind == NodeKind.Parameter)
+        {
+            if (IsFileNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            return new HasParameterRelationship(parentId, child.Id);
+        }
+
+        if (child.Kind == NodeKind.CallArgument)
+        {
+            if (IsFileNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            return new PassesArgumentRelationship(parentId, child.Id);
+        }
+
         if (child.Kind == NodeKind.CatchClause)
         {
             if (IsFileNodeId(parentId))
@@ -531,6 +570,8 @@ public static class OntologyUploader
                lower.Contains(":member:") ||
                lower.Contains($":{OntologyConstants.IdPrefixes.CallLiteral}:") ||
                lower.Contains(":lit:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.Parameter}:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.CallArgument}:") ||
                lower.Contains($":{OntologyConstants.IdPrefixes.CatchClause}:") ||
                lower.Contains(":catch:");
     }
@@ -541,6 +582,8 @@ public static class OntologyUploader
                kind == NodeKind.Function ||
                kind == NodeKind.Member ||
                kind == NodeKind.CallLiteral ||
+               kind == NodeKind.Parameter ||
+               kind == NodeKind.CallArgument ||
                kind == NodeKind.CatchClause;
     }
 

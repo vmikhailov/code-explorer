@@ -507,4 +507,129 @@ require (
             }
         }
     }
+
+    [Test]
+    public async Task Test_NxSinglePackageJson_DiscoversProjectsAndResolvesDependencies()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_nx_test_" + Guid.NewGuid()).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            // Root has package.json (no workspaces property) and nx.json, tsconfig.base.json
+            await File.WriteAllTextAsync(Path.Combine(tempWorkspace, "package.json"), """
+            {
+                "name": "@org/source",
+                "version": "1.0.0",
+                "private": true,
+                "dependencies": {
+                    "react": "^19.0.0"
+                },
+                "devDependencies": {
+                    "storybook": "^8.0.0"
+                }
+            }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(tempWorkspace, "nx.json"), """
+            {
+                "defaultBase": "main"
+            }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(tempWorkspace, "tsconfig.base.json"), """
+            {
+                "compilerOptions": {
+                    "paths": {
+                        "@org/shared": ["libs/shared/src/index.ts"],
+                        "@org/shared/*": ["libs/shared/src/*"]
+                    }
+                }
+            }
+            """);
+
+            // Subproject 1: apps/web-app (application, NO package.json, ONLY project.json)
+            var webAppDir = Path.Combine(tempWorkspace, "apps/web-app").Replace('\\', '/');
+            Directory.CreateDirectory(webAppDir);
+            Directory.CreateDirectory(Path.Combine(webAppDir, "src"));
+            await File.WriteAllTextAsync(Path.Combine(webAppDir, "project.json"), """
+            {
+                "name": "web-app",
+                "projectType": "application",
+                "sourceRoot": "apps/web-app/src"
+            }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(webAppDir, "src/index.ts"), """
+            import { helper } from '@org/shared';
+            export function run() { return helper(); }
+            """);
+
+            // Subproject 2: libs/shared (library, NO package.json, ONLY project.json)
+            var sharedDir = Path.Combine(tempWorkspace, "libs/shared").Replace('\\', '/');
+            Directory.CreateDirectory(sharedDir);
+            Directory.CreateDirectory(Path.Combine(sharedDir, "src"));
+            await File.WriteAllTextAsync(Path.Combine(sharedDir, "project.json"), """
+            {
+                "name": "shared",
+                "projectType": "library",
+                "sourceRoot": "libs/shared/src"
+            }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(sharedDir, "src/index.ts"), """
+            export function helper() { return 42; }
+            """);
+
+            // Subproject 3: apps/storybook (tooling app, matches devDependencies name)
+            var storybookDir = Path.Combine(tempWorkspace, "apps/storybook").Replace('\\', '/');
+            Directory.CreateDirectory(storybookDir);
+            Directory.CreateDirectory(Path.Combine(storybookDir, "src"));
+            await File.WriteAllTextAsync(Path.Combine(storybookDir, "project.json"), """
+            {
+                "name": "storybook",
+                "projectType": "application",
+                "sourceRoot": "apps/storybook/src"
+            }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(storybookDir, "src/index.ts"), """
+            export function preview() { return "preview"; }
+            """);
+
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(db);
+            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(tempWorkspace, clear: true);
+
+            nodesCount.Should().BeGreaterThan(0);
+
+            // Assert projects exist
+            var projectsRes = await db.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name, p.path AS path");
+            var projectNames = projectsRes.Rows.Select(r => r["name"].AsString()).ToList();
+
+            projectNames.Should().Contain("web-app");
+            projectNames.Should().Contain("shared");
+            projectNames.Should().Contain("storybook");
+
+            // Assert parent contains child
+            var containsRes = await db.ExecuteCypherAsync(
+                "MATCH (root:Project)-[:CONTAINS]->(child:Project) RETURN root.name AS root, child.name AS child");
+            containsRes.Rows.Any(r => r["child"].AsString() == "web-app").Should().BeTrue();
+            containsRes.Rows.Any(r => r["child"].AsString() == "shared").Should().BeTrue();
+            containsRes.Rows.Any(r => r["child"].AsString() == "storybook").Should().BeTrue();
+
+            // Assert web-app depends on shared
+            var depRes = await db.ExecuteCypherAsync(
+                "MATCH (app:Project {name: 'web-app'})-[r:DEPENDS_ON]->(lib:Project {name: 'shared'}) RETURN count(r) AS cnt");
+            depRes.Rows[0]["cnt"].AsInt64().Should().BeGreaterThan(0);
+
+            // Assert devDependency 'storybook' is NOT linked as project-to-project DEPENDS_ON
+            var storybookDepRes = await db.ExecuteCypherAsync(
+                "MATCH (p:Project)-[r:DEPENDS_ON]->(s:Project {name: 'storybook'}) RETURN count(r) AS cnt");
+            storybookDepRes.Rows[0]["cnt"].AsInt64().Should().Be(0);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempWorkspace))
+            {
+                try { Directory.Delete(tempWorkspace, true); } catch { }
+            }
+        }
+    }
 }

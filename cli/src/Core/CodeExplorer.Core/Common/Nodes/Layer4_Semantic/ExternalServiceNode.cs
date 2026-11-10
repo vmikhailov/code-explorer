@@ -15,6 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.CallsEndpoint)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
+[OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record ExternalServiceNode(
     string Id,
     string Name,

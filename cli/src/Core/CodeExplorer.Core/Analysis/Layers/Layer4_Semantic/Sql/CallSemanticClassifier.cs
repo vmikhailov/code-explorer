@@ -87,7 +87,7 @@ public static class CallSemanticClassifier
     {
         "Format", "Join", "Concat", "Split", "Replace", "ReplaceAll", "StartsWith", "EndsWith", "Contains",
         "Includes", "IndexOf", "LastIndexOf", "Trim", "TrimStart", "TrimEnd", "ToString",
-        "PadLeft", "PadRight", "Substring", "Slice", "Combine", "Match", "Matches",
+        "PadLeft", "PadRight", "Substring", "Slice", "Combine", "Match", "Matches", "IsMatch", "Regex",
         "Append", "AppendLine", "AppendFormat", "AppendJoin",
         "ToLower", "ToUpper", "ToLowerCase", "ToUpperCase",
         "Equals", "Compare", "CompareTo", "ReferenceEquals"

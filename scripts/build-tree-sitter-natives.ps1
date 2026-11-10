@@ -25,10 +25,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 $csharpRepo   = "https://github.com/vmikhailov/tree-sitter-c-sharp.git"
-$csharpCommit = "3e84193374546752812dec17a06ac00eef21703d"
+$csharpCommit = "374984463f73e12fc5bc0326651d1fcca61e48fb"
 
 $tsRepo       = "https://github.com/vmikhailov/tree-sitter-typescript.git"
-$tsCommit     = "8bed1df777b440b029da3230f48799c431eabf6b"
+$tsCommit     = "e660d046fcbc92427ed5fba098fed002a58f642a"
+
+$jsRepo       = "https://github.com/vmikhailov/tree-sitter-javascript.git"
+$jsCommit     = "1f0ac36f28d33be17c1f39bc5f265730d146b525"
 
 $zigVersion   = "0.13.0"
 
@@ -38,7 +41,7 @@ $buildRoot    = Join-Path $repoRoot "cli/.Build"
 $workDir      = Join-Path $buildRoot "tree-sitter-native"
 $runtimesDir  = Join-Path $buildRoot "runtimes"
 $stampFile    = Join-Path $runtimesDir ".stamp"
-$expectedStamp = "csharp=$csharpCommit;ts=$tsCommit;rids=$($Rids -join ',')"
+$expectedStamp = "csharp=$csharpCommit;ts=$tsCommit;js=$jsCommit;rids=$($Rids -join ',')"
 
 # 1. Check if already built and up-to-date
 if (-not $Force -and (Test-Path $stampFile)) {
@@ -47,7 +50,7 @@ if (-not $Force -and (Test-Path $stampFile)) {
     foreach ($rid in $Rids) {
         $ext = if ($rid.StartsWith("win-")) { ".dll" } elseif ($rid.StartsWith("osx-")) { ".dylib" } else { ".so" }
         $prefix = if ($rid.StartsWith("win-")) { "" } else { "lib" }
-        foreach ($g in @("tree-sitter-c-sharp", "tree-sitter-typescript", "tree-sitter-tsx")) {
+        foreach ($g in @("tree-sitter-c-sharp", "tree-sitter-typescript", "tree-sitter-tsx", "tree-sitter-javascript")) {
             $binPath = Join-Path $runtimesDir "$rid/native/$prefix$g$ext"
             if (-not (Test-Path $binPath)) {
                 $allExist = $false
@@ -139,6 +142,7 @@ function Ensure-GrammarRepo([string]$Name, [string]$RepoUrl, [string]$CommitSha)
 
 $csSrc = Ensure-GrammarRepo -Name "tree-sitter-c-sharp" -RepoUrl $csharpRepo -CommitSha $csharpCommit
 $tsSrc = Ensure-GrammarRepo -Name "tree-sitter-typescript" -RepoUrl $tsRepo -CommitSha $tsCommit
+$jsSrc = Ensure-GrammarRepo -Name "tree-sitter-javascript" -RepoUrl $jsRepo -CommitSha $jsCommit
 
 # 4. Target mapping for Zig CC
 $targetMap = @{
@@ -168,6 +172,12 @@ $grammars = @(
         WorkDir = (Join-Path $tsSrc "tsx")
         Include = @("-I", (Join-Path $tsSrc "tsx/src"), "-I", (Join-Path $tsSrc "common"))
         Sources = @((Join-Path $tsSrc "tsx/src/parser.c"), (Join-Path $tsSrc "tsx/src/scanner.c"))
+    },
+    @{
+        Name    = "tree-sitter-javascript"
+        WorkDir = $jsSrc
+        Include = @("-I", (Join-Path $jsSrc "src"))
+        Sources = @((Join-Path $jsSrc "src/parser.c"), (Join-Path $jsSrc "src/scanner.c"))
     }
 )
 

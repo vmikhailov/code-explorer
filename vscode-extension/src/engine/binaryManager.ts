@@ -32,6 +32,12 @@ function getVsCode(): typeof import('vscode') | undefined {
 export class BinaryManager {
   private context?: vscodeTypes.ExtensionContext;
   private outputChannel: vscodeTypes.OutputChannel;
+  private cachedBestEngine: {
+    workspaceRoot?: string;
+    candidate: InstalledEngineCandidate | null;
+    timestamp: number;
+  } | null = null;
+  private static readonly ENGINE_CACHE_TTL_MS = 30000;
 
   constructor(outputChannel: vscodeTypes.OutputChannel, context?: vscodeTypes.ExtensionContext) {
     this.context = context;
@@ -138,14 +144,34 @@ export class BinaryManager {
    * Probes all installed engine candidates across the system (dotnet-tools, PATH, global storage, bundled)
    * and returns the best candidate (highest semver).
    */
-  getBestInstalledEngine(workspaceRoot?: string): InstalledEngineCandidate | null {
+  getBestInstalledEngine(workspaceRoot?: string, forceRefresh = false): InstalledEngineCandidate | null {
+    const now = Date.now();
+    if (
+      !forceRefresh &&
+      this.cachedBestEngine &&
+      this.cachedBestEngine.workspaceRoot === workspaceRoot &&
+      now - this.cachedBestEngine.timestamp < BinaryManager.ENGINE_CACHE_TTL_MS
+    ) {
+      return this.cachedBestEngine.candidate;
+    }
+
     const binDir = this.getBinDir();
     const extensionRoot = this.context?.extensionPath;
-    return getBestInstalledEngine({
+    const candidate = getBestInstalledEngine({
       workspaceRoot,
       globalStorageBinDir: binDir || undefined,
       extensionRoot,
     });
+    this.cachedBestEngine = {
+      workspaceRoot,
+      candidate,
+      timestamp: now,
+    };
+    return candidate;
+  }
+
+  invalidateEngineCache(): void {
+    this.cachedBestEngine = null;
   }
 
   /**
@@ -221,6 +247,9 @@ export class BinaryManager {
     const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
 
     // 1. Always probe installed engines first across the system
+    if (options.forceRemoteProbe || options.forceReinstall) {
+      this.invalidateEngineCache();
+    }
     const bestInstalled = this.getBestInstalledEngine(options.workspaceRoot);
     const currentVersion = bestInstalled?.version || this.getCachedVersion() || null;
 

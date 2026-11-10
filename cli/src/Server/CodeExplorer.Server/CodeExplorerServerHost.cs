@@ -11,6 +11,9 @@ namespace CodeExplorer.Server;
 
 public static class CodeExplorerServerHost
 {
+    private const string ServerLoggerCategory = "CodeExplorer.Server";
+    private const string McpLoggerCategory = "CodeExplorer.Mcp";
+
     public static WebApplication? ActiveApp { get; set; }
 
     public static WebApplication CreateServeApplication(
@@ -64,7 +67,7 @@ public static class CodeExplorerServerHost
         });
 
         var wsHandler = app.Services.GetRequiredService<WebSocketServerHandler>();
-        var serverLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("CodeExplorer.Server");
+        var serverLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(ServerLoggerCategory);
 
         app.MapCodeExplorerApi(wsRoot, wsHandler, serverLogger);
 
@@ -85,7 +88,7 @@ public static class CodeExplorerServerHost
         if (client.IsSchemaOutdated && !quiet)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[Database   ] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Server starting; graph rebuild will occur asynchronously.");
+            Console.WriteLine($"[Database   ] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Awaiting explicit schema conversion or rescan.");
             Console.ResetColor();
         }
 
@@ -103,12 +106,6 @@ public static class CodeExplorerServerHost
         Console.WriteLine(
             $"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\"," +
             $"\"workspace\":\"{wsJson}\",\"version\":\"{appVersion}\"}}");
-
-        if (client.IsSchemaOutdated)
-        {
-            var wsHandler = app.Services.GetRequiredService<WebSocketServerHandler>();
-            wsHandler.TriggerScan(wsRoot, clear: true);
-        }
 
         if (!quiet)
         {
@@ -215,13 +212,15 @@ public static class CodeExplorerServerHost
         }
 
         builder.Services.RegisterCommonServices(client, workspaceRoot);
-        builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();
+        builder.Services.AddMcpServer(o => o.ServerInstructions = ServiceRegistrationExtensions.DefaultServerInstructions)
+            .WithStdioServerTransport()
+            .WithTools<McpGraphHandler>();
 
         var host = builder.Build();
         client.Logger = host.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
         if (isStandby && !quiet)
         {
-            var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("CodeExplorer.Mcp");
+            var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(McpLoggerCategory);
             logger.LogWarning("[MCP Standby] Server started in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls or set WORKSPACE_ROOT environment variable.");
         }
         await host.RunAsync();

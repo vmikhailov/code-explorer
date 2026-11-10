@@ -174,6 +174,14 @@ public class WorkspaceIndexer
             }
         }
 
+        if (_dbClient.IsSchemaOutdated && !clear)
+        {
+            _logger.LogInformation(
+                "[Database   ] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Attempting schema conversion...",
+                _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
+            await _dbClient.UpgradeSchemaAsync(cancellationToken);
+        }
+
         if (_dbClient.IsSchemaOutdated)
         {
             _logger.LogInformation(
@@ -436,10 +444,16 @@ public class WorkspaceIndexer
         if (_dbClient.IsSchemaOutdated)
         {
             _logger.LogInformation(
-                "[Incremental:Decision] Full rescan triggered: Database schema is outdated (v{SchemaVersion} < v{CurrentSchemaVersion}).",
+                "[Incremental:Decision] Database schema is outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Converting database schema...",
                 _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
-            await IndexAsync(targetPath, workspaceRoot, clear: true, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
-            return true;
+            if (!await _dbClient.UpgradeSchemaAsync(cancellationToken))
+            {
+                _logger.LogInformation(
+                    "[Incremental:Decision] Full rescan triggered: Schema conversion from v{SchemaVersion} to v{CurrentSchemaVersion} could not complete in-place.",
+                    _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
+                await IndexAsync(targetPath, workspaceRoot, clear: true, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
+                return true;
+            }
         }
 
         if (_fileRegistry.Count == 0)

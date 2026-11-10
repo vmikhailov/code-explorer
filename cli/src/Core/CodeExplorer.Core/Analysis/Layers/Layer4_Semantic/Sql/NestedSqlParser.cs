@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Parser.Sql;
+using CodeExplorer.Core.Parser.Sql.Ast;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace CodeExplorer.Core.Parser;
@@ -104,6 +106,12 @@ public static class NestedSqlParser
         "CREATE", "ALTER", "DROP", "TRUNCATE", "WITH"
     };
 
+    private const string RelationalDbType = "relational";
+    private const string ColonKeywordPattern = @"^\s*[a-zA-Z]+:\s*";
+    private const string SelectScalarPattern = @"^\s*SELECT\s+(?:[\d@'""\(]|COUNT\(|NOW\(|CURRENT_|@@|TRUE\b|FALSE\b|NULL\b)";
+    private const string WithClausePattern = @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+(?:\s*\([^\)]*\))?\s+AS\s*(?:(?:NOT\s+)?MATERIALIZED\s*)?\(";
+    private const string SqlDmlKeywordsPattern = @"\b(?:SELECT|INSERT|UPDATE|DELETE|MERGE)\b";
+
     public static bool FastCheckSqlCandidate(ReadOnlySpan<char> text)
     {
         if (text.Length < 6) return false;
@@ -205,7 +213,7 @@ public static class NestedSqlParser
             if (SqlKeywords.Contains(word))
             {
                 // Reject colon right after the keyword (e.g. "Select: Person", "Update:")
-                if (Regex.IsMatch(uncommented, @"^\s*[a-zA-Z]+:\s*"))
+                if (Regex.IsMatch(uncommented, ColonKeywordPattern))
                 {
                     return false;
                 }
@@ -213,7 +221,7 @@ public static class NestedSqlParser
                 // Verify structural syntax for SQL statements to avoid false positives (e.g. Swagger / UI strings)
                 if (word == "SELECT")
                 {
-                    var isScalar = Regex.IsMatch(uncommented, @"^\s*SELECT\s+(?:[\d@'""\(]|COUNT\(|NOW\(|CURRENT_|@@|TRUE\b|FALSE\b|NULL\b)", RegexOptions.IgnoreCase);
+                    var isScalar = Regex.IsMatch(uncommented, SelectScalarPattern, RegexOptions.IgnoreCase);
                     var hasFrom = Regex.Match(uncommented, @"\bFROM\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
 
                     if (!isScalar && !hasFrom.Success)
@@ -323,8 +331,8 @@ public static class NestedSqlParser
                 }
                 else if (word == "WITH")
                 {
-                    var cteMatch = Regex.IsMatch(uncommented, @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+(?:\s*\([^\)]*\))?\s+AS\s*(?:(?:NOT\s+)?MATERIALIZED\s*)?\(", RegexOptions.IgnoreCase) &&
-                                   Regex.IsMatch(uncommented, @"\b(?:SELECT|INSERT|UPDATE|DELETE|MERGE)\b", RegexOptions.IgnoreCase);
+                    var cteMatch = Regex.IsMatch(uncommented, WithClausePattern, RegexOptions.IgnoreCase) &&
+                                   Regex.IsMatch(uncommented, SqlDmlKeywordsPattern, RegexOptions.IgnoreCase);
                     if (!cteMatch)
                     {
                         return false;
@@ -494,6 +502,17 @@ public static class NestedSqlParser
     {
         cleanedSql = StripSqlComments(cleanedSql);
 
+        // Check for BigQuery EXTERNAL_QUERY embedded SQL query
+        if (cleanedSql.Contains("EXTERNAL_QUERY", StringComparison.OrdinalIgnoreCase))
+        {
+            var extMatches = Regex.Matches(cleanedSql, @"EXTERNAL_QUERY\s*\([^,]+,\s*[""'](?<innerSql>[\s\S]+?)[""']\s*\)", RegexOptions.IgnoreCase);
+            foreach (Match extMatch in extMatches)
+            {
+                var innerSql = extMatch.Groups["innerSql"].Value.Trim().Replace("\\\"", "\"").Replace("\\'", "'");
+                ExtractSqlDependencies(innerSql, rawText, tables, procedures);
+            }
+        }
+
         var cteNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (Match cteMatch in Regex.Matches(cleanedSql, @"(?:\bWITH\s+(?:RECURSIVE\s+)?|,\s*)([a-zA-Z0-9_\[\]""`]+)(?:\s*\([^\)]*\))?\s+AS\s*(?:(?:NOT\s+)?MATERIALIZED\s*)?\(", RegexOptions.IgnoreCase))
         {
@@ -551,103 +570,92 @@ public static class NestedSqlParser
             // Ignore syntax errors, fall back to regex
         }
 
-        // 2. Lexical Fallback: Match identifiers after DML (FROM, JOIN, UPDATE, INTO, MERGE, REFERENCES) and DDL (CREATE/ALTER/DROP/TRUNCATE TABLE/VIEW)
-        var tableMatches = Regex.Matches(
-            cleanedSql,
-            @"\b(?:(?<!\bDISTINCT\s+)FROM|JOIN|(?<!FOR\s+)UPDATE(?:\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK))?|INTO|MERGE|REFERENCES|CREATE\s+(?:OR\s+REPLACE\s+)?(?:EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?|(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?|TRUNCATE\s+TABLE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
-            RegexOptions.IgnoreCase);
-        foreach (Match match in tableMatches)
+        // 2. Dialect Parser Fallback
+        var dialect = SqlDialectDetector.DetectDialect(cleanedSql, null);
+        var dialectParser = SqlDialectParserFactory.GetParser(dialect);
+        var script = dialectParser.Parse(cleanedSql);
+
+        foreach (var stmt in script.Statements)
         {
-            // If the matched identifier is immediately followed by '(', it is a function call unless it is a SQL Server table hint like (NOLOCK)
-            var afterMatch = cleanedSql.AsSpan(match.Index + match.Length).TrimStart();
-            if (afterMatch.StartsWith("(", StringComparison.Ordinal))
+            var stmtTables = new List<SqlTableRefAst>();
+            var stmtProcs = new List<SqlProcRefAst>();
+
+            void CollectFromStatement(SqlStatementAst s)
             {
-                if (!Regex.IsMatch(afterMatch.ToString(), @"^\(\s*(?:NOLOCK|READUNCOMMITTED|UPDLOCK|REPEATABLEREAD|SERIALIZABLE|READCOMMITTED|TABLOCK|TABLOCKX|PAGLOCK|ROWLOCK|NOWAIT|READPAST|XLOCK|SNAPSHOT|INDEX|FORCESEEK)\b", RegexOptions.IgnoreCase))
+                foreach (var cte in s.Ctes)
                 {
-                    continue;
+                    cteNames.Add(cte.Name);
+                    if (cte.InnerStatement != null)
+                    {
+                        CollectFromStatement(cte.InnerStatement);
+                    }
+                }
+
+                switch (s)
+                {
+                    case SqlSelectStatementAst sel:
+                        stmtTables.AddRange(sel.Tables);
+                        stmtTables.AddRange(sel.Joins);
+                        break;
+                    case SqlInsertStatementAst ins:
+                        stmtTables.Add(ins.TargetTable);
+                        if (ins.SourceQuery != null) CollectFromStatement(ins.SourceQuery);
+                        break;
+                    case SqlUpdateStatementAst upd:
+                        stmtTables.Add(upd.TargetTable);
+                        stmtTables.AddRange(upd.FromTables);
+                        break;
+                    case SqlDeleteStatementAst del:
+                        stmtTables.Add(del.TargetTable);
+                        stmtTables.AddRange(del.UsingTables);
+                        break;
+                    case SqlMergeStatementAst mrg:
+                        stmtTables.Add(mrg.TargetTable);
+                        if (mrg.UsingTable != null) stmtTables.Add(mrg.UsingTable);
+                        break;
+                    case SqlExecStatementAst ex:
+                        stmtProcs.Add(ex.Procedure);
+                        break;
+                    case SqlCreateTableStatementAst crt:
+                        stmtTables.Add(crt.Table);
+                        if (crt.AsSelectQuery != null) CollectFromStatement(crt.AsSelectQuery);
+                        break;
                 }
             }
 
-            var rawTableName = match.Groups[1].Value.Trim();
-            var parts = rawTableName.Split('.')
-                .Select(CleanSqlIdentifier)
-                .Where(p => !string.IsNullOrEmpty(p))
-                .ToArray();
+            CollectFromStatement(stmt);
 
-            if (parts.Length == 0) continue;
+            foreach (var t in stmtTables)
+            {
+                var table = ResolveSqlIdentifier(t.TableName, rawText);
+                var schema = ResolveSqlIdentifier(t.Schema, rawText);
+                var db = ResolveSqlIdentifier(t.Database, rawText);
 
-            string? dbName = null;
-            string? schemaName = null;
-            string tableName;
+                if (string.IsNullOrEmpty(table)) continue;
+                if (cteNames.Contains(table)) continue;
+                if (IsSqlKeyword(table)) continue;
+                if (!ResourceNamingHelper.IsValidTableIdentifier(table)) continue;
+                if (!string.IsNullOrEmpty(schema) && !string.Equals(schema, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schema)) continue;
 
-            if (parts.Length >= 3)
-            {
-                dbName = parts[0];
-                schemaName = parts[1];
-                tableName = parts[2];
-            }
-            else if (parts.Length == 2)
-            {
-                schemaName = parts[0];
-                tableName = parts[1];
-            }
-            else
-            {
-                tableName = parts[0];
+                if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
+                    IsUnresolvedVariable(db, rawText)) continue;
+
+                tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
             }
 
-            tableName = ResolveSqlIdentifier(tableName, rawText);
-            schemaName = ResolveSqlIdentifier(schemaName, rawText);
-            dbName = ResolveSqlIdentifier(dbName, rawText);
-
-            if (cteNames.Contains(tableName)) continue;
-            if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
-            if (!ResourceNamingHelper.IsValidTableIdentifier(tableName)) continue;
-            if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
-            if (IsUnresolvedVariable(tableName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
-            tables.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, tableName));
-        }
-
-        // 3. Lexical Fallback: Match procedure calls after EXEC/EXECUTE
-        var execMatches = Regex.Matches(cleanedSql, @"\bEXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
-        foreach (Match match in execMatches)
-        {
-            var rawProcName = match.Groups[1].Value.Trim();
-            var parts = rawProcName.Split('.')
-                .Select(CleanSqlIdentifier)
-                .Where(p => !string.IsNullOrEmpty(p))
-                .ToArray();
-
-            if (parts.Length == 0) continue;
-
-            string? dbName = null;
-            string? schemaName = null;
-            string procName;
-
-            if (parts.Length >= 3)
+            foreach (var p in stmtProcs)
             {
-                dbName = parts[0];
-                schemaName = parts[1];
-                procName = parts[2];
-            }
-            else if (parts.Length == 2)
-            {
-                schemaName = parts[0];
-                procName = parts[1];
-            }
-            else
-            {
-                procName = parts[0];
-            }
+                var proc = ResolveSqlIdentifier(p.ProcedureName, rawText);
+                var schema = ResolveSqlIdentifier(p.Schema, rawText);
+                var db = ResolveSqlIdentifier(p.Database, rawText);
 
-            procName = ResolveSqlIdentifier(procName, rawText);
-            schemaName = ResolveSqlIdentifier(schemaName, rawText);
-            dbName = ResolveSqlIdentifier(dbName, rawText);
+                if (string.IsNullOrEmpty(proc)) continue;
+                if (IsSqlKeyword(proc)) continue;
+                if (IsUnresolvedVariable(proc, rawText) || IsUnresolvedVariable(schema, rawText) ||
+                    IsUnresolvedVariable(db, rawText)) continue;
 
-            if (IsSqlKeyword(procName) || IsSqlKeyword(rawProcName)) continue;
-            if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
-            if (IsUnresolvedVariable(procName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
-            procedures.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, procName));
+                procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, proc));
+            }
         }
     }
 
@@ -704,7 +712,7 @@ public static class NestedSqlParser
         }
         else
         {
-            var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: "relational");
+            var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: RelationalDbType);
             if (canonical != null)
             {
                 if (!string.IsNullOrEmpty(canonical.Engine) && !canonical.Engine.Equals("Database", StringComparison.OrdinalIgnoreCase))
@@ -870,7 +878,7 @@ public static class NestedSqlParser
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
                 var isTestFile = WorkspaceConventions.IsTestFilePath(filePath);
-                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational")
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, RelationalDbType)
                 {
                     Engine = targetEngine,
                     Schema = schemaName,

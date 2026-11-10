@@ -212,7 +212,7 @@ public class CeCliTests
         var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir);
 
         exit.Should().Be(0);
-        output.Should().Contain("- name: YamlFormatTest");
+        output.Should().Contain("- YamlFormatTest");
     }
 
     [Test]

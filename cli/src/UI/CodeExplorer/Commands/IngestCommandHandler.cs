@@ -30,6 +30,14 @@ public static class IngestCommandHandler
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
 
+            if (client.IsSchemaOutdated && !opts.ShouldClear && !opts.ClearAll)
+            {
+                logger.LogInformation(
+                    "Database schema version is outdated (v{Version} < v{Current}). Converting database schema...",
+                    client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+                await client.UpgradeSchemaAsync();
+            }
+
             var shouldClear = (opts.ShouldClear && !opts.ClearAll) || client.IsSchemaOutdated;
 
             if (client.IsSchemaOutdated)

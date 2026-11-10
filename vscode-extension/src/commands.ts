@@ -517,6 +517,60 @@ export function registerWorkspaceLifecycleCommands(
     }
   );
 
+  // Command: Convert / Upgrade Outdated Database Schema
+  const upgradeSchemaCommandId = 'codeExplorer.upgradeSchema';
+  const openWorkspaceWarning = 'Please open a workspace folder first.';
+  const upgradeSchemaEndpoint = '/api/database/upgrade';
+  const rebuildGraphOption = 'Rebuild Graph';
+  const cancelOption = 'Cancel';
+  const upgradeSchemaCommand = vscode.commands.registerCommand(
+    upgradeSchemaCommandId,
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage(openWorkspaceWarning);
+        return;
+      }
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'CodeExplorer: Converting database schema...',
+          cancellable: false,
+        },
+        async (progress) => {
+          try {
+            progress.report({ message: 'Upgrading SQLite graph schema...' });
+            await transport.ensureConnected(workspaceRoot);
+            const res = await transport.post<{
+              upgraded: boolean;
+              fromVersion: number;
+              currentVersion: number;
+              message: string;
+            }>(upgradeSchemaEndpoint, {}, { timeoutMs: 300000 });
+
+            treeDataProvider.refresh();
+            if (res?.upgraded) {
+              vscode.window.showInformationMessage(`CodeExplorer: ${res.message || 'Database schema converted successfully.'}`);
+            } else {
+              const choice = await vscode.window.showWarningMessage(
+                `CodeExplorer: ${res?.message || 'In-place schema conversion failed. Rebuild graph from source?'}`,
+                rebuildGraphOption,
+                cancelOption
+              );
+              if (choice === rebuildGraphOption) {
+                await triggerScan(true);
+              }
+            }
+          } catch (err: any) {
+            outputChannel.appendLine(`[UpgradeSchema Error] ${err.message}`);
+            vscode.window.showErrorMessage(`Failed to convert database schema: ${err.message}`);
+          }
+        }
+      );
+    }
+  );
+
   context.subscriptions.push(
     reindexCommand,
     reindexFullCommand,
@@ -524,7 +578,8 @@ export function registerWorkspaceLifecycleCommands(
     showLogsCommand,
     updateEngineCommand,
     whatsNewCommand,
-    initAndScanCommand
+    initAndScanCommand,
+    upgradeSchemaCommand
   );
 }
 

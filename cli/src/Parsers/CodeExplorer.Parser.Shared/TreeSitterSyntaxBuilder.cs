@@ -475,6 +475,7 @@ public abstract class TreeSitterSyntaxConverterBase
                 }
             } while (cursor.GotoNextSibling());
             doc.Children = docChildren;
+            SyntaxAnnotationPopulator.PropagatePrecedingSiblingAnnotations(doc);
         }
 
         doc.Imports = imports;

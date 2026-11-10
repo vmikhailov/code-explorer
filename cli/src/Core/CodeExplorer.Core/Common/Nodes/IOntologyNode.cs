@@ -59,6 +59,9 @@ public static class OntologyNodeExtensions
             case "enclosing_type" when node is Layer3_Syntactic.FunctionNode fnEnc:
                 fnEnc.Signals().EnclosingTypeName = value;
                 return;
+            case "ext_receiver_type" when node is Layer3_Syntactic.FunctionNode fnExtRecv:
+                fnExtRecv.Signals().ExtensionReceiverTypeName = value;
+                return;
             case "df_return" when node is Layer3_Syntactic.FunctionNode fnDfRet:
                 fnDfRet.Signals().DataflowReturn = value;
                 return;
@@ -140,6 +143,18 @@ public static class OntologyNodeExtensions
             case "extends" when node is Layer3_Syntactic.TypeNode tnExt:
                 tnExt.Extends = value;
                 return;
+            case "implements" when node is Layer3_Syntactic.TypeNode tnImp:
+                tnImp.Implements = value;
+                return;
+            case "attributes" when node is Layer3_Syntactic.TypeNode tnAttr:
+                tnAttr.Attributes = value;
+                return;
+            case "attributes" when node is Layer3_Syntactic.FunctionNode fnAttr:
+                fnAttr.Attributes = value;
+                return;
+            case "attributes" when node is Layer3_Syntactic.MemberNode memAttr:
+                memAttr.Attributes = value;
+                return;
             case "is_test" when node is Layer3_Syntactic.FunctionNode fnTest:
                 fnTest.IsTest = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
                 return;
@@ -203,6 +218,8 @@ public static class OntologyNodeExtensions
         Layer3_Syntactic.FunctionNode fn => fn.Name,
         Layer3_Syntactic.MemberNode m => m.Name,
         Layer3_Syntactic.CallLiteralNode cl => cl.Name,
+        Layer3_Syntactic.ParameterNode prm => prm.Name,
+        Layer3_Syntactic.CallArgumentNode ca => ca.Name,
         Layer3_Syntactic.CatchClauseNode cc => cc.Name,
         WorkspaceNode ws => ws.Name,
         _ => node.Id.Contains(':') ? node.Id[(node.Id.LastIndexOf(':') + 1)..] : node.Id

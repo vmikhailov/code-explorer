@@ -172,6 +172,17 @@ public partial class Layer3SyntacticParser
         return null;
     }
 
+    internal static TypeDeclSyntax? FindEnclosingSyntaxType(SyntaxNode node)
+    {
+        var curr = node.Parent;
+        while (curr != null)
+        {
+            if (curr is TypeDeclSyntax td) return td;
+            curr = curr.Parent;
+        }
+        return null;
+    }
+
     private static IEnumerable<AssignmentExprSyntax> EnumerateSyntaxAssignments(SyntaxNode root)
     {
         var stack = new Stack<SyntaxNode>();
@@ -278,17 +289,20 @@ public partial class Layer3SyntacticParser
 
         fileNode.Flags |= SymbolFlags.HasParseIssues;
 
+        const string stageLayer3Syntactic = "Layer3_Syntactic";
+        const string issueNameSyntaxError = "SyntaxError";
+        const string issueSeverityWarning = "warning";
         var lang = syntaxTree.Document?.LanguageName ?? syntaxTree.FileParser.LanguageName;
         for (var d = 0; d < diags.Count; d++)
         {
             var diag = diags[d];
             ctx.RecordScanIssue(
-                stage: "Layer3_Syntactic",
+                stage: stageLayer3Syntactic,
                 category: CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(diag.Kind),
                 relativeOrFullPath: fileNode.Path,
                 message: diag.Message,
-                name: "SyntaxError",
-                severity: "warning",
+                name: issueNameSyntaxError,
+                severity: issueSeverityWarning,
                 startLine: diag.Span.StartLine + 1,
                 endLine: diag.Span.EndLine + 1,
                 startCol: diag.Span.StartColumn + 1,
@@ -342,13 +356,20 @@ public partial class Layer3SyntacticParser
 
             if (isConfig || isEtl || isConstant || isGlobal || isProperty || isField)
             {
+                const string classConfig = "config";
+                const string classEtl = "etl";
+                const string classConstant = "constant";
+                const string classGlobal = "global";
+                const string classProperty = "property";
+                const string classField = "field";
+
                 var varTypeStr = new List<string>();
-                if (isConfig) varTypeStr.Add("config");
-                if (isEtl) varTypeStr.Add("etl");
-                if (isConstant) varTypeStr.Add("constant");
-                if (isGlobal) varTypeStr.Add("global");
-                if (isProperty) varTypeStr.Add("property");
-                if (isField) varTypeStr.Add("field");
+                if (isConfig) varTypeStr.Add(classConfig);
+                if (isEtl) varTypeStr.Add(classEtl);
+                if (isConstant) varTypeStr.Add(classConstant);
+                if (isGlobal) varTypeStr.Add(classGlobal);
+                if (isProperty) varTypeStr.Add(classProperty);
+                if (isField) varTypeStr.Add(classField);
 
                 var varType = string.Join(",", varTypeStr);
                 memberCountsByName.TryGetValue(rawVar.Name, out var count);
@@ -442,8 +463,9 @@ public partial class Layer3SyntacticParser
         }
         else if (kind == "Interface")
         {
+            const string interfaceTypeKind = "interface";
             typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface",
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, interfaceTypeKind,
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == OntologyConstants.NodeLabels.Function)
@@ -557,8 +579,13 @@ public partial class Layer3SyntacticParser
         var role = syntactic.Role ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Role) ?? "business";
         var isDecorator = syntactic.IsDecorator || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.IsDecorator), out var isDec) && isDec);
         var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
+        var nature = CodeExplorer.Core.Semantics.PlatformParameterCatalog.ResolveParameterNature(callee, argIdx);
+        if (nature == CodeExplorer.Core.Semantics.ParameterNature.Unspecified)
+        {
+            nature = CodeExplorer.Core.Semantics.PlatformParameterCatalog.ClassifyByName(name);
+        }
 
-        return new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator);
+        return new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator, nature);
     }
 
     private static CatchClauseNode CreateCatchClauseNode(

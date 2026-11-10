@@ -15,6 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record TableNode(
     string Id,
     string Name,

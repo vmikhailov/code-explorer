@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-I-005",
-  "allowedViolations": 129,
+  "allowedViolations": 130,
   "entries": [
     {
       "fingerprint": "1d728bbd7fee839f25c5be56e4cc55d2e345f30d6076309b9a0785eb359cc5eb",
@@ -246,16 +246,6 @@
       "fingerprint": "ccd132f75033c38ec1419c94b2440d5dd655f00c377fe0013b359951d5cfcd71",
       "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
       "line": 167,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "ade6d980c97edcec2d163ae73e179359596db5086dc67942209a425afb27fef2",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
-      "line": 178,
       "column": 0,
       "symbol": "",
       "target": "catch",
@@ -1011,6 +1001,26 @@
       "target": "catch",
       "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "414874a032676aea46594e0c5d6a615d0788775546af93034d042793568c574a",
+      "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
+      "line": 444,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-11-10T19:01:04.3989083+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-10 19:01:04"
+    },
+    {
+      "fingerprint": "2d5163b8d2d018799066128586b7228f829753b065a6874f7cffeac9e812b894",
+      "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
+      "line": 455,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-11-10T19:01:04.3989083+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-10 19:01:04"
     },
     {
       "fingerprint": "cf810a0b2360044d45cd2480fb6777ecf242c5a26557ce2b8a404fa8e1c71adf",

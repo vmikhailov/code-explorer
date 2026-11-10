@@ -367,19 +367,35 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     {
                         if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
                         {
-                            symbolNode.References.Add(new Reference("", typeChild.Text, CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom));
+                            var fullBaseText = typeChild.Text.Trim();
+                            var baseName = fullBaseText;
+                            var ltIdx = baseName.IndexOf('<');
+                            if (ltIdx > 0) baseName = baseName[..ltIdx].Trim();
+                            symbolNode.References.Add(new Reference("", baseName, CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom));
+                            symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Extends, fullBaseText);
                             break;
                         }
                     }
                 }
                 else if (child is BaseTypeClauseSyntax { IsImplements: true } && Profile.InterfaceClauseNodeTypes.Count > 0)
                 {
+                    List<string>? implList = null;
                     foreach (var typeChild in child.Children)
                     {
                         if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
                         {
-                            symbolNode.References.Add(new Reference("", typeChild.Text, CodeExplorer.Cypher.Common.RelationshipKind.Implements));
+                            var fullImplText = typeChild.Text.Trim();
+                            var implName = fullImplText;
+                            var ltIdx = implName.IndexOf('<');
+                            if (ltIdx > 0) implName = implName[..ltIdx].Trim();
+                            symbolNode.References.Add(new Reference("", implName, CodeExplorer.Cypher.Common.RelationshipKind.Implements));
+                            implList ??= [];
+                            implList.Add(fullImplText);
                         }
+                    }
+                    if (implList is { Count: > 0 })
+                    {
+                        symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Implements, string.Join(", ", implList));
                     }
                 }
             }
@@ -410,35 +426,58 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected void ExtractProfileAnnotations(Node node, SyntacticSymbol symbolNode)
     {
-        if (Profile.AnnotationNodeTypes.Count == 0) return;
+        List<string>? attrNames = null;
 
-        foreach (var child in node.Children)
+        if (node is DeclarationSyntax { Annotations.Count: > 0 } declSyntax)
         {
-            if (!child.IsValid()) continue;
-
-            if (child is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(child.Type))
+            for (var i = 0; i < declSyntax.Annotations.Count; i++)
             {
-                AttachAnnotationReference(child, symbolNode);
+                AttachAnnotationReference(declSyntax.Annotations[i], symbolNode, ref attrNames);
             }
-            else if (child is SyntaxList { Kind: SyntaxListKind.Attributes } || Profile.AnnotationContainerNodeTypes.Contains(child.Type))
+        }
+        else
+        {
+            foreach (var child in node.Children)
             {
-                foreach (var grandChild in child.Children)
+                if (!child.IsValid()) continue;
+
+                if (child is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(child.Type))
                 {
-                    if (grandChild.IsValid() && (grandChild is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(grandChild.Type)))
+                    AttachAnnotationReference(child, symbolNode, ref attrNames);
+                }
+                else if (child is SyntaxList { Kind: SyntaxListKind.Attributes } || Profile.AnnotationContainerNodeTypes.Contains(child.Type))
+                {
+                    foreach (var grandChild in child.Children)
                     {
-                        AttachAnnotationReference(grandChild, symbolNode);
+                        if (grandChild.IsValid() && (grandChild is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(grandChild.Type)))
+                        {
+                            AttachAnnotationReference(grandChild, symbolNode, ref attrNames);
+                        }
                     }
                 }
             }
         }
+
+        if (attrNames is { Count: > 0 })
+        {
+            symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Attributes, string.Join(", ", attrNames));
+        }
     }
 
-    private void AttachAnnotationReference(Node annotationNode, SyntacticSymbol symbolNode)
+    private void AttachAnnotationReference(Node annotationNode, SyntacticSymbol symbolNode, ref List<string>? attrNames)
     {
         var id = ExtractAnnotationIdentifier(annotationNode);
         if (!string.IsNullOrEmpty(id))
         {
-            symbolNode.References.Add(new Reference("", id, "ANNOTATED_WITH"));
+            attrNames ??= [];
+            if (!attrNames.Contains(id, StringComparer.Ordinal))
+            {
+                attrNames.Add(id);
+            }
+            if (Profile.AnnotationNodeTypes.Count > 0)
+            {
+                symbolNode.References.Add(new Reference("", id, "ANNOTATED_WITH"));
+            }
         }
     }
 
@@ -446,17 +485,25 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     {
         if (annotationNode is AnnotationSyntax { HasName: true } annotSyntax)
         {
-            return annotSyntax.Name;
+            return NormalizeAnnotationName(annotSyntax.Name);
         }
         foreach (var child in annotationNode.Children)
         {
             if (child.IsValid() && (child is IdentifierExprSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(child.Type)))
             {
-                return child.Text;
+                return NormalizeAnnotationName(child.Text);
             }
         }
         var nameField = annotationNode.GetField(SyntaxFields.Name);
-        return nameField.IsValid() ? nameField.Text : null;
+        return nameField.IsValid() ? NormalizeAnnotationName(nameField.Text) : null;
+    }
+
+    private static string NormalizeAnnotationName(string rawName)
+    {
+        var s = rawName.Trim().TrimStart('@', '#', '[').TrimEnd(']');
+        var parenIdx = s.IndexOf('(');
+        if (parenIdx > 0) s = s[..parenIdx].Trim();
+        return s;
     }
 
     protected override void VisitNode(Node node, int depth)
@@ -651,13 +698,15 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         var baseKind = MapNodeType(node);
         var libKind = MapNodeTypeUsingLibraries(node);
 
-        if (baseKind is "Class" or "Interface" or "Struct" or "Enum" || baseKind == OntologyConstants.NodeLabels.Type)
+        if (baseKind is "Class" or "Interface" or "Struct" or "Enum" or "Method" ||
+            baseKind == OntologyConstants.NodeLabels.Type ||
+            baseKind == OntologyConstants.NodeLabels.Function)
         {
             var baseName = ExtractIdentifier(node);
             if (!string.IsNullOrEmpty(baseName))
             {
                 string? extraEntryPointName = null;
-                if (libKind == OntologyConstants.NodeLabels.EntryPoint)
+                if (libKind is OntologyConstants.NodeLabels.EntryPoint or OntologyConstants.NodeLabels.Endpoint)
                 {
                     extraEntryPointName = ExtractIdentifierUsingLibraries(node, libKind);
                 }
@@ -674,7 +723,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     extraTableName = ExtractIdentifierUsingLibraries(node, libKind);
                 }
 
-                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName, extraExternalServiceName, extraTableName);
+                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName, extraExternalServiceName, extraTableName, libKind);
                 return;
             }
         }
@@ -699,7 +748,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
-    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null, string? extraExternalServiceName = null, string? extraTableName = null)
+    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null, string? extraExternalServiceName = null, string? extraTableName = null, string? extraEntryPointKind = null)
     {
         if (kind == "Variable" || kind == OntologyConstants.NodeLabels.Member)
         {
@@ -742,9 +791,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             libParser.EnrichSymbol(node, syntacticNode, Context!);
         }
 
-        if (!string.IsNullOrEmpty(extraEntryPointName) && extraEntryPointName != name)
+        if (!string.IsNullOrEmpty(extraEntryPointName) && (extraEntryPointName != name || extraEntryPointKind == OntologyConstants.NodeLabels.Endpoint))
         {
-            var epChild = new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, extraEntryPointName, node);
+            var epChild = new SyntacticSymbol(extraEntryPointKind ?? OntologyConstants.NodeLabels.EntryPoint, extraEntryPointName, node);
             if (_fusedDeclarative != null)
             {
                 _fusedDeclarative.CollectReferences(node, "", epChild.References, Context!);

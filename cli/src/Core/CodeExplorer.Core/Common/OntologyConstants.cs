@@ -44,6 +44,8 @@ public static class OntologyConstants
         public const string CallLiteral = "CallLiteral";
         public const string CatchClause = "CatchClause";
         public const string ScanIssue = "ScanIssue";
+        public const string Parameter = "Parameter";
+        public const string CallArgument = "CallArgument";
     }
 
     public static class IdPrefixes
@@ -83,6 +85,8 @@ public static class OntologyConstants
         public const string CallLiteral = "lit";
         public const string CatchClause = "catch";
         public const string ScanIssue = "issue";
+        public const string Parameter = "param";
+        public const string CallArgument = "arg";
     }
 
     public static class Layers
@@ -158,6 +162,10 @@ public static class OntologyConstants
         public const string SubdomainOf = "SUBDOMAIN_OF";
         public const string Handles = "HANDLES";
         public const string HasEntrypoint = "HAS_ENTRYPOINT";
+        public const string HasParameter = "HAS_PARAMETER";
+        public const string PassesArgument = "PASSES_ARGUMENT";
+        public const string FlowsTo = "FLOWS_TO";
+        public const string TargetedBy = "TARGETED_BY";
     }
 
     public static class EvidenceKinds
@@ -268,6 +276,9 @@ public static class OntologyConstants
         public const string IsEmpty = "is_empty";
         public const string HasComment = "has_comment";
         public const string StatementCount = "statement_count";
+        public const string Extends = "extends";
+        public const string Implements = "implements";
+        public const string Attributes = "attributes";
 
         /// <summary>
         /// JSON object on a workload project mapping a dependency project directory (workspace-relative) to the

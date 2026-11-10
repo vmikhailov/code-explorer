@@ -10,11 +10,12 @@ index efb0b76..8a7eea6 100644
        [$.call_expression, $._type_query_call_expression_in_type_annotation],
        [$.new_expression, $.primary_expression],
        [$.meta_property, $.primary_expression],
-@@ -111,6 +110,7 @@ module.exports = function defineGrammar(dialect) {
+@@ -111,6 +110,8 @@ module.exports = function defineGrammar(dialect) {
        [$.array_pattern, $.tuple_type],
  
        [$.template_literal_type, $.template_string],
 +      [$.call_expression, $._type_query_call_expression],
++      [$.assignment_expression, $._initializer],
      ]).concat(
        dialect === 'typescript' ? [
          [$.primary_type, $.type_parameter],
@@ -41,7 +42,15 @@ index efb0b76..8a7eea6 100644
          prec('member', seq(
            field('function', $.primary_expression),
            '?.',
-@@ -867,7 +872,7 @@ module.exports = function defineGrammar(dialect) {
+@@ -209,6 +214,9 @@ module.exports = function defineGrammar(dialect) {
+         field('right', $.expression),
+       )),
+ 
++      unescaped_double_jsx_string_fragment: _ => token.immediate(prec(1, /[^"]+/)),
++      unescaped_single_jsx_string_fragment: _ => token.immediate(prec(1, /[^']+/)),
++
+       _augmented_assignment_lhs: ($, previous) => choice(previous, $.non_null_expression),
+@@ -867,7 +875,7 @@ module.exports = function defineGrammar(dialect) {
          optional('?.'),
          '[', field('index', choice($.predefined_type, $.string, $.number)), ']',
        ),

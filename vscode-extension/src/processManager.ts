@@ -270,7 +270,7 @@ export class ProcessManager implements vscode.Disposable {
           child.kill();
           reject(new Error('Timed out waiting for CodeExplorer server ready handshake.'));
         }
-      }, 20000);
+      }, 60000);
 
       // Read stdout line-by-line to capture the ready JSON handshake
       if (child.stdout) {
@@ -392,7 +392,7 @@ export class ProcessManager implements vscode.Disposable {
         args: bestInstalled.args,
         version: bestInstalled.version,
       };
-    } else {
+    } else if (!bestInstalled) {
       this.cachedDotnetTool = probeDotnetTool(workspaceRoot);
     }
 

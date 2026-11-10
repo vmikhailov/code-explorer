@@ -653,4 +653,16 @@ public record Relationship
         }
         writer.WriteEndObject();
     }
+
+    public string SerializeJsonProperties(ArrayBufferWriter<byte> bufferWriter, Utf8JsonWriter jsonWriter)
+    {
+        const string emptyPropsJson = "{}";
+        if (!HasTelemetry) return emptyPropsJson;
+
+        bufferWriter.Clear();
+        jsonWriter.Reset(bufferWriter);
+        WriteJsonProperties(jsonWriter);
+        jsonWriter.Flush();
+        return System.Text.Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
+    }
 }

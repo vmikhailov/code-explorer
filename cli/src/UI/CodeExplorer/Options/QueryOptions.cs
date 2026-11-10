@@ -8,6 +8,9 @@ public class QueryOptions
     [Value(0, MetaName = "cypher", Required = false, HelpText = "The Cypher query string to execute.")]
     public string? PositionalQuery { get; set; }
 
+    [Value(1, MetaName = "dir", Required = false, Hidden = true, HelpText = "Optional starting directory to look for workspace.")]
+    public string? PositionalDir { get; set; }
+
     [Option('q', "query", Required = false, HelpText = "The Cypher query string to execute (alternative to positional argument).")]
     public string? QueryOption { get; set; }
 
@@ -31,7 +34,13 @@ public class QueryOptions
     public string? DbPath { get; set; }
 
     [Option('d', "dir", Required = false, HelpText = "Starting directory to look for workspace (defaults to current directory).")]
-    public string? Dir { get; set; }
+    public string? DirOption { get; set; }
+
+    public string? Dir
+    {
+        get => !string.IsNullOrWhiteSpace(DirOption) ? DirOption : PositionalDir;
+        set => DirOption = value;
+    }
 
     [Option("no-truncate", Required = false, HelpText = "Do not truncate long text values.")]
     public bool NoTruncate { get; set; }

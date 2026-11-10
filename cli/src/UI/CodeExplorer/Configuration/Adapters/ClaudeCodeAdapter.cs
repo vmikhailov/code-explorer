@@ -40,10 +40,6 @@ public class ClaudeCodeAdapter : IMcpTargetAdapter
         {
             config["cwd"] = "${workspaceFolder}";
         }
-        else if (!string.IsNullOrEmpty(workspaceRoot))
-        {
-            config["cwd"] = workspaceRoot;
-        }
 
         return config;
     }

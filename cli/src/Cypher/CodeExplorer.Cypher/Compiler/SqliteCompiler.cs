@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Globalization;
 using System.Text;
 using CodeExplorer.Cypher.Ast;
 
@@ -25,6 +26,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private readonly Dictionary<string, CollectExpressionInfo> _withCollectExpressions =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly HashSet<string> _listValuedAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _aggregatedAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _nodePropertySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _nodeIdSource = new(StringComparer.OrdinalIgnoreCase);
@@ -91,11 +93,13 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             whereConditions.Add(VisitExpression(query.Where.Predicate));
         }
 
-        PopulateReturnGroupBy(query.Return, groupByColumns);
+        var effectiveQuery = MaterializeReturnSubqueryAggregationsIfNeeded(
+            query, fromAndJoins, whereConditions, groupByColumns, havingConditions);
+        PopulateReturnGroupBy(effectiveQuery.Return, groupByColumns);
 
-        var selectColumns = BuildSelectColumns(query.Return);
-        var sql = AssembleQuerySql(query, selectColumns, fromAndJoins, whereConditions, groupByColumns, havingConditions);
-        return AppendUnions(sql, query.Unions);
+        var selectColumns = BuildSelectColumns(effectiveQuery.Return);
+        var sql = AssembleQuerySql(effectiveQuery, selectColumns, fromAndJoins, whereConditions, groupByColumns, havingConditions);
+        return AppendUnions(sql, effectiveQuery.Unions);
     }
 
     private bool IsMatchDecomposed(MatchClause match)
@@ -103,6 +107,8 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         if (!match.IsOptional || _decomposedBranches.Count == 0) return false;
         foreach (var path in match.Paths)
         {
+            if (path.Head.Variable != null && _decomposedBranches.ContainsKey(path.Head.Variable))
+                return true;
             foreach (var elem in path.Chain)
             {
                 if (elem.Target.Variable != null && _decomposedBranches.ContainsKey(elem.Target.Variable))
@@ -129,7 +135,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             }
             else if (item.Expression is IdentifierExpression relId && _declaredRels.Contains(relId.Name))
             {
-                groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
+                groupByColumns.Add(GetRelRowIdSql(relId.Name));
             }
             else if (!string.IsNullOrEmpty(item.Alias) &&
                      !item.Alias.Equals("id", StringComparison.OrdinalIgnoreCase) &&
@@ -228,7 +234,24 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             }
 
             ProcessWithClauseItems(with, groupByColumns);
+            if (with.Where != null &&
+                _aggregatedAliases.Count > 0 &&
+                ContainsSubqueryOverAliases(with.Where.Predicate, _aggregatedAliases))
+            {
+                MaterializeCurrentWithAggregationStage(query, withIndex, fromAndJoins, whereConditions, groupByColumns, havingConditions);
+            }
+
             ProcessWithClauseWhere(with, whereConditions, havingConditions);
+        }
+
+        var unwindReferencesAggregatedAlias = query.UnwindClauses != null &&
+            query.UnwindClauses.Any(u => GetReferencedIdentifiers(u.Expression).Overlaps(_aggregatedAliases));
+        if (_aggregatedAliases.Count > 0 &&
+            (query.Return.Items.Any(i => HasAggregation(i.Expression)) ||
+             unwindReferencesAggregatedAlias ||
+             ContainsSubqueryOverReturnClauses(query, _aggregatedAliases)))
+        {
+            ProcessStageSplitCte(query, query.WithClauses.Count, fromAndJoins, whereConditions, groupByColumns, havingConditions);
         }
     }
 
@@ -252,8 +275,8 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         var stage1GroupBy = stage1GroupingKeys.Count > 0 ? $"\nGROUP BY {string.Join(", ", stage1GroupingKeys.Distinct())}" : "";
         var stage1Having = havingConditions.Count > 0 ? $"\nHAVING {string.Join(" AND ", havingConditions)}" : "";
 
-        var with = query.WithClauses![withIndex];
-        var stage1Distinct = (prevWith?.IsDistinct == true || with.IsDistinct) ? "DISTINCT " : "";
+        var with = withIndex < query.WithClauses!.Count ? query.WithClauses[withIndex] : null;
+        var stage1Distinct = (prevWith?.IsDistinct == true || with?.IsDistinct == true) ? "DISTINCT " : "";
         var stage1OrderBy = "";
         if (prevWith?.OrderBy is { Items.Count: > 0 })
         {
@@ -277,6 +300,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         whereConditions.Clear();
         groupByColumns.Clear();
         havingConditions.Clear();
+        _aggregatedAliases.Clear();
     }
 
     private void RemapWithAliasesToStage(string stageName, HashSet<string> remainingReferenced)
@@ -295,20 +319,49 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         var remainingReferenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = withIndex; i < query.WithClauses!.Count; i++)
         {
-            foreach (var it in query.WithClauses[i].Items)
+            var w = query.WithClauses[i];
+            foreach (var it in w.Items)
             {
-                foreach (var refId in GetReferencedIdentifiers(it.Expression))
+                remainingReferenced.UnionWith(GetReferencedIdentifiers(it.Expression));
+            }
+
+            if (w.Where != null)
+            {
+                remainingReferenced.UnionWith(GetReferencedIdentifiers(w.Where.Predicate));
+            }
+
+            if (w.OrderBy != null)
+            {
+                foreach (var ord in w.OrderBy.Items)
                 {
-                    remainingReferenced.Add(refId);
+                    remainingReferenced.UnionWith(GetReferencedIdentifiers(ord.Expression));
                 }
             }
         }
 
+        if (query.UnwindClauses != null)
+        {
+            foreach (var unwind in query.UnwindClauses)
+            {
+                remainingReferenced.UnionWith(GetReferencedIdentifiers(unwind.Expression));
+            }
+        }
+
+        if (query.Where != null)
+        {
+            remainingReferenced.UnionWith(GetReferencedIdentifiers(query.Where.Predicate));
+        }
+
         foreach (var it in query.Return.Items)
         {
-            foreach (var refId in GetReferencedIdentifiers(it.Expression))
+            remainingReferenced.UnionWith(GetReferencedIdentifiers(it.Expression));
+        }
+
+        if (query.OrderBy != null)
+        {
+            foreach (var ord in query.OrderBy.Items)
             {
-                remainingReferenced.Add(refId);
+                remainingReferenced.UnionWith(GetReferencedIdentifiers(ord.Expression));
             }
         }
 
@@ -323,16 +376,22 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             if (remainingReferenced.Contains(node))
             {
                 var esc = EscapeVar(node);
-                stage1SelectColumns.Add($"{esc}.rowid AS {node}_rowid");
-                stage1SelectColumns.Add($"{esc}.id AS {node}_id");
-                stage1SelectColumns.Add($"{esc}.kind AS {node}_kind");
-                stage1SelectColumns.Add($"{esc}.properties AS {node}_properties");
+                var rowIdExpr = _nodeRowIdSource.GetValueOrDefault(node, $"{esc}.rowid");
+                var idExpr = _nodeIdSource.GetValueOrDefault(node, $"{esc}.id");
+                var kindExpr = _nodeKindSource.GetValueOrDefault(node, $"{esc}.kind");
+                var propExpr = _nodePropertySource.GetValueOrDefault(node, $"{esc}.properties");
+                stage1SelectColumns.Add($"{rowIdExpr} AS {node}_rowid");
+                stage1SelectColumns.Add($"{idExpr} AS {node}_id");
+                stage1SelectColumns.Add($"{kindExpr} AS {node}_kind");
+                stage1SelectColumns.Add($"{propExpr} AS {node}_properties");
                 _nodeRowIdSource[node] = $"{stage1Name}.{node}_rowid";
                 _nodeIdSource[node] = $"{stage1Name}.{node}_id";
                 _nodeKindSource[node] = $"{stage1Name}.{node}_kind";
                 _nodePropertySource[node] = $"{stage1Name}.{node}_properties";
             }
         }
+
+        AppendProjectedStageRelationships(stage1Name, remainingReferenced, stage1SelectColumns);
 
         foreach (var (alias, exprSql) in _withAliases)
         {
@@ -376,7 +435,11 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         {
             if (item.Expression is WildcardExpression)
             {
-                ProcessWildcardWithItem(with, groupByColumns);
+                if (hasAgg)
+                {
+                    ProcessWildcardWithItem(with, groupByColumns);
+                }
+
                 continue;
             }
 
@@ -396,20 +459,12 @@ public partial class SqliteCompiler : ICypherVisitor<string>
                 }
                 else if (item.Expression is IdentifierExpression relId && _declaredRels.Contains(relId.Name))
                 {
-                    groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
+                    groupByColumns.Add(GetRelRowIdSql(relId.Name));
                 }
                 else
                 {
                     groupByColumns.Add(VisitExpression(item.Expression));
                 }
-            }
-            else if (item.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
-            {
-                groupByColumns.Add(_nodeIdSource.TryGetValue(id.Name, out var idSrc) ? idSrc : $"{EscapeVar(id.Name)}.id");
-            }
-            else if (item.Expression is IdentifierExpression relId && _declaredRels.Contains(relId.Name))
-            {
-                groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
             }
         }
     }
@@ -438,9 +493,9 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
         foreach (var declaredRel in _declaredRels)
         {
-            if (!aggregatedVars.Contains(declaredRel))
+            if (!_varLenRels.Contains(declaredRel) && !aggregatedVars.Contains(declaredRel))
             {
-                groupByColumns.Add($"{EscapeVar(declaredRel)}.rowid");
+                groupByColumns.Add(GetRelRowIdSql(declaredRel));
             }
         }
     }
@@ -455,6 +510,11 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             _withCollectExpressions[alias] = new CollectExpressionInfo(f.Arguments[0], f.IsDistinct);
         }
 
+        if (IsListExpression(expression))
+        {
+            _listValuedAliases.Add(alias);
+        }
+
         if (HasAggregation(expression) ||
             GetReferencedIdentifiers(expression).Any(id => _aggregatedAliases.Contains(id)))
         {
@@ -467,7 +527,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         if (with.Where == null) return;
 
         var whereSql = VisitExpression(with.Where.Predicate);
-        if (with.Items.Any(i => HasAggregation(i.Expression)))
+        if (_aggregatedAliases.Count > 0 && with.Items.Any(i => HasAggregation(i.Expression)))
         {
             havingConditions.Add(whereSql);
         }
@@ -534,7 +594,8 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         {
             if (item.Expression is WildcardExpression)
             {
-                selectColumns.Add("*");
+                const string wildcardStar = "*";
+                selectColumns.Add(wildcardStar);
                 continue;
             }
 
@@ -548,15 +609,55 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             }
 
             var exprSql = VisitExpression(item.Expression);
-            var alias = item.Alias;
-            if (string.IsNullOrEmpty(alias) && item.Expression is IdentifierExpression id)
-            {
-                alias = id.Name;
-            }
+            var alias = !string.IsNullOrEmpty(item.Alias)
+                ? item.Alias
+                : FormatDefaultColumnAlias(item.Expression);
 
             selectColumns.Add(!string.IsNullOrEmpty(alias) ? $"{exprSql} AS {QuoteIdentifier(alias)}" : exprSql);
         }
         return selectColumns;
+    }
+
+    private static string? FormatDefaultColumnAlias(Expression expr)
+    {
+        const string distinctPrefix = "DISTINCT ";
+        const string commaSep = ", ";
+        return expr switch
+        {
+            IdentifierExpression id => id.Name,
+            PropertyAccessExpression prop => $"{prop.Variable}.{prop.PropertyName}",
+            FunctionCallExpression fn => fn.Arguments.Count == 0
+                ? $"{fn.FunctionName}(*)"
+                : $"{fn.FunctionName}({(fn.IsDistinct ? distinctPrefix : string.Empty)}{string.Join(commaSep, fn.Arguments.Select(static a => FormatDefaultColumnAlias(a) ?? "?"))})",
+            ListSliceExpression ls => FormatDefaultColumnAlias(ls.List) is { } listAlias
+                ? $"{listAlias}[{(ls.From != null ? FormatDefaultColumnAlias(ls.From) ?? string.Empty : string.Empty)}..{(ls.To != null ? FormatDefaultColumnAlias(ls.To) ?? string.Empty : string.Empty)}]"
+                : null,
+            HasLabelExpression lbl => $"{FormatDefaultColumnAlias(lbl.Expression) ?? "expr"}:{lbl.Label}",
+            UnaryExpression u => FormatUnaryDefaultAlias(u),
+            ParameterExpression p => $"${p.Name}",
+            StringLiteralExpression s => $"'{s.Value}'",
+            NumberLiteralExpression n => n.IsInteger
+                ? ((long)n.Value).ToString(CultureInfo.InvariantCulture)
+                : n.Value.ToString(CultureInfo.InvariantCulture),
+            BooleanLiteralExpression b => b.Value ? "true" : "false",
+            NullLiteralExpression => "null",
+            _ => null
+        };
+    }
+
+    private static string? FormatUnaryDefaultAlias(UnaryExpression unary)
+    {
+        var inner = FormatDefaultColumnAlias(unary.Operand);
+        if (inner == null) return null;
+        return unary.Operator switch
+        {
+            UnaryOperator.Not => $"NOT {inner}",
+            UnaryOperator.IsNull => $"{inner} IS NULL",
+            UnaryOperator.IsNotNull => $"{inner} IS NOT NULL",
+            UnaryOperator.Minus => $"-{inner}",
+            UnaryOperator.Plus => $"+{inner}",
+            _ => null
+        };
     }
 
     private string AssembleQuerySql(
@@ -593,6 +694,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         }
 
         var isDistinct = query.Return.IsDistinct || query.WithClauses?.LastOrDefault()?.IsDistinct == true;
+        FlushLiftedRelCtesIfEligible();
 
         var model = new SqlQueryModel
         {

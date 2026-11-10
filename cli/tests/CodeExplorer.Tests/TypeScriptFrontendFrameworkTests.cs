@@ -292,4 +292,22 @@ export class GraphPanel {
         var references = FindAllReferences(ws.FileNode);
         references.Should().Contain(r => r.Kind == RelationshipKind.Instantiates && r.TargetName == "dist/webview.js");
     }
+
+    [Test]
+    public async Task Tsx_JsxAttributeWithUrlQueryParams_ParsesCleanlyWithoutSyntaxErrors()
+    {
+        const string code = """
+import React from 'react';
+
+export const MyComponent = () => (
+    <div>
+        <a href="https://example.com/api?utm_source=nx-project&sub_confirmation=1">Link 1</a>
+        <iframe src="./iframe.html?id=landing-pages-header--desktop&viewMode=story" />
+    </div>
+);
+""";
+        using var ws = await TestWorkspace.CreateAsync(code, "component.tsx");
+        ws.SyntaxTree.Document.Should().NotBeNull();
+        ws.SyntaxTree.Document!.Diagnostics.Should().BeEmpty();
+    }
 }

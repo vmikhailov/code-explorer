@@ -601,7 +601,7 @@ public class SemanticRuntimeParityGateTests
         {
             "Workspace" or "FilesStructure" or "Folder" or "File" => 1,
             "ProjectsStructure" or "Project" or "Package" => 2,
-            "SyntaxStructure" or "Namespace" or "Type" or "Function" or "Member" or "Parameter" or "CallLiteral" or "CatchClause" => 3,
+            "SyntaxStructure" or "Namespace" or "Type" or "Function" or "Member" or "Parameter" or "CallArgument" or "CallLiteral" or "CatchClause" => 3,
             "SemanticStructure" or "Service" or "App" or "Worker" or "Library" or "CliTool" or "TestSuite" or "EntryPoint" or "Endpoint" or "Database" or "Table" or "Query" or "StoredProcedure" or "DataSet" or "ExternalService" or "Topic" or "CloudService" or "PeerMesh" or "ApiInUse" => 4,
             "LogicalStructure" or "Domain" or "BoundedContext" => 5,
             _ => 0

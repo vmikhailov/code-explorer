@@ -10,6 +10,22 @@ public partial class SqliteCompiler
 
     private static readonly int ProjectKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
 
+    private static readonly FrozenSet<string> ListReturningFunctionNames = new[]
+    {
+        "collect", "keys", "labels", "nodes", "relationships", "range", "tail", "reverse", "split"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private bool IsListExpression(Expression expr) => expr switch
+    {
+        ListExpression or ListComprehensionExpression or ListSliceExpression or PatternComprehensionExpression => true,
+        FunctionCallExpression fn => ListReturningFunctionNames.Contains(fn.FunctionName),
+        IdentifierExpression id => _listValuedAliases.Contains(id.Name) ||
+                                   _withCollectExpressions.ContainsKey(id.Name) ||
+                                   _withListAliases.ContainsKey(id.Name),
+        BinaryExpression { Operator: BinaryOperator.Add } bin => IsListExpression(bin.Left) || IsListExpression(bin.Right),
+        _ => false
+    };
+
     private static bool IsDefinitelyString(Expression expr)
     {
         return expr switch
@@ -155,12 +171,12 @@ public partial class SqliteCompiler
 
         if (func.Arguments[0] is IdentifierExpression id && _declaredNodes.Contains(id.Name))
         {
-            return $"{EscapeVar(id.Name)}.id";
+            return _nodeIdSource.GetValueOrDefault(id.Name, $"{EscapeVar(id.Name)}.id");
         }
 
         if (func.Arguments[0] is IdentifierExpression rel && _declaredRels.Contains(rel.Name))
         {
-            return $"{EscapeVar(rel.Name)}.rowid";
+            return GetRelRowIdSql(rel.Name);
         }
 
         var innerSql = VisitExpression(func.Arguments[0]);
@@ -263,9 +279,9 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression id)
             {
                 if (_declaredNodes.Contains(id.Name))
-                    return $"COUNT({distinctStr}{EscapeVar(id.Name)}.id)";
+                    return $"COUNT({distinctStr}{_nodeIdSource.GetValueOrDefault(id.Name, $"{EscapeVar(id.Name)}.id")})";
                 if (_declaredRels.Contains(id.Name))
-                    return $"COUNT({distinctStr}{EscapeVar(id.Name)}.rowid)";
+                    return $"COUNT({distinctStr}{GetRelRowIdSql(id.Name)})";
             }
             return $"COUNT({distinctStr}{VisitExpression(func.Arguments[0])})";
         }
@@ -302,7 +318,7 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression relVar)
             {
                 if (_declaredRels.Contains(relVar.Name))
-                    return $"ce_rel_kind({EscapeVar(relVar.Name)}.kind)";
+                    return $"ce_rel_kind({_relKindSource.GetValueOrDefault(relVar.Name, $"{EscapeVar(relVar.Name)}.kind")})";
                 if (_withAliases.TryGetValue(relVar.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.type'), json_extract({aliasSql}, '$.kind'))";
             }
@@ -314,7 +330,7 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression startRelVar)
             {
                 if (_declaredRels.Contains(startRelVar.Name))
-                    return $"(SELECT id FROM nodes WHERE rowid = {EscapeVar(startRelVar.Name)}.from_id)";
+                    return $"(SELECT id FROM nodes WHERE rowid = {_relFromIdSource.GetValueOrDefault(startRelVar.Name, $"{EscapeVar(startRelVar.Name)}.from_id")})";
                 if (_withAliases.TryGetValue(startRelVar.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.from'), json_extract({aliasSql}, '$.from_id'))";
             }
@@ -326,7 +342,7 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression endRelVar)
             {
                 if (_declaredRels.Contains(endRelVar.Name))
-                    return $"(SELECT id FROM nodes WHERE rowid = {EscapeVar(endRelVar.Name)}.to_id)";
+                    return $"(SELECT id FROM nodes WHERE rowid = {_relToIdSource.GetValueOrDefault(endRelVar.Name, $"{EscapeVar(endRelVar.Name)}.to_id")})";
                 if (_withAliases.TryGetValue(endRelVar.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.to'), json_extract({aliasSql}, '$.to_id'))";
             }
@@ -346,9 +362,9 @@ public partial class SqliteCompiler
             if (func.Arguments[0] is IdentifierExpression nv)
             {
                 if (_declaredNodes.Contains(nv.Name))
-                    return $"json({EscapeVar(nv.Name)}.properties)";
+                    return $"json({_nodePropertySource.GetValueOrDefault(nv.Name, $"{EscapeVar(nv.Name)}.properties")})";
                 if (_declaredRels.Contains(nv.Name))
-                    return $"json({EscapeVar(nv.Name)}.properties)";
+                    return $"json({_relPropertySource.GetValueOrDefault(nv.Name, $"{EscapeVar(nv.Name)}.properties")})";
                 if (_withAliases.TryGetValue(nv.Name, out var aliasSql))
                     return $"COALESCE(json_extract({aliasSql}, '$.properties'), json({aliasSql}))";
             }
@@ -395,7 +411,7 @@ public partial class SqliteCompiler
         foreach (var (k, v) in map.Properties)
         {
             var exprSql = VisitExpression(v);
-            if (v is IdentifierExpression id && _withCollectExpressions.ContainsKey(id.Name))
+            if (v is IdentifierExpression id && (_withCollectExpressions.ContainsKey(id.Name) || _listValuedAliases.Contains(id.Name)))
             {
                 exprSql = $"json(coalesce({exprSql}, '[]'))";
             }
@@ -407,8 +423,10 @@ public partial class SqliteCompiler
 
     private string VisitListComprehension(ListComprehensionExpression comp)
     {
+        const string stagePrefix = "_stage_";
         if (comp.List is IdentifierExpression listId &&
-            _withCollectExpressions.TryGetValue(listId.Name, out var collectInfo))
+            _withCollectExpressions.TryGetValue(listId.Name, out var collectInfo) &&
+            !(_withAliases.TryGetValue(listId.Name, out var aliasSql) && aliasSql.StartsWith(stagePrefix, StringComparison.Ordinal)))
         {
             return VisitCollectedListComprehension(comp, collectInfo);
         }
@@ -567,9 +585,25 @@ public partial class SqliteCompiler
 
     private static bool HasAggregation(Expression expr) => expr switch
     {
-        FunctionCallExpression f => AggregateFunctionNames.Contains(f.FunctionName),
+        FunctionCallExpression f => AggregateFunctionNames.Contains(f.FunctionName) || f.Arguments.Any(HasAggregation),
         BinaryExpression b => HasAggregation(b.Left) || HasAggregation(b.Right),
         UnaryExpression u => HasAggregation(u.Operand),
+        ListSliceExpression ls => HasAggregation(ls.List) ||
+                                  (ls.From != null && HasAggregation(ls.From)) ||
+                                  (ls.To != null && HasAggregation(ls.To)),
+        ListExpression l => l.Items.Any(HasAggregation),
+        MapLiteralExpression m => m.Properties.Values.Any(HasAggregation),
+        MapProjectionExpression mp => HasAggregation(mp.BaseExpression) ||
+                                      mp.Elements.Any(static e => e.ValueExpression != null && HasAggregation(e.ValueExpression)),
+        CaseExpression c => (c.TestExpression != null && HasAggregation(c.TestExpression)) ||
+                            c.WhenBranches.Any(static w => HasAggregation(w.When) || HasAggregation(w.Then)) ||
+                            (c.ElseExpression != null && HasAggregation(c.ElseExpression)),
+        ListComprehensionExpression lc => HasAggregation(lc.List) ||
+                                          (lc.Filter != null && HasAggregation(lc.Filter)) ||
+                                          (lc.Projection != null && HasAggregation(lc.Projection)),
+        ListPredicateExpression lp => HasAggregation(lp.List) || HasAggregation(lp.Predicate),
+        ReduceExpression red => HasAggregation(red.Initial) || HasAggregation(red.List) || HasAggregation(red.Expression),
+        HasLabelExpression hl => HasAggregation(hl.Expression),
         _ => false
     };
 

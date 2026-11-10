@@ -19,7 +19,7 @@ public partial class SqliteCompiler
         string joinKeyword,
         StringBuilder fromAndJoins,
         List<string> mainWhereConditions,
-        List<string> optionalWhereExtra,
+        List<OptionalWhereConjunct> optionalWhereExtra,
         bool isShortestPath = false,
         string? pathVariable = null)
     {
@@ -61,7 +61,7 @@ public partial class SqliteCompiler
             AddNodeFiltersToConditions(node, SourceAnchorAlias, conditions);
         }
 
-        if (!isOptional && !string.IsNullOrEmpty(nodeVar) && !nodeVar.StartsWith("_n", StringComparison.Ordinal))
+        if (!isOptional && !string.IsNullOrEmpty(nodeVar) && !nodeVar.StartsWith("_n", StringComparison.Ordinal) && !_outerNodes.Contains(nodeVar))
         {
             List<Expression> conjuncts = [];
             foreach (var match in _query.Matches)
@@ -231,7 +231,8 @@ public partial class SqliteCompiler
 
     private bool CanPushDownToAnchor(Expression expr, string targetVar)
     {
-        if (_withAliases.ContainsKey(targetVar) ||
+        if (_outerNodes.Contains(targetVar) ||
+            _withAliases.ContainsKey(targetVar) ||
             _unwindVariables.Contains(targetVar) ||
             _pathVariables.ContainsKey(targetVar) ||
             _declaredRels.Contains(targetVar) ||
@@ -296,7 +297,7 @@ public partial class SqliteCompiler
         bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
-        List<string> optionalWhereExtra,
+        List<OptionalWhereConjunct> optionalWhereExtra,
         List<string> relOnConditions,
         List<string> nodeOnConditions)
     {
@@ -311,7 +312,7 @@ public partial class SqliteCompiler
         }
         else if (prevDeclared && targetDeclared)
         {
-            ProcessVarLenConnectingHop(rel, cteName, relVar, prevVar, targetVar, joinKeyword, fromAndJoins, relOnConditions);
+            ProcessVarLenConnectingHop(rel, cteName, relVar, prevVar, targetVar, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions);
         }
     }
 
@@ -447,16 +448,16 @@ public partial class SqliteCompiler
         bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
-        List<string> optionalWhereExtra,
+        List<OptionalWhereConjunct> optionalWhereExtra,
         List<string> relOnConditions,
         List<string> nodeOnConditions,
         bool forceCrossJoin = false)
     {
-        var pVar = EscapeVar(prevVar);
+        var pRowId = GetNodeRowIdSql(prevVar);
         var tVar = EscapeVar(targetVar);
         var rVar = EscapeVar(relVar);
 
-        AddVarLenHopEndpoints(rel.Direction, isForward: true, rVar, pVar, tVar, relOnConditions, nodeOnConditions);
+        AddVarLenHopEndpoints(rel.Direction, isForward: true, rVar, pRowId, $"{tVar}.rowid", relOnConditions, nodeOnConditions);
         FinishVarLenHop(cteName, relVar, rVar, targetVar, targetNode, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions, forceCrossJoin);
     }
 
@@ -470,16 +471,16 @@ public partial class SqliteCompiler
         bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
-        List<string> optionalWhereExtra,
+        List<OptionalWhereConjunct> optionalWhereExtra,
         List<string> relOnConditions,
         List<string> nodeOnConditions,
         bool forceCrossJoin = false)
     {
         var pVar = EscapeVar(prevVar);
-        var tVar = EscapeVar(targetVar);
+        var tRowId = GetNodeRowIdSql(targetVar);
         var rVar = EscapeVar(relVar);
 
-        AddVarLenHopEndpoints(rel.Direction, isForward: false, rVar, pVar, tVar, relOnConditions, nodeOnConditions);
+        AddVarLenHopEndpoints(rel.Direction, isForward: false, rVar, $"{pVar}.rowid", tRowId, relOnConditions, nodeOnConditions);
         FinishVarLenHop(cteName, relVar, rVar, prevVar, prevNode, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions, forceCrossJoin);
     }
 
@@ -487,24 +488,24 @@ public partial class SqliteCompiler
         Direction direction,
         bool isForward,
         string rVar,
-        string pVar,
-        string tVar,
+        string pRowId,
+        string tRowId,
         List<string> relOnConditions,
         List<string> nodeOnConditions)
     {
-        var fixedVar = isForward ? pVar : tVar;
-        var freeVar = isForward ? tVar : pVar;
+        var fixedRowId = isForward ? pRowId : tRowId;
+        var freeRowId = isForward ? tRowId : pRowId;
         var useStartForFixed = isForward ? direction != Direction.Incoming : direction == Direction.Incoming;
 
         if (useStartForFixed)
         {
-            relOnConditions.Add($"{rVar}.start_id = {fixedVar}.rowid");
-            nodeOnConditions.Add($"{freeVar}.rowid = {rVar}.end_id");
+            relOnConditions.Add($"{rVar}.start_id = {fixedRowId}");
+            nodeOnConditions.Add($"{freeRowId} = {rVar}.end_id");
         }
         else
         {
-            relOnConditions.Add($"{rVar}.end_id = {fixedVar}.rowid");
-            nodeOnConditions.Add($"{freeVar}.rowid = {rVar}.start_id");
+            relOnConditions.Add($"{rVar}.end_id = {fixedRowId}");
+            nodeOnConditions.Add($"{freeRowId} = {rVar}.start_id");
         }
     }
 
@@ -517,18 +518,18 @@ public partial class SqliteCompiler
         bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
-        List<string> optionalWhereExtra,
+        List<OptionalWhereConjunct> optionalWhereExtra,
         List<string> relOnConditions,
         List<string> nodeOnConditions,
         bool forceCrossJoin = false)
     {
-        AddNodeFiltersToConditions(boundNode, boundVar, nodeOnConditions);
-        ApplyOptionalWhereExtra(isOptional, optionalWhereExtra, nodeOnConditions);
-        EmitVarLenRelAndNodeJoin(cteName, rVar, EscapeVar(boundVar), relOnConditions, nodeOnConditions, joinKeyword, fromAndJoins, forceCrossJoin);
-
         _declaredRels.Add(relVar);
         _varLenRels.Add(relVar);
         _declaredNodes.Add(boundVar);
+
+        AddNodeFiltersToConditions(boundNode, boundVar, nodeOnConditions);
+        ApplyOptionalWhereExtra(isOptional, optionalWhereExtra, nodeOnConditions);
+        EmitVarLenRelAndNodeJoin(cteName, rVar, EscapeVar(boundVar), relOnConditions, nodeOnConditions, joinKeyword, fromAndJoins, forceCrossJoin);
     }
 
     private void ProcessVarLenConnectingHop(
@@ -537,27 +538,31 @@ public partial class SqliteCompiler
         string relVar,
         string prevVar,
         string targetVar,
+        bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
+        List<OptionalWhereConjunct> optionalWhereExtra,
         List<string> relOnConditions)
     {
-        var pVar = EscapeVar(prevVar);
-        var tVar = EscapeVar(targetVar);
+        var pRowId = GetNodeRowIdSql(prevVar);
+        var tRowId = GetNodeRowIdSql(targetVar);
         var rVar = EscapeVar(relVar);
 
         if (rel.Direction == Direction.Incoming)
         {
-            relOnConditions.Add($"{rVar}.end_id = {pVar}.rowid AND {rVar}.start_id = {tVar}.rowid");
+            relOnConditions.Add($"{rVar}.end_id = {pRowId} AND {rVar}.start_id = {tRowId}");
         }
         else
         {
-            relOnConditions.Add($"{rVar}.start_id = {pVar}.rowid AND {rVar}.end_id = {tVar}.rowid");
+            relOnConditions.Add($"{rVar}.start_id = {pRowId} AND {rVar}.end_id = {tRowId}");
         }
+
+        _declaredRels.Add(relVar);
+        _varLenRels.Add(relVar);
+        ApplyOptionalWhereExtra(isOptional, optionalWhereExtra, relOnConditions);
 
         fromAndJoins.AppendLine();
         fromAndJoins.Append($"{joinKeyword} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
-        _declaredRels.Add(relVar);
-        _varLenRels.Add(relVar);
     }
 
     private static void EmitVarLenRelAndNodeJoin(
@@ -582,59 +587,76 @@ public partial class SqliteCompiler
     {
         List<string> conditions = [];
         var fromJoins = new StringBuilder();
+        var localJoinedNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var headVar = path.Head.Variable;
         var headIsOuter = headVar != null && _declaredNodes.Contains(headVar);
-        var actualHeadVar = headVar != null && _declaredNodes.Contains(headVar) ? headVar : $"{prefix}_h{_varIndex++}";
+        var rawHeadVar = headVar ?? $"{prefix}_h{_varIndex++}";
+        var escHeadVar = EscapeVar(rawHeadVar);
 
         if (!headIsOuter)
         {
-            fromJoins.Append($"nodes {actualHeadVar}");
-            AddNodeFiltersToConditions(path.Head, actualHeadVar, conditions);
+            localJoinedNodes.Add(rawHeadVar);
+            fromJoins.Append($"nodes {escHeadVar}");
+            AddNodeFiltersToConditions(path.Head, rawHeadVar, conditions);
+        }
+        else if (path.Head.Labels.Count > 0 || path.Head.Properties != null)
+        {
+            AddNodeFiltersToConditions(path.Head, rawHeadVar, conditions);
         }
 
-        var prevVar = actualHeadVar;
+        var prevRawVar = rawHeadVar;
         for (var i = 0; i < path.Chain.Count; i++)
         {
             var element = path.Chain[i];
             var rel = element.Relationship;
             var targetNode = element.Target;
-            var relVar = $"{prefix}_r{_varIndex++}";
+            var rawRelVar = rel.Variable != null && !_declaredRels.Contains(rel.Variable)
+                ? rel.Variable
+                : $"{prefix}_r{_varIndex++}";
+            var escRelVar = EscapeVar(rawRelVar);
             var targetVar = targetNode.Variable;
             var targetIsOuter = targetVar != null && _declaredNodes.Contains(targetVar);
-            var actualTargetVar = targetVar != null && _declaredNodes.Contains(targetVar) ? targetVar : (targetVar ?? $"{prefix}_t{_varIndex++}");
+            var rawTargetVar = targetVar ?? $"{prefix}_t{_varIndex++}";
+            var escTargetVar = EscapeVar(rawTargetVar);
 
-            if (!targetIsOuter)
+            if (!targetIsOuter && localJoinedNodes.Add(rawTargetVar))
             {
-                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} JOIN nodes {actualTargetVar}" : $" JOIN edges {relVar} JOIN nodes {actualTargetVar}");
-                AddNodeFiltersToConditions(targetNode, actualTargetVar, conditions);
+                fromJoins.Append(fromJoins.Length == 0
+                    ? $"edges {escRelVar} JOIN nodes {escTargetVar}"
+                    : $" JOIN edges {escRelVar} JOIN nodes {escTargetVar}");
+                AddNodeFiltersToConditions(targetNode, rawTargetVar, conditions);
             }
             else
             {
-                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar}" : $" JOIN edges {relVar}");
+                fromJoins.Append(fromJoins.Length == 0 ? $"edges {escRelVar}" : $" JOIN edges {escRelVar}");
+                if (targetNode.Labels.Count > 0 || targetNode.Properties != null)
+                {
+                    AddNodeFiltersToConditions(targetNode, rawTargetVar, conditions);
+                }
             }
 
-            var prevIdSrc = _nodeRowIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.rowid";
-            var targetIdSrc = _nodeRowIdSource.TryGetValue(actualTargetVar, out var tSrc) ? tSrc : $"{actualTargetVar}.rowid";
+            var prevIdSrc = _nodeRowIdSource.TryGetValue(prevRawVar, out var pSrc) ? pSrc : $"{EscapeVar(prevRawVar)}.rowid";
+            var targetIdSrc = _nodeRowIdSource.TryGetValue(rawTargetVar, out var tSrc) ? tSrc : $"{escTargetVar}.rowid";
 
             switch (rel.Direction)
             {
                 case Direction.Outgoing:
-                    conditions.Add($"{relVar}.from_id = {prevIdSrc}");
-                    conditions.Add($"{targetIdSrc} = {relVar}.to_id");
+                    conditions.Add($"{escRelVar}.from_id = {prevIdSrc}");
+                    conditions.Add($"{targetIdSrc} = {escRelVar}.to_id");
                     break;
                 case Direction.Incoming:
-                    conditions.Add($"{relVar}.to_id = {prevIdSrc}");
-                    conditions.Add($"{targetIdSrc} = {relVar}.from_id");
+                    conditions.Add($"{escRelVar}.to_id = {prevIdSrc}");
+                    conditions.Add($"{targetIdSrc} = {escRelVar}.from_id");
                     break;
                 case Direction.Undirected:
-                    conditions.Add($"({relVar}.from_id = {prevIdSrc} OR {relVar}.to_id = {prevIdSrc})");
-                    conditions.Add($"{targetIdSrc} = CASE WHEN {relVar}.from_id = {prevIdSrc} THEN {relVar}.to_id ELSE {relVar}.from_id END");
+                    conditions.Add($"({escRelVar}.from_id = {prevIdSrc} OR {escRelVar}.to_id = {prevIdSrc})");
+                    conditions.Add($"{targetIdSrc} = CASE WHEN {escRelVar}.from_id = {prevIdSrc} THEN {escRelVar}.to_id ELSE {escRelVar}.from_id END");
                     break;
             }
 
-            AddRelKindConditions(rel, relVar, conditions);
-            prevVar = actualTargetVar;
+            AddRelKindConditions(rel, rawRelVar, conditions);
+            prevRawVar = rawTargetVar;
         }
 
         return (fromJoins, conditions);
@@ -642,14 +664,16 @@ public partial class SqliteCompiler
 
     private string VisitPatternExpression(PatternExpression pat)
     {
-        var (fromJoins, conditions) = BuildSubqueryPath(pat.Path, "_pe");
+        const string patternExprPrefix = "_pe";
+        var (fromJoins, conditions) = BuildSubqueryPath(pat.Path, patternExprPrefix);
         var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
         return SqlTemplates.RenderExistsSubquery(fromJoins.ToString(), whereSql);
     }
 
     private string VisitPatternComprehension(PatternComprehensionExpression patComp)
     {
-        var (fromJoins, conditions) = BuildSubqueryPath(patComp.Path, "_pc");
+        const string patternCompPrefix = "_pc";
+        var (fromJoins, conditions) = BuildSubqueryPath(patComp.Path, patternCompPrefix);
         if (patComp.Filter != null)
         {
             conditions.Add(VisitExpression(patComp.Filter));

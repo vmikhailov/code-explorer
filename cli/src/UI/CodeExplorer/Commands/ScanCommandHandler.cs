@@ -39,6 +39,19 @@ public static class ScanCommandHandler
 
             await using var client = new SqliteGraphClient(ws.DbPath, clientLogger);
 
+            if (client.IsSchemaOutdated && !opts.ShouldClear)
+            {
+                logger.LogInformation(
+                    "Database schema version is outdated (v{Version} < v{Current}). Converting database schema...",
+                    client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+                if (await client.UpgradeSchemaAsync())
+                {
+                    logger.LogInformation(
+                        "Database schema successfully converted to v{Current}.",
+                        SqliteGraphClient.CurrentSchemaVersion);
+                }
+            }
+
             var shouldClear = opts.ShouldClear || client.IsSchemaOutdated;
 
             if (client.IsSchemaOutdated)

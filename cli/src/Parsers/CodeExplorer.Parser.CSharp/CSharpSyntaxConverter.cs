@@ -175,7 +175,13 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
                         Parent = memExpr
                     };
                 }
-                if (propNode != null) memExpr.MemberNameSlice = new SourceSlice(propNode.Span.StartByte, propNode.Span.Length);
+                if (propNode != null)
+                {
+                    var propSpan = doc.Slice(propNode.Span);
+                    var ltIdx = propSpan.IndexOf('<');
+                    var propLen = ltIdx > 0 ? ltIdx : propNode.Span.Length;
+                    memExpr.MemberNameSlice = new SourceSlice(propNode.Span.StartByte, propLen);
+                }
                 break;
         }
     }

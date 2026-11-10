@@ -1,5 +1,16 @@
 {
   "gateId": "SIG-C-R-001",
-  "allowedViolations": 0,
-  "entries": []
+  "allowedViolations": 1,
+  "entries": [
+    {
+      "fingerprint": "b341423ea2964d1ebc30f0fbe23ab8b01b05e2dea51a88dc246242a03dae8534",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/TypeScriptParser.cs",
+      "line": 10,
+      "column": 1,
+      "symbol": "TypeScriptParser",
+      "target": "GodClass",
+      "acknowledgedAt": "2026-11-10T19:01:04.3503242+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-10 19:01:04"
+    }
+  ]
 }

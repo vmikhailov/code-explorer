@@ -44,14 +44,6 @@ public class WindsurfAdapter : IMcpTargetAdapter
                 ["WORKSPACE_ROOT"] = "${workspaceFolder}"
             };
         }
-        else if (!string.IsNullOrEmpty(workspaceRoot))
-        {
-            config["cwd"] = workspaceRoot;
-            config["env"] = new JsonObject
-            {
-                ["WORKSPACE_ROOT"] = workspaceRoot
-            };
-        }
 
         return config;
     }

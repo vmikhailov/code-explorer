@@ -15,6 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.OfType)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
 public record MemberNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
@@ -58,6 +59,9 @@ public record MemberNode(
 
     [JsonPropertyName("is_constant"), OntologyProperty("Indicates whether the member is a compile-time or immutable constant.")]
     public bool? IsConstant { get; set; }
+
+    [JsonPropertyName("attributes"), OntologyProperty("Comma-separated annotations, attributes, or decorators applied to this member.")]
+    public string? Attributes { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Member;

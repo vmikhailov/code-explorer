@@ -58,24 +58,40 @@ public static class WorkspaceLocator
         return ws;
     }
 
-    public static WorkspaceInfo? FindWithFallbacks(string? explicitPath = null)
+    private const string UnexpandedVarPrefix = "${";
+    private static readonly string[] WorkspaceEnvVars = ["WORKSPACE_ROOT", "CE_WORKSPACE", "VSCODE_WORKSPACE", "PROJECT_ROOT"];
+
+    public static WorkspaceInfo? FindExplicitOnly(string? explicitPath = null)
     {
-        // 1. Explicit path
         if (!string.IsNullOrWhiteSpace(explicitPath))
         {
             return Find(explicitPath);
         }
 
-        // 2. Environment variables
-        string[] envVars = ["WORKSPACE_ROOT", "CE_WORKSPACE", "VSCODE_WORKSPACE", "PROJECT_ROOT"];
-        foreach (var envVar in envVars)
+        foreach (var envVar in WorkspaceEnvVars)
         {
             var envVal = Environment.GetEnvironmentVariable(envVar);
-            if (!string.IsNullOrWhiteSpace(envVal))
+            if (!string.IsNullOrWhiteSpace(envVal) && !envVal.Contains(UnexpandedVarPrefix, StringComparison.Ordinal))
             {
                 var ws = Find(envVal);
                 if (ws != null) return ws;
             }
+        }
+
+        return null;
+    }
+
+    public static WorkspaceInfo? FindWithFallbacks(string? explicitPath = null)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            return Find(explicitPath);
+        }
+
+        var explicitWs = FindExplicitOnly();
+        if (explicitWs != null)
+        {
+            return explicitWs;
         }
 
         // 3. Current working directory and parents

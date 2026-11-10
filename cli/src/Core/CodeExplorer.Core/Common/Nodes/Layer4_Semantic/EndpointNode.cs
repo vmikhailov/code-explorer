@@ -17,6 +17,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.ExposedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.ExposedBy)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
+[OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record EndpointNode(
     string Id,
     [property: OntologyProperty("The endpoint name (e.g. GET /api/orders, MSG:SubmitOrder).")] string Name,

@@ -1,6 +1,7 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Semantics;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
@@ -28,11 +29,12 @@ public record CallLiteralNode(
     string? ProjectName = null,
     string Role = "Business",
     bool IsDecorator = false,
+    ParameterNature Nature = ParameterNature.Unspecified,
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)
 {
     public CallLiteralNode(string id, string name, string value, string callee, int argIndex, string filePath, int line, int column, Dictionary<string, string>? customProperties = null)
-        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, "Business", false, customProperties)
+        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, "Business", false, ParameterNature.Unspecified, customProperties)
     {
     }
 
@@ -50,6 +52,9 @@ public record CallLiteralNode(
 
     [JsonPropertyName("is_decorator"), OntologyProperty("Indicates whether the literal argument occurs within a decorator or attribute.")]
     public bool IsDecorator { get; set; } = IsDecorator;
+
+    [JsonPropertyName("nature"), OntologyProperty("The semantic nature of the parameter/argument (e.g. SqlQuery, UrlOrRoute, ConnectionString, FilePath).")]
+    public ParameterNature Nature { get; set; } = Nature;
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.CallLiteral;

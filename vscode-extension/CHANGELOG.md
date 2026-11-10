@@ -5,6 +5,62 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.79.0] - 2026-11-10
+
+### Added & Improved
+- **Semantic Argument & Parameter Provenance in Knowledge Graph (`Parameter`, `CallArgument`, `HAS_PARAMETER`, `PASSES_ARGUMENT`, `FLOWS_TO`, `TARGETED_BY`)**:
+  - Extended the Layer 3 ontology with strongly-typed `:Parameter` (`ParameterNode`) and `:CallArgument` (`CallArgumentNode`) nodes materialized strictly for semantically colored call/parameter slots (`ParameterNature != Unspecified`), alongside 4 orthogonal enum dimensions (`ParameterNature`, `ArgumentProvenance`, `ExpressionRole`, `ConstantValueKind`) and `ConstantValueClassifier` while preserving `:CallLiteral` / `[:PASSES_LITERAL]` for `SIG-M-I-001`.
+  - Added intra-procedural AST slicing (`Layer3SemanticArgumentCollector`, `Layer3ArgumentExpressionEvaluator`) and expanded `PlatformParameterCatalog` across positional sinks, parameter attributes/decorators (`[FromRoute]`, `@Query`, `@Mutation`), and options-object keys (`sql`, `text`, `query`, `url`, `uri`, `endpoint`, `baseURL`, `path`, `topic`, `queue`, `routingKey`, `connectionString`, `headers`, `auth`), tracing literals, constants, fields, caller parameters, env/config lookups, `??` / `||` / `?:` fallbacks, `+` concatenations, and interpolated templates.
+  - Added Layer 5 interprocedural fixed-point parameter coloring (`MaxInterproceduralHops = 6` across `CALLS`, `IMPLEMENTS`, and `INHERITS_FROM`), top-down composite template assembly (`SemanticArgumentPropagator`), and downward Layer 4 $\to$ Layer 3 `[:TARGETED_BY]` target grounding (`SemanticTargetGrounder` linking `Table`, `Procedure`, `Endpoint`, `ExternalService`, `Topic`, and `Database` to `:CallArgument`).
+- **Superpower 3.0.0 Multi-Dialect Combinator SQL Parser (`BaseSqlParser` + 8 Dialects)**:
+  - Replaced regex-based SQL table extraction with a typed `Superpower` parser-combinator hierarchy (`SqlTokenizer`, `SqlStatementAst`, `BaseSqlParser`, `SqlDialectDetector`, `SqlDialectParserFactory`) supporting **ANSI SQL**, **PostgreSQL** (`::type`, `DISTINCT ON`, `RETURNING`, `$tag$`), **MySQL** (backtick identifiers, `STRAIGHT_JOIN`, `ON DUPLICATE KEY UPDATE`), **T-SQL** (`[bracket]` identifiers, `TOP (N)`, `WITH (NOLOCK)`, `EXEC`, `MERGE`), **PL/SQL** (`CONNECT BY`, `MERGE`, package procedures), **BigQuery** (backtick `project.dataset.table`, `UNNEST`), **ClickHouse** (`FINAL`, `PREWHERE`, `SAMPLE`, `ENGINE = ...`), and **Salesforce SOQL** (`SELECT ... FROM Object__c`, relationship dot-paths), eliminating prose/log/HTML/header SQL false positives.
+
+## [1.78.1] - 2026-11-10
+
+### Added & Improved
+- **Project Map Node Grouping & Right-Click Context Menu (`UniversalGraphMap.tsx`)**:
+  - Implemented category grouping (`groupedTypes`) for Project Map entity kinds (`Module`, `Type`, `Table`, `Topic`, `EntryPoint`, etc.) and custom arbitrary node grouping (`customGroups`) via canvas multi-selection (`Shift+Click`) and the Inspector sidebar.
+  - Added full right-click context menu on nodes with `Group Selected`, `Add to group`, `Group all downstream (N)`, `Ungroup / Expand`, `Hide Node`, `Hide Downstream`, and `Hide all {kind}s`.
+- **Flat YAML Array Serialization for Single-Variable Queries (`ToonYamlSerializer`)**:
+  - Formatted single-column query results (`result.Columns.Count == 1`) as flat YAML arrays (`- <value>`) instead of repeating key dictionaries (`- col: <value>`), saving 30–50% tokens on lists of paths, names, and identifiers for LLM prompts.
+  - Formatted single-column entity objects (`RETURN f`) as clean object arrays without synthetic column wrappers (`- f:`).
+- **Post-Indexing Bulk Loading Fix (`SqliteGraphClient.PostIndex.cs`)**:
+  - Fixed typed `Relationship` instantiation for `_bulkRelationships` entries during post-indexing bulk loads of `TransitivelyCalls` and `AttributedTo` edges.
+- **OpenCypher `EXISTS { ... }` / `COUNT { ... }` Subqueries, Sliced Aggregation Stage Materialization, & `OPTIONAL MATCH` Decomposition (`CodeExplorer.Cypher`)**:
+  - Added full OpenCypher `EXISTS { ... }` and `COUNT { ... }` brace subquery expressions (supporting full subqueries with `RETURN`, return-less `MATCH ... WHERE ...`, and shorthand pattern predicates, lifting uncorrelated recursive path CTEs to top-level `WITH RECURSIVE`).
+  - Automatically materialized `WITH ..., collect(...) AS alias` aggregation stages into `_stage_k` CTEs (preserving declared relationships and properties) whenever `WITH ... WHERE` or `UNWIND` evaluates list quantifiers (`any`/`all`/`none`/`single`), comprehensions, or `IN` predicates over aggregated aliases, and materialized `RETURN` / `ORDER BY` aggregations wrapped in `json_each` subqueries (such as `collect(p.name)[0..5]`).
+  - Preserved named relationship and head node variables (`acc2.properties`), tail-anchored fixed-length patterns, `count(DISTINCT ...)`, and variable-length exclusion (`*1..2`) in `OPTIONAL MATCH` subquery decomposition, fixed non-aggregating `WITH` clauses polluting downstream `RETURN` `GROUP BY` keys, and added native JSON array concatenation for OpenCypher list `+` expressions (`collect(b.extends) + [t.extends]`).
+- **Inline Scalar Arrays in Tabular YAML & Standard MCP Server Instructions (`ToonYamlSerializer`, `CodeExplorer.Server`)**:
+  - Kept multi-column Cypher result sets with 1D scalar `collect(...)` array columns in compact `columns` / `rows` tabular YAML format (`3–4×` smaller than verbose per-row object sequences) with lossless nested flow-array parsing.
+  - Added standard MCP `ServerInstructions` and concise general ontology semantics in `get_taxonomy` (`attributes` direct symbol scope, `extends`/`implements` vs `INHERITS_FROM`/`IMPLEMENTS`, and `ACCESSED_BY.operation`).
+
+## [1.78.0] - 2026-11-10
+
+### Added & Improved
+- **Multi-Language Syntactic Annotations / Attributes / Decorators (`attributes` on `TypeNode`, `FunctionNode`, `MemberNode`)**:
+  - Populated `DeclarationSyntax.Annotations` across C#, TypeScript/JavaScript, Python, Java, and Rust at the Universal AST (`UAST`) level (`TreeSitterSyntaxPopulator` and sibling decorator propagation in `TreeSitterSyntaxBuilder`), exposing a canonical comma-separated `attributes` property on `Type`, `Function`, and `Member` nodes.
+- **Systemic Member Call Tracking (`ACCESSED_BY`, `OF_TYPE`), C# Extension Methods, & Non-Test Call Isolation**:
+  - Added `(m:Member)-[:ACCESSED_BY {operation, line}]->(fn:Function)` and `(m:Member)-[:OF_TYPE]->(t:Type)` edges in Layer 5 global resolution (including inherited base-class members), stripped generic type arguments (`<...>`) from C# member call names, registered C# extension methods (`this T receiver`) under `ReceiverType.MethodName`, preferred direct receiver-type members over extension overloads in `SelectVisibleSymbolCandidate`, and isolated non-test production code from resolving calls or interface implementations to test mocks.
+- **Multi-Hop `OPTIONAL MATCH` `LEFT JOIN ON` Conjunct Pushdown (`CodeExplorer.Cypher`)**:
+  - Fixed `SQLite Error 1: 'ON clause references tables to its right'` on multi-hop `OPTIONAL MATCH` patterns with compound `WHERE` predicates by decomposing `WHERE` expressions into top-level `AND` conjuncts and attaching each conjunct to the earliest `LEFT JOIN ... ON` clause where all its referenced variables are bound, and kept 1-hop `OPTIONAL MATCH` patterns anchored at `Target` as flat `LEFT JOIN` joins.
+- **Global Multi-Workspace MCP Resolution (`roots/list` + Standby Isolation)**:
+  - Enabled a single global MCP server registration (`ce configure <target> --scope global`) to work dynamically across multiple workspaces without hardcoding `WORKSPACE_ROOT` or `cwd` in global configs: resolves explicit `workspacePath` tool arguments first, HTTP `?ws=` query parameters or `--root`/`WORKSPACE_ROOT` server pins second, dynamic MCP client `roots/list` (`roots/list_changed` invalidation + `%3A` file URI decoding + multi-root disambiguation) third, and isolated Standby Mode fourth (never falling back to process `CWD` or `last_workspace.txt`).
+- **Lossless `ACCESSED_BY` Multi-Operation Merging, Canonical Unaliased Cypher Columns, & Polyglot Root Isolation**:
+  - Merged distinct `operation` values across intra-batch and cross-batch edge deduplication (`EvidenceProvenanceHelper.MergeRelationships` + `SqliteGraphClient._bulkRelationships`) so functions invoking multiple operations on the same injected member preserve all distinct operations (e.g., `"GetAsync, QueryIndex, SaveAsync"`).
+  - Emitted canonical OpenCypher column aliases (`c.name`, `labels(c)`, `type(r)`, `count(DISTINCT m)`) for unaliased `RETURN` items in `SqliteCompiler.BuildSelectColumns`, lowered `ToonYamlSerializer` scalar tabular threshold to `>= 5` rows, preserved `""` vs `null` in tabular cells, and quoted comma-containing strings inside YAML flow rows.
+  - Isolated `LinkNestedSubProjects` in `Layer2BoundariesAnalyzer.Scanning` by language ecosystem so root build `package.json` manifests in polyglot repositories never synthesize cross-ecosystem `DEPENDS_ON` edges to nested C# `.csproj` projects.
+
+## [1.77.3] - 2026-11-10
+
+### Fixed & Improved
+- **Custom Tree-Sitter Grammars (C#, TypeScript, JavaScript) (`build-tree-sitter-natives.ps1`)**:
+  - Updated `vmikhailov/tree-sitter-c-sharp` (`37498446`) to support `#if` preprocessor blocks inside `attribute_argument_list` (including trailing commas inside `#if` branches) and external scanner `NUL_CHARACTER_LITERAL_CONTENT` (`0x00` byte inside `'...'` character literals).
+  - Updated `vmikhailov/tree-sitter-typescript` (`4f96ecde`) and added `vmikhailov/tree-sitter-javascript` (`1f0ac36f`) across all 6 native RIDs so contextual `using` identifiers in assignment expressions (`using = ...`) and member expressions parse with 0 syntax errors.
+- **Scoped Python `"attribute"` CST Alias in `SyntaxKindResolver` (`SyntaxNodes.cs`)**:
+  - Restricted `SyntaxKindResolver.Matches(node, "attribute")` matching `MemberAccessExprSyntax` to Python documents only (`node.Document?.LanguageName == "python"`), eliminating false-positive `OPTIONS:/` and `GET:/` endpoints on C# `.Options` and `.Get(...)` member accesses in `AspNetCoreLibraryParser`.
+- **Scan Issue Diagnostics & VS Code Server Health**:
+  - Added `ScanIssue` summary diagnostics in `ce scan` / `ce status` and resilient server endpoint/binary discovery in the VS Code extension.
+
 ## [1.77.2] - 2026-11-10
 
 ### Fixed & Optimized

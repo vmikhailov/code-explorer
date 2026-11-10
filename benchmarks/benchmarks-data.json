@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.77.2",
+      "ce_suite_versions": "v1.75.0 to v1.78.1",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -303,7 +303,7 @@
       "group_b_ce_matched": 235
     },
     "cypher_latency": {
-      "ce_min_ms": 3.1,
+      "ce_min_ms": 4.3,
       "ce_max_ms": 4.7,
       "cbm_min_ms": 38.1,
       "cbm_max_ms": 71.2
@@ -369,23 +369,67 @@
   },
   "cs05": {
     "id": "05-polyglot-architecture-and-blast-radius",
-    "status": "pending",
+    "status": "ready",
     "expected_repo_match": "orchard",
     "source_metrics": "benchmarks/05-polyglot-architecture-and-blast-radius/results/metrics.json",
-    "ce_version": "v1.75.2",
+    "ce_version": "v1.78.1",
     "ripgrep_version": "v14.1.1",
     "model": "Gemini 3.8 Flash",
     "repo": {
       "name": "OrchardCMS/OrchardCore",
-      "commit": "[TBD]",
-      "projects": "[TBD ~180]",
-      "files": "[TBD ~6,000]"
+      "commit": "05ad2d9a",
+      "projects": 334,
+      "files": 7837,
+      "graph_nodes": 134067,
+      "graph_edges": 288527
     },
     "recall": {
       "ce_pct": "100%",
-      "rg_pct": "[TBD %]",
-      "summary_note": "[TBD]"
+      "rg_pct": "100%",
+      "summary_note": "0 compactions vs 2 compactions (both reached 100% symbol recall)"
     },
-    "telemetry": null
+    "telemetry": {
+      "ce": {
+        "conversation_short": "3882e500",
+        "time_to_answer_s": 384,
+        "wall_clock_s": 531,
+        "turns": 15,
+        "steps": 61,
+        "tool_calls": 45,
+        "mcp_calls": 29,
+        "run_command_calls": 0,
+        "view_file_calls": 15,
+        "compactions": 0,
+        "raw_tool_chars": 270470,
+        "raw_tool_tokens": 67618,
+        "cum_input_tokens": 651686,
+        "api_uncached_input_tokens": 126846,
+        "api_cached_input_tokens": 757496,
+        "api_total_input_tokens": 884342,
+        "api_output_tokens": 42402,
+        "cost_flash_usd": 0.23,
+        "cost_pro_usd": 0.83
+      },
+      "rg": {
+        "conversation_short": "af28679a",
+        "time_to_answer_s": 889,
+        "wall_clock_s": 1091,
+        "turns": 38,
+        "steps": 227,
+        "tool_calls": 186,
+        "run_command_calls": 22,
+        "view_file_calls": 163,
+        "compactions": 2,
+        "raw_tool_chars": 1625077,
+        "raw_tool_tokens": 406269,
+        "cum_input_tokens": 3197058,
+        "api_uncached_input_tokens": 551090,
+        "api_cached_input_tokens": 3538477,
+        "api_total_input_tokens": 4089567,
+        "api_output_tokens": 66376,
+        "cost_flash_usd": 0.65,
+        "cost_pro_usd": 2.47
+      }
+    }
   }
 }

@@ -648,6 +648,7 @@ public partial class Layer3SyntacticParser
 
         var functionsByLineAndName = new Dictionary<(int Line, string Name), FunctionNode>();
         var typesByName = new Dictionary<string, TypeNode>(StringComparer.Ordinal);
+        var membersByLineAndName = new Dictionary<(int Line, string Name), MemberNode>();
 
         void IndexOntologyTree(IOntologyNode parent, TypeNode? enclosingType)
         {
@@ -667,9 +668,58 @@ public partial class Layer3SyntacticParser
                     functionsByLineAndName.TryAdd((fn.StartLine, fn.Name), fn);
                     IndexOntologyTree(fn, enclosingType);
                 }
+                else if (child is MemberNode mn)
+                {
+                    membersByLineAndName.TryAdd((mn.StartLine, mn.Name), mn);
+                }
             }
         }
         IndexOntologyTree(fileNode, null);
+
+        foreach (var memDecl in doc.AllMembers)
+        {
+            if (memDecl.Annotations.Count == 0) continue;
+            var attrNames = new List<string>(memDecl.Annotations.Count);
+            for (var i = 0; i < memDecl.Annotations.Count; i++)
+            {
+                var aName = memDecl.Annotations[i].Name.Trim().TrimStart('@', '#', '[').TrimEnd(']');
+                var pIdx = aName.IndexOf('(');
+                if (pIdx > 0) aName = aName[..pIdx].Trim();
+                if (!string.IsNullOrEmpty(aName) && !attrNames.Contains(aName, StringComparer.Ordinal))
+                {
+                    attrNames.Add(aName);
+                }
+            }
+            if (attrNames.Count == 0) continue;
+            var attrsStr = string.Join(", ", attrNames);
+
+            var startLine = memDecl.Span.StartLine + 1;
+            if (!string.IsNullOrEmpty(memDecl.Name) && membersByLineAndName.TryGetValue((startLine, memDecl.Name), out var directMem))
+            {
+                directMem.Attributes ??= attrsStr;
+            }
+            else
+            {
+                foreach (var child in memDecl.Children)
+                {
+                    if (child is VariableDeclSyntax vd)
+                    {
+                        if (!string.IsNullOrEmpty(vd.Name) && membersByLineAndName.TryGetValue((vd.Span.StartLine + 1, vd.Name), out var vdMem))
+                        {
+                            vdMem.Attributes ??= attrsStr;
+                        }
+                        foreach (var sub in vd.Children)
+                        {
+                            if (sub is VariableDeclSyntax subVd && !string.IsNullOrEmpty(subVd.Name) &&
+                                membersByLineAndName.TryGetValue((subVd.Span.StartLine + 1, subVd.Name), out var subMem))
+                            {
+                                subMem.Attributes ??= attrsStr;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         var hasLateExportMarkers = doc.SourceText.Contains("module.exports", StringComparison.Ordinal) ||
                                    doc.SourceText.Contains("exports.", StringComparison.Ordinal) ||
@@ -718,7 +768,21 @@ public partial class Layer3SyntacticParser
                 }
                 else
                 {
-                    fileNode.Children.Add(fnNode);
+                    var enclosingTypeDecl = FindEnclosingSyntaxType(fnDecl);
+                    var enclosingTypeName = enclosingTypeDecl != null
+                        ? (!string.IsNullOrWhiteSpace(enclosingTypeDecl.Name)
+                            ? enclosingTypeDecl.Name
+                            : (enclosingTypeDecl.GetChildForField(SyntaxFields.Name) ?? enclosingTypeDecl.FirstChildOfType<IdentifierExprSyntax>())?.Text.Trim())
+                        : null;
+                    if (!string.IsNullOrEmpty(enclosingTypeName) && typesByName.TryGetValue(enclosingTypeName, out var enclosingTypeNode))
+                    {
+                        enclosingTypeNode.Children.Add(fnNode);
+                        fnNode.Signals().EnclosingTypeName = enclosingTypeNode.Name;
+                    }
+                    else
+                    {
+                        fileNode.Children.Add(fnNode);
+                    }
                 }
                 functionsByLineAndName[(startLine, fnName)] = fnNode;
             }
@@ -773,6 +837,7 @@ public partial class Layer3SyntacticParser
 
                     if (!typesByName.TryGetValue(protoClass, out var typeNode))
                     {
+                        const string defaultProtoTypeKind = "class";
                         var typeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Type:{protoClass}";
                         typeNode = new TypeNode(
                             typeId,
@@ -784,7 +849,7 @@ public partial class Layer3SyntacticParser
                             protoLambda.Span.EndLine + 1,
                             1,
                             1,
-                            "class",
+                            defaultProtoTypeKind,
                             isTest,
                             projectKind,
                             projectName)
@@ -865,13 +930,14 @@ public partial class Layer3SyntacticParser
         var hasTopLevelMessagingRefs = fileNode.References.Any(r => r.Kind is RelationshipKind.PublishesTo or RelationshipKind.SubscribesTo);
         if (HasTopLevelCallsOrStatements(doc) || hasTopLevelMessagingRefs)
         {
-            var modInitNode = fileNode.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "<module_init>");
+            const string moduleInitFunctionName = "<module_init>";
+            var modInitNode = fileNode.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == moduleInitFunctionName);
             if (modInitNode == null)
             {
-                var modInitId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:<module_init>";
+                var modInitId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{moduleInitFunctionName}";
                 modInitNode = new FunctionNode(
                     modInitId,
-                    "<module_init>",
+                    moduleInitFunctionName,
                     modInitId,
                     relativePath,
                     relativePath,
@@ -907,10 +973,20 @@ public partial class Layer3SyntacticParser
             PopulateModuleInitReferences(modInitNode, doc);
         }
 
-        EnrichReferencesWithCallContextAndFlow(fileNode, doc);
-    }
+        Semantics.Layer3SemanticArgumentCollector.CollectForDocument(
+            doc,
+            fileNode,
+            functionsByLineAndName,
+            relativePath,
+            projectName);
 
-    private static void EnrichReferencesWithCallContextAndFlow(IOntologyNode rootNode, SyntaxDocument doc)
+        CallSiteReferenceEnricher.EnrichReferencesWithCallContextAndFlow(fileNode, doc);
+    }
+}
+
+internal static class CallSiteReferenceEnricher
+{
+    internal static void EnrichReferencesWithCallContextAndFlow(IOntologyNode rootNode, SyntaxDocument doc)
     {
         var callsByLineAndName = new Dictionary<(int Line, string MethodName), CallExprSyntax>();
         var callsByLine = new Dictionary<int, List<CallExprSyntax>>();

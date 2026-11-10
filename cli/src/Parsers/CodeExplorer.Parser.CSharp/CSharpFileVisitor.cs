@@ -315,8 +315,18 @@ public class CSharpFileVisitor : BaseParserVisitor
 
                         if (typeName == "var")
                         {
-                            var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value)
+                            var valueNode = (declarator as CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax)?.Initializer
+                                            ?? declarator.GetField(TreeSitterSyntax.Fields.Value)
                                             ?? declarator.FindChildOfType(TreeSitterSyntax.CSharp.ObjectCreationExpression);
+
+                            if (valueNode.IsValid() && valueNode is CodeExplorer.Core.Parser.Syntax.SyntaxList { Kind: CodeExplorer.Core.Parser.Syntax.SyntaxListKind.Initializer, Children.Count: > 0 } initClause)
+                            {
+                                valueNode = initClause.Children[^1];
+                            }
+                            if (valueNode.IsValid() && valueNode is CodeExplorer.Core.Parser.Syntax.UnaryExprSyntax { IsAwait: true, Operand: not null } awaitExpr)
+                            {
+                                valueNode = awaitExpr.Operand;
+                            }
 
                             if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
                             {
@@ -328,6 +338,27 @@ public class CSharpFileVisitor : BaseParserVisitor
                                 if (objectTypeNode.IsValid())
                                 {
                                     resolvedTypeName = objectTypeNode.Text;
+                                }
+                            }
+                            else if (valueNode.IsValid() && valueNode is CodeExplorer.Core.Parser.Syntax.TypeCastExprSyntax { TargetType: not null } castExpr)
+                            {
+                                resolvedTypeName = castExpr.TargetType.Text;
+                            }
+                            else if (valueNode.IsValid() && valueNode is CodeExplorer.Core.Parser.Syntax.BinaryExprSyntax { Operator: "as", Right: not null } asExpr)
+                            {
+                                resolvedTypeName = asExpr.Right.Text;
+                            }
+                            else if (valueNode.IsValid() && valueNode is CodeExplorer.Core.Parser.Syntax.CallExprSyntax callInit)
+                            {
+                                var targetTypeNode = callInit.GetFunctionNode()?.FindDescendantOfType(TreeSitterSyntax.CSharp.TypeArgumentList)
+                                                     ?? callInit.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList);
+                                if (targetTypeNode.IsValid() && targetTypeNode.Children.Count > 0)
+                                {
+                                    var firstTypeArg = targetTypeNode.Children[0];
+                                    if (firstTypeArg.IsValid())
+                                    {
+                                        resolvedTypeName = firstTypeArg.Text;
+                                    }
                                 }
                             }
                         }
@@ -359,6 +390,18 @@ public class CSharpFileVisitor : BaseParserVisitor
             var parent = node.Parent;
             if (parent.IsValid() && parent.Is(TreeSitterSyntax.CSharp.ParameterList))
             {
+                if (node.ChildIndex == 0 && node.AsSpan().TrimStart().StartsWith("this ", StringComparison.Ordinal))
+                {
+                    var extType = cleanType;
+                    var ltIdx = extType.IndexOf('<');
+                    if (ltIdx > 0) extType = extType[..ltIdx].Trim();
+                    var currentFn = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
+                    if (currentFn != null && !string.IsNullOrEmpty(extType))
+                    {
+                        currentFn.Properties["ext_receiver_type"] = extType;
+                    }
+                }
+
                 var recordNode = parent.Parent;
                 if (recordNode.IsValid() && recordNode.IsAny(
                     TreeSitterSyntax.CSharp.RecordDeclaration,
@@ -368,21 +411,30 @@ public class CSharpFileVisitor : BaseParserVisitor
                     var scope = DetermineCSharpScope(recordNode);
                     RawVariables.Add(new RawVariable(
                         nameNode.Text,
-                        "",
+                        string.Empty,
                         scope,
                         false,
-                        "",
+                        string.Empty,
                         node.StartPosition.Row + 1,
                         node.EndPosition.Row + 1,
                         node.StartPosition.Column + 1,
                         node.EndPosition.Column + 1,
                         typeNode.Text,
-                        "property"
+                        CodeExplorer.Cypher.Common.MemberKind.Property
                     ));
                 }
             }
         }
         VisitChildren(node, depth);
+    }
+
+    protected override void VisitMethodDeclaration(Node node, int depth)
+    {
+        if (node.Is(TreeSitterSyntax.CSharp.ConstructorDeclaration))
+        {
+            InspectConstructorAssignments(node);
+        }
+        base.VisitMethodDeclaration(node, depth);
     }
 
     protected override void VisitFunctionDeclaration(Node node, int depth)
@@ -461,9 +513,11 @@ public class CSharpFileVisitor : BaseParserVisitor
         var expr = callNode.GetFunctionNode();
         if (!expr.IsValid()) return null;
 
-        if (expr.Is(TreeSitterSyntax.Common.Identifier))
+        if (expr.Is(TreeSitterSyntax.Common.Identifier) || expr is TypeRefSyntax)
         {
-            return expr.Text;
+            var idText = expr.Text;
+            var ltIdx = idText.IndexOf('<');
+            return ltIdx > 0 ? idText[..ltIdx].Trim() : idText;
         }
         if (expr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
@@ -471,12 +525,28 @@ public class CSharpFileVisitor : BaseParserVisitor
             var expressionChild = expr.GetField(TreeSitterSyntax.Fields.Expression);
             if (nameChild.IsValid())
             {
+                var rawMethod = nameChild.Text;
+                var ltIdx = rawMethod.IndexOf('<');
+                if (ltIdx > 0) rawMethod = rawMethod[..ltIdx].Trim();
                 if (expressionChild.IsValid())
                 {
+                    if (expressionChild is CodeExplorer.Core.Parser.Syntax.CallExprSyntax innerCall)
+                    {
+                        var innerTypeArgs = innerCall.GetFunctionNode()?.FindDescendantOfType(TreeSitterSyntax.CSharp.TypeArgumentList)
+                                            ?? innerCall.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList);
+                        if (innerTypeArgs.IsValid() && innerTypeArgs.Children.Count > 0 && innerTypeArgs.Children[0].IsValid())
+                        {
+                            var chainedType = innerTypeArgs.Children[0].Text.TrimEnd('?');
+                            if (!string.IsNullOrEmpty(chainedType))
+                            {
+                                return $"{chainedType}.{rawMethod}";
+                            }
+                        }
+                    }
                     var recvPath = expressionChild.GetCanonicalMemberPath();
-                    return string.IsNullOrEmpty(recvPath) ? nameChild.Text : $"{recvPath}.{nameChild.Text}";
+                    return string.IsNullOrEmpty(recvPath) ? rawMethod : $"{recvPath}.{rawMethod}";
                 }
-                return nameChild.Text;
+                return rawMethod;
             }
         }
         return null;
@@ -487,12 +557,15 @@ public class CSharpFileVisitor : BaseParserVisitor
         var currentScope = SymbolStack.Peek();
         if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
         {
+            List<string>? extendsList = null;
+            List<string>? implementsList = null;
             foreach (var child in node.Children)
             {
                 if (child is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax ||
                     child.Type.Contains("identifier") || child.Type.Contains("name"))
                 {
-                    var baseName = child.Text;
+                    var fullTypeText = child.Text.Trim();
+                    var baseName = fullTypeText;
                     var ltIdx = baseName.IndexOf('<');
                     if (ltIdx > 0) baseName = baseName[..ltIdx].Trim();
                     var lastDot = baseName.LastIndexOf('.');
@@ -501,7 +574,25 @@ public class CSharpFileVisitor : BaseParserVisitor
                         ? CodeExplorer.Cypher.Common.RelationshipKind.Implements
                         : CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom;
                     currentScope.References.Add(new Reference("", baseName, refKind));
+                    if (refKind == CodeExplorer.Cypher.Common.RelationshipKind.Implements)
+                    {
+                        implementsList ??= [];
+                        implementsList.Add(fullTypeText);
+                    }
+                    else
+                    {
+                        extendsList ??= [];
+                        extendsList.Add(fullTypeText);
+                    }
                 }
+            }
+            if (extendsList is { Count: > 0 })
+            {
+                currentScope.Properties[OntologyConstants.PropertyNames.Extends] = string.Join(", ", extendsList);
+            }
+            if (implementsList is { Count: > 0 })
+            {
+                currentScope.Properties[OntologyConstants.PropertyNames.Implements] = string.Join(", ", implementsList);
             }
         }
         VisitChildren(node, depth);

@@ -185,8 +185,36 @@ export function activate(context: vscode.ExtensionContext) {
       outputChannel.appendLine(`[CodeExplorer] Auto-starting graph server on load for: ${workspaceRoot}`);
       serverTransport
         .ensureConnected(workspaceRoot)
-        .then((info) => {
+        .then(async (info) => {
           outputChannel.appendLine(`[CodeExplorer] Server ready at ${info.wsUrl}`);
+          try {
+            const metadataEndpoint = '/api/metadata';
+            const convertSchemaOption = 'Convert Schema';
+            const rebuildGraphOption = 'Rebuild Graph';
+            const laterOption = 'Later';
+            const upgradeSchemaCommandId = 'codeExplorer.upgradeSchema';
+            const reindexFullCommandId = 'codeExplorer.reindexFull';
+            const meta = await serverTransport?.get<{
+              isSchemaOutdated?: boolean;
+              schemaVersion?: number;
+              currentSchemaVersion?: number;
+            }>(metadataEndpoint, { autoStart: false });
+            if (meta?.isSchemaOutdated) {
+              const choice = await vscode.window.showWarningMessage(
+                `CodeExplorer: Database schema version is outdated (v${meta.schemaVersion ?? 1} < v${meta.currentSchemaVersion ?? 6}). Convert database schema now?`,
+                convertSchemaOption,
+                rebuildGraphOption,
+                laterOption
+              );
+              if (choice === convertSchemaOption) {
+                vscode.commands.executeCommand(upgradeSchemaCommandId);
+              } else if (choice === rebuildGraphOption) {
+                vscode.commands.executeCommand(reindexFullCommandId);
+              }
+            }
+          } catch {
+            // Ignore metadata check errors on initial startup
+          }
         })
         .catch((err) => {
           outputChannel.appendLine(`[CodeExplorer] Auto-start notice: ${err.message}`);
@@ -196,9 +224,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const initialWorkspace = getWorkspaceRoot();
   if (initialWorkspace) {
-    setTimeout(() => {
-      checkAndInitWorkspace(initialWorkspace);
-    }, 500);
+    checkAndInitWorkspace(initialWorkspace);
   }
 
   context.subscriptions.push(

@@ -151,6 +151,7 @@ public class ParsingContext
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
     public Dictionary<SymbolKey, string> GlobalSymbolKeys { get; } = new();
     public Dictionary<(string FilePath, string Kind, string Name), string> FileScopedSymbols { get; } = new();
+    public List<(string FilePath, string Kind, string Name, string Id)> OverloadedFileScopedSymbols { get; } = [];
     public List<Reference> GlobalReferences { get; }
     public List<Relationship> GlobalProjectDependencies { get; }
     public List<Relationship> TreeRelationships { get; } = [];
@@ -201,32 +202,51 @@ public class ParsingContext
         _totalRelsCount += count;
     }
 
+    private static bool IsSecondaryOverloadSymbolId(string id) =>
+        id.Contains('#', StringComparison.Ordinal);
+
     public void AddGlobalSymbol(string kind, string name, string id)
     {
-        GlobalSymbols[(kind, name)] = id;
-        GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+        if (!IsSecondaryOverloadSymbolId(id) || !GlobalSymbols.ContainsKey((kind, name)))
+        {
+            GlobalSymbols[(kind, name)] = id;
+            GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+        }
         this.RegisterSymbolByKind(kind, name);
     }
 
     public void AddGlobalSymbol(NodeKind kind, string name, string id)
     {
         var label = kind.ToCypherLabel();
-        GlobalSymbols[(label, name)] = id;
-        GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+        if (!IsSecondaryOverloadSymbolId(id) || !GlobalSymbols.ContainsKey((label, name)))
+        {
+            GlobalSymbols[(label, name)] = id;
+            GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+        }
         this.RegisterSymbolByKind(label, name);
     }
 
     public void AddGlobalSymbol(SymbolKey key, string id)
     {
         var label = key.Kind.ToCypherLabel();
-        GlobalSymbols[(label, key.Name)] = id;
-        GlobalSymbolKeys[key] = id;
+        if (!IsSecondaryOverloadSymbolId(id) || !GlobalSymbols.ContainsKey((label, key.Name)))
+        {
+            GlobalSymbols[(label, key.Name)] = id;
+            GlobalSymbolKeys[key] = id;
+        }
         this.RegisterSymbolByKind(label, key.Name);
     }
 
     public void AddFileScopedSymbol(string filePath, string kind, string name, string id)
     {
-        FileScopedSymbols[(filePath, kind, name)] = id;
+        if (!IsSecondaryOverloadSymbolId(id) || !FileScopedSymbols.ContainsKey((filePath, kind, name)))
+        {
+            FileScopedSymbols[(filePath, kind, name)] = id;
+        }
+        else
+        {
+            OverloadedFileScopedSymbols.Add((filePath, kind, name, id));
+        }
         this.RegisterSymbolByKind(kind, name);
     }
 

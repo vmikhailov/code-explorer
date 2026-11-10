@@ -35,21 +35,11 @@ public class ClaudeDesktopAdapter : IMcpTargetAdapter
 
     public JsonObject GenerateMcpConfig(string workspaceRoot, ConfigScope scope)
     {
-        var config = new JsonObject
+        return new JsonObject
         {
-            ["command"] = "ce"
+            ["command"] = "ce",
+            ["args"] = new JsonArray("mcp", "-q")
         };
-
-        if (!string.IsNullOrEmpty(workspaceRoot))
-        {
-            config["args"] = new JsonArray("mcp", "--root", workspaceRoot);
-        }
-        else
-        {
-            config["args"] = new JsonArray("mcp");
-        }
-
-        return config;
     }
 
     public RuleConfigInfo? GetRuleConfigInfo(string workspaceRoot) => null;

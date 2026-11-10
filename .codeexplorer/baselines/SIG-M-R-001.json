@@ -113,14 +113,14 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "6988ea807292343ea1ac0b096d4d7be32fa6d5e57a9beffc4892e5146b58639c",
+      "fingerprint": "b9a784f2f8ba6c12131b6b69993a01747ccdf251622d08a5defcc1ae0fc98aae",
       "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
-      "line": 320,
+      "line": 341,
       "column": 68,
       "symbol": "UniversalGraphMap",
-      "target": "1724 lines",
-      "acknowledgedAt": "2026-11-05T17:10:05.4885605+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-05 17:10:05"
+      "target": "2317 lines",
+      "acknowledgedAt": "2026-11-10T19:01:04.4005765+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-10 19:01:04"
     },
     {
       "fingerprint": "bf7d98df2438d70b9a384ab9eb0d6650f5608acb883e9616961702edd36391a5",

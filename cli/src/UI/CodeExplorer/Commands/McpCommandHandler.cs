@@ -38,7 +38,7 @@ public class McpCommandHandler : BaseCommandHandler
         }
         else
         {
-            ws = WorkspaceLocator.FindWithFallbacks(opts.Root);
+            ws = WorkspaceLocator.FindExplicitOnly(opts.Root);
             if (ws != null)
             {
                 dbPath = ws.DbPath;

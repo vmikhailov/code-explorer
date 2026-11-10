@@ -377,7 +377,10 @@ public class GateExecutionEngine
 
     private static bool IsLiteralEvidenceNode(string propName, CodeExplorer.Cypher.Common.NodeKind kind)
         => kind == CodeExplorer.Cypher.Common.NodeKind.CallLiteral
+        || kind == CodeExplorer.Cypher.Common.NodeKind.CallArgument
+        || kind == CodeExplorer.Cypher.Common.NodeKind.Parameter
         || string.Equals(propName, "lit", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(propName, "arg", StringComparison.OrdinalIgnoreCase)
         || string.Equals(propName, "literal", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsRelationshipAlias(string name)

@@ -907,15 +907,12 @@ export const App: React.FC = () => {
             } else if (resp.isSchemaOutdated) {
               logToExtension(
                 'WARN',
-                `Database schema is outdated (v${resp.schemaVersion ?? 1} < v${resp.currentSchemaVersion ?? 2}). Triggering background re-index...`
+                `Database schema is outdated (v${resp.schemaVersion ?? 1} < v${resp.currentSchemaVersion ?? 6}). Prompting user to convert schema...`
               );
-              setIsScanning(true);
-              setScanProgress({ phase: 'Starting', percentage: 5, currentFile: 'Upgrading database schema...' });
-              setScanNotification({ type: 'info', text: 'Database schema is outdated. Rebuilding graph in background...' });
-              sendWsMessage({
-                type: 'TRIGGER_SCAN_REQUEST',
-                requestId: `req_scan_schema_${Date.now()}`,
-                payload: { clear: true },
+              setActiveError({
+                code: 'SCHEMA_OUTDATED',
+                message: `Database schema version is outdated (v${resp.schemaVersion ?? 1} < v${resp.currentSchemaVersion ?? 6}). Convert the database schema to v${resp.currentSchemaVersion ?? 6} or rebuild the graph.`,
+                timestamp: Date.now(),
               });
             } else {
               // Fetch dedicated graph for initial view mode
@@ -950,6 +947,7 @@ export const App: React.FC = () => {
               setIsScanning(true);
             } else if (scanEv.phase === 'Completed') {
               setIsScanning(false);
+              setActiveError((prev) => (prev?.code === 'SCHEMA_OUTDATED' ? null : prev));
               const countInfo = scanEv.currentFile || `Completed (${scanEv.totalFiles || 0} nodes)`;
               setScanNotification({ type: 'success', text: countInfo });
               if (scanEv.totalFiles) {
@@ -1165,6 +1163,16 @@ export const App: React.FC = () => {
       unsubError();
     };
   }, [handleWsMessage]);
+
+  const handleUpgradeSchema = useCallback(() => {
+    if (connectionStatus !== 'connected' || isScanning) return;
+    setActiveError(null);
+    setIsScanning(true);
+    setScanProgress({ phase: 'Starting', percentage: 10, currentFile: 'Converting database schema...' });
+    setScanNotification({ type: 'info', text: 'Converting database schema in background...' });
+
+    sendWsMessage({ type: 'UPGRADE_SCHEMA_REQUEST', requestId: `req_upgrade_schema_${Date.now()}`, payload: {} });
+  }, [connectionStatus, isScanning, sendWsMessage]);
 
   const handleTriggerScan = useCallback((clear: boolean = false) => {
     if (connectionStatus !== 'connected') {
@@ -1444,41 +1452,32 @@ export const App: React.FC = () => {
               </div>
               <div className="error-actions">
                 {activeError.details && (
-                  <button
-                    className="error-action-btn secondary"
-                    onClick={() => setShowErrorDetails((prev) => !prev)}
-                  >
+                  <button className="error-action-btn secondary" onClick={() => setShowErrorDetails((prev) => !prev)}>
                     {showErrorDetails ? 'Hide Details' : 'View Details'}
                   </button>
                 )}
-                <button
-                  className="error-action-btn secondary"
-                  onClick={handleCopyError}
-                  title="Copy error details to clipboard"
-                >
+                <button className="error-action-btn secondary" onClick={handleCopyError} title="Copy error details to clipboard">
                   {copiedError ? '✓ Copied' : 'Copy'}
                 </button>
-                <button
-                  className="error-action-btn secondary"
-                  onClick={handleShowLogs}
-                  title="Open VS Code Output Channel"
-                >
+                <button className="error-action-btn secondary" onClick={handleShowLogs} title="Open VS Code Output Channel">
                   Show Logs
                 </button>
+                {activeError.code === 'SCHEMA_OUTDATED' && (
+                  <>
+                    <button className="error-action-btn primary" onClick={handleUpgradeSchema} title="Convert database schema in-place">
+                      Convert Schema
+                    </button>
+                    <button className="error-action-btn secondary" onClick={() => { setActiveError(null); handleTriggerScan(true); }} title="Clear database and rebuild graph from source">
+                      Rebuild Graph
+                    </button>
+                  </>
+                )}
                 {(connectionStatus === 'disconnected' || connectionStatus === 'error' || connectionStatus === 'reconnecting') && (
-                  <button
-                    className="error-action-btn primary"
-                    onClick={handleReconnect}
-                    title="Reconnect to server"
-                  >
+                  <button className="error-action-btn primary" onClick={handleReconnect} title="Reconnect to server">
                     {connectionStatus === 'reconnecting' ? 'Reconnecting now...' : 'Reconnect Now'}
                   </button>
                 )}
-                <button
-                  className="error-action-btn close"
-                  onClick={() => setActiveError(null)}
-                  title="Dismiss error"
-                >
+                <button className="error-action-btn close" onClick={() => setActiveError(null)} title="Dismiss error">
                   ✕
                 </button>
               </div>
@@ -1520,7 +1519,8 @@ export const App: React.FC = () => {
             (viewMode === 'c1' && !c1Graph && !fullGraph) ||
             (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
             connectionStatus !== 'error' &&
-            connectionStatus !== 'disconnected' && (
+            connectionStatus !== 'disconnected' &&
+            activeError?.code !== 'SCHEMA_OUTDATED' && (
               <div className="view-loading-overlay">
                 <div className="view-loading-card">
                   <div className="view-loading-spinner" />

@@ -56,6 +56,9 @@ public partial class Layer5AnalysisParser
         // 4. Perform Late Binding
         var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx, referenceRelationships);
 
+        // 4b. Propagate Semantic Arguments & Ground Downward Target Relationships
+        await SemanticArgumentPropagator.PropagateAndGroundAsync(l4Result, ctx, referenceRelationships, lateBoundRels);
+
         // 5. Run PostIndexAnalyzer
         await ctx.FlushScanIssuesAsync();
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
@@ -107,6 +110,7 @@ public partial class Layer5AnalysisParser
 
         var symbols = BuildSymbolLookups(ctx, _currentL4Result);
         ResolveInheritanceReferences(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
+        Layer5SymbolVisibilityResolver.ResolveMemberOfTypeRelationships(ctx, symbols, referenceRelationships);
         var bindings = BuildBindingLookups(ctx);
         var imports = BuildImportLookups(ctx, _currentL4Result);
 
@@ -145,7 +149,7 @@ public partial class Layer5AnalysisParser
                         ResolveCallsReference(refItem, ctx, symbols, bindings, imports, interfaceToImplementors, referenceRelationships);
                         break;
                     case RelationshipKind.DependsOn:
-                        ResolveDependsOnReference(refItem, symbols, referenceRelationships);
+                        Layer5SymbolVisibilityResolver.ResolveDependsOnReference(refItem, symbols, referenceRelationships);
                         break;
                     case RelationshipKind.Triggers:
                         ResolveTriggersReference(refItem, symbols, referenceRelationships, existingRefRels);
@@ -162,21 +166,21 @@ public partial class Layer5AnalysisParser
                         }
                         break;
                     case RelationshipKind.PersistedIn:
-                        ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships, existingRefRels);
+                        Layer5SymbolVisibilityResolver.ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships, existingRefRels);
                         break;
                     case RelationshipKind.Instantiates:
                         ResolveInstantiatesReference(refItem, ctx, symbols, imports, referenceRelationships);
                         break;
                     case RelationshipKind.UsesType:
-                        ResolveUsesTypeReference(refItem, ctx, symbols, referenceRelationships);
+                        Layer5SymbolVisibilityResolver.ResolveUsesTypeReference(refItem, ctx, symbols, referenceRelationships);
                         break;
                     case RelationshipKind.AccessedBy:
                     case RelationshipKind.ImplementedBy:
-                        ResolveAccessedByOrImplementedByReference(refItem, ctx, symbols, referenceRelationships);
+                        Layer5SymbolVisibilityResolver.ResolveAccessedByOrImplementedByReference(refItem, symbols, referenceRelationships);
                         break;
                     case RelationshipKind.ReadsFrom:
                     case RelationshipKind.WritesTo:
-                        ResolveReadsOrWritesReference(refItem, symbols, referenceRelationships);
+                        Layer5SymbolVisibilityResolver.ResolveReadsOrWritesReference(refItem, symbols, referenceRelationships);
                         break;
                 }
             }

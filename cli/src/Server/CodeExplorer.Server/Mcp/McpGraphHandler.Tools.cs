@@ -18,7 +18,7 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetAffectedTestsAsync(filePath, symbolName, filePaths, gitDiff, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetAffectedTestsAsync(filePath, symbolName, filePaths, gitDiff, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -32,7 +32,7 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetTestCoverageAsync(projectName, pathPrefix, status, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetTestCoverageAsync(projectName, pathPrefix, status, limit, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -47,7 +47,7 @@ public partial class McpGraphHandler
         {
             return WrapError("Missing 'tableName' argument.");
         }
-        return await ExecuteAsync(() => repository.InspectDataLineageAsync(tableName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.InspectDataLineageAsync(tableName, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -62,7 +62,7 @@ public partial class McpGraphHandler
         {
             return WrapError("Missing 'projectName' argument.");
         }
-        return await ExecuteAsync(() => repository.GetProjectEntryPointsAsync(projectName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetProjectEntryPointsAsync(projectName, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -78,7 +78,7 @@ public partial class McpGraphHandler
         {
             return WrapError("Missing 'projectName' argument.");
         }
-        return await ExecuteAsync(() => repository.FindRefactoringOpportunitiesAsync(projectName, metricType, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.FindRefactoringOpportunitiesAsync(projectName, metricType, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -93,7 +93,7 @@ public partial class McpGraphHandler
         {
             return WrapError("Missing 'query' argument.");
         }
-        return await ExecuteAsync(() => repository.ExecuteCustomReadCypherAsync(query, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ExecuteCustomReadCypherAsync(query, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -103,7 +103,7 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetTaxonomyAsync(GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetTaxonomyAsync(ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -118,7 +118,7 @@ public partial class McpGraphHandler
         {
             return WrapError("Missing 'nodes' argument.");
         }
-        return await ExecuteAsync(() => repository.FetchCodeSnippetsAsync(nodes, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.FetchCodeSnippetsAsync(nodes, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -141,7 +141,7 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ListProjectQueriesAsync(workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ListProjectQueriesAsync(ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -164,8 +164,8 @@ public partial class McpGraphHandler
         if (string.IsNullOrWhiteSpace(cypher))
             return WrapError("Missing 'cypher' argument.");
 
-        return await ExecuteAsync(() => repository.SaveProjectQueryAsync(
-            name, description, cypher, parameters, returns, tags, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.SaveProjectQueryAsync(
+            name, description, cypher, parameters, returns, tags, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -180,8 +180,8 @@ public partial class McpGraphHandler
         if (string.IsNullOrWhiteSpace(name))
             return WrapError("Missing 'name' argument.");
 
-        return await ExecuteAsync(() => repository.ExecuteProjectQueryAsync(
-            name, parameters, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ExecuteProjectQueryAsync(
+            name, parameters, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -195,8 +195,8 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ExportArchitectureDiagramAsync(
-            format, type, project, includeLibraries, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ExportArchitectureDiagramAsync(
+            format, type, project, includeLibraries, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -208,8 +208,8 @@ public partial class McpGraphHandler
         [Description("Reinitialize existing workspace if true.")] bool force = false,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.InitWorkspaceAsync(
-            name, workspacePath ?? GetCurrentWorkspacePath(), force, cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.InitWorkspaceAsync(
+            name, ws, force, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -221,8 +221,8 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ScanWorkspaceAsync(
-            path, clear, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ScanWorkspaceAsync(
+            path, clear, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -232,8 +232,8 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetWorkspaceStatusAsync(
-            workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetWorkspaceStatusAsync(
+            ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -244,8 +244,8 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ClearWorkspaceIndexAsync(
-            path, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ClearWorkspaceIndexAsync(
+            path, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -260,14 +260,14 @@ public partial class McpGraphHandler
         if (string.IsNullOrWhiteSpace(nodes))
             return WrapError("Missing 'nodes' argument.");
 
-        return await ExecuteAsync(() => repository.IngestGraphDataAsync(
-            nodes, relationships, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.IngestGraphDataAsync(
+            nodes, relationships, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
     [McpServerTool]
     [Description("List, add, or remove architectural domain definitions in .codeexplorer/domains.json.")]
-    public Task<CallToolResult> ManageDomainAsync(
+    public async Task<CallToolResult> ManageDomainAsync(
         [Description("Action: 'list', 'add', or 'remove'.")] string action,
         [Description("Domain name (required for 'add' and 'remove').")] string? name = null,
         [Description("Display name.")] string? displayName = null,
@@ -278,17 +278,26 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        var wsRoot = workspacePath ?? GetCurrentWorkspacePath();
-        if (string.IsNullOrWhiteSpace(wsRoot)) return Task.FromResult(WrapError("No active workspace found."));
+        string? wsRoot;
+        try
+        {
+            wsRoot = await ResolveWorkspacePathAsync(workspacePath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return WrapError(ex);
+        }
+
+        if (string.IsNullOrWhiteSpace(wsRoot)) return WrapError("No active workspace found.");
 
         switch (action.ToLowerInvariant())
         {
             case "list":
                 var config = DomainManagementService.LoadConfig(wsRoot);
-                return Task.FromResult(WrapResult(ToonYamlSerializer.SerializeObject(config)));
+                return WrapResult(ToonYamlSerializer.SerializeObject(config));
 
             case "add":
-                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(WrapError("Domain 'name' is required for 'add' action."));
+                if (string.IsNullOrWhiteSpace(name)) return WrapError("Domain 'name' is required for 'add' action.");
                 var domain = DomainManagementService.AddOrUpdateDomain(wsRoot, new DomainDefinitionDto
                 {
                     Name = name.Trim(),
@@ -297,18 +306,18 @@ public partial class McpGraphHandler
                     Icon = icon,
                     Color = color
                 });
-                return Task.FromResult(WrapResult($"Domain '{domain.Name}' added/updated in {DomainManagementService.GetConfigFilePath(wsRoot)}."));
+                return WrapResult($"Domain '{domain.Name}' added/updated in {DomainManagementService.GetConfigFilePath(wsRoot)}.");
 
             case "remove":
             case "delete":
-                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(WrapError("Domain 'name' is required for 'remove' action."));
+                if (string.IsNullOrWhiteSpace(name)) return WrapError("Domain 'name' is required for 'remove' action.");
                 var removed = DomainManagementService.RemoveDomain(wsRoot, name.Trim(), reassignTo);
-                return Task.FromResult(removed
+                return removed
                     ? WrapResult($"Domain '{name}' removed from {DomainManagementService.GetConfigFilePath(wsRoot)}.")
-                    : WrapError($"Domain '{name}' not found."));
+                    : WrapError($"Domain '{name}' not found.");
 
             default:
-                return Task.FromResult(WrapError($"Unknown action '{action}'. Valid actions are 'list', 'add', 'remove'."));
+                return WrapError($"Unknown action '{action}'. Valid actions are 'list', 'add', 'remove'.");
         }
     }
 
@@ -323,7 +332,16 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        var wsRoot = workspacePath ?? GetCurrentWorkspacePath();
+        string? wsRoot;
+        try
+        {
+            wsRoot = await ResolveWorkspacePathAsync(workspacePath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return WrapError(ex);
+        }
+
         if (string.IsNullOrWhiteSpace(wsRoot)) return WrapError("No active workspace found.");
 
         if (removeOverride)
@@ -339,10 +357,17 @@ public partial class McpGraphHandler
             return WrapError("'domainName' is required when assigning a domain.");
         }
 
-        var client = await repository.ResolveClientAsync(wsRoot);
-        DomainManagementService.AssignServiceDomain(wsRoot, serviceName, domainName, boundedContext, client, cancellationToken);
-        return WrapResult($"Assigned service '{serviceName}' to domain '{domainName}'" +
-            (string.IsNullOrWhiteSpace(boundedContext) ? "" : $" (context: '{boundedContext}')") + ".");
+        try
+        {
+            var client = await repository.ResolveClientAsync(wsRoot);
+            DomainManagementService.AssignServiceDomain(wsRoot, serviceName, domainName, boundedContext, client, cancellationToken);
+            return WrapResult($"Assigned service '{serviceName}' to domain '{domainName}'" +
+                (string.IsNullOrWhiteSpace(boundedContext) ? "" : $" (context: '{boundedContext}')") + ".");
+        }
+        catch (Exception ex)
+        {
+            return WrapError(ex);
+        }
     }
 
     [UsedImplicitly]
@@ -361,7 +386,7 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.CheckSemanticGatesAsync(gateId, category, platform, scope, dimension, includeTolerated, limit, fileFilter, groupBy, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.CheckSemanticGatesAsync(gateId, category, platform, scope, dimension, includeTolerated, limit, fileFilter, groupBy, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
@@ -373,6 +398,6 @@ public partial class McpGraphHandler
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ListSemanticGatesAsync(category, platform, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ListSemanticGatesAsync(category, platform, ws, cancellationToken), cancellationToken);
     }
 }

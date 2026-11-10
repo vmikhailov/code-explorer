@@ -50,7 +50,9 @@ public enum NodeKind : byte
     CallLiteral = 40,
     CatchClause = 41,
     Counter = 42,
-    GitSettings = 43
+    GitSettings = 43,
+    Parameter = 44,
+    CallArgument = 45
 }
 
 [JsonConverter(typeof(RelationshipKindJsonConverter))]
@@ -121,7 +123,11 @@ public enum RelationshipKind : byte
     Subscribes = 62,
     Library = 63,
     AccessesTable = 64,
-    Related = 65
+    Related = 65,
+    HasParameter = 66,
+    PassesArgument = 67,
+    FlowsTo = 68,
+    TargetedBy = 69
 }
 
 /// <summary>
@@ -174,6 +180,8 @@ public static class OntologyEnumMaps
         nodeByName["scan_issue"] = NodeKind.ScanIssue;
         nodeByName["parse_issue"] = NodeKind.ScanIssue;
         nodeByName["parseissue"] = NodeKind.ScanIssue;
+        nodeByName["call_argument"] = NodeKind.CallArgument;
+        nodeByName["callargument"] = NodeKind.CallArgument;
 
         NodeKindByName = nodeByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByNodeKind = nameByNode.ToFrozenDictionary();

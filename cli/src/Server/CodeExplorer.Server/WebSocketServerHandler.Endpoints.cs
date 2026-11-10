@@ -50,7 +50,21 @@ public partial class WebSocketServerHandler
                     _ = BroadcastAsync(WsMessageTypes.ScanProgressEvent, progEv, CancellationToken.None);
                 });
 
-                var shouldClear = clear || (_graphClient is SqliteGraphClient sqlite && sqlite.IsSchemaOutdated);
+                if (!clear && _graphClient.IsSchemaOutdated)
+                {
+                    var fromVer = _graphClient.SchemaVersion;
+                    var upgEv = new ScanProgressEventDto
+                    {
+                        Phase = "Starting",
+                        Percentage = 10,
+                        CurrentFile = $"Converting database schema from v{fromVer} to v{SqliteGraphClient.CurrentSchemaVersion}..."
+                    };
+                    _lastProgress = upgEv;
+                    await BroadcastAsync(WsMessageTypes.ScanProgressEvent, upgEv, CancellationToken.None);
+                    await _graphClient.UpgradeSchemaAsync(CancellationToken.None);
+                }
+
+                var shouldClear = clear || _graphClient.IsSchemaOutdated;
                 var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, shouldClear, CancellationToken.None, progress);
 
                 var compEv = new ScanProgressEventDto
@@ -86,23 +100,105 @@ public partial class WebSocketServerHandler
         return true;
     }
 
+    public bool TriggerSchemaUpgrade()
+    {
+        if (Interlocked.CompareExchange(ref _isScanning, 1, 0) != 0)
+        {
+            return false;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var fromVer = _graphClient.SchemaVersion;
+                var startEv = new ScanProgressEventDto
+                {
+                    Phase = "Starting",
+                    Percentage = 15,
+                    CurrentFile = $"Converting database schema from v{fromVer} to v{SqliteGraphClient.CurrentSchemaVersion}..."
+                };
+                _lastProgress = startEv;
+                await BroadcastAsync(WsMessageTypes.ScanProgressEvent, startEv, CancellationToken.None);
+
+                var upgraded = await _graphClient.UpgradeSchemaAsync(CancellationToken.None);
+                if (upgraded)
+                {
+                    var (nodesCount, relsCount) = await _graphClient.GetGraphCountsAsync(CancellationToken.None);
+                    var compEv = new ScanProgressEventDto
+                    {
+                        Phase = "Completed",
+                        Percentage = 100,
+                        TotalFiles = nodesCount,
+                        ProcessedFiles = nodesCount,
+                        CurrentFile = $"Database schema converted to v{SqliteGraphClient.CurrentSchemaVersion} ({nodesCount} nodes, {relsCount} relationships)."
+                    };
+                    _lastProgress = null;
+                    InvalidateGatesCache();
+                    await BroadcastAsync(WsMessageTypes.ScanProgressEvent, compEv, CancellationToken.None);
+                }
+                else
+                {
+                    var fallbackEv = new ScanProgressEventDto
+                    {
+                        Phase = "Indexing",
+                        Percentage = 20,
+                        CurrentFile = "In-place schema conversion failed; rebuilding graph from source..."
+                    };
+                    _lastProgress = fallbackEv;
+                    await BroadcastAsync(WsMessageTypes.ScanProgressEvent, fallbackEv, CancellationToken.None);
+
+                    var (nodesCount, relsCount, _) = await _indexer.IndexAsync(_workspaceRoot, _workspaceRoot, clear: true, CancellationToken.None);
+                    var compEv = new ScanProgressEventDto
+                    {
+                        Phase = "Completed",
+                        Percentage = 100,
+                        TotalFiles = nodesCount,
+                        ProcessedFiles = nodesCount,
+                        CurrentFile = $"Indexed {nodesCount} nodes, {relsCount} relationships."
+                    };
+                    _lastProgress = null;
+                    InvalidateGatesCache();
+                    await BroadcastAsync(WsMessageTypes.ScanProgressEvent, compEv, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Server     ] Schema upgrade failed");
+                var failEv = new ScanProgressEventDto
+                {
+                    Phase = "Failed",
+                    Percentage = 0,
+                    CurrentFile = ex.Message
+                };
+                _lastProgress = null;
+                await BroadcastAsync(WsMessageTypes.ScanProgressEvent, failEv, CancellationToken.None);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _isScanning, 0);
+            }
+        });
+
+        return true;
+    }
+
     private async Task HandleHandshakeAsync(ClientSession session, string reqId, JsonElement payload, CancellationToken cancellationToken)
     {
+        var sqliteClient = _graphClient as SqliteGraphClient;
         long nodesCount = 0;
         long edgesCount = 0;
         try
         {
-            const string countNodesQuery = "MATCH (n) RETURN count(n) AS cnt";
-            const string countEdgesQuery = "MATCH ()-[r]->() RETURN count(r) AS cnt";
-            nodesCount = await _graphClient.QueryScalarAsync<long>(countNodesQuery, null, cancellationToken);
-            edgesCount = await _graphClient.QueryScalarAsync<long>(countEdgesQuery, null, cancellationToken);
+            var (n, r) = await _graphClient.GetGraphCountsAsync(cancellationToken);
+            nodesCount = n;
+            edgesCount = r;
         }
         catch
         {
-            // Ignore if empty/new database
+            // Ignore if empty/new or outdated database
         }
 
-        var sqliteClient = _graphClient as SqliteGraphClient;
         var isScanning = Volatile.Read(ref _isScanning) == 1;
 
         var response = new HandshakeResponseDto

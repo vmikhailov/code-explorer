@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Case Study 05: OrchardCore Modular .NET Audit (CodeExplorer vs ripgrep)</title>
-  <meta name="description" content="Paired AI agent benchmark on OrchardCMS/OrchardCore (~180 C# .NET projects, ~6,000 files) comparing CodeExplorer against ripgrep across cross-module interface hierarchies, DI call chains, and YesSql index lineage.">
+  <meta name="description" data-bind-meta="cs05.meta_desc" content="Paired AI agent benchmark on OrchardCMS/OrchardCore (334 projects, 7,837 files): CodeExplorer Agent (6m 24s answer / 8m 51s wall, 15 turns / 61 steps, 15 file reads, 0 compactions) vs ripgrep + view_file Agent (14m 49s answer / 18m 11s wall, 38 turns / 227 steps, 163 file reads, 2 compactions).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
   <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
@@ -36,7 +36,7 @@
             <span>/</span>
             <span class="tone-ink">Case Study 05: OrchardCore Modular .NET Audit</span>
           </div>
-          <span class="measured">[TBD ~180] C# projects, [TBD ~6,000] files</span>
+          <span class="measured" data-bind="cs05.crumb_scale">334 projects, 7,837 files</span>
         </div>
 
         <div class="hero-top">
@@ -45,7 +45,7 @@
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Paired A/B agent benchmark on <code>OrchardCMS/OrchardCore</code> (open-source modular .NET CMS &amp; framework with <code>[TBD ~180]</code> projects and <code>[TBD ~6,000]</code> C# files). Measures how an AI agent resolves multi-hop C# interface hierarchies, cross-module DI call chains, and database index lineage.
+              Paired A/B agent benchmark on <code>OrchardCMS/OrchardCore</code> (open-source modular .NET CMS &amp; framework with <code>334</code> projects and <code>7,837</code> files). Measures how an AI agent resolves AppSec authorization invariants, <code>YesSql.ISession</code> boundary violations, cross-module <code>PublishedAsync</code> pipelines, and <code>IContentManager</code> blast radius.
             </p>
             <div class="hero-controls">
               <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/05-polyglot-architecture-and-blast-radius/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
@@ -56,38 +56,36 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok" data-bind="cs05.card_speedup">~0.0× [TBD]</span>
+            <span class="reading tone-ok" data-bind="cs05.card_speedup">~2.3×</span>
             <h2 class="panel-title">Shorter Time to Answer</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_speed_copy"><code>[TBD]</code> with <code>CodeExplorer</code> vs <code>[TBD]</code> with <code>ripgrep</code> + <code>view_file</code> across <code>OrchardCore</code> modules.</p>
-            <code class="panel-code" data-bind="cs05.card_turns_footer">[TBD] turns vs [TBD] turns</code>
+            <p class="panel-copy" data-bind-html="cs05.card_speed_copy"><code>6m 24s</code> with <code>CodeExplorer</code> vs <code>14m 49s</code> with <code>ripgrep</code> + <code>view_file</code> across <code>334</code> projects.</p>
+            <code class="panel-code" data-bind="cs05.card_turns_footer">15 turns / 61 steps vs 38 turns / 227 steps</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent" data-bind="cs05.card_tokens">~0.0× [TBD]</span>
-            <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>[TBD]</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>[TBD]</code> tokens with <code>ripgrep</code>.</p>
-            <code class="panel-code" data-bind="cs05.card_cost_footer">$[TBD] vs $[TBD] API cost</code>
+            <span class="reading tone-accent" data-bind="cs05.card_tokens">~6.0×</span>
+            <h2 class="panel-title">Less Tool Payload</h2>
+            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>~68K</code> tool output tokens with <code>CodeExplorer</code> vs <code>~406K</code> with <code>ripgrep</code> (<code>~2.8×</code> lower API cost).</p>
+            <code class="panel-code" data-bind="cs05.card_cost_footer">$0.23 vs $0.65 (~4.9× fewer input tokens)</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool" data-bind="cs05.card_reads">~0.0× [TBD]</span>
+            <span class="reading tone-cool" data-bind="cs05.card_reads">~11×</span>
             <h2 class="panel-title">Fewer File Reads</h2>
-            <p class="panel-copy"><code>[TBD]</code> source files read manually by the graph agent vs <code>[TBD]</code> file reads by the <code>ripgrep</code> agent.</p>
-            <code class="panel-code">[TBD] KB vs [TBD] KB tool output</code>
+            <p class="panel-copy" data-bind-html="cs05.card_reads_copy"><code>15</code> <code>view_file</code> reads (<code>0</code> repo source files) by the graph agent vs <code>163</code> reads by <code>ripgrep</code>.</p>
+            <code class="panel-code" data-bind="cs05.card_reads_footer">264 KB vs 1,587 KB tool output</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading">100% vs [TBD]</span>
-            <h2 class="panel-title">Cross-Module Recall</h2>
-            <p class="panel-copy">Completeness on transitive C# base classes (<code>ContentPartDisplayDriver&lt;T&gt;</code>, <code>ContentHandlerBase</code>) and DI callers.</p>
-            <code class="panel-code">[TBD] matched implementations</code>
+            <span class="reading" data-bind="cs05.card_recall">100% vs 100%</span>
+            <h2 class="panel-title">Symbol Recall &amp; Context</h2>
+            <p class="panel-copy" data-bind-html="cs05.card_recall_copy">Both reached 100% recall across all 4 tasks; <code>CodeExplorer</code> stayed in one window while <code>ripgrep</code> hit <code>2</code> compactions.</p>
+            <code class="panel-code" data-bind="cs05.card_recall_footer">0 vs 2 context compactions</code>
           </div>
         </div>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
-          <strong>Tested participants:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.x</code> (.NET 10, SQLite + OpenCypher)<br>
-          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + <code>view_file</code><br>
-          3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (100% symmetric system prompts)<br>
-          4. <strong>Target Repository:</strong> <code>OrchardCMS/OrchardCore</code> (commit <code>[TBD]</code>, <code>[TBD ~180]</code> C# projects, <code>[TBD ~6,000]</code> files)
-        </div>
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs05.participants_html"><strong>Tested participants:</strong><br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.78.1</code> (.NET 10, SQLite + OpenCypher MCP server, <code>134,067</code> nodes, <code>288,527</code> edges)<br>
+          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + <code>view_file</code> (pure lexical search + file reading; custom AST scripts disallowed, complementing Case 02)<br>
+          3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (matched subagent prompts without <code>write_to_file</code>; see methodological note below)<br>
+          4. <strong>Target Repository:</strong> <code>OrchardCMS/OrchardCore</code> (commit <code>05ad2d9a</code>, <code>334</code> projects, <code>7,837</code> files)</div>
       </div>
     </section>
 
@@ -96,34 +94,42 @@
         <div class="band-head">
           <h2 class="band-title">1. What the agents had to solve on OrchardCore.</h2>
           <p class="band-lede">
-            In a modular .NET monolith like <code>OrchardCore</code>, classes rarely implement root interfaces directly: they inherit through generic base classes (such as <code>ContentPartDisplayDriver&lt;TPart&gt;</code> or <code>ContentHandlerBase</code>) across <code>[TBD ~180]</code> separate <code>.csproj</code> modules.
+            In a modular .NET monolith like <code>OrchardCore</code>, architectural rules span <code>334</code> projects: verifying security invariants, layer boundaries, reactive event pipelines, and breaking-change blast radius requires joining attributes, inheritance hierarchies, member access, and multi-hop call chains.
           </p>
         </div>
 
-        <div class="panels panels--3">
+        <div class="panels panels--4">
           <div class="panel">
             <div class="panel-head">
-              <h3 class="panel-title">Display Drivers &amp; Content Handlers</h3>
+              <h3 class="panel-title">AppSec AuthorizeAsync Audit</h3>
               <span class="badge badge--accent">Task 1</span>
             </div>
-            <p class="panel-copy">Find all classes implementing <code>IDisplayDriver</code> and <code>IContentHandler</code> (including indirect subclasses via generic base classes) across key content modules.</p>
-            <code class="panel-code">Tests transitive :INHERITS_FROM|IMPLEMENTS*1..5</code>
+            <p class="panel-copy">Audit all 88 non-anonymous <code>[HttpPost]</code>, <code>[HttpPut]</code>, and <code>[HttpDelete]</code> actions across 5 security modules to find which actions call <code>AuthorizeAsync</code> within 1 to 2 hops vs which do not.</p>
+            <code class="panel-code">67 calling vs 21 missing AuthorizeAsync</code>
           </div>
           <div class="panel">
             <div class="panel-head">
-              <h3 class="panel-title">Upstream Callers &amp; Endpoints</h3>
+              <h3 class="panel-title">YesSql.ISession Boundary Audit</h3>
               <span class="badge badge--win">Task 2</span>
             </div>
-            <p class="panel-copy">Trace production callers of core content management services across module boundaries up to the triggering Razor/MVC controller endpoints and background tasks.</p>
-            <code class="panel-code">Tests C# constructor DI resolution &amp; :CALLS</code>
+            <p class="panel-copy">Identify every Controller and Display Driver across <code>src/OrchardCore.Modules/*</code> that bypasses domain services to invoke operations directly on an injected <code>YesSql.ISession</code> field.</p>
+            <code class="panel-code">25 classes across 13 modules (ACCESSED_BY)</code>
           </div>
           <div class="panel">
             <div class="panel-head">
-              <h3 class="panel-title">Project Fan-In &amp; YesSql Indexes</h3>
+              <h3 class="panel-title">PublishedAsync Event Fan-Out</h3>
               <span class="badge badge--cool">Task 3</span>
             </div>
-            <p class="panel-copy">Identify which modules depend on core abstractions and map document index providers to their underlying storage tables.</p>
-            <code class="panel-code">Tests :DEPENDS_ON &amp; data lineage</code>
+            <p class="panel-copy">Locate all <code>PublishingAsync</code> and <code>PublishedAsync</code> content handlers across the monorepo and trace their 1 to 2 hop downstream calls into DB/index stores, tag caches, and workflows.</p>
+            <code class="panel-code">16 concrete + 10 base handler methods</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">IContentManager Blast Radius</h3>
+              <span class="badge badge--accent">Task 4</span>
+            </div>
+            <p class="panel-copy">Find all projects calling <code>GetAsync</code>, <code>CreateAsync</code>, or <code>PublishAsync</code> (including via DI service locators) and isolate over-coupled <code>DEPENDS_ON</code> projects with 0 calls.</p>
+            <code class="panel-code">20 caller projects + 38 over-coupled projects</code>
           </div>
         </div>
       </div>
@@ -134,13 +140,13 @@
         <div class="band-head">
           <h2 class="band-title">2. Execution telemetry scorecard.</h2>
           <p class="band-lede">
-            Measured from paired A/B agent runs on the same <code>OrchardCMS/OrchardCore</code> commit with identical symmetric system prompts.
+            Measured from paired A/B agent runs on the same <code>OrchardCMS/OrchardCore</code> commit with matched subagent system prompts.
           </p>
         </div>
 
         <div class="table-surface">
           <div class="table-caption-bar">
-            <span>Paired A/B Agent Telemetry on OrchardCMS/OrchardCore ([TBD ~180] C# Projects)</span>
+            <span>Paired A/B Agent Telemetry on OrchardCMS/OrchardCore (334 Projects, 7,837 Files)</span>
             <span class="measured">Source: benchmarks/05-polyglot-architecture-and-blast-radius/results/metrics.json</span>
           </div>
           <table class="bench-table">
@@ -155,48 +161,55 @@
             <tbody>
               <tr>
                 <td>Time to Answer (<code>send_message</code>)</td>
-                <td class="cell-loss" data-bind="cs05.tbl_time_rg">[TBD s] ([TBD min])</td>
-                <td class="cell-win" data-bind="cs05.tbl_time_ce">[TBD s] ([TBD min])</td>
-                <td class="cell-win" data-bind="cs05.tbl_time_delta">[TBD ×] faster</td>
+                <td class="cell-loss" data-bind="cs05.tbl_time_rg">889 s (14 min 49 sec) / 1,091 s wall</td>
+                <td class="cell-win" data-bind="cs05.tbl_time_ce">384 s (6 min 24 sec) / 531 s wall</td>
+                <td class="cell-win" data-bind="cs05.tbl_time_delta">2.32× faster (2.05× wall)</td>
               </tr>
               <tr>
-                <td>LLM Reasoning Turns</td>
-                <td class="cell-loss" data-bind="cs05.tbl_turns_rg">[TBD] turns</td>
-                <td class="cell-win" data-bind="cs05.tbl_turns_ce">[TBD] turns</td>
-                <td class="cell-win" data-bind="cs05.tbl_turns_delta">[TBD ×] fewer turns</td>
+                <td>LLM Turns, Steps &amp; Compactions</td>
+                <td class="cell-loss" data-bind="cs05.tbl_turns_rg">38 turns / 227 steps (2 compactions)</td>
+                <td class="cell-win" data-bind="cs05.tbl_turns_ce">15 turns / 61 steps (0 compactions)</td>
+                <td class="cell-win" data-bind="cs05.tbl_turns_delta">2.53× fewer turns (3.72× fewer steps)</td>
               </tr>
               <tr>
-                <td>Total Tool Calls</td>
-                <td class="cell-loss" data-bind-html="cs05.tbl_calls_rg">[TBD] (<code>rg</code> + <code>view_file</code>)</td>
-                <td class="cell-win" data-bind-html="cs05.tbl_calls_ce">[TBD] (<code>ce</code> + <code>view_file</code>)</td>
-                <td class="cell-win" data-bind="cs05.tbl_calls_delta">[TBD ×] fewer tool calls</td>
+                <td>Total Tool Calls &amp; File Reads</td>
+                <td class="cell-loss" data-bind-html="cs05.tbl_calls_rg">186 (22 <code>rg</code> + 163 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind-html="cs05.tbl_calls_ce">45 (29 <code>mcp</code> + 15 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind="cs05.tbl_calls_delta">4.13× fewer calls (10.87× fewer reads)</td>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss" data-bind="cs05.tbl_payload_rg">[TBD] chars (~[TBD] tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_payload_ce">[TBD] chars (~[TBD] tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_payload_delta">[TBD ×] less tool payload</td>
+                <td class="cell-loss" data-bind="cs05.tbl_payload_rg">1,625,077 chars (~406,269 tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_payload_ce">270,470 chars (~67,618 tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_payload_delta">6.01× less tool payload</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
-                <td class="cell-loss" data-bind="cs05.tbl_in_rg">[TBD] tokens</td>
-                <td class="cell-win" data-bind="cs05.tbl_in_ce">[TBD] tokens</td>
-                <td class="cell-win" data-bind="cs05.tbl_in_delta">[TBD ×] fewer input tokens</td>
+                <td class="cell-loss" data-bind="cs05.tbl_in_rg">3,197,058 est. (4,089,567 API tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_ce">651,686 est. (884,342 API tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_delta">4.91× fewer input tokens (4.34× uncached)</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
-                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$[TBD]</td>
-                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$[TBD]</td>
-                <td class="cell-win" data-bind="cs05.tbl_cost_delta">[TBD ×] cheaper</td>
+                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$0.65 Flash ($2.47 Pro)</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$0.23 Flash ($0.83 Pro)</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_delta">2.83× cheaper</td>
               </tr>
               <tr>
-                <td>Audit Completeness (Tasks 1 to 3)</td>
-                <td class="cell-num">[TBD %]</td>
-                <td class="cell-win">[TBD %]</td>
-                <td><strong>[TBD]</strong></td>
+                <td>Symbol Recall &amp; Context Health (Tasks 1 to 4)</td>
+                <td class="cell-num" data-bind="cs05.tbl_recall_rg">100% symbol recall (2 context compactions)</td>
+                <td class="cell-win" data-bind="cs05.tbl_recall_ce">100% symbol recall (single uncompacted window)</td>
+                <td data-bind-html="cs05.tbl_recall_delta"><strong>0 compactions vs 2 compactions</strong></td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
+          <strong>Methodological &amp; impartiality notes:</strong><br>
+          1. <strong>Controlled baseline scope (pure <code>rg</code> + <code>view_file</code>):</strong> Unlike Case Studies 01 and 02 (where baseline agents had <code>write_to_file</code> access and wrote custom TypeScript/Python AST parsers), neither subagent here had <code>write_to_file</code>, and <code>baseline-agent.md</code> explicitly forbade writing custom AST/graph-walking scripts. This isolates the interactive <code>rg</code> + <code>view_file</code> workflow most coding agents run out of the box.<br>
+          2. <strong>Why <code>CodeExplorer</code> finished in <code>15</code> turns (<code>61</code> steps, <code>0</code> compactions) vs <code>ripgrep</code>'s <code>38</code> turns (<code>227</code> steps, <code>2</code> compactions):</strong> The <code>CodeExplorer</code> MCP agent executed <code>22</code> parallelized OpenCypher queries, <code>1</code> <code>get_taxonomy</code> call, and <code>5</code> targeted <code>fetch_code_snippets</code> calls (with <code>0</code> direct repository <code>view_file</code> reads; its <code>15</code> <code>view_file</code> calls read only <code>4</code> lazy MCP tool schemas and <code>11</code> spilled query outputs). By contrast, <code>ripgrep</code> ran <code>22</code> <code>rg</code> searches and <code>163</code> <code>view_file</code> calls (<code>151</code> source files + <code>12</code> spilled outputs), ingesting <code>1.63 MB</code> of raw text and triggering <code>2</code> context compactions (Turns 20 and 31).<br>
+          3. <strong>Source-verified output audit:</strong> Both agents achieved <code>100%</code> ground-truth symbol recall across Tasks 1 to 4 (<code>88</code> state-mutating actions = <code>67</code> calling vs <code>21</code> missing <code>AuthorizeAsync</code>; <code>25</code> <code>ISession</code>-violating classes across <code>13</code> modules; <code>16</code> concrete + <code>6</code> base <code>PublishingAsync</code>/<code>PublishedAsync</code> handlers; <code>19</code> <code>IContentManager</code> caller projects + <code>38</code> over-coupled <code>DEPENDS_ON</code> projects), isolating pure wall-clock speedup (<code>2.32×</code> faster answer), context savings (<code>4.91×</code> fewer cumulative input tokens, <code>4.62×</code> fewer API tokens), and cost reduction (<code>2.83×</code> cheaper).
         </div>
       </div>
     </section>
@@ -205,19 +218,54 @@
       <div class="wrap">
         <div id="prompts" class="prompt-stack" style="margin-top: 0; padding-top: 0; border-top: none;">
           <div class="prompt-stack-head">
-            <h2 class="prompt-stack-title">3. Reproducibility: symmetric prompts &amp; task specification.</h2>
+            <h2 class="prompt-stack-title">3. Reproducibility: matched prompts &amp; task specification.</h2>
             <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
           </div>
           <details class="prompt-drawer">
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--accent">Task Prompt</span>
-                <span>prompts/task-prompt.md: Shared 3-Part OrchardCore Audit Task Given Identically to Both Agents</span>
+                <span>prompts/task-prompt.md: Shared 4-Part OrchardCore Audit Task Given Identically to Both Agents</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
             <div class="prompt-drawer-body">
-              <pre class="code-block" data-bind-file="benchmarks/05-polyglot-architecture-and-blast-radius/prompts/task-prompt.md">[TBD: Exact 3-part OrchardCore architectural audit prompt]</pre>
+              <pre class="code-block" data-bind-file="benchmarks/05-polyglot-architecture-and-blast-radius/prompts/task-prompt.md">Perform a comprehensive, 4-part architectural governance, security, and blast-radius audit on the `OrchardCMS/OrchardCore` modular .NET monolith located at `C:/Work/bench-pilot/repos/OrchardCore` (`src/OrchardCore/OrchardCore.*` and `src/OrchardCore.Modules/OrchardCore.*`, excluding `test/` projects, `src/Templates/`, and `*Tests*` files). Answer all four engineering questions below with 100% completeness (do not guess, sample, or truncate items). To keep both query outputs and your final report concise, **do not include file path columns** and **use compact grouped bullet lists** rather than wide multi-line Markdown tables:
+
+1. **Task 1 — AppSec Authorization Audit: State-Mutating Controller Actions Missing `AuthorizeAsync` (`Negative Graph Query / NOT EXISTS`)**:
+   Across the following 5 security-sensitive modules:
+   - `OrchardCore.Users`
+   - `OrchardCore.Roles`
+   - `OrchardCore.Tenants`
+   - `OrchardCore.ContentTypes`
+   - `OrchardCore.Workflows`
+   Identify every public action method (`ControllerClass.ActionMethod`) on an MVC/API controller class (inheriting from `Controller` or `ControllerBase`, or decorated with `[Controller]` / `[ApiController]`) that is decorated with `[HttpPost]`, `[HttpPut]`, or `[HttpDelete]` (excluding `[AllowAnonymous]` actions) and:
+   - **(1a)** Calls `IAuthorizationService.AuthorizeAsync` directly (`1` hop) or via a helper method within `2` hops (`1..2` hops), vs
+   - **(1b)** **Does NOT call `AuthorizeAsync` within `1..2` hops** (indicating whether class-level attributes like `[Admin]` or `[Authorize]` are present on the controller).
+   Group by module and report the exact counts and compact list of `ControllerClass.ActionMethod` for both **(1a)** and **(1b)**.
+
+2. **Task 2 — Architectural Boundary Violations: Web &amp; UI Layer Bypassing Services to Access `YesSql.ISession` Directly (`Semantic Invariant Audit`)**:
+   In a clean modular architecture, MVC controllers and UI display drivers should interact with domain services (`IContentManager`, `ISiteService`, stores) rather than querying or mutating the low-level `YesSql.ISession` document session directly.
+   Across all modules under `src/OrchardCore.Modules/*`, identify every non-test **Controller** class (inheriting from `Controller` or `ControllerBase`, or decorated with `[Controller]` / `[ApiController]`) and **Display Driver** class (inheriting from or implementing any `*DisplayDriver*` contract such as `DisplayDriver`, `ContentPartDisplayDriver`, `ContentFieldDisplayDriver`, `SectionDisplayDriver`, or `IDisplayDriver`) whose methods **directly invoke methods on an injected `YesSql.ISession` member** (such as `Query`, `QueryIndex`, `SaveAsync`, `GetAsync`, `CancelAsync`, `CreateConnectionAsync`).
+   Group by module (`.csproj` project name), report the exact count of violating classes and method-to-session operation pairs per module, and list `ClassName.MethodName -&gt; ISession.Operation`.
+
+3. **Task 3 — Event Lifecycle Side-Effect Fan-Out: What Happens Across Modules When Content Is Published? (`Cross-Module Reactive Pipeline`)**:
+   When content is published in `OrchardCore`, the pipeline broadcasts `PublishingAsync` and `PublishedAsync` across content handlers (`IContentHandler`, `ContentHandlerBase`, `ContentPartHandler`, `ContentFieldHandler`, or `IScopedIndexProvider` implementations).
+   Identify every non-test class across `src/OrchardCore/` and `src/OrchardCore.Modules/` that implements or overrides `PublishingAsync` or `PublishedAsync`, and trace its **downstream calls (`1 to 2` hops)** to classify what side-effects each handler triggers:
+   - **Database / Session / Index / Content / Store mutation** (`ISession`, `*Entries`, `*IndexProvider`, `*TaskManager`, `*Store`, `IContentManager`, `IContentDefinitionManager`, `ISiteService`, `IAuditTrailManager`, `ISitemapUpdateHandler`)
+   - **Cache invalidation** (`ITagCache`, `RemoveTagAsync`, `IMemoryCache`, `IDistributedCache`)
+   - **Workflow / Deferred Task / Template trigger** (`IWorkflowManager`, `TriggerEventAsync`, `AddDeferredTask`, `ILiquidTemplateManager`)
+   Report the total count of handler methods (`ClassName.PublishingAsync` / `ClassName.PublishedAsync`) and list `Module -&gt; HandlerClass.MethodName -&gt; [Triggered Downstream Services/Methods]`.
+
+4. **Task 4 — Breaking-Change Blast Radius &amp; Unused Project Dependencies (`Layer 1–3 Cross-Layer Coupling`)**:
+   Suppose we introduce a breaking signature change to these 3 core contract methods on `IContentManager` in `OrchardCore.ContentManagement.Abstractions`:
+   - `IContentManager.GetAsync`
+   - `IContentManager.CreateAsync`
+   - `IContentManager.PublishAsync`
+   Determine across all non-test projects (`!is_test`, excluding `test/` and `src/Templates/`):
+   - **(4a) Direct Call Blast Radius**: Which projects contain classes/methods that invoke at least one of these 3 `IContentManager` methods directly (`1` hop), and how many distinct caller methods (`CallerClass.CallerMethod`) invoke each of `GetAsync`, `CreateAsync`, and `PublishAsync` per project?
+   - **(4b) Over-Coupled Projects (`DEPENDS_ON` Without Call Usage)**: Which non-test projects declare a direct project dependency (`ProjectReference` / `DEPENDS_ON`) on `OrchardCore.ContentManagement.Abstractions`, yet contain **zero calls (`0` call sites)** to any of `GetAsync`, `CreateAsync`, or `PublishAsync`?
+   Report exact project counts and compact lists for both **(4a)** and **(4b)**.</pre>
             </div>
           </details>
 
@@ -232,12 +280,12 @@
             <div class="prompt-drawer-body">
               <pre class="code-block" data-bind-file="benchmarks/05-polyglot-architecture-and-blast-radius/prompts/graph-agent.md"># Agent System Instructions
 
-You are a senior software engineer analyzing the `OrchardCore` repository.
-Answer all architectural questions with 100% accuracy and completeness, citing exact relative file paths, class names, and method names.
+You are a senior software engineer analyzing the `OrchardCMS/OrchardCore` repository (`334` projects, `7,837` files).
+Answer all architectural questions with 100% accuracy and completeness based on the repository.
 
 CRITICAL BENCHMARK RULES:
-1. You have access to the CodeExplorer CLI (`ce`) via `run_command` (which queries the pre-indexed `.codeexplorer/graph.db` semantic graph) and `view_file` to inspect source files when needed.
-2. To discover available `ce` commands or inspect the graph schema/taxonomy, run `ce --help` or `ce status` / `ce query` via `run_command`.
+1. Use the **CodeExplorer MCP server (`codeexplorer`)** (passing `workspacePath: "C:/Work/bench-pilot/repos/OrchardCore"` to query the pre-indexed `.codeexplorer/graph.db` semantic graph) and `read_file` to inspect source files when needed. Do not invoke `ce` or `ce.exe` via `run_command`; call the `codeexplorer` MCP tools directly.
+2. To inspect the graph schema (node labels, properties, and relationship types) and query the graph, use the `codeexplorer` MCP tools (`get_taxonomy`, `execute_custom_read_cypher`, `find_symbol`, `get_call_chain`, `get_project_dependencies`, etc.).
 3. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
 4. Do NOT modify or create any files inside the repository.</pre>
             </div>
@@ -254,12 +302,12 @@ CRITICAL BENCHMARK RULES:
             <div class="prompt-drawer-body">
               <pre class="code-block" data-bind-file="benchmarks/05-polyglot-architecture-and-blast-radius/prompts/baseline-agent.md"># Agent System Instructions
 
-You are a senior software engineer analyzing the `OrchardCore` repository.
-Answer all architectural questions with 100% accuracy and completeness, citing exact relative file paths, class names, and method names.
+You are a senior software engineer analyzing the `OrchardCMS/OrchardCore` repository (`334` projects, `7,837` files).
+Answer all architectural questions with 100% accuracy and completeness based on the repository.
 
 CRITICAL BENCHMARK RULES:
-1. You have access to standard CLI search tools (`rg` / `ripgrep`, `git grep`, `Get-ChildItem`, `Select-String`) via `run_command` and `view_file` to inspect source files.
-2. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or accessing `.codeexplorer/graph.db`.
+1. You have access to the `ripgrep` CLI (`rg`) via `run_command` and `read_file` to inspect source files when needed. Do not write custom AST/graph-walking scripts; use `rg` searches and `read_file`.
+2. You are STRICTLY FORBIDDEN from running `ce`, `ce.exe`, `codeexplorer`, or accessing `.codeexplorer/graph.db` (always pass `-g "!.codeexplorer/**"` if needed).
 3. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
 4. Do NOT modify or create any files inside the repository.</pre>
             </div>

@@ -176,6 +176,16 @@ public class GraphContextIntegrationTests
             }
 
             await using var upgradedClient = new SqliteGraphClient(tempDb);
+            upgradedClient.WasMigratedOnOpen.Should().BeFalse();
+            upgradedClient.SchemaVersion.Should().Be(previousVersion);
+            upgradedClient.IsSchemaOutdated.Should().BeTrue();
+
+            var act = async () => await upgradedClient.Graph.Services.CountAsync();
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*Database schema version is outdated*");
+
+            var upgraded = await upgradedClient.UpgradeSchemaAsync();
+            upgraded.Should().BeTrue();
             upgradedClient.WasMigratedOnOpen.Should().BeTrue();
             upgradedClient.MigratedFromVersion.Should().Be(previousVersion);
             upgradedClient.SchemaVersion.Should().Be(SqliteGraphClient.CurrentSchemaVersion);

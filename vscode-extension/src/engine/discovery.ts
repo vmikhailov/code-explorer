@@ -194,16 +194,17 @@ export function probeAllInstalledEngines(options?: ProbeInstalledOptions): Insta
     const home = options?.homedir || os.homedir();
     const globalToolPath = path.join(home, '.dotnet', 'tools', getExecutableName('ce'));
     if (fs.existsSync(globalToolPath)) {
-      let ver = probeCommandVersion(globalToolPath);
-      if (!ver) {
-        const storeDir = path.join(home, '.dotnet', 'tools', '.store', 'codeexplorer.cli');
-        if (fs.existsSync(storeDir)) {
-          const entries = fs.readdirSync(storeDir).filter((e) => /^\d+\.\d+/.test(e));
-          if (entries.length > 0) {
-            entries.sort(compareSemver);
-            ver = cleanSemver(entries[entries.length - 1]);
-          }
+      let ver: string | null = null;
+      const storeDir = path.join(home, '.dotnet', 'tools', '.store', 'codeexplorer.cli');
+      if (fs.existsSync(storeDir)) {
+        const entries = fs.readdirSync(storeDir).filter((e) => /^\d+\.\d+/.test(e));
+        if (entries.length > 0) {
+          entries.sort(compareSemver);
+          ver = cleanSemver(entries[entries.length - 1]);
         }
+      }
+      if (!ver) {
+        ver = probeCommandVersion(globalToolPath);
       }
       if (ver) {
         addCandidate({
@@ -223,7 +224,22 @@ export function probeAllInstalledEngines(options?: ProbeInstalledOptions): Insta
     try {
       const storedBin = path.join(options.globalStorageBinDir, getExecutableName('ce'));
       if (fs.existsSync(storedBin)) {
-        const ver = probeCommandVersion(storedBin);
+        let ver: string | null = null;
+        const verFile = path.join(options.globalStorageBinDir, 'version.json');
+        if (fs.existsSync(verFile)) {
+          try {
+            const utf8Encoding: BufferEncoding = 'utf8';
+            const verData = JSON.parse(fs.readFileSync(verFile, utf8Encoding));
+            if (verData?.version) {
+              ver = cleanSemver(String(verData.version));
+            }
+          } catch {
+            // Ignore malformed version.json
+          }
+        }
+        if (!ver) {
+          ver = probeCommandVersion(storedBin);
+        }
         if (ver) {
           addCandidate({
             command: storedBin,
@@ -235,7 +251,6 @@ export function probeAllInstalledEngines(options?: ProbeInstalledOptions): Insta
           // Stored binary cannot be executed (corrupted / missing dependencies). Clean it up.
           try {
             fs.unlinkSync(storedBin);
-            const verFile = path.join(options.globalStorageBinDir, 'version.json');
             if (fs.existsSync(verFile)) fs.unlinkSync(verFile);
           } catch {
             // Ignore

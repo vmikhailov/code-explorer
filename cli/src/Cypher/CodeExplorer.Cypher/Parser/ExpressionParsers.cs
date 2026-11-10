@@ -187,9 +187,13 @@ public static class ExpressionParsers
          from close in Token.EqualTo(CypherToken.RBracket)
          select (Expression)new PatternComprehensionExpression(path, whereExpr, proj)).Try();
 
+    private const string KeywordReduce = "reduce";
+    private const string KeywordExists = "exists";
+    private const string KeywordCount = "count";
+
     public static TokenListParser<CypherToken, Expression> ReduceExpressionParser { get; } =
         (from reduceName in PropertyNameText
-         where reduceName.Equals("reduce", StringComparison.OrdinalIgnoreCase)
+         where reduceName.Equals(KeywordReduce, StringComparison.OrdinalIgnoreCase)
          from open in Token.EqualTo(CypherToken.LParen)
          from acc in PropertyNameText
          from eq in Token.EqualTo(CypherToken.Equal)
@@ -203,13 +207,38 @@ public static class ExpressionParsers
          from close in Token.EqualTo(CypherToken.RParen)
          select (Expression)new ReduceExpression(acc, init, varName, list, step)).Try();
 
-    // Atom: Parenthesized / Pattern, Case, Literals, List, Parameter, FunctionCall, or Identifier
+    private static TokenListParser<CypherToken, (List<MatchClause> Matches, WhereClause? Where, CypherQuery? FullQuery)> SubqueryBraceBody { get; } =
+        (from fullQuery in Parse.Ref(() => CypherQueryParser.Query)
+         from close in Token.EqualTo(CypherToken.RBrace)
+         select (Matches: fullQuery.Matches, fullQuery.Where, FullQuery: (CypherQuery?)fullQuery)).Try()
+        .Or((from matches in Parse.Ref(() => ClauseParsers.Match).AtLeastOnce()
+             from whereClause in Parse.Ref(() => ClauseParsers.Where).OptionalOrDefault()
+             from close in Token.EqualTo(CypherToken.RBrace)
+             select (Matches: matches.ToList(), Where: whereClause, FullQuery: (CypherQuery?)null)).Try())
+        .Or(from paths in PatternParsers.Path.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+            where paths.Length > 0
+            from whereClause in Parse.Ref(() => ClauseParsers.Where).OptionalOrDefault()
+            from close in Token.EqualTo(CypherToken.RBrace)
+            select (Matches: new List<MatchClause> { new(false, [.. paths], null) }, Where: whereClause, FullQuery: (CypherQuery?)null));
+
+    public static TokenListParser<CypherToken, Expression> SubqueryExpressionParser { get; } =
+        (from kw in PropertyNameText
+         where kw.Equals(KeywordExists, StringComparison.OrdinalIgnoreCase) ||
+               kw.Equals(KeywordCount, StringComparison.OrdinalIgnoreCase)
+         from open in Token.EqualTo(CypherToken.LBrace)
+         from body in SubqueryBraceBody
+         select kw.Equals(KeywordExists, StringComparison.OrdinalIgnoreCase)
+             ? (Expression)new ExistsSubqueryExpression(body.Matches, body.Where, body.FullQuery)
+             : new CountSubqueryExpression(body.Matches, body.Where, body.FullQuery)).Try();
+
+    // Atom: Parenthesized / Pattern, Case, Literals, List, Parameter, Subquery, FunctionCall, or Identifier
     public static TokenListParser<CypherToken, Expression> Atom { get; } =
         GraphPatternExpression
         .Or(ParenthesizedExpression)
         .Or(CaseExpression)
         .Or(ReduceExpressionParser)
         .Or(QuantifierPredicate.Try())
+        .Or(SubqueryExpressionParser)
         .Or(PatternComprehension)
         .Or(ListComprehensionOrListLiteral)
         .Or(MapLiteral)

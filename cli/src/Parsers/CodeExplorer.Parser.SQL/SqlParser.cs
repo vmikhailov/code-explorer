@@ -2,6 +2,9 @@ using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Parser.Sql;
+using CodeExplorer.Core.Parser.Sql.Ast;
+using CodeExplorer.Core.Parser.Sql.Dialects;
 using CodeExplorer.Core.Parser.Syntax;
 
 [assembly: ParserAssembly]
@@ -11,16 +14,6 @@ namespace CodeExplorer.Parser.SQL;
 [ProjectParser(Tier = ParserTier.Data)]
 public class SqlParser : IProjectParser, IFileParser
 {
-    private record ProcedureScope(
-        string Name,
-        string RawName,
-        string Id,
-        int StartIndex,
-        int EndIndex,
-        string Body,
-        ProcedureNode Node
-    );
-
     public string LanguageName => "sql";
 
     public string ProjectType => "sql";
@@ -30,6 +23,8 @@ public class SqlParser : IProjectParser, IFileParser
     public IReadOnlyList<PackageDescriptor> Packages => [];
     public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
+    private const string RelationalEngine = "relational";
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".sql", StringComparison.OrdinalIgnoreCase);
@@ -38,7 +33,6 @@ public class SqlParser : IProjectParser, IFileParser
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         return false;
-        //return filesInDirectory.Any(f => Path.GetExtension(f).Equals(".sql", StringComparison.OrdinalIgnoreCase));
     }
 
     public BaseParserVisitor CreateVisitor(
@@ -77,54 +71,16 @@ public class SqlParser : IProjectParser, IFileParser
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
         var sqlText = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
 
-        // 1. Clean SQL comments to avoid false matches
-        var withoutBlockComments = Regex.Replace(sqlText, @"/\*.*?\*/", "", RegexOptions.Singleline);
-        var cleanSql = Regex.Replace(withoutBlockComments, @"--.*$", "", RegexOptions.Multiline);
+        var dialect = SqlDialectDetector.DetectDialect(sqlText, filePath);
+        var dialectParser = SqlDialectParserFactory.GetParser(dialect);
+        var script = dialectParser.Parse(sqlText);
 
         var datasets = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
         var tables = new Dictionary<string, TableNode>(StringComparer.OrdinalIgnoreCase);
-        var procedures = new List<ProcedureScope>();
+        var procedures = new Dictionary<string, ProcedureNode>(StringComparer.OrdinalIgnoreCase);
 
-        TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, workspaceId);
-
-        var sqlChildren = new List<SyntaxNode>();
-        foreach (var kvp in tables)
-        {
-            sqlChildren.Add(new SqlStmtSyntax
-            {
-                Operation = SqlOperationKind.CreateTable,
-                OperationVerb = "CREATE TABLE",
-                Tables = [new SqlTableRefSyntax(kvp.Value.Name, IsWriteTarget: true)],
-                RawSql = kvp.Value.Name
-            });
-        }
-        foreach (var proc in procedures)
-        {
-            sqlChildren.Add(new SqlStmtSyntax
-            {
-                Operation = SqlOperationKind.CreateProcedure,
-                OperationVerb = "CREATE PROCEDURE",
-                Procedures = [proc.Name],
-                RawSql = proc.Body
-            });
-        }
-        var doc = SyntaxDocument.Create(sqlText, LanguageName, filePath, relativePath, sqlChildren);
-
-        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
-    }
-
-    private void TryDetectContains(
-        string cleanSql,
-        FileNode fileNode,
-        string fileNodeId,
-        string relativePath,
-        Dictionary<string, DataSetNode> datasets,
-        Dictionary<string, TableNode> tables,
-        List<ProcedureScope> procedures,
-        string workspaceId)
-    {
-        // 2. Identify Database (DB)
-        var dbMatch = Regex.Match(cleanSql, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
+        // 1. Identify Database (DB)
+        var dbMatch = Regex.Match(sqlText, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
         DatabaseNode? dbNode = null;
         string baseParentId = fileNodeId;
 
@@ -132,12 +88,11 @@ public class SqlParser : IProjectParser, IFileParser
         {
             var dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"', '`');
             var dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
-            dbNode = new DatabaseNode(dbNodeId, dbName, relativePath, "relational");
+            dbNode = new DatabaseNode(dbNodeId, dbName, relativePath, RelationalEngine);
             fileNode.Children.Add(dbNode);
             baseParentId = dbNodeId;
         }
 
-        // Helper to add nodes either to dbNode (if exists) or fileNode (if dbNode is null)
         void AddToParent(IOntologyNode child)
         {
             if (dbNode != null)
@@ -150,236 +105,194 @@ public class SqlParser : IProjectParser, IFileParser
             }
         }
 
-        // 3. Identify Schema (DataSet)
-        var schemaMatches = Regex.Matches(cleanSql,
+        DataSetNode GetOrCreateDataSet(string schemaName)
+        {
+            if (string.IsNullOrWhiteSpace(schemaName) || IsDisallowedIdentifier(schemaName))
+            {
+                schemaName = "dbo";
+            }
+
+            if (!datasets.TryGetValue(schemaName, out var schemaNode))
+            {
+                var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
+                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
+                datasets[schemaName] = schemaNode;
+                AddToParent(schemaNode);
+            }
+            return schemaNode;
+        }
+
+        // 2. Identify Schema (DataSet)
+        var schemaMatches = Regex.Matches(sqlText,
             @"(?i)\bCREATE\s+SCHEMA\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<schemaName>[^\s\(;]+)");
         foreach (Match match in schemaMatches)
         {
             var rawSchemaName = match.Groups["schemaName"].Value;
             var schemaName = CleanIdentifier(rawSchemaName);
-            if (string.IsNullOrWhiteSpace(schemaName) || IsDisallowedIdentifier(schemaName)) continue;
-
-            var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
-            if (!datasets.TryGetValue(schemaName, out var schemaNode))
+            if (!string.IsNullOrWhiteSpace(schemaName) && !IsDisallowedIdentifier(schemaName))
             {
-                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
-                datasets[schemaName] = schemaNode;
-                AddToParent(schemaNode);
+                GetOrCreateDataSet(schemaName);
             }
         }
 
-        // 4. Identify Tables
-        var tableMatches = Regex.Matches(cleanSql,
-            @"(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMPORARY\s+|TEMP\s+|EXTERNAL\s+)?TABLE\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<tableName>[^\s\(;]+)");
-        foreach (Match match in tableMatches)
+        // 3. Process statements from dialect AST
+        var queryCounter = 0;
+        var sqlChildren = new List<SyntaxNode>();
+
+        void ProcessCreateTable(SqlCreateTableStatementAst createTable)
         {
-            var rawTableName = match.Groups["tableName"].Value;
-            var (schemaName, tableName) = ParseTableIdentifier(rawTableName);
+            var tableName = createTable.Table.TableName;
+            var schema = createTable.Table.Schema ?? "dbo";
+            if (string.IsNullOrWhiteSpace(tableName) || IsDisallowedIdentifier(tableName)) return;
 
-            if (string.IsNullOrWhiteSpace(tableName) || IsDisallowedIdentifier(tableName))
-            {
-                continue;
-            }
-
-            var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
-            if (!datasets.TryGetValue(schemaName, out var schemaNode))
-            {
-                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
-                datasets[schemaName] = schemaNode;
-                AddToParent(schemaNode);
-            }
-
-            var tableNodeId = $"{schemaNodeId}:table:{tableName.ToLowerInvariant()}";
+            var ds = GetOrCreateDataSet(schema);
+            var tableNodeId = $"{ds.Id}:table:{tableName.ToLowerInvariant()}";
             if (!tables.TryGetValue(tableName, out var tableNode))
             {
                 tableNode = new TableNode(tableNodeId, tableName, relativePath);
                 tables[tableName] = tableNode;
-                schemaNode.Children.Add(tableNode);
+                ds.Children.Add(tableNode);
             }
-            tables[rawTableName] = tableNode;
+            tables[createTable.Table.CanonicalName] = tableNode;
+
+            sqlChildren.Add(new SqlStmtSyntax
+            {
+                Operation = SqlOperationKind.CreateTable,
+                OperationVerb = "CREATE TABLE",
+                Tables = [new SqlTableRefSyntax(tableName, IsWriteTarget: true)],
+                RawSql = tableName
+            });
         }
 
-        // 5. Identify Procedures / Functions and their boundaries
-        var procMatches = Regex.Matches(cleanSql,
-            @"(?i)\bCREATE\s+(?:OR\s+(?:REPLACE|ALTER)\s+)?(?:PROCEDURE|PROC|FUNCTION)\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<procName>[^\s\(;]+)");
-        var tempScopes = new List<(Match Match, string Name, string RawName, string Id, ProcedureNode Node)>();
-        for (var i = 0; i < procMatches.Count; i++)
+        foreach (var stmt in script.Statements)
         {
-            var match = procMatches[i];
-            var rawProcName = match.Groups["procName"].Value;
-            var (schemaName, procName) = ParseTableIdentifier(rawProcName);
-
-            if (string.IsNullOrWhiteSpace(procName) || IsDisallowedIdentifier(procName))
+            switch (stmt)
             {
-                continue;
-            }
-
-            var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
-            if (!datasets.TryGetValue(schemaName, out var schemaNode))
-            {
-                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
-                datasets[schemaName] = schemaNode;
-                AddToParent(schemaNode);
-            }
-
-            var procNodeId = $"{schemaNodeId}:procedure:{procName.ToLowerInvariant()}";
-            var procNode = new ProcedureNode(procNodeId, procName, relativePath);
-            tempScopes.Add((match, procName, rawProcName, procNodeId, procNode));
-            schemaNode.Children.Add(procNode);
-        }
-
-        // Resolve boundaries for each procedure body
-        for (var i = 0; i < tempScopes.Count; i++)
-        {
-            var current = tempScopes[i];
-            var start = current.Match.Index;
-            var nextGo = cleanSql.IndexOf("GO", start, StringComparison.OrdinalIgnoreCase);
-            var end = (nextGo != -1)
-                ? nextGo
-                : ((i + 1 < tempScopes.Count) ? tempScopes[i + 1].Match.Index : cleanSql.Length);
-
-            var body = cleanSql[start..end];
-            procedures.Add(new ProcedureScope(current.Name, current.RawName, current.Id, start, end, body, current.Node));
-        }
-
-        // 6. Nested Pass: Parse Queries inside Procedure Bodies
-        var queryCounter = 0;
-        foreach (var proc in procedures)
-        {
-            var procStatements = proc.Body.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToList();
-
-            foreach (var statement in procStatements)
-            {
-                var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault()?.ToUpperInvariant();
-
-                if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "EXEC" or "CALL")
+                case SqlCreateTableStatementAst createTable:
                 {
-                    queryCounter++;
-                    var queryName = $"{firstWord} Query #{queryCounter}";
-                    var queryNodeId = $"{proc.Id}:query:{queryCounter}";
-                    var queryNode = new QueryNode(
-                        queryNodeId,
-                        queryName,
-                        statement.Length > 200 ? $"{statement[..197]}..." : statement,
-                        relativePath
-                    );
-                    proc.Node.Children.Add(queryNode);
+                    ProcessCreateTable(createTable);
+                    break;
+                }
 
-                    // Parse calls & table references inside this query statement
-                    TryDetectCalls(statement, queryNode, queryNodeId);
-                    TryDetectDependsOn(statement, queryNode, queryNodeId, tables);
+                case SqlCreateProcedureStatementAst createProc:
+                {
+                    var procName = createProc.Procedure.ProcedureName;
+                    var schema = createProc.Procedure.Schema ?? "dbo";
+                    if (string.IsNullOrWhiteSpace(procName) || IsDisallowedIdentifier(procName)) continue;
+
+                    var ds = GetOrCreateDataSet(schema);
+                    var procNodeId = $"{ds.Id}:procedure:{procName.ToLowerInvariant()}";
+                    if (!procedures.TryGetValue(procName, out var procNode))
+                    {
+                        procNode = new ProcedureNode(procNodeId, procName, relativePath);
+                        procedures[procName] = procNode;
+                        ds.Children.Add(procNode);
+                    }
+
+                    sqlChildren.Add(new SqlStmtSyntax
+                    {
+                        Operation = SqlOperationKind.CreateProcedure,
+                        OperationVerb = "CREATE PROCEDURE",
+                        Procedures = [procName],
+                        RawSql = createProc.RawBody
+                    });
+
+                    foreach (var bodyStmt in createProc.BodyStatements)
+                    {
+                        if (bodyStmt is SqlCreateTableStatementAst innerTable)
+                        {
+                            ProcessCreateTable(innerTable);
+                        }
+                        else
+                        {
+                            AddQueryNode(bodyStmt, procNode, procNodeId);
+                        }
+                    }
+                    break;
+                }
+
+                default:
+                    AddQueryNode(stmt, fileNode, fileNodeId);
+                    break;
+            }
+        }
+
+        void AddQueryNode(SqlStatementAst queryStmt, IOntologyNode parentNode, string parentId)
+        {
+            var queryTables = new List<SqlTableRefAst>();
+            var queryProcs = new List<SqlProcRefAst>();
+            string verb;
+
+            switch (queryStmt)
+            {
+                case SqlSelectStatementAst sel:
+                    verb = "SELECT";
+                    queryTables.AddRange(sel.Tables);
+                    queryTables.AddRange(sel.Joins);
+                    break;
+                case SqlInsertStatementAst ins:
+                    verb = "INSERT";
+                    queryTables.Add(ins.TargetTable);
+                    if (ins.SourceQuery is SqlSelectStatementAst selSub)
+                    {
+                        queryTables.AddRange(selSub.Tables);
+                        queryTables.AddRange(selSub.Joins);
+                    }
+                    break;
+                case SqlUpdateStatementAst upd:
+                    verb = "UPDATE";
+                    queryTables.Add(upd.TargetTable);
+                    queryTables.AddRange(upd.FromTables);
+                    break;
+                case SqlDeleteStatementAst del:
+                    verb = "DELETE";
+                    queryTables.Add(del.TargetTable);
+                    queryTables.AddRange(del.UsingTables);
+                    break;
+                case SqlMergeStatementAst mrg:
+                    verb = "MERGE";
+                    queryTables.Add(mrg.TargetTable);
+                    if (mrg.UsingTable != null) queryTables.Add(mrg.UsingTable);
+                    break;
+                case SqlExecStatementAst ex:
+                    verb = "EXEC";
+                    queryProcs.Add(ex.Procedure);
+                    break;
+                default:
+                    return;
+            }
+
+            if (queryTables.Count == 0 && queryProcs.Count == 0) return;
+
+            queryCounter++;
+            var qId = $"{parentId}:query:{queryCounter}";
+            var qName = $"{verb} Query #{queryCounter}";
+            var qNode = new QueryNode(qId, qName, $"{verb} Query", relativePath);
+            parentNode.Children.Add(qNode);
+
+            foreach (var t in queryTables)
+            {
+                if (!string.IsNullOrEmpty(t.TableName) && !IsDisallowedIdentifier(t.TableName))
+                {
+                    qNode.References.Add(new Reference(qId, t.TableName, OntologyConstants.Relationships.DependsOn));
+                }
+            }
+            foreach (var p in queryProcs)
+            {
+                if (!string.IsNullOrEmpty(p.ProcedureName) && !IsDisallowedIdentifier(p.ProcedureName))
+                {
+                    qNode.References.Add(new Reference(qId, p.ProcedureName, OntologyConstants.Relationships.Calls));
                 }
             }
         }
 
-        // 7. Nested Pass: Parse Top-Level Queries (outside of procedures)
-        // Mask out procedure bodies from cleanSql so we don't match query patterns inside them
-        var charArray = cleanSql.ToCharArray();
-        foreach (var proc in procedures)
-        {
-            for (var idx = proc.StartIndex; idx < proc.EndIndex; idx++)
-            {
-                charArray[idx] = ' ';
-            }
-        }
-        var topLevelSql = new string(charArray);
-
-        var topLevelStatements = topLevelSql.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrEmpty(s))
-            .ToList();
-
-        foreach (var statement in topLevelStatements)
-        {
-            var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                .FirstOrDefault()?.ToUpperInvariant();
-
-            if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "EXEC" or "CALL")
-            {
-                queryCounter++;
-                var queryName = $"{firstWord} Query #{queryCounter}";
-                var queryNodeId = $"{fileNodeId}:query:{queryCounter}";
-                var queryNode = new QueryNode(
-                    queryNodeId,
-                    queryName,
-                    statement.Length > 200 ? $"{statement[..197]}..." : statement,
-                    relativePath
-                );
-                fileNode.Children.Add(queryNode);
-
-                // Parse calls & table references inside this top-level query statement
-                TryDetectCalls(statement, queryNode, queryNodeId);
-                TryDetectDependsOn(statement, queryNode, queryNodeId, tables);
-            }
-        }
+        var doc = SyntaxDocument.Create(sqlText, LanguageName, filePath, relativePath, sqlChildren);
+        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
     }
-
-    private void TryDetectCalls(string statement, QueryNode queryNode, string queryNodeId)
-    {
-        var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@`]+)", RegexOptions.IgnoreCase);
-        foreach (Match execMatch in execMatches)
-        {
-            var targetProcRaw = execMatch.Groups[1].Value;
-            var targetProcParts = targetProcRaw.Split('.');
-            var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"', '`') : targetProcRaw.Trim('[', ']', '"', '`');
-
-            queryNode.References.Add(new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls));
-        }
-    }
-
-    private void TryDetectDependsOn(string statement, QueryNode queryNode, string queryNodeId, Dictionary<string, TableNode> tables)
-    {
-        var matchedTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var tableKvp in tables)
-        {
-            var tableName = tableKvp.Key;
-            var pattern = $@"\b{Regex.Escape(tableName)}\b";
-            if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
-            {
-                if (matchedTables.Add(tableName))
-                {
-                    queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
-                }
-            }
-        }
-
-        // Match table references after FROM, JOIN, INTO, UPDATE, MERGE
-        var fromMatches = Regex.Matches(statement,
-            @"(?i)\b(?:FROM|JOIN|INTO|UPDATE|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()(?<target>[^\s\(;]+)");
-
-        foreach (Match fm in fromMatches)
-        {
-            var raw = fm.Groups["target"].Value;
-            var (_, tableName) = ParseTableIdentifier(raw);
-            if (!string.IsNullOrWhiteSpace(tableName) && !IsDisallowedIdentifier(tableName) && matchedTables.Add(tableName))
-            {
-                queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
-            }
-        }
-    }
-
-    private static readonly HashSet<string> DisallowedIdentifiers = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "IF", "NOT", "EXISTS", "EXIST", "TABLE", "TEMP", "TEMPORARY", "EXTERNAL",
-        "VIEW", "DATABASE", "SCHEMA", "PROCEDURE", "PROC", "FUNCTION", "TRIGGER", "INDEX",
-        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "DROP", "ALTER", "CREATE",
-        "OPTIONS", "PARTITION", "CLUSTER", "ORDER", "BY", "GROUP", "HAVING",
-        "WHERE", "FROM", "JOIN", "INTO", "VALUES", "SET", "AS", "ON", "AND", "OR",
-        "BEGIN", "END", "RETURN", "RETURNS", "DECLARE", "EXEC", "EXECUTE", "CALL",
-        "EXTERNAL_QUERY", "UNNEST", "GENERATE_SERIES", "TABLE_FUNCTION", "NULL", "TRUE", "FALSE",
-        "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "CONSTRAINT", "DEFAULT", "CHECK", "UNIQUE",
-        "INT", "INT64", "BIGINT", "STRING", "VARCHAR", "DATETIME", "TIMESTAMP", "FLOAT64", "FLOAT"
-    };
 
     public static string CleanIdentifier(string raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return "";
-        return raw.Trim().Trim('[', ']', '"', '`', '\'', '{', '}', '$', ' ', ',');
+        return BaseSqlParser.CleanIdentifier(raw);
     }
 
     public static bool IsDisallowedIdentifier(string? name)
@@ -388,54 +301,13 @@ public class SqlParser : IProjectParser, IFileParser
         var trimmed = CleanIdentifier(name);
         if (trimmed.Length <= 1) return true;
         if (char.IsDigit(trimmed[0])) return true;
-        return DisallowedIdentifiers.Contains(trimmed);
+        return BaseSqlParser.CleanIdentifier(trimmed).Length <= 1;
     }
 
     public static (string schemaName, string tableName) ParseTableIdentifier(string rawTableName)
     {
-        if (string.IsNullOrWhiteSpace(rawTableName))
-        {
-            return ("dbo", "");
-        }
-
-        var trimmed = rawTableName.Trim().TrimEnd(';');
-
-        // If entire token is wrapped in ${...} or {{...}} or {...}
-        if ((trimmed.StartsWith("${") && trimmed.EndsWith("}")) ||
-            (trimmed.StartsWith("{{") && trimmed.EndsWith("}}")) ||
-            (trimmed.StartsWith("{") && trimmed.EndsWith("}")))
-        {
-            var inner = trimmed.Trim('$', '{', '}').Trim();
-            if (ConstantRegistry.TryResolve(null, inner, out var resolved))
-            {
-                trimmed = resolved;
-            }
-            else
-            {
-                trimmed = inner;
-            }
-        }
-
-        var parts = trimmed.Split('.');
-        string schemaName = "dbo";
-        string tableName;
-
-        if (parts.Length > 1)
-        {
-            schemaName = CleanIdentifier(parts[0]);
-            tableName = CleanIdentifier(parts[1]);
-        }
-        else
-        {
-            tableName = CleanIdentifier(parts[0]);
-        }
-
-        if (string.IsNullOrWhiteSpace(schemaName) || IsDisallowedIdentifier(schemaName))
-        {
-            schemaName = "dbo";
-        }
-
-        return (schemaName, tableName);
+        var (db, schema, table) = BaseSqlParser.ParseTableIdentifier(rawTableName);
+        return (schema ?? "dbo", table);
     }
 
     public void CollectSemanticData(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
