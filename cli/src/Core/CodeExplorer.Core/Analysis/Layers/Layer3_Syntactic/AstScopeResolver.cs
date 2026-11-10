@@ -140,11 +140,59 @@ public static class AstScopeResolver
         {
             if (curr is TypeDeclSyntax)
             {
-                var found = SearchMemberInitializer(curr, fieldName, cleanField);
+                var found = SearchMemberInitializer(curr, fieldName, cleanField)
+                            ?? SearchMemberAssignmentOrGetter(curr, fieldName, cleanField);
                 if (found.IsValid()) return found;
             }
 
             curr = curr.Parent;
+        }
+
+        return null;
+    }
+
+    private static Node? SearchMemberAssignmentOrGetter(Node container, string fieldName, string cleanField)
+    {
+        foreach (var child in container.Children)
+        {
+            if (!child.IsValid()) continue;
+
+            if (child is AssignmentExprSyntax { Left: MemberAccessExprSyntax mem, Right: { } right } &&
+                mem.Object is IdentifierExprSyntax { IsSelfOrSuper: true } &&
+                (mem.MemberName == fieldName || mem.MemberName.TrimStart('_') == cleanField))
+            {
+                return right;
+            }
+
+            if (child is FunctionDeclSyntax fn)
+            {
+                var fnName = !string.IsNullOrEmpty(fn.Name)
+                    ? fn.Name
+                    : (fn.GetField(SyntaxFields.Name) ?? fn.GetField(SyntaxFields.Property))?.Text;
+
+                if (!string.IsNullOrEmpty(fnName) &&
+                    (fnName == fieldName || fnName.TrimStart('_') == cleanField) &&
+                    fn.Parameters.Count == 0)
+                {
+                    if (fn.ExpressionBody != null) return fn.ExpressionBody;
+                    if (fn.Body != null)
+                    {
+                        foreach (var stmt in fn.Body.Children)
+                        {
+                            if (stmt is ReturnStmtSyntax { Value: { } retVal })
+                            {
+                                return retVal;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (child is not TypeDeclSyntax)
+            {
+                var nested = SearchMemberAssignmentOrGetter(child, fieldName, cleanField);
+                if (nested.IsValid()) return nested;
+            }
         }
 
         return null;

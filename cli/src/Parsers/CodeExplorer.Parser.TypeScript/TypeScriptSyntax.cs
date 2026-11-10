@@ -80,6 +80,7 @@ internal static class TreeSitterSyntax
         public const string PublicFieldDefinition = "public_field_definition";
         public const string PropertyDefinition = "property_definition";
         public const string Parameter = "parameter";
+        public const string FormalParameters = "formal_parameters";
         public const string RequiredParameter = "required_parameter";
         public const string OptionalParameter = "optional_parameter";
         public const string ParameterProperty = "parameter_property";

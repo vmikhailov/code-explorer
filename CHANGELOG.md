@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.77.0] - 2026-11-10
+
+### Added & Changed
+- **Direct Service-to-Caller Edge (`CALLED_BY`) & Functional Target Enforcement**:
+  - Added direct `Service|ExternalService -[:CALLED_BY]-> Function` edges (`CalledByRelationship` / `PostIndexAnalyzer.CalledBy`) so HTTP/gRPC client callers can be discovered in a single hop from target `Service` nodes.
+  - Restricted `CALLED_BY`, `PUBLISHED_BY`, and `SUBSCRIBED_BY` relationships strictly to functional `Function` symbols (`ProcedureSymbols`), moving top-level declarative messaging registrations onto `<module_init>` (`FunctionNode`) and BullMQ `@Processor` queue bindings onto worker handler methods (`process` / `handle` / `execute`) so `File` nodes are never targeted as callers, publishers, or subscribers.
+- **Interprocedural Messaging Dataflow & GCP PubSub / Kubernetes DNS Resolution**:
+  - Extended `GcpLibraryParser`, `AstHelper`, `AstScopeResolver`, and `Layer5GlobalAnalyzer` to resolve PubSub topics across helper factory methods (`.topic(param)`), interprocedural parameter propagation (`ArgFlow` on `CALLS`), array destructuring (`const [topic] = await ...get()`), class field call-expression initializers, constructor assignments, 0-arg getters, and full GCP resource paths (`projects/<project>/topics/<name>`).
+  - Extended `ConstantRegistry` environment variable derivation to preserve `_TOPIC` suffixes when stripping `_SUB*` consumer keys and check project constants before algorithmic fallback.
+  - Extended `PostIndexAnalyzer.EdgeNormalization` to resolve multi-segment internal Kubernetes service hostnames (`<svc>.internal-service-<svc>.<cluster>`) to workspace `Service` projects.
+
 ## [1.76.0] - 2026-11-10
 
 ### Added & Changed

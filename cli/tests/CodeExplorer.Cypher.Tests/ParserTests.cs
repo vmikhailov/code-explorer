@@ -146,4 +146,32 @@ public class ParserTests
         var unary = (UnaryExpression)andExpr.Left;
         unary.Operator.Should().Be(UnaryOperator.Not);
     }
+
+    [Test]
+    [TestCase("set")]
+    [TestCase("create")]
+    [TestCase("delete")]
+    [TestCase("merge")]
+    [TestCase("remove")]
+    [TestCase("drop")]
+    [TestCase("detach")]
+    [TestCase("alter")]
+    [TestCase("truncate")]
+    [TestCase("optional")]
+    public void Parse_MutatingAndQueryKeywordsAsPropertyNamesLabelsAndAliases(string keyword)
+    {
+        var cypher = $"MATCH (n:{keyword} {{{keyword}: 1}}) WHERE n:{keyword} AND n.{keyword} = 1 RETURN n.{keyword} AS {keyword}";
+        var query = CypherQueryParser.Parse(cypher);
+
+        var head = query.Matches[0].Paths[0].Head;
+        head.Labels.Should().Contain(keyword);
+        head.Properties.Should().NotBeNull();
+        head.Properties!.Should().ContainKey(keyword);
+
+        var retItem = query.Return.Items[0];
+        retItem.Alias.Should().Be(keyword);
+        var propAccess = retItem.Expression.Should().BeOfType<PropertyAccessExpression>().Subject;
+        propAccess.Variable.Should().Be("n");
+        propAccess.PropertyName.Should().Be(keyword);
+    }
 }

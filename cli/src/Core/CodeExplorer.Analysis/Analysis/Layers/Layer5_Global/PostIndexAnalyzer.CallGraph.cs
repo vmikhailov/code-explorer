@@ -465,6 +465,7 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        MaterializeServiceCalledByEdges(allRelationships, materializedRels);
         return materializedRels;
     }
 

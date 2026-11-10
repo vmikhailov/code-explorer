@@ -108,6 +108,24 @@ public sealed class MessagingConventionService
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
         var t = raw.Trim().Trim('\'', '"', '`');
 
+        // Strip standard GCP Pub/Sub resource path prefixes: projects/<project>/topics/<name> or projects/<project>/subscriptions/<name>
+        if (t.StartsWith("projects/", StringComparison.OrdinalIgnoreCase))
+        {
+            var topicsIdx = t.IndexOf("/topics/", StringComparison.OrdinalIgnoreCase);
+            if (topicsIdx > 0 && topicsIdx + 8 < t.Length)
+            {
+                t = t[(topicsIdx + 8)..];
+            }
+            else
+            {
+                var subsIdx = t.IndexOf("/subscriptions/", StringComparison.OrdinalIgnoreCase);
+                if (subsIdx > 0 && subsIdx + 15 < t.Length)
+                {
+                    t = t[(subsIdx + 15)..];
+                }
+            }
+        }
+
         if (!IsValidTopicOrQueueName(t))
         {
             return string.Empty;

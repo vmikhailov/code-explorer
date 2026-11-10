@@ -258,7 +258,7 @@ public partial class PostIndexAnalyzer
         else if (cleanKey.Contains('.'))
         {
             var dotParts = cleanKey.Split('.');
-            if (dotParts.Length == 2)
+            if (dotParts.Length >= 2)
             {
                 var candidatePrefixMatch = FindMatchingServiceProject(dotParts[0], projects);
                 if (candidatePrefixMatch != null) return candidatePrefixMatch;

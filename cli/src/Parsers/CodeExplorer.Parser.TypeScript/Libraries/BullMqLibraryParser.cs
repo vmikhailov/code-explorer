@@ -54,13 +54,27 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
                 var func = callExpr.GetFunctionNode();
                 if (func.IsValid() && string.Equals(func.Text, "Processor", StringComparison.Ordinal))
                 {
-                    var args = AstHelper.GetCallArguments(callExpr);
-                    if (args.Count > 0)
+                    var classNode = node.Parent;
+                    while (classNode.IsValid() && !classNode.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
                     {
-                        var queueName = ResolveBullMqQueueArgument(args[0], ctx?.WorkspaceId);
-                        if (!string.IsNullOrEmpty(queueName) && WorkspaceConventions.IsValidTopicOrQueueName(queueName))
+                        classNode = classNode.Parent;
+                    }
+
+                    // If the class contains methods, EnrichSymbolCore attaches SubscribesTo directly to the handler method(s)
+                    var hasHandlerMethods = classNode.IsValid() &&
+                        classNode.FindDescendantsOfType(TreeSitterSyntax.TypeScript.MethodDefinition)
+                                 .Any(m => m.GetField(TreeSitterSyntax.Fields.Name)?.Text != "constructor");
+
+                    if (!hasHandlerMethods)
+                    {
+                        var args = AstHelper.GetCallArguments(callExpr);
+                        if (args.Count > 0)
                         {
-                            references.Add(new Reference(scopeSymbolId, "bullmq:" + queueName, OntologyConstants.Relationships.SubscribesTo));
+                            var queueName = ResolveBullMqQueueArgument(args[0], ctx?.WorkspaceId);
+                            if (!string.IsNullOrEmpty(queueName) && WorkspaceConventions.IsValidTopicOrQueueName(queueName))
+                            {
+                                references.Add(new Reference(scopeSymbolId, "bullmq:" + queueName, OntologyConstants.Relationships.SubscribesTo));
+                            }
                         }
                     }
                 }
@@ -189,6 +203,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
             return;
         }
 
+        var matchedDecorator = false;
         foreach (var dec in GetPrecedingDecorators(node))
         {
             var callExpr = dec.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
@@ -205,6 +220,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
                         if (!string.IsNullOrEmpty(qVal) && WorkspaceConventions.IsValidTopicOrQueueName(qVal))
                         {
                             symbol.References.Add(new Reference("", "bullmq:" + qVal, OntologyConstants.Relationships.SubscribesTo));
+                            matchedDecorator = true;
                         }
                     }
                     if (AstHelper.TryGetObjectProperty(args[0], PropName, out var nProp) && nProp is not null)
@@ -213,6 +229,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
                         if (!string.IsNullOrEmpty(nVal) && WorkspaceConventions.IsValidTopicOrQueueName(nVal))
                         {
                             symbol.References.Add(new Reference("", "bullmq:" + nVal, OntologyConstants.Relationships.SubscribesTo));
+                            matchedDecorator = true;
                         }
                     }
                 }
@@ -223,7 +240,18 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
                 if (!string.IsNullOrEmpty(classQueue) && WorkspaceConventions.IsValidTopicOrQueueName(classQueue))
                 {
                     symbol.References.Add(new Reference("", "bullmq:" + classQueue, OntologyConstants.Relationships.SubscribesTo));
+                    matchedDecorator = true;
                 }
+            }
+        }
+
+        // BullMQ WorkerHost pattern: @Processor(...) on enclosing class with process(...) / handle(...) method
+        if (!matchedDecorator && symbol.Name is "process" or "handle" or "execute")
+        {
+            var classQueue = ResolveClassProcessorQueue(node, ctx?.WorkspaceId);
+            if (!string.IsNullOrEmpty(classQueue) && WorkspaceConventions.IsValidTopicOrQueueName(classQueue))
+            {
+                symbol.References.Add(new Reference("", "bullmq:" + classQueue, OntologyConstants.Relationships.SubscribesTo));
             }
         }
     }

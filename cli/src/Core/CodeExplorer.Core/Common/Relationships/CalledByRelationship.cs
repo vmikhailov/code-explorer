@@ -4,7 +4,7 @@ using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Common.Relationships;
 
-[OntologyRelationship(OntologyConstants.Relationships.CalledBy, "Links an external service or database to the function that invokes or queries it.")]
+[OntologyRelationship(OntologyConstants.Relationships.CalledBy, "Links a service, external service, or database to the function that invokes or queries it.")]
 public record CalledByRelationship(
     string From,
     string To,

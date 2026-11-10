@@ -32,6 +32,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
 public record LibraryNode(
     string Id,
     [property: OntologyProperty("The library name.")] string Name,

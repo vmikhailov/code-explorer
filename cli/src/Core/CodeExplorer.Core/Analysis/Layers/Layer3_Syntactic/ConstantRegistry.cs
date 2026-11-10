@@ -487,14 +487,34 @@ public static class ConstantRegistry
             upper.EndsWith("_SUBSCRIPTION") || upper.EndsWith("_SUBSCRIBER") ||
             upper.EndsWith("_SUB_NAME") || upper.EndsWith("_SUB") || upper.Contains("_SUB_TOPIC"))
         {
-            var asTopic = upper.Replace("_SUBSCRIPTION_NAME", "_TOPIC")
+            string asTopic;
+            var topicIdx = upper.IndexOf("_TOPIC", StringComparison.Ordinal);
+            if (topicIdx > 0)
+            {
+                asTopic = upper[..(topicIdx + 6)];
+            }
+            else
+            {
+                asTopic = upper.Replace("_SUBSCRIPTION_NAME", "_TOPIC")
                                .Replace("_SUBSCRIBER_NAME", "_TOPIC")
                                .Replace("_SUB_NAME", "_TOPIC")
                                .Replace("_SUBSCRIPTION", "_TOPIC")
                                .Replace("_SUBSCRIBER", "_TOPIC");
-            if (asTopic.EndsWith("_SUB")) asTopic = asTopic[..^4] + "_TOPIC";
+                if (asTopic.EndsWith("_SUB")) asTopic = asTopic[..^4] + "_TOPIC";
+            }
+
             if (asTopic != upper && !asTopic.Equals("TOPIC", StringComparison.OrdinalIgnoreCase))
             {
+                if (TryResolve(null, asTopic, out var configuredTopic) && !string.IsNullOrEmpty(configuredTopic))
+                {
+                    var normConfigured = WorkspaceConventions.NormalizeTopicName(configuredTopic);
+                    if (!string.IsNullOrEmpty(normConfigured) && !WorkspaceConventions.IsPlaceholderName(normConfigured))
+                    {
+                        derived = normConfigured;
+                        return true;
+                    }
+                }
+
                 var norm = WorkspaceConventions.NormalizeTopicName(Conventions.Services.MessagingConventionService.AlgorithmicTopicKebabCase(asTopic));
                 if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
                 {
@@ -616,7 +636,7 @@ public static class ConstantRegistry
             // readonly eventBusSubscriptionName: string = this.configService.getString('EVENT_BUS_SUBSCRIPTION_NAME');
             // export const TOPIC_NAME = String(process.env.EVENT_BUS_TOPIC_NAME);
             var configServiceMatches = Regex.Matches(content,
-                @"(?:(?:export\s+)?(?:const|let|var|readonly|public|private|protected)\s+|this\.)*([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:(?:String|Number)\s*\(\s*)?(?:(?:this\.)?(?:configService|config|envService|env)\.(?:getString|get|getOrThrow)(?:<[^>]+>)?|process\.env)\s*(?:\(\s*['""`]([A-Za-z0-9_]+)['""`]\s*\)|\.([A-Za-z0-9_]+)|\[\s*['""`]([A-Za-z0-9_]+)['""`]\s*\])",
+                @"(?:(?:export\s+)?(?:const|let|var|readonly|public|private|protected)\s+|this\.)*([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:(?:String|Number)\s*\(\s*)?(?:(?:this\.)?_?(?:configService|config|envService|envConfig|env)\.(?:getString|get|getOrThrow|getEnv)(?:<[^>]+>)?|process\.env)\s*(?:\(\s*['""`]([A-Za-z0-9_]+)['""`]\s*\)|\.([A-Za-z0-9_]+)|\[\s*['""`]([A-Za-z0-9_]+)['""`]\s*\])",
                 RegexOptions.Multiline, RegexTimeout);
 
             foreach (Match csm in configServiceMatches)

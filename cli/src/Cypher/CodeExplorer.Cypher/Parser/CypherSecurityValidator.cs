@@ -10,17 +10,7 @@ namespace CodeExplorer.Cypher.Parser;
 public static class CypherSecurityValidator
 {
     private static readonly HashSet<CypherToken> MutatingTokens =
-    [
-        CypherToken.Create,
-        CypherToken.Delete,
-        CypherToken.Set,
-        CypherToken.Merge,
-        CypherToken.Remove,
-        CypherToken.Drop,
-        CypherToken.Detach,
-        CypherToken.Alter,
-        CypherToken.Truncate
-    ];
+        [.. CypherTokenizer.MutatingKeywords];
 
     private static readonly Regex FallbackMutatingRegex =
         new(@"\b(CREATE|DELETE|SET|MERGE|REMOVE|DROP|DETACH|ALTER|TRUNCATE)\b",

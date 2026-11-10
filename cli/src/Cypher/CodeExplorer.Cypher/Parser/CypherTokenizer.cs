@@ -6,108 +6,149 @@ namespace CodeExplorer.Cypher.Parser;
 
 public static class CypherTokenizer
 {
-    public static Tokenizer<CypherToken> Instance { get; } =
-        new TokenizerBuilder<CypherToken>()
-            // Whitespace and comments
+    public static IReadOnlyList<CypherToken> QueryKeywords { get; } =
+    [
+        CypherToken.Optional,
+        CypherToken.Match,
+        CypherToken.Where,
+        CypherToken.Return,
+        CypherToken.Distinct,
+        CypherToken.As,
+        CypherToken.Order,
+        CypherToken.By,
+        CypherToken.Asc,
+        CypherToken.Desc,
+        CypherToken.Skip,
+        CypherToken.Limit,
+        CypherToken.And,
+        CypherToken.Or,
+        CypherToken.Not,
+        CypherToken.Starts,
+        CypherToken.Ends,
+        CypherToken.Contains,
+        CypherToken.In,
+        CypherToken.Is,
+        CypherToken.Case,
+        CypherToken.When,
+        CypherToken.Then,
+        CypherToken.Else,
+        CypherToken.End,
+        CypherToken.With,
+        CypherToken.Unwind,
+        CypherToken.Xor,
+        CypherToken.Union,
+        CypherToken.Call,
+        CypherToken.Yield
+    ];
+
+    public static IReadOnlyList<CypherToken> MutatingKeywords { get; } =
+    [
+        CypherToken.Create,
+        CypherToken.Delete,
+        CypherToken.Set,
+        CypherToken.Merge,
+        CypherToken.Remove,
+        CypherToken.Drop,
+        CypherToken.Detach,
+        CypherToken.Alter,
+        CypherToken.Truncate
+    ];
+
+    public static IReadOnlyList<CypherToken> LiteralKeywords { get; } =
+    [
+        CypherToken.Null,
+        CypherToken.True,
+        CypherToken.False
+    ];
+
+    public static IReadOnlyList<CypherToken> IdentifierCompatibleKeywords { get; } =
+        [.. QueryKeywords, .. MutatingKeywords];
+
+    private static readonly (string Text, CypherToken Token)[] MultiCharSymbols =
+    [
+        ("->", CypherToken.ArrowRight),
+        ("<-", CypherToken.ArrowLeft),
+        ("<=", CypherToken.LessOrEqual),
+        (">=", CypherToken.GreaterOrEqual),
+        ("<>", CypherToken.NotEqual),
+        ("!=", CypherToken.NotEqual),
+        ("=~", CypherToken.RegexMatch),
+        ("..", CypherToken.DotDot)
+    ];
+
+    private static readonly (char Char, CypherToken Token)[] SingleCharSymbols =
+    [
+        ('(', CypherToken.LParen),
+        (')', CypherToken.RParen),
+        ('[', CypherToken.LBracket),
+        (']', CypherToken.RBracket),
+        ('{', CypherToken.LBrace),
+        ('}', CypherToken.RBrace),
+        (':', CypherToken.Colon),
+        (',', CypherToken.Comma),
+        ('.', CypherToken.Dot),
+        ('*', CypherToken.Asterisk),
+        ('|', CypherToken.Pipe),
+        ('-', CypherToken.Dash),
+        ('=', CypherToken.Equal),
+        ('<', CypherToken.LessThan),
+        ('>', CypherToken.GreaterThan),
+        ('+', CypherToken.Plus),
+        ('/', CypherToken.Slash),
+        ('%', CypherToken.Percent),
+        ('^', CypherToken.Caret)
+    ];
+
+    private const string SingleLineCommentPattern = @"//.*";
+    private const string ParameterPattern = @"\$[a-zA-Z_][a-zA-Z0-9_]*";
+    private const char DollarChar = '$';
+    private const string BacktickIdentPattern = @"`[^`]+`";
+    private const string SingleQuotedStringPattern = @"(?s)'(?:[^'\\]|\\.|'')*'";
+    private const string DoubleQuotedStringPattern = @"(?s)""(?:[^""\\]|\\.|"""")*""";
+    private const string HexNumberPattern = @"0x[0-9a-fA-F]+";
+    private const string DecimalNumberPattern = @"[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?";
+
+    public static Tokenizer<CypherToken> Instance { get; } = BuildTokenizer();
+
+    private static Tokenizer<CypherToken> BuildTokenizer()
+    {
+        var builder = new TokenizerBuilder<CypherToken>()
             .Ignore(Span.WhiteSpace)
-            .Ignore(Span.Regex(@"//.*"))
-            .Ignore(Comment.CStyle)
+            .Ignore(Span.Regex(SingleLineCommentPattern))
+            .Ignore(Comment.CStyle);
 
-            // Multi-char symbols and operators first (longest match)
-            .Match(Span.EqualTo("->"), CypherToken.ArrowRight)
-            .Match(Span.EqualTo("<-"), CypherToken.ArrowLeft)
-            .Match(Span.EqualTo("<="), CypherToken.LessOrEqual)
-            .Match(Span.EqualTo(">="), CypherToken.GreaterOrEqual)
-            .Match(Span.EqualTo("<>"), CypherToken.NotEqual)
-            .Match(Span.EqualTo("!="), CypherToken.NotEqual)
-            .Match(Span.EqualTo("=~"), CypherToken.RegexMatch)
-            .Match(Span.EqualTo(".."), CypherToken.DotDot)
+        foreach (var (text, token) in MultiCharSymbols)
+        {
+            builder = builder.Match(Span.EqualTo(text), token);
+        }
 
-            // Single-char symbols
-            .Match(Character.EqualTo('('), CypherToken.LParen)
-            .Match(Character.EqualTo(')'), CypherToken.RParen)
-            .Match(Character.EqualTo('['), CypherToken.LBracket)
-            .Match(Character.EqualTo(']'), CypherToken.RBracket)
-            .Match(Character.EqualTo('{'), CypherToken.LBrace)
-            .Match(Character.EqualTo('}'), CypherToken.RBrace)
-            .Match(Character.EqualTo(':'), CypherToken.Colon)
-            .Match(Character.EqualTo(','), CypherToken.Comma)
-            .Match(Character.EqualTo('.'), CypherToken.Dot)
-            .Match(Character.EqualTo('*'), CypherToken.Asterisk)
-            .Match(Character.EqualTo('|'), CypherToken.Pipe)
-            .Match(Character.EqualTo('-'), CypherToken.Dash)
-            .Match(Character.EqualTo('='), CypherToken.Equal)
-            .Match(Character.EqualTo('<'), CypherToken.LessThan)
-            .Match(Character.EqualTo('>'), CypherToken.GreaterThan)
-            .Match(Character.EqualTo('+'), CypherToken.Plus)
-            .Match(Character.EqualTo('/'), CypherToken.Slash)
-            .Match(Character.EqualTo('%'), CypherToken.Percent)
-            .Match(Character.EqualTo('^'), CypherToken.Caret)
+        foreach (var (ch, token) in SingleCharSymbols)
+        {
+            builder = builder.Match(Character.EqualTo(ch), token);
+        }
 
-            // Cypher parameter ($param) must be matched before single Dollar
-            .Match(Span.Regex(@"\$[a-zA-Z_][a-zA-Z0-9_]*"), CypherToken.Parameter)
-            .Match(Character.EqualTo('$'), CypherToken.Dollar)
+        // Cypher parameter ($param) must be matched before single Dollar
+        builder = builder
+            .Match(Span.Regex(ParameterPattern), CypherToken.Parameter)
+            .Match(Character.EqualTo(DollarChar), CypherToken.Dollar);
 
-            // Keywords (Case-insensitive with word boundary)
-            .Match(Span.Regex("(?i)\\bOPTIONAL\\b"), CypherToken.Optional)
-            .Match(Span.Regex("(?i)\\bMATCH\\b"), CypherToken.Match)
-            .Match(Span.Regex("(?i)\\bWHERE\\b"), CypherToken.Where)
-            .Match(Span.Regex("(?i)\\bRETURN\\b"), CypherToken.Return)
-            .Match(Span.Regex("(?i)\\bDISTINCT\\b"), CypherToken.Distinct)
-            .Match(Span.Regex("(?i)\\bAS\\b"), CypherToken.As)
-            .Match(Span.Regex("(?i)\\bORDER\\b"), CypherToken.Order)
-            .Match(Span.Regex("(?i)\\bBY\\b"), CypherToken.By)
-            .Match(Span.Regex("(?i)\\bASC\\b"), CypherToken.Asc)
-            .Match(Span.Regex("(?i)\\bDESC\\b"), CypherToken.Desc)
-            .Match(Span.Regex("(?i)\\bSKIP\\b"), CypherToken.Skip)
-            .Match(Span.Regex("(?i)\\bLIMIT\\b"), CypherToken.Limit)
-            .Match(Span.Regex("(?i)\\bAND\\b"), CypherToken.And)
-            .Match(Span.Regex("(?i)\\bOR\\b"), CypherToken.Or)
-            .Match(Span.Regex("(?i)\\bNOT\\b"), CypherToken.Not)
-            .Match(Span.Regex("(?i)\\bSTARTS\\b"), CypherToken.Starts)
-            .Match(Span.Regex("(?i)\\bENDS\\b"), CypherToken.Ends)
-            .Match(Span.Regex("(?i)\\bCONTAINS\\b"), CypherToken.Contains)
-            .Match(Span.Regex("(?i)\\bIN\\b"), CypherToken.In)
-            .Match(Span.Regex("(?i)\\bIS\\b"), CypherToken.Is)
-            .Match(Span.Regex("(?i)\\bNULL\\b"), CypherToken.Null)
-            .Match(Span.Regex("(?i)\\bTRUE\\b"), CypherToken.True)
-            .Match(Span.Regex("(?i)\\bFALSE\\b"), CypherToken.False)
-            .Match(Span.Regex("(?i)\\bCASE\\b"), CypherToken.Case)
-            .Match(Span.Regex("(?i)\\bWHEN\\b"), CypherToken.When)
-            .Match(Span.Regex("(?i)\\bTHEN\\b"), CypherToken.Then)
-            .Match(Span.Regex("(?i)\\bELSE\\b"), CypherToken.Else)
-            .Match(Span.Regex("(?i)\\bEND\\b"), CypherToken.End)
-            .Match(Span.Regex("(?i)\\bWITH\\b"), CypherToken.With)
-            .Match(Span.Regex("(?i)\\bUNWIND\\b"), CypherToken.Unwind)
-            .Match(Span.Regex("(?i)\\bXOR\\b"), CypherToken.Xor)
-            .Match(Span.Regex("(?i)\\bUNION\\b"), CypherToken.Union)
-            .Match(Span.Regex("(?i)\\bCALL\\b"), CypherToken.Call)
-            .Match(Span.Regex("(?i)\\bYIELD\\b"), CypherToken.Yield)
+        // Keywords (case-insensitive with word boundary)
+        foreach (var keyword in QueryKeywords.Concat(LiteralKeywords).Concat(MutatingKeywords))
+        {
+            builder = builder.Match(Span.Regex($"(?i)\\b{keyword}\\b"), keyword);
+        }
 
-            // Mutating Keywords
-            .Match(Span.Regex("(?i)\\bCREATE\\b"), CypherToken.Create)
-            .Match(Span.Regex("(?i)\\bDELETE\\b"), CypherToken.Delete)
-            .Match(Span.Regex("(?i)\\bSET\\b"), CypherToken.Set)
-            .Match(Span.Regex("(?i)\\bMERGE\\b"), CypherToken.Merge)
-            .Match(Span.Regex("(?i)\\bREMOVE\\b"), CypherToken.Remove)
-            .Match(Span.Regex("(?i)\\bDROP\\b"), CypherToken.Drop)
-            .Match(Span.Regex("(?i)\\bDETACH\\b"), CypherToken.Detach)
-            .Match(Span.Regex("(?i)\\bALTER\\b"), CypherToken.Alter)
-            .Match(Span.Regex("(?i)\\bTRUNCATE\\b"), CypherToken.Truncate)
-
+        return builder
             // Backtick-quoted identifiers (e.g. `some-prop`)
-            .Match(Span.Regex(@"`[^`]+`"), CypherToken.Identifier)
-
-            // Identifiers
+            .Match(Span.Regex(BacktickIdentPattern), CypherToken.Identifier)
+            // Standard identifiers
             .Match(Identifier.CStyle, CypherToken.Identifier)
-
             // String literals: single and double quotes with escaping (multiline, escaped quotes \' and '')
-            .Match(Span.Regex(@"(?s)'(?:[^'\\]|\\.|'')*'"), CypherToken.StringLiteral)
-            .Match(Span.Regex(@"(?s)""(?:[^""\\]|\\.|"""")*"""), CypherToken.StringLiteral)
-
+            .Match(Span.Regex(SingleQuotedStringPattern), CypherToken.StringLiteral)
+            .Match(Span.Regex(DoubleQuotedStringPattern), CypherToken.StringLiteral)
             // Numbers: hexadecimal, exponential, decimal, or integer
-            .Match(Span.Regex(@"0x[0-9a-fA-F]+"), CypherToken.Number)
-            .Match(Span.Regex(@"[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?"), CypherToken.Number)
-
+            .Match(Span.Regex(HexNumberPattern), CypherToken.Number)
+            .Match(Span.Regex(DecimalNumberPattern), CypherToken.Number)
             .Build();
+    }
 }

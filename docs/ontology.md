@@ -85,6 +85,7 @@ graph TD
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
     App -->|USES_API| ApiInUse
+    App -->|CALLED_BY| Function
     BoundedContext -->|DEPENDS_ON| BoundedContext
     BoundedContext -->|CONTAINS| Service
     BoundedContext -->|CONTAINS| App
@@ -159,6 +160,7 @@ graph TD
     Library -->|USES_API| ApiInUse
     Library -->|CONTAINS| Type
     Library -->|CONTAINS| Function
+    Library -->|CALLED_BY| Function
     LogicalStructure -->|CONTAINS| Domain
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
@@ -219,6 +221,7 @@ graph TD
     Service -->|COORDINATES_WITH| PeerMesh
     Service -->|CONTAINS| ApiInUse
     Service -->|USES_API| ApiInUse
+    Service -->|CALLED_BY| Function
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|ACCESSED_BY| Function
     Table -->|ACCESSED_BY| Type
@@ -256,6 +259,7 @@ graph TD
     Worker -->|COORDINATES_WITH| PeerMesh
     Worker -->|CONTAINS| Endpoint
     Worker -->|USES_API| ApiInUse
+    Worker -->|CALLED_BY| Function
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
     Workspace -->|CONTAINS| SyntaxStructure
@@ -729,6 +733,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `ApiInUse` | `ACCESSED_BY` |
+| `App` | `CALLED_BY` |
 | `CloudService` | `ACCESSED_BY` |
 | `Database` | `ACCESSED_BY` |
 | `Endpoint` | `TRIGGERS` |
@@ -736,12 +741,15 @@ graph TD
 | `ExternalService` | `CALLED_BY` |
 | `Function` | `CALLS` |
 | `Library` | `CONTAINS` |
+| `Library` | `CALLED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
+| `Service` | `CALLED_BY` |
 | `Table` | `ACCESSED_BY` |
 | `Topic` | `PUBLISHED_BY` |
 | `Topic` | `SUBSCRIBED_BY` |
 | `Type` | `HAS_METHOD` |
+| `Worker` | `CALLED_BY` |
 
 **Properties:**
 
@@ -973,6 +981,7 @@ graph TD
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `ApiInUse` |
 | `USES_API` | `ApiInUse` |
+| `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1225,6 +1234,7 @@ graph TD
 | `USES_API` | `ApiInUse` |
 | `CONTAINS` | `Type` |
 | `CONTAINS` | `Function` |
+| `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1388,6 +1398,7 @@ graph TD
 | `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `ApiInUse` |
 | `USES_API` | `ApiInUse` |
+| `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1541,6 +1552,7 @@ graph TD
 | `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `Endpoint` |
 | `USES_API` | `ApiInUse` |
+| `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1665,7 +1677,7 @@ graph TD
 | :--- | :--- |
 | `ACCESSED_BY` | Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it. |
 | `BELONGS_TO` | Links an entity to its parent project or container. |
-| `CALLED_BY` | Links an external service or database to the function that invokes or queries it. |
+| `CALLED_BY` | Links a service, external service, or database to the function that invokes or queries it. |
 | `CALLS` | Links a calling function to the function it directly invokes. |
 | `CALLS_ENDPOINT` | Links an external API call to the target HTTP endpoint it invokes. |
 | `CONFIGURES` | Links a configuration or infrastructure file to the semantic node (database, message broker, cloud or external service) it configures. |

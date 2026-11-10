@@ -266,6 +266,10 @@ public static class FunctionDataflowAnalyzer
                 {
                     list.AddRange(found);
                 }
+                else if (!id.NameSpan.IsEmpty && !id.IsSelfOrSuper)
+                {
+                    list.Add(new DataflowOrigin(FlowSourceKind.Constant, id.Name));
+                }
                 break;
 
             case MemberAccessExprSyntax mem:

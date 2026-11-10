@@ -114,6 +114,7 @@ public partial class Layer5AnalysisParser
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
         var newTopicNodes = new List<TopicNode>();
         var existingRefRels = new HashSet<(string From, string To, string Kind)>();
+        var deferredParamMessagingRefs = new List<Reference>();
 
         var lastRefReport = Stopwatch.GetTimestamp();
         foreach (var refItem in ctx.GlobalReferences)
@@ -151,7 +152,14 @@ public partial class Layer5AnalysisParser
                         break;
                     case RelationshipKind.PublishesTo:
                     case RelationshipKind.SubscribesTo:
-                        ResolveMessagingReference(refItem, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
+                        if (refItem.TargetName.Contains("$param:", StringComparison.Ordinal))
+                        {
+                            deferredParamMessagingRefs.Add(refItem);
+                        }
+                        else
+                        {
+                            ResolveMessagingReference(refItem, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
+                        }
                         break;
                     case RelationshipKind.PersistedIn:
                         ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships, existingRefRels);
@@ -176,6 +184,11 @@ public partial class Layer5AnalysisParser
             {
                 ctx.RecordScanIssue("Layer5_Global", "reference_error", refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: "ReferenceResolutionError", exception: ex, isFileParent: false);
             }
+        }
+
+        if (deferredParamMessagingRefs.Count > 0)
+        {
+            ResolveDeferredParamMessagingReferences(deferredParamMessagingRefs, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
         }
 
         ctx.Layer5Log.CrossReferencesResolved(resolvedCount, totalReferences, referenceRelationships.Count);

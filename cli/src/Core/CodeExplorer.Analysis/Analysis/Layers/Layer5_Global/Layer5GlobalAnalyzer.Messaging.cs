@@ -212,7 +212,9 @@ public partial class Layer5AnalysisParser
             callAdded = true;
         }
         // 5. Procedure symbols fallback
-        else if (!callAdded && !isCallbackArg && symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
+        else if (!callAdded && !isCallbackArg &&
+                 !IsFileNodeScope(refItem.ScopeSymbolId) &&
+                 symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
             referenceRelationships.Add(Relationship.CreateWithCallSite(
                 targetProcId,
@@ -714,6 +716,10 @@ public partial class Layer5AnalysisParser
             {
                 topicName = resolved;
             }
+            else if (WorkspaceConventions.IsPlaceholderName(prop))
+            {
+                return;
+            }
             else
             {
                 topicName = prop;
@@ -725,6 +731,10 @@ public partial class Layer5AnalysisParser
             if (ConstantRegistry.TryResolve(scopeProject, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
             {
                 topicName = resolved;
+            }
+            else if (WorkspaceConventions.IsPlaceholderName(prop))
+            {
+                return;
             }
             else
             {
@@ -777,10 +787,16 @@ public partial class Layer5AnalysisParser
         if (brokerType is not ("mediatr" or "cqrs" or "spring" or "eventbus"))
         {
             var normalizedTopic = WorkspaceConventions.NormalizeTopicName(topicName);
-            if (!string.IsNullOrEmpty(normalizedTopic))
+            if (string.IsNullOrEmpty(normalizedTopic))
             {
-                topicName = normalizedTopic;
+                return;
             }
+            topicName = normalizedTopic;
+        }
+
+        if (IsFileNodeScope(refItem.ScopeSymbolId))
+        {
+            return;
         }
 
         var isInternal = brokerType is "mediatr" or "cqrs";
@@ -828,6 +844,77 @@ public partial class Layer5AnalysisParser
             IsSemantic = isInternal ? false : null
         });
     }
+
+    private static void ResolveDeferredParamMessagingReferences(
+        List<Reference> deferredRefs,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        BindingLookups bindings,
+        List<TopicNode> newTopicNodes,
+        HashSet<string> createdTopicIds,
+        List<Relationship> referenceRelationships)
+    {
+        var callsByTarget = new Dictionary<string, List<Relationship>>(StringComparer.Ordinal);
+        foreach (var rel in referenceRelationships)
+        {
+            if (rel.Kind == RelationshipKind.Calls && !string.IsNullOrEmpty(rel.ArgFlow))
+            {
+                if (!callsByTarget.TryGetValue(rel.To, out var list))
+                {
+                    list = [];
+                    callsByTarget[rel.To] = list;
+                }
+                list.Add(rel);
+            }
+        }
+
+        if (callsByTarget.Count == 0) return;
+
+        foreach (var defRef in deferredRefs)
+        {
+            var paramIdxPos = defRef.TargetName.IndexOf("$param:", StringComparison.Ordinal);
+            if (paramIdxPos < 0) continue;
+
+            var prefix = defRef.TargetName[..paramIdxPos];
+            var paramStr = defRef.TargetName[(paramIdxPos + 7)..];
+            if (!int.TryParse(paramStr, out var paramIdx)) continue;
+
+            if (!callsByTarget.TryGetValue(defRef.ScopeSymbolId, out var incomingCalls)) continue;
+
+            var matchPrefix = $"{paramIdx}<-";
+            foreach (var callRel in incomingCalls)
+            {
+                var argFlow = callRel.ArgFlow!;
+                foreach (var segment in argFlow.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (!segment.StartsWith(matchPrefix, StringComparison.Ordinal)) continue;
+                    var originsPart = segment[matchPrefix.Length..];
+                    foreach (var rawOrigin in originsPart.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var origin = rawOrigin.Trim();
+                        if (string.IsNullOrEmpty(origin) ||
+                            (origin.Length >= 2 && origin[0] == 'p' && char.IsDigit(origin[1])))
+                        {
+                            continue;
+                        }
+
+                        var concreteRef = defRef with
+                        {
+                            ScopeSymbolId = callRel.From,
+                            TargetName = $"{prefix}{origin}",
+                            Line = callRel.Line > 0 ? callRel.Line : defRef.Line,
+                            Column = callRel.Column > 0 ? callRel.Column : defRef.Column
+                        };
+                        ResolveMessagingReference(concreteRef, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool IsFileNodeScope(string scopeId) =>
+        scopeId.Contains($":{OntologyConstants.IdPrefixes.File}:", StringComparison.Ordinal) ||
+        scopeId.Contains(":file:", StringComparison.Ordinal);
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
 

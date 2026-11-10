@@ -198,7 +198,7 @@ public static class EndpointSemanticAnalyzer
             {
                 esNode.Method = meth;
             }
-            if (!string.IsNullOrEmpty(parentScopeId))
+            if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
             {
                 var startLine = (int)node.StartPosition.Row + 1;
                 var endLine = (int)node.EndPosition.Row + 1;
@@ -307,7 +307,7 @@ public static class EndpointSemanticAnalyzer
                 MessagingDirection = msgDirection
             };
             var parentScopeId = syntactic.ParentScopeId;
-            if (!string.IsNullOrEmpty(parentScopeId))
+            if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
             {
                 var flowRel = isSubscriber
                     ? Relationship.FromRelationship(new SubscribedByRelationship(typedNode.Id, parentScopeId)

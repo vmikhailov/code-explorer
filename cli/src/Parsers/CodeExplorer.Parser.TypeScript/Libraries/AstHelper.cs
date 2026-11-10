@@ -565,6 +565,12 @@ public static partial class AstHelper
                                         }
                                         return rawLit;
                                     }
+                                    if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                                    {
+                                        var callResolved = ResolveTopicOrQueue(valNode, null, depth + 1, visitedVars)
+                                                           ?? ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                        if (!string.IsNullOrEmpty(callResolved)) return callResolved;
+                                    }
                                     var identText = valNode.Text.Trim();
                                     if (!identText.StartsWith(':') && !identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) && !identText.Equals("string", StringComparison.OrdinalIgnoreCase))
                                     {
@@ -579,7 +585,7 @@ public static partial class AstHelper
                                 }
 
                                 // If no inline initializer, check constructor for this.<cleanProp> = ...
-                                var ctor = body.Children.FirstOrDefault(c => (c.Is("method_definition") || c.Is("constructor") || c.Type.Contains("constructor")) &&
+                                var ctor = body.Children.FirstOrDefault(c => (c.Is(TreeSitterSyntax.TypeScript.MethodDefinition) || c.Is(TreeSitterSyntax.TypeScript.Constructor) || c.Type.Contains("constructor")) &&
                                                                             (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor" || c.Type.Contains("constructor")));
                                 if (ctor.IsValid() && ctor.AsSpan().Contains(cleanProp, StringComparison.Ordinal))
                                 {
@@ -617,7 +623,7 @@ public static partial class AstHelper
                     var classDecls = curr.Children
                         .SelectMany(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)
                             ? [c]
-                            : (c.Is("export_statement") ? c.Children.Where(sub => sub.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)) : []));
+                            : (c.Is(TreeSitterSyntax.TypeScript.ExportStatement) ? c.Children.Where(sub => sub.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)) : []));
 
                     foreach (var classDecl in classDecls)
                     {
@@ -668,6 +674,12 @@ public static partial class AstHelper
                                                 if (!string.IsNullOrEmpty(decomp)) return decomp;
                                             }
                                             return rawLit;
+                                        }
+                                        if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                                        {
+                                            var callResolved = ResolveTopicOrQueue(valNode, null, depth + 1, visitedVars)
+                                                               ?? ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                            if (!string.IsNullOrEmpty(callResolved)) return callResolved;
                                         }
                                         var identText = valNode.Text.Trim();
                                         if (identText.StartsWith(':') || identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) || identText.Equals("string", StringComparison.OrdinalIgnoreCase))
@@ -756,7 +768,7 @@ public static partial class AstHelper
         }
 
         // 3. Config call
-        var cfgMatch = Regex.Match(rhs, @"(?:getString|get)\s*\(\s*['""]([^'""]+)['""]\s*\)");
+        var cfgMatch = Regex.Match(rhs, @"(?:getString|get|getOrThrow|getEnv)(?:<[^>]+>)?\s*\(\s*['""`]([^'""`]+)['""`]\s*\)");
         if (cfgMatch.Success)
         {
             var key = cfgMatch.Groups[1].Value.Trim();
