@@ -22,9 +22,9 @@ public record MemberNode(
     [property: OntologyProperty("The relative path of the declaring file.")] string FilePath,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     [property: OntologyProperty("The starting line number (1-indexed) of the declaration.")] int StartLine,
-    [property: OntologyProperty("The ending line number (1-indexed) of the declaration.")] int EndLine,
-    [property: OntologyProperty("The starting column number of the declaration.")] int StartCol,
-    [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
+    [property: OntologyProperty("The ending line number (1-indexed) of the declaration.", isSystem: true)] int EndLine,
+    [property: OntologyProperty("The starting column number of the declaration.", isSystem: true)] int StartCol,
+    [property: OntologyProperty("The ending column number of the declaration.", isSystem: true)] int EndCol,
     [property: JsonPropertyName("kind"), OntologyProperty("The specific member kind (field, property, parameter, variable).")] MemberKind MemberKind,
     [property: JsonPropertyName("data_type"), OntologyProperty("The declared data type of the member.")] string? DataType = null,
     Dictionary<string, string>? CustomProperties = null

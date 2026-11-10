@@ -1,5 +1,4 @@
-using System.Text.Json;
-using System.Text.RegularExpressions;
+using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Options;
 
@@ -158,176 +157,7 @@ public class QueryCommandHandler : BaseCommandHandler
                 result = new CypherQueryResult(result.Columns, result.Rows.Take(opts.Limit.Value).ToList());
             }
 
-            if (string.Equals(opts.Format, "toon", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(opts.Format, "llm", StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine(ToonYamlSerializer.SerializeToon(result));
-                return 0;
-            }
-
-            if (string.Equals(opts.Format, "yaml", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(opts.Format, "yml", StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine(ToonYamlSerializer.SerializeYaml(result));
-                return 0;
-            }
-
-            bool isJsonFormat = IsJsonFormat(opts.Format, opts.Json);
-
-            if (opts.Compact || isJsonFormat)
-            {
-                if (!opts.Compact && Console.IsOutputRedirected && result.Rows.Count > 20)
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("[");
-                    for (var i = 0; i < result.Rows.Count; i++)
-                    {
-                        var rowBuf = new System.Buffers.ArrayBufferWriter<byte>(256);
-                        using (var writer = new Utf8JsonWriter(rowBuf, new JsonWriterOptions { Indented = false }))
-                        {
-                            result.Rows[i].WriteTo(writer);
-                        }
-                        sb.Append("  ").Append(System.Text.Encoding.UTF8.GetString(rowBuf.WrittenSpan));
-                        if (i < result.Rows.Count - 1)
-                        {
-                            sb.Append(',');
-                        }
-                        sb.AppendLine();
-                    }
-                    sb.Append(']');
-                    Console.WriteLine(sb.ToString());
-                    return 0;
-                }
-
-                bool useIndented = !opts.Compact && (!Console.IsOutputRedirected || result.Rows.Count <= 20);
-                Console.WriteLine(result.ToJson(indented: useIndented));
-                return 0;
-            }
-
-            // Print formatted table
-            var rows = result.Rows;
-
-            if (rows.Count == 0)
-            {
-                Console.WriteLine("(0 rows returned)");
-                return 0;
-            }
-
-            var columns = result.Columns.ToList();
-            bool compactPipeTable = (opts.NoTruncate || Console.IsOutputRedirected) &&
-                                    !string.Equals(opts.Format, "table", StringComparison.OrdinalIgnoreCase);
-            var maxLimit = compactPipeTable ? int.MaxValue : 80;
-
-            static string FormatColumnHeader(string rawCol)
-            {
-                if (rawCol.StartWithIC("CASE WHEN ") &&
-                    rawCol.Contains(".kind", StringComparison.OrdinalIgnoreCase))
-                {
-                    return "labels";
-                }
-
-                var propMatch = Regex.Match(rawCol, @"^json_extract\((\w+)\.properties,\s*'\$\.([^']+)'\)$");
-                if (propMatch.Success)
-                {
-                    return $"{propMatch.Groups[1].Value}.{propMatch.Groups[2].Value}";
-                }
-
-                var jsonMatch = Regex.Match(rawCol, @"^json\((\w+)\.properties\)$");
-                if (jsonMatch.Success)
-                {
-                    return $"properties({jsonMatch.Groups[1].Value})";
-                }
-
-                return rawCol.Length > 48 ? rawCol[..45] + "..." : rawCol;
-            }
-
-            var displayHeaders = columns.ToDictionary(c => c, FormatColumnHeader);
-            var colWidths = columns.ToDictionary(c => c, c => displayHeaders[c].Length);
-            bool wasTruncated = false;
-
-            static string FormatCell(CypherValue elem)
-            {
-                if (elem.IsNull)
-                    return "";
-
-                if (elem.Kind == CypherValueKind.String)
-                    return elem.AsString();
-
-                if (elem.Kind is CypherValueKind.Array or CypherValueKind.Object)
-                    return elem.ToJsonString();
-
-                return elem.ToString();
-            }
-
-            var tableData = new List<Dictionary<string, string>>(rows.Count);
-
-            foreach (var row in rows)
-            {
-                var rowData = new Dictionary<string, string>();
-
-                foreach (var col in columns)
-                {
-                    var rawStr = row.TryGetProperty(col, out var p) ? FormatCell(p) : "";
-                    var singleLine = Regex.Replace(rawStr, @"[\r\n\t]+", " ").Trim();
-                    rowData[col] = singleLine;
-
-                    var displayLen = compactPipeTable
-                        ? singleLine.Length
-                        : Math.Min(singleLine.Length, maxLimit);
-
-                    if (displayLen > colWidths[col])
-                    {
-                        colWidths[col] = displayLen;
-                    }
-                }
-
-                tableData.Add(rowData);
-            }
-
-            // Print header
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            if (compactPipeTable)
-            {
-                Console.WriteLine(string.Join(" | ", columns.Select(c => displayHeaders[c])));
-            }
-            else
-            {
-                Console.WriteLine(string.Join(" | ", columns.Select(c => displayHeaders[c].PadRight(colWidths[c]))));
-                Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
-            }
-            Console.ResetColor();
-
-            // Print rows
-            foreach (var row in tableData)
-            {
-                var line = string.Join(" | ", columns.Select(c =>
-                {
-                    var valStr = row[c];
-
-                    if (!compactPipeTable && valStr.Length > maxLimit)
-                    {
-                        wasTruncated = true;
-                        valStr = valStr[..(maxLimit - 3)] + "...";
-                    }
-
-                    return compactPipeTable ? valStr : valStr.PadRight(colWidths[c]);
-                }));
-                Console.WriteLine(line);
-            }
-
-            Console.WriteLine($"\n({rows.Count} rows)");
-
-            if (wasTruncated)
-            {
-                Console.ForegroundColor = ConsoleColor.DarkYellow;
-                Console.WriteLine("\n[!] Output was truncated in table view.");
-                Console.ResetColor();
-                Console.WriteLine("    Run with -j or --json to view full structured JSON data.");
-
-                Console.WriteLine(
-                    "    Run with --no-truncate to display full table columns without cutoff.");
-            }
-
+            Console.WriteLine(ToonYamlSerializer.SerializeYaml(result));
             return 0;
         }
         catch (Exception ex)
@@ -347,141 +177,25 @@ public class QueryCommandHandler : BaseCommandHandler
             ? new ProjectQueryManager().ListQueries(ws.RootDirectory)
             : [];
 
-        if (string.Equals(opts.Format, "toon", StringComparison.OrdinalIgnoreCase))
+        var queryObj = new
         {
-            var jsonObject = new
+            workspace = ws?.RootDirectory,
+            built_in = builtInQueries.Select(q => new
             {
-                workspace = ws?.RootDirectory,
-                built_in = builtInQueries.Select(q => new
-                {
-                    name = q.Name,
-                    category = q.Category,
-                    description = q.Description
-                }),
-                custom = customQueries.Select(q => new
-                {
-                    name = q.Name,
-                    description = q.Description,
-                    parameters = q.Parameters,
-                    path = q.CypherPath
-                })
-            };
-            Console.WriteLine(ToonYamlSerializer.SerializeToon(JsonSerializer.Serialize(jsonObject)));
-            return 0;
-        }
-
-        if (string.Equals(opts.Format, "yaml", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(opts.Format, "yml", StringComparison.OrdinalIgnoreCase))
-        {
-            var jsonObject = new
+                name = q.Name,
+                category = q.Category,
+                description = q.Description
+            }),
+            custom = customQueries.Select(q => new
             {
-                workspace = ws?.RootDirectory,
-                built_in = builtInQueries.Select(q => new
-                {
-                    name = q.Name,
-                    category = q.Category,
-                    description = q.Description
-                }),
-                custom = customQueries.Select(q => new
-                {
-                    name = q.Name,
-                    description = q.Description,
-                    parameters = q.Parameters,
-                    path = q.CypherPath
-                })
-            };
-            Console.WriteLine(ToonYamlSerializer.SerializeYaml(JsonSerializer.Serialize(jsonObject)));
-            return 0;
-        }
+                name = q.Name,
+                description = q.Description,
+                parameters = q.Parameters,
+                path = q.CypherPath
+            })
+        };
 
-        if (opts.Compact || IsJsonFormat(opts.Format, opts.Json))
-        {
-            var jsonObject = new
-            {
-                workspace = ws?.RootDirectory,
-                built_in = builtInQueries.Select(q => new
-                {
-                    name = q.Name,
-                    category = q.Category,
-                    description = q.Description
-                }),
-                custom = customQueries.Select(q => new
-                {
-                    name = q.Name,
-                    description = q.Description,
-                    parameters = q.Parameters,
-                    path = q.CypherPath
-                })
-            };
-            var jsonOptions = opts.Compact ? null : new JsonSerializerOptions { WriteIndented = true };
-            Console.WriteLine(JsonSerializer.Serialize(jsonObject, jsonOptions));
-            return 0;
-        }
-
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("============================================================");
-        Console.WriteLine(" CodeExplorer Queries");
-        Console.WriteLine("============================================================");
-        Console.ResetColor();
-
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("\nBuilt-in Queries:");
-        Console.ResetColor();
-
-        var byCategory = builtInQueries.GroupBy(q => q.Category).OrderBy(g => g.Key);
-        foreach (var group in byCategory)
-        {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"\n  [{group.Key}]");
-            Console.ResetColor();
-
-            foreach (var q in group)
-            {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.Write($"    {q.Name,-36}");
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine(q.Description);
-                Console.ResetColor();
-            }
-        }
-
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($"\nCustom Workspace Queries ({customQueries.Count}):");
-        Console.ResetColor();
-
-        if (ws == null)
-        {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine("  (No .codeexplorer workspace detected in current directory)");
-            Console.ResetColor();
-        }
-        else if (customQueries.Count == 0)
-        {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine($"  (None saved yet in {ws.QueriesDirectory})");
-            Console.ResetColor();
-        }
-        else
-        {
-            foreach (var q in customQueries)
-            {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.Write($"    {q.Name,-36}");
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine(q.Description);
-                Console.ResetColor();
-            }
-        }
-
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("Usage:");
-        Console.ResetColor();
-        Console.WriteLine("  ce query -n <name>             Execute query by name");
-        Console.WriteLine("  ce query --show <name>         View Cypher source code of query");
-        Console.WriteLine("  ce query \"<cypher>\"            Execute custom ad-hoc Cypher query");
-        Console.WriteLine("  ce query -f <path.cypher>      Execute query from a file\n");
-
+        Console.WriteLine(ToonYamlSerializer.SerializeObject(queryObj));
         return 0;
     }
 

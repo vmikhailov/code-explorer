@@ -41,19 +41,19 @@ public record PackageNode(
     [JsonPropertyName("dependency_scope"), OntologyProperty("Dependency scope (e.g. runtime, dev, test, build).")]
     public string? DependencyScope { get; set; }
 
-    [JsonPropertyName("raw_version"), OntologyProperty("Raw version or URL specifier from manifest.")]
+    [JsonPropertyName("raw_version"), OntologyProperty("Raw version or URL specifier from manifest.", isSystem: true)]
     public string? RawVersion { get; set; }
 
-    [JsonPropertyName("is_external_tarball"), OntologyProperty("Whether the dependency is fetched from an external tarball or git URL.")]
+    [JsonPropertyName("is_external_tarball"), OntologyProperty("Whether the dependency is fetched from an external tarball or git URL.", isSystem: true)]
     public bool? IsExternalTarball { get; set; }
 
-    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier for internal packages.")]
+    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier for internal packages.", isSystem: true)]
     public string? Publisher { get; set; }
 
-    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the package targets the VS Code extension engine.")]
+    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the package targets the VS Code extension engine.", isSystem: true)]
     public bool? HasVsCodeEngine { get; set; }
 
-    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.")]
+    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.", isSystem: true)]
     public string? ActivationEvents { get; set; }
 
     [JsonIgnore]

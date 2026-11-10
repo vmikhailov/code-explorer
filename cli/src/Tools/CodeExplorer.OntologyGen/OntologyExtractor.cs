@@ -130,7 +130,7 @@ public sealed class OntologyExtractor
                     .SelectMany(al => al.Attributes)
                     .FirstOrDefault(a => GetSimpleName(a.Name) == "OntologyProperty");
 
-                if (propAttr is null) return null;
+                if (propAttr is null || IsSystemOntologyProperty(propAttr)) return null;
 
                 var desc = propAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is { } expr ? Unquote(expr) : "";
                 return new PropertyInfo(p.Identifier.Text, p.Type?.ToString() ?? "?", desc);
@@ -146,7 +146,7 @@ public sealed class OntologyExtractor
                     .SelectMany(al => al.Attributes)
                     .FirstOrDefault(a => GetSimpleName(a.Name) == "OntologyProperty");
 
-                if (propAttr is null) return null;
+                if (propAttr is null || IsSystemOntologyProperty(propAttr)) return null;
 
                 var desc = propAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is { } expr ? Unquote(expr) : "";
                 return new PropertyInfo(p.Identifier.Text, p.Type.ToString(), desc);
@@ -307,6 +307,25 @@ public sealed class OntologyExtractor
     private static bool HasNamedArg(SeparatedSyntaxList<AttributeArgumentSyntax> args, string name) =>
         args.Any(a => a.NameColon?.Name.Identifier.Text == name
                    || a.NameEquals?.Name.Identifier.Text == name);
+
+    private const string ArgIsSystem = "isSystem";
+    private const string ArgIsSystemPascal = "IsSystem";
+    private const string BoolTrueLiteral = "true";
+
+    private static bool IsSystemOntologyProperty(AttributeSyntax propAttr)
+    {
+        if (propAttr.ArgumentList is null) return false;
+        var args = propAttr.ArgumentList.Arguments;
+        var namedExpr = args.Named(ArgIsSystem) ?? args.Named(ArgIsSystemPascal);
+        if (namedExpr is not null)
+        {
+            return string.Equals(namedExpr.ToString().Trim(), BoolTrueLiteral, StringComparison.OrdinalIgnoreCase);
+        }
+        return args.Count >= 2 &&
+               args[1].NameColon is null &&
+               args[1].NameEquals is null &&
+               string.Equals(args[1].Expression.ToString().Trim(), BoolTrueLiteral, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool IsConstantRef(ExpressionSyntax expr) =>
         expr is MemberAccessExpressionSyntax;

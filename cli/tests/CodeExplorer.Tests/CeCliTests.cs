@@ -77,15 +77,15 @@ public class CeCliTests
         var (scanExit, _, _) = await RunCliAsync("scan", _tempDir);
         scanExit.Should().Be(0);
 
-        // 4. ce status -d <tempDir> --json
-        var (statusExit, statusJson, _) = await RunCliAsync("status", "-d", _tempDir, "--json");
+        // 4. ce status -d <tempDir>
+        var (statusExit, statusYaml, _) = await RunCliAsync("status", "-d", _tempDir);
         statusExit.Should().Be(0);
-        statusJson.Should().Contain("MyTestWorkspace");
+        statusYaml.Should().Contain("MyTestWorkspace");
 
-        // 5. ce query "MATCH (t:Type) RETURN t.name AS name" -d <tempDir> --format json
-        var (queryExit, queryJson, _) = await RunCliAsync("query", "MATCH (t:Type) RETURN t.name AS name", "-d", _tempDir, "--format", "json");
+        // 5. ce query "MATCH (t:Type) RETURN t.name AS name" -d <tempDir>
+        var (queryExit, queryYaml, _) = await RunCliAsync("query", "MATCH (t:Type) RETURN t.name AS name", "-d", _tempDir);
         queryExit.Should().Be(0);
-        queryJson.Should().Contain("OrderService");
+        queryYaml.Should().Contain("OrderService");
 
         // 6. ce clear -d <tempDir> -y
         var (clearExit, _, _) = await RunCliAsync("clear", "-d", _tempDir, "-y");
@@ -120,23 +120,23 @@ public class CeCliTests
         var (exit, output, _) = await RunCliAsync("queries", "-d", _tempDir);
 
         exit.Should().Be(0);
-        output.Should().Contain("CodeExplorer Queries");
-        output.Should().Contain("[Architecture]");
-        output.Should().Contain("[Refactoring]");
-        output.Should().Contain("[Symbols]");
-        output.Should().Contain("[Taxonomy]");
+        output.Should().Contain("built_in:");
+        output.Should().Contain("Architecture");
+        output.Should().Contain("Refactoring");
+        output.Should().Contain("Symbols");
+        output.Should().Contain("Taxonomy");
         output.Should().Contain("get_architecture_map_workspace");
         output.Should().Contain("find_refactor_dead_code");
     }
 
     [Test]
-    public async Task CeQuery_List_JsonFormat_ReturnsStructuredJson()
+    public async Task CeQuery_List_ReturnsStructuredYaml()
     {
-        var (exit, output, _) = await RunCliAsync("query", "-l", "--format", "json", "-d", _tempDir);
+        var (exit, output, _) = await RunCliAsync("query", "-l", "-d", _tempDir);
 
         exit.Should().Be(0);
-        output.Should().Contain("\"built_in\"");
-        output.Should().Contain("\"get_architecture_map_workspace\"");
+        output.Should().Contain("built_in:");
+        output.Should().Contain("get_architecture_map_workspace");
     }
 
     [Test]
@@ -183,22 +183,10 @@ public class CeCliTests
         showOutput.Should().Contain("// Custom Query: get_my_ws");
         showOutput.Should().Contain(customCypher);
 
-        // 5. ce query -n get_my_ws --format json
-        var (runExit, runJson, _) = await RunCliAsync("query", "-n", "get_my_ws", "-d", _tempDir, "--format", "json");
+        // 5. ce query -n get_my_ws
+        var (runExit, runYaml, _) = await RunCliAsync("query", "-n", "get_my_ws", "-d", _tempDir);
         runExit.Should().Be(0);
-        runJson.Should().Contain("CustomQueryTest");
-    }
-
-    [Test]
-    public async Task CeQuery_ShortJsonFlag_OutputsJson()
-    {
-        var (initExit, _, _) = await RunCliAsync("init", "JsonFlagTest", "-d", _tempDir);
-        initExit.Should().Be(0);
-
-        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "-j");
-
-        exit.Should().Be(0);
-        output.Should().Contain("\"name\": \"JsonFlagTest\"");
+        runYaml.Should().Contain("CustomQueryTest");
     }
 
     [Test]
@@ -216,38 +204,12 @@ public class CeCliTests
     }
 
     [Test]
-    public async Task CeQuery_CompactFlag_OutputsCompactJson()
-    {
-        var (initExit, _, _) = await RunCliAsync("init", "CompactJsonTest", "-d", _tempDir);
-        initExit.Should().Be(0);
-
-        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "-c");
-
-        exit.Should().Be(0);
-        output.Trim().Should().StartWith("[{\"name\":");
-        output.Should().NotContain("\r\n  ");
-    }
-
-    [Test]
-    public async Task CeQuery_ToonFormat_OutputsToon()
-    {
-        var (initExit, _, _) = await RunCliAsync("init", "ToonFormatTest", "-d", _tempDir);
-        initExit.Should().Be(0);
-
-        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "--format", "toon");
-
-        exit.Should().Be(0);
-        output.Should().Contain("[name]:");
-        output.Should().Contain("ToonFormatTest");
-    }
-
-    [Test]
-    public async Task CeQuery_YamlFormat_OutputsYaml()
+    public async Task CeQuery_OutputsYamlByDefault()
     {
         var (initExit, _, _) = await RunCliAsync("init", "YamlFormatTest", "-d", _tempDir);
         initExit.Should().Be(0);
 
-        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "--format", "yaml");
+        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir);
 
         exit.Should().Be(0);
         output.Should().Contain("- name: YamlFormatTest");
@@ -289,9 +251,9 @@ public class CeCliTests
         BaseCommandHandler.HasTarget(null, "context", "bounded-context").Should().BeFalse();
         BaseCommandHandler.HasTarget("   ", "context").Should().BeFalse();
 
-        var viewOpts = new ViewOptions { Target = "context-map" };
-        viewOpts.HasTarget("context", "bounded-context", "context-map").Should().BeTrue();
-        BaseCommandHandler.HasTarget(viewOpts.Target, "context-map").Should().BeTrue();
+        var domainOpts = new DomainOptions { Target = "context-map" };
+        domainOpts.HasTarget("context", "bounded-context", "context-map").Should().BeTrue();
+        BaseCommandHandler.HasTarget(domainOpts.Target, "context-map").Should().BeTrue();
     }
 
     [Test]

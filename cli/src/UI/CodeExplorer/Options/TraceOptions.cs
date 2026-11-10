@@ -22,9 +22,6 @@ public class TraceOptions
     [Option("max-depth", Required = false, Default = 3, HelpText = "Maximum service traversal depth (default: 3).")]
     public int MaxDepth { get; set; } = 3;
 
-    [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'toon', 'mermaid', 'json'.")]
-    public string Format { get; set; } = "markdown";
-
     [Option('d', "dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 }

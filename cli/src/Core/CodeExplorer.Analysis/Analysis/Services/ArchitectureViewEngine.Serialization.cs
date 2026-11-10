@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
 
@@ -9,7 +10,7 @@ namespace CodeExplorer.Core.Analysis;
 public partial class ArchitectureViewEngine
 {
     // =========================================================================
-    // 8. Multi-Format LLM Serializers (Markdown, TOON, Mermaid, JSON)
+    // 8. Multi-Format LLM Serializers (YAML, Markdown, TOON, Mermaid, JSON)
     // =========================================================================
 
     public static string SerializeDomainArchitecture(DomainArchitectureDto dto, string format)
@@ -18,8 +19,8 @@ public partial class ArchitectureViewEngine
         {
             "json" => JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = false }),
             "mermaid" => ToMermaid(dto),
-            "toon" => ToToon(dto),
-            _ => ToMarkdown(dto)
+            "markdown" or "md" => ToMarkdown(dto),
+            _ => ToToon(dto)
         };
     }
 
@@ -215,8 +216,8 @@ public partial class ArchitectureViewEngine
         return (format.ToLowerInvariant()) switch
         {
             "json" => JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = false }),
-            "toon" => ToToon(dto),
-            _ => ToMarkdown(dto)
+            "markdown" or "md" => ToMarkdown(dto),
+            _ => ToToon(dto)
         };
     }
 
@@ -286,7 +287,8 @@ public partial class ArchitectureViewEngine
         {
             "json" => JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = false }),
             "mermaid" => ToMermaid(dto),
-            _ => ToMarkdown(dto)
+            "markdown" or "md" => ToMarkdown(dto),
+            _ => ToonYamlSerializer.SerializeObject(dto)
         };
     }
 
@@ -325,8 +327,8 @@ public partial class ArchitectureViewEngine
         {
             "json" => JsonSerializer.Serialize(new { results = graph }, new JsonSerializerOptions { WriteIndented = false }),
             "mermaid" => ToMermaid(graph),
-            "toon" or "yaml" => ToToon(graph),
-            _ => ToMarkdown(graph, title)
+            "markdown" or "md" => ToMarkdown(graph, title),
+            _ => ToToon(graph)
         };
     }
 
@@ -406,7 +408,8 @@ public partial class ArchitectureViewEngine
         {
             "json" => JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = false }),
             "mermaid" => ToMermaidBoundedContexts(dto),
-            _ => ToMarkdownBoundedContexts(dto)
+            "markdown" or "md" => ToMarkdownBoundedContexts(dto),
+            _ => ToonYamlSerializer.SerializeObject(dto)
         };
     }
 

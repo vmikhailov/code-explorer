@@ -20,7 +20,7 @@ public class ContractsCommandHandler : BaseCommandHandler
         var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
 
         var output = await repository.GetServiceContractsAsync(serviceName: opts.Service, direction: opts.Direction,
-            format: opts.Format, workspacePath: ws.RootDirectory);
+            workspacePath: ws.RootDirectory);
 
         Console.WriteLine(output);
         return 0;

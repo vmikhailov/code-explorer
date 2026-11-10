@@ -30,7 +30,7 @@ public record ExternalServiceNode(
     [JsonPropertyName("start_line")]
     public int? StartLine { get; set; }
 
-    [JsonPropertyName("start_col")]
+    [JsonPropertyName("start_col"), OntologyProperty("The starting column number of the call site.", isSystem: true)]
     public int? StartCol { get; set; }
 
     [JsonPropertyName("caller_symbol_id")]
@@ -60,13 +60,13 @@ public record ExternalServiceNode(
     [JsonPropertyName("is_internal")]
     public bool? IsInternal { get; set; }
 
-    [JsonPropertyName("is_relative_path")]
+    [JsonPropertyName("is_relative_path"), OntologyProperty("Indicates whether the target URL is a relative path.", isSystem: true)]
     public bool? IsRelativePath { get; set; }
 
-    [JsonPropertyName("inferred_from_path")]
+    [JsonPropertyName("inferred_from_path"), OntologyProperty("Indicates whether the service was inferred from an HTTP path.", isSystem: true)]
     public bool? InferredFromPath { get; set; }
 
-    [JsonPropertyName("inferred_from_identifier")]
+    [JsonPropertyName("inferred_from_identifier"), OntologyProperty("Indicates whether the service was inferred from an identifier.", isSystem: true)]
     public bool? InferredFromIdentifier { get; set; }
 
     [JsonIgnore]

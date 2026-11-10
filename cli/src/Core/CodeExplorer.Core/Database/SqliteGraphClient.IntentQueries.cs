@@ -656,6 +656,38 @@ public partial class SqliteGraphClient
                                               )
                                           );
 
+                                        DELETE FROM edges
+                                        WHERE from_id IN (
+                                            SELECT dom.rowid FROM nodes dom
+                                            WHERE dom.kind = {domainKindId}
+                                              AND dom.id NOT IN (
+                                                  SELECT @widPrefix || 'dom:' || lower(domain)
+                                                  FROM intents
+                                                  WHERE domain IS NOT NULL AND trim(domain) != ''
+                                                  UNION
+                                                  SELECT @widPrefix || 'dom:' || lower(json_extract(properties, '$.intent_domain'))
+                                                  FROM nodes
+                                                  WHERE json_extract(properties, '$.intent_domain') IS NOT NULL 
+                                                    AND trim(json_extract(properties, '$.intent_domain')) != ''
+                                              )
+                                        );
+
+                                        DELETE FROM edges
+                                        WHERE to_id IN (
+                                            SELECT dom.rowid FROM nodes dom
+                                            WHERE dom.kind = {domainKindId}
+                                              AND dom.id NOT IN (
+                                                  SELECT @widPrefix || 'dom:' || lower(domain)
+                                                  FROM intents
+                                                  WHERE domain IS NOT NULL AND trim(domain) != ''
+                                                  UNION
+                                                  SELECT @widPrefix || 'dom:' || lower(json_extract(properties, '$.intent_domain'))
+                                                  FROM nodes
+                                                  WHERE json_extract(properties, '$.intent_domain') IS NOT NULL 
+                                                    AND trim(json_extract(properties, '$.intent_domain')) != ''
+                                              )
+                                        );
+
                                         DELETE FROM nodes
                                         WHERE kind = {domainKindId}
                                           AND id NOT IN (

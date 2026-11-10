@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.76.0] - 2026-11-10
+
+### Added & Changed
+- **Unified Token-Minimal YAML Output Across CLI (`ce`) and MCP Tools**:
+  - Replaced verbose JSON and Markdown table outputs across all `ce` CLI commands (`status`, `taxonomy`, `search`, `callers`, `trace`, `deps`, `contracts`, `query`, `queries`, `test`, `coverage`, `intent`, `ingest`) and MCP tools with compact, token-efficient YAML (`ToonYamlSerializer.SerializeYaml` / `SerializeObject`).
+  - Removed legacy `format` parameters (`json`, `markdown`, `mermaid`) from `CodeExplorerRepository` and `McpGraphHandler`, standardizing on a single deterministic YAML representation.
+- **Attribute-Driven 5-Layer Ontology Taxonomy (`ce taxonomy` / `get_taxonomy`)**:
+  - Grouped `nodes:` in `ce taxonomy` and MCP `get_taxonomy` into the 5 canonical ontology layers (`L1_physical`, `L2_boundaries`, `L3_syntactic`, `L4_semantic`, `L5_logical`) derived directly from `[OntologyNode(layer: ...)]`, with `common_properties: [id, name, path, project_id]` and flat grouped `relationships:` (`REL: [SrcA|SrcB -> DstA|DstB]`).
+  - Added `bool isSystem = false` to `[OntologyProperty]` and annotated all internal/UI properties across `CompositeNode` and Layer 1–5 ontology records, eliminating hardcoded exclusion sets (`IgnoredTaxonomyLabels`, `IgnoredTaxonomyUiProperties`, `TaxonomyCommonProperties`) in favor of reflection-driven `OntologyRegistry` metadata (`IsSystemNode`, `IsSystemProperty`, `CommonPropertyKeys`).
+- **CLI Streamlining**:
+  - Removed the redundant `ce view` command (`ViewCommandHandler` / `ViewOptions`), consolidating ontology and layer inspection into `ce taxonomy` and workspace summaries into `ce status`.
+
 ## [1.75.2] - 2026-11-09
 
 ### Changed & Refactored

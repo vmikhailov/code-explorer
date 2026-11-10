@@ -42,7 +42,7 @@ public class StatusCommandTests
     }
 
     [Test]
-    public async Task Status_OutputsSchemaVersion_InConsole()
+    public async Task Status_OutputsSchemaVersion_InYaml()
     {
         await SetupWorkspaceAsync();
 
@@ -54,24 +54,7 @@ public class StatusCommandTests
         exitCode.Should().Be(0);
         var output = sw.ToString();
 
-        output.Should().Contain("Workspace:");
-        output.Should().Contain($"Schema:    v{SqliteGraphClient.CurrentSchemaVersion}");
-    }
-
-    [Test]
-    public async Task Status_OutputsSchemaVersion_InJson()
-    {
-        await SetupWorkspaceAsync();
-
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
-
-        var exitCode = await StatusCommandHandler.HandleAsync(new StatusOptions { Dir = _tempWorkspace, Json = true });
-
-        exitCode.Should().Be(0);
-        var output = sw.ToString();
-
-        var root = CypherValue.TryParseJsonText(output);
+        var root = ToonYamlSerializer.ParseYamlOrJson(output);
 
         root.GetIntProp("schema_version").Should().Be(SqliteGraphClient.CurrentSchemaVersion);
         root.GetIntProp("current_schema_version").Should().Be(SqliteGraphClient.CurrentSchemaVersion);
@@ -79,7 +62,7 @@ public class StatusCommandTests
     }
 
     [Test]
-    public async Task Status_OutdatedSchema_DisplaysOutdatedWarning()
+    public async Task Status_OutdatedSchema_ReportsOutdatedFlagInYaml()
     {
         var ws = WorkspaceLocator.Initialize(_tempWorkspace, "StatusTestApp");
         await using (var client = new SqliteGraphClient(ws.DbPath))
@@ -104,7 +87,9 @@ public class StatusCommandTests
 
         exitCode.Should().Be(0);
         var output = sw.ToString();
+        var root = ToonYamlSerializer.ParseYamlOrJson(output);
 
-        output.Should().Contain($"Schema:    v2 (outdated, current is v{SqliteGraphClient.CurrentSchemaVersion} - run 'ce scan --clear' to upgrade)");
+        root.GetIntProp("schema_version").Should().Be(2);
+        root.GetBoolProp("is_schema_outdated").Should().BeTrue();
     }
 }

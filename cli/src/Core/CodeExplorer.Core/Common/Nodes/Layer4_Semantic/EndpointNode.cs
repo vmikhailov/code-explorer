@@ -57,13 +57,13 @@ public record EndpointNode(
     [JsonPropertyName("start_line")]
     public int? StartLine { get; set; }
 
-    [JsonPropertyName("end_line")]
+    [JsonPropertyName("end_line"), OntologyProperty("The ending line number of the endpoint declaration.", isSystem: true)]
     public int? EndLine { get; set; }
 
     [JsonPropertyName("line")]
     public int? Line { get; set; }
 
-    [JsonPropertyName("line_end")]
+    [JsonPropertyName("line_end"), OntologyProperty("The ending line number of the endpoint declaration.", isSystem: true)]
     public int? LineEnd { get; set; }
 
     [JsonPropertyName("operation")]

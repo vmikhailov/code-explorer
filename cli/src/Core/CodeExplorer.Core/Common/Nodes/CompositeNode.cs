@@ -14,34 +14,34 @@ public abstract record CompositeNode(
     [JsonIgnore]
     public Dictionary<string, string>? CustomProperties { get; set; } = CustomProperties;
 
-    [JsonPropertyName("layer")]
+    [JsonPropertyName("layer"), OntologyProperty("The architectural layer name.", isSystem: true)]
     public string? Layer { get; set; }
 
-    [JsonPropertyName("layerId")]
+    [JsonPropertyName("layerId"), OntologyProperty("The architectural layer identifier.", isSystem: true)]
     public string? LayerId { get; set; }
 
-    [JsonPropertyName("layerName")]
+    [JsonPropertyName("layerName"), OntologyProperty("The architectural layer display name.", isSystem: true)]
     public string? LayerName { get; set; }
 
-    [JsonPropertyName("layerOrder")]
+    [JsonPropertyName("layerOrder"), OntologyProperty("The architectural layer display order.", isSystem: true)]
     public int? LayerOrder { get; set; }
 
-    [JsonPropertyName("layerColor")]
+    [JsonPropertyName("layerColor"), OntologyProperty("The architectural layer UI color.", isSystem: true)]
     public string? LayerColor { get; set; }
 
-    [JsonPropertyName("layerIcon")]
+    [JsonPropertyName("layerIcon"), OntologyProperty("The architectural layer UI icon.", isSystem: true)]
     public string? LayerIcon { get; set; }
 
-    [JsonPropertyName("is_semantic_entity")]
+    [JsonPropertyName("is_semantic_entity"), OntologyProperty("Indicates whether the node is a semantic entity.", isSystem: true)]
     public bool? IsSemanticEntity { get; set; }
 
-    [JsonPropertyName("project_id")]
+    [JsonPropertyName("project_id"), OntologyProperty("The identifier of the enclosing project.")]
     public string? ProjectId { get; set; }
 
-    [JsonPropertyName("raw_name")]
+    [JsonPropertyName("raw_name"), OntologyProperty("The unnormalized raw entity name.", isSystem: true)]
     public string? RawName { get; set; }
 
-    [JsonPropertyName("clean_name")]
+    [JsonPropertyName("clean_name"), OntologyProperty("The normalized clean entity name.", isSystem: true)]
     public string? CleanName { get; set; }
 
     [JsonIgnore]
@@ -50,7 +50,7 @@ public abstract record CompositeNode(
     [JsonIgnore]
     public virtual NodeKind NodeKind => Kind;
 
-    [JsonIgnore]
+    [JsonIgnore, OntologyProperty("The path of the folder or file relative to its parent container.")]
     public abstract string Path { get; init; }
 
     [JsonIgnore]

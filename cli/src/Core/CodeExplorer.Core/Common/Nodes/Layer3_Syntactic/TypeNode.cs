@@ -27,9 +27,9 @@ public record TypeNode(
     [property: OntologyProperty("The relative path of the declaring file.")] string FilePath,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     [property: OntologyProperty("The starting line number (1-indexed) of the declaration.")] int StartLine,
-    [property: OntologyProperty("The ending line number (1-indexed) of the declaration.")] int EndLine,
-    [property: OntologyProperty("The starting column number of the declaration.")] int StartCol,
-    [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
+    [property: OntologyProperty("The ending line number (1-indexed) of the declaration.", isSystem: true)] int EndLine,
+    [property: OntologyProperty("The starting column number of the declaration.", isSystem: true)] int StartCol,
+    [property: OntologyProperty("The ending column number of the declaration.", isSystem: true)] int EndCol,
     [property: JsonPropertyName("kind"), OntologyProperty("The specific type kind (class, interface, struct, record, enum).")] TypeKind TypeKind,
     bool IsTest,
     ProjectEntityKind? ProjectKind = null,
@@ -63,7 +63,7 @@ public record TypeNode(
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
 
-    [JsonPropertyName("stage_order"), OntologyProperty("Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex).")]
+    [JsonPropertyName("stage_order"), OntologyProperty("Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex).", isSystem: true)]
     public int? StageOrder { get; set; } = StageOrder;
 
     [JsonPropertyName("loc"), OntologyProperty("Lines of code span for this type declaration.")]

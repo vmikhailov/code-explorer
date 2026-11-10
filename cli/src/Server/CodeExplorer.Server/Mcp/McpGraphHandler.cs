@@ -130,27 +130,25 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'project-map', 'domain', 'tiers'). Formats: markdown, toon, mermaid, json.")]
+    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'project-map', 'domain', 'tiers').")]
     public async Task<CallToolResult> GetArchitectureViewAsync(
         [Description("View level: 'c1', 'c2', 'c3', 'project-map' (internal modules, lifted calls & cycles of one project), 'domain', or 'tiers'. Default: 'c1'.")] string level = "c1",
         [Description("Optional project/service name filter. For 'project-map': project name, id, or path (defaults to the largest project).")] string? scope = null,
         [Description("Include shared libraries. Default: false.")] bool includeLibraries = false,
-        [Description("Format: 'markdown', 'toon', 'mermaid', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetArchitectureViewAsync(level, scope, includeLibraries, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetArchitectureViewAsync(level, scope, includeLibraries, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
     [McpServerTool]
     [Description("DDD Context Map: domains, entities, events, CQRS roles, and cross-context interactions.")]
     public async Task<CallToolResult> GetBoundedContextsAsync(
-        [Description("Format: 'markdown', 'mermaid', 'json', 'toon'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetBoundedContextsAsync(format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetBoundedContextsAsync(GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -179,13 +177,12 @@ public partial class McpGraphHandler(
     [Description("Project dependency graph with runtime vs build filtering.")]
     public async Task<CallToolResult> GetProjectDependenciesAsync(
         [Description("Optional project name filter.")] string? projectFilter = null,
-        [Description("Format: 'markdown', 'mermaid', 'json', 'yaml', 'toon'. Default: 'markdown'.")] string format = "markdown",
         [Description("Max results (default: 50).")] int limit = 50,
         [Description("Type: 'all', 'runtime', or 'build'. Default: 'all'.")] string type = "all",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter, format, limit, type, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter, limit, type, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -194,7 +191,6 @@ public partial class McpGraphHandler(
     public async Task<CallToolResult> GetServiceContractsAsync(
         [Description("Service or project name.")] string serviceName,
         [Description("Direction: 'ingress', 'egress', or 'all'. Default: 'all'.")] string direction = "all",
-        [Description("Format: 'markdown', 'toon', 'mermaid', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -202,7 +198,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'serviceName' argument.");
         }
-        return await ExecuteAsync(() => repository.GetServiceContractsAsync(serviceName, direction, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetServiceContractsAsync(serviceName, direction, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -212,7 +208,6 @@ public partial class McpGraphHandler(
         [Description("Starting service name.")] string startService,
         [Description("Optional entry point URL or method name.")] string? entryPoint = null,
         [Description("Max traversal depth (1-10, default: 3).")] int maxDepth = 3,
-        [Description("Format: 'markdown', 'toon', 'mermaid', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -220,7 +215,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'startService' argument.");
         }
-        return await ExecuteAsync(() => repository.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -228,7 +223,6 @@ public partial class McpGraphHandler(
     [Description("Extract file structural outline without reading source text.")]
     public async Task<CallToolResult> GetFileOutlineAsync(
         [Description("File path relative to workspace or absolute.")] string filePath,
-        [Description("Format: 'markdown', 'json', 'yaml', 'toon'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -236,7 +230,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'filePath' argument.");
         }
-        return await ExecuteAsync(() => repository.GetFileOutlineAsync(filePath, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetFileOutlineAsync(filePath, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -245,7 +239,6 @@ public partial class McpGraphHandler(
     public async Task<CallToolResult> FindSymbolAsync(
         [Description("Symbol name or partial name.")] string name,
         [Description("Optional type: 'Class', 'Interface', 'Function', 'Variable'.")] string? symbolType = null,
-        [Description("Format: 'markdown', 'json', 'yaml', 'toon'. Default: 'markdown'.")] string format = "markdown",
         [Description("Max results (default: 50).")] int limit = 50,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
@@ -254,7 +247,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'name' argument.");
         }
-        return await ExecuteAsync(() => repository.FindSymbolAsync(name, symbolType, format, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.FindSymbolAsync(name, symbolType, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -264,7 +257,6 @@ public partial class McpGraphHandler(
         [Description("Originating function name.")] string startFunction,
         [Description("Destination function name.")] string endFunction,
         [Description("Max depth (1-10, default: 5).")] int maxDepth = 5,
-        [Description("Format: 'markdown', 'mermaid', 'json', 'yaml', 'toon'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -272,7 +264,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'startFunction' or 'endFunction' argument.");
         }
-        return await ExecuteAsync(() => repository.GetCallChainAsync(startFunction, endFunction, maxDepth, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetCallChainAsync(startFunction, endFunction, maxDepth, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -296,7 +288,6 @@ public partial class McpGraphHandler(
     [Description("Find all callers, inbound references, service consumers, or table/topic accessors for a target (functions, microservices, database tables, messaging topics). Prioritize this tool over grep for discovering callers.")]
     public async Task<CallToolResult> GetCallersAsync(
         [Description("Target name (Function, Service, Project, Table, Topic, or Type).")] string target,
-        [Description("Format: 'markdown', 'toon', 'json', 'table'. Default: 'markdown'.")] string format = "markdown",
         [Description("Include test callers (default: false).")] bool includeTests = false,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
@@ -305,7 +296,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'target' argument.");
         }
-        return await ExecuteAsync(() => repository.GetCallersAsync(target, format, includeTests, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetCallersAsync(target, includeTests, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -315,7 +306,6 @@ public partial class McpGraphHandler(
         [Description("Search query (symbol name, route, or colloquial keyword).")] string query,
         [Description("Optional filter by node kind ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project').")] string? kind = null,
         [Description("Maximum results to return (default: 15).")] int limit = 15,
-        [Description("Format: 'markdown', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -323,7 +313,7 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'query' argument.");
         }
-        return await ExecuteAsync(() => repository.SearchIdentifiersAsync(query, kind, limit, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.SearchIdentifiersAsync(query, kind, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -331,7 +321,6 @@ public partial class McpGraphHandler(
     [Description("Blast-radius impact analysis: all callers, dependents, and references affected by modifying a symbol (Class, Interface, Function, Service, Table). Prioritize over grep.")]
     public async Task<CallToolResult> AnalyzeCodeImpactAsync(
         [Description("Class, interface, function, service, or table name.")] string symbolName,
-        [Description("Format: 'markdown', 'toon', 'json', 'table'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -339,6 +328,6 @@ public partial class McpGraphHandler(
         {
             return WrapError("Missing 'symbolName' argument.");
         }
-        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 }

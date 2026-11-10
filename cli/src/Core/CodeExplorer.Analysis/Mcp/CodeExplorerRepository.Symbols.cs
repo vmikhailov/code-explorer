@@ -5,61 +5,12 @@ namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
-    private static string FormatFindSymbol(CypherQueryResult res, string format, string name, int limit)
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeYaml(res);
-        }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        if (res.Count == 0)
-        {
-            return $"No symbols found matching '{name}'.";
-        }
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("| Kind | Name | Symbol | File | Lines |");
-        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
-        var count = 0;
-
-        foreach (var item in res.Rows)
-        {
-            if (count++ >= limit) break;
-
-            const string colFullName = "fullName";
-            const string colFilePath = "filePath";
-            var type = item.GetStringProp(ColType);
-            var symName = item.GetStringProp(ColName);
-            var fullName = item.GetStringProp(colFullName);
-            var filePath = item.GetStringProp(colFilePath);
-            var startLine = item.GetLongProp(ColStartLine);
-            var endLine = item.GetLongProp(ColEndLine);
-
-            var linesStr = startLine > 0
-                ? (endLine > startLine ? $"L{startLine}-{endLine}" : $"L{startLine}")
-                : "-";
-            sb.AppendLine($"| {type} | `{symName}` | `{fullName}` | `{filePath}` | {linesStr} |");
-        }
-
-        return sb.ToString().TrimEnd();
-    }
-
-    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string format = "markdown", int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var parameters = new Dictionary<string, string>
@@ -134,123 +85,15 @@ public partial class CodeExplorerRepository
             }
         }
 
-        return FormatFindSymbol(res, format, name, effectiveLimit);
+        return ToonYamlSerializer.SerializeYaml(res);
     }
 
-    private static string FormatCallChain(CypherQueryResult res, string format, string startFunction, string endFunction, int maxDepth)
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeYaml(res);
-        }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        if (res.Count == 0)
-        {
-            return $"No call chain found between '{startFunction}' and '{endFunction}' within depth {maxDepth}.";
-        }
-
-        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("```mermaid");
-            sb.AppendLine("graph TD");
-            var pathIndex = 0;
-
-            foreach (var row in res.Rows)
-            {
-                if (row.TryGetProperty("chain", out var chainProp) && chainProp.Kind == CypherValueKind.Array)
-                {
-                    var nodes = chainProp.AsArray();
-
-                    for (var i = 0; i < nodes.Count - 1; i++)
-                    {
-                        var fromName =
-                            nodes[i].Kind == CypherValueKind.Object &&
-                            nodes[i].TryGetProperty("name", out var fn)
-                                ? fn.AsString()
-                                : (nodes[i].Kind == CypherValueKind.String ? nodes[i].AsString() : $"Step{i}");
-
-                        var toName =
-                            nodes[i + 1].Kind == CypherValueKind.Object &&
-                            nodes[i + 1].TryGetProperty("name", out var tn)
-                                ? tn.AsString()
-                                : (nodes[i + 1].Kind == CypherValueKind.String
-                                    ? nodes[i + 1].AsString()
-                                    : $"Step{i + 1}");
-                        var fromId = $"p{pathIndex}_n{i}";
-                        var toId = $"p{pathIndex}_n{i + 1}";
-                        sb.AppendLine($"    {fromId}[\"{fromName}()\"] --> {toId}[\"{toName}()\"]");
-                    }
-
-                    pathIndex++;
-                }
-            }
-
-            sb.Append("```");
-            return sb.ToString();
-        }
-
-        // Markdown format
-        var md = new System.Text.StringBuilder();
-        md.AppendLine($"### Call Chain: `{startFunction}` → `{endFunction}`\n");
-        var pIdx = 1;
-
-        foreach (var row in res.Rows)
-        {
-            if (res.Count > 1)
-            {
-                md.AppendLine($"#### Path {pIdx++}:");
-            }
-
-            if (row.TryGetProperty("chain", out var chainProp) && chainProp.Kind == CypherValueKind.Array)
-            {
-                const string defaultFuncLabel = "Function";
-                var step = 1;
-
-                foreach (var node in chainProp.AsArray())
-                {
-                    if (node.Kind == CypherValueKind.Object)
-                    {
-                        var name = node.TryGetProperty(ColName, out var n) ? n.AsString(defaultFuncLabel) : defaultFuncLabel;
-                        var symbol = node.TryGetProperty("symbol", out var s) ? s.AsNullableString() : null;
-                        var file = node.TryGetProperty("file_path", out var f) ? f.AsNullableString() : null;
-                        var line = node.TryGetProperty("start_line", out var l) ? l.AsNullableString() : null;
-
-                        var loc = !string.IsNullOrEmpty(file)
-                            ? $" *({file}{(line != null ? ":" + line : "")})*"
-                            : "";
-                        md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
-                    }
-                    else if (node.Kind == CypherValueKind.String)
-                    {
-                        var str = node.AsString(defaultFuncLabel);
-                        md.AppendLine($"{step++}. `{str}`");
-                    }
-                }
-            }
-
-            md.AppendLine();
-        }
-
-        return md.ToString().TrimEnd();
-    }
-
-    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var startResolved = await ResolveFunctionSymbolAsync(client, startFunction, cancellationToken);
@@ -264,7 +107,7 @@ public partial class CodeExplorerRepository
             ["endFunction"] = endResolved
         };
         var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
-        return FormatCallChain(res, format, startFunction, endFunction, depth);
+        return ToonYamlSerializer.SerializeYaml(res);
     }
 
     private static async Task<string> ResolveFunctionSymbolAsync(IGraphClient client, string funcIdentifier, CancellationToken cancellationToken)
@@ -351,12 +194,12 @@ public partial class CodeExplorerRepository
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
-    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var query = Queries.Get("analyze_code_impact");
@@ -388,31 +231,20 @@ public partial class CodeExplorerRepository
             }
         }
 
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        return FormatImpactMarkdown(res, symbolName);
+        return ToonYamlSerializer.SerializeYaml(res);
     }
 
     public async Task<string> SearchIdentifiersAsync(
         string query,
         string? kind = null,
         int limit = 15,
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         if (client is not SqliteGraphClient sqliteClient)
@@ -422,197 +254,7 @@ public partial class CodeExplorerRepository
 
         var engine = new Analysis.IdentifierSearchEngine();
         var results = await engine.SearchAsync(sqliteClient.Connection, query, kind, limit, ct: cancellationToken);
-
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
-        }
-
-        if (results.Count == 0)
-        {
-            return $"No identifiers found matching '{query}'.";
-        }
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"### Code Identifier Search Results for `{query}`\n");
-        sb.AppendLine($"**Matches Found**: {results.Count}\n");
-        sb.AppendLine("| Score | Kind | Name | Full Name / Route | Location (File:Line) |");
-        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
-
-        foreach (var r in results)
-        {
-            var loc = !string.IsNullOrEmpty(r.Path) ? (r.StartLine > 0 ? $"{r.Path}:{r.StartLine}" : r.Path) : "-";
-            sb.AppendLine($"| {r.Score:F2} | `{r.Kind}` | `{r.Name}` | `{r.FullName}` | `{loc}` |");
-        }
-
-        return sb.ToString().TrimEnd();
-    }
-
-    public async Task<string> GetCallersAsync(
-        string target,
-        string format = "markdown",
-        bool includeTests = false,
-        string? workspacePath = null,
-        CancellationToken cancellationToken = default)
-    {
-        var client = await ResolveClientAsync(workspacePath);
-        if (await IsEmptyStandbyAsync(client))
-        {
-            return GetStandbyMessage(format);
-        }
-
-        var parameters = new Dictionary<string, object?>
-        {
-            ["target"] = target,
-            ["includeTests"] = includeTests
-        };
-
-        CypherQueryResult? res = null;
-        if (!target.Contains(':') && !target.Contains('/'))
-        {
-            if (target.Contains('.'))
-            {
-                var dotIdx = target.LastIndexOf('.');
-                var className = target[..dotIdx];
-                if (className.Contains('.')) className = className[(className.LastIndexOf('.') + 1)..];
-                var methodName = target[(dotIdx + 1)..];
-                const string fastQualCallersQuery =
-                    "MATCH (owner:Type)-[:HAS_METHOD]->(target:Function) " +
-                    "WHERE target.name IS NOT NULL AND target.name = $methodName AND owner.name IS NOT NULL AND owner.name = $className " +
-                    "MATCH (caller)-[r:CALLS|SERVICE_CALL|CALLS_ENDPOINT|USES_TYPE|USES_DB|QUERIES_DB|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|IMPLEMENTS|INHERITS_FROM]->(target) " +
-                    "WHERE $includeTests OR NOT (COALESCE(caller.is_test, false) = true OR COALESCE(caller.project_name, '') CONTAINS '.Test' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/tests/' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/test/' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH 'Tests.cs' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.spec.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.test.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '_test.go') " +
-                    "OPTIONAL MATCH (callerOwner:Type)-[:HAS_METHOD]->(caller) " +
-                    "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(f:File) " +
-                    "RETURN target.name AS targetName, labels(target)[0] AS targetKind, CASE WHEN callerOwner IS NOT NULL THEN callerOwner.name + '.' + caller.name ELSE caller.name END AS callerName, labels(caller)[0] AS callerKind, type(r) AS relKind, COALESCE(caller.project_name, '') AS projectName, CASE WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL AND caller.start_line IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) + ':' + toString(caller.start_line) WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) ELSE '' END AS location ORDER BY targetName, callerName";
-                var qualParams = new Dictionary<string, object?>
-                {
-                    ["className"] = className,
-                    ["methodName"] = methodName,
-                    ["includeTests"] = includeTests
-                };
-                res = await client.ExecuteCypherAsync(fastQualCallersQuery, qualParams, cancellationToken);
-            }
-            else
-            {
-                const string fastExactCallersQuery =
-                    "MATCH (target) WHERE target.name IS NOT NULL AND target.name = $target " +
-                    "MATCH (caller)-[r:CALLS|SERVICE_CALL|CALLS_ENDPOINT|USES_TYPE|USES_DB|QUERIES_DB|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|IMPLEMENTS|INHERITS_FROM]->(target) " +
-                    "WHERE $includeTests OR NOT (COALESCE(caller.is_test, false) = true OR COALESCE(caller.project_name, '') CONTAINS '.Test' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/tests/' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/test/' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH 'Tests.cs' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.spec.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.test.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '_test.go') " +
-                    "OPTIONAL MATCH (callerOwner:Type)-[:HAS_METHOD]->(caller) " +
-                    "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(f:File) " +
-                    "RETURN target.name AS targetName, labels(target)[0] AS targetKind, CASE WHEN callerOwner IS NOT NULL THEN callerOwner.name + '.' + caller.name ELSE caller.name END AS callerName, labels(caller)[0] AS callerKind, type(r) AS relKind, COALESCE(caller.project_name, '') AS projectName, CASE WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL AND caller.start_line IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) + ':' + toString(caller.start_line) WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) ELSE '' END AS location ORDER BY targetName, callerName";
-                res = await client.ExecuteCypherAsync(fastExactCallersQuery, parameters, cancellationToken);
-            }
-        }
-
-        string? query = null;
-        if (res == null || res.Count == 0)
-        {
-            query = Queries.Get("get_callers");
-            res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
-        }
-
-        if (res.Count == 0 && query != null && client is SqliteGraphClient sqliteClient)
-        {
-            try
-            {
-                var engine = new Analysis.IdentifierSearchEngine();
-                var resolved = await engine.ResolveIdentifierAsync(sqliteClient.Connection, target, ct: cancellationToken);
-                if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != target && resolved.Name != target)
-                {
-                    parameters["target"] = resolved.NodeId;
-                    var retryRes = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
-                    if (retryRes.Count > 0)
-                    {
-                        res = retryRes;
-                    }
-                }
-            }
-            catch
-            {
-                // Fallback gracefully
-            }
-        }
-
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        return FormatCallersMarkdown(res, target, includeTests);
-    }
-
-    private static string FormatCallersMarkdown(CypherQueryResult res, string target, bool includeTests)
-    {
-        if (res.Count == 0)
-        {
-            return $"No callers or incoming references found for '{target}'" + (includeTests ? "." : " (test callers excluded; pass --tests to include tests).");
-        }
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"### Callers & Inbound References for `{target}`\n");
-        sb.AppendLine($"**Total Inbound Callers**: {res.Count}\n");
-        sb.AppendLine("| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |");
-        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
-
-        const string colTargetName = "targetName";
-        const string colCallerName = "callerName";
-        const string colCallerKind = "callerKind";
-        const string colRelKind = "relKind";
-        const string colProjectName = "projectName";
-        const string colLocation = "location";
-
-        foreach (var item in res.Rows)
-        {
-            var targetName = item.GetStringProp(colTargetName, target);
-            var callerName = item.GetStringProp(colCallerName);
-            var callerKind = item.GetStringProp(colCallerKind);
-            var relKind = item.GetStringProp(colRelKind);
-            var project = item.GetStringProp(colProjectName);
-            var loc = item.GetStringProp(colLocation);
-
-            sb.AppendLine($"| `{targetName}` | `{callerName}` | {callerKind} | {relKind} | {project} | `{loc}` |");
-        }
-
-        return sb.ToString().TrimEnd();
-    }
-
-    private static string FormatImpactMarkdown(CypherQueryResult res, string symbolName)
-    {
-        if (res.Count == 0)
-        {
-            return $"No direct impact found for symbol '{symbolName}'. No callers, references, or dependent services identified.";
-        }
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"### Blast Radius & Impact Analysis for `{symbolName}`\n");
-        sb.AppendLine($"**Total Dependents**: {res.Count}\n");
-        sb.AppendLine("| Kind | Dependent | Relationship | Location (File:Line) | Symbol |");
-        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
-
-        const string colDependentType = "dependentType";
-        const string colDependentName = "dependentName";
-        const string colRelationship = "relationship";
-        const string colFilePath = "filePath";
-        const string colDependentSymbol = "dependentSymbol";
-
-        foreach (var item in res.Rows)
-        {
-            var depType = item.GetStringProp(colDependentType);
-            var depName = item.GetStringProp(colDependentName);
-            var rel = item.GetStringProp(colRelationship);
-            var loc = item.GetStringProp(colFilePath);
-            var sym = item.GetStringProp(colDependentSymbol);
-
-            sb.AppendLine($"| {depType} | `{depName}` | {rel} | `{loc}` | `{sym}` |");
-        }
-
-        return sb.ToString().TrimEnd();
+        return ToonYamlSerializer.SerializeObject(results);
     }
 
     public async Task<string> GetAffectedTestsAsync(
@@ -642,7 +284,7 @@ public partial class CodeExplorerRepository
             );
 
             var report = await service.AnalyzeImpactAsync(req, cancellationToken);
-            return TestIntelligenceService.FormatImpactMarkdown(report);
+            return ToonYamlSerializer.SerializeObject(report);
         }
 
         var query = Queries.Get(Queries.QueryGetAffectedTests);
@@ -667,7 +309,7 @@ public partial class CodeExplorerRepository
         {
             var service = new TestIntelligenceService(sqliteClient);
             var report = await service.AnalyzeCoverageAsync(new TestCoverageFilter(projectName, pathPrefix, status, limit), cancellationToken);
-            return TestIntelligenceService.FormatCoverageMarkdown(report);
+            return ToonYamlSerializer.SerializeObject(report);
         }
 
         var query = Queries.Get(Queries.QueryGetTestCoverage);

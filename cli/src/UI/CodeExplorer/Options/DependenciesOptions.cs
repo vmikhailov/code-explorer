@@ -11,9 +11,6 @@ public class DependenciesOptions
     [Option('t', "type", Required = false, Default = "all", HelpText = "Dependency filter type: 'all', 'runtime', 'build'.")]
     public string Type { get; set; } = "all";
 
-    [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'toon', 'mermaid', 'json'.")]
-    public string Format { get; set; } = "markdown";
-
     [Option("limit", Required = false, Default = 50, HelpText = "Maximum dependencies to display.")]
     public int Limit { get; set; } = 50;
 

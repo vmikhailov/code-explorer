@@ -46,6 +46,10 @@ public static class NodeFactory
             if (prop.GetCustomAttribute<JsonIgnoreAttribute>(inherit: false) != null)
                 continue;
 
+            var ontPropAttr = prop.GetCustomAttribute<OntologyPropertyAttribute>(inherit: true);
+            if (ontPropAttr is { IsSystem: true })
+                continue;
+
             var propType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
             if (!IsSupportedJsonPropertyType(propType))
                 continue;

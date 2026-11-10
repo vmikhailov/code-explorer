@@ -342,21 +342,6 @@ public class McpIntegrationTests
     }
 
     [Test]
-    public async Task Test_GetProjectDependencies_Formats_Mermaid_Yaml_Toon()
-    {
-        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"format\": \"mermaid\"}", 11);
-        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"format\": \"yaml\"}", 12);
-        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"format\": \"toon\"}", 13);
-    }
-
-    [Test]
-    public async Task Test_GetFileOutline_Formats_Yaml_Toon()
-    {
-        await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\", \"format\": \"yaml\"}", 14);
-        await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\", \"format\": \"toon\"}", 15);
-    }
-
-    [Test]
     public async Task Test_InspectDataLineage()
     {
         await CallToolAndAssertSuccessAsync("inspect_data_lineage", "{\"tableName\": \"orders\"}", 17);
@@ -377,23 +362,22 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_IngestGraphData()
     {
-        var nodesJson = "[{\"id\":\"custom_test_node\",\"kind\":\"Service\",\"properties\":{\"name\":\"TestNode\"}}]";
-        var relsJson = "[{\"type\":\"CONTAINS\",\"from_id\":\"workspace\",\"to_id\":\"custom_test_node\",\"properties\":{}}]";
-        await CallToolAndAssertSuccessAsync("ingest_graph_data", $"{{\"nodesJson\": {JsonSerializer.Serialize(nodesJson)}, \"relationshipsJson\": {JsonSerializer.Serialize(relsJson)}}}", 20);
+        var nodesYaml = "- id: custom_test_node\n  kind: Service\n  properties:\n    name: TestNode";
+        var relsYaml = "- type: CONTAINS\n  from_id: workspace\n  to_id: custom_test_node";
+        await CallToolAndAssertSuccessAsync("ingest_graph_data", $"{{\"nodes\": {JsonSerializer.Serialize(nodesYaml)}, \"relationships\": {JsonSerializer.Serialize(relsYaml)}}}", 20);
     }
 
     [Test]
     public async Task Test_CheckSemanticGates()
     {
-        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"format\": \"markdown\"}", 21);
-        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-TEST-001\", \"format\": \"json\"}", 22);
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{}", 21);
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-TEST-001\"}", 22);
     }
 
     [Test]
     public async Task Test_ListSemanticGates()
     {
-        await CallToolAndAssertSuccessAsync("list_semantic_gates", "{\"format\": \"markdown\"}", 23);
-        await CallToolAndAssertSuccessAsync("list_semantic_gates", "{\"format\": \"json\"}", 24);
+        await CallToolAndAssertSuccessAsync("list_semantic_gates", "{}", 23);
     }
 
     [Test]

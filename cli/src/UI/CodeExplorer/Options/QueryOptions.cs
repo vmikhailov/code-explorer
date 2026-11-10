@@ -33,20 +33,11 @@ public class QueryOptions
     [Option('d', "dir", Required = false, HelpText = "Starting directory to look for workspace (defaults to current directory).")]
     public string? Dir { get; set; }
 
-    [Option('j', "json", Required = false, HelpText = "Output results as formatted JSON (alias for --format json).")]
-    public bool Json { get; set; }
-
-    [Option('c', "compact", Required = false, HelpText = "Output compact JSON (no indentation, single line per result).")]
-    public bool Compact { get; set; }
-
-    [Option("no-truncate", Required = false, HelpText = "Do not truncate long text values in table columns.")]
+    [Option("no-truncate", Required = false, HelpText = "Do not truncate long text values.")]
     public bool NoTruncate { get; set; }
 
     [Option('p', "param", Required = false, HelpText = "Key-value parameter to pass to the Cypher query (e.g. -p tableName=users). Can be repeated.")]
     public IEnumerable<string>? Params { get; set; }
-
-    [Option("format", Default = "auto", HelpText = "Output format: 'auto' (padded table in terminal, unpadded pipe rows when redirected or with --no-truncate), 'table', 'json', 'yaml', 'toon', or 'llm'.")]
-    public string Format { get; set; } = "auto";
 
     [Option("limit", Required = false, HelpText = "Maximum number of rows to return.")]
     public int? Limit { get; set; }

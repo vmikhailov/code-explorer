@@ -110,15 +110,15 @@ public partial class McpGraphHandler
     [McpServerTool]
     [Description("Fetch source code snippets for given graph nodes.")]
     public async Task<CallToolResult> FetchCodeSnippets(
-        [Description("JSON string of node objects with file_path, start_line, end_line.")] string nodesJson,
+        [Description("YAML list of node objects with file_path, start_line, end_line.")] string nodes,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(nodesJson))
+        if (string.IsNullOrEmpty(nodes))
         {
-            return WrapError("Missing 'nodesJson' argument.");
+            return WrapError("Missing 'nodes' argument.");
         }
-        return await ExecuteAsync(() => repository.FetchCodeSnippetsAsync(nodesJson, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.FetchCodeSnippetsAsync(nodes, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -151,7 +151,7 @@ public partial class McpGraphHandler
         [Description("Query identifier (e.g. 'find_kafka_consumers').")] string name,
         [Description("Query purpose description.")] string description,
         [Description("Cypher query text with parameters ($param, etc.).")] string cypher,
-        [Description("Optional parameter schema JSON.")] string? parametersJson = null,
+        [Description("Optional parameter schema YAML list.")] string? parameters = null,
         [Description("Optional description of returned fields.")] string? returns = null,
         [Description("Optional comma-separated tags.")] string? tags = null,
         [Description("Optional workspace root path.")] string? workspacePath = null,
@@ -165,7 +165,7 @@ public partial class McpGraphHandler
             return WrapError("Missing 'cypher' argument.");
 
         return await ExecuteAsync(() => repository.SaveProjectQueryAsync(
-            name, description, cypher, parametersJson, returns, tags, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+            name, description, cypher, parameters, returns, tags, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -173,7 +173,7 @@ public partial class McpGraphHandler
     [Description("Execute a saved project-specific Cypher query by name with parameters.")]
     public async Task<CallToolResult> ExecuteProjectQueryAsync(
         [Description("Saved query name.")] string name,
-        [Description("Optional JSON object of parameter key-values.")] string? parametersJson = null,
+        [Description("Optional YAML mapping of parameter key-values.")] string? parameters = null,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -181,7 +181,7 @@ public partial class McpGraphHandler
             return WrapError("Missing 'name' argument.");
 
         return await ExecuteAsync(() => repository.ExecuteProjectQueryAsync(
-            name, parametersJson, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+            name, parameters, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -252,16 +252,16 @@ public partial class McpGraphHandler
     [McpServerTool]
     [Description("Batch ingest custom nodes and relationships into the graph database.")]
     public async Task<CallToolResult> IngestGraphDataAsync(
-        [Description("JSON array of node objects.")] string nodesJson,
-        [Description("Optional JSON array of relationship objects.")] string? relationshipsJson = null,
+        [Description("YAML list of node objects.")] string nodes,
+        [Description("Optional YAML list of relationship objects.")] string? relationships = null,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(nodesJson))
-            return WrapError("Missing 'nodesJson' argument.");
+        if (string.IsNullOrWhiteSpace(nodes))
+            return WrapError("Missing 'nodes' argument.");
 
         return await ExecuteAsync(() => repository.IngestGraphDataAsync(
-            nodesJson, relationshipsJson, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+            nodes, relationships, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -285,7 +285,7 @@ public partial class McpGraphHandler
         {
             case "list":
                 var config = DomainManagementService.LoadConfig(wsRoot);
-                return Task.FromResult(WrapResult(System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })));
+                return Task.FromResult(WrapResult(ToonYamlSerializer.SerializeObject(config)));
 
             case "add":
                 if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(WrapError("Domain 'name' is required for 'add' action."));
@@ -358,11 +358,10 @@ public partial class McpGraphHandler
         [Description("Maximum number of violations or groups to return. Default: 50.")] int limit = 50,
         [Description("Filter violations by file path substring.")] string? fileFilter = null,
         [Description("Group violations summary by: 'file', 'symbol', or 'callee'.")] string? groupBy = null,
-        [Description("Format: 'markdown', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.CheckSemanticGatesAsync(gateId, category, platform, scope, dimension, includeTolerated, limit, fileFilter, groupBy, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.CheckSemanticGatesAsync(gateId, category, platform, scope, dimension, includeTolerated, limit, fileFilter, groupBy, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
@@ -371,10 +370,9 @@ public partial class McpGraphHandler
     public async Task<CallToolResult> ListSemanticGatesAsync(
         [Description("Optional category filter: 'Architectural' or 'Platform'.")] string? category = null,
         [Description("Optional platform filter: e.g. 'agnostic', 'dotnet', 'typescript', 'python', 'go', 'java'.")] string? platform = null,
-        [Description("Format: 'markdown', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ListSemanticGatesAsync(category, platform, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.ListSemanticGatesAsync(category, platform, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 }

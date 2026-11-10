@@ -22,7 +22,7 @@ public record CallLiteralNode(
     [property: OntologyProperty("The index of the argument (0-indexed).")] int ArgIndex,
     [property: OntologyProperty("The relative file path where the call occurs.")] string FilePath,
     [property: OntologyProperty("The 1-indexed line number of the argument.")] int Line,
-    [property: OntologyProperty("The 1-indexed column number of the argument.")] int Column,
+    [property: OntologyProperty("The 1-indexed column number of the argument.", isSystem: true)] int Column,
     bool IsTest,
     ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,

@@ -26,7 +26,7 @@ public record DataSetNode(
     [JsonPropertyName("schema")]
     public string? Schema { get; set; }
 
-    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the dataset node uses an implicit default schema.")]
+    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the dataset node uses an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }
 
     [JsonIgnore]

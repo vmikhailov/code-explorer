@@ -67,7 +67,7 @@ public record DatabaseNode(
     [JsonPropertyName("config_key")]
     public string? ConfigKey { get; set; }
 
-    [JsonPropertyName("is_explicit_schema")]
+    [JsonPropertyName("is_explicit_schema"), OntologyProperty("Indicates whether the database schema was explicitly declared.", isSystem: true)]
     public bool? IsExplicitSchema { get; set; }
 
     [JsonPropertyName("from_config")]
@@ -79,10 +79,10 @@ public record DatabaseNode(
     [JsonPropertyName("is_orm")]
     public bool? IsOrm { get; set; }
 
-    [JsonPropertyName("is_canonical")]
+    [JsonPropertyName("is_canonical"), OntologyProperty("Indicates whether this node is the canonical database instance.", isSystem: true)]
     public bool? IsCanonical { get; set; }
 
-    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the database node was synthesized from an implicit default schema.")]
+    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the database node was synthesized from an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }
 
     [JsonIgnore]

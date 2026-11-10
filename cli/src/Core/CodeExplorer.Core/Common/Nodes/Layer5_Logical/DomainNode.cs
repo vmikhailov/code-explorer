@@ -19,7 +19,7 @@ public record DomainNode(
     [property: OntologyProperty("The human-readable display name of the domain.")] string DisplayName,
     [property: OntologyProperty("The DDD classification of the domain (Core, Supporting, Generic, Shared).")] DomainType DomainType,
     [property: OntologyProperty("A concise summary of the domain's business responsibility.")] string? Summary = null,
-    [property: OntologyProperty("Representative icon for the domain.")] string? Icon = null,
+    [property: OntologyProperty("Representative icon for the domain.", isSystem: true)] string? Icon = null,
     [property: OntologyProperty("Primary path associated with the domain.")] string Path = "",
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)

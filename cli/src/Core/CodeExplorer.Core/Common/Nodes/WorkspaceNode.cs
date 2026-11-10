@@ -35,16 +35,16 @@ public record WorkspaceNode(
     [JsonPropertyName("package_version"), OntologyProperty("Primary package version declared in the workspace root manifest.")]
     public string? PackageVersion { get; set; }
 
-    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier declared in the workspace root manifest.")]
+    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier declared in the workspace root manifest.", isSystem: true)]
     public string? Publisher { get; set; }
 
-    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the workspace root manifest targets the VS Code extension engine.")]
+    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the workspace root manifest targets the VS Code extension engine.", isSystem: true)]
     public bool? HasVsCodeEngine { get; set; }
 
-    [JsonPropertyName("has_contributes"), OntologyProperty("Whether the workspace root manifest declares VS Code extension contributions.")]
+    [JsonPropertyName("has_contributes"), OntologyProperty("Whether the workspace root manifest declares VS Code extension contributions.", isSystem: true)]
     public bool? HasContributes { get; set; }
 
-    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.")]
+    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.", isSystem: true)]
     public string? ActivationEvents { get; set; }
 
     [JsonIgnore]

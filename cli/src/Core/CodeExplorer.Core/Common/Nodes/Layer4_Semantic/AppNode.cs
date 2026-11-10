@@ -44,22 +44,22 @@ public record AppNode(
     {
     }
 
-    [JsonPropertyName("role")]
+    [JsonPropertyName("role"), OntologyProperty("The primary semantic role of the application.")]
     public string? Role { get; set; }
 
-    [JsonPropertyName("is_library")]
+    [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a library.")]
     public bool? IsLibrary { get; set; }
 
-    [JsonPropertyName("primary_role")]
+    [JsonPropertyName("primary_role"), OntologyProperty("The primary architectural role.")]
     public string? PrimaryRole { get; set; }
 
-    [JsonPropertyName("secondary_roles")]
+    [JsonPropertyName("secondary_roles"), OntologyProperty("Comma-separated secondary roles.", isSystem: true)]
     public string? SecondaryRoles { get; set; }
 
-    [JsonPropertyName("all_roles")]
+    [JsonPropertyName("all_roles"), OntologyProperty("All detected roles.", isSystem: true)]
     public string? AllRoles { get; set; }
 
-    [JsonPropertyName("framework")]
+    [JsonPropertyName("framework"), OntologyProperty("The detected application framework.")]
     public string? Framework { get; set; }
 
     [JsonIgnore]

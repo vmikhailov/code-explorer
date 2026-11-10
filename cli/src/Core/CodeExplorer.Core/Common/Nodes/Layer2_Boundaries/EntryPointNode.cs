@@ -40,7 +40,7 @@ public record EntryPointNode(
     [JsonPropertyName("start_line"), OntologyProperty("1-based starting line number of the entry point.")]
     public int? StartLine { get; set; }
 
-    [JsonPropertyName("start_col"), OntologyProperty("1-based starting column number of the entry point.")]
+    [JsonPropertyName("start_col"), OntologyProperty("1-based starting column number of the entry point.", isSystem: true)]
     public int? StartCol { get; set; }
 
     [JsonPropertyName("command"), OntologyProperty("Shell command executed by a lifecycle or task entry point.")]

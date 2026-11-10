@@ -35,14 +35,13 @@ public class OntologyRegistryTests
         var definition = OntologyRegistry.GetNodeDefinition("Workspace");
 
         definition.Should().NotBeNull();
-        definition.Should().Contain("### Kind: Workspace");
-        definition.Should().Contain("**Purpose**:");
-        definition.Should().Contain("**Key Properties**:");
-        definition.Should().Contain("`name` (string)");
-        definition.Should().Contain("`path` (string)");
-        definition.Should().Contain("**Relationships**:");
-        definition.Should().Contain("Outbound:");
-        definition.Should().Contain("- `-CONTAINS->` FilesStructure");
+        definition.Should().Contain("kind: Workspace");
+        definition.Should().Contain("purpose:");
+        definition.Should().Contain("properties:");
+        definition.Should().Contain("name: string");
+        definition.Should().Contain("path: string");
+        definition.Should().Contain("outbound_relationships:");
+        definition.Should().Contain("- CONTAINS -> FilesStructure");
     }
 
     [Test]
@@ -52,10 +51,10 @@ public class OntologyRegistryTests
         var definition = OntologyRegistry.GetNodeDefinition("File");
 
         definition.Should().NotBeNull();
-        definition.Should().Contain("### Kind: File");
-        definition.Should().Contain("Inbound:");
-        definition.Should().Contain("Folder `-CONTAINS->` File");
-        definition.Should().Contain("FilesStructure `-CONTAINS->` File");
+        definition.Should().Contain("kind: File");
+        definition.Should().Contain("inbound_relationships:");
+        definition.Should().Contain("Folder -CONTAINS-> File");
+        definition.Should().Contain("FilesStructure -CONTAINS-> File");
     }
 
     [Test]

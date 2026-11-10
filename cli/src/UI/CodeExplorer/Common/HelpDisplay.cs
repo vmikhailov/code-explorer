@@ -50,19 +50,19 @@ public static class HelpDisplay
         Console.WriteLine("  1. ce init [name]       Initialize a .codeexplorer workspace in current directory");
         Console.WriteLine("  2. ce scan [path]       Index code topology, AST, dependencies and semantic graph");
         Console.WriteLine("  3. ce status            View workspace health, indexed projects, and statistics");
-        Console.WriteLine("  4. ce queries           List all available built-in and custom Cypher queries");
+        Console.WriteLine("  4. ce taxonomy          Inspect active graph schema (actual node labels, properties & edges in DB)");
         Console.WriteLine("  5. ce query \"<cypher>\"  Execute Cypher query directly against the code graph");
         Console.WriteLine("  6. ce mcp               Start MCP server (stdio) for Cursor, Claude Desktop, etc.\n");
 
         Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine("AVAILABLE COMMANDS:");
         Console.ResetColor();
+        Console.WriteLine("  taxonomy (or schema)    Inspect active graph schema (actual node labels, properties, and relationships in DB)");
         Console.WriteLine("  search <query>          Search identifiers, routes, tables, and topics using fast hybrid vector/trigram ranking");
         Console.WriteLine("  callers <target>        Find all callers, implementors, subclasses, publishers & subscribers (with path:line)");
         Console.WriteLine("  trace <start> [end]     Trace call chains and distributed cross-service execution flows");
         Console.WriteLine("  query \"<cypher>\"        Run a read-only OpenCypher query against the knowledge graph (use --no-truncate)");
         Console.WriteLine("  queries                 List all available built-in and workspace custom queries");
-        Console.WriteLine("  view [ontology|domain]  View architecture projections (C1, C2, C3, domain map, ontology layers & schema)");
         Console.WriteLine("  status (alias: info)    Show workspace summary, projects, node kinds, and statistics");
         Console.WriteLine("  dependencies (or deps)  Inspect project dependencies with runtime vs build filtering");
         Console.WriteLine("  contracts               List ingress/egress APIs, gRPC, and messaging contracts");
@@ -82,27 +82,14 @@ public static class HelpDisplay
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("CYPHER GRAPH SCHEMA CHEAT SHEET (for 'ce query \"<cypher>\" --no-truncate'):");
-        Console.ResetColor();
-        Console.WriteLine("  Node Labels:      Project (Service, Library, Worker), ExternalService, Type (n.kind = 'class'|'interface'), Function, Table, Topic, Endpoint");
-        Console.WriteLine("  Node Properties:  n.name, n.path (relative file path), n.start_line, n.project_name, n.symbol, n.is_test (stored directly on nodes)");
-        Console.WriteLine("  Relationships:    (caller:Function)-[:CALLS]->(callee:Function)");
-        Console.WriteLine("                    (fn:Function)-[:SERVICE_CALL]->(target)                       -- cross-service HTTP/RPC call");
-        Console.WriteLine("                    (cls:Type)-[:IMPLEMENTS]->(iface:Type)                        -- direct interface realization");
-        Console.WriteLine("                    (cls:Type)-[:IMPLEMENTS|INHERITS_FROM*1..5]->(base:Type)      -- transitive interface/base-class inheritance");
-        Console.WriteLine("                    (entity:Type)-[:PERSISTED_IN]->(tbl:Table)                    -- ORM entity to DB table");
-        Console.WriteLine("                    (fn:Function)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(top:Topic)      -- async messaging");
-        Console.WriteLine();
-
-        Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine("EXAMPLES:");
         Console.ResetColor();
+        Console.WriteLine("  ce taxonomy");
         Console.WriteLine("  ce search \"gates\"");
         Console.WriteLine("  ce callers IComponentLibraryParser");
         Console.WriteLine("  ce callers CheckGateAsync");
-        Console.WriteLine("  ce view ontology");
         Console.WriteLine("  ce status");
-        Console.WriteLine("  ce query \"MATCH (cls:Type)-[:IMPLEMENTS|INHERITS_FROM*1..5]->(i:Type {name: 'ISemanticExtension'}) WHERE cls.kind = 'class' RETURN cls.project_name, count(DISTINCT cls)\" --no-truncate\n");
+        Console.WriteLine("  ce query \"MATCH (p:Project) RETURN p.name, p.language\" --no-truncate\n");
 
         Console.WriteLine("For options and arguments on any specific command, run:");
         Console.ForegroundColor = ConsoleColor.DarkCyan;

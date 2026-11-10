@@ -4,276 +4,51 @@ namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
-    private const string ColProject = "project";
-    private const string ColDependency = "dependency";
-    private const string ColOutgoingDependencies = "outgoingDependencies";
-    private const string ColIncomingDependencies = "incomingDependencies";
     private const string ColType = "type";
     private const string ColName = "name";
-    private const string ColStartLine = "startLine";
-    private const string ColEndLine = "endLine";
-    private const string DefaultSymbolType = "Symbol";
     private const string ColFromLabel = "fromLabel";
     private const string ColRelType = "relType";
     private const string ColToLabel = "toLabel";
     private const string ColLabel = "label";
     private const string ColKey = "key";
+    private const string PropTaxonomy = "taxonomy";
+    private const string PropProperties = "properties";
+    private const string PropOutgoing = "outgoing";
+    private const string PropRelationship = "relationship";
+    private const string PropTarget = "target";
+    private const string PropProps = "props";
+    private const string PropFilePath = "file_path";
+    private const string PropStartLineSnake = "start_line";
+    private const string PropEndLineSnake = "end_line";
 
-    private static string SanitizeMermaidId(string text)
-    {
-        return text.Replace(".", "_").Replace("-", "_").Replace(":", "_").Replace("/", "_").Replace(" ", "_");
-    }
-
-    private static string FormatDependenciesAll(CypherQueryResult res, string format, int limit, string type = "all")
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeYaml(res);
-        }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        var isRuntimeOnly = type.Equals("runtime", StringComparison.OrdinalIgnoreCase);
-
-        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("```mermaid");
-            sb.AppendLine("graph TD");
-            var count = 0;
-
-            foreach (var item in res.Rows)
-            {
-                var proj = item.GetStringProp(ColProject);
-                var dep = item.GetStringProp(ColDependency);
-
-                if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
-                {
-                    if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-                                          dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
-                        continue;
-
-                    if (count++ >= limit) break;
-
-                    sb.AppendLine(
-                        $"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
-                }
-            }
-
-            if (count == 0)
-            {
-                sb.AppendLine("    %% No project dependencies found");
-            }
-
-            sb.Append("```");
-            return sb.ToString();
-        }
-
-        // Markdown format (default)
-        var md = new System.Text.StringBuilder();
-        md.AppendLine($"### Project Dependencies (Filter: {type})\n");
-        var grouped = new Dictionary<string, List<string>>();
-        var total = 0;
-
-        foreach (var item in res.Rows)
-        {
-            var proj = item.GetStringProp(ColProject);
-            var dep = item.GetStringProp(ColDependency);
-
-            if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
-            {
-                if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-                                      dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
-                    continue;
-
-                if (total++ >= limit) break;
-
-                if (!grouped.TryGetValue(proj, out var list))
-                {
-                    list = [];
-                    grouped[proj] = list;
-                }
-
-                list.Add(dep);
-            }
-        }
-
-        if (grouped.Count == 0)
-        {
-            md.AppendLine("No matching project dependencies found in workspace.");
-        }
-        else
-        {
-            foreach (var (proj, deps) in grouped)
-            {
-                md.AppendLine($"- **{proj}** -> {string.Join(", ", deps)}");
-            }
-        }
-
-        return md.ToString().TrimEnd();
-    }
-
-    private static string FormatDependenciesFiltered(CypherQueryResult res, string format, string projectFilter, string type = "all")
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeYaml(res);
-        }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        var outgoing = new List<string>();
-        var incoming = new List<string>();
-
-        if (res.Count > 0)
-        {
-            var row = res.Rows[0];
-            outgoing = row.GetStringListProp(ColOutgoingDependencies).Where(x => !string.IsNullOrEmpty(x)).ToList();
-            incoming = row.GetStringListProp(ColIncomingDependencies).Where(x => !string.IsNullOrEmpty(x)).ToList();
-        }
-
-        if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
-        {
-            outgoing =
-            [
-                .. outgoing.Where(x =>
-                    !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-                    !x.Contains("Mock", StringComparison.OrdinalIgnoreCase))
-            ];
-
-            incoming =
-            [
-                .. incoming.Where(x =>
-                    !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-                    !x.Contains("Mock", StringComparison.OrdinalIgnoreCase))
-            ];
-        }
-
-        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("```mermaid");
-            sb.AppendLine("graph TD");
-            var pId = SanitizeMermaidId(projectFilter);
-
-            foreach (var o in outgoing)
-            {
-                sb.AppendLine($"    {pId}[\"{projectFilter}\"] --> {SanitizeMermaidId(o)}[\"{o}\"]");
-            }
-
-            foreach (var i in incoming)
-            {
-                sb.AppendLine($"    {SanitizeMermaidId(i)}[\"{i}\"] --> {pId}[\"{projectFilter}\"]");
-            }
-
-            if (outgoing.Count == 0 && incoming.Count == 0)
-            {
-                sb.AppendLine($"    {pId}[\"{projectFilter}\"]");
-                sb.AppendLine("    %% No connected dependencies");
-            }
-
-            sb.Append("```");
-            return sb.ToString();
-        }
-
-        // Markdown format
-        var md = new System.Text.StringBuilder();
-        md.AppendLine($"### Dependencies for Project: `{projectFilter}` (Filter: {type})\n");
-
-        md.AppendLine(
-            $"- **Outgoing Dependencies** ({outgoing.Count}): {(outgoing.Count > 0 ? string.Join(", ", outgoing) : "none")}");
-
-        md.AppendLine(
-            $"- **Incoming Dependencies** ({incoming.Count}): {(incoming.Count > 0 ? string.Join(", ", incoming) : "none")}");
-        return md.ToString().TrimEnd();
-    }
-
-
-    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string format = "markdown", int limit = 50, string type = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, int limit = 50, string type = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         if (!string.IsNullOrEmpty(projectFilter))
         {
             var query = Queries.Get("get_project_dependencies_filtered");
             var res = await client.ExecuteCypherAsync(query, new Dictionary<string, string> { ["projectFilter"] = projectFilter }, cancellationToken);
-            return FormatDependenciesFiltered(res, format, projectFilter, type);
+            return ToonYamlSerializer.SerializeYaml(res);
         }
         else
         {
             var query = Queries.Get("get_project_dependencies_all");
             var res = await client.ExecuteCypherAsync(query, null, cancellationToken);
-            return FormatDependenciesAll(res, format, limit, type);
-        }
-    }
-
-    private static string FormatFileOutline(CypherQueryResult res, string format, string filePath)
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
-        }
-
-        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-        {
             return ToonYamlSerializer.SerializeYaml(res);
         }
-
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-        {
-            return ToonYamlSerializer.SerializeToon(res);
-        }
-
-        if (res.Count == 0)
-        {
-            return $"No symbols found in outline for '{filePath}'.";
-        }
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"### File Outline: `{filePath}`\n");
-
-        foreach (var item in res.Rows)
-        {
-            var type = item.GetStringProp(ColType, DefaultSymbolType);
-            var name = item.GetStringProp(ColName);
-            var startLine = item.GetLongProp(ColStartLine);
-            var endLine = item.GetLongProp(ColEndLine);
-
-            var linesStr = startLine > 0
-                ? (endLine > startLine ? $" (L{startLine}-{endLine})" : $" (L{startLine})")
-                : "";
-            sb.AppendLine($"- **{type}** `{name}`{linesStr}");
-        }
-
-        return sb.ToString().TrimEnd();
     }
 
-    public async Task<string> GetFileOutlineAsync(string filePath, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var normalizedPath = filePath.Trim().Replace('\\', '/').TrimStart('/');
@@ -296,7 +71,7 @@ public partial class CodeExplorerRepository
             var query = Queries.Get("get_file_outline");
             res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
         }
-        return FormatFileOutline(res, format, normalizedPath);
+        return ToonYamlSerializer.SerializeYaml(res);
     }
 
 
@@ -339,9 +114,8 @@ public partial class CodeExplorerRepository
         if (metricType is "god_objects" or "all")
             await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters, workspacePath, cancellationToken);
 
-        return JsonSerializer.Serialize(new { results }, CompactJsonOptions);
+        return ToonYamlSerializer.SerializeObject(new { results });
     }
-
 
     public async Task<string> GetTaxonomyAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
     {
@@ -354,14 +128,15 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return StandbyMessageJson;
+            return StandbyMessageYaml;
         }
 
         var fastTaxonomyJson = await client.GetTaxonomyJsonAsync(cancellationToken);
         if (!string.IsNullOrEmpty(fastTaxonomyJson))
         {
-            _macroCache[cacheKey] = fastTaxonomyJson;
-            return fastTaxonomyJson;
+            var fastYaml = FormatTaxonomyYaml(fastTaxonomyJson);
+            _macroCache[cacheKey] = fastYaml;
+            return fastYaml;
         }
 
         var query = Queries.Get("get_taxonomy_nodes");
@@ -384,8 +159,122 @@ public partial class CodeExplorerRepository
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
         var finalJson = JsonSerializer.Serialize(new { taxonomy }, CompactJsonOptions);
-        _macroCache[cacheKey] = finalJson;
-        return finalJson;
+        var finalYaml = FormatTaxonomyYaml(finalJson);
+        _macroCache[cacheKey] = finalYaml;
+        return finalYaml;
+    }
+
+    public static string FormatTaxonomyYaml(string taxonomyJson)
+    {
+        var root = CypherValue.TryParseJsonText(taxonomyJson);
+        if (!root.TryGetProperty(PropTaxonomy, out var taxArr) || taxArr.Kind != CypherValueKind.Array || taxArr.AsArray().Count == 0)
+        {
+            return "nodes: {}\nrelationships: {}";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"common_properties: [{string.Join(", ", OntologyRegistry.CommonPropertyKeys)}]");
+        sb.AppendLine("nodes:");
+
+        var nodesByLayer = new SortedDictionary<(int Order, string Key), SortedDictionary<string, string>>();
+        var relsByType = new SortedDictionary<string, SortedDictionary<string, SortedSet<string>>>(StringComparer.Ordinal);
+
+        foreach (var entry in taxArr.AsArray())
+        {
+            var label = entry.GetStringProp(ColLabel);
+            if (string.IsNullOrEmpty(label) || OntologyRegistry.IsSystemNode(label))
+            {
+                continue;
+            }
+
+            var props = new List<string>();
+            if (entry.TryGetProperty(PropProperties, out var propsVal) && propsVal.Kind == CypherValueKind.Array)
+            {
+                foreach (var p in propsVal.AsArray())
+                {
+                    var pStr = p.AsString();
+                    if (!string.IsNullOrEmpty(pStr)
+                        && !OntologyRegistry.IsSystemProperty(pStr)
+                        && !OntologyRegistry.CommonPropertySet.Contains(pStr))
+                    {
+                        props.Add(pStr);
+                    }
+                }
+            }
+
+            props.Sort(StringComparer.Ordinal);
+            var layer = OntologyRegistry.GetTaxonomyLayer(label);
+            if (!nodesByLayer.TryGetValue(layer, out var layerNodes))
+            {
+                layerNodes = new SortedDictionary<string, string>(StringComparer.Ordinal);
+                nodesByLayer[layer] = layerNodes;
+            }
+            layerNodes[label] = $"[{string.Join(", ", props)}]";
+
+            if (entry.TryGetProperty(PropOutgoing, out var outVal) && outVal.Kind == CypherValueKind.Array)
+            {
+                foreach (var edge in outVal.AsArray())
+                {
+                    var rel = edge.GetStringProp(PropRelationship);
+                    var target = edge.GetStringProp(PropTarget);
+                    if (string.IsNullOrEmpty(rel) || string.IsNullOrEmpty(target) || OntologyRegistry.IsSystemNode(target))
+                    {
+                        continue;
+                    }
+
+                    if (!relsByType.TryGetValue(rel, out var sourcesMap))
+                    {
+                        sourcesMap = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                        relsByType[rel] = sourcesMap;
+                    }
+
+                    if (!sourcesMap.TryGetValue(label, out var targetsSet))
+                    {
+                        targetsSet = new SortedSet<string>(StringComparer.Ordinal);
+                        sourcesMap[label] = targetsSet;
+                    }
+
+                    targetsSet.Add(target);
+                }
+            }
+        }
+
+        foreach (var ((_, layerKey), layerNodes) in nodesByLayer)
+        {
+            sb.AppendLine($"  {layerKey}:");
+            foreach (var (nodeLabel, propsInline) in layerNodes)
+            {
+                sb.AppendLine($"    {nodeLabel}: {propsInline}");
+            }
+        }
+
+        sb.AppendLine("relationships:");
+        foreach (var (rel, sourcesMap) in relsByType)
+        {
+            var byTargetsSignature = new List<(string TargetsSig, List<string> Sources)>();
+            var sigIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            foreach (var (src, targets) in sourcesMap)
+            {
+                var sig = string.Join("|", targets);
+                if (!sigIndex.TryGetValue(sig, out var idx))
+                {
+                    idx = byTargetsSignature.Count;
+                    sigIndex[sig] = idx;
+                    byTargetsSignature.Add((sig, [src]));
+                }
+                else
+                {
+                    byTargetsSignature[idx].Sources.Add(src);
+                }
+            }
+
+            var pairs = byTargetsSignature
+                .Select(g => $"{string.Join("|", g.Sources)} -> {g.TargetsSig}");
+            sb.AppendLine($"  {rel}: [{string.Join(", ", pairs)}]");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
 
@@ -398,24 +287,35 @@ public partial class CodeExplorerRepository
     {
         return OntologyRegistry.GetNodeDefinition(kind);
     }
-    private static List<McpRAGNode>? ParseRagNodes(string nodesJson)
+    private static List<McpRAGNode>? ParseRagNodes(string nodesInput)
     {
-        try
+        var parsed = ToonYamlSerializer.ParseYamlOrJson(nodesInput);
+        if (!parsed.IsNull)
         {
-            return JsonSerializer.Deserialize<List<McpRAGNode>>(nodesJson);
-        }
-        catch
-        {
-            try
+            var result = new List<McpRAGNode>();
+            var items = parsed.Kind == CypherValueKind.Array ? parsed.AsArray() : [parsed];
+            foreach (var item in items)
             {
-                var single = JsonSerializer.Deserialize<McpRAGNode>(nodesJson);
-                if (single != null) return [single];
+                var nodeVal = item.TryGetProperty(PropProps, out var propsObj) && propsObj.Kind == CypherValueKind.Object
+                    ? propsObj
+                    : item;
+                if (nodeVal.Kind == CypherValueKind.Object)
+                {
+                    var fp = nodeVal.TryGetProperty(PropFilePath, out var fpVal) ? fpVal.AsNullableString() : null;
+                    var sl = nodeVal.TryGetProperty(PropStartLineSnake, out var slVal) ? (int?)slVal.AsInt64() : null;
+                    var el = nodeVal.TryGetProperty(PropEndLineSnake, out var elVal) ? (int?)elVal.AsInt64() : null;
+                    if (!string.IsNullOrEmpty(fp))
+                    {
+                        result.Add(new McpRAGNode
+                        {
+                            file_path = fp,
+                            start_line = sl,
+                            end_line = el
+                        });
+                    }
+                }
             }
-            catch
-            {
-                var nestedNodes = JsonSerializer.Deserialize<List<NestedMcpRAGNode>>(nodesJson);
-                return nestedNodes?.Select(n => n.props).OfType<McpRAGNode>().ToList();
-            }
+            if (result.Count > 0) return result;
         }
         return null;
     }

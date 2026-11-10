@@ -20,7 +20,6 @@ public class CallersCommandHandler : BaseCommandHandler
 
         var output = await repository.GetCallersAsync(
             target: opts.Target,
-            format: opts.Format,
             includeTests: opts.IncludeTests,
             workspacePath: ws.RootDirectory);
 

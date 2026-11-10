@@ -26,8 +26,8 @@ public class TestOptions
     [Option("max-depth", Required = false, Default = 15, HelpText = "Maximum call traversal depth (default: 15).")]
     public int MaxDepth { get; set; } = 15;
 
-    [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'list', 'commands', 'json'.")]
-    public string Format { get; set; } = "markdown";
+    [Option('f', "format", Required = false, Default = "yaml", HelpText = "Output format: 'yaml', 'list', 'commands'.")]
+    public string Format { get; set; } = "yaml";
 
     [Option('d', "dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }

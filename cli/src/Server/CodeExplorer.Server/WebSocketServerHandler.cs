@@ -386,7 +386,7 @@ public partial class WebSocketServerHandler
                     var callReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetCallChainRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var callJson = await _repository.GetCallChainAsync(callReq?.FromSymbol ?? "", callReq?.ToSymbol ?? "", callReq?.MaxDepth ?? 5, "json", _workspaceRoot, cancellationToken);
+                    var callJson = await _repository.GetCallChainAsync(callReq?.FromSymbol ?? "", callReq?.ToSymbol ?? "", callReq?.MaxDepth ?? 5, _workspaceRoot, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
@@ -399,7 +399,7 @@ public partial class WebSocketServerHandler
                     var impactReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetImpactRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var impactJson = await _repository.AnalyzeCodeImpactAsync(impactReq?.SymbolName ?? "", format: "json", workspacePath: _workspaceRoot, cancellationToken: cancellationToken);
+                    var impactJson = await _repository.AnalyzeCodeImpactAsync(impactReq?.SymbolName ?? "", workspacePath: _workspaceRoot, cancellationToken: cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,

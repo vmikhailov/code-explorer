@@ -31,7 +31,7 @@ public record TableNode(
     [JsonPropertyName("entity")]
     public string? EntityName { get; set; }
 
-    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the table node uses an implicit default schema.")]
+    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the table node uses an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }
 
     [JsonIgnore]

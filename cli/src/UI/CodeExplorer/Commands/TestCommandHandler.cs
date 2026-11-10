@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Core.Analysis.Testing;
 using CodeExplorer.Options;
 
@@ -20,7 +19,6 @@ public class TestCommandHandler : BaseCommandHandler
                 UncoveredOnly = opts.UncoveredOnly,
                 CoveredOnly = opts.CoveredOnly,
                 Threshold = opts.Threshold,
-                Format = opts.Format,
                 Dir = opts.Dir
             };
             return await CoverageCommandHandler.HandleAsync(covOpts);
@@ -97,13 +95,8 @@ public class TestCommandHandler : BaseCommandHandler
                 }
                 break;
 
-            case "json":
-                Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-                break;
-
-            case "markdown":
             default:
-                Console.WriteLine(TestIntelligenceService.FormatImpactMarkdown(report));
+                Console.WriteLine(ToonYamlSerializer.SerializeObject(report));
                 break;
         }
 

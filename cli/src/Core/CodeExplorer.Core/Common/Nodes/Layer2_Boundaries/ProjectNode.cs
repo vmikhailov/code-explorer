@@ -86,7 +86,7 @@ public record ProjectNode(
     }
 
     private string? _secondaryRoles;
-    [JsonPropertyName("secondary_roles"), OntologyProperty("Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']).")]
+    [JsonPropertyName("secondary_roles"), OntologyProperty("Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']).", isSystem: true)]
     public string? SecondaryRoles
     {
         get => _secondaryRoles ?? "[]";
@@ -94,7 +94,7 @@ public record ProjectNode(
     }
 
     private string? _allRoles;
-    [JsonPropertyName("all_roles"), OntologyProperty("All architectural roles detected in the project.")]
+    [JsonPropertyName("all_roles"), OntologyProperty("All architectural roles detected in the project.", isSystem: true)]
     public string? AllRoles
     {
         get => _allRoles;
@@ -116,7 +116,7 @@ public record ProjectNode(
     [JsonPropertyName("package_version"), OntologyProperty("Package version declared in the project manifest.")]
     public string? PackageVersion { get; set; }
 
-    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier declared in the project manifest.")]
+    [JsonPropertyName("publisher"), OntologyProperty("Publisher identifier declared in the project manifest.", isSystem: true)]
     public string? Publisher { get; set; }
 
     [JsonPropertyName("main_file"), OntologyProperty("Main entry file declared in the project manifest.")]
@@ -128,31 +128,31 @@ public record ProjectNode(
     [JsonPropertyName("description"), OntologyProperty("Project description from manifest.")]
     public string? Description { get; set; }
 
-    [JsonPropertyName("has_bin"), OntologyProperty("Whether the project manifest declares CLI binary entrypoints.")]
+    [JsonPropertyName("has_bin"), OntologyProperty("Whether the project manifest declares CLI binary entrypoints.", isSystem: true)]
     public bool? HasBin { get; set; }
 
-    [JsonPropertyName("has_contributes"), OntologyProperty("Whether the project manifest declares VS Code extension contributions.")]
+    [JsonPropertyName("has_contributes"), OntologyProperty("Whether the project manifest declares VS Code extension contributions.", isSystem: true)]
     public bool? HasContributes { get; set; }
 
-    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the project manifest targets the VS Code extension engine.")]
+    [JsonPropertyName("has_vscode_engine"), OntologyProperty("Whether the project manifest targets the VS Code extension engine.", isSystem: true)]
     public bool? HasVsCodeEngine { get; set; }
 
-    [JsonPropertyName("keywords_json"), OntologyProperty("JSON array of keywords from the project manifest.")]
+    [JsonPropertyName("keywords_json"), OntologyProperty("JSON array of keywords from the project manifest.", isSystem: true)]
     public string? KeywordsJson { get; set; }
 
-    [JsonPropertyName("extension_dependencies_json"), OntologyProperty("JSON array of VS Code extension dependencies.")]
+    [JsonPropertyName("extension_dependencies_json"), OntologyProperty("JSON array of VS Code extension dependencies.", isSystem: true)]
     public string? ExtensionDependenciesJson { get; set; }
 
-    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.")]
+    [JsonPropertyName("activation_events"), OntologyProperty("Comma-separated VS Code extension activation events.", isSystem: true)]
     public string? ActivationEvents { get; set; }
 
-    [JsonPropertyName("is_build_orchestrator"), OntologyProperty("Indicates whether this project is a root build orchestrator wrapping child projects.")]
+    [JsonPropertyName("is_build_orchestrator"), OntologyProperty("Indicates whether this project is a root build orchestrator wrapping child projects.", isSystem: true)]
     public bool? IsBuildOrchestrator { get; set; }
 
-    [JsonPropertyName("excluded_subpaths"), OntologyProperty("JSON array of excluded asset subpaths within the project directory.")]
+    [JsonPropertyName("excluded_subpaths"), OntologyProperty("JSON array of excluded asset subpaths within the project directory.", isSystem: true)]
     public string? ExcludedSubpaths { get; set; }
 
-    [JsonPropertyName("absorbed_subpaths"), OntologyProperty("JSON array of absorbed technical subpaths within the project directory.")]
+    [JsonPropertyName("absorbed_subpaths"), OntologyProperty("JSON array of absorbed technical subpaths within the project directory.", isSystem: true)]
     public string? AbsorbedSubpaths { get; set; }
 
     [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a shared library rather than an executable application.")]

@@ -21,7 +21,7 @@ public class TraceCommandHandler : BaseCommandHandler
         var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
 
         var output = await repository.TraceCrossServiceFlowAsync(startService: startService, entryPoint: opts.Entry,
-            maxDepth: opts.MaxDepth, format: opts.Format, workspacePath: ws.RootDirectory);
+            maxDepth: opts.MaxDepth, workspacePath: ws.RootDirectory);
 
         Console.WriteLine(output);
         return 0;

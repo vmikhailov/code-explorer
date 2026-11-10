@@ -11,9 +11,6 @@ public class CallersOptions
     [Option('t', "tests", Required = false, Default = false, HelpText = "Include test callers (default: false).")]
     public bool IncludeTests { get; set; } = false;
 
-    [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'toon', 'json', 'table'.")]
-    public string Format { get; set; } = "markdown";
-
     [Option('d', "dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 }

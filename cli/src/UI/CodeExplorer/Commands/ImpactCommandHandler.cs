@@ -20,7 +20,6 @@ public class ImpactCommandHandler : BaseCommandHandler
 
         var output = await repository.AnalyzeCodeImpactAsync(
             symbolName: opts.Symbol,
-            format: opts.Format,
             workspacePath: ws.RootDirectory);
 
         Console.WriteLine(output);

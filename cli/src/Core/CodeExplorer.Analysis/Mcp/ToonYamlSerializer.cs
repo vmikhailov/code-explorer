@@ -10,6 +10,12 @@ namespace CodeExplorer.Core.Mcp;
 /// </summary>
 public static class ToonYamlSerializer
 {
+    public static string SerializeObject<T>(T value)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(value);
+        return SerializeYaml(CypherValue.TryParseJsonText(json));
+    }
+
     public static string SerializeYaml(string json)
     {
         return SerializeYaml(CypherValue.TryParseJsonText(json));
@@ -63,6 +69,43 @@ public static class ToonYamlSerializer
 
     #region YAML Implementation
 
+    private static bool IsEmptyYamlValue(CypherValue val)
+    {
+        return val.Kind switch
+        {
+            CypherValueKind.Null => true,
+            CypherValueKind.String => string.IsNullOrEmpty(val.AsString()),
+            CypherValueKind.Array => val.AsArray().Count == 0 || val.AsArray().All(IsEmptyYamlValue),
+            CypherValueKind.Object => val.AsObject().Count == 0 || val.AsObject().All(kv => IsEmptyYamlValue(kv.Value)),
+            _ => false
+        };
+    }
+
+    private static bool IsScalarYamlArray(IReadOnlyList<CypherValue> items)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i].Kind is CypherValueKind.Object or CypherValueKind.Array)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static string FormatInlineScalarArray(IReadOnlyList<CypherValue> items)
+    {
+        var parts = new List<string>(items.Count);
+        foreach (var item in items)
+        {
+            if (!IsEmptyYamlValue(item))
+            {
+                parts.Add(FormatYamlPrimitive(item));
+            }
+        }
+        return $"[{string.Join(", ", parts)}]";
+    }
+
     private static void WriteYamlElement(StringBuilder sb, CypherValue element, int indentLevel, bool isListItem)
     {
         var indent = new string(' ', indentLevel);
@@ -70,8 +113,15 @@ public static class ToonYamlSerializer
         switch (element.Kind)
         {
             case CypherValueKind.Object:
+                var nonEmptyProps = element.AsObject().Where(p => !IsEmptyYamlValue(p.Value)).ToList();
+                if (nonEmptyProps.Count == 0)
+                {
+                    sb.AppendLine($"{(isListItem ? "" : indent)}{{}}");
+                    return;
+                }
+
                 var isFirstProp = true;
-                foreach (var prop in element.AsObject())
+                foreach (var prop in nonEmptyProps)
                 {
                     var prefix = (isFirstProp && isListItem) ? "" : indent;
                     isFirstProp = false;
@@ -83,9 +133,10 @@ public static class ToonYamlSerializer
                     }
                     else if (prop.Value.Kind == CypherValueKind.Array)
                     {
-                        if (prop.Value.AsArray().Count == 0)
+                        var arrItems = prop.Value.AsArray();
+                        if (IsScalarYamlArray(arrItems))
                         {
-                            sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Key)}: []");
+                            sb.AppendLine($"{prefix}{EscapeYamlKey(prop.Key)}: {FormatInlineScalarArray(arrItems)}");
                         }
                         else
                         {
@@ -101,10 +152,16 @@ public static class ToonYamlSerializer
                 break;
 
             case CypherValueKind.Array:
-                var items = element.AsArray();
+                var items = element.AsArray().Where(i => !IsEmptyYamlValue(i)).ToList();
                 if (items.Count == 0)
                 {
                     sb.AppendLine($"{indent}[]");
+                    return;
+                }
+
+                if (IsScalarYamlArray(items))
+                {
+                    sb.AppendLine($"{indent}{FormatInlineScalarArray(items)}");
                     return;
                 }
 
@@ -131,6 +188,163 @@ public static class ToonYamlSerializer
                 sb.AppendLine($"{indent}{FormatYamlPrimitive(element)}");
                 break;
         }
+    }
+
+    /// <summary>
+    /// Parses a YAML or JSON string into a <see cref="CypherValue"/>.
+    /// Supports standard YAML block mappings, sequences of objects/scalars, inline flow collections, and JSON fallback.
+    /// </summary>
+    public static CypherValue ParseYamlOrJson(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return CypherValue.Null;
+        var trimmed = input.Trim();
+
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+        {
+            var jsonParsed = CypherValue.TryParseJsonText(trimmed);
+            if (!jsonParsed.IsNull) return jsonParsed;
+        }
+
+        var lines = trimmed.Replace("\r\n", "\n").Split('\n');
+        var nonEmptyLines = lines
+            .Select(l => l.TrimEnd())
+            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith('#'))
+            .ToList();
+
+        if (nonEmptyLines.Count == 0) return CypherValue.Null;
+
+        if (nonEmptyLines[0].TrimStart().StartsWith("- ") || nonEmptyLines[0].Trim() == "-")
+        {
+            return ParseYamlSequence(nonEmptyLines);
+        }
+
+        return ParseYamlObject(nonEmptyLines);
+    }
+
+    private static CypherValue ParseYamlSequence(List<string> lines)
+    {
+        var items = new List<CypherValue>();
+        List<string>? currentItemLines = null;
+
+        foreach (var line in lines)
+        {
+            var t = line.TrimStart();
+            var indent = line.Length - t.Length;
+            if (indent <= 2 && (t.StartsWith("- ") || t == "-"))
+            {
+                if (currentItemLines is { Count: > 0 })
+                {
+                    items.Add(FinalizeSequenceItem(currentItemLines));
+                }
+                currentItemLines = [];
+                var afterDash = t.Length > 2 ? t[2..].Trim() : string.Empty;
+                if (!string.IsNullOrEmpty(afterDash))
+                {
+                    currentItemLines.Add(afterDash);
+                }
+            }
+            else if (currentItemLines != null)
+            {
+                currentItemLines.Add(t);
+            }
+        }
+
+        if (currentItemLines is { Count: > 0 })
+        {
+            items.Add(FinalizeSequenceItem(currentItemLines));
+        }
+
+        return CypherValue.FromArray(items);
+    }
+
+    private static CypherValue FinalizeSequenceItem(List<string> itemLines)
+    {
+        if (itemLines.Count == 1 && !itemLines[0].Contains(':'))
+        {
+            return ParseYamlScalar(itemLines[0]);
+        }
+        return ParseYamlObject(itemLines);
+    }
+
+    private static CypherValue ParseYamlObject(List<string> lines)
+    {
+        var props = new List<KeyValuePair<string, CypherValue>>();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i].Trim();
+            var colonIdx = line.IndexOf(':');
+            if (colonIdx <= 0) continue;
+
+            var key = UnquoteYaml(line[..colonIdx].Trim());
+            var valPart = line[(colonIdx + 1)..].Trim();
+
+            if (!string.IsNullOrEmpty(valPart))
+            {
+                props.Add(new KeyValuePair<string, CypherValue>(key, ParseYamlScalarOrFlow(valPart)));
+            }
+            else
+            {
+                var baseIndent = lines[i].Length - lines[i].TrimStart().Length;
+                var childLines = new List<string>();
+                while (i + 1 < lines.Count)
+                {
+                    var nextIndent = lines[i + 1].Length - lines[i + 1].TrimStart().Length;
+                    if (nextIndent <= baseIndent) break;
+                    childLines.Add(lines[++i]);
+                }
+
+                if (childLines.Count > 0)
+                {
+                    var childVal = childLines[0].TrimStart().StartsWith('-')
+                        ? ParseYamlSequence(childLines)
+                        : ParseYamlObject(childLines);
+                    props.Add(new KeyValuePair<string, CypherValue>(key, childVal));
+                }
+            }
+        }
+        return CypherValue.FromObject(props);
+    }
+
+    private static CypherValue ParseYamlScalarOrFlow(string text)
+    {
+        if (text.StartsWith('[') && text.EndsWith(']'))
+        {
+            var jsonTry = CypherValue.TryParseJsonText(text);
+            if (!jsonTry.IsNull) return jsonTry;
+            var inner = text[1..^1].Trim();
+            if (string.IsNullOrEmpty(inner)) return CypherValue.FromArray([]);
+            var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return CypherValue.FromArray(parts.Select(ParseYamlScalar).ToList());
+        }
+        if (text.StartsWith('{') && text.EndsWith('}'))
+        {
+            var jsonTry = CypherValue.TryParseJsonText(text);
+            if (!jsonTry.IsNull) return jsonTry;
+            var inner = text[1..^1].Trim();
+            if (string.IsNullOrEmpty(inner)) return CypherValue.FromObject([]);
+            var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return ParseYamlObject(parts.ToList());
+        }
+        return ParseYamlScalar(text);
+    }
+
+    private static CypherValue ParseYamlScalar(string raw)
+    {
+        var s = raw.Trim();
+        if (s is "null" or "~" or "") return CypherValue.Null;
+        if (bool.TryParse(s, out var b)) return CypherValue.FromBool(b);
+        if (long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l)) return CypherValue.FromInt64(l);
+        if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)) return CypherValue.FromFloat64(d);
+        return CypherValue.FromString(UnquoteYaml(s));
+    }
+
+    private static string UnquoteYaml(string s)
+    {
+        if (s.Length >= 2 && ((s[0] == '"' && s[^1] == '"') || (s[0] == '\'' && s[^1] == '\'')))
+        {
+            return s[1..^1].Replace("\\\"", "\"").Replace("\\\\", "\\");
+        }
+        return s;
     }
 
     private static string EscapeYamlKey(string key)

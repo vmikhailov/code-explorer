@@ -6,10 +6,6 @@ namespace CodeExplorer.Core.Mcp;
 public partial class CodeExplorerRepository
 {
     private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
-    private const string GateCatalogTableHeader = "| ID | Category | Platform | Scope | Dimension | Name | Severity | Source |";
-    private const string GateCatalogTableSeparator = "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |";
-    private const string GateSuiteTableHeader = "| ID | Category | Platform | Scope | Dimension | Gate Name | Status | Violations |";
-    private const string GateSuiteTableSeparator = "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |";
     private readonly ProjectQueryManager _queryManager;
     private readonly IGraphClient _defaultDbClient;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IGraphClient> _clientCache = new(StringComparer.OrdinalIgnoreCase);
@@ -22,18 +18,7 @@ public partial class CodeExplorerRepository
 
     public string? DefaultWorkspacePath { get; }
 
-    public const string StandbyMessageMarkdown = "⚠️ **CodeExplorer Standby Mode**: No workspace is currently bound. Specify the `workspacePath` argument on this tool call, set the `WORKSPACE_ROOT` environment variable, or launch `ce mcp --root <path>`.";
-    public const string StandbyMessageJson = "{\"status\":\"standby\",\"message\":\"CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.\"}";
-
-    public static string GetStandbyMessage(string format)
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase)) return StandbyMessageJson;
-        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-            return "status: standby\nmessage: \"CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.\"";
-        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-            return "status: standby\nmessage: CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.";
-        return StandbyMessageMarkdown;
-    }
+    public const string StandbyMessageYaml = "status: standby\nmessage: \"CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.\"";
 
     public CodeExplorerRepository(
         IGraphClient dbClient,
@@ -80,11 +65,11 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return StandbyMessageJson;
+            return StandbyMessageYaml;
         }
 
         var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
-        return JsonSerializer.Serialize(new { results = res.Rows }, CompactJsonOptions);
+        return ToonYamlSerializer.SerializeYaml(res);
     }
 
 
@@ -125,7 +110,7 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return StandbyMessageJson;
+            return StandbyMessageYaml;
         }
 
         var overviewQuery = Queries.Get("get_architecture_overview");
@@ -162,7 +147,7 @@ public partial class CodeExplorerRepository
 
         if (overviewRes.Count == 0)
         {
-            return overviewRes.ToJson(indented: false);
+            return ToonYamlSerializer.SerializeYaml(overviewRes);
         }
 
         var row = overviewRes.Rows[0];
@@ -224,7 +209,7 @@ public partial class CodeExplorerRepository
             external_services = externalServices.Distinct().OrderBy(x => x).ToList()
         };
 
-        return JsonSerializer.Serialize(new { results = overviewResult }, CompactJsonOptions);
+        return ToonYamlSerializer.SerializeObject(new { results = overviewResult });
     }
 
     private static string ClassifyProjectLayer(string name, string path)
@@ -256,15 +241,15 @@ public partial class CodeExplorerRepository
             return cachedResult;
         }
 
-        string resultJson;
+        string resultYaml;
         if (!string.IsNullOrEmpty(projectName))
         {
             var query = Queries.Get("get_architecture_map_project");
-            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, string> { ["projectName"] = projectName }, workspacePath, cancellationToken);
+            resultYaml = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, string> { ["projectName"] = projectName }, workspacePath, cancellationToken);
         }
         else
         {
-            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), null, workspacePath, cancellationToken);
+            resultYaml = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), null, workspacePath, cancellationToken);
         }
 
         try
@@ -273,14 +258,11 @@ public partial class CodeExplorerRepository
             var savedQueries = _queryManager.ListQueries(effectiveWsPath);
             if (savedQueries.Count > 0)
             {
-                const string propResults = "results";
-                var parsed = CypherValue.TryParseJsonText(resultJson);
-                parsed.TryGetProperty(propResults, out var resultsVal);
-
-                var formatted = JsonSerializer.Serialize(
+                var parsed = ToonYamlSerializer.ParseYamlOrJson(resultYaml);
+                var formatted = ToonYamlSerializer.SerializeObject(
                     new
                     {
-                        results = resultsVal,
+                        results = parsed,
                         saved_project_queries = savedQueries.Select(q => new
                         {
                             name = q.Name,
@@ -289,7 +271,7 @@ public partial class CodeExplorerRepository
                             returns = q.Returns,
                             tags = q.Tags
                         })
-                    }, CompactJsonOptions);
+                    });
                 _macroCache[cacheKey] = formatted;
                 return formatted;
             }
@@ -299,8 +281,8 @@ public partial class CodeExplorerRepository
             // Do not fail architecture map if project query listing fails
         }
 
-        _macroCache[cacheKey] = resultJson;
-        return resultJson;
+        _macroCache[cacheKey] = resultYaml;
+        return resultYaml;
     }
 
 
@@ -308,14 +290,13 @@ public partial class CodeExplorerRepository
         string level = "c1",
         string? scope = null,
         bool includeLibraries = false,
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var normalizedLevel = level.Trim().ToLowerInvariant();
@@ -339,78 +320,73 @@ public partial class CodeExplorerRepository
             IncludeLibraries = includeLibraries
         }, cancellationToken);
 
-        var title = $"{viewType} Architecture View";
-        return Analysis.ArchitectureViewEngine.SerializeGraph(graph, format, title);
+        return Analysis.ArchitectureViewEngine.ToToon(graph);
     }
 
     public async Task<string> GetDomainArchitectureAsync(
         bool includeLibraries = false,
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var engine = new Analysis.ArchitectureViewEngine(client);
         var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
-        return Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
+        return Analysis.ArchitectureViewEngine.ToToon(domainDto);
     }
 
     public async Task<string> GetBoundedContextsAsync(
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var engine = new Analysis.ArchitectureViewEngine(client);
         var mapDto = await engine.GetBoundedContextMapAsync(ct: cancellationToken);
-        return Analysis.ArchitectureViewEngine.SerializeBoundedContextMap(mapDto, format);
+        return ToonYamlSerializer.SerializeObject(mapDto);
     }
 
     public async Task<string> GetServiceContractsAsync(
         string serviceName,
         string direction = "all",
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var engine = new Analysis.ArchitectureViewEngine(client);
         var contract = await engine.GetServiceContractsAsync(serviceName, direction, cancellationToken);
-        return Analysis.ArchitectureViewEngine.SerializeServiceContract(contract, format);
+        return Analysis.ArchitectureViewEngine.ToToon(contract);
     }
 
     public async Task<string> TraceCrossServiceFlowAsync(
         string startService,
         string? entryPoint = null,
         int maxDepth = 3,
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var engine = new Analysis.ArchitectureViewEngine(client);
         var flow = await engine.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, cancellationToken);
-        return Analysis.ArchitectureViewEngine.SerializeCrossServiceFlow(flow, format);
+        return ToonYamlSerializer.SerializeObject(flow);
     }
 
 
@@ -460,7 +436,7 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         return await DiagramExporter.ExportAsync(client, format, type, projectFilter, includeLibraries, cancellationToken);

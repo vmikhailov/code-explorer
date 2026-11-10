@@ -1512,7 +1512,7 @@ export class IdHelperService {
             ]);
 
             var repo = new Core.Mcp.CodeExplorerRepository(client);
-            var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink", format: "json");
+            var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink");
 
             result.Should().Contain("getWeightedPayoutToPostbackLinks");
             result.Should().Contain("getPostbackLink");

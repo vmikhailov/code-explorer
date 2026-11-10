@@ -34,7 +34,7 @@ public record TopicNode(
     [JsonPropertyName("line")]
     public int? Line { get; set; }
 
-    [JsonPropertyName("line_end")]
+    [JsonPropertyName("line_end"), OntologyProperty("The ending line number of the topic usage.", isSystem: true)]
     public int? LineEnd { get; set; }
 
     [JsonPropertyName("messaging_direction")]

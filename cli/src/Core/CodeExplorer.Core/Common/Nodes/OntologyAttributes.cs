@@ -24,9 +24,10 @@ public class OntologyNodeAttribute(
 }
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
-public class OntologyPropertyAttribute(string description) : Attribute
+public class OntologyPropertyAttribute(string description, bool isSystem = false) : Attribute
 {
     public string Description { get; } = description;
+    public bool IsSystem { get; init; } = isSystem;
 }
 
 /// <summary>

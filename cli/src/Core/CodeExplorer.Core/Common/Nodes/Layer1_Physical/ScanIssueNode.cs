@@ -22,9 +22,9 @@ public record ScanIssueNode(
     [property: OntologyProperty("The severity of the issue (error or warning).")] string Severity,
     [property: OntologyProperty("The detailed error message or syntax snippet.")] string Message,
     [property: OntologyProperty("The 1-based starting line number of the issue, if known.")] int? StartLine = null,
-    [property: OntologyProperty("The 1-based ending line number of the issue, if known.")] int? EndLine = null,
-    [property: OntologyProperty("The 1-based starting column number of the issue, if known.")] int? StartCol = null,
-    [property: OntologyProperty("The 1-based ending column number of the issue, if known.")] int? EndCol = null,
+    [property: OntologyProperty("The 1-based ending line number of the issue, if known.", isSystem: true)] int? EndLine = null,
+    [property: OntologyProperty("The 1-based starting column number of the issue, if known.", isSystem: true)] int? StartCol = null,
+    [property: OntologyProperty("The 1-based ending column number of the issue, if known.", isSystem: true)] int? EndCol = null,
     [property: OntologyProperty("The CLR exception type name if thrown.")] string? ExceptionType = null,
     [property: OntologyProperty("The parser or language associated with the file.")] string? Language = null,
     Dictionary<string, string>? CustomProperties = null

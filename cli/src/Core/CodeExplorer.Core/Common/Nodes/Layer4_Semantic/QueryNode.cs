@@ -24,7 +24,7 @@ public record QueryNode(
     string QueryText,
     string Path,
     int StartLine = 0,
-    int EndLine = 0,
+    [property: OntologyProperty("The ending line number of the query.", isSystem: true)] int EndLine = 0,
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)
 {
@@ -43,7 +43,7 @@ public record QueryNode(
     [JsonPropertyName("line")]
     public int? Line { get; set; }
 
-    [JsonPropertyName("line_end")]
+    [JsonPropertyName("line_end"), OntologyProperty("The ending line number of the query.", isSystem: true)]
     public int? LineEnd { get; set; }
 
     [JsonIgnore]

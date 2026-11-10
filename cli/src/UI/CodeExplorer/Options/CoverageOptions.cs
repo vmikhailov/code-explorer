@@ -20,9 +20,6 @@ public class CoverageOptions
     [Option("threshold", Required = false, HelpText = "Minimum acceptable method coverage percentage for CI gating.")]
     public double? Threshold { get; set; }
 
-    [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'json'.")]
-    public string Format { get; set; } = "markdown";
-
     [Option('d', "dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 }

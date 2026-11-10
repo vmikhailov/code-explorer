@@ -20,7 +20,7 @@ public record CatchClauseNode(
     [property: OntologyProperty("The declared exception type caught by this block, if specified.")] string ExceptionType,
     [property: OntologyProperty("The relative file path where the catch clause occurs.")] string FilePath,
     [property: OntologyProperty("The 1-indexed line number where the catch clause starts.")] int Line,
-    [property: OntologyProperty("The 1-indexed column number where the catch clause starts.")] int Column,
+    [property: OntologyProperty("The 1-indexed column number where the catch clause starts.", isSystem: true)] int Column,
     bool IsEmpty,
     bool HasComment,
     int StatementCount,

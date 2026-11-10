@@ -29,8 +29,8 @@ public record BoundedContextNode(
     [property: OntologyProperty("The human-readable display name of the bounded context.")] string DisplayName,
     [property: OntologyProperty("The parent domain ID that owns this bounded context.")] string DomainId,
     [property: OntologyProperty("A concise summary of the bounded context's business responsibility.")] string? Summary = null,
-    [property: OntologyProperty("Background color for visual rendering.")] string? BgColor = null,
-    [property: OntologyProperty("Border color for visual rendering.")] string? BorderColor = null,
+    [property: OntologyProperty("Background color for visual rendering.", isSystem: true)] string? BgColor = null,
+    [property: OntologyProperty("Border color for visual rendering.", isSystem: true)] string? BorderColor = null,
     [property: OntologyProperty("Domain purity percentage (0-100).")] double PurityPercentage = 0.0,
     [property: OntologyProperty("Primary path associated with the bounded context.")] string Path = "",
     Dictionary<string, string>? CustomProperties = null

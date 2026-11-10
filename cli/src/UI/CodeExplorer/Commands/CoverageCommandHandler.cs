@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Core.Analysis.Testing;
 using CodeExplorer.Options;
 
@@ -25,15 +24,7 @@ public class CoverageCommandHandler : BaseCommandHandler
         );
 
         var report = await service.AnalyzeCoverageAsync(filter);
-
-        if (IsJsonFormat(opts.Format))
-        {
-            Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        else
-        {
-            Console.WriteLine(TestIntelligenceService.FormatCoverageMarkdown(report));
-        }
+        Console.WriteLine(ToonYamlSerializer.SerializeObject(report));
 
         // CI threshold check
         if (opts.Threshold.HasValue)

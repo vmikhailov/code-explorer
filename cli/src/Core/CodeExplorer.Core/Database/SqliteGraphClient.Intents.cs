@@ -543,6 +543,18 @@ public partial class SqliteGraphClient
                     pruneCmd.Transaction = tx;
                     pruneCmd.CommandTimeout = CommandTimeoutSeconds;
                     pruneCmd.CommandText = $"""
+                                            DELETE FROM edges
+                                            WHERE from_id IN (
+                                                SELECT rowid FROM nodes
+                                                WHERE kind = {domainKindId}
+                                                  AND rowid NOT IN (SELECT to_id FROM edges WHERE kind = {belongsDomainRelId})
+                                            );
+                                            DELETE FROM edges
+                                            WHERE to_id IN (
+                                                SELECT rowid FROM nodes
+                                                WHERE kind = {domainKindId}
+                                                  AND rowid NOT IN (SELECT to_id FROM edges WHERE kind = {belongsDomainRelId})
+                                            );
                                             DELETE FROM nodes
                                             WHERE kind = {domainKindId}
                                               AND rowid NOT IN (SELECT to_id FROM edges WHERE kind = {belongsDomainRelId});

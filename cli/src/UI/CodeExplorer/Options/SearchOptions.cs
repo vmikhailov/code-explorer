@@ -14,9 +14,6 @@ public class SearchOptions
     [Option('l', "limit", Required = false, Default = 15, HelpText = "Maximum number of search results to return (default: 15).")]
     public int Limit { get; set; } = 15;
 
-    [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'toon', 'json', 'table'.")]
-    public string Format { get; set; } = "markdown";
-
     [Option('d', "dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 }

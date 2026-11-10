@@ -304,10 +304,6 @@ graph TD
 | `IndexedAt` | `string?` | Timestamp when the workspace was indexed (ISO 8601 UTC). |
 | `PackageName` | `string?` | Primary package name declared in the workspace root manifest. |
 | `PackageVersion` | `string?` | Primary package version declared in the workspace root manifest. |
-| `Publisher` | `string?` | Publisher identifier declared in the workspace root manifest. |
-| `HasVsCodeEngine` | `bool?` | Whether the workspace root manifest targets the VS Code extension engine. |
-| `HasContributes` | `bool?` | Whether the workspace root manifest declares VS Code extension contributions. |
-| `ActivationEvents` | `string?` | Comma-separated VS Code extension activation events. |
 
 ---
 
@@ -486,9 +482,6 @@ graph TD
 | `Severity` | `string` | The severity of the issue (error or warning). |
 | `Message` | `string` | The detailed error message or syntax snippet. |
 | `StartLine` | `int?` | The 1-based starting line number of the issue, if known. |
-| `EndLine` | `int?` | The 1-based ending line number of the issue, if known. |
-| `StartCol` | `int?` | The 1-based starting column number of the issue, if known. |
-| `EndCol` | `int?` | The 1-based ending column number of the issue, if known. |
 | `ExceptionType` | `string?` | The CLR exception type name if thrown. |
 | `Language` | `string?` | The parser or language associated with the file. |
 
@@ -526,7 +519,6 @@ graph TD
 | `EntryType` | `EntryPointType` | The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry). |
 | `FilePath` | `string?` | Relative path of the source file declaring the entry point. |
 | `StartLine` | `int?` | 1-based starting line number of the entry point. |
-| `StartCol` | `int?` | 1-based starting column number of the entry point. |
 | `Command` | `string?` | Shell command executed by a lifecycle or task entry point. |
 | `HookKind` | `string?` | Lifecycle hook classification (e.g. install, build). |
 | `TaskLabel` | `string?` | Task label for VS Code folderOpen tasks. |
@@ -568,11 +560,6 @@ graph TD
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `Archetype` | `ProjectArchetype` | The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
 | `DependencyScope` | `string?` | Dependency scope (e.g. runtime, dev, test, build). |
-| `RawVersion` | `string?` | Raw version or URL specifier from manifest. |
-| `IsExternalTarball` | `bool?` | Whether the dependency is fetched from an external tarball or git URL. |
-| `Publisher` | `string?` | Publisher identifier for internal packages. |
-| `HasVsCodeEngine` | `bool?` | Whether the package targets the VS Code extension engine. |
-| `ActivationEvents` | `string?` | Comma-separated VS Code extension activation events. |
 | `IsExternal` | `bool` | Whether this package is an external third-party dependency. |
 
 ---
@@ -625,26 +612,14 @@ graph TD
 | `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
 | `Archetype` | `ProjectArchetype` | Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
 | `PrimaryRole` | `string?` | Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework). |
-| `SecondaryRoles` | `string?` | Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']). |
-| `AllRoles` | `string?` | All architectural roles detected in the project. |
 | `Framework` | `string?` | Detected primary framework of the project. |
 | `EntityType` | `string?` | Normalized semantic entity type (app, service, worker, cli, test, library). |
 | `ExternalApis` | `string?` | Comma-separated external APIs or SDKs used by this project. |
 | `PackageName` | `string?` | Package name declared in the project manifest. |
 | `PackageVersion` | `string?` | Package version declared in the project manifest. |
-| `Publisher` | `string?` | Publisher identifier declared in the project manifest. |
 | `MainFile` | `string?` | Main entry file declared in the project manifest. |
 | `ModuleFile` | `string?` | ESM module entry file declared in the project manifest. |
 | `Description` | `string?` | Project description from manifest. |
-| `HasBin` | `bool?` | Whether the project manifest declares CLI binary entrypoints. |
-| `HasContributes` | `bool?` | Whether the project manifest declares VS Code extension contributions. |
-| `HasVsCodeEngine` | `bool?` | Whether the project manifest targets the VS Code extension engine. |
-| `KeywordsJson` | `string?` | JSON array of keywords from the project manifest. |
-| `ExtensionDependenciesJson` | `string?` | JSON array of VS Code extension dependencies. |
-| `ActivationEvents` | `string?` | Comma-separated VS Code extension activation events. |
-| `IsBuildOrchestrator` | `bool?` | Indicates whether this project is a root build orchestrator wrapping child projects. |
-| `ExcludedSubpaths` | `string?` | JSON array of excluded asset subpaths within the project directory. |
-| `AbsorbedSubpaths` | `string?` | JSON array of absorbed technical subpaths within the project directory. |
 | `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
 | `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `SubKind` | `ProjectEntitySubKind` | Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli). |
@@ -701,7 +676,6 @@ graph TD
 | `ArgIndex` | `int` | The index of the argument (0-indexed). |
 | `FilePath` | `string` | The relative file path where the call occurs. |
 | `Line` | `int` | The 1-indexed line number of the argument. |
-| `Column` | `int` | The 1-indexed column number of the argument. |
 | `IsTest` | `bool` | Indicates whether the call occurs within test code. |
 | `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
@@ -728,7 +702,6 @@ graph TD
 | `ExceptionType` | `string` | The declared exception type caught by this block, if specified. |
 | `FilePath` | `string` | The relative file path where the catch clause occurs. |
 | `Line` | `int` | The 1-indexed line number where the catch clause starts. |
-| `Column` | `int` | The 1-indexed column number where the catch clause starts. |
 | `IsEmpty` | `bool` | Indicates whether the catch body contains no executable statements. |
 | `HasComment` | `bool` | Indicates whether an empty catch block contains an explanatory comment. |
 | `StatementCount` | `int` | The number of executable statements inside the catch body. |
@@ -779,14 +752,10 @@ graph TD
 | `FilePath` | `string` | The relative path of the declaring file. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `StartLine` | `int` | The starting line number (1-indexed) of the declaration. |
-| `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
-| `StartCol` | `int` | The starting column number of the declaration. |
-| `EndCol` | `int` | The ending column number of the declaration. |
 | `IsTest` | `bool` | Indicates whether the function is declared within test code. |
 | `TestFramework` | `string?` | Detected test runner or framework (e.g. xunit, nunit, mstest, jest, pytest, go-test, junit). |
 | `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
-| `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this function. |
 | `IsExported` | `bool?` | Indicates whether the function is publicly exported from its module. |
 | `IsModuleInit` | `bool?` | Indicates whether this node represents top-level module initialization code. |
@@ -825,9 +794,6 @@ graph TD
 | `FilePath` | `string` | The relative path of the declaring file. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `StartLine` | `int` | The starting line number (1-indexed) of the declaration. |
-| `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
-| `StartCol` | `int` | The starting column number of the declaration. |
-| `EndCol` | `int` | The ending column number of the declaration. |
 | `MemberKind` | `MemberKind` | The specific member kind (field, property, parameter, variable). |
 | `DataType` | `string?` | The declared data type of the member. |
 | `ParameterIndex` | `int?` | 0-based formal parameter index when the member is a function parameter. |
@@ -934,14 +900,10 @@ graph TD
 | `FilePath` | `string` | The relative path of the declaring file. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `StartLine` | `int` | The starting line number (1-indexed) of the declaration. |
-| `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
-| `StartCol` | `int` | The starting column number of the declaration. |
-| `EndCol` | `int` | The ending column number of the declaration. |
 | `TypeKind` | `TypeKind` | The specific type kind (class, interface, struct, record, enum). |
 | `IsTest` | `bool` | Indicates whether the type is declared within test code. |
 | `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
-| `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this type declaration. |
 | `IsExported` | `bool?` | Indicates whether the type is publicly exported from its module. |
 | `Extends` | `string?` | Declared base type or component inherited by this type. |
@@ -1027,6 +989,10 @@ graph TD
 | `Name` | `string` | The application name. |
 | `Path` | `string` | The path of the application directory relative to the workspace. |
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
+| `Role` | `string?` | The primary semantic role of the application. |
+| `IsLibrary` | `bool?` | Indicates whether the project is a library. |
+| `PrimaryRole` | `string?` | The primary architectural role. |
+| `Framework` | `string?` | The detected application framework. |
 
 ---
 
@@ -1070,6 +1036,10 @@ graph TD
 | `Name` | `string` | The CLI tool name. |
 | `Path` | `string` | The path of the tool directory relative to the workspace. |
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
+| `Role` | `string?` | The primary semantic role of the CLI tool. |
+| `IsLibrary` | `bool?` | Indicates whether the project is a library. |
+| `PrimaryRole` | `string?` | The primary architectural role. |
+| `Framework` | `string?` | The detected CLI framework. |
 
 ---
 
@@ -1149,7 +1119,6 @@ graph TD
 | `Name` | `string` | The database engine or catalog name. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `DbType` | `DatabaseType` | The database system type (sqlserver, postgres, sqlite, mongodb, neo4j). |
-| `IsImplicitSchema` | `bool?` | Indicates whether the database node was synthesized from an implicit default schema. |
 
 ---
 
@@ -1162,12 +1131,6 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CONTAINS` | `Table` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `IsImplicitSchema` | `bool?` | Indicates whether the dataset node uses an implicit default schema. |
 
 ---
 
@@ -1283,6 +1246,10 @@ graph TD
 | `Name` | `string` | The library name. |
 | `Path` | `string` | The path of the library directory relative to the workspace. |
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
+| `Role` | `string?` | The primary semantic role of the library. |
+| `IsLibrary` | `bool?` | Indicates whether the project is a library. |
+| `PrimaryRole` | `string?` | The primary architectural role. |
+| `Framework` | `string?` | The detected framework. |
 
 ---
 
@@ -1442,6 +1409,10 @@ graph TD
 | `Name` | `string` | The service name. |
 | `Path` | `string` | The path of the service directory relative to the workspace. |
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
+| `Role` | `string?` | The primary semantic role of the service. |
+| `IsLibrary` | `bool?` | Indicates whether the project is a library. |
+| `PrimaryRole` | `string?` | The primary architectural role. |
+| `Framework` | `string?` | The detected service framework. |
 
 ---
 
@@ -1466,12 +1437,6 @@ graph TD
 | `Query` | `WRITES_TO` |
 | `Query` | `DEPENDS_ON` |
 | `SemanticStructure` | `CONTAINS` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `IsImplicitSchema` | `bool?` | Indicates whether the table node uses an implicit default schema. |
 
 ---
 
@@ -1506,6 +1471,10 @@ graph TD
 | `Name` | `string` | The test suite name. |
 | `Path` | `string` | The path of the test suite directory relative to the workspace. |
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
+| `Role` | `string?` | The primary semantic role of the test suite. |
+| `IsLibrary` | `bool?` | Indicates whether the project is a library. |
+| `PrimaryRole` | `string?` | The primary architectural role. |
+| `Framework` | `string?` | The detected test framework. |
 
 ---
 
@@ -1588,6 +1557,10 @@ graph TD
 | `Name` | `string` | The worker name. |
 | `Path` | `string` | The path of the worker directory relative to the workspace. |
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
+| `Role` | `string?` | The primary semantic role of the worker. |
+| `IsLibrary` | `bool?` | Indicates whether the project is a library. |
+| `PrimaryRole` | `string?` | The primary architectural role. |
+| `Framework` | `string?` | The detected worker framework. |
 
 ---
 
@@ -1626,8 +1599,6 @@ graph TD
 | `DisplayName` | `string` | The human-readable display name of the bounded context. |
 | `DomainId` | `string` | The parent domain ID that owns this bounded context. |
 | `Summary` | `string?` | A concise summary of the bounded context's business responsibility. |
-| `BgColor` | `string?` | Background color for visual rendering. |
-| `BorderColor` | `string?` | Border color for visual rendering. |
 | `PurityPercentage` | `double` | Domain purity percentage (0-100). |
 | `Path` | `string` | Primary path associated with the bounded context. |
 
@@ -1657,7 +1628,6 @@ graph TD
 | `DisplayName` | `string` | The human-readable display name of the domain. |
 | `DomainType` | `DomainType` | The DDD classification of the domain (Core, Supporting, Generic, Shared). |
 | `Summary` | `string?` | A concise summary of the domain's business responsibility. |
-| `Icon` | `string?` | Representative icon for the domain. |
 | `Path` | `string` | Primary path associated with the domain. |
 
 ---

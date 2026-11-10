@@ -10,6 +10,10 @@ namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
+    private const string PropParamDefaultType = "string";
+    private const string PropParamRequired = "required";
+    private const string PropParamDescription = "description";
+
     public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         CypherSecurityValidator.ValidateReadOnly(query);
@@ -36,7 +40,7 @@ public partial class CodeExplorerRepository
     {
         var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
         var queries = _queryManager.ListQueries(effectiveWsPath);
-        return JsonSerializer.Serialize(new
+        return ToonYamlSerializer.SerializeObject(new
         {
             workspace_path = effectiveWsPath,
             queries_count = queries.Count,
@@ -48,7 +52,7 @@ public partial class CodeExplorerRepository
                 returns = q.Returns,
                 tags = q.Tags
             })
-        }, CompactJsonOptions);
+        });
     }
 
     public async Task<string> SaveProjectQueryAsync(
@@ -66,14 +70,23 @@ public partial class CodeExplorerRepository
         var paramList = new List<ProjectQueryParameter>();
         if (!string.IsNullOrWhiteSpace(parametersJson))
         {
-            try
+            var parsedVal = ToonYamlSerializer.ParseYamlOrJson(parametersJson);
+            if (parsedVal.IsNull)
             {
-                var parsed = JsonSerializer.Deserialize<List<ProjectQueryParameter>>(parametersJson);
-                if (parsed != null) paramList = parsed;
+                throw new ArgumentException("Failed to parse parameters.", nameof(parametersJson));
             }
-            catch (Exception ex)
+
+            if (parsedVal.Kind == CypherValueKind.Array)
             {
-                throw new ArgumentException($"Failed to parse parametersJson: {ex.Message}", nameof(parametersJson), ex);
+                foreach (var item in parsedVal.AsArray())
+                {
+                    var pName = item.GetStringProp(ColName);
+                    if (string.IsNullOrEmpty(pName)) continue;
+                    var pType = item.GetStringProp(ColType, PropParamDefaultType);
+                    var pReq = !item.TryGetProperty(PropParamRequired, out var reqVal) || reqVal.AsBool(true);
+                    var pDesc = item.GetStringProp(PropParamDescription);
+                    paramList.Add(new ProjectQueryParameter(pName, pType, pReq, pDesc));
+                }
             }
         }
 
@@ -91,7 +104,7 @@ public partial class CodeExplorerRepository
         };
 
         var saved = _queryManager.SaveQuery(effectiveWsPath, name, cypher, metadata);
-        return JsonSerializer.Serialize(new
+        return ToonYamlSerializer.SerializeObject(new
         {
             success = true,
             message = $"Project query '{saved.Name}' successfully validated and saved to .codeexplorer/queries/",
@@ -105,7 +118,7 @@ public partial class CodeExplorerRepository
                 cypher_file = saved.CypherPath,
                 metadata_file = saved.MetadataPath
             }
-        }, CompactJsonOptions);
+        });
     }
 
     public async Task<string> ExecuteProjectQueryAsync(string name, string? parametersJson, string? workspacePath, CancellationToken cancellationToken = default)
@@ -122,28 +135,23 @@ public partial class CodeExplorerRepository
         var paramDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(parametersJson))
         {
-            try
+            var parsedParams = ToonYamlSerializer.ParseYamlOrJson(parametersJson);
+            if (parsedParams.IsNull || parsedParams.Kind != CypherValueKind.Object)
             {
-                var parsedParams = JsonSerializer.Deserialize<Dictionary<string, CypherValue>>(parametersJson);
-                if (parsedParams != null)
-                {
-                    foreach (var (k, v) in parsedParams)
-                    {
-                        paramDict[k] = v.Kind switch
-                        {
-                            CypherValueKind.String => v.AsString(),
-                            CypherValueKind.Int64 => v.AsInt64(),
-                            CypherValueKind.Float64 => v.AsDouble(),
-                            CypherValueKind.Boolean => v.AsBool(),
-                            CypherValueKind.Null => null,
-                            _ => v.ToJsonString()
-                        };
-                    }
-                }
+                throw new ArgumentException("Failed to parse parameters.", nameof(parametersJson));
             }
-            catch (Exception ex)
+
+            foreach (var (k, v) in parsedParams.AsObject())
             {
-                throw new ArgumentException($"Failed to parse parametersJson: {ex.Message}", nameof(parametersJson), ex);
+                paramDict[k] = v.Kind switch
+                {
+                    CypherValueKind.String => v.AsString(),
+                    CypherValueKind.Int64 => v.AsInt64(),
+                    CypherValueKind.Float64 => v.AsDouble(),
+                    CypherValueKind.Boolean => v.AsBool(),
+                    CypherValueKind.Null => null,
+                    _ => v.ToJsonString()
+                };
             }
         }
 
@@ -181,13 +189,13 @@ public partial class CodeExplorerRepository
         var existing = WorkspaceLocator.Find(targetDir);
         if (existing != null && existing.RootDirectory.Equals(targetDir, StringComparison.OrdinalIgnoreCase) && !force)
         {
-            return JsonSerializer.Serialize(new
+            return ToonYamlSerializer.SerializeObject(new
             {
                 status = "exists",
                 message = $"Workspace already exists at '{existing.RootDirectory}'. Set force=true to reinitialize.",
                 workspacePath = existing.RootDirectory,
                 dbPath = existing.DbPath
-            }, CompactJsonOptions);
+            });
         }
 
         var ws = WorkspaceLocator.Initialize(targetDir, wsName);
@@ -199,14 +207,14 @@ public partial class CodeExplorerRepository
                 new { name = wsName, path = ws.RootDirectory }, cancellationToken);
         }
 
-        return JsonSerializer.Serialize(new
+        return ToonYamlSerializer.SerializeObject(new
             {
                 status = "initialized",
                 name = wsName,
                 workspacePath = ws.RootDirectory,
                 dbPath = ws.DbPath,
                 queriesPath = ws.QueriesDirectory
-            }, CompactJsonOptions);
+            });
     }
 
     public async Task<string> ScanWorkspaceAsync(
@@ -234,7 +242,7 @@ public partial class CodeExplorerRepository
 
         InvalidateCache();
 
-        return JsonSerializer.Serialize(new
+        return ToonYamlSerializer.SerializeObject(new
         {
             status = "success",
             workspacePath = ws.RootDirectory,
@@ -242,7 +250,7 @@ public partial class CodeExplorerRepository
             nodesCount,
             relationshipsCount = relsCount,
             nodesByKind
-        }, CompactJsonOptions);
+        });
     }
 
     public async Task<string> GetWorkspaceStatusAsync(
@@ -253,11 +261,11 @@ public partial class CodeExplorerRepository
         var ws = WorkspaceLocator.Find(targetDir);
         if (ws == null || !File.Exists(ws.DbPath))
         {
-            return JsonSerializer.Serialize(new
+            return ToonYamlSerializer.SerializeObject(new
             {
                 status = "not_initialized",
                 message = $"No indexed workspace found for '{targetDir}'. Call scan_workspace or init_workspace first."
-            }, CompactJsonOptions);
+            });
         }
 
         var fileInfo = new FileInfo(ws.DbPath);
@@ -273,7 +281,7 @@ public partial class CodeExplorerRepository
             ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
             : 0;
 
-        return JsonSerializer.Serialize(
+        return ToonYamlSerializer.SerializeObject(
             new
             {
                 status = "ready",
@@ -283,7 +291,7 @@ public partial class CodeExplorerRepository
                 projects = projRes.Rows,
                 nodeCounts = countRes.Rows,
                 customQueriesCount
-            }, CompactJsonOptions);
+            });
     }
 
     public async Task<string> ClearWorkspaceIndexAsync(
@@ -295,11 +303,11 @@ public partial class CodeExplorerRepository
         var ws = WorkspaceLocator.Find(targetDir);
         if (ws == null || !File.Exists(ws.DbPath))
         {
-            return JsonSerializer.Serialize(new
+            return ToonYamlSerializer.SerializeObject(new
             {
                 status = "not_found",
                 message = "Workspace or database not found."
-            }, CompactJsonOptions);
+            });
         }
 
         var client = await ResolveClientAsync(ws.RootDirectory);
@@ -314,11 +322,11 @@ public partial class CodeExplorerRepository
 
         InvalidateCache();
 
-        return JsonSerializer.Serialize(new
+        return ToonYamlSerializer.SerializeObject(new
         {
             status = "cleared",
             targetPath = targetDir
-        }, CompactJsonOptions);
+        });
     }
 
 
@@ -331,10 +339,10 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return StandbyMessageJson;
+            return StandbyMessageYaml;
         }
 
-        var nodesRoot = CypherValue.TryParseJsonText(nodesJson);
+        var nodesRoot = ToonYamlSerializer.ParseYamlOrJson(nodesJson);
 
         int nodesIngested = 0;
         int relsIngested = 0;
@@ -361,7 +369,7 @@ public partial class CodeExplorerRepository
 
         if (!string.IsNullOrWhiteSpace(relationshipsJson))
         {
-            var relsRoot = CypherValue.TryParseJsonText(relationshipsJson);
+            var relsRoot = ToonYamlSerializer.ParseYamlOrJson(relationshipsJson);
 
             if (relsRoot.Kind == CypherValueKind.Array)
             {
@@ -391,8 +399,8 @@ public partial class CodeExplorerRepository
 
         InvalidateCache();
 
-        return JsonSerializer.Serialize(
-            new { status = "success", nodesIngested, relationshipsIngested = relsIngested }, CompactJsonOptions);
+        return ToonYamlSerializer.SerializeObject(
+            new { status = "success", nodesIngested, relationshipsIngested = relsIngested });
     }
 
     public async Task<string> CheckSemanticGatesAsync(
@@ -405,7 +413,6 @@ public partial class CodeExplorerRepository
         int limit = 50,
         string? fileFilter = null,
         string? groupBy = null,
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -416,7 +423,7 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(effectivePath);
         if (await IsEmptyStandbyAsync(client))
         {
-            return GetStandbyMessage(format);
+            return StandbyMessageYaml;
         }
 
         var gateRepo = new FileGateRepository(effectivePath);
@@ -432,13 +439,11 @@ public partial class CodeExplorerRepository
             var singleGate = await gateRepo.GetGateByIdAsync(gateId, cancellationToken);
             if (singleGate == null)
             {
-                return format.Equals("json", StringComparison.OrdinalIgnoreCase)
-                    ? JsonSerializer.Serialize(new { error = $"Gate '{gateId}' not found." }, CompactJsonOptions)
-                    : $"⚠️ **Gate Not Found**: No gate with ID '{gateId}' is registered.";
+                return ToonYamlSerializer.SerializeObject(new { error = $"Gate '{gateId}' not found." });
             }
 
             var singleResult = await engine.CheckGateAsync(singleGate, cancellationToken);
-            return FormatSingleGateResult(singleResult, includeTolerated, limit, fileFilter, groupBy, format);
+            return FormatSingleGateResult(singleResult, includeTolerated, limit, fileFilter, groupBy);
         }
 
         var suiteResult = await engine.CheckSuiteAsync(
@@ -448,13 +453,12 @@ public partial class CodeExplorerRepository
             categoryFilter,
             platformFilter,
             cancellationToken);
-        return FormatSuiteResult(suiteResult, format);
+        return ToonYamlSerializer.SerializeObject(suiteResult);
     }
 
     public async Task<string> ListSemanticGatesAsync(
         string? category = null,
         string? platform = null,
-        string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -477,42 +481,29 @@ public partial class CodeExplorerRepository
             ];
         }
 
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        var payload = new
         {
-            return JsonSerializer.Serialize(new
+            totalGates = allGates.Count,
+            gates = allGates.Select(g => new
             {
-                totalGates = allGates.Count,
-                gates = allGates.Select(g => new
-                {
-                    g.Id,
-                    Category = g.Category.ToString(),
-                    g.Platform,
-                    Scope = g.Scope.ToString(),
-                    Dimension = g.Dimension.ToString(),
-                    Coordinate = g.CoordinateCode,
-                    g.Name,
-                    Severity = g.Severity.ToString(),
-                    g.Source,
-                    g.Description,
-                    g.Remediation
-                })
-            }, new JsonSerializerOptions { WriteIndented = true });
-        }
+                g.Id,
+                Category = g.Category.ToString(),
+                g.Platform,
+                Scope = g.Scope.ToString(),
+                Dimension = g.Dimension.ToString(),
+                Coordinate = g.CoordinateCode,
+                g.Name,
+                Severity = g.Severity.ToString(),
+                g.Source,
+                g.Description,
+                g.Remediation
+            })
+        };
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# Semantic Invariant Gates ({allGates.Count})\n");
-        sb.AppendLine(GateCatalogTableHeader);
-        sb.AppendLine(GateCatalogTableSeparator);
-        foreach (var g in allGates)
-        {
-            sb.AppendLine($"| `{g.Id}` | {g.Category} | `{g.Platform}` | {g.Scope} | {g.Dimension} | **{g.Name}** | `{g.Severity}` | {g.Source} |");
-        }
-        sb.AppendLine();
-        sb.AppendLine("> Use `check_semantic_gates` tool with `gateId` or `scope` to evaluate these architectural invariants.");
-        return sb.ToString().TrimEnd();
+        return ToonYamlSerializer.SerializeObject(payload);
     }
 
-    private static string FormatSingleGateResult(GateCheckResult result, bool includeTolerated, int limit, string? fileFilter, string? groupBy, string format)
+    private static string FormatSingleGateResult(GateCheckResult result, bool includeTolerated, int limit, string? fileFilter, string? groupBy)
     {
         var toleratedFp = new HashSet<string>(result.ToleratedViolations.Select(t => t.Fingerprint));
         var candidates = result.Violations.Where(v =>
@@ -522,63 +513,6 @@ public partial class CodeExplorerRepository
             if (!string.IsNullOrWhiteSpace(fileFilter) && (v.File == null || !v.File.Contains(fileFilter, StringComparison.OrdinalIgnoreCase))) return false;
             return true;
         }).ToList();
-
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!string.IsNullOrWhiteSpace(groupBy))
-            {
-                var gb = groupBy.Trim().ToLowerInvariant();
-                var groups = gb switch
-                {
-                    "callee" or "target" => candidates.GroupBy(v => ExtractCallee(v.Target)).Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
-                    "symbol" => candidates.GroupBy(v => v.Symbol ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
-                    _ => candidates.GroupBy(v => v.File ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList()
-                };
-
-                return JsonSerializer.Serialize(new
-                {
-                    gateId = result.Gate.Id,
-                    name = result.Gate.Name,
-                    status = result.Status.ToString(),
-                    groupBy = gb,
-                    totalViolations = candidates.Count,
-                    groups = groups.Take(limit > 0 ? limit : int.MaxValue)
-                }, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return JsonSerializer.Serialize(new
-            {
-                result.Gate,
-                Status = result.Status.ToString(),
-                result.BaselineCount,
-                ViolationsCount = result.Violations.Count,
-                NewViolationsCount = result.NewViolations.Count,
-                ToleratedCount = result.ToleratedViolations.Count,
-                Violations = candidates.Take(limit > 0 ? limit : int.MaxValue)
-            }, new JsonSerializerOptions { WriteIndented = true });
-        }
-
-        var sb = new System.Text.StringBuilder();
-        var icon = result.Status switch
-        {
-            GateCheckStatus.Passed => "✅",
-            GateCheckStatus.PassedTolerated => "⚠️",
-            GateCheckStatus.Warning => "🟡",
-            GateCheckStatus.FailedNew => "❌",
-            _ => "💥"
-        };
-
-        sb.AppendLine($"### {icon} Gate `{result.Gate.Id}`: {result.Gate.Name}");
-        sb.AppendLine($"- **Status**: `{result.Status}`");
-        sb.AppendLine($"- **Scope & Dimension**: {result.Gate.Scope} / {result.Gate.Dimension} ({result.Gate.CoordinateCode})");
-        sb.AppendLine($"- **Severity**: `{result.Gate.Severity}`");
-        sb.AppendLine($"- **Violations**: {result.Violations.Count} (New: {result.NewViolations.Count}, Tolerated Baseline: {result.ToleratedViolations.Count})");
-        sb.AppendLine($"- **Duration**: {result.Duration.TotalMilliseconds:F1}ms\n");
-
-        if (!string.IsNullOrEmpty(result.Gate.Description))
-        {
-            sb.AppendLine($"> {result.Gate.Description}\n");
-        }
 
         if (!string.IsNullOrWhiteSpace(groupBy))
         {
@@ -590,125 +524,31 @@ public partial class CodeExplorerRepository
                 _ => candidates.GroupBy(v => v.File ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList()
             };
 
-            sb.AppendLine($"#### Violations Summary Grouped by `{gb}` ({candidates.Count} total):");
-            sb.AppendLine($"| Count | {gb.ToUpperInvariant()} |");
-            sb.AppendLine("| :--- | :--- |");
-            foreach (var g in groups.Take(limit > 0 ? limit : 50))
+            var groupedPayload = new
             {
-                sb.AppendLine($"| {g.Count} | `{g.Key}` |");
-            }
-            if (groups.Count > (limit > 0 ? limit : 50))
-            {
-                sb.AppendLine($"\n*... and {groups.Count - (limit > 0 ? limit : 50)} more groups.*");
-            }
-            sb.AppendLine();
-        }
-        else if (result.NewViolations.Count > 0 || (includeTolerated && candidates.Count > 0))
-        {
-            var displayList = candidates.Take(limit > 0 ? limit : 50).ToList();
-            var title = result.NewViolations.Count > 0 && !includeTolerated ? "#### ❌ New Violations (Blocking):" : $"#### Architectural Violations (Showing {displayList.Count} of {candidates.Count}):";
-            sb.AppendLine(title);
-            foreach (var v in displayList)
-            {
-                var isTol = toleratedFp.Contains(v.Fingerprint);
-                var tag = isTol ? "[TOL]" : "[NEW]";
-                var loc = v.Location != "-" ? $"`{v.Location}`" : "";
-                var target = !string.IsNullOrEmpty(v.Target) ? $" → `{v.Target}`" : "";
-                sb.AppendLine($"- {tag} {loc} **{v.Symbol}**{target}: {v.Message}");
-            }
-            if (candidates.Count > displayList.Count)
-            {
-                sb.AppendLine($"- *... and {candidates.Count - displayList.Count} more violations (use limit parameter for more)*");
-            }
-            sb.AppendLine();
-        }
-        else if (result.Violations.Count > 0)
-        {
-            sb.AppendLine($"> 💡 **Tolerated Debt**: {result.Violations.Count} violations are tolerated by baseline. Run with `includeTolerated: true` or `groupBy: 'file'` to inspect.");
-        }
-
-        if (!string.IsNullOrEmpty(result.Gate.Remediation) && result.NewViolations.Count > 0)
-        {
-            sb.AppendLine($"💡 **Remediation**: {result.Gate.Remediation}\n");
-        }
-
-        if (result.CanRatchetDown)
-        {
-            sb.AppendLine($"> 📉 **Ratchet Opportunity**: Active violations ({result.Violations.Count}) are less than baseline ({result.BaselineCount}). Run `ce gate ratchet --update` to lock down technical debt.");
-        }
-
-        return sb.ToString().TrimEnd();
-    }
-
-    private static string FormatSuiteResult(GateSuiteResult suite, string format)
-    {
-        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonSerializer.Serialize(suite, new JsonSerializerOptions { WriteIndented = true });
-        }
-
-        var sb = new System.Text.StringBuilder();
-        var banner = suite.IsSuccess
-            ? (suite.ToleratedViolationsCount > 0 ? "⚠️ **Semantic Gates: Passed with Tolerated Debt**" : "✅ **Semantic Gates: All Invariants Satisfied**")
-            : "❌ **Semantic Gates: Architectural Violations Detected**";
-
-        sb.AppendLine($"# {banner}\n");
-        sb.AppendLine($"- **Total Gates Evaluated**: {suite.TotalGates}");
-        sb.AppendLine($"- **Passed**: {suite.PassedCount} | **Failed**: {suite.FailedCount}");
-        sb.AppendLine($"- **New Violations**: {suite.NewViolationsCount} | **Tolerated Baseline Debt**: {suite.ToleratedViolationsCount}");
-        sb.AppendLine($"- **Evaluation Time**: {suite.TotalDuration.TotalMilliseconds:F1}ms\n");
-
-        sb.AppendLine(GateSuiteTableHeader);
-        sb.AppendLine(GateSuiteTableSeparator);
-        foreach (var r in suite.Results)
-        {
-            var stIcon = r.Status switch
-            {
-                GateCheckStatus.Passed => "✅ PASS",
-                GateCheckStatus.PassedTolerated => "⚠️ TOLERATED",
-                GateCheckStatus.Warning => "🟡 WARN",
-                GateCheckStatus.FailedNew => "❌ FAIL",
-                _ => "💥 ERR"
+                gateId = result.Gate.Id,
+                name = result.Gate.Name,
+                status = result.Status.ToString(),
+                groupBy = gb,
+                totalViolations = candidates.Count,
+                groups = groups.Take(limit > 0 ? limit : int.MaxValue)
             };
-            var vCount = r.NewViolations.Count > 0 ? $"**{r.NewViolations.Count} new**" : $"{r.Violations.Count}";
-            sb.AppendLine($"| `{r.Gate.Id}` | {r.Gate.Category} | `{r.Gate.Platform}` | {r.Gate.Scope} | {r.Gate.Dimension} | {r.Gate.Name} | {stIcon} | {vCount} |");
-        }
-        sb.AppendLine();
 
-        var failedGates = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
-        if (failedGates.Count > 0)
+            return ToonYamlSerializer.SerializeObject(groupedPayload);
+        }
+
+        var singlePayload = new
         {
-            sb.AppendLine("## 🚨 Blocking Architectural Violations:\n");
-            foreach (var fg in failedGates)
-            {
-                sb.AppendLine($"### `{fg.Gate.Id}`: {fg.Gate.Name}");
-                if (!string.IsNullOrEmpty(fg.ErrorMessage))
-                {
-                    sb.AppendLine($"- **Error**: `{fg.ErrorMessage}`");
-                }
-                foreach (var v in fg.NewViolations.Take(10))
-                {
-                    var loc = v.Location != "-" ? $"`{v.Location}`" : "";
-                    var target = !string.IsNullOrEmpty(v.Target) ? $" → `{v.Target}`" : "";
-                    sb.AppendLine($"- {loc} **{v.Symbol}**{target}: {v.Message}");
-                }
-                if (fg.NewViolations.Count > 10)
-                {
-                    sb.AppendLine($"- *...and {fg.NewViolations.Count - 10} more violations*");
-                }
-                if (!string.IsNullOrEmpty(fg.Gate.Remediation))
-                {
-                    sb.AppendLine($"💡 **Remediation**: {fg.Gate.Remediation}\n");
-                }
-            }
-        }
+            result.Gate,
+            Status = result.Status.ToString(),
+            result.BaselineCount,
+            ViolationsCount = result.Violations.Count,
+            NewViolationsCount = result.NewViolations.Count,
+            ToleratedCount = result.ToleratedViolations.Count,
+            Violations = candidates.Take(limit > 0 ? limit : int.MaxValue)
+        };
 
-        if (suite.RatchetOpportunities > 0)
-        {
-            sb.AppendLine($"> 📉 **{suite.RatchetOpportunities} gate(s) have fewer violations than allowed by baseline.** Run `ce gate ratchet --update` to ratchet down technical debt.");
-        }
-
-        return sb.ToString().TrimEnd();
+        return ToonYamlSerializer.SerializeObject(singlePayload);
     }
 
 }
