@@ -1,0 +1,26 @@
+<linker>
+  <assembly fullname="ce">
+    <type fullname="CodeExplorer.Options.*" preserve="all" />
+  </assembly>
+  <assembly fullname="CodeExplorer.Core">
+    <type fullname="CodeExplorer.Core.Common.Nodes.*" preserve="all" />
+    <type fullname="CodeExplorer.Core.Common.Relationships.*" preserve="all" />
+  </assembly>
+  <assembly fullname="CodeExplorer.Gates" preserve="all" />
+  <assembly fullname="CodeExplorer.Analysis" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Android" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.CSharp" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.ColdFusion" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Go" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Java" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Kotlin" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Python" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Rust" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Script" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Shared" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.SQL" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.TypeScript" preserve="all" />
+  <assembly fullname="CommandLine" preserve="all" />
+  <assembly fullname="Dapper" preserve="all" />
+  <assembly fullname="YamlDotNet" preserve="all" />
+</linker>

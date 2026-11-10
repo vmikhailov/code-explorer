@@ -331,7 +331,7 @@ export function registerWorkspaceCommands(
     undefined,
     protocolChannel
   );
-  registerGateCommands(context, outputChannel, getWorkspaceRoot);
+  registerGateCommands(context, outputChannel, getWorkspaceRoot, undefined, protocolChannel);
   registerConfigurationCommands(
     context,
     processManager,
@@ -604,8 +604,10 @@ export function registerGateCommands(
   context: vscode.ExtensionContext,
   outputChannel: vscode.OutputChannel,
   getWorkspaceRoot: () => string | undefined,
-  transport: ServerTransport = ServerTransport.getInstance()
+  transport: ServerTransport = ServerTransport.getInstance(),
+  protocolChannel?: vscode.OutputChannel
 ) {
+  const panelChannel = protocolChannel || outputChannel;
   // Command: Evaluate Semantic Invariant Gates
   const evaluateGatesCommand = vscode.commands.registerCommand(
     'codeExplorer.evaluateGates',
