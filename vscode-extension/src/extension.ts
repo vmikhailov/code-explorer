@@ -22,7 +22,8 @@ const STATE_KEY_LAST_VERSION = 'codeExplorer.lastVersion';
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel('CodeExplorer');
-  context.subscriptions.push(outputChannel);
+  const protocolChannel = vscode.window.createOutputChannel('CodeExplorer (Protocol)');
+  context.subscriptions.push(outputChannel, protocolChannel);
 
   processManager = new ProcessManager(outputChannel, context);
   context.subscriptions.push(processManager);
@@ -33,17 +34,18 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   // Unified Transport Layer (sticky port allocation, liveness watchdog, pub/sub event bus)
-  serverTransport = ServerTransport.initialize(processManager, getWorkspaceRoot, outputChannel);
+  serverTransport = ServerTransport.initialize(processManager, getWorkspaceRoot, protocolChannel);
   context.subscriptions.push(serverTransport);
 
   // Automatically update all active WebviewPanels whenever server starts or restarts on a port
   serverTransport.onDidServerStart((info) => {
     outputChannel.appendLine(`[CodeExplorer] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
+    protocolChannel.appendLine(`[Protocol] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
     GraphPanel.updateAllWsUrls(info.wsUrl);
   });
 
   // Central Gate State Manager (single source of truth for all gates evaluation)
-  const gateStateManager = GateStateManager.initialize(serverTransport, getWorkspaceRoot, outputChannel);
+  const gateStateManager = GateStateManager.initialize(serverTransport, getWorkspaceRoot, protocolChannel);
   context.subscriptions.push(gateStateManager);
 
   // Broadcast gate updates in real-time to all open webviews
@@ -75,7 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.extensionUri,
     serverTransport,
     getWorkspaceRoot,
-    outputChannel
+    protocolChannel
   );
   context.subscriptions.push(
     inspectorViewProvider,
@@ -113,7 +115,7 @@ export function activate(context: vscode.ExtensionContext) {
               currentTransport,
               initialWsUrl,
               wsRoot,
-              outputChannel,
+              protocolChannel,
               mode
             );
             if (wsRoot && currentTransport.hasWorkspace(wsRoot)) {
@@ -248,8 +250,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  registerGraphCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, serverTransport);
-  registerWorkspaceCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, showWhatsNew);
+  registerGraphCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, serverTransport, protocolChannel);
+  registerWorkspaceCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, showWhatsNew, protocolChannel);
   registerIntentCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot);
 
   // Check for extension update and show What's New prompt

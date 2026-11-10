@@ -17,8 +17,10 @@ export function registerGraphCommands(
   treeDataProvider: CodeExplorerTreeDataProvider,
   outputChannel: vscode.OutputChannel,
   getWorkspaceRoot: () => string | undefined,
-  transport: ServerTransport = ServerTransport.getInstance()
+  transport: ServerTransport = ServerTransport.getInstance(),
+  protocolChannel?: vscode.OutputChannel
 ) {
+  const panelChannel = protocolChannel || outputChannel;
 
   // Command: Show Graph
   const showGraphCommand = vscode.commands.registerCommand(
@@ -52,7 +54,7 @@ export function registerGraphCommands(
           try {
             progress.report({ message: 'Connecting to ce serve...' });
             const serverInfo = await transport.ensureConnected(workspaceRoot);
-            GraphPanel.createOrShow(context.extensionUri, transport, serverInfo.wsUrl, workspaceRoot, outputChannel, 'semantic');
+            GraphPanel.createOrShow(context.extensionUri, transport, serverInfo.wsUrl, workspaceRoot, panelChannel, 'semantic');
           } catch (err: any) {
             outputChannel.appendLine(`\n[CodeExplorer Server Activation Error]\n${err.message}\n`);
             const firstLine = err.message.split('\n')[0] || 'Server process failed';
@@ -124,7 +126,7 @@ export function registerGraphCommands(
           transport,
           serverInfo.wsUrl,
           workspaceRoot,
-          outputChannel,
+          panelChannel,
           'grid',
           undefined,
           { kind, layerTitle: targetLayer, service: targetService }
@@ -175,7 +177,7 @@ export function registerGraphCommands(
           transport,
           serverInfo.wsUrl,
           workspaceRoot,
-          outputChannel,
+          panelChannel,
           viewMode,
           project
         );
@@ -206,7 +208,7 @@ export function registerGraphCommands(
           transport,
           serverInfo.wsUrl,
           workspaceRoot,
-          outputChannel,
+          panelChannel,
           'contexts'
         );
         panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'contexts' });
@@ -248,7 +250,7 @@ export function registerGraphCommands(
           transport,
           serverInfo.wsUrl,
           workspaceRoot,
-          outputChannel,
+          panelChannel,
           targetMode,
           targetProject
         );
@@ -316,7 +318,8 @@ export function registerWorkspaceCommands(
   treeDataProvider: CodeExplorerTreeDataProvider,
   outputChannel: vscode.OutputChannel,
   getWorkspaceRoot: () => string | undefined,
-  showWhatsNew: () => Promise<void>
+  showWhatsNew: () => Promise<void>,
+  protocolChannel?: vscode.OutputChannel
 ) {
   registerWorkspaceLifecycleCommands(
     context,
@@ -324,7 +327,9 @@ export function registerWorkspaceCommands(
     treeDataProvider,
     outputChannel,
     getWorkspaceRoot,
-    showWhatsNew
+    showWhatsNew,
+    undefined,
+    protocolChannel
   );
   registerGateCommands(context, outputChannel, getWorkspaceRoot);
   registerConfigurationCommands(
@@ -332,7 +337,9 @@ export function registerWorkspaceCommands(
     processManager,
     treeDataProvider,
     outputChannel,
-    getWorkspaceRoot
+    getWorkspaceRoot,
+    undefined,
+    protocolChannel
   );
 }
 
@@ -343,7 +350,8 @@ export function registerWorkspaceLifecycleCommands(
   outputChannel: vscode.OutputChannel,
   getWorkspaceRoot: () => string | undefined,
   showWhatsNew: () => Promise<void>,
-  transport: ServerTransport = ServerTransport.getInstance()
+  transport: ServerTransport = ServerTransport.getInstance(),
+  protocolChannel?: vscode.OutputChannel
 ) {
 
   const triggerScan = async (clear: boolean) => {
@@ -429,6 +437,14 @@ export function registerWorkspaceLifecycleCommands(
     'codeExplorer.showLogs',
     () => {
       outputChannel.show(true);
+    }
+  );
+
+  // Command: Show Protocol Logs
+  const showProtocolLogsCommand = vscode.commands.registerCommand(
+    'codeExplorer.showProtocolLogs',
+    () => {
+      (protocolChannel || outputChannel).show(true);
     }
   );
 
@@ -576,6 +592,7 @@ export function registerWorkspaceLifecycleCommands(
     reindexFullCommand,
     restartServerCommand,
     showLogsCommand,
+    showProtocolLogsCommand,
     updateEngineCommand,
     whatsNewCommand,
     initAndScanCommand,
@@ -687,7 +704,7 @@ export function registerGateCommands(
           transport,
           serverInfo.wsUrl,
           workspaceRoot,
-          outputChannel,
+          panelChannel,
           'gate-editor'
         );
         panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'gate-editor' });
@@ -721,7 +738,7 @@ export function registerGateCommands(
           transport,
           serverInfo.wsUrl,
           workspaceRoot,
-          outputChannel,
+          panelChannel,
           'gate-editor'
         );
         panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'gate-editor' });
@@ -906,8 +923,10 @@ export function registerConfigurationCommands(
   treeDataProvider: CodeExplorerTreeDataProvider,
   outputChannel: vscode.OutputChannel,
   getWorkspaceRoot: () => string | undefined,
-  transport: ServerTransport = ServerTransport.getInstance()
+  transport: ServerTransport = ServerTransport.getInstance(),
+  protocolChannel?: vscode.OutputChannel
 ) {
+  const panelChannel = protocolChannel || outputChannel;
   let isUpdatingSettingsProgrammatically = false;
 
   const rescanAfterSettingsChange = async (reason: string) => {

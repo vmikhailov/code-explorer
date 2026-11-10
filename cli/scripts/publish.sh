@@ -33,9 +33,8 @@ publish_target() {
         -p:InformationalVersion="$VERSION" \
         -p:PublishSingleFile=true \
         -p:IncludeNativeLibrariesForSelfExtract=true \
-        -p:IncludeAllContentForSelfExtract=true \
         -p:EnableCompressionInSingleFile=true \
-        -p:PublishTrimmed=false \
+        -p:PublishTrimmed=true \
         -p:DebugType=none \
         -o "$out_dir"
     echo "✓ Published: $rid -> $out_dir"

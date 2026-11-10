@@ -82,9 +82,8 @@ for (const target of selectedTargets) {
     '--self-contained', 'true',
     '-p:PublishSingleFile=true',
     '-p:IncludeNativeLibrariesForSelfExtract=true',
-    '-p:IncludeAllContentForSelfExtract=true',
     '-p:EnableCompressionInSingleFile=true',
-    '-p:PublishTrimmed=false',
+    '-p:PublishTrimmed=true',
     '-p:DebugType=none',
     '-o', outDir,
   ];

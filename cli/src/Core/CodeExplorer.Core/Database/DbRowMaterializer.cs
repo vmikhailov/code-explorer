@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -98,6 +99,7 @@ public static class DbRowMaterializer
         return list;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "ValueTuple constructors are preserved")]
     public static T MaterializeRow<T>(CypherRow row)
     {
         var targetType = typeof(T);
@@ -268,6 +270,7 @@ public static class DbRowMaterializer
         };
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "ValueTuple constructor parameters match generic arguments")]
     private static object MaterializeValueTuple(CypherRow row, Type tupleType)
     {
         var genericArgs = tupleType.GetGenericArguments();
@@ -415,7 +418,7 @@ public static class DbRowMaterializer
             return parsed;
         }
 
-        return Activator.CreateInstance(enumType)!;
+        return Enum.ToObject(enumType, 0);
     }
 
     private static bool IsScalarOrEnumType(Type t)
@@ -424,12 +427,13 @@ public static class DbRowMaterializer
         return effective.IsPrimitive || effective.IsEnum || effective == typeof(string) || effective == typeof(decimal);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Value types default initialization")]
     private static object? GetDefaultForType(Type t)
     {
         if (t == typeof(string)) return string.Empty;
         if (t == typeof(List<string>) || t == typeof(IReadOnlyList<string>)) return new List<string>();
         if (t == typeof(string[])) return Array.Empty<string>();
-        return t.IsValueType ? Activator.CreateInstance(t) : null;
+        return t.IsValueType ? (t.IsEnum ? Enum.ToObject(t, 0) : System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t)) : null;
     }
 
     private sealed class CachedTypeDescriptor

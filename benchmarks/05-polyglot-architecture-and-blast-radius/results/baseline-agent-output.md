@@ -1,260 +1,431 @@
-# OrchardCore Architectural Governance, Security & Blast-Radius Audit
+# Architectural Governance, Security, and Blast-Radius Audit Report: OrchardCore
 
-Scope: `src/OrchardCore/OrchardCore.*` and `src/OrchardCore.Modules/OrchardCore.*` at `C:/Work/bench-pilot/repos/OrchardCore` (excluding `test/`, `src/Templates/`, and `*Tests*` files).
-
----
-
-## Task 1 — AppSec Authorization Audit: State-Mutating Controller Actions (`[HttpPost]` / `[HttpPut]` / `[HttpDelete]`, non-`[AllowAnonymous]`)
-
-### Summary Counts
-- **Total non-anonymous state-mutating actions**: **88** across the 5 modules (*82 if excluding the 6 API actions on [`TenantApiController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/Controllers/TenantApiController.cs), which declares `[Authorize(AuthenticationSchemes = "Api"), IgnoreAntiforgeryToken, AllowAnonymous]` at class level to bypass cookie redirects while enforcing `AuthorizeAsync` inside each action*).
-  - **(1a) Calls `IAuthorizationService.AuthorizeAsync` within `1..2` hops**: **67** (*61 excluding `TenantApiController`*)
-  - **(1b) Does NOT call `AuthorizeAsync` within `1..2` hops**: **21** (*including **3** actions with neither `[Admin]` nor `[Authorize]` at class or action level: `HttpWorkflowController.Invoke`, `ExternalAuthenticationsController.LinkLogin`, and `ExternalAuthenticationsController.RemoveLogin`*)
-- *Excluded action-level `[AllowAnonymous]` POSTs (10, all in `OrchardCore.Users`)*: `AccountController.LoginPOST`, `EmailConfirmationController.ResendEmailConfirmation`, `ExternalAuthenticationsController.ExternalLogin`, `ExternalAuthenticationsController.RegisterExternalLogin`, `ExternalAuthenticationsController.LinkExternalLogin`, `RegistrationController.RegisterPOST`, `ResetPasswordController.ForgotPasswordPOST`, `ResetPasswordController.ResetPasswordPOST`, `TwoFactorAuthenticationController.LoginWithTwoFactorAuthenticationPost`, `TwoFactorAuthenticationController.LoginWithRecoveryCode`.
-
-### Module Breakdown
-
-- **[`OrchardCore.Roles`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Roles/OrchardCore.Roles.csproj)** — **(1a): 4 | (1b): 0**
-  - **(1a) Calls `AuthorizeAsync` (4)**:
-    - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Roles/Controllers/AdminController.cs) (4, 1 hop): `AdminController.Create`, `AdminController.EditPost`, `AdminController.Delete`, `AdminController.ClonePost`
-  - **(1b) Missing `AuthorizeAsync` (0)**: None
-
-- **[`OrchardCore.ContentTypes`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentTypes/OrchardCore.ContentTypes.csproj)** — **(1a): 13 | (1b): 0**
-  - **(1a) Calls `AuthorizeAsync` (13)**:
-    - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentTypes/Controllers/AdminController.cs) (13, 1 hop): `AdminController.CreatePOST`, `AdminController.EditPost`, `AdminController.Delete`, `AdminController.AddPartsToPOST`, `AdminController.AddReusablePartToPOST`, `AdminController.RemovePart`, `AdminController.CreatePartPOST`, `AdminController.EditPartPOST`, `AdminController.DeletePart`, `AdminController.AddFieldToPOST`, `AdminController.EditFieldPOST`, `AdminController.RemoveFieldFromPOST`, `AdminController.EditTypePartPOST`
-  - **(1b) Missing `AuthorizeAsync` (0)**: None
-
-- **[`OrchardCore.Tenants`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/OrchardCore.Tenants.csproj)** — **(1a): 17 (*11 excl. `TenantApiController`*) | (1b): 2**
-  - **(1a) Calls `AuthorizeAsync` (17)**:
-    - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/Controllers/AdminController.cs) (7, 1 hop): `AdminController.Index`, `AdminController.Create`, `AdminController.Edit`, `AdminController.Disable`, `AdminController.Enable`, `AdminController.Reload`, `AdminController.Remove`
-    - [`FeatureProfilesController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/Controllers/FeatureProfilesController.cs) (4): `FeatureProfilesController.CreatePost` (2 hops via `ProcessSaveAsync`), `FeatureProfilesController.EditPost` (2 hops via `ProcessSaveAsync`), `FeatureProfilesController.Delete` (1 hop), `FeatureProfilesController.IndexPost` (1 hop)
-    - [`TenantApiController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/Controllers/TenantApiController.cs) (6, 1 hop; class `[Authorize(AuthenticationSchemes = "Api"), AllowAnonymous]`): `TenantApiController.Create`, `TenantApiController.Edit`, `TenantApiController.Disable`, `TenantApiController.Enable`, `TenantApiController.Remove`, `TenantApiController.Setup`
-  - **(1b) Missing `AuthorizeAsync` (2)**:
-    - [`AdminController.IndexFilterPOST`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/Controllers/AdminController.cs#L103) — class `[Admin]` (no `[Authorize]`)
-    - [`FeatureProfilesController.IndexFilterPOST`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Tenants/Controllers/FeatureProfilesController.cs#L86) — class `[Admin]` (no `[Authorize]`)
-
-- **[`OrchardCore.Workflows`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/OrchardCore.Workflows.csproj)** — **(1a): 21 | (1b): 4**
-  - **(1a) Calls `AuthorizeAsync` (21)**:
-    - [`WorkflowTypeController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowTypeController.cs) (5, 1 hop): `WorkflowTypeController.BulkEdit`, `WorkflowTypeController.Export`, `WorkflowTypeController.Create`, `WorkflowTypeController.Clone`, `WorkflowTypeController.Delete`
-    - [`WorkflowController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowController.cs) (4, 1 hop): `WorkflowController.Delete`, `WorkflowController.Restart`, `WorkflowController.BulkEdit`, `WorkflowController.AllBulkEdit`
-    - [`WorkflowDesignerController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowDesignerController.cs) (11): `WorkflowDesignerController.Run` (1 hop), `WorkflowDesignerController.Retry` (1 hop), `WorkflowDesignerController.Save` (2 hops via `CanManageAsync`), `WorkflowDesignerController.AddActivity` (2 hops), `WorkflowDesignerController.EditorPost` (2 hops), `WorkflowDesignerController.Variables` (2 hops), `WorkflowDesignerController.OutputBindings` (2 hops), `WorkflowDesignerController.SettingsPost` (2 hops), `WorkflowDesignerController.Publish` (2 hops), `WorkflowDesignerController.Restore` (2 hops), `WorkflowDesignerController.Discard` (2 hops)
-    - [`HttpWorkflowController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Http/Controllers/HttpWorkflowController.cs) (1, 1 hop; action `[Admin]`): `HttpWorkflowController.GenerateUrl`
-  - **(1b) Missing `AuthorizeAsync` (4)**:
-    - [`WorkflowTypeController.IndexFilterPOST`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowTypeController.cs#L120) — class `[Admin]` (no `[Authorize]`)
-    - [`WorkflowController.IndexFilterPOST`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowController.cs#L105) — class `[Admin]` (no `[Authorize]`)
-    - [`WorkflowController.AllFilterPOST`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowController.cs#L152) — class `[Admin]` (no `[Authorize]`)
-    - [`HttpWorkflowController.Invoke`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Http/Controllers/HttpWorkflowController.cs#L86) — `[HttpGet, HttpPost, HttpPut, HttpPatch]`, `[IgnoreAntiforgeryToken]`, **NO `[Admin]` and NO `[Authorize]`** (validates encrypted workflow SAS token)
-
-- **[`OrchardCore.Users`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/OrchardCore.Users.csproj)** — **(1a): 12 | (1b): 15**
-  - **(1a) Calls `AuthorizeAsync` (12, all 1 hop)**:
-    - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/AdminController.cs) (9): `AdminController.IndexPOST`, `AdminController.CreatePost`, `AdminController.EditPost`, `AdminController.ConfirmEmail`, `AdminController.Delete`, `AdminController.EditPassword`, `AdminController.Enable`, `AdminController.Disable`, `AdminController.Unlock`
-    - [`AuditTrailAdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/AuditTrail/Controllers/AuditTrailAdminController.cs) (1): `AuditTrailAdminController.IndexFilterPOST`
-    - [`AdminTwoFactorAuthenticationController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/AdminTwoFactorAuthenticationController.cs) (1): `AdminTwoFactorAuthenticationController.Disable`
-    - [`EmailConfirmationController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/EmailConfirmationController.cs) (1, action `[Authorize]`): `EmailConfirmationController.SendVerificationEmail`
-  - **(1b) Missing `AuthorizeAsync` (15)**:
-    - [`AdminController.IndexFilterPOST`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/AdminController.cs#L121) — class `[Admin]` (no `[Authorize]`)
-    - [`AccountController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/AccountController.cs) (2, class `[Authorize]`, no `[Admin]`): `AccountController.LogOff`, `AccountController.ChangePassword`
-    - [`AuthenticatorAppController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/AuthenticatorAppController.cs) (2, class `[Authorize]`, no `[Admin]`): `AuthenticatorAppController.Index`, `AuthenticatorAppController.ResetPost`
-    - [`ChangeEmailController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/ChangeEmailController.cs) (1, class `[Authorize]`, no `[Admin]`): `ChangeEmailController.Index`
-    - [`SmsAuthenticatorController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/SmsAuthenticatorController.cs) (2, class `[Authorize]`, no `[Admin]`): `SmsAuthenticatorController.IndexPost`, `SmsAuthenticatorController.ValidateCode`
-    - [`TwoFactorAuthenticationController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/TwoFactorAuthenticationController.cs) (5, class `[Authorize]`, no `[Admin]`): `TwoFactorAuthenticationController.Index`, `TwoFactorAuthenticationController.ForgetTwoFactorClient`, `TwoFactorAuthenticationController.GenerateRecoveryCodesPost`, `TwoFactorAuthenticationController.EnableTwoFactorAuthentication`, `TwoFactorAuthenticationController.DisableTwoFactorAuthenticationPost`
-    - [`ExternalAuthenticationsController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/ExternalAuthenticationsController.cs) (2, **NO `[Admin]` and NO `[Authorize]` on class, base `AccountBaseController`, or action**): `ExternalAuthenticationsController.LinkLogin`, `ExternalAuthenticationsController.RemoveLogin`
+## Executive Summary
+This report presents the findings of a 4-part architectural governance, AppSec authorization, reactive pipeline fan-out, and breaking-change blast radius audit conducted across the `OrchardCMS/OrchardCore` codebase (`src/OrchardCore/*` and `src/OrchardCore.Modules/*`, excluding `test/` projects, `src/Templates/`, and test files).
 
 ---
 
-## Task 2 — Architectural Boundary Violations: Controllers & Display Drivers Invoking `YesSql.ISession` Directly
+## Task 1: AppSec Authorization Audit — State-Mutating Controller Actions
 
-### Summary Counts
-- **Violating modules**: **13** across `src/OrchardCore.Modules/*`
-- **Violating classes**: **25** (**20** Controllers + **5** Display Drivers)
-  - *Verified non-violating injections excluded*: `OrchardCore.Alias`'s `AliasPartDisplayDriver` (passes `_session` as an argument without invoking methods on it) and `OrchardCore.Demo`'s `HomeController` (unused `_session` field); Razor `PageModel`s (`ListModel`, `EditModel`) and Minimal API `CreateEndpoint` are also outside Controller/DisplayDriver scope.
-- **Method-to-`ISession` operation pairs**: **75** distinct `(MethodOverload, ISession.Operation)` pairs (*or **71** if collapsing GET/POST C# method overloads that share the same `MethodName` in `DeploymentPlanController.Edit`, `StepController.Create`, `StepController.Edit`, and `WorkflowTypeController.Clone`*).
+Audited all public action methods on MVC/API controllers decorated with `[HttpPost]`, `[HttpPut]`, or `[HttpDelete]` (excluding `[AllowAnonymous]`) across 5 security-sensitive modules.
 
-### Per-Module Breakdown
+- **Total (1a) Authorized Actions**: **67**
+- **Total (1b) Actions Missing `AuthorizeAsync` within 1–2 Hops**: **21**
 
-1. **[`OrchardCore.AdminDashboard`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.AdminDashboard/OrchardCore.AdminDashboard.csproj)** — **1 class, 1 pair**
-   - [`DashboardController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.AdminDashboard/Controllers/DashboardController.cs): `DashboardController.Update -> ISession.SaveAsync`
+### 1. OrchardCore.Roles
+- **(1a) Authorized Actions (4)**:
+  - `AdminController.Create` (`AuthorizeAsync(User, RolesPermissions.ManageRoles)`)
+  - `AdminController.EditPost` (`AuthorizeAsync(User, RolesPermissions.ManageRoles)`)
+  - `AdminController.Delete` (`AuthorizeAsync(User, RolesPermissions.ManageRoles)`)
+  - `AdminController.ClonePost` (`AuthorizeAsync(User, RolesPermissions.ManageRoles)`)
+- **(1b) Missing `AuthorizeAsync` (0)**: None
 
-2. **[`OrchardCore.Autoroute`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Autoroute/OrchardCore.Autoroute.csproj)** — **1 class, 1 pair**
-   - [`AutoroutePartDisplayDriver`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Autoroute/Drivers/AutoroutePartDisplayDriver.cs): `AutoroutePartDisplayDriver.UpdateAsync -> ISession.QueryIndex`
+### 2. OrchardCore.ContentTypes
+- **(1a) Authorized Actions (13)**:
+  - `AdminController.CreatePOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.EditPost` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.Delete` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.AddPartsToPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.AddReusablePartToPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.RemovePart` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.CreatePartPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.EditPartPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.DeletePart` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.AddFieldToPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.EditFieldPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.RemoveFieldFromPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+  - `AdminController.EditTypePartPOST` (`AuthorizeAsync(User, ContentTypesPermissions.EditContentTypes)`)
+- **(1b) Missing `AuthorizeAsync` (0)**: None
 
-3. **[`OrchardCore.ContentFields`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/OrchardCore.ContentFields.csproj)** — **2 classes, 3 pairs**
-   - [`LocalizationSetContentPickerAdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/Controllers/LocalizationSetContentPickerAdminController.cs): `LocalizationSetContentPickerAdminController.SearchLocalizationSets -> ISession.Query`
-   - [`UserPickerFieldDisplayDriver`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/Drivers/UserPickerFieldDisplayDriver.cs): `UserPickerFieldDisplayDriver.Edit -> ISession.Query`, `UserPickerFieldDisplayDriver.UpdateAsync -> ISession.Query`
+### 3. OrchardCore.Tenants
+- **(1a) Authorized Actions (17)**:
+  - `AdminController.Index` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `AdminController.Create` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `AdminController.Edit` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `AdminController.Disable` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `AdminController.Enable` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `AdminController.Reload` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `AdminController.Remove` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `TenantApiController.Create` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `TenantApiController.Edit` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `TenantApiController.Disable` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `TenantApiController.Enable` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `TenantApiController.Remove` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `TenantApiController.Setup` (`AuthorizeAsync(User, Permissions.ManageTenants)`)
+  - `FeatureProfilesController.CreatePost` (`ProcessSaveAsync` -> `AuthorizeAsync`)
+  - `FeatureProfilesController.EditPost` (`ProcessSaveAsync` -> `AuthorizeAsync`)
+  - `FeatureProfilesController.Delete` (`AuthorizeAsync(User, Permissions.ManageTenantFeatureProfiles)`)
+  - `FeatureProfilesController.IndexPost` (`AuthorizeAsync(User, Permissions.ManageTenantFeatureProfiles)`)
+- **(1b) Missing `AuthorizeAsync` (2)**:
+  - `AdminController.IndexFilterPOST` (Controller decorated with `[Admin]`)
+  - `FeatureProfilesController.IndexFilterPOST` (Controller decorated with `[Admin]`)
 
-4. **[`OrchardCore.Contents`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/OrchardCore.Contents.csproj)** — **4 classes, 13 pairs**
-   - [`AddToDeploymentPlanController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Deployment/AddToDeploymentPlan/AddToDeploymentPlanController.cs): `AddToDeploymentPlanController.AddContentItem -> ISession.GetAsync`, `AddToDeploymentPlanController.AddContentItem -> ISession.SaveAsync`, `AddToDeploymentPlanController.AddContentItems -> ISession.GetAsync`, `AddToDeploymentPlanController.AddContentItems -> ISession.Query`, `AddToDeploymentPlanController.AddContentItems -> ISession.SaveAsync`
-   - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Controllers/AdminController.cs): `AdminController.ListPOST -> ISession.Query`, `AdminController.ListPOST -> ISession.CancelAsync`, `AdminController.CreateInternalAsync -> ISession.CancelAsync`, `AdminController.EditInternalAsync -> ISession.CancelAsync`
-   - [`AuditTrailContentController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/AuditTrail/Controllers/AuditTrailContentController.cs): `AuditTrailContentController.Display -> ISession.Query`, `AuditTrailContentController.Restore -> ISession.Query`
-   - [`AuditTrailContentEventDisplayDriver`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/AuditTrail/Drivers/AuditTrailContentEventDisplayDriver.cs): `AuditTrailContentEventDisplayDriver.DisplayAsync -> ISession.QueryIndex`, `AuditTrailContentEventDisplayDriver.DisplayAsync -> ISession.Query`
+### 4. OrchardCore.Workflows
+- **(1a) Authorized Actions (21)**:
+  - `WorkflowTypeController.BulkEdit` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowTypeController.Export` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowTypeController.Create` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowTypeController.Clone` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowTypeController.Delete` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowDesignerController.Run` (`AuthorizeAsync(User, WorkflowsPermissions.ExecuteWorkflows)`)
+  - `WorkflowDesignerController.Retry` (`AuthorizeAsync(User, WorkflowsPermissions.ExecuteWorkflows)`)
+  - `WorkflowDesignerController.Save` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.AddActivity` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.EditorPost` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.Variables` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.OutputBindings` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.SettingsPost` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.Publish` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.Restore` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowDesignerController.Discard` (`CanManageAsync` -> `AuthorizeAsync`)
+  - `WorkflowController.Delete` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowController.Restart` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowController.BulkEdit` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `WorkflowController.AllBulkEdit` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+  - `HttpWorkflowController.GenerateUrl` (`AuthorizeAsync(User, WorkflowsPermissions.ManageWorkflows)`)
+- **(1b) Missing `AuthorizeAsync` (4)**:
+  - `WorkflowTypeController.IndexFilterPOST` (Controller decorated with `[Admin]`)
+  - `WorkflowController.IndexFilterPOST` (Controller decorated with `[Admin]`)
+  - `WorkflowController.AllFilterPOST` (Controller decorated with `[Admin]`)
+  - `HttpWorkflowController.Invoke` (No class-level authorization attributes; secured via SAS token decrypt validation)
 
-5. **[`OrchardCore.Demo`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/OrchardCore.Demo.csproj)** — **2 classes, 8 pairs**
-   - [`ContentController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Controllers/ContentController.cs): `ContentController.EditPost -> ISession.CancelAsync`, `ContentController.EditPost -> ISession.SaveAsync`
-   - [`TodoController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Controllers/TodoController.cs): `TodoController.Index -> ISession.Query`, `TodoController.Edit -> ISession.Query`, `TodoController.Update -> ISession.Query`, `TodoController.Update -> ISession.SaveAsync`, `TodoController.Delete -> ISession.Query`, `TodoController.Delete -> ISession.Delete`
-
-6. **[`OrchardCore.Deployment`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Deployment/OrchardCore.Deployment.csproj)** — **3 classes, 23 overload-distinct pairs (*20 by collapsed method name*)**
-   - [`DeploymentPlanController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Deployment/Controllers/DeploymentPlanController.cs): `DeploymentPlanController.Index -> ISession.Query`, `DeploymentPlanController.IndexBulkActionPOST -> ISession.Query`, `DeploymentPlanController.IndexBulkActionPOST -> ISession.Delete`, `DeploymentPlanController.Display -> ISession.GetAsync`, `DeploymentPlanController.Create -> ISession.QueryIndex`, `DeploymentPlanController.Create -> ISession.SaveAsync`, `DeploymentPlanController.Edit(long) -> ISession.GetAsync`, `DeploymentPlanController.Edit(EditDeploymentPlanViewModel) -> ISession.GetAsync`, `DeploymentPlanController.Edit(EditDeploymentPlanViewModel) -> ISession.QueryIndex`, `DeploymentPlanController.Edit(EditDeploymentPlanViewModel) -> ISession.SaveAsync`, `DeploymentPlanController.Delete -> ISession.GetAsync`, `DeploymentPlanController.Delete -> ISession.Delete`
-   - [`ExportFileController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Deployment/Controllers/ExportFileController.cs): `ExportFileController.Execute -> ISession.GetAsync`
-   - [`StepController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Deployment/Controllers/StepController.cs): `StepController.Create(long, string) -> ISession.GetAsync`, `StepController.Create(EditDeploymentPlanStepViewModel) -> ISession.GetAsync`, `StepController.Create(EditDeploymentPlanStepViewModel) -> ISession.SaveAsync`, `StepController.Edit(long, string) -> ISession.GetAsync`, `StepController.Edit(EditDeploymentPlanStepViewModel) -> ISession.GetAsync`, `StepController.Edit(EditDeploymentPlanStepViewModel) -> ISession.SaveAsync`, `StepController.Delete -> ISession.GetAsync`, `StepController.Delete -> ISession.SaveAsync`, `StepController.UpdateOrder -> ISession.GetAsync`, `StepController.UpdateOrder -> ISession.SaveAsync`
-
-7. **[`OrchardCore.Deployment.Remote`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Deployment.Remote/OrchardCore.Deployment.Remote.csproj)** — **1 class, 1 pair**
-   - [`ExportRemoteInstanceController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Deployment.Remote/Controllers/ExportRemoteInstanceController.cs): `ExportRemoteInstanceController.Execute -> ISession.GetAsync`
-
-8. **[`OrchardCore.Layers`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Layers/OrchardCore.Layers.csproj)** — **1 class, 1 pair**
-   - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Layers/Controllers/AdminController.cs): `AdminController.UpdatePosition -> ISession.SaveAsync`
-
-9. **[`OrchardCore.Notifications`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Notifications/OrchardCore.Notifications.csproj)** — **2 classes, 4 pairs**
-   - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Notifications/Controllers/AdminController.cs): `AdminController.ListPOST -> ISession.Query`
-   - [`NotificationNavbarDisplayDriver`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Notifications/Drivers/NotificationNavbarDisplayDriver.cs): `NotificationNavbarDisplayDriver.DisplayAsync -> ISession.Query`, `NotificationNavbarDisplayDriver.DisplayAsync -> ISession.QueryIndex`, `NotificationNavbarDisplayDriver.PopulateVisibleAsync -> ISession.Query`
-
-10. **[`OrchardCore.Search`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Search/OrchardCore.Search.csproj)** — **1 class, 1 pair**
-    - [`SearchController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Search/Controllers/SearchController.cs): `SearchController.Search -> ISession.Query`
-
-11. **[`OrchardCore.Taxonomies`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/OrchardCore.Taxonomies.csproj)** — **3 classes, 6 pairs**
-    - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Controllers/AdminController.cs): `AdminController.CreatePost -> ISession.SaveAsync`, `AdminController.EditPost -> ISession.SaveAsync`, `AdminController.Delete -> ISession.SaveAsync`
-    - [`TagController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Controllers/TagController.cs): `TagController.CreatePost -> ISession.CancelAsync`, `TagController.CreatePost -> ISession.SaveAsync`
-    - [`TaxonomyContentsAdminListSettingsDisplayDriver`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Drivers/TaxonomyContentsAdminListSettingsDisplayDriver.cs): `TaxonomyContentsAdminListSettingsDisplayDriver.EditAsync -> ISession.Query`
-
-12. **[`OrchardCore.Users`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/OrchardCore.Users.csproj)** — **1 class, 3 pairs**
-    - [`AdminController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Users/Controllers/AdminController.cs): `AdminController.IndexPOST -> ISession.Query`, `AdminController.Delete -> ISession.CancelAsync`, `AdminController.Unlock -> ISession.CancelAsync`
-
-13. **[`OrchardCore.Workflows`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/OrchardCore.Workflows.csproj)** — **3 classes, 10 overload-distinct pairs (*9 by collapsed method name*)**
-    - [`WorkflowController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowController.cs): `WorkflowController.BuildListAsync -> ISession.QueryIndex`, `WorkflowController.BuildListAsync -> ISession.Query`
-    - [`WorkflowDesignerController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowDesignerController.cs): `WorkflowDesignerController.Definition -> ISession.QueryIndex`, `WorkflowDesignerController.LatestInstance -> ISession.Query`, `WorkflowDesignerController.Instance -> ISession.QueryIndex`, `WorkflowDesignerController.CountInstancesByVersionAsync -> ISession.CreateConnectionAsync`
-    - [`WorkflowTypeController`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/Controllers/WorkflowTypeController.cs): `WorkflowTypeController.Index -> ISession.Query`, `WorkflowTypeController.Index -> ISession.CreateConnectionAsync`, `WorkflowTypeController.BulkEdit -> ISession.Query`, `WorkflowTypeController.Clone(long) -> ISession.GetAsync`, `WorkflowTypeController.Clone(WorkflowTypePropertiesViewModel) -> ISession.GetAsync`
-
----
-
-## Task 3 — Event Lifecycle Side-Effect Fan-Out (`PublishingAsync` & `PublishedAsync`)
-
-### Summary Counts
-- **Concrete handler methods**: **16** (`3` `PublishingAsync` + `13` `PublishedAsync`) across **15** concrete classes in **11** projects/modules.
-- *Plus abstract base/adapter methods in [`OrchardCore.ContentManagement.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/OrchardCore.ContentManagement.Abstractions.csproj)*: **6** virtual base methods across **3** abstract base classes (`ContentHandlerBase.PublishingAsync`/`PublishedAsync`, `ContentPartHandler<TPart>.PublishingAsync`/`PublishedAsync`, `ContentFieldHandler<TField>.PublishingAsync`/`PublishedAsync`, plus **4** explicit `IContentPartHandler`/`IContentFieldHandler` type-unwrapping adapter methods — making **22** virtual/concrete methods or **26** including explicit interface adapters).
-
-### Concrete Handler Methods & `1..2` Hop Side-Effects
-
-- **[`OrchardCore.ContentManagement`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/OrchardCore.ContentManagement.csproj)** (3 methods):
-  - [`UpdateContentsHandler.PublishingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/Handlers/UpdateContentsHandler.cs#L36) -> `[IClock.UtcNow; mutates ContentItem.CreatedUtc / ContentItem.PublishedUtc]` — **Content mutation (in-memory)**
-  - [`ContentPartHandlerCoordinator.PublishingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/Handlers/ContentPartHandlerCoordinator.cs#L48) -> `[InvokeHandlers -> IContentDefinitionManager.GetTypeDefinitionAsync, IContentPartHandlerResolver.GetHandlers, IContentPartHandler.PublishingAsync, IContentFieldHandlerResolver.GetHandlers, IContentFieldHandler.PublishingAsync]` — **Database / Content / Definition (`IContentDefinitionManager` + Part/Field pipeline dispatch)**
-  - [`ContentPartHandlerCoordinator.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/Handlers/ContentPartHandlerCoordinator.cs#L51) -> `[InvokeHandlers -> IContentDefinitionManager.GetTypeDefinitionAsync, IContentPartHandlerResolver.GetHandlers, IContentPartHandler.PublishedAsync, IContentFieldHandlerResolver.GetHandlers, IContentFieldHandler.PublishedAsync]` — **Database / Content / Definition (`IContentDefinitionManager` + Part/Field pipeline dispatch)**
-
-- **[`OrchardCore.Autoroute.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Autoroute.Core/OrchardCore.Autoroute.Core.csproj)** (1 method):
-  - [`AutoroutePartIndexProvider.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Autoroute.Core/Indexes/AutoroutePartIndexProvider.cs#L40) -> `[IContentDefinitionManager.GetTypeDefinitionAsync, ContentItem.Remove<AutoroutePart>, IAutorouteEntries.UpdateEntriesAsync -> IVolatileDocumentManager<AutorouteStateDocument>.UpdateAsync]` — **Database / Index / Content / Store mutation (`IContentDefinitionManager`, `*IndexProvider`, `*Entries`) + Cache (`IVolatileDocumentManager` -> `IMemoryCache`/`IDistributedCache`)**
-
-- **[`OrchardCore.Indexing.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Indexing.Core/OrchardCore.Indexing.Core.csproj)** (1 method):
-  - [`IndexingContentHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Indexing.Core/Handlers/IndexingContentHandler.cs#L44) -> `[AddContentItemAsync -> AddDeferredTask (ShellScope.AddDeferredTask -> IndexAsync: IIndexProfileStore.GetByTypeAsync, IContentManager.PopulateAspectAsync, IDocumentIndexManager.DeleteDocumentsAsync / AddOrUpdateDocumentsAsync)]` — **Workflow / Deferred Task trigger (`AddDeferredTask`) + Deferred Store/Content/Index mutation**
-
-- **[`OrchardCore.Alias`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Alias/OrchardCore.Alias.csproj)** (1 method):
-  - [`AliasPartHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Alias/Handlers/AliasPartHandler.cs#L50) -> `[ITagCache.RemoveTagAsync]` — **Cache invalidation (`ITagCache.RemoveTagAsync`)**
-
-- **[`OrchardCore.Autoroute`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Autoroute/OrchardCore.Autoroute.csproj)** (1 method):
-  - [`AutoroutePartHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Autoroute/Handlers/AutoroutePartHandler.cs#L48) -> `[IContentManager.PopulateAspectAsync, IAutorouteEntries.UpdateEntriesAsync (-> IVolatileDocumentManager.UpdateAsync), SetHomeRouteAsync (-> ISiteService.LoadSiteSettingsAsync, ISiteService.UpdateSiteSettingsAsync), CheckContainedHomeRouteAsync (-> IContentManager.PopulateAspectAsync), RemoveTagAsync (-> ITagCache.RemoveTagAsync)]` — **Database / Content / Store mutation (`IContentManager`, `*Entries`, `ISiteService`) + Cache invalidation (`ITagCache.RemoveTagAsync`)**
-
-- **[`OrchardCore.ContentLocalization`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentLocalization/OrchardCore.ContentLocalization.csproj)** (2 methods):
-  - [`LocalizationPartHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentLocalization/Handlers/LocalizationPartHandler.cs#L31) -> `[ILocalizationEntries.UpdateEntriesAsync -> IVolatileDocumentManager<LocalizationStateDocument>.UpdateAsync]` — **Database / Entries / Store mutation (`*Entries`) + Cache (`IVolatileDocumentManager`)**
-  - [`LocalizedContentItemIndexProvider.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentLocalization/Records/Migrations.cs#L156) -> `[IContentDefinitionManager.GetTypeDefinitionAsync, ContentItem.Remove<LocalizationPart>]` — **Database / Index / Content / Definition mutation (`IContentDefinitionManager`, `*IndexProvider`)**
-
-- **[`OrchardCore.Contents`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/OrchardCore.Contents.csproj)** (4 methods):
-  - [`ContentsHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Handlers/ContentsHandler.cs#L32) (`OrchardCore.Contents.Handlers`) -> `[ITagCache.RemoveTagAsync]` — **Cache invalidation (`ITagCache.RemoveTagAsync`)**
-  - [`ContentsHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Handlers/ContentsHandler.cs#L29) (`OrchardCore.Contents.Workflows.Handlers`) -> `[TriggerWorkflowEventAsync -> IWorkflowManager.TriggerEventAsync]` — **Workflow trigger (`IWorkflowManager.TriggerEventAsync`)**
-  - [`AuditTrailContentHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/AuditTrail/Handlers/AuditTrailContentHandler.cs#L58) -> `[RecordAuditTrailEventAsync -> ISiteService.GetSettingsAsync, ISession.QueryIndex<ContentItemIndex>, IAuditTrailManager.RecordEventAsync]` — **Database / Session / Store mutation (`ISiteService`, `ISession`, `IAuditTrailManager`)**
-  - [`ContentTypesSitemapUpdateHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Sitemaps/ContentTypesSitemapUpdateHandler.cs#L18) -> `[UpdateSitemapAsync -> ISitemapUpdateHandler.UpdateSitemapAsync]` — **Database / Store mutation (`ISitemapUpdateHandler`)**
-
-- **[`OrchardCore.Indexing`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Indexing/OrchardCore.Indexing.csproj)** (1 method):
-  - [`CreateIndexingTaskContentHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Indexing/CreateIndexingTaskContentHandler.cs#L28) -> `[AddUpdateTaskAsync -> IIndexingTaskManager.CreateTaskAsync]` — **Database / TaskManager mutation (`IIndexingTaskManager`)**
-
-- **[`OrchardCore.Layers`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Layers/OrchardCore.Layers.csproj)** (1 method):
-  - [`LayerMetadataHandler.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Layers/Handlers/LayerMetadataHandler.cs#L18) -> `[UpdateAsync -> IVolatileDocumentManager<LayerState>.UpdateAsync (-> IDistributedCache, IMemoryCache, IDocumentStore.AfterCommitSuccess)]` — **Cache invalidation (`IMemoryCache`, `IDistributedCache`) + Store (`IDocumentStore`)**
-
-- **[`OrchardCore.Title`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Title/OrchardCore.Title.csproj)** (1 method):
-  - [`TitlePartHandler.PublishingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Title/Handlers/TitlePartHandler.cs#L32) -> `[SetTitleAsync -> ILiquidTemplateManager.RenderStringAsync, GetSettingsAsync (-> IContentDefinitionManager.GetTypeDefinitionAsync), TitlePart.Apply]` — **Template trigger (`ILiquidTemplateManager`) + Database / Content / Definition (`IContentDefinitionManager`)**
-
-- **Base / Adapter Methods in [`OrchardCore.ContentManagement.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/OrchardCore.ContentManagement.Abstractions.csproj)** (no-op virtual bases + explicit interface forwarding):
-  - [`ContentHandlerBase.PublishingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/Handlers/ContentHandlerBase.cs#L21) & [`ContentHandlerBase.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/Handlers/ContentHandlerBase.cs#L23) -> `[Task.CompletedTask]`
-  - [`ContentPartHandler<TPart>.PublishingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/Handlers/ContentPartHandler.cs#L76) & [`ContentPartHandler<TPart>.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/Handlers/ContentPartHandler.cs#L78) (invoked via explicit `IContentPartHandler.PublishingAsync` / `IContentPartHandler.PublishedAsync`)
-  - [`ContentFieldHandler<TField>.PublishingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/Handlers/ContentFieldHandler.cs#L76) & [`ContentFieldHandler<TField>.PublishedAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/Handlers/ContentFieldHandler.cs#L78) (invoked via explicit `IContentFieldHandler.PublishingAsync` / `IContentFieldHandler.PublishedAsync`)
-
----
-
-## Task 4 — Breaking-Change Blast Radius & Over-Coupled Dependencies (`IContentManager.GetAsync`, `CreateAsync`, `PublishAsync`)
-
-### (4a) Direct Call Blast Radius (`1` hop)
-- **Affected non-test projects**: **19** projects invoke `IContentManager.GetAsync`, `CreateAsync`, or `PublishAsync` directly via the `IContentManager` interface (*or **20** projects if including [`DefaultContentManager`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/DefaultContentManager.cs)'s internal `this` self-calls in `OrchardCore.ContentManagement`*).
-  - *Overload note*: Static extension [`ContentManagerExtensions.GetAsync(this IContentManager, string, string, VersionOptions)`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/ContentManagerExtensions.cs#L43) is called at 2 sites (`OrchardCore.Autoroute`'s `Startup.ConfigureServices` and `OrchardCore.Contents`'s `ItemController.Display`), noted inline below. Razor `.cshtml` `ContentManager.GetAsync` view calls (6 views across 4 already-included projects) are also noted inline.
-
-- **[`OrchardCore.ContentManagement.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/OrchardCore.ContentManagement.Abstractions.csproj)** — **`GetAsync`: 2 | `CreateAsync`: 1 | `PublishAsync`: 0**
-  - `GetAsync` (2): [`ContentManagerExtensions.HasPublishedVersionAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/ContentManagerExtensions.cs#L12), [`ContentManagerExtensions.GetAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/ContentManagerExtensions.cs#L43)
-  - `CreateAsync` (1): [`ContentManagerExtensions.UpdateValidateAndCreateAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Abstractions/ContentManagerExtensions.cs#L26)
-
-- **[`OrchardCore.ContentManagement.GraphQL`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.GraphQL/OrchardCore.ContentManagement.GraphQL.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`ContentItemQuery.ResolveAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.GraphQL/Queries/ContentItemQuery.cs#L49)
-
-- **[`OrchardCore.Contents.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Contents.Core/OrchardCore.Contents.Core.csproj)** — **`GetAsync`: 3 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (3): [`ContentOrchardHelperExtensions.GetContentItemByHandleAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Contents.Core/ContentOrchardHelperExtensions.cs#L31), [`ContentOrchardHelperExtensions.GetContentItemByIdAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Contents.Core/ContentOrchardHelperExtensions.cs#L58), [`ContentOrchardHelperExtensions.GetContentItemsByIdAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Contents.Core/ContentOrchardHelperExtensions.cs#L76)
-
-- **[`OrchardCore.AdminDashboard`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.AdminDashboard/OrchardCore.AdminDashboard.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`DashboardController.Update`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.AdminDashboard/Controllers/DashboardController.cs#L140)
-
-- **[`OrchardCore.Alias`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Alias/OrchardCore.Alias.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`AliasPartRazorHelperExtensions.GetContentItemByAliasAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Alias/Razor/AliasPartRazorHelperExtensions.cs#L43)
-
-- **[`OrchardCore.ArchiveLater`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ArchiveLater/OrchardCore.ArchiveLater.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`ScheduledArchivingBackgroundTask.DoWorkAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ArchiveLater/Services/ScheduledArchivingBackgroundTask.cs#L54)
-
-- **[`OrchardCore.Autoroute`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Autoroute/OrchardCore.Autoroute.csproj)** — **`GetAsync`: 1 (*2 incl. `ContentManagerExtensions.GetAsync`*) | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`AutoroutePartRazorHelperExtensions.GetContentItemBySlugAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore.Modules/OrchardCore.Autoroute/Razor/AutoroutePartRazorHelperExtensions.cs#L48) (*plus `Startup.ConfigureServices` calling `ContentManagerExtensions.GetAsync`*)
-
-- **[`OrchardCore.ContentFields`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/OrchardCore.ContentFields.csproj)** — **`GetAsync`: 3 (*+1 `.cshtml` view*) | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (3): [`ContentPickerAdminController.SearchContentItems`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/Controllers/ContentPickerAdminController.cs#L61), [`ContentPickerFieldDisplayDriver.Edit`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/Drivers/ContentPickerFieldDisplayDriver.cs#L50), [`LocalizationSetContentPickerFieldDisplayDriver.Edit`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentFields/Drivers/LocalizationSetContentPickerFieldDisplayDriver.cs#L49) (*plus Razor `Views/ContentPickerField.cshtml`*)
-
-- **[`OrchardCore.ContentLocalization`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentLocalization/OrchardCore.ContentLocalization.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`AdminController.Localize`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentLocalization/Controllers/AdminController.cs#L43)
-
-- **[`OrchardCore.Contents`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/OrchardCore.Contents.csproj)** — **`GetAsync`: 31 (*32 if counting local fn `GetContentByHandleAsync` separately; +1 `ContentManagerExtensions.GetAsync` in `ItemController.Display`; +1 `.cshtml` view*) | `CreateAsync`: 4 | `PublishAsync`: 8**
-  - `GetAsync` (31): [`AdminController.Display`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Controllers/AdminController.cs#L284), `AdminController.Edit`, `AdminController.Delete`, `AdminController.Clone`, `AdminController.DiscardDraft`, `AdminController.Remove`, `AdminController.Publish`, `AdminController.Unpublish`, `AdminController.EditInternalAsync`, `AdminController.PublishOrUnpublishAsync`, [`ItemController.Preview`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Controllers/ItemController.cs#L57), [`AddToDeploymentPlanController.AddContentItem`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Deployment/AddToDeploymentPlan/AddToDeploymentPlanController.cs#L48), [`ContentItemDeploymentSource.ProcessAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Deployment/ContentItemDeploymentSource.cs#L24), [`ContentItemDeploymentStepDriver.UpdateAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Deployment/ContentItemDeploymentStepDriver.cs#L40), [`DownloadController.Display`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Deployment/Download/DownloadController.cs#L38), `DownloadController.Download`, [`ExportContentToDeploymentTargetDeploymentSource.ProcessAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Deployment/ExportContentToDeploymentTarget/ExportContentToDeploymentTargetDeploymentSource.cs#L37), [`CreateEndpoint.HandleAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Endpoints/Api/CreateEndpoint.cs#L34), [`DeleteEndpoint.HandleAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Endpoints/Api/DeleteEndpoint.cs#L24), [`GetEndpoint.HandleAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Endpoints/Api/GetEndpoint.cs#L24), [`ContentItemFilter.ProcessAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Liquid/ContentItemFilter.cs#L23), [`Shapes.DiscoverAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Shapes.cs#L22), [`Startup.ConfigureServices`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Startup.cs#L86) (incl. local `GetContentByHandleAsync`), [`DisplayContentItemViewComponent.InvokeAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/ViewComponents/DisplayContentItemViewComponent.cs#L30), [`ContentActivity.OnWorkflowRestartingAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/ContentActivity.cs#L58), [`DeleteContentTask.ExecuteAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/DeleteContentTask.cs#L43), [`PublishContentTask.ExecuteAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/PublishContentTask.cs#L43), [`RetrieveContentTask.ExecuteAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/RetrieveContentTask.cs#L45), [`UnpublishContentTask.ExecuteAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/UnpublishContentTask.cs#L43), [`UpdateContentTask.ExecuteAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/UpdateContentTask.cs#L61), [`ContentItemSerializer.DeserializeValueAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Handlers/ContentItemSerializer.cs#L25) (*plus Razor `Views/Items/ContentItemDeploymentStep.Fields.Summary.cshtml`*)
-  - `CreateAsync` (4): `AdminController.CreateInternalAsync`, `CreateEndpoint.HandleAsync`, [`ContentMethodsProvider.CreateContentItemAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Scripting/ContentMethodsProvider.cs#L57), [`CreateContentTask.ExecuteAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Contents/Workflows/Activities/CreateContentTask.cs#L68)
-  - `PublishAsync` (8): `AdminController.ListPOST`, `AdminController.CreateAndPublishPOST`, `AdminController.Publish`, `AdminController.PublishOrUnpublishAsync`, `CreateEndpoint.HandleAsync`, `CreateContentTask.ExecuteAsync`, `PublishContentTask.ExecuteAsync`, `UpdateContentTask.ExecuteAsync`
-
-- **[`OrchardCore.DataPipelines`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.DataPipelines/OrchardCore.DataPipelines.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 1 | `PublishAsync`: 1**
-  - `GetAsync` (1), `CreateAsync` (1), `PublishAsync` (1): [`SaveContentItemsStep.SaveAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.DataPipelines/Steps/SaveContentItems/SaveContentItemsStep.cs#L120)
-
-- **[`OrchardCore.Demo`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/OrchardCore.Demo.csproj)** — **`GetAsync`: 9 | `CreateAsync`: 3 | `PublishAsync`: 0**
-  - `GetAsync` (9): [`ContentApiController.GetAuthorizedById`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Controllers/ContentApiController.cs#L44), [`ContentController.Display`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Controllers/ContentController.cs#L31), `ContentController.Edit`, `ContentController.EditPost`, [`HomeController.Display`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Controllers/HomeController.cs#L65), `HomeController.DisplayShape`, [`EditModel.OnGetAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Pages/Content/Edit.cshtml.cs#L35), `EditModel.OnPostDelete`, `EditModel.OnPostUpdate`
-  - `CreateAsync` (3): `ContentApiController.AddContent`, `HomeController.Index`, [`ListModel.OnPostAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Demo/Pages/Content/List.cshtml.cs#L44)
-
-- **[`OrchardCore.Layers`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Layers/OrchardCore.Layers.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`AdminController.UpdatePosition`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Layers/Controllers/AdminController.cs#L244)
-
-- **[`OrchardCore.Lists`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/OrchardCore.Lists.csproj)** — **`GetAsync`: 13 | `CreateAsync`: 1 | `PublishAsync`: 2**
-  - `GetAsync` (13): [`RemotePublishingController.Rsd`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/RemotePublishing/RemotePublishingController.cs#L53), [`ContainedPartDisplayDriver.GetContainerAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/Drivers/ContainedPartDisplayDriver.cs#L98), [`ListFeedQuery.MatchAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/Feeds/ListFeedQuery.cs#L48), `ListFeedQuery.ExecuteAsync`, [`ContainedQueryObjectType..ctor`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/GraphQL/ContainedQueryObjectType.cs#L15), [`ContainedPartHandler.CloningAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/Handlers/ContainedPartHandler.cs#L30), [`ContainerFilter.ProcessAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/Liquid/ContainerFilter.cs#L26), [`MetaWeblogHandler.MetaWeblogGetRecentPosts`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/RemotePublishing/MetaWeblogHandler.cs#L82), `MetaWeblogHandler.MetaWeblogNewPostAsync`, `MetaWeblogHandler.MetaWeblogGetPostAsync`, `MetaWeblogHandler.MetaWeblogEditPostAsync`, `MetaWeblogHandler.MetaWeblogDeletePostAsync`, [`ContainerService.UpdateContentItemOrdersAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Lists/Services/ContainerService.cs#L123)
-  - `CreateAsync` (1): `MetaWeblogHandler.MetaWeblogNewPostAsync`
-  - `PublishAsync` (2): `MetaWeblogHandler.MetaWeblogNewPostAsync`, `MetaWeblogHandler.MetaWeblogEditPostAsync`
-
-- **[`OrchardCore.Media`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Media/OrchardCore.Media.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`ViewMediaFolderAuthorizationHandler.AuthorizeAttachedMediaFieldsFolderAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Media/Services/ViewMediaFolderAuthorizationHandler.cs#L148)
-
-- **[`OrchardCore.Menu`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Menu/OrchardCore.Menu.csproj)** — **`GetAsync`: 6 (*+2 `.cshtml` views*) | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (6): [`AdminController.CreatePost`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Menu/Controllers/AdminController.cs#L87), `AdminController.Edit`, `AdminController.EditPost`, `AdminController.Delete`, [`MenuShapes.DiscoverAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Menu/MenuShapes.cs#L24), `MenuShapes.ShouldCreateAsync` (*plus Razor `Views/Admin/Create.cshtml` & `Views/Admin/Edit.cshtml`*)
-
-- **[`OrchardCore.PublishLater`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.PublishLater/OrchardCore.PublishLater.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 1**
-  - `GetAsync` (1), `PublishAsync` (1): [`ScheduledPublishingBackgroundTask.DoWorkAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.PublishLater/Services/ScheduledPublishingBackgroundTask.cs#L54)
-
-- **[`OrchardCore.Taxonomies`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/OrchardCore.Taxonomies.csproj)** — **`GetAsync`: 16 (*+2 `.cshtml` views*) | `CreateAsync`: 1 | `PublishAsync`: 1**
-  - `GetAsync` (16): [`AdminController.CreatePost`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Controllers/AdminController.cs#L95), `AdminController.Edit`, `AdminController.EditPost`, `AdminController.Delete`, [`TagController.CreatePost`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Controllers/TagController.cs#L54), [`TaxonomyContentsAdminListDisplayDriver.EditAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Drivers/TaxonomyContentsAdminListDisplayDriver.cs#L50), [`TaxonomyFieldDisplayDriver.Edit`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Drivers/TaxonomyFieldDisplayDriver.cs#L39), [`TaxonomyFieldTagsDisplayDriver.Edit`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Drivers/TaxonomyFieldTagsDisplayDriver.cs#L41), `TaxonomyFieldTagsDisplayDriver.UpdateAsync`, [`TaxonomyFieldQueryObjectType..ctor`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/GraphQL/TaxonomyFieldQueryObjectType.cs#L15), [`TaxonomyOrchardHelperExtensions.GetTaxonomyTermAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Helper/TaxonomyOrchardHelperExtensions.cs#L19), `TaxonomyOrchardHelperExtensions.GetInheritedTermsAsync`, [`TaxonomyFieldIndexHandler.BuildIndexAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Indexing/TaxonomyFieldIndexHandler.cs#L19), [`InheritedTermsFilter.ProcessAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Liquid/InheritedTermsFilter.cs#L18), [`TaxonomyTermsFilter.ProcessAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/Liquid/TaxonomyTermsFilter.cs#L19), [`TermShapes.DiscoverAsync`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Taxonomies/TermShapes.cs#L15) (*plus Razor `Views/Admin/Create.cshtml` & `Views/Admin/Edit.cshtml`*)
-  - `CreateAsync` (1): `TagController.CreatePost`
-  - `PublishAsync` (1): `TagController.CreatePost`
-
-- **[`OrchardCore.Templates`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Templates/OrchardCore.Templates.csproj)** — **`GetAsync`: 1 | `CreateAsync`: 0 | `PublishAsync`: 0**
-  - `GetAsync` (1): [`PreviewController.Render`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Templates/Controllers/PreviewController.cs#L54)
-
-- *(Note on [`OrchardCore.ContentManagement`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/OrchardCore.ContentManagement.csproj))*: **0** calls via `IContentManager`; [`DefaultContentManager`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/DefaultContentManager.cs) implements `IContentManager` and makes **4** internal `this` calls (`DefaultContentManager.UnpublishAsync` & `DefaultContentManager.DiscardDraftAsync` -> `GetAsync`; `DefaultContentManager.RestoreAsync` & `DefaultContentManager.CloneAsync` -> `CreateAsync`; `PublishAsync`: 0).
+### 5. OrchardCore.Users
+- **(1a) Authorized Actions (12)**:
+  - `AdminController.IndexPOST` (`AuthorizeAsync(User, UsersPermissions.ListUsers)` & `EditUsers`)
+  - `AdminController.CreatePost` (`AuthorizeAsync(User, UsersPermissions.EditUsers)`)
+  - `AdminController.EditPost` (`AuthorizeAsync(User, UsersPermissions.EditUsers)` / `EditOwnUser`)
+  - `AdminController.ConfirmEmail` (`AuthorizeAsync(User, UsersPermissions.EditUsers)`)
+  - `AdminController.Delete` (`AuthorizeAsync(User, UsersPermissions.DeleteUsers)`)
+  - `AdminController.EditPassword` (`AuthorizeAsync(User, UsersPermissions.EditUsers)`)
+  - `AdminController.Enable` (`AuthorizeAsync(User, UsersPermissions.EditUsers)`)
+  - `AdminController.Disable` (`AuthorizeAsync(User, UsersPermissions.EditUsers)`)
+  - `AdminController.Unlock` (`AuthorizeAsync(User, UsersPermissions.EditUsers)`)
+  - `AdminTwoFactorAuthenticationController.Disable` (`AuthorizeAsync(User, UsersPermissions.DisableTwoFactorAuthenticationForUsers)`)
+  - `AuditTrailAdminController.IndexFilterPOST` (`AuthorizeAsync(User, Permissions.ManageUserAuditTrailSettings)`)
+  - `EmailConfirmationController.SendVerificationEmail` (`AuthorizeAsync(User, UsersPermissions.ManageUsers)`)
+- **(1b) Missing `AuthorizeAsync` (15)**:
+  - `AdminController.IndexFilterPOST` (Controller decorated with `[Admin]`)
+  - `ChangeEmailController.Index` (Controller decorated with `[Authorize]`)
+  - `TwoFactorAuthenticationController.Index` (Controller decorated with `[Authorize]`)
+  - `TwoFactorAuthenticationController.ForgetTwoFactorClient` (Controller decorated with `[Authorize]`)
+  - `TwoFactorAuthenticationController.GenerateRecoveryCodesPost` (Controller decorated with `[Authorize]`)
+  - `TwoFactorAuthenticationController.EnableTwoFactorAuthentication` (Controller decorated with `[Authorize]`)
+  - `TwoFactorAuthenticationController.DisableTwoFactorAuthenticationPost` (Controller decorated with `[Authorize]`)
+  - `AuthenticatorAppController.Index` (Controller decorated with `[Authorize]`)
+  - `AuthenticatorAppController.ResetPost` (Controller decorated with `[Authorize]`)
+  - `SmsAuthenticatorController.IndexPost` (Controller decorated with `[Authorize]`)
+  - `SmsAuthenticatorController.ValidateCode` (Controller decorated with `[Authorize]`)
+  - `ExternalAuthenticationsController.LinkLogin` (No class-level authorization attribute; challenges external provider)
+  - `ExternalAuthenticationsController.RemoveLogin` (No class-level authorization attribute; acts on authenticated user from HttpContext)
+  - `AccountController.LogOff` (Controller decorated with `[Authorize]`)
+  - `AccountController.ChangePassword` (Controller decorated with `[Authorize]`)
 
 ---
 
-### (4b) Over-Coupled Projects (`DEPENDS_ON` `OrchardCore.ContentManagement.Abstractions` Without Calling `GetAsync` / `CreateAsync` / `PublishAsync`)
-- **Total direct `<ProjectReference>` dependents**: **48** non-test projects (**10** invoke `IContentManager.{GetAsync,CreateAsync,PublishAsync}` via interface; **38** do not — or **37** if counting `DefaultContentManager`'s internal `this` self-calls in `OrchardCore.ContentManagement`).
-- **Over-coupled project count**: **38 projects** (*37 excluding `OrchardCore.ContentManagement`*):
-  - **Core / Abstractions (`src/OrchardCore/`, 17 projects — *16 excl. `OrchardCore.ContentManagement`*)**:
-    - [`OrchardCore.AuditTrail.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.AuditTrail.Abstractions/OrchardCore.AuditTrail.Abstractions.csproj), [`OrchardCore.Autoroute.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Autoroute.Core/OrchardCore.Autoroute.Core.csproj), [`OrchardCore.AzureAI.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.AzureAI.Core/OrchardCore.AzureAI.Core.csproj), [`OrchardCore.ContentFields.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentFields.Core/OrchardCore.ContentFields.Core.csproj), [`OrchardCore.ContentLocalization.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentLocalization.Abstractions/OrchardCore.ContentLocalization.Abstractions.csproj), [`OrchardCore.ContentManagement`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement/OrchardCore.ContentManagement.csproj) *(0 `IContentManager` interface calls; implements `DefaultContentManager`)*, [`OrchardCore.ContentManagement.Display`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentManagement.Display/OrchardCore.ContentManagement.Display.csproj), [`OrchardCore.Contents.TagHelpers`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Contents.TagHelpers/OrchardCore.Contents.TagHelpers.csproj), [`OrchardCore.ContentTypes.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.ContentTypes.Abstractions/OrchardCore.ContentTypes.Abstractions.csproj), [`OrchardCore.Flows.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Flows.Core/OrchardCore.Flows.Core.csproj), [`OrchardCore.Html.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Html.Core/OrchardCore.Html.Core.csproj), [`OrchardCore.Indexing.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Indexing.Abstractions/OrchardCore.Indexing.Abstractions.csproj), [`OrchardCore.Media.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Media.Abstractions/OrchardCore.Media.Abstractions.csproj), [`OrchardCore.MetaWeblog.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.MetaWeblog.Abstractions/OrchardCore.MetaWeblog.Abstractions.csproj), [`OrchardCore.Notifications.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Notifications.Core/OrchardCore.Notifications.Core.csproj), [`OrchardCore.Sitemaps.Abstractions`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Sitemaps.Abstractions/OrchardCore.Sitemaps.Abstractions.csproj), [`OrchardCore.Taxonomies.Core`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore/OrchardCore.Taxonomies.Core/OrchardCore.Taxonomies.Core.csproj)
-  - **Feature Modules (`src/OrchardCore.Modules/`, 21 projects)**:
-    - [`OrchardCore.ContentPreview`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentPreview/OrchardCore.ContentPreview.csproj), [`OrchardCore.ContentTypes`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ContentTypes/OrchardCore.ContentTypes.csproj), [`OrchardCore.CustomSettings`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.CustomSettings/OrchardCore.CustomSettings.csproj), [`OrchardCore.Facebook`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Facebook/OrchardCore.Facebook.csproj), [`OrchardCore.Features`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Features/OrchardCore.Features.csproj), [`OrchardCore.Flows`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Flows/OrchardCore.Flows.csproj), [`OrchardCore.GitHub`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.GitHub/OrchardCore.GitHub.csproj), [`OrchardCore.Html`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Html/OrchardCore.Html.csproj), [`OrchardCore.Markdown`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Markdown/OrchardCore.Markdown.csproj), [`OrchardCore.Microsoft.Authentication`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Microsoft.Authentication/OrchardCore.Microsoft.Authentication.csproj), [`OrchardCore.OpenId`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.OpenId/OrchardCore.OpenId.csproj), [`OrchardCore.Placements`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Placements/OrchardCore.Placements.csproj), [`OrchardCore.Queries`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Queries/OrchardCore.Queries.csproj), [`OrchardCore.ReCaptcha`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.ReCaptcha/OrchardCore.ReCaptcha.csproj), [`OrchardCore.Seo`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Seo/OrchardCore.Seo.csproj), [`OrchardCore.Sitemaps`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Sitemaps/OrchardCore.Sitemaps.csproj), [`OrchardCore.Spatial`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Spatial/OrchardCore.Spatial.csproj), [`OrchardCore.Title`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Title/OrchardCore.Title.csproj), [`OrchardCore.Twitter`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Twitter/OrchardCore.Twitter.csproj), [`OrchardCore.Widgets`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Widgets/OrchardCore.Widgets.csproj), [`OrchardCore.Workflows`](file:///C:/Work/bench-pilot/repos/OrchardCore/src/OrchardCore.Modules/OrchardCore.Workflows/OrchardCore.Workflows.csproj)
+## Task 2: Architectural Boundary Violations — Direct `YesSql.ISession` Access in Web & UI Layers
+
+Identified all non-test **Controllers** and **Display Drivers** across `src/OrchardCore.Modules/*` directly invoking operations on an injected `YesSql.ISession` member.
+
+- **Total Violating Modules**: **13**
+- **Total Violating Classes**: **22**
+- **Total Method-to-Session Operation Pairs**: **72**
+
+### 1. OrchardCore.AdminDashboard (1 class, 1 pair)
+- `DashboardController.Update -> ISession.SaveAsync`
+
+### 2. OrchardCore.Autoroute (1 class, 1 pair)
+- `AutoroutePartDisplayDriver.UpdateAsync -> ISession.QueryIndex`
+
+### 3. OrchardCore.ContentFields (2 classes, 3 pairs)
+- `LocalizationSetContentPickerAdminController.SearchLocalizationSets -> ISession.Query`
+- `UserPickerFieldDisplayDriver.Edit -> ISession.Query`
+- `UserPickerFieldDisplayDriver.UpdateAsync -> ISession.Query`
+
+### 4. OrchardCore.Contents (4 classes, 13 pairs)
+- `AuditTrailContentController.Display -> ISession.Query`
+- `AuditTrailContentController.Restore -> ISession.Query`
+- `AuditTrailContentEventDisplayDriver.DisplayAsync -> ISession.QueryIndex`
+- `AuditTrailContentEventDisplayDriver.DisplayAsync -> ISession.Query`
+- `AdminController.ListPOST -> ISession.Query`
+- `AdminController.ListPOST -> ISession.CancelAsync`
+- `AdminController.CreateInternalAsync -> ISession.CancelAsync`
+- `AdminController.EditInternalAsync -> ISession.CancelAsync`
+- `AddToDeploymentPlanController.AddContentItem -> ISession.GetAsync`
+- `AddToDeploymentPlanController.AddContentItem -> ISession.SaveAsync`
+- `AddToDeploymentPlanController.AddContentItems -> ISession.GetAsync`
+- `AddToDeploymentPlanController.AddContentItems -> ISession.Query`
+- `AddToDeploymentPlanController.AddContentItems -> ISession.SaveAsync`
+
+### 5. OrchardCore.Demo (2 classes, 8 pairs)
+- `ContentController.EditPost -> ISession.CancelAsync`
+- `ContentController.EditPost -> ISession.SaveAsync`
+- `TodoController.Index -> ISession.Query`
+- `TodoController.Edit -> ISession.Query`
+- `TodoController.Update -> ISession.Query`
+- `TodoController.Update -> ISession.SaveAsync`
+- `TodoController.Delete -> ISession.Query`
+- `TodoController.Delete -> ISession.Delete`
+
+### 6. OrchardCore.Deployment (3 classes, 20 pairs)
+- `DeploymentPlanController.Index -> ISession.Query`
+- `DeploymentPlanController.IndexBulkActionPOST -> ISession.Query`
+- `DeploymentPlanController.IndexBulkActionPOST -> ISession.Delete`
+- `DeploymentPlanController.Display -> ISession.GetAsync`
+- `DeploymentPlanController.Create -> ISession.QueryIndex`
+- `DeploymentPlanController.Create -> ISession.SaveAsync`
+- `DeploymentPlanController.Edit -> ISession.GetAsync`
+- `DeploymentPlanController.Edit -> ISession.QueryIndex`
+- `DeploymentPlanController.Edit -> ISession.SaveAsync`
+- `DeploymentPlanController.Delete -> ISession.GetAsync`
+- `DeploymentPlanController.Delete -> ISession.Delete`
+- `ExportFileController.Execute -> ISession.GetAsync`
+- `StepController.Create -> ISession.GetAsync`
+- `StepController.Create -> ISession.SaveAsync`
+- `StepController.Edit -> ISession.GetAsync`
+- `StepController.Edit -> ISession.SaveAsync`
+- `StepController.Delete -> ISession.GetAsync`
+- `StepController.Delete -> ISession.SaveAsync`
+- `StepController.UpdateOrder -> ISession.GetAsync`
+- `StepController.UpdateOrder -> ISession.SaveAsync`
+
+### 7. OrchardCore.Deployment.Remote (1 class, 1 pair)
+- `ExportRemoteInstanceController.Execute -> ISession.GetAsync`
+
+### 8. OrchardCore.Layers (1 class, 1 pair)
+- `AdminController.UpdatePosition -> ISession.SaveAsync`
+
+### 9. OrchardCore.Notifications (2 classes, 4 pairs)
+- `AdminController.ListPOST -> ISession.Query`
+- `NotificationNavbarDisplayDriver.DisplayAsync -> ISession.Query`
+- `NotificationNavbarDisplayDriver.DisplayAsync -> ISession.QueryIndex`
+- `NotificationNavbarDisplayDriver.PopulateVisibleAsync -> ISession.Query`
+
+### 10. OrchardCore.Search (1 class, 1 pair)
+- `SearchController.Search -> ISession.Query`
+
+### 11. OrchardCore.Taxonomies (3 classes, 6 pairs)
+- `AdminController.CreatePost -> ISession.SaveAsync`
+- `AdminController.EditPost -> ISession.SaveAsync`
+- `AdminController.Delete -> ISession.SaveAsync`
+- `TagController.CreatePost -> ISession.CancelAsync`
+- `TagController.CreatePost -> ISession.SaveAsync`
+- `TaxonomyContentsAdminListSettingsDisplayDriver.EditAsync -> ISession.Query`
+
+### 12. OrchardCore.Users (1 class, 3 pairs)
+- `AdminController.IndexPOST -> ISession.Query`
+- `AdminController.Delete -> ISession.CancelAsync`
+- `AdminController.Unlock -> ISession.CancelAsync`
+
+### 13. OrchardCore.Workflows (3 classes, 10 pairs)
+- `WorkflowController.BuildListAsync -> ISession.QueryIndex`
+- `WorkflowController.BuildListAsync -> ISession.Query`
+- `WorkflowDesignerController.Definition -> ISession.QueryIndex`
+- `WorkflowDesignerController.LatestInstance -> ISession.Query`
+- `WorkflowDesignerController.Instance -> ISession.QueryIndex`
+- `WorkflowDesignerController.CountInstancesByVersionAsync -> ISession.CreateConnectionAsync`
+- `WorkflowTypeController.Index -> ISession.Query`
+- `WorkflowTypeController.Index -> ISession.CreateConnectionAsync`
+- `WorkflowTypeController.BulkEdit -> ISession.Query`
+- `WorkflowTypeController.Clone -> ISession.GetAsync`
+
+---
+
+## Task 3: Cross-Module Reactive Pipeline — Publishing Event Fan-Out
+
+Identified all non-test classes implementing or overriding `PublishingAsync` or `PublishedAsync` and mapped their 1–2 hop downstream reactive side effects.
+
+- **Total Handler Methods**: **16** (across 15 classes in 9 modules)
+
+### 1. OrchardCore.ContentManagement
+- `UpdateContentsHandler.PublishingAsync`:
+  - **Database / Content Mutation**: In-memory `ContentItem.PublishedUtc` and `ContentItem.CreatedUtc` timestamp updates.
+- `ContentPartHandlerCoordinator.PublishingAsync`:
+  - **Database / Pipeline Dispatch**: Dispatches to `IContentPartHandler.PublishingAsync` and `IContentFieldHandler.PublishingAsync`.
+- `ContentPartHandlerCoordinator.PublishedAsync`:
+  - **Database / Pipeline Dispatch**: Dispatches to `IContentPartHandler.PublishedAsync` and `IContentFieldHandler.PublishedAsync`.
+
+### 2. OrchardCore.Autoroute.Core
+- `AutoroutePartIndexProvider.PublishedAsync`:
+  - **Database / Store Mutation**: Invokes `IContentDefinitionManager.GetTypeDefinitionAsync` and triggers `IAutorouteEntries.UpdateEntriesAsync`.
+
+### 3. OrchardCore.Indexing.Core
+- `IndexingContentHandler.PublishedAsync`:
+  - **Workflow / Deferred Task**: Enqueues deferred indexing via `ShellScope.AddDeferredTask`.
+  - **Database / Index Store Mutation**: Triggers `IIndexProfileStore.GetByTypeAsync` and `IContentManager.GetAsync` / indexing in background scope.
+
+### 4. OrchardCore.Alias
+- `AliasPartHandler.PublishedAsync`:
+  - **Cache Invalidation**: Invokes `ITagCache.RemoveTagAsync` (`alias:{alias}`).
+
+### 5. OrchardCore.Autoroute
+- `AutoroutePartHandler.PublishedAsync`:
+  - **Database / Store Mutation**: Calls `IContentManager.PopulateAspectAsync`, `IAutorouteEntries.UpdateEntriesAsync`, and `ISiteService.LoadSiteSettingsAsync` / `UpdateSiteSettingsAsync`.
+  - **Cache Invalidation**: Calls `ITagCache.RemoveTagAsync` via `RemoveTagAsync(part)`.
+
+### 6. OrchardCore.ContentLocalization
+- `LocalizedContentItemIndexProvider.PublishedAsync`:
+  - **Database / Definition Mutation**: Calls `IContentDefinitionManager.GetTypeDefinitionAsync` and strips removed `LocalizationPart`.
+- `LocalizationPartHandler.PublishedAsync`:
+  - **Database / Store Mutation**: Invokes `ILocalizationEntries.UpdateEntriesAsync`.
+
+### 7. OrchardCore.Contents
+- `AuditTrailContentHandler.PublishedAsync`:
+  - **Database / Audit Store Mutation**: Queries `ISession.QueryIndex<ContentItemIndex>`, calls `ISiteService.GetSettingsAsync`, and records audit event via `IAuditTrailManager.RecordEventAsync`.
+- `ContentsHandler.PublishedAsync` (Cache):
+  - **Cache Invalidation**: Invokes `ITagCache.RemoveTagAsync` (`contentitemid:{id}`).
+- `ContentTypesSitemapUpdateHandler.PublishedAsync`:
+  - **Database / Store Mutation**: Triggers `ISitemapUpdateHandler.UpdateSitemapAsync`.
+- `ContentsHandler.PublishedAsync` (Workflows):
+  - **Workflow Trigger**: Fires `IWorkflowManager.TriggerEventAsync` (`ContentPublishedEvent`).
+
+### 8. OrchardCore.Title
+- `TitlePartHandler.PublishingAsync`:
+  - **Database / Definition Mutation**: Calls `IContentDefinitionManager.GetTypeDefinitionAsync` and updates `ContentItem.DisplayText`.
+  - **Template / Scripting Trigger**: Executes liquid rendering via `ILiquidTemplateManager.RenderStringAsync`.
+
+### 9. OrchardCore.Layers
+- `LayerMetadataHandler.PublishedAsync`:
+  - **Database / Store Mutation**: Triggers volatile state update via `IVolatileDocumentManager<LayerState>.UpdateAsync`.
+
+### 10. OrchardCore.Indexing
+- `CreateIndexingTaskContentHandler.PublishedAsync`:
+  - **Database / Task Store Mutation**: Records indexing task via `IIndexingTaskManager.CreateTaskAsync`.
+
+---
+
+## Task 4: Breaking-Change Blast Radius & Unused Project Dependencies
+
+Contract methods audited: `IContentManager.GetAsync`, `IContentManager.CreateAsync`, `IContentManager.PublishAsync`.
+
+- **(4a) Direct Call Blast Radius Projects**: **20**
+- **(4b) Over-Coupled Projects (`DEPENDS_ON` with 0 calls)**: **37** (out of 48 projects declaring direct dependency)
+
+### (4a) Direct Call Blast Radius per Project
+
+1. **OrchardCore.AdminDashboard** (1 distinct caller):
+   - `GetAsync` (1): `DashboardController.Update`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+2. **OrchardCore.Alias** (1 distinct caller):
+   - `GetAsync` (1): `AliasPartRazorHelperExtensions.GetContentItemByAliasAsync`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+3. **OrchardCore.ArchiveLater** (1 distinct caller):
+   - `GetAsync` (1): `ScheduledArchivingBackgroundTask.DoWorkAsync`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+4. **OrchardCore.Autoroute** (2 distinct callers):
+   - `GetAsync` (2): `Startup.ConfigureServices`, `AutoroutePartRazorHelperExtensions.GetContentItemBySlugAsync`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+5. **OrchardCore.ContentFields** (3 distinct callers):
+   - `GetAsync` (3): `ContentPickerAdminController.SearchContentItems`, `ContentPickerFieldDisplayDriver.Edit`, `LocalizationSetContentPickerFieldDisplayDriver.Edit`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+6. **OrchardCore.ContentLocalization** (1 distinct caller):
+   - `GetAsync` (1): `AdminController.Localize`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+7. **OrchardCore.ContentManagement.Abstractions** (3 distinct callers):
+   - `GetAsync` (2): `ContentManagerExtensions.HasPublishedVersionAsync`, `ContentManagerExtensions.GetAsync`
+   - `CreateAsync` (1): `ContentManagerExtensions.UpdateValidateAndCreateAsync`
+   - `PublishAsync` (0)
+8. **OrchardCore.ContentManagement** (3 distinct callers):
+   - `GetAsync` (2): `DefaultContentManager.PublishAsync`, `DefaultContentManager.CloneAsync`
+   - `CreateAsync` (2): `DefaultContentManager.ImportAsync`, `DefaultContentManager.CloneAsync`
+   - `PublishAsync` (0)
+9. **OrchardCore.ContentManagement.GraphQL** (1 distinct caller):
+   - `GetAsync` (1): `ContentItemQuery.ResolveAsync`
+   - `CreateAsync` (0)
+   - `PublishAsync` (0)
+10. **OrchardCore.Contents** (36 distinct callers):
+    - `GetAsync` (32): `AdminController.Clone`, `AdminController.Delete`, `AdminController.DiscardDraft`, `AdminController.Display`, `AdminController.Edit`, `AdminController.Publish`, `AdminController.PublishOrUnpublishAsync`, `AdminController.Remove`, `AdminController.Unpublish`, `AddToDeploymentPlanController.AddContentItem`, `ContentActivity.OnWorkflowRestartingAsync`, `ContentItemDeploymentSource.ProcessAsync`, `ContentItemDeploymentStepDriver.UpdateAsync`, `ContentItemFilter.ProcessAsync`, `ContentItemSerializer.DeserializeValueAsync`, `CreateEndpoint.AddCreateContentEndpoint`, `DeleteEndpoint.AddDeleteContentEndpoint`, `DeleteContentTask.ExecuteAsync`, `DisplayContentItemViewComponent.InvokeAsync`, `DownloadController.Display`, `DownloadController.Download`, `ExportContentToDeploymentTargetDeploymentSource.ProcessAsync`, `GetEndpoint.AddGetContentEndpoint`, `ItemController.Display`, `ItemController.Preview`, `PublishContentTask.ExecuteAsync`, `RetrieveContentTask.ExecuteAsync`, `Shapes.AddShapeTableAsync`, `Startup.ConfigureServices`, `Startup.GetContentByHandleAsync`, `UnpublishContentTask.ExecuteAsync`, `UpdateContentTask.ExecuteAsync`
+    - `CreateAsync` (4): `AdminController.CreateInternalAsync`, `ContentMethodsProvider.CreateContentItemAsync`, `CreateContentTask.ExecuteAsync`, `CreateEndpoint.AddCreateContentEndpoint`
+    - `PublishAsync` (7): `AdminController.ListPOST`, `AdminController.Publish`, `AdminController.PublishOrUnpublishAsync`, `CreateContentTask.ExecuteAsync`, `CreateEndpoint.AddCreateContentEndpoint`, `PublishContentTask.ExecuteAsync`, `UpdateContentTask.ExecuteAsync`
+11. **OrchardCore.Contents.Core** (3 distinct callers):
+    - `GetAsync` (3): `ContentOrchardHelperExtensions.GetContentItemByHandleAsync`, `ContentOrchardHelperExtensions.GetContentItemByIdAsync`, `ContentOrchardHelperExtensions.GetContentItemsByIdAsync`
+    - `CreateAsync` (0)
+    - `PublishAsync` (0)
+12. **OrchardCore.DataPipelines** (1 distinct caller):
+    - `GetAsync` (1): `SaveContentItemsStep.ExecuteAsync`
+    - `CreateAsync` (1): `SaveContentItemsStep.ExecuteAsync`
+    - `PublishAsync` (1): `SaveContentItemsStep.ExecuteAsync`
+13. **OrchardCore.Demo** (12 distinct callers):
+    - `GetAsync` (9): `ContentApiController.GetAuthorizedById`, `ContentController.Display`, `ContentController.Edit`, `ContentController.EditPost`, `EditModel.OnGetAsync`, `EditModel.OnPostDelete`, `EditModel.OnPostUpdate`, `HomeController.Display`, `HomeController.DisplayShape`
+    - `CreateAsync` (3): `ContentApiController.AddContent`, `HomeController.Index`, `ListModel.OnPostAsync`
+    - `PublishAsync` (0)
+14. **OrchardCore.Layers** (1 distinct caller):
+    - `GetAsync` (1): `AdminController.UpdatePosition`
+    - `CreateAsync` (0)
+    - `PublishAsync` (0)
+15. **OrchardCore.Lists** (9 distinct callers):
+    - `GetAsync` (9): `ContainedPartDisplayDriver.GetContainerAsync`, `ContainedPartHandler.CloningAsync`, `ContainedQueryObjectType.ResolveAsync`, `ContainerFilter.ProcessAsync`, `ContainerService.UpdateContentItemOrdersAsync`, `ListFeedQuery.ExecuteAsync`, `ListFeedQuery.MatchAsync`, `MetaWeblogHandler.MetaWeblogGetUserBlogsAsync`, `RemotePublishingController.Rsd`
+    - `CreateAsync` (1): `MetaWeblogHandler.MetaWeblogGetUserBlogsAsync`
+    - `PublishAsync` (1): `MetaWeblogHandler.MetaWeblogGetUserBlogsAsync`
+16. **OrchardCore.Media** (1 distinct caller):
+    - `GetAsync` (1): `ViewMediaFolderAuthorizationHandler.AuthorizeAttachedMediaFieldsFolderAsync`
+    - `CreateAsync` (0)
+    - `PublishAsync` (0)
+17. **OrchardCore.Menu** (6 distinct callers):
+    - `GetAsync` (6): `AdminController.CreatePost`, `AdminController.Delete`, `AdminController.Edit`, `AdminController.EditPost`, `MenuShapes.BuildMenuShapeAsync`, `MenuShapes.CreateSafeLinkContentItem`
+    - `CreateAsync` (0)
+    - `PublishAsync` (0)
+18. **OrchardCore.PublishLater** (1 distinct caller):
+    - `GetAsync` (1): `ScheduledPublishingBackgroundTask.DoWorkAsync`
+    - `CreateAsync` (0)
+    - `PublishAsync` (1): `ScheduledPublishingBackgroundTask.DoWorkAsync`
+19. **OrchardCore.Taxonomies** (17 distinct callers):
+    - `GetAsync` (17): `AdminController.CreatePost`, `AdminController.Delete`, `AdminController.Edit`, `AdminController.EditPost`, `InheritedTermsFilter.ProcessAsync`, `TagController.CreatePost`, `TaxonomyContentsAdminListDisplayDriver.EditAsync`, `TaxonomyFieldIndexHandler.BuildIndexAsync`, `TaxonomyFieldDisplayDriver.Edit`, `TaxonomyFieldQueryObjectType.ResolveAsync`, `TaxonomyFieldTagsDisplayDriver.Edit`, `TaxonomyFieldTagsDisplayDriver.UpdateAsync`, `TaxonomyOrchardHelperExtensions.GetInheritedTermsAsync`, `TaxonomyOrchardHelperExtensions.GetTaxonomyTermAsync`, `TaxonomyTermsFilter.ProcessAsync`, `TermShapes.BuildTermShapeAsync`, `TermShapes.CreateSafeLinkContentItem`
+    - `CreateAsync` (1): `TagController.CreatePost`
+    - `PublishAsync` (1): `TagController.CreatePost`
+20. **OrchardCore.Templates** (1 distinct caller):
+    - `GetAsync` (1): `PreviewController.Render`
+    - `CreateAsync` (0)
+    - `PublishAsync` (0)
+
+---
+
+### (4b) Over-Coupled Projects (`DEPENDS_ON` Without Call Usage)
+
+Total non-test projects declaring a direct `<ProjectReference Include="...OrchardCore.ContentManagement.Abstractions.csproj" />`: **48**
+- **Calling Projects**: **11** (`OrchardCore.Alias`, `OrchardCore.Autoroute`, `OrchardCore.ContentFields`, `OrchardCore.ContentLocalization`, `OrchardCore.ContentManagement`, `OrchardCore.ContentManagement.GraphQL`, `OrchardCore.Layers`, `OrchardCore.Media`, `OrchardCore.Menu`, `OrchardCore.Taxonomies`, `OrchardCore.Templates`)
+- **Over-Coupled Projects (`0` call sites)**: **37**
+
+List of 37 over-coupled projects:
+1. `OrchardCore.AuditTrail.Abstractions`
+2. `OrchardCore.Autoroute.Core`
+3. `OrchardCore.AzureAI.Core`
+4. `OrchardCore.ContentFields.Core`
+5. `OrchardCore.ContentLocalization.Abstractions`
+6. `OrchardCore.ContentManagement.Display`
+7. `OrchardCore.ContentPreview`
+8. `OrchardCore.Contents.TagHelpers`
+9. `OrchardCore.ContentTypes`
+10. `OrchardCore.ContentTypes.Abstractions`
+11. `OrchardCore.CustomSettings`
+12. `OrchardCore.Facebook`
+13. `OrchardCore.Features`
+14. `OrchardCore.Flows`
+15. `OrchardCore.Flows.Core`
+16. `OrchardCore.GitHub`
+17. `OrchardCore.Html`
+18. `OrchardCore.Html.Core`
+19. `OrchardCore.Indexing.Abstractions`
+20. `OrchardCore.Markdown`
+21. `OrchardCore.Media.Abstractions`
+22. `OrchardCore.MetaWeblog.Abstractions`
+23. `OrchardCore.Microsoft.Authentication`
+24. `OrchardCore.Notifications.Core`
+25. `OrchardCore.OpenId`
+26. `OrchardCore.Placements`
+27. `OrchardCore.Queries`
+28. `OrchardCore.ReCaptcha`
+29. `OrchardCore.Seo`
+30. `OrchardCore.Sitemaps`
+31. `OrchardCore.Sitemaps.Abstractions`
+32. `OrchardCore.Spatial`
+33. `OrchardCore.Taxonomies.Core`
+34. `OrchardCore.Title`
+35. `OrchardCore.Twitter`
+36. `OrchardCore.Widgets`
+37. `OrchardCore.Workflows`

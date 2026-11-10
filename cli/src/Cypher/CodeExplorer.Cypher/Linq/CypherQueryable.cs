@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using CodeExplorer.Cypher.Ast;
 using LinqExpression = System.Linq.Expressions.Expression;
 
@@ -205,6 +206,7 @@ internal static class TypeHelper
     public static Type GetElementType(Type type) =>
         _elementTypes.GetOrAdd(type, static t => FindIEnumerable(t) is { } ienum ? ienum.GetGenericArguments()[0] : t);
 
+    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "LINQ query element type discovery over expression types")]
     private static Type? FindIEnumerable(Type? type)
     {
         if (type == null || type == typeof(string)) return null;

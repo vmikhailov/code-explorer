@@ -1016,4 +1016,55 @@ public class SqliteCompilerTests
         rows[0]["cls"].Should().Be("AdminController");
         rows[0]["actions"].Should().Be("[\"CreatePost:1\",\"DeletePost:0\"]");
     }
+
+    [Test]
+    public void Test_VarLenCte_AppliesMaxPathTraversalsLimit()
+    {
+        InsertNode("fn:p1", "Function", new() { ["name"] = "Chain1" });
+        InsertNode("fn:p2", "Function", new() { ["name"] = "Chain2" });
+        InsertNode("fn:p3", "Function", new() { ["name"] = "Chain3" });
+        InsertNode("fn:p4", "Function", new() { ["name"] = "Chain4" });
+        InsertEdge("fn:p1", "fn:p2", "CALLS");
+        InsertEdge("fn:p2", "fn:p3", "CALLS");
+        InsertEdge("fn:p3", "fn:p4", "CALLS");
+
+        var cypher = "MATCH (a:Function {name: 'Chain1'})-[:CALLS*1..3]->(b:Function) RETURN b.name AS name";
+        var ast = CypherQueryParser.Parse(cypher);
+
+        // Compile with MaxPathTraversals = 2
+        var compiled = SqliteCompiler.Compile(ast, maxPathTraversals: 2);
+        compiled.Sql.Should().Contain("LIMIT 2");
+
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = compiled.Sql;
+        foreach (var (k, v) in compiled.Parameters)
+        {
+            cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+        }
+        using var reader = cmd.ExecuteReader();
+        var count = 0;
+        while (reader.Read()) count++;
+
+        count.Should().Be(2);
+    }
+
+    [Test]
+    public void Test_VarLenCte_PrefersForwardTraversalWhenStartDeclared()
+    {
+        InsertNode("fn:s1", "Function", new() { ["name"] = "PublishingAsync" });
+        InsertNode("fn:d1", "Function", new() { ["name"] = "DownstreamWorker" });
+        InsertEdge("fn:s1", "fn:d1", "CALLS");
+
+        // When start node is declared in previous MATCH, it should not walk backwards from all :Function nodes
+        var cypher = @"
+            MATCH (m:Function) WHERE m.name = 'PublishingAsync'
+            MATCH (m)-[:CALLS*1..2]->(downstream:Function)
+            RETURN m.name AS caller, downstream.name AS callee";
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+
+        // It should traverse forward from start_id, not walk backwards from end_id
+        compiled.Sql.Should().NotContain("FROM nodes _src_anc CROSS JOIN edges e ON e.to_id = _src_anc.rowid");
+        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.rowid");
+    }
 }

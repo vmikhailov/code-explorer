@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
@@ -13,6 +14,8 @@ public record NodeMetadataInfo(NodeKind Kind, Type NodeType, OntologyNodeAttribu
     }
 }
 
+[UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Node types in CodeExplorer.Core.Common.Nodes are preserved via TrimmerRoots")]
+[UnconditionalSuppressMessage("Trimming", "IL2080", Justification = "Node types in CodeExplorer.Core.Common.Nodes are preserved via TrimmerRoots")]
 public static class OntologyRegistry
 {
     public static readonly IReadOnlyList<NodeMetadataInfo> AllNodes =

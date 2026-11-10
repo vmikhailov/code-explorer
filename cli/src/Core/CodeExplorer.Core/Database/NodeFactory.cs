@@ -24,6 +24,9 @@ public static class NodeFactory
     private const string PropActivationEvents = "activation_events";
     private const string BoolTrueStr = "true";
 
+    private static readonly MethodInfo FormatEnumBoxedMethod = typeof(TaxonomyViewEnumExtensions)
+        .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumBoxed), [typeof(Enum)])!;
+
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Dictionary<string, object>>> Converters = new();
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Utf8JsonWriter>> JsonWriters = new();
     private static readonly ConcurrentDictionary<Type, string[]> SchemaPropertyKeys = new();
@@ -237,10 +240,8 @@ public static class NodeFactory
             }
             else if (propType.IsEnum)
             {
-                var formatMethod = typeof(TaxonomyViewEnumExtensions)
-                    .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
-                    .MakeGenericMethod(propType);
-                var formattedStr = Expression.Call(formatMethod, propAccess);
+                var boxedEnum = Expression.Convert(propAccess, typeof(Enum));
+                var formattedStr = Expression.Call(FormatEnumBoxedMethod, boxedEnum);
                 statements.Add(Expression.Call(writerParam, writeStringMethod, keyConst, formattedStr));
             }
             else if (Nullable.GetUnderlyingType(propType) is { } underlyingType)
@@ -259,10 +260,8 @@ public static class NodeFactory
                     writeCall = Expression.Call(writerParam, writeBoolMethod, keyConst, valueAccess);
                 else if (underlyingType.IsEnum)
                 {
-                    var formatMethod = typeof(TaxonomyViewEnumExtensions)
-                        .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
-                        .MakeGenericMethod(underlyingType);
-                    var formattedStr = Expression.Call(formatMethod, valueAccess);
+                    var boxedEnum = Expression.Convert(valueAccess, typeof(Enum));
+                    var formattedStr = Expression.Call(FormatEnumBoxedMethod, boxedEnum);
                     writeCall = Expression.Call(writerParam, writeStringMethod, keyConst, formattedStr);
                 }
 
@@ -354,10 +353,8 @@ public static class NodeFactory
                 Expression valueExpr;
                 if (underlyingType.IsEnum)
                 {
-                    var formatMethod = typeof(TaxonomyViewEnumExtensions)
-                        .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
-                        .MakeGenericMethod(underlyingType);
-                    valueExpr = Expression.Convert(Expression.Call(formatMethod, valueAccess), typeof(object));
+                    var boxedEnum = Expression.Convert(valueAccess, typeof(Enum));
+                    valueExpr = Expression.Convert(Expression.Call(FormatEnumBoxedMethod, boxedEnum), typeof(object));
                 }
                 else
                 {
@@ -372,10 +369,8 @@ public static class NodeFactory
             }
             else if (propType.IsEnum)
             {
-                var formatMethod = typeof(TaxonomyViewEnumExtensions)
-                    .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
-                    .MakeGenericMethod(propType);
-                var valueExpr = Expression.Convert(Expression.Call(formatMethod, propAccess), typeof(object));
+                var boxedEnum = Expression.Convert(propAccess, typeof(Enum));
+                var valueExpr = Expression.Convert(Expression.Call(FormatEnumBoxedMethod, boxedEnum), typeof(object));
                 var assign = Expression.Assign(
                     Expression.Property(dictParam, dictIndexer, keyConst),
                     valueExpr

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
@@ -89,6 +90,7 @@ public class WorkspaceIndexer
         return parserTypes;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Parser types are confirmed to have public parameterless constructor in IsParserType")]
     private static object CreateParser(Type type)
     {
         try

@@ -39,7 +39,7 @@ public partial class SqliteCompiler
         var endFilterConditions = BuildAnchorFilterConditions(endNode, endVar, isOptional && !endDeclared);
 
         var needsPathNodes = pathVariable != null;
-        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startFilterConditions, endFilterConditions, needsPathNodes);
+        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startFilterConditions, endFilterConditions, needsPathNodes, startDeclared, endDeclared);
 
         var relOnConditions = BuildVarLenRelConditions(cteName, relVar, prevVar, targetVar, minDepth, maxDepth, isShortestPath);
         List<string> nodeOnConditions = [];
@@ -323,7 +323,9 @@ public partial class SqliteCompiler
         int? maxDepth,
         List<string> startFilterConditions,
         List<string> endFilterConditions,
-        bool needsPathNodes = false)
+        bool needsPathNodes = false,
+        bool startDeclared = false,
+        bool endDeclared = false)
     {
         var edgeKindPred = "1=1";
         if (rel.RelationshipKinds.Count == 1)
@@ -340,7 +342,15 @@ public partial class SqliteCompiler
         }
 
         var isUndirected = rel.Direction == Direction.Undirected;
-        var walkBackwardsFromEnd = !isUndirected && !needsPathNodes && ScoreAnchorSelectivity(endFilterConditions) > ScoreAnchorSelectivity(startFilterConditions);
+        var startScore = ScoreAnchorSelectivity(startFilterConditions);
+        var endScore = ScoreAnchorSelectivity(endFilterConditions);
+
+        // When start node is already bound in outer scope (startDeclared) and end is unbound,
+        // prefer forward traversal unless end has a highly selective property match (score >= 20) and start has none.
+        var walkBackwardsFromEnd = !isUndirected && !needsPathNodes &&
+            (startDeclared && !endDeclared
+                ? endScore >= 20 && startScore == 0
+                : (!startDeclared && endDeclared ? startScore < 20 || endScore >= startScore : endScore > startScore));
         var activeAnchorFilters = walkBackwardsFromEnd ? endFilterConditions : startFilterConditions;
 
         var edgeSourceTable = isUndirected
@@ -382,8 +392,18 @@ public partial class SqliteCompiler
     CROSS JOIN {edgeSourceTable} ON e.to_id = c.start_id
     WHERE {edgeWherePred}{maxDepthCond} AND instr(c.path_visited, '/' || e.from_id || '/') = 0";
 
-            var cteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";
-            _ctes.Add(cteSql);
+            if (_maxPathTraversals.HasValue && _maxPathTraversals.Value > 0)
+            {
+                var rawName = $"{cteName}_raw";
+                var rawRecSql = recursiveSql.Replace($"FROM {cteName} c", $"FROM {rawName} c");
+                _ctes.Add($"{rawName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{rawRecSql}\n)");
+                _ctes.Add($"{cteName}({cols}) AS (\n    SELECT * FROM {rawName} LIMIT {_maxPathTraversals.Value}\n)");
+            }
+            else
+            {
+                var cteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";
+                _ctes.Add(cteSql);
+            }
             return;
         }
 
@@ -407,8 +427,18 @@ public partial class SqliteCompiler
     CROSS JOIN {edgeSourceTable} ON e.from_id = c.end_id
     WHERE {fwdWherePrefix}instr(c.path_visited, '/' || e.to_id || '/') = 0{fwdMaxDepthCond}";
 
-        var fwdCteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{fwdRecursiveSql}\n)";
-        _ctes.Add(fwdCteSql);
+        if (_maxPathTraversals.HasValue && _maxPathTraversals.Value > 0)
+        {
+            var rawName = $"{cteName}_raw";
+            var rawFwdSql = fwdRecursiveSql.Replace($"FROM {cteName} c", $"FROM {rawName} c");
+            _ctes.Add($"{rawName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{rawFwdSql}\n)");
+            _ctes.Add($"{cteName}({cols}) AS (\n    SELECT * FROM {rawName} LIMIT {_maxPathTraversals.Value}\n)");
+        }
+        else
+        {
+            var fwdCteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{fwdRecursiveSql}\n)";
+            _ctes.Add(fwdCteSql);
+        }
     }
 
     private List<string> BuildVarLenRelConditions(

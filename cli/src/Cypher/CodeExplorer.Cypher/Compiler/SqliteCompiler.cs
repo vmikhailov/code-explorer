@@ -48,17 +48,30 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private int _varIndex;
     private int _cteIndex;
     private readonly bool _rawNodeColumns;
+    private readonly int? _maxPathTraversals;
 
-    private SqliteCompiler(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool rawNodeColumns = false)
+    public const int DefaultMaxPathTraversals = 50_000;
+
+    private SqliteCompiler(
+        CypherQuery query,
+        IReadOnlyDictionary<string, object?>? parameters = null,
+        bool rawNodeColumns = false,
+        int? maxPathTraversals = DefaultMaxPathTraversals)
     {
         _query = query;
         _initialParameters = parameters;
         _rawNodeColumns = rawNodeColumns;
+        _maxPathTraversals = maxPathTraversals;
     }
 
-    public static SqliteCompiledQuery Compile(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool strictLabels = true, bool rawNodeColumns = false)
+    public static SqliteCompiledQuery Compile(
+        CypherQuery query,
+        IReadOnlyDictionary<string, object?>? parameters = null,
+        bool strictLabels = true,
+        bool rawNodeColumns = false,
+        int? maxPathTraversals = DefaultMaxPathTraversals)
     {
-        return new SqliteCompiler(query, parameters, rawNodeColumns).Compile();
+        return new SqliteCompiler(query, parameters, rawNodeColumns, maxPathTraversals).Compile();
     }
 
     public SqliteCompiledQuery Compile()
@@ -560,7 +573,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
     private void ProcessCallClause(CallClause call)
     {
-        var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters);
+        var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters, maxPathTraversals: _maxPathTraversals);
         foreach (var node in _declaredNodes) subCompiler._declaredNodes.Add(node);
         foreach (var rel in _declaredRels) subCompiler._declaredRels.Add(rel);
         foreach (var rel in _varLenRels) subCompiler._varLenRels.Add(rel);
@@ -720,7 +733,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         var sb = new StringBuilder(baseSql);
         foreach (var union in unions)
         {
-            var unionCompiled = new SqliteCompiler(union.Query, _initialParameters).Compile();
+            var unionCompiled = new SqliteCompiler(union.Query, _initialParameters, maxPathTraversals: _maxPathTraversals).Compile();
             foreach (var (k, v) in unionCompiled.Parameters)
             {
                 _parameters[k] = v;

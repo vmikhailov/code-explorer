@@ -179,7 +179,7 @@ public partial class SqliteCompiler
 
     private SqliteCompiler CreateCorrelatedSubCompiler(CypherQuery subQuery, List<string> liftedCtes)
     {
-        var subCompiler = new SqliteCompiler(subQuery, null)
+        var subCompiler = new SqliteCompiler(subQuery, null, maxPathTraversals: _maxPathTraversals)
         {
             _paramIndex = _paramIndex,
             _varIndex = _varIndex,

@@ -324,6 +324,8 @@ export class ServerTransport implements vscode.Disposable {
    * Publishes a payload to all subscribers of the given topic.
    */
   public publish<T = any>(topic: string, payload?: T): void {
+    const payloadSnippet = payload !== undefined ? ` payload=${JSON.stringify(payload).slice(0, 200)}` : '';
+    this.outputChannel.appendLine(`[Protocol] [Event: ${topic}]${payloadSnippet}`);
     const set = this._topics.get(topic);
     if (!set || set.size === 0) return;
     for (const listener of Array.from(set)) {
@@ -773,18 +775,29 @@ export class ServerTransport implements vscode.Disposable {
     }
 
     const url = `${serverInfo.httpUrl}${normalizedPath}`;
+    const startMs = Date.now();
+    const payloadSnippet = body !== undefined ? ` payload=${JSON.stringify(body).slice(0, 300)}` : '';
+    this.outputChannel.appendLine(`[Protocol] -> ${method} ${normalizedPath}${payloadSnippet}`);
     try {
-      return await executeHttpRequest<T>(url, method, body, options?.headers, timeoutMs);
+      const res = await executeHttpRequest<T>(url, method, body, options?.headers, timeoutMs);
+      this.outputChannel.appendLine(`[Protocol] <- 200 OK (${method} ${normalizedPath}) [${Date.now() - startMs}ms]`);
+      return res;
     } catch (err: any) {
+      this.outputChannel.appendLine(
+        `[Protocol] <- ERROR (${method} ${normalizedPath}) [${Date.now() - startMs}ms]: ${err?.message || err}`
+      );
       if (autoStart && isTransientNetworkError(err)) {
         this.outputChannel.appendLine(
-          `[Transport] Transient network error on ${method} ${normalizedPath} (${err.message}). Reconnecting and retrying once...`
+          `[Protocol] Transient network error on ${method} ${normalizedPath} (${err.message}). Reconnecting and retrying once...`
         );
         const recoveredInfo = await this.ensureConnected(options?.workspaceRoot, {
           forceRestart: !this.processManager.getServerInfo(),
         });
         const retryUrl = `${recoveredInfo.httpUrl}${normalizedPath}`;
-        return await executeHttpRequest<T>(retryUrl, method, body, options?.headers, timeoutMs);
+        const retryStartMs = Date.now();
+        const retryRes = await executeHttpRequest<T>(retryUrl, method, body, options?.headers, timeoutMs);
+        this.outputChannel.appendLine(`[Protocol] <- 200 OK (retry ${method} ${normalizedPath}) [${Date.now() - retryStartMs}ms]`);
+        return retryRes;
       }
       throw err;
     }

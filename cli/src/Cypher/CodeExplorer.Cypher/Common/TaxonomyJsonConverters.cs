@@ -384,6 +384,36 @@ public static class TaxonomyViewEnumExtensions
         return value.ToString();
     }
 
+    public static string FormatEnumBoxed(Enum value)
+    {
+        return value switch
+        {
+            NodeKind nk => nk.ToCypherLabel(),
+            RelationshipKind rk => rk.ToCypherType(),
+            DatabaseType dt => dt.ToCanonicalString(),
+            MemberKind mk => mk.ToCanonicalString(),
+            TypeKind tk => tk.ToCanonicalString(),
+            BrokerType bt => bt.ToCanonicalString(),
+            EntryPointType ep => ep.ToCanonicalString(),
+            DomainType dm => dm.ToCanonicalString(),
+            CloudResourceType cr => cr.ToCanonicalString(),
+            OperationType op => op.ToCanonicalString(),
+            ScanIssueCategory sc => sc.ToCanonicalString(),
+            ProjectLanguage pl => pl.ToCanonicalString(),
+            ProjectArchetype pa => pa.ToCanonicalString(),
+            SyntacticSymbolKind ss => ss.ToCanonicalString(),
+            AppType at => at.ToCanonicalString(),
+            ExternalServiceCategory es => es.ToCanonicalString(),
+            ProjectMapModuleType pm => pm.ToCanonicalString(),
+            BuiltInQueryCategory bq => bq.ToCanonicalString(),
+            QueryParameterType qp => qp.ToCanonicalString(),
+            BoundedContextInteractionType bc => bc.ToCanonicalString(),
+            GraphEdgeCategory ge => ge.ToCanonicalString(),
+            EvidenceKind ek => ek.ToCanonicalString(),
+            _ => value.ToString()
+        };
+    }
+
     public static string FormatEnumObject(Enum e) => e switch
     {
         NodeKind nk => nk.ToCypherLabel(),

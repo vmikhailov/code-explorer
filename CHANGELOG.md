@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.80.0] - 2026-11-11
+
+### Added & Improved
+- **Full Upgrade to .NET 11 (`net11.0`)**:
+  - Migrated all 21 projects across `cli/src/` and `cli/tests/` to target .NET 11 (`net11.0`) and C# 14.
+  - Upgraded GitHub Actions CI and Release build workflows to .NET SDK `11.0.x`.
+  - Delivered up to **2.47× faster** AST rule evaluation (163 ms vs 402 ms across 3,000 files / 504k visits) and ~11% faster synthetic graph query latency via .NET 11 JIT and runtime optimizations.
+  - Enabled assembly trimming (`PublishTrimmed=true`) with targeted trim-safe ontology annotations and `TrimmerRoots.xml`, shrinking standalone binary footprints by **41.6%** (from 91.7 MB down to **53.6 MB**) with zero trim warnings and 100% test and architectural gate parity.
+  - Transitioned single-file publishing profiles to modern in-memory assembly loading, deprecating `IncludeAllContentForSelfExtract` and achieving zero compilation/publish warnings (`NETSDK1244`).
+
 ## [1.79.0] - 2026-11-10
 
 ### Added & Improved

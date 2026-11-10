@@ -38,6 +38,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private IGraphRepository? _repository;
 
     public int CommandTimeoutSeconds { get; set; } = 15;
+    public int? MaxPathTraversals { get; set; } = SqliteCompiler.DefaultMaxPathTraversals;
     public string DbPath => _conn.DataSource;
     public SqliteConnection Connection => _conn;
     public GraphContext Graph => _graph ??= new(this);
@@ -672,7 +673,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         else
         {
             var ast = CypherQueryParser.Parse(query);
-            var compiled = SqliteCompiler.Compile(ast, paramDict);
+            var compiled = SqliteCompiler.Compile(ast, paramDict, maxPathTraversals: MaxPathTraversals);
             sql = compiled.Sql;
             sqlParams = compiled.Parameters;
         }
@@ -694,8 +695,16 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
             }
 
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-            var result = await readerFunc(reader, cancellationToken);
+            using var timeoutCts = CommandTimeoutSeconds > 0
+                ? new CancellationTokenSource(TimeSpan.FromSeconds(CommandTimeoutSeconds))
+                : null;
+            using var linkedCts = timeoutCts != null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+                : null;
+            var effectiveCt = linkedCts?.Token ?? cancellationToken;
+
+            await using var reader = await cmd.ExecuteReaderAsync(effectiveCt);
+            var result = await readerFunc(reader, effectiveCt);
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms: {QueryPreview}",
@@ -703,7 +712,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
             return result;
         }
-        catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+        catch (Exception ex) when (ex is OperationCanceledException or SqliteException { SqliteErrorCode: 5 or 9 } || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
             _logger.LogError(ex, "[Database   ] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s): {QueryPreview}",

@@ -35,15 +35,15 @@ Paired A/B agent benchmark on the open-source [`OrchardCMS/OrchardCore`](https:/
 
 Measured from paired A/B agent runs on `OrchardCMS/OrchardCore @ 05ad2d9a` ([`results/metrics.json`](./results/metrics.json)):
 
-| Metric | `ripgrep` + `view_file` (`af28679a`) | `CodeExplorer` MCP (`3882e500`) | Delta |
+| Metric | `ripgrep` + `view_file` (`b933d749`) | `CodeExplorer` MCP (`add5de69`) | Delta |
 | :--- | :---: | :---: | :---: |
-| **Time to Answer (`send_message`)** | `889 s` (`14 min 49 sec`) / `1,091 s` wall | **`384 s` (`6 min 24 sec`) / `531 s` wall** | **`2.32×` faster (`2.05×` wall)** |
-| **LLM Turns, Steps & Compactions** | `38` turns / `227` steps (`2` compactions) | **`15` turns / `61` steps (`0` compactions)** | **`2.53×` fewer turns (`3.72×` fewer steps)** |
-| **Total Tool Calls & File Reads** | `186` (`22` `rg` + `163` `view_file`, `1` `send_message`) | **`45` (`29` `mcp` + `15` `view_file`, `1` `send_message`)** | **`4.13×` fewer calls (`10.87×` fewer reads)** |
-| **Raw Tool Output Ingested** | `1,625,077` chars (`~406,269` tokens) | **`270,470` chars (`~67,618` tokens)** | **`6.01×` less tool payload** |
-| **Cumulative Input Tokens** | `3,197,058` est. (`4,089,567` API tokens) | **`651,686` est. (`884,342` API tokens)** | **`4.91×` fewer input tokens (`4.34×` uncached)** |
-| **API Cost w/ 90% Cache Discount** | `$0.65` Flash (`$2.47` Pro) | **`$0.23` Flash (`$0.83` Pro)** | **`2.83×` cheaper** |
-| **Symbol Recall & Context Health** | `100%` symbol recall (`2` context compactions) | **`100%` symbol recall (single uncompacted window)** | **`0` compactions vs `2` compactions** |
+| **Time to Answer (`send_message`)** | `664 s` (`11 min 04 sec`) / `701 s` wall | **`265 s` (`4 min 25 sec`) / `299 s` wall** | **`2.51×` faster (`2.34×` wall)** |
+| **LLM Turns, Steps & Compactions** | `193` turns / `389` steps (`0` compactions) | **`92` turns / `184` steps (`0` compactions)** | **`2.10×` fewer turns (`2.11×` fewer steps)** |
+| **Total Tool Calls & File Reads** | `192` (`74` `rg` + `117` `view_file`, `1` `send_message`) | **`91` (`54` `mcp` + `36` `view_file`, `1` `send_message`)** | **`2.11×` fewer calls (`3.25×` fewer reads)** |
+| **Raw Tool Output Ingested** | `573,355` chars (`~143,339` tokens) | **`294,355` chars (`~73,589` tokens)** | **`1.95×` less tool payload** |
+| **Cumulative Input Tokens** | `16,098,025` est. (`25,878,074` API tokens) | **`3,910,897` est. (`6,000,146` API tokens)** | **`4.12×` fewer input tokens (`4.31×` API tokens)** |
+| **API Cost (Gemini 3.8 Flash)** | `$1.91` Flash | **`$0.65` Flash** | **`2.94×` cheaper** |
+| **Symbol Recall & Context Health** | `100%` symbol recall (`0` context compactions) | **`100%` symbol recall (`0` context compactions)** | **`0` compactions vs `0` compactions** |
 
 ---
 
@@ -51,11 +51,11 @@ Measured from paired A/B agent runs on `OrchardCMS/OrchardCore @ 05ad2d9a` ([`re
 
 1. **Controlled Baseline Design (Pure `rg` + `view_file` vs Scripted AST Baselines)**:
    Unlike Case Study 01 and Case Study 02 — where baseline agents were granted `write_to_file` and wrote custom TypeScript/Python AST parsers mid-session — neither subagent in Case Study 05 was granted `write_to_file`, and `prompts/baseline-agent.md` explicitly disallowed custom AST/graph-walking scripts. This isolates the native interactive workflow (`rg` search + `view_file` reading) that most production coding agents execute when no pre-indexed code graph is attached.
-2. **Why `CodeExplorer` Finished in `15` Turns (`61` Steps, `0` Compactions) vs `ripgrep`'s `38` Turns (`227` Steps, `2` Compactions)**:
-   The `CodeExplorer` MCP agent executed `22` parallelized OpenCypher queries (`execute_custom_read_cypher`), `1` `get_taxonomy` call, `1` `list_resources` call, and `5` targeted `fetch_code_snippets` calls — with **`0` direct repository source file reads via `view_file`** (its `15` `view_file` calls read only `4` lazy MCP tool schemas and `11` spilled query outputs). By contrast, `ripgrep` issued `22` `rg` searches and `163` `view_file` calls (`151` repository C# source files + `12` spilled `rg` outputs), ingesting `1.63 MB` (`~406K` tokens) of raw source text, overflowing the active context window twice (`Turn 20` and `Turn 31`), and burning `4.62×` more API input tokens (`4,089,567` vs `884,342`).
+2. **Why `CodeExplorer` Finished in `92` Turns (`184` Steps) vs `ripgrep`'s `193` Turns (`389` Steps)**:
+   The `CodeExplorer` MCP agent executed `54` OpenCypher queries (`execute_custom_read_cypher`), `list_resources` calls, and targeted `fetch_code_snippets` calls with `36` targeted `view_file` calls for schema inspections and spilled queries. By contrast, `ripgrep` issued `74` `rg` searches and `117` `view_file` calls, ingesting `573 KB` (`~143K` tokens) of raw source text and burning `4.31×` more API input tokens (`25,878,074` vs `6,000,146`).
 3. **Source-Verified Output Audit (`OrchardCore @ 05ad2d9a`)**:
-   - **`CodeExplorer` MCP (`3882e500`)**: Extracted `100%` of ground-truth classes and methods across Tasks 1–4 in a single uncompacted context window (`88` state-mutating actions = `67` calling vs `21` missing `AuthorizeAsync`; `25` `ISession`-violating classes across `13` modules; `16` concrete + `6` base `PublishingAsync`/`PublishedAsync` handler methods across `11` projects; `19` `IContentManager` caller projects + `38` over-coupled `DEPENDS_ON` projects).
-   - **`ripgrep` (`af28679a`)**: Also reached `100%` ground-truth symbol recall across Tasks 1–4 by manually reading `151` C# source files across `38` turns, isolating pure execution speed (`2.32×` faster answer), context efficiency (`4.91×` fewer cumulative input tokens, `6.01×` less tool output), and API cost (`2.83×` cheaper).
+   - **`CodeExplorer` MCP (`add5de69`)**: Extracted `100%` of ground-truth classes and methods across Tasks 1–4 in a single uncompacted context window (`88` state-mutating actions = `67` calling vs `21` missing `AuthorizeAsync`; `25` `ISession`-violating classes across `13` modules; `16` concrete + `6` base `PublishingAsync`/`PublishedAsync` handler methods across `11` projects; `19` `IContentManager` caller projects + `38` over-coupled `DEPENDS_ON` projects).
+   - **`ripgrep` (`b933d749`)**: Also reached `100%` ground-truth symbol recall across Tasks 1–4 by systematically searching and reading C# source files across `193` turns, confirming pure execution speed (`2.51×` faster answer), context efficiency (`4.12×` fewer cumulative input tokens, `1.95×` less tool output), and API cost (`2.94×` cheaper: `$0.65` vs `$1.91`).
 
 ---
 

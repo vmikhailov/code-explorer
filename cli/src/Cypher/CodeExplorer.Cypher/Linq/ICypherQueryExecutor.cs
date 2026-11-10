@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
@@ -15,6 +16,7 @@ public interface ICypherQueryExecutor
     Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default);
 }
 
+[UnconditionalSuppressMessage("Trimming", "IL2091", Justification = "Cypher LINQ materializer is invoked only with GraphEntity or caller-provided model types with constructors")]
 public static class DbEntityMaterializer
 {
     public static async Task<int> ExecuteScalarCountAsync(
@@ -216,6 +218,7 @@ public static class SqliteJsonbReader
     }
 }
 
+[UnconditionalSuppressMessage("Trimming", "IL2090", Justification = "Checked at runtime")]
 internal static class EntityFactory<T>
 {
     public static readonly bool IsGraphEntity = typeof(GraphEntity).IsAssignableFrom(typeof(T));

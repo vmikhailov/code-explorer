@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 public interface IOntologyNode
 {
     string Id { get; }

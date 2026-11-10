@@ -15,6 +15,7 @@ tar -czf - \
   index.html \
   benchmarks.html \
   benchmarks \
+  fonts \
   presentation.html \
   privacy.html \
   llms.txt \

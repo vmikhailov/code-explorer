@@ -24,10 +24,10 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
 <!-- BEGIN:md.root_agent_table -->
 | Metric | **`twentyhq/twenty` (`24.5k` files): `CBM` → `CodeExplorer`** ([Case 01](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)) | **324-Service Multi-Repo (`13.8k` files): `ripgrep` → `CodeExplorer`** ([Case 02](./benchmarks/02-enterprise-microservices-deep-audit/README.md)) | **`OrchardCore` (`334` .NET projects): `ripgrep` → `CodeExplorer`** ([Case 05](./benchmarks/05-polyglot-architecture-and-blast-radius/README.md)) |
 | :--- | :--- | :--- | :--- |
-| **Time to Answer** | `9m 15s` → **`1m 33s` (`6.0×` faster)** | `29m 52s` → **`4m 16s` (`7.00×` faster)** | `14m 49s` → **`6m 24s` (`2.32×` faster)** |
-| **Cumulative Input Tokens** | `1.68M` → **`242K` (`7.0×` fewer)** | `17.19M` → **`686K` (`25.07×` fewer, `11.50×` cheaper)** | `3.20M` → **`652K` (`4.91×` fewer, `6.01×` less tool output, `2.83×` cheaper)** |
-| **Agent Effort** | `28` turns (`8` `CBM` + `3` AST scripts + `10` reads) → **`7` turns (`13` queries, `0` reads)** | `285` turns (`142` CLI, `114` reads, `14` scripts) → **`18` turns (`10` CLI, `16` reads, `0` scripts)** | `38` turns / `227` steps (`163` file reads) → **`15` turns / `61` steps (`15` file reads, `10.87×` fewer)** |
-| **Recall & Context Health** | `3.4%` (`13 / 381`) from `CBM` graph → **`100%` (`381 / 381`) from `graph.db`** | `82%` *(missed 9 RTB services, 1 compaction)* → **`100%` recall (`0` blind spots)** | `100%` *(2 compactions)* → **`100%` symbol recall (`0` compactions)** |
+| **Time to Answer** | `9m 15s` → **`1m 33s` (`6.0×` faster)** | `29m 52s` → **`4m 16s` (`7.00×` faster)** | `11m 04s` → **`4m 25s` (`2.51×` faster)** |
+| **Cumulative Input Tokens** | `1.68M` → **`242K` (`7.0×` fewer)** | `17.19M` → **`686K` (`25.07×` fewer, `11.50×` cheaper)** | `16.10M` → **`3.91M` (`4.12×` fewer, `1.95×` less tool output, `2.94×` cheaper)** |
+| **Agent Effort** | `28` turns (`8` `CBM` + `3` AST scripts + `10` reads) → **`7` turns (`13` queries, `0` reads)** | `285` turns (`142` CLI, `114` reads, `14` scripts) → **`18` turns (`10` CLI, `16` reads, `0` scripts)** | `193` turns / `389` steps (`117` file reads) → **`92` turns / `184` steps (`36` file reads, `3.25×` fewer)** |
+| **Recall & Context Health** | `3.4%` (`13 / 381`) from `CBM` graph → **`100%` (`381 / 381`) from `graph.db`** | `82%` *(missed 9 RTB services, 1 compaction)* → **`100%` recall (`0` blind spots)** | `100%` *(0 compactions)* → **`100%` symbol recall (`0` compactions)** |
 <!-- END:md.root_agent_table -->
 
 ### Head-to-Head vs. Other MCP Code Graphs (`immich` & `twenty`)

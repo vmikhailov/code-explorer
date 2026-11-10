@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Case Study 05: OrchardCore Modular .NET Audit (CodeExplorer vs ripgrep)</title>
-  <meta name="description" data-bind-meta="cs05.meta_desc" content="Paired AI agent benchmark on OrchardCMS/OrchardCore (334 projects, 7,837 files): CodeExplorer Agent (6m 24s answer / 8m 51s wall, 15 turns / 61 steps, 15 file reads, 0 compactions) vs ripgrep + view_file Agent (14m 49s answer / 18m 11s wall, 38 turns / 227 steps, 163 file reads, 2 compactions).">
+  <meta name="description" data-bind-meta="cs05.meta_desc" content="Paired AI agent benchmark on OrchardCMS/OrchardCore (334 projects, 7,837 files): CodeExplorer Agent (4m 25s answer / 4m 59s wall, 92 turns / 184 steps, 36 file reads, 0 compactions) vs ripgrep + view_file Agent (11m 4s answer / 11m 41s wall, 193 turns / 389 steps, 117 file reads, 0 compactions).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
   <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
@@ -56,28 +56,28 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok" data-bind="cs05.card_speedup">~2.3×</span>
+            <span class="reading tone-ok" data-bind="cs05.card_speedup">~2.5×</span>
             <h2 class="panel-title">Shorter Time to Answer</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_speed_copy"><code>6m 24s</code> with <code>CodeExplorer</code> vs <code>14m 49s</code> with <code>ripgrep</code> + <code>view_file</code> across <code>334</code> projects.</p>
-            <code class="panel-code" data-bind="cs05.card_turns_footer">15 turns / 61 steps vs 38 turns / 227 steps</code>
+            <p class="panel-copy" data-bind-html="cs05.card_speed_copy"><code>4m 25s</code> with <code>CodeExplorer</code> vs <code>11m 04s</code> with <code>ripgrep</code> + <code>view_file</code> across <code>334</code> projects.</p>
+            <code class="panel-code" data-bind="cs05.card_turns_footer">92 turns / 184 steps vs 193 turns / 389 steps</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent" data-bind="cs05.card_tokens">~6.0×</span>
+            <span class="reading tone-accent" data-bind="cs05.card_tokens">~1.9×</span>
             <h2 class="panel-title">Less Tool Payload</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>~68K</code> tool output tokens with <code>CodeExplorer</code> vs <code>~406K</code> with <code>ripgrep</code> (<code>~2.8×</code> lower API cost).</p>
-            <code class="panel-code" data-bind="cs05.card_cost_footer">$0.23 vs $0.65 (~4.9× fewer input tokens)</code>
+            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>~74K</code> tool output tokens with <code>CodeExplorer</code> vs <code>~143K</code> with <code>ripgrep</code> (<code>~2.9×</code> lower API cost).</p>
+            <code class="panel-code" data-bind="cs05.card_cost_footer">$0.65 vs $1.91 (~4.1× fewer input tokens)</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool" data-bind="cs05.card_reads">~11×</span>
+            <span class="reading tone-cool" data-bind="cs05.card_reads">~3.3×</span>
             <h2 class="panel-title">Fewer File Reads</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_reads_copy"><code>15</code> <code>view_file</code> reads (<code>0</code> repo source files) by the graph agent vs <code>163</code> reads by <code>ripgrep</code>.</p>
-            <code class="panel-code" data-bind="cs05.card_reads_footer">264 KB vs 1,587 KB tool output</code>
+            <p class="panel-copy" data-bind-html="cs05.card_reads_copy"><code>36</code> <code>view_file</code> reads (<code>0</code> repo source files) by the graph agent vs <code>117</code> reads by <code>ripgrep</code>.</p>
+            <code class="panel-code" data-bind="cs05.card_reads_footer">287 KB vs 560 KB tool output</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading" data-bind="cs05.card_recall">100% vs 100%</span>
             <h2 class="panel-title">Symbol Recall &amp; Context</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_recall_copy">Both reached 100% recall across all 4 tasks; <code>CodeExplorer</code> stayed in one window while <code>ripgrep</code> hit <code>2</code> compactions.</p>
-            <code class="panel-code" data-bind="cs05.card_recall_footer">0 vs 2 context compactions</code>
+            <p class="panel-copy" data-bind-html="cs05.card_recall_copy">Both reached 100% recall across all 4 tasks; <code>CodeExplorer</code> stayed in one window while <code>ripgrep</code> hit <code>0</code> compactions.</p>
+            <code class="panel-code" data-bind="cs05.card_recall_footer">0 vs 0 context compactions</code>
           </div>
         </div>
 
@@ -161,45 +161,45 @@
             <tbody>
               <tr>
                 <td>Time to Answer (<code>send_message</code>)</td>
-                <td class="cell-loss" data-bind="cs05.tbl_time_rg">889 s (14 min 49 sec) / 1,091 s wall</td>
-                <td class="cell-win" data-bind="cs05.tbl_time_ce">384 s (6 min 24 sec) / 531 s wall</td>
-                <td class="cell-win" data-bind="cs05.tbl_time_delta">2.32× faster (2.05× wall)</td>
+                <td class="cell-loss" data-bind="cs05.tbl_time_rg">664 s (11 min 04 sec) / 701 s wall</td>
+                <td class="cell-win" data-bind="cs05.tbl_time_ce">265 s (4 min 25 sec) / 299 s wall</td>
+                <td class="cell-win" data-bind="cs05.tbl_time_delta">2.51× faster (2.34× wall)</td>
               </tr>
               <tr>
                 <td>LLM Turns, Steps &amp; Compactions</td>
-                <td class="cell-loss" data-bind="cs05.tbl_turns_rg">38 turns / 227 steps (2 compactions)</td>
-                <td class="cell-win" data-bind="cs05.tbl_turns_ce">15 turns / 61 steps (0 compactions)</td>
-                <td class="cell-win" data-bind="cs05.tbl_turns_delta">2.53× fewer turns (3.72× fewer steps)</td>
+                <td class="cell-loss" data-bind="cs05.tbl_turns_rg">193 turns / 389 steps (0 compactions)</td>
+                <td class="cell-win" data-bind="cs05.tbl_turns_ce">92 turns / 184 steps (0 compactions)</td>
+                <td class="cell-win" data-bind="cs05.tbl_turns_delta">2.10× fewer turns (2.11× fewer steps)</td>
               </tr>
               <tr>
                 <td>Total Tool Calls &amp; File Reads</td>
-                <td class="cell-loss" data-bind-html="cs05.tbl_calls_rg">186 (22 <code>rg</code> + 163 <code>view_file</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind-html="cs05.tbl_calls_ce">45 (29 <code>mcp</code> + 15 <code>view_file</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind="cs05.tbl_calls_delta">4.13× fewer calls (10.87× fewer reads)</td>
+                <td class="cell-loss" data-bind-html="cs05.tbl_calls_rg">192 (74 <code>rg</code> + 117 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind-html="cs05.tbl_calls_ce">91 (54 <code>mcp</code> + 36 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind="cs05.tbl_calls_delta">2.11× fewer calls (3.25× fewer reads)</td>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss" data-bind="cs05.tbl_payload_rg">1,625,077 chars (~406,269 tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_payload_ce">270,470 chars (~67,618 tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_payload_delta">6.01× less tool payload</td>
+                <td class="cell-loss" data-bind="cs05.tbl_payload_rg">573,355 chars (~143,339 tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_payload_ce">294,355 chars (~73,589 tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_payload_delta">1.95× less tool payload</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
-                <td class="cell-loss" data-bind="cs05.tbl_in_rg">3,197,058 est. (4,089,567 API tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_in_ce">651,686 est. (884,342 API tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_in_delta">4.91× fewer input tokens (4.34× uncached)</td>
+                <td class="cell-loss" data-bind="cs05.tbl_in_rg">16,098,025 est. (25,878,074 API tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_ce">3,910,897 est. (6,000,146 API tokens)</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_delta">4.12× fewer input tokens (1.95× uncached)</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
-                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$0.65 Flash ($2.47 Pro)</td>
-                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$0.23 Flash ($0.83 Pro)</td>
-                <td class="cell-win" data-bind="cs05.tbl_cost_delta">2.83× cheaper</td>
+                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$1.91 Flash ($2.02 Pro)</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$0.65 Flash ($0.97 Pro)</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_delta">2.94× cheaper</td>
               </tr>
               <tr>
                 <td>Symbol Recall &amp; Context Health (Tasks 1 to 4)</td>
-                <td class="cell-num" data-bind="cs05.tbl_recall_rg">100% symbol recall (2 context compactions)</td>
+                <td class="cell-num" data-bind="cs05.tbl_recall_rg">100% symbol recall (0 context compactions)</td>
                 <td class="cell-win" data-bind="cs05.tbl_recall_ce">100% symbol recall (single uncompacted window)</td>
-                <td data-bind-html="cs05.tbl_recall_delta"><strong>0 compactions vs 2 compactions</strong></td>
+                <td data-bind-html="cs05.tbl_recall_delta"><strong>0 compactions vs 0 compactions</strong></td>
               </tr>
             </tbody>
           </table>
