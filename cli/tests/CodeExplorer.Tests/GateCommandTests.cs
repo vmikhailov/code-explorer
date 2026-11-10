@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Commands;
 using CodeExplorer.Options;
 using NUnit.Framework;

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Commands;
 using CodeExplorer.Options;
 using Microsoft.Data.Sqlite;
@@ -38,7 +37,6 @@ public class StatusCommandTests
     {
         var ws = WorkspaceLocator.Initialize(_tempWorkspace, "StatusTestApp");
         await using var client = new SqliteGraphClient(ws.DbPath);
-        await client.CreateIndicesAsync();
     }
 
     [Test]
@@ -67,7 +65,6 @@ public class StatusCommandTests
         var ws = WorkspaceLocator.Initialize(_tempWorkspace, "StatusTestApp");
         await using (var client = new SqliteGraphClient(ws.DbPath))
         {
-            await client.CreateIndicesAsync();
         }
 
         // Drop edges table and set user_version = 2 directly on the SQLite database

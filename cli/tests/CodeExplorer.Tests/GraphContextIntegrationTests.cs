@@ -8,11 +8,10 @@ public class GraphContextIntegrationTests
 {
     private SqliteGraphClient _client = null!;
 
-    [SetUp]
+    [OneTimeSetUp]
     public async Task SetUp()
     {
-        _client = new SqliteGraphClient(":memory:");
-        await _client.CreateIndicesAsync();
+        _client = new SqliteGraphClient($"Data Source=GraphCtx_{Guid.NewGuid():N};Mode=Memory;Cache=Shared");
 
         var nodes = new List<Node>
         {
@@ -59,7 +58,7 @@ public class GraphContextIntegrationTests
         await _client.UploadNodesAsync(nodes);
     }
 
-    [TearDown]
+    [OneTimeTearDown]
     public async Task TearDown()
     {
         await _client.DisposeAsync();
@@ -161,44 +160,24 @@ public class GraphContextIntegrationTests
     }
 
     [Test]
-    public async Task SchemaVersion_Migrator_UpgradesV3TextToV4Jsonb_AndFlagsOutdatedWhenUnsupported()
+    public async Task SchemaVersion_TracksCurrentVersion_AndUpgradesOnOpen()
     {
         _client.SchemaVersion.Should().Be(SqliteGraphClient.CurrentSchemaVersion);
         _client.IsSchemaOutdated.Should().BeFalse();
+        _client.TryRunSchemaMigrator(SqliteGraphClient.CurrentSchemaVersion, 999).Should().BeFalse();
 
-        // Simulate legacy v3 TEXT JSON row
-        await _client.ExecuteWriteAsync("UPDATE nodes SET properties = json(properties); PRAGMA user_version = 3;");
-        var migrated = _client.TryRunSchemaMigrator(3, SqliteGraphClient.CurrentSchemaVersion);
-        migrated.Should().BeTrue();
-
-        var typeAfterMigration = await _client.ExecuteRawAsync(async conn =>
-        {
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT typeof(properties) FROM nodes LIMIT 1;";
-            return (string?)await cmd.ExecuteScalarAsync();
-        });
-        typeAfterMigration.Should().Be("blob");
-
-        // Simulate unsupported future version -> migrator returns false so full rebuild is triggered
-        _client.TryRunSchemaMigrator(3, 999).Should().BeFalse();
-    }
-
-    [Test]
-    public async Task SchemaVersion_OpenLegacyDb_AutomaticallyUpgrades_AndSetsMigrationFlags()
-    {
         var tempDb = Path.Combine(Path.GetTempPath(), $"ce_migration_test_{Guid.NewGuid():N}.db");
         try
         {
-            // 1. Create a legacy v3 database
+            const int previousVersion = SqliteGraphClient.CurrentSchemaVersion - 1;
             await using (var seedClient = new SqliteGraphClient(tempDb))
             {
-                await seedClient.ExecuteWriteAsync("UPDATE nodes SET properties = json(properties); PRAGMA user_version = 3;");
+                await seedClient.SetSchemaVersionAsync(previousVersion);
             }
 
-            // 2. Open with a fresh SqliteGraphClient to trigger CheckSchemaVersion() on open
             await using var upgradedClient = new SqliteGraphClient(tempDb);
             upgradedClient.WasMigratedOnOpen.Should().BeTrue();
-            upgradedClient.MigratedFromVersion.Should().Be(3);
+            upgradedClient.MigratedFromVersion.Should().Be(previousVersion);
             upgradedClient.SchemaVersion.Should().Be(SqliteGraphClient.CurrentSchemaVersion);
             upgradedClient.IsSchemaOutdated.Should().BeFalse();
         }

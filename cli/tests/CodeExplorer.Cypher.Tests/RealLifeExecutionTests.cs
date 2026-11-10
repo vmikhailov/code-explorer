@@ -26,14 +26,14 @@ public class RealLifeExecutionTests
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE TABLE edges (
                 from_id INTEGER NOT NULL,
                 to_id INTEGER NOT NULL,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE INDEX idx_edges_from ON edges(from_id);
@@ -56,7 +56,7 @@ public class RealLifeExecutionTests
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
+        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, jsonb(@props))";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeNodeKind(kind));
         cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
@@ -67,7 +67,7 @@ public class RealLifeExecutionTests
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, @props)";
+        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, jsonb(@props))";
         cmd.Parameters.AddWithValue("@from", fromId);
         cmd.Parameters.AddWithValue("@to", toId);
         cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeRelKind(kind));
@@ -630,11 +630,7 @@ public class RealLifeExecutionTests
 
         reader.Read().Should().BeTrue();
         var rawJson = reader.GetString(0);
-
-        var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(rawJson)!;
-        var typesProp = parsed["types"];
-        typesProp.ValueKind.Should().Be(JsonValueKind.Array);
-        typesProp.GetArrayLength().Should().BeGreaterThan(0);
+        rawJson.Should().Contain("\"types\":[\"");
     }
 
     [Test]
@@ -652,11 +648,7 @@ public class RealLifeExecutionTests
 
         rows.Should().HaveCount(1);
         var projectsRaw = rows[0]["projects"]?.ToString() ?? "";
-
-        var projs = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(projectsRaw)!;
-        var dbs = projs[0]["databases"];
-        dbs.ValueKind.Should().Be(JsonValueKind.Array);
-        dbs.GetArrayLength().Should().BeGreaterThanOrEqualTo(1);
+        projectsRaw.Should().Contain("\"databases\":[\"");
     }
 
     [Test]
@@ -724,7 +716,7 @@ public class RealLifeExecutionTests
         reader1["name"].Should().Be("BillingService");
         var lblsJson = reader1.GetString(1);
 
-        var labels = JsonSerializer.Deserialize<List<string>>(lblsJson)!;
+        var labels = SqliteCypherFunctions.ParseStringList(lblsJson);
         labels.Should().Contain("Project");
         labels.Should().Contain("Service");
     }

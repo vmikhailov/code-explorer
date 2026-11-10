@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.77.1] - 2026-11-10
+
+### Changed & Refactored
+- **Superpower Combinator GraphQL Parser (`GraphQLFileParser` / `GraphQLDocumentExtractor`)**:
+  - Replaced imperative character/token loops in `GraphQLDocumentExtractor` with a declarative `Superpower` tokenizer (`TokenizerBuilder<GraphQLToken>`) and parser combinator pipeline (`TokenListParser<GraphQLToken, T>`), properly handling GraphQL block strings (`"""..."""`), inline fragments (`... on Query`), field aliases, directives, and template literal interpolations (`${...}`).
+- **SQLite Schema DDL & Test Suite Optimization**:
+  - Moved the legacy `file_registry.size_bytes` column check out of `CreateTablesAndAuxiliaryIndices()` into `TryRunSchemaMigrator` (`fromVersion < 6`) and removed redundant index drop/recreate operations on fresh database connections.
+  - Removed obsolete `JsonSerializer` microbenchmarks and legacy comparison helpers from `NodeFactoryTests`, replaced `JsonSerializer`/`JsonElement` test helpers in `SqliteCypherFunctions` with zero-DOM `Utf8JsonReader`, and consolidated redundant test database schema conversions (`[OneTimeSetUp]` + direct `JSONB` DDL).
+
 ## [1.77.0] - 2026-11-10
 
 ### Added & Changed

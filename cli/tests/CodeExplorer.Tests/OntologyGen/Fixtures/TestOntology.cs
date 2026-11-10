@@ -6,7 +6,6 @@
 // independently of the phase-2 OntologyNodeAttribute signature changes (which
 // haven't been applied to the real nodes yet).
 
-using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Cypher.Common;
@@ -17,22 +16,22 @@ namespace CodeExplorer.Tests.OntologyGen.Fixtures;
 
 [OntologyRelationship("OWNS", "Links a Zoo to an Animal it owns.")]
 public record OwnsRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? CustomProperties = null
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
 ) : IOntologyRelationship
 {
-    [JsonIgnore] public RelationshipKind Kind => RelationshipKind.Unspecified;
+    public RelationshipKind Kind => RelationshipKind.Unspecified;
 }
 
 [OntologyRelationship("LIVES_IN", "Links an Animal to the Habitat it lives in.")]
 public record LivesInRelationship(
-    [property: JsonIgnore] string From,
-    [property: JsonIgnore] string To,
-    [property: JsonIgnore] Dictionary<string, string>? CustomProperties = null
+    string From,
+    string To,
+    Dictionary<string, string>? CustomProperties = null
 ) : IOntologyRelationship
 {
-    [JsonIgnore] public RelationshipKind Kind => RelationshipKind.Unspecified;
+    public RelationshipKind Kind => RelationshipKind.Unspecified;
 }
 
 // ── Test node records ────────────────────────────────────────────────────────
@@ -49,7 +48,7 @@ public record ZooNode(
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)
 {
-    [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
+    public override NodeKind Kind => NodeKind.Unspecified;
 }
 
 [OntologyNode(
@@ -65,7 +64,7 @@ public record AnimalNode(
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)
 {
-    [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
+    public override NodeKind Kind => NodeKind.Unspecified;
 }
 
 // Pure leaf — receives edges, declares none
@@ -81,5 +80,5 @@ public record HabitatNode(
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)
 {
-    [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
+    public override NodeKind Kind => NodeKind.Unspecified;
 }

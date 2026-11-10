@@ -37,7 +37,7 @@ public class LinqSqliteExecutionTests
             DbEntityMaterializer.ExecuteReaderFirstOrDefaultAsync<TElement>(_conn, query, parameters, ct: ct);
     }
 
-    [SetUp]
+    [OneTimeSetUp]
     public void SetUp()
     {
         _conn = new SqliteConnection("Data Source=:memory:");
@@ -49,14 +49,14 @@ public class LinqSqliteExecutionTests
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE TABLE edges (
                 from_id INTEGER NOT NULL,
                 to_id INTEGER NOT NULL,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE INDEX idx_edges_from ON edges(from_id);
@@ -72,7 +72,7 @@ public class LinqSqliteExecutionTests
         _graph = new GraphContext(_executor);
     }
 
-    [TearDown]
+    [OneTimeTearDown]
     public void TearDown()
     {
         _conn.Dispose();

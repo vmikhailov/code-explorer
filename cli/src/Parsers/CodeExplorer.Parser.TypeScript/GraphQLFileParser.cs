@@ -6,6 +6,10 @@ using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Cypher.Common;
+using Superpower;
+using Superpower.Model;
+using Superpower.Parsers;
+using Superpower.Tokenizers;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript;
@@ -52,7 +56,10 @@ public sealed record GraphQLParsedSdlField(
 /// </summary>
 public class GraphQLFileParser : IFileParser
 {
-    public string LanguageName => "graphql";
+    private const string GraphqlLanguage = "graphql";
+    private const string GraphqlProtocol = "GraphQL";
+
+    public string LanguageName => GraphqlLanguage;
     public bool UsesTreeSitter => false;
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } = [];
 
@@ -146,7 +153,7 @@ public class GraphQLFileParser : IFileParser
             {
                 var gqlPath = "/" + rootField.TrimStart('/');
                 var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:graphql:{opTypeStr}:{rootField}:{symbolId}";
-                var extNode = new ExternalServiceNode(extId, rootField, "graphql", "graphql", gqlPath)
+                var extNode = new ExternalServiceNode(extId, rootField, GraphqlLanguage, GraphqlLanguage, gqlPath)
                 {
                     FilePath = relativePath,
                     StartLine = op.StartLine,
@@ -177,7 +184,7 @@ public class GraphQLFileParser : IFileParser
                 relativePath,
                 method,
                 sdl.FieldName,
-                "GraphQL",
+                GraphqlProtocol,
                 false,
                 null,
                 null,
@@ -240,14 +247,243 @@ public class GraphQLFileParser : IFileParser
     }
 }
 
+public enum GqlTokenKind
+{
+    Name,
+    Spread,
+    LBrace,
+    RBrace,
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    Colon,
+    At,
+    Bang,
+    Equal,
+    Dollar,
+    Pipe,
+    Amp
+}
+
 /// <summary>
-/// Lexical &amp; recursive-descent GraphQL selection-set and SDL parser.
+/// Declarative Superpower-based GraphQL selection-set and SDL parser.
 /// Extracts root fields from executable operations (supporting aliases, arguments, directives,
 /// inline fragments, and multi-root-field queries) and SDL root types, as well as TypedDocumentNode JSON ASTs.
 /// </summary>
 public static class GraphQLDocumentExtractor
 {
-    private readonly record struct GqlToken(string Text, bool IsPunctuator, int Line);
+    private const char CommaChar = ',';
+    private const string SpreadText = "...";
+    private const string TemplateInterpolationPattern = @"\$\{[^{}]*\}";
+    private const string BlockStringPattern = @"(?s)""""""[\s\S]*?""""""";
+    private const string StringLiteralPattern = @"(?s)""(?:\\.|[^""\\])*""";
+    private const string NamePattern = @"[A-Za-z0-9_-]+";
+    private const string StrayCharPattern = @"[^\sA-Za-z0-9_\-\.\{\}\(\)\[\]:@!=\$\|&"",#]+";
+    private const string IntrospectionPrefix = "__";
+    private const string QueryKeyword = "query";
+    private const string MutationKeyword = "mutation";
+    private const string SubscriptionKeyword = "subscription";
+    private const string TypeKeyword = "type";
+    private const string ExtendKeyword = "extend";
+    private const string OnKeyword = "on";
+    private const string RootQueryType = "Query";
+    private const string RootMutationType = "Mutation";
+    private const string RootSubscriptionType = "Subscription";
+
+    private static readonly (char Char, GqlTokenKind Kind)[] Punctuators =
+    [
+        ('{', GqlTokenKind.LBrace),
+        ('}', GqlTokenKind.RBrace),
+        ('(', GqlTokenKind.LParen),
+        (')', GqlTokenKind.RParen),
+        ('[', GqlTokenKind.LBracket),
+        (']', GqlTokenKind.RBracket),
+        (':', GqlTokenKind.Colon),
+        ('@', GqlTokenKind.At),
+        ('!', GqlTokenKind.Bang),
+        ('=', GqlTokenKind.Equal),
+        ('$', GqlTokenKind.Dollar),
+        ('|', GqlTokenKind.Pipe),
+        ('&', GqlTokenKind.Amp)
+    ];
+
+    public static Tokenizer<GqlTokenKind> TokenizerInstance { get; } = BuildTokenizer();
+
+    private static Tokenizer<GqlTokenKind> BuildTokenizer()
+    {
+        var builder = new TokenizerBuilder<GqlTokenKind>()
+            .Ignore(Span.WhiteSpace)
+            .Ignore(Character.EqualTo(CommaChar))
+            .Ignore(Comment.ShellStyle)
+            .Ignore(Span.Regex(TemplateInterpolationPattern))
+            .Ignore(Span.Regex(BlockStringPattern))
+            .Ignore(Span.Regex(StringLiteralPattern))
+            .Match(Span.EqualTo(SpreadText), GqlTokenKind.Spread);
+
+        foreach (var (ch, kind) in Punctuators)
+        {
+            builder = builder.Match(Character.EqualTo(ch), kind);
+        }
+
+        return builder
+            .Match(Span.Regex(NamePattern), GqlTokenKind.Name)
+            .Ignore(Span.Regex(StrayCharPattern))
+            .Build();
+    }
+
+    private static TokenListParser<GqlTokenKind, Token<GqlTokenKind>> NameToken { get; } =
+        Token.EqualTo(GqlTokenKind.Name);
+
+    private static TokenListParser<GqlTokenKind, Token<GqlTokenKind>> Keyword(string text) =>
+        Token.EqualToValue(GqlTokenKind.Name, text);
+
+    private static TokenListParser<GqlTokenKind, Token<GqlTokenKind>> Balanced(
+        GqlTokenKind openKind,
+        GqlTokenKind closeKind) =>
+        input =>
+        {
+            var first = input.ConsumeToken();
+            if (!first.HasValue || first.Value.Kind != openKind)
+            {
+                return TokenListParserResult.Empty<GqlTokenKind, Token<GqlTokenKind>>(input);
+            }
+
+            var depth = 1;
+            var rem = first.Remainder;
+            var lastTok = first.Value;
+
+            while (!rem.IsAtEnd)
+            {
+                var next = rem.ConsumeToken();
+                if (!next.HasValue) break;
+                lastTok = next.Value;
+                rem = next.Remainder;
+
+                if (lastTok.Kind == openKind) depth++;
+                else if (lastTok.Kind == closeKind && --depth == 0)
+                {
+                    return TokenListParserResult.Value(lastTok, input, rem);
+                }
+            }
+
+            return TokenListParserResult.Value(lastTok, input, rem);
+        };
+
+    private static TokenListParser<GqlTokenKind, Token<GqlTokenKind>> Parens { get; } =
+        Balanced(GqlTokenKind.LParen, GqlTokenKind.RParen);
+
+    private static TokenListParser<GqlTokenKind, Token<GqlTokenKind>> Braces { get; } =
+        Balanced(GqlTokenKind.LBrace, GqlTokenKind.RBrace);
+
+    private static TokenListParser<GqlTokenKind, Unit> Directive { get; } =
+        from at in Token.EqualTo(GqlTokenKind.At)
+        from name in NameToken.Optional()
+        from args in Parens.Optional()
+        select Unit.Value;
+
+    private static TokenListParser<GqlTokenKind, Unit[]> Directives { get; } =
+        Directive.Many();
+
+    private static TokenListParser<GqlTokenKind, IReadOnlyList<string>> InlineFragmentSelection { get; } =
+        (from spread in Token.EqualTo(GqlTokenKind.Spread)
+         from onClause in (
+             from onKw in Keyword(OnKeyword)
+             from typeName in NameToken.Optional()
+             select Unit.Value
+         ).Optional()
+         from dirs in Directives
+         from nested in Parse.Ref(() => RootSelectionSet!)
+         select nested.Fields).Try();
+
+    private static TokenListParser<GqlTokenKind, IReadOnlyList<string>> FragmentSpreadSelection { get; } =
+        from spread in Token.EqualTo(GqlTokenKind.Spread)
+        from fragName in NameToken.Optional()
+        from dirs in Directives
+        select (IReadOnlyList<string>)Array.Empty<string>();
+
+    private static TokenListParser<GqlTokenKind, IReadOnlyList<string>> FieldSelection { get; } =
+        from first in NameToken
+        from aliased in (
+            from colon in Token.EqualTo(GqlTokenKind.Colon)
+            from actual in NameToken
+            select actual
+        ).Optional()
+        from args in Parens.Optional()
+        from dirs in Directives
+        from subSelection in Braces.Optional()
+        let fieldName = (aliased.HasValue ? aliased.Value : first).ToStringValue()
+        select (IReadOnlyList<string>)(fieldName.StartsWith(IntrospectionPrefix, StringComparison.Ordinal)
+            ? Array.Empty<string>()
+            : [fieldName]);
+
+    private static TokenListParser<GqlTokenKind, (IReadOnlyList<string> Fields, int StartLine, int EndLine)> RootSelectionSet { get; } =
+        from open in Token.EqualTo(GqlTokenKind.LBrace)
+        from items in InlineFragmentSelection
+            .Or(FragmentSpreadSelection)
+            .Or(FieldSelection)
+            .Many()
+        from close in Token.EqualTo(GqlTokenKind.RBrace)
+        select (
+            Fields: (IReadOnlyList<string>)items.SelectMany(x => x).Distinct(StringComparer.Ordinal).ToList(),
+            StartLine: open.Position.Line,
+            EndLine: close.Position.Line
+        );
+
+    private static TokenListParser<GqlTokenKind, GraphQLParsedOperation> ExecutableOperationDef { get; } =
+        (from opTok in Keyword(QueryKeyword).Or(Keyword(MutationKeyword)).Or(Keyword(SubscriptionKeyword))
+         from opNameTok in NameToken.Optional()
+         from vars in Parens.Optional()
+         from dirs in Directives
+         from selSet in RootSelectionSet
+         let opType = opTok.ToStringValue() switch
+         {
+             MutationKeyword => RootMutationType,
+             SubscriptionKeyword => RootSubscriptionType,
+             _ => RootQueryType
+         }
+         let opName = opNameTok.HasValue ? opNameTok.Value.ToStringValue() : null
+         select new GraphQLParsedOperation(opType, opName, selSet.Fields, opTok.Position.Line, selSet.EndLine)).Try();
+
+    private static TokenListParser<GqlTokenKind, GraphQLParsedOperation> ShorthandOperationDef { get; } =
+        from selSet in RootSelectionSet
+        select new GraphQLParsedOperation(RootQueryType, null, selSet.Fields, selSet.StartLine, selSet.EndLine);
+
+    private static TokenListParser<GqlTokenKind, string> SdlTypeRef { get; } =
+        from openBrackets in Token.EqualTo(GqlTokenKind.LBracket).Many()
+        from baseType in NameToken
+        from tail in Token.EqualTo(GqlTokenKind.Bang).Or(Token.EqualTo(GqlTokenKind.RBracket)).Many()
+        select baseType.ToStringValue();
+
+    private static TokenListParser<GqlTokenKind, (string FieldName, string? ReturnType, int Line)> SdlFieldDef { get; } =
+        from fieldTok in NameToken
+        from args in Parens.Optional()
+        from returnType in (
+            from colon in Token.EqualTo(GqlTokenKind.Colon)
+            from typeName in SdlTypeRef
+            select (string?)typeName
+        ).OptionalOrDefault()
+        from dirs in Directives
+        select (fieldTok.ToStringValue(), returnType, fieldTok.Position.Line);
+
+    private static TokenListParser<GqlTokenKind, IReadOnlyList<GraphQLParsedSdlField>> SdlRootTypeDef { get; } =
+        (from ext in Keyword(ExtendKeyword).Optional()
+         from typeKw in Keyword(TypeKeyword)
+         from typeNameTok in NameToken
+         where typeNameTok.ToStringValue() is RootQueryType or RootMutationType or RootSubscriptionType
+         from header in Parens.Value(Unit.Value)
+             .Or(NameToken.Value(Unit.Value))
+             .Or(Token.EqualTo(GqlTokenKind.Amp).Value(Unit.Value))
+             .Or(Directive)
+             .Many()
+         from open in Token.EqualTo(GqlTokenKind.LBrace)
+         from fields in SdlFieldDef.Many()
+         from close in Token.EqualTo(GqlTokenKind.RBrace)
+         let opType = typeNameTok.ToStringValue()
+         select (IReadOnlyList<GraphQLParsedSdlField>)fields
+             .Where(f => !f.FieldName.StartsWith(IntrospectionPrefix, StringComparison.Ordinal))
+             .Select(f => new GraphQLParsedSdlField(opType, f.FieldName, f.ReturnType, f.Line))
+             .ToList()).Try();
 
     public static (List<GraphQLParsedOperation> Operations, List<GraphQLParsedSdlField> SdlFields) ParseDocument(string content)
     {
@@ -259,399 +495,69 @@ public static class GraphQLDocumentExtractor
             return (operations, sdlFields);
         }
 
-        var tokens = Tokenize(content);
-        var i = 0;
-
-        while (i < tokens.Count)
+        var tokenized = TokenizerInstance.TryTokenize(content);
+        if (!tokenized.HasValue)
         {
-            var tok = tokens[i];
+            return (operations, sdlFields);
+        }
 
-            // 1. Executable operation: query / mutation / subscription
-            if (!tok.IsPunctuator && tok.Text is "query" or "mutation" or "subscription")
+        var rem = tokenized.Value;
+        var canStartShorthandQuery = true;
+
+        while (!rem.IsAtEnd)
+        {
+            var opRes = ExecutableOperationDef(rem);
+            if (opRes.HasValue)
             {
-                var startLine = tok.Line;
-                var opType = tok.Text switch
+                if (opRes.Value.RootFields.Count > 0)
                 {
-                    "mutation" => "Mutation",
-                    "subscription" => "Subscription",
-                    _ => "Query"
-                };
-                i++;
-
-                string? opName = null;
-                if (i < tokens.Count && !tokens[i].IsPunctuator)
-                {
-                    opName = tokens[i].Text;
-                    i++;
+                    operations.Add(opRes.Value);
                 }
+                rem = opRes.Remainder;
+                canStartShorthandQuery = true;
+                continue;
+            }
 
-                // Skip variable definitions (...)
-                if (i < tokens.Count && tokens[i].Text == "(")
+            var sdlRes = SdlRootTypeDef(rem);
+            if (sdlRes.HasValue)
+            {
+                sdlFields.AddRange(sdlRes.Value);
+                rem = sdlRes.Remainder;
+                canStartShorthandQuery = true;
+                continue;
+            }
+
+            if (canStartShorthandQuery)
+            {
+                var shortRes = ShorthandOperationDef(rem);
+                if (shortRes.HasValue)
                 {
-                    i = SkipBalanced(tokens, i, "(", ")");
-                }
-
-                // Skip directives @dir(...)
-                i = SkipDirectives(tokens, i);
-
-                if (i < tokens.Count && tokens[i].Text == "{")
-                {
-                    var rootFields = new List<string>();
-                    i = ParseRootSelectionSet(tokens, i, rootFields, out var endLine);
-                    if (rootFields.Count > 0)
+                    if (shortRes.Value.RootFields.Count > 0)
                     {
-                        operations.Add(new GraphQLParsedOperation(opType, opName, rootFields, startLine, endLine));
+                        operations.Add(shortRes.Value);
                     }
+                    rem = shortRes.Remainder;
+                    canStartShorthandQuery = true;
                     continue;
                 }
             }
-            // 2. Shorthand anonymous query `{ fieldA { id } }`
-            // Only valid at document start or right after a preceding top-level block. A '{' that follows a
-            // name or keyword opens an SDL block (input/enum/interface/union/schema/fragment) and must not be
-            // read as a query; otherwise 'id: UUID' is misread as an aliased root field named 'UUID'.
-            else if (tok.Text == "{" && (i == 0 || tokens[i - 1].Text == "}"))
-            {
-                var startLine = tok.Line;
-                var rootFields = new List<string>();
-                i = ParseRootSelectionSet(tokens, i, rootFields, out var endLine);
-                if (rootFields.Count > 0)
-                {
-                    operations.Add(new GraphQLParsedOperation("Query", null, rootFields, startLine, endLine));
-                }
-                continue;
-            }
-            // 3. SDL root type definition: `type Query { ... }` or `extend type Query { ... }`
-            else if (!tok.IsPunctuator && (tok.Text == "type" || (tok.Text == "extend" && i + 1 < tokens.Count && tokens[i + 1].Text == "type")))
-            {
-                if (tok.Text == "extend") i++;
-                i++; // consume 'type'
 
-                if (i < tokens.Count && !tokens[i].IsPunctuator)
-                {
-                    var typeName = tokens[i].Text;
-                    i++;
-
-                    // Advance until '{'
-                    while (i < tokens.Count && tokens[i].Text != "{")
-                    {
-                        if (tokens[i].Text == "(")
-                        {
-                            i = SkipBalanced(tokens, i, "(", ")");
-                        }
-                        else
-                        {
-                            i++;
-                        }
-                    }
-
-                    if (i < tokens.Count && tokens[i].Text == "{")
-                    {
-                        if (typeName is "Query" or "Mutation" or "Subscription")
-                        {
-                            i = ParseSdlTypeFields(tokens, i, typeName, sdlFields);
-                        }
-                        else
-                        {
-                            i = SkipBalanced(tokens, i, "{", "}");
-                        }
-                        continue;
-                    }
-                }
-            }
-            // 4. Other top-level blocks (fragment, input, enum, interface, union, scalar, schema): skip their '{ ... }' block
-            else if (tok.Text == "{")
+            // Skip any other SDL block `{ ... }` (e.g. input, enum, interface, schema, fragment, non-root type)
+            var braceRes = Braces(rem);
+            if (braceRes.HasValue)
             {
-                i = SkipBalanced(tokens, i, "{", "}");
+                rem = braceRes.Remainder;
+                canStartShorthandQuery = true;
                 continue;
             }
 
-            i++;
+            var consumed = rem.ConsumeToken();
+            if (!consumed.HasValue) break;
+            rem = consumed.Remainder;
+            canStartShorthandQuery = false;
         }
 
         return (operations, sdlFields);
-    }
-
-    private static int ParseRootSelectionSet(
-        List<GqlToken> tokens,
-        int openBraceIdx,
-        List<string> rootFields,
-        out int endLine)
-    {
-        endLine = tokens[openBraceIdx].Line;
-        var i = openBraceIdx + 1;
-
-        while (i < tokens.Count)
-        {
-            var tok = tokens[i];
-            endLine = tok.Line;
-
-            if (tok.Text == "}")
-            {
-                return i + 1;
-            }
-
-            // Fragment spread `...Frag` or inline fragment `... on Query { ... }`
-            if (tok.Text == "...")
-            {
-                i++;
-                if (i < tokens.Count && tokens[i].Text == "on")
-                {
-                    i++; // consume 'on'
-                    if (i < tokens.Count && !tokens[i].IsPunctuator)
-                    {
-                        i++; // consume type name
-                    }
-                    i = SkipDirectives(tokens, i);
-                    if (i < tokens.Count && tokens[i].Text == "{")
-                    {
-                        i = ParseRootSelectionSet(tokens, i, rootFields, out endLine);
-                    }
-                }
-                else if (i < tokens.Count && tokens[i].Text == "{")
-                {
-                    i = ParseRootSelectionSet(tokens, i, rootFields, out endLine);
-                }
-                else
-                {
-                    if (i < tokens.Count && !tokens[i].IsPunctuator) i++; // fragment name
-                    i = SkipDirectives(tokens, i);
-                }
-                continue;
-            }
-
-            if (!tok.IsPunctuator)
-            {
-                var fieldOrAlias = tok.Text;
-                i++;
-
-                // Check for alias: `aliasName: actualFieldName`
-                if (i < tokens.Count && tokens[i].Text == ":")
-                {
-                    i++; // consume ':'
-                    if (i < tokens.Count && !tokens[i].IsPunctuator)
-                    {
-                        fieldOrAlias = tokens[i].Text;
-                        i++;
-                    }
-                }
-
-                if (!fieldOrAlias.StartsWith("__", StringComparison.Ordinal) &&
-                    !rootFields.Contains(fieldOrAlias, StringComparer.Ordinal))
-                {
-                    rootFields.Add(fieldOrAlias);
-                }
-
-                // Skip field arguments (...)
-                if (i < tokens.Count && tokens[i].Text == "(")
-                {
-                    i = SkipBalanced(tokens, i, "(", ")");
-                }
-
-                // Skip field directives @dir(...)
-                i = SkipDirectives(tokens, i);
-
-                // Skip nested selection set { ... }
-                if (i < tokens.Count && tokens[i].Text == "{")
-                {
-                    endLine = tokens[i].Line;
-                    i = SkipBalanced(tokens, i, "{", "}");
-                    if (i > 0 && i <= tokens.Count)
-                    {
-                        endLine = tokens[i - 1].Line;
-                    }
-                }
-                continue;
-            }
-
-            i++;
-        }
-
-        return i;
-    }
-
-    private static int ParseSdlTypeFields(
-        List<GqlToken> tokens,
-        int openBraceIdx,
-        string operationType,
-        List<GraphQLParsedSdlField> sdlFields)
-    {
-        var i = openBraceIdx + 1;
-
-        while (i < tokens.Count)
-        {
-            var tok = tokens[i];
-            if (tok.Text == "}")
-            {
-                return i + 1;
-            }
-
-            if (!tok.IsPunctuator)
-            {
-                var fieldName = tok.Text;
-                var line = tok.Line;
-                i++;
-
-                // Skip field arguments (...)
-                if (i < tokens.Count && tokens[i].Text == "(")
-                {
-                    i = SkipBalanced(tokens, i, "(", ")");
-                }
-
-                string? returnType = null;
-                if (i < tokens.Count && tokens[i].Text == ":")
-                {
-                    i++; // consume ':'
-                    var typeSb = new StringBuilder();
-                    while (i < tokens.Count && (tokens[i].Text is "[" or "]" or "!" || (!tokens[i].IsPunctuator && typeSb.Length == 0) || (typeSb.Length > 0 && tokens[i - 1].Text == "[" && !tokens[i].IsPunctuator)))
-                    {
-                        if (!tokens[i].IsPunctuator)
-                        {
-                            returnType ??= tokens[i].Text;
-                        }
-                        typeSb.Append(tokens[i].Text);
-                        i++;
-                    }
-                }
-
-                i = SkipDirectives(tokens, i);
-
-                if (!fieldName.StartsWith("__", StringComparison.Ordinal))
-                {
-                    sdlFields.Add(new GraphQLParsedSdlField(operationType, fieldName, returnType, line));
-                }
-                continue;
-            }
-
-            i++;
-        }
-
-        return i;
-    }
-
-    private static int SkipDirectives(List<GqlToken> tokens, int i)
-    {
-        while (i < tokens.Count && tokens[i].Text == "@")
-        {
-            i++; // '@'
-            if (i < tokens.Count && !tokens[i].IsPunctuator)
-            {
-                i++; // directive name
-            }
-            if (i < tokens.Count && tokens[i].Text == "(")
-            {
-                i = SkipBalanced(tokens, i, "(", ")");
-            }
-        }
-        return i;
-    }
-
-    private static int SkipBalanced(List<GqlToken> tokens, int startIdx, string open, string close)
-    {
-        var depth = 0;
-        var i = startIdx;
-        while (i < tokens.Count)
-        {
-            if (tokens[i].Text == open) depth++;
-            else if (tokens[i].Text == close)
-            {
-                depth--;
-                if (depth <= 0) return i + 1;
-            }
-            i++;
-        }
-        return i;
-    }
-
-    private static List<GqlToken> Tokenize(string content)
-    {
-        var tokens = new List<GqlToken>();
-        var line = 1;
-        var i = 0;
-        var len = content.Length;
-
-        while (i < len)
-        {
-            var c = content[i];
-
-            if (c == '\n')
-            {
-                line++;
-                i++;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(c) || c == ',')
-            {
-                i++;
-                continue;
-            }
-
-            // Line comment # ...
-            if (c == '#')
-            {
-                while (i < len && content[i] != '\n') i++;
-                continue;
-            }
-
-            // Block string """ ... """
-            if (c == '"' && i + 2 < len && content[i + 1] == '"' && content[i + 2] == '"')
-            {
-                i += 3;
-                while (i + 2 < len && !(content[i] == '"' && content[i + 1] == '"' && content[i + 2] == '"'))
-                {
-                    if (content[i] == '\n') line++;
-                    i++;
-                }
-                i = Math.Min(len, i + 3);
-                continue;
-            }
-
-            // String literal "..."
-            if (c == '"')
-            {
-                i++;
-                while (i < len && content[i] != '"')
-                {
-                    if (content[i] == '\\' && i + 1 < len) i++;
-                    else if (content[i] == '\n') line++;
-                    i++;
-                }
-                if (i < len) i++;
-                continue;
-            }
-
-            // Spread operator ...
-            if (c == '.' && i + 2 < len && content[i + 1] == '.' && content[i + 2] == '.')
-            {
-                tokens.Add(new GqlToken("...", true, line));
-                i += 3;
-                continue;
-            }
-
-            // Single-char punctuators
-            if (c is '{' or '}' or '(' or ')' or '[' or ']' or ':' or '=' or '@' or '$' or '!' or '|' or '&')
-            {
-                tokens.Add(new GqlToken(c.ToString(), true, line));
-                i++;
-                continue;
-            }
-
-            // Name / Identifier / Number
-            if (char.IsLetterOrDigit(c) || c is '_' or '-')
-            {
-                var start = i;
-                while (i < len && (char.IsLetterOrDigit(content[i]) || content[i] is '_' or '-'))
-                {
-                    i++;
-                }
-                tokens.Add(new GqlToken(content[start..i], false, line));
-                continue;
-            }
-
-            i++;
-        }
-
-        return tokens;
     }
 
     private static readonly Regex TypedDocOperationRegex = new(

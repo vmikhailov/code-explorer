@@ -50,6 +50,43 @@ public class FalsePositiveRegressionTests
     }
 
     [Test]
+    public void GraphQL_AliasesInlineFragmentsDirectivesAndTemplateInterpolations_AreParsedCorrectly()
+    {
+        const string doc = """"
+            # Comment before block string
+            """
+            Multi-line description with { braces } and query fake { shouldNotMatch }
+            """
+            query GetWorkspaceDashboard($id: ID!) @cached {
+                primaryWorkspace: workspace(id: $id) @include(if: true) {
+                    id
+                    ...WorkspaceFields
+                }
+                ... on Query {
+                    currentUser { id }
+                }
+                __typename
+            }
+            ${WORKSPACE_FIELDS_FRAGMENT}
+            extend type Subscription {
+                workspaceUpdated(workspaceId: ID!): Workspace! @auth
+            }
+            """";
+
+        var (operations, sdlFields) = GraphQLDocumentExtractor.ParseDocument(doc);
+
+        operations.Should().HaveCount(1);
+        operations[0].OperationName.Should().Be("GetWorkspaceDashboard");
+        operations[0].RootFields.Should().BeEquivalentTo(["workspace", "currentUser"]);
+        operations[0].StartLine.Should().Be(5);
+        operations[0].EndLine.Should().Be(14);
+
+        sdlFields.Should().HaveCount(1);
+        sdlFields[0].FieldName.Should().Be("workspaceUpdated");
+        sdlFields[0].ReturnType.Should().Be("Workspace");
+    }
+
+    [Test]
     public void ReactNext_NestServerWithReactForServerSideRendering_IsNotAFrontend()
     {
         var context = new ProjectContext(

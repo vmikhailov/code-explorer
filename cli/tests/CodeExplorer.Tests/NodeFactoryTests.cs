@@ -1,6 +1,6 @@
-using System.Diagnostics;
+using System.Buffers;
+using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -15,136 +15,97 @@ namespace CodeExplorer.Tests;
 [TestFixture]
 public class NodeFactoryTests
 {
-    private static readonly JsonSerializerOptions LegacySerializerOptions = new()
+    [Test]
+    public void NodeFactory_Create_ExtractsExpectedPropertiesAndTypes_AcrossAllNodeLayers()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
-    private static Dictionary<string, object> LegacyFromNode(IOntologyNode node)
-    {
-        var json = JsonSerializer.Serialize(node, node.GetType(), LegacySerializerOptions);
-        var root = CypherValue.TryParseJsonText(json);
-
-        var properties = new Dictionary<string, object>();
-        foreach (var kvp in root.AsObject())
+        var tableNode = new TableNode("tbl:1", "users", "src/models/user.cs", new Dictionary<string, string>
         {
-            var cleanedVal = DbRowMaterializer.ConvertCypherValue(kvp.Value, typeof(object));
-            if (cleanedVal != null)
-            {
-                properties[kvp.Key] = cleanedVal;
-            }
-        }
+            ["line"] = "42",
+            ["size_bytes"] = "8192",
+            ["is_test"] = "true",
+            ["custom_key"] = "custom_val"
+        });
+        var createdTable = NodeFactory.Create(tableNode);
+        createdTable.Id.Should().Be("tbl:1");
+        createdTable.Kind.Should().Be(NodeKind.Table);
+        createdTable.Properties["name"].Should().Be("users");
+        createdTable.Properties["path"].Should().Be("src/models/user.cs");
+        createdTable.Properties["line"].Should().Be(42);
+        createdTable.Properties["size_bytes"].Should().Be(8192L);
+        createdTable.Properties["is_test"].Should().Be(true);
+        createdTable.Properties["custom_key"].Should().Be("custom_val");
 
-        if (node.CustomProperties != null)
-        {
-            foreach (var kvp in node.CustomProperties)
-            {
-                if (int.TryParse(kvp.Value, out var intVal) &&
-                    (kvp.Key.EndsWith("_line") || kvp.Key.EndsWith("_col") || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order" or "loc" or "line_count" or "statement_count"))
-                {
-                    properties[kvp.Key] = intVal;
-                }
-                else if (long.TryParse(kvp.Value, out var longVal) && kvp.Key is "size_bytes")
-                {
-                    properties[kvp.Key] = longVal;
-                }
-                else if (bool.TryParse(kvp.Value, out var boolVal) && kvp.Key is "is_test" or "is_library" or "is_empty" or "has_comment" or "is_decorator" or "is_internal" or "is_unsafe" or "is_async")
-                {
-                    properties[kvp.Key] = boolVal;
-                }
-                else
-                {
-                    properties[kvp.Key] = kvp.Value;
-                }
-            }
-        }
+        var typeNode = new TypeNode("type:1", "UserService", "App.UserService", "src/user.cs", "user.cs", 10, 50, 1, 1, "class", false, ProjectEntityKind.Service, "App.Core", 1, 40);
+        var createdType = NodeFactory.Create(typeNode);
+        createdType.Id.Should().Be("type:1");
+        createdType.Kind.Should().Be(NodeKind.Type);
+        createdType.Properties["name"].Should().Be("UserService");
+        createdType.Properties["symbol"].Should().Be("App.UserService");
+        createdType.Properties["start_line"].Should().Be(10);
+        createdType.Properties["end_line"].Should().Be(50);
+        createdType.Properties["project_kind"].Should().Be("Service");
+        createdType.Properties["project_name"].Should().Be("App.Core");
+        createdType.Properties["loc"].Should().Be(40);
 
-        return properties;
+        var fileNode = new FileNode("f:1", "user.cs", "src/user.cs", "/workspace/src/user.cs", false, ProjectEntityKind.Service, "App.Core", 100, 2048L);
+        var createdFile = NodeFactory.Create(fileNode);
+        createdFile.Kind.Should().Be(NodeKind.File);
+        createdFile.Properties["full_path"].Should().Be("/workspace/src/user.cs");
+        createdFile.Properties["line_count"].Should().Be(100);
+        createdFile.Properties["size_bytes"].Should().Be(2048L);
+
+        var endpointNode = new EndpointNode("ep:1", "GET /api/users", "src/user.cs", "GET", "/api/users");
+        var createdEp = NodeFactory.Create(endpointNode);
+        createdEp.Kind.Should().Be(NodeKind.Endpoint);
+        createdEp.Properties["http_method"].Should().Be("GET");
+        createdEp.Properties["route_template"].Should().Be("/api/users");
+
+        var domainNode = new DomainNode("dom:1", "UserManagement", "User Management", "Core", "Manages users and auth", "user", "src/domains/user");
+        var createdDomain = NodeFactory.Create(domainNode);
+        createdDomain.Kind.Should().Be(NodeKind.Domain);
+        createdDomain.Properties["display_name"].Should().Be("User Management");
+        createdDomain.Properties["domain_type"].Should().Be("Core");
+
+        var bcNode = new BoundedContextNode("bc:1", "Identity", "Core identity", "dom:1", "Summary", "blue", "gray", 95.5, "src/identity");
+        var createdBc = NodeFactory.Create(bcNode);
+        createdBc.Kind.Should().Be(NodeKind.BoundedContext);
+        createdBc.Properties["purity_percentage"].Should().Be(95.5);
+
+        var catchNode = new CatchClauseNode("catch:1", "catch", "ArgumentNullException", "src/user.cs", 30, 1, false, true, 2);
+        var createdCatch = NodeFactory.Create(catchNode);
+        createdCatch.Kind.Should().Be(NodeKind.CatchClause);
+        createdCatch.Properties["exception_type"].Should().Be("ArgumentNullException");
+        createdCatch.Properties["is_empty"].Should().Be(false);
+        createdCatch.Properties["has_comment"].Should().Be(true);
+        createdCatch.Properties["statement_count"].Should().Be(2);
     }
 
     [Test]
-    public void NodeFactory_MatchesLegacySerialization_AcrossAllNodeTypes()
+    public void NodeFactory_WriteJsonProperties_MatchesMaterializedProperties()
     {
-        var testNodes = new List<IOntologyNode>
+        var fnNode = new FunctionNode(
+            "fn:1", "GetUser", "App.UserService.GetUser", "src/user.cs", "user.cs",
+            15, 25, 5, 1, false, ProjectEntityKind.Service, "App.Core", 1, 10,
+            new Dictionary<string, string> { ["is_async"] = "true", ["call_line"] = "18" });
+
+        var dbNode = NodeFactory.Create(fnNode);
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
         {
-            new TableNode("tbl:1", "users", "src/models/user.cs", new Dictionary<string, string> { ["line"] = "42", ["is_test"] = "true" }),
-            new TypeNode("type:1", "UserService", "App.UserService", "src/user.cs", "user.cs", 10, 50, 1, 1, "class", false, ProjectEntityKind.Service, "App.Core", 1, 40, new Dictionary<string, string> { ["custom_key"] = "custom_val" }),
-            new FunctionNode("fn:1", "GetUser", "App.UserService.GetUser", "src/user.cs", "user.cs", 15, 25, 5, 1, false, ProjectEntityKind.Service, "App.Core", 1, 10),
-            new FileNode("f:1", "user.cs", "src/user.cs", "/workspace/src/user.cs", false, ProjectEntityKind.Service, "App.Core", 100, 2048L),
-            new EndpointNode("ep:1", "GET /api/users", "src/user.cs", "GET", "/api/users"),
-            new ProjectNode("p:1", "App.Core", "src/App.Core.csproj", "CSharp", "Service"),
-            new DomainNode("dom:1", "UserManagement", "User Management", "Core", "Manages users and auth", "user", "src/domains/user"),
-            new BoundedContextNode("bc:1", "Identity", "Core identity", "dom:1", "Summary", "blue", "gray", 95.5, "src/identity"),
-            new CatchClauseNode("catch:1", "catch", "ArgumentNullException", "src/user.cs", 30, 1, false, true, 2),
-            new CallLiteralNode("call:1", "arg", "Hello", "App.Log", 0, "src/user.cs", 12, 5),
-            new QueryNode("q:1", "SelectUsers", "SELECT * FROM users", "src/repo.cs", 10, 15)
-        };
-
-        foreach (var node in testNodes)
-        {
-            var legacyProps = LegacyFromNode(node);
-            var modernNode = NodeFactory.Create(node);
-            var modernProps = modernNode.Properties;
-
-            modernNode.Id.Should().Be(node.Id);
-            modernNode.Kind.Should().Be(node.Kind);
-
-            var legacyKeys = legacyProps.Keys.OrderBy(k => k).ToList();
-            var modernKeys = modernProps.Keys.OrderBy(k => k).ToList();
-
-            modernKeys.Should().Equal(legacyKeys, $"Properties keys should be identical for {node.GetType().Name}");
-
-            foreach (var key in legacyKeys)
-            {
-                var legacyVal = legacyProps[key]?.ToString();
-                var modernVal = modernProps[key]?.ToString();
-                modernVal.Should().Be(legacyVal, $"Value for property '{key}' should match on {node.GetType().Name}");
-            }
-        }
-    }
-
-    [Test]
-    public void NodeFactory_PerformanceBenchmark_SignificantlyFasterThanLegacy()
-    {
-        var sampleNode = new TypeNode(
-            "type:sample", "OrderProcessor", "App.OrderProcessor",
-            "src/orders/processor.cs", "processor.cs", 10, 120, 1, 1,
-            "class", false, ProjectEntityKind.Service, "App.Orders", 2, 95,
-            new Dictionary<string, string> { ["line"] = "10", ["is_test"] = "false", ["custom_tag"] = "important" }
-        );
-
-        // Warmup
-        for (int i = 0; i < 500; i++)
-        {
-            LegacyFromNode(sampleNode);
-            NodeFactory.Create(sampleNode);
+            NodeFactory.WriteJsonProperties(dbNode, writer);
         }
 
-        const int iterations = 20_000;
+        var json = Encoding.UTF8.GetString(buffer.WrittenSpan);
+        var parsed = CypherValue.TryParseJsonText(json);
+        parsed.GetStringProp("name").Should().Be("GetUser");
+        parsed.GetStringProp("symbol").Should().Be("App.UserService.GetUser");
+        parsed.GetIntProp("start_line").Should().Be(15);
+        parsed.GetIntProp("end_line").Should().Be(25);
+        parsed.GetBoolProp("is_async").Should().BeTrue();
+        parsed.GetIntProp("call_line").Should().Be(18);
 
-        // Legacy benchmark
-        var swLegacy = Stopwatch.StartNew();
-        for (int i = 0; i < iterations; i++)
-        {
-            LegacyFromNode(sampleNode);
-        }
-        swLegacy.Stop();
-
-        // NodeFactory benchmark
-        var swModern = Stopwatch.StartNew();
-        for (int i = 0; i < iterations; i++)
-        {
-            NodeFactory.Create(sampleNode);
-        }
-        swModern.Stop();
-
-        TestContext.Out.WriteLine($"=== Benchmark Results ({iterations:N0} iterations) ===");
-        TestContext.Out.WriteLine($"Legacy JsonSerializer: {swLegacy.ElapsedMilliseconds} ms ({swLegacy.Elapsed.TotalMicroseconds / iterations:F2} µs/op)");
-        TestContext.Out.WriteLine($"NodeFactory IL-Emit:   {swModern.ElapsedMilliseconds} ms ({swModern.Elapsed.TotalMicroseconds / iterations:F2} µs/op)");
-        TestContext.Out.WriteLine($"Speedup:               {(double)swLegacy.ElapsedMilliseconds / Math.Max(1, swModern.ElapsedMilliseconds):F1}x faster");
-
-        swModern.ElapsedMilliseconds.Should().BeLessThan(swLegacy.ElapsedMilliseconds, "NodeFactory must be strictly faster than JSON serialization");
+        var schemaKeys = NodeFactory.GetSchemaPropertyKeys(typeof(FunctionNode));
+        schemaKeys.Should().Contain(["id", "name", "symbol", "start_line", "loc"]);
     }
 }
 

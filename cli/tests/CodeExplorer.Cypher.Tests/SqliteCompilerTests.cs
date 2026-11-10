@@ -26,14 +26,14 @@ public class SqliteCompilerTests
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE TABLE edges (
                 from_id INTEGER NOT NULL,
                 to_id INTEGER NOT NULL,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE INDEX idx_edges_from ON edges(from_id);
@@ -85,7 +85,7 @@ public class SqliteCompilerTests
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
+        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, jsonb(@props))";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeNodeKind(kind));
         cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
@@ -96,7 +96,7 @@ public class SqliteCompilerTests
     {
         using var cmd = _conn.CreateCommand();
 
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, '{}')";
+        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ((SELECT rowid FROM nodes WHERE id = @from), (SELECT rowid FROM nodes WHERE id = @to), @kind, jsonb('{}'))";
         cmd.Parameters.AddWithValue("@from", fromId);
         cmd.Parameters.AddWithValue("@to", toId);
         cmd.Parameters.AddWithValue("@kind", GraphKindCodec.EncodeRelKind(kind));
@@ -352,10 +352,9 @@ public class SqliteCompilerTests
         rows.Should().HaveCount(1);
         var relJson = (string)rows[0]["r"]!;
 
-        var relObj = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(relJson)!;
-        relObj["type"].GetString().Should().Be("CALLS");
-        relObj["from"].GetString().Should().Be("fn:process");
-        relObj["to"].GetString().Should().Be("fn:save");
+        relJson.Should().Contain("\"type\":\"CALLS\"");
+        relJson.Should().Contain("\"from\":\"fn:process\"");
+        relJson.Should().Contain("\"to\":\"fn:save\"");
     }
 
     [Test]

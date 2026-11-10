@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Database;
-using System.Text.Json;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Java;

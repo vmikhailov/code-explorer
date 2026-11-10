@@ -88,10 +88,19 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(propsJson)) return "[]";
             try
             {
-                var map = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(propsJson);
-                if (map != null)
+                var reader = new Utf8JsonReader( System.Text.Encoding.UTF8.GetBytes(propsJson));
+                if (reader.Read() && reader.TokenType == JsonTokenType.StartObject)
                 {
-                    return JsonSerializer.Serialize(map.Keys.ToList());
+                    var keys = new List<string>();
+                    while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+                    {
+                        if (reader.TokenType == JsonTokenType.PropertyName)
+                        {
+                            keys.Add(reader.GetString()!);
+                            reader.Skip();
+                        }
+                    }
+                    return JsonSerializer.Serialize(keys);
                 }
             }
             catch { }
@@ -99,51 +108,9 @@ public static class SqliteCypherFunctions
         });
 
         // 5. List functions
-        conn.CreateFunction("head", (string? jsonList) =>
-        {
-            if (string.IsNullOrEmpty(jsonList)) return null;
-            try
-            {
-                var arr = JsonSerializer.Deserialize<List<JsonElement>>(jsonList);
-                if (arr is { Count: > 0 })
-                {
-                    return arr[0].ToString();
-                }
-            }
-            catch { }
-            return null;
-        });
-
-        conn.CreateFunction("last", (string? jsonList) =>
-        {
-            if (string.IsNullOrEmpty(jsonList)) return null;
-            try
-            {
-                var arr = JsonSerializer.Deserialize<List<JsonElement>>(jsonList);
-                if (arr is { Count: > 0 })
-                {
-                    return arr[^1].ToString();
-                }
-            }
-            catch { }
-            return null;
-        });
-
-        conn.CreateFunction("tail", (string? jsonList) =>
-        {
-            if (string.IsNullOrEmpty(jsonList)) return "[]";
-            try
-            {
-                var arr = JsonSerializer.Deserialize<List<JsonElement>>(jsonList);
-                if (arr != null)
-                {
-                    var items = arr.Skip(1).Select(x => x.ToString()).ToList();
-                    return JsonSerializer.Serialize(items);
-                }
-            }
-            catch { }
-            return "[]";
-        });
+        conn.CreateFunction("head", (string? jsonList) => ReadJsonArrayItem(jsonList, isLast: false));
+        conn.CreateFunction("last", (string? jsonList) => ReadJsonArrayItem(jsonList, isLast: true));
+        conn.CreateFunction("tail", (string? jsonList) => ReadJsonArrayTail(jsonList));
 
         conn.CreateFunction("range", (int start, int end, int step) =>
         {
@@ -159,5 +126,37 @@ public static class SqliteCypherFunctions
             }
             return JsonSerializer.Serialize(list);
         });
+    }
+
+    private static string? ReadJsonArrayItem(string? jsonList, bool isLast)
+    {
+        var items = ParseStringList(jsonList);
+        if (items.Count == 0) return null;
+        return isLast ? items[^1] : items[0];
+    }
+
+    private static string ReadJsonArrayTail(string? jsonList)
+    {
+        var items = ParseStringList(jsonList);
+        return items.Count <= 1 ? "[]" : JsonSerializer.Serialize(items.Skip(1).ToList());
+    }
+
+    public static List<string> ParseStringList(string? jsonList)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrEmpty(jsonList)) return result;
+        try
+        {
+            var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(jsonList));
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartArray) return result;
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                result.Add(reader.TokenType == JsonTokenType.String
+                    ? reader.GetString() ?? string.Empty
+                    : System.Text.Encoding.UTF8.GetString(reader.ValueSpan));
+            }
+        }
+        catch { }
+        return result;
     }
 }

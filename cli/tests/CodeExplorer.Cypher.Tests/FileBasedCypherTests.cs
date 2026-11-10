@@ -12,7 +12,7 @@ public class FileBasedCypherTests
 {
     private SqliteConnection _conn = null!;
 
-    [SetUp]
+    [OneTimeSetUp]
     public void SetUp()
     {
         _conn = new SqliteConnection("Data Source=:memory:");
@@ -25,14 +25,14 @@ public class FileBasedCypherTests
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE TABLE edges (
                 from_id INTEGER NOT NULL,
                 to_id INTEGER NOT NULL,
                 kind INTEGER NOT NULL,
-                properties TEXT NOT NULL
+                properties JSONB NOT NULL
             );
 
             CREATE INDEX idx_edges_from ON edges(from_id);
@@ -43,7 +43,7 @@ public class FileBasedCypherTests
         cmd.ExecuteNonQuery();
     }
 
-    [TearDown]
+    [OneTimeTearDown]
     public void TearDown()
     {
         _conn.Dispose();

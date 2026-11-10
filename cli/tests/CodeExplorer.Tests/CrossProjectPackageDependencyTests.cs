@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 

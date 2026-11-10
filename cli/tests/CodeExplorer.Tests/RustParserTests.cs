@@ -1,10 +1,10 @@
 using CodeExplorer.Core.Database;
-using System.Text.Json;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.Rust;
 using CodeExplorer.Parser.Rust.Libraries;
 using NUnit.Framework;
@@ -203,18 +203,22 @@ public class RustParserTests
 
             var server = projects.Single(p => p.Name == "server");
             server.LocalDependencyPaths.Should().BeEquivalentTo([coreDir]);
-            var serverReach = JsonSerializer.Deserialize<Dictionary<string, string[]>>(
-                server.Properties[OntologyConstants.PropertyNames.SourceReachability])!;
-            var serverFiles = serverReach[coreDir].Select(f => Path.GetRelativePath(coreDir, f).Replace('\\', '/')).ToList();
+            var serverReach = CypherValue.TryParseJsonText(
+                server.Properties[OntologyConstants.PropertyNames.SourceReachability]);
+            serverReach.TryGetProperty(coreDir, out var serverCoreReach).Should().BeTrue();
+            var serverFiles = serverCoreReach.AsStringList().Select(f => Path.GetRelativePath(coreDir, f).Replace('\\', '/')).ToList();
             serverFiles.Should().BeEquivalentTo(["src/server.rs", "src/services/batch.rs"]);
-            serverReach[utilsDir].Select(f => Path.GetFileName(f)).Should().BeEquivalentTo(["helpers.rs"]);
-            serverReach[deepDir].Should().BeEmpty();
+            serverReach.TryGetProperty(utilsDir, out var serverUtilsReach).Should().BeTrue();
+            serverUtilsReach.AsStringList().Select(f => Path.GetFileName(f)).Should().BeEquivalentTo(["helpers.rs"]);
+            serverReach.TryGetProperty(deepDir, out var serverDeepReach).Should().BeTrue();
+            serverDeepReach.AsStringList().Should().BeEmpty();
 
             var client = projects.Single(p => p.Name == "client");
             client.LocalDependencyPaths!.Count.Should().Be(2);
-            var clientReach = JsonSerializer.Deserialize<Dictionary<string, string[]>>(
-                client.Properties[OntologyConstants.PropertyNames.SourceReachability])!;
-            var clientFiles = clientReach[coreDir].Select(f => Path.GetRelativePath(coreDir, f).Replace('\\', '/')).ToList();
+            var clientReach = CypherValue.TryParseJsonText(
+                client.Properties[OntologyConstants.PropertyNames.SourceReachability]);
+            clientReach.TryGetProperty(coreDir, out var clientCoreReach).Should().BeTrue();
+            var clientFiles = clientCoreReach.AsStringList().Select(f => Path.GetRelativePath(coreDir, f).Replace('\\', '/')).ToList();
             clientFiles.Should().BeEquivalentTo(["src/client/e2e.rs", "src/client/iris_data.rs"]);
         }
         finally

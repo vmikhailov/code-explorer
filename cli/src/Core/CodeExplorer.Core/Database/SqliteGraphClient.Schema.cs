@@ -80,7 +80,6 @@ public partial class SqliteGraphClient
         {
             SchemaVersion = ver;
             _logger.LogWarning("Database was created with a newer schema version (v{Ver} > v{Current}). Consider upgrading CodeExplorer CLI.", ver, CurrentSchemaVersion);
-            Console.Error.WriteLine($"[CodeExplorer] Warning: Database was created with a newer schema version (v{ver} > v{CurrentSchemaVersion}). Consider upgrading CodeExplorer CLI.");
         }
         else
         {
@@ -99,7 +98,6 @@ public partial class SqliteGraphClient
         try
         {
             _logger.LogInformation("Upgrading database schema from v{From} to v{To}...", fromVersion, toVersion);
-            Console.Error.WriteLine($"[CodeExplorer] Upgrading database schema from v{fromVersion} to v{toVersion}...");
 
             using var migrateCmd = _conn.CreateCommand();
             var sb = new System.Text.StringBuilder();
@@ -218,18 +216,24 @@ public partial class SqliteGraphClient
 
             if (fromVersion < 6)
             {
+                using var colCmd = _conn.CreateCommand();
+                colCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('file_registry') WHERE name = 'size_bytes';";
+                if (Convert.ToInt32(colCmd.ExecuteScalar()) == 0)
+                {
+                    colCmd.CommandText = "ALTER TABLE file_registry ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT -1;";
+                    colCmd.ExecuteNonQuery();
+                }
+
                 CreateGraphSecondaryIndices();
             }
 
             _logger.LogInformation("Database schema successfully upgraded to v{To}.", toVersion);
-            Console.Error.WriteLine($"[CodeExplorer] Database schema successfully upgraded to v{toVersion}.");
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Schema migration from v{From} to v{To} encountered an error (will trigger full rebuild): {Message}",
                 fromVersion, toVersion, ex.Message);
-            Console.Error.WriteLine($"[CodeExplorer] Warning: Database schema migration from v{fromVersion} to v{toVersion} failed: {ex.Message}. A clean rescan ('ce scan --clear') may be required.");
             return false;
         }
     }
@@ -336,14 +340,6 @@ public partial class SqliteGraphClient
                           CREATE INDEX IF NOT EXISTS idx_intents_errors ON intents(error_count);
                           """;
         cmd.ExecuteNonQuery();
-
-        using var colCmd = _conn.CreateCommand();
-        colCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('file_registry') WHERE name = 'size_bytes';";
-        if (Convert.ToInt32(colCmd.ExecuteScalar()) == 0)
-        {
-            colCmd.CommandText = "ALTER TABLE file_registry ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT -1;";
-            colCmd.ExecuteNonQuery();
-        }
     }
 
     private void CreateGraphSecondaryIndices()
@@ -351,8 +347,6 @@ public partial class SqliteGraphClient
         using var cmd = _conn.CreateCommand();
         cmd.CommandTimeout = 0;
         cmd.CommandText = """
-                          DROP INDEX IF EXISTS idx_edges_unique;
-
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path')) WHERE json_extract(properties, '$.path') IS NOT NULL;
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path')) WHERE json_extract(properties, '$.file_path') IS NOT NULL;
