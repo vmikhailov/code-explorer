@@ -696,7 +696,7 @@ function buildBindings(data, rawMilestones01) {
 
     b['catalog.participants_html'] = [
       `<strong>Tested participants &amp; versions across the benchmark suite:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${data.meta.tools.ce_suite_versions}</code> (.NET 10, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${data.meta.tools.ce_suite_versions}</code> (.NET 10 &amp; .NET 11, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
       `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${data.meta.tools.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
       `          3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>${data.meta.tools.graphify_version}</code> (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX <code>--code-only</code>, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
       `          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${data.meta.tools.ripgrep_version}</code>) + Python <code>${data.meta.tools.python_version}</code> (Case 02) + <code>view_file</code><br>`,
@@ -837,7 +837,7 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs06.participants_html'] = [
       `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 10, SQLite + OpenCypher, Semantic Invariant Gates, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
       `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c6.cbm_version}</code> (Go + Kuzu database, <code>${data.meta.tools.cbm_mcp_tools}</code> tools)<br>`,
       `          3. <strong>LLM Model:</strong> <code>${c6.model}</code> (symmetric system prompts across paired runs)<br>`,
       `          4. <strong>Target Repository:</strong> <code>${c6.repo.name}</code> (commit <code>${c6.repo.commit}</code>, <code>${c6.repo.projects}</code> subsystems, <code>${fmtInt(c6.repo.files)}</code> files)`,
@@ -932,7 +932,7 @@ function buildBindings(data, rawMilestones01) {
     ].join('\n');
 
     b['md.catalog_participants'] = [
-      `1. **CodeExplorer (\`ce\`)**: \`${data.meta.tools.ce_suite_versions}\` (.NET 10, SQLite + OpenCypher, \`${data.meta.tools.ce_mcp_tools}\` MCP tools)`,
+      `1. **CodeExplorer (\`ce\`)**: \`${data.meta.tools.ce_suite_versions}\` (.NET 10 & .NET 11, SQLite + OpenCypher, \`${data.meta.tools.ce_mcp_tools}\` MCP tools)`,
       `2. **codebase-memory-mcp (\`CBM\`)**: \`${data.meta.tools.cbm_version}\` (\`win32-x64\` Go + SQLite binary, \`${data.meta.tools.cbm_mcp_tools}\` MCP tools)`,
       `3. **Graphify (\`graphifyy\`)**: \`${data.meta.tools.graphify_version}\` (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX \`--code-only\`, \`${data.meta.tools.graphify_mcp_tools}\` MCP tools)`,
       `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` (Case 02) + \`view_file\``,

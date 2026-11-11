@@ -37,7 +37,7 @@ No LLM in the loop. Both tools index the same commits of `twentyhq/twenty` (`24,
 ## Tested Participants & Versions
 
 <!-- BEGIN:md.catalog_participants -->
-1. **CodeExplorer (`ce`)**: `v1.75.0 to v1.80.0` (.NET 10, SQLite + OpenCypher, `36` MCP tools)
+1. **CodeExplorer (`ce`)**: `v1.75.0 to v1.80.0` (.NET 10 & .NET 11, SQLite + OpenCypher, `36` MCP tools)
 2. **codebase-memory-mcp (`CBM`)**: `v0.12.1` (`win32-x64` Go + SQLite binary, `17` MCP tools)
 3. **Graphify (`graphifyy`)**: `v0.9.104` (Python 3.10, Tree-sitter + NetworkX `--code-only`, `10` MCP tools)
 4. **Lexical CLI Baseline**: `ripgrep` (`rg v14.1.1`) + Python `3.10` (Case 02) + `view_file`
