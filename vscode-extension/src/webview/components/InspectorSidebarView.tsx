@@ -396,14 +396,6 @@ export const InspectorSidebarView: React.FC = () => {
             </span>
           )}
         </div>
-        <button
-          type="button"
-          className="domain-dock-toggle-btn"
-          onClick={() => getVsCodeApi()?.postMessage({ type: 'MOVE_INSPECTOR_VIEW' })}
-          title="Move this panel to the Secondary Side Bar (Right, next to AI Chat) or Primary Side Bar"
-        >
-          ⇄ Dock
-        </button>
       </div>
 
       {/* Unified Tab Switcher Header: Info, Orbits, Visibility, Settings */}
