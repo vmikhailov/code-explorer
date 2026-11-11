@@ -147,6 +147,7 @@ public partial class Layer3SyntacticParser
 
         if (projectRels.Count > 0)
         {
+            ctx.TreeRelationships.AddRange(projectRels);
             await ctx.EnqueueUploadRelationshipsAsync(projectRels);
             ctx.AddRelsCount(projectRels.Count);
         }

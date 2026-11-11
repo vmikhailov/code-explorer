@@ -72,7 +72,7 @@ public partial class ArchitectureViewEngine
             return graph;
         }
 
-        var files = await LoadProjectMapFilesAsync(selected.Id, ct);
+        var files = await LoadProjectMapFilesAsync(selected.Id, selected.Name, selected.Path, ct);
         var subProjects = await LoadProjectMapSubProjectsAsync(selected.Id, ct);
         var excludedSubpaths = ParseJsonStringList(selected.ExcludedSubpathsJson);
 
@@ -124,7 +124,8 @@ public partial class ArchitectureViewEngine
     private async Task<List<ProjectMapProjectInfo>> LoadProjectMapProjectsAsync(CancellationToken ct)
     {
         const string query =
-            "MATCH (p:Project)-[:CONTAINS]->(f:File) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, coalesce(p.kind, p.role, '') AS kind, count(f) AS files";
+            "MATCH (p:Project) OPTIONAL MATCH (p)-[:CONTAINS]->(f:File) " +
+            "RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, coalesce(p.kind, p.role, '') AS kind, count(f) AS files";
         const string colIsTest = "is_test";
         const string colIsBuildOrch = "is_build_orch";
         var res = await db.ExecuteCypherAsync(query, null, ct);
@@ -141,6 +142,36 @@ public partial class ArchitectureViewEngine
                 e.GetStringProp("kind")))
             .Where(p => !string.IsNullOrEmpty(p.Id))
             .ToList();
+
+        // If any projects have 0 files (e.g. [:CONTAINS]->(:File) edges were not persisted),
+        // fallback to counting files by f.project_name or path prefix.
+        if (list.Any(p => p.FileCount == 0))
+        {
+            try
+            {
+                const string fileCountQuery = "MATCH (f:File) RETURN f.project_name AS name, count(f) AS files";
+                var fileCountRes = await db.ExecuteCypherAsync(fileCountQuery, null, ct);
+                var countsByProjectName = fileCountRes.Rows
+                    .Where(r => !string.IsNullOrEmpty(r.GetStringProp("name")))
+                    .ToDictionary(
+                        r => r.GetStringProp("name"),
+                        r => r.GetNullableIntProp("files") ?? 0,
+                        StringComparer.OrdinalIgnoreCase);
+
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var p = list[i];
+                    if (p.FileCount == 0 && countsByProjectName.TryGetValue(p.Name, out var count) && count > 0)
+                    {
+                        list[i] = p with { FileCount = count };
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback is best-effort
+            }
+        }
 
         // Also include parent projects that only contain child SubProjects (:Project)-[:CONTAINS]->(:Project)
         const string parentProjectsQuery =
@@ -186,11 +217,13 @@ public partial class ArchitectureViewEngine
             {
                 var subId = e.GetStringProp("id");
                 if (string.IsNullOrEmpty(subId)) continue;
-                var subFiles = await LoadProjectMapFilesAsync(subId, ct);
+                var subName = e.GetStringProp("name");
+                var subPath = e.GetStringProp("path");
+                var subFiles = await LoadProjectMapFilesAsync(subId, subName, subPath, ct);
                 result.Add(new ProjectMapSubProject(
                     subId,
-                    e.GetStringProp("name"),
-                    e.GetStringProp("path"),
+                    subName,
+                    subPath,
                     e.GetStringProp("kind", "Service"),
                     subFiles));
             }
@@ -234,17 +267,66 @@ public partial class ArchitectureViewEngine
                    p.Path.Replace('\\', '/').TrimEnd('/').Split('/').Last().Equals(s, StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task<List<ProjectMapFile>> LoadProjectMapFilesAsync(string projectId, CancellationToken ct)
+    private async Task<List<ProjectMapFile>> LoadProjectMapFilesAsync(
+        string projectId,
+        string? projectName = null,
+        string? projectPath = null,
+        CancellationToken ct = default)
     {
         const string query =
             "MATCH (p:Project)-[:CONTAINS]->(f:File) WHERE p.id = $pid RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
         const string colIsTest = "is_test";
         var res = await db.ExecuteCypherAsync(query, new { pid = projectId }, ct);
 
-        return res.Rows
+        var files = res.Rows
             .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
             .Where(f => f.Path.Length > 0)
             .ToList();
+
+        if (files.Count > 0) return files;
+
+        // Fallback 1: match files by project_name
+        if (!string.IsNullOrEmpty(projectName))
+        {
+            try
+            {
+                const string nameQuery =
+                    "MATCH (f:File) WHERE f.project_name = $pname RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
+                var nameRes = await db.ExecuteCypherAsync(nameQuery, new { pname = projectName }, ct);
+                files = nameRes.Rows
+                    .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
+                    .Where(f => f.Path.Length > 0)
+                    .ToList();
+                if (files.Count > 0) return files;
+            }
+            catch
+            {
+                // Fallback is best-effort
+            }
+        }
+
+        // Fallback 2: match files by project directory path prefix
+        var normPath = projectPath?.Replace('\\', '/').Trim('/');
+        if (!string.IsNullOrEmpty(normPath))
+        {
+            try
+            {
+                var prefix = normPath + "/";
+                const string pathQuery =
+                    "MATCH (f:File) WHERE f.path STARTS WITH $prefix RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
+                var pathRes = await db.ExecuteCypherAsync(pathQuery, new { prefix }, ct);
+                files = pathRes.Rows
+                    .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
+                    .Where(f => f.Path.Length > 0)
+                    .ToList();
+            }
+            catch
+            {
+                // Fallback is best-effort
+            }
+        }
+
+        return files;
     }
 
     private async Task<(List<ProjectMapTypeNode> Types, List<ProjectMapFunctionNode> Functions, Dictionary<string, string> FuncIdToTypeName)> LoadProjectMapTypesAndFunctionsAsync(

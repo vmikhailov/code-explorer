@@ -110,4 +110,39 @@ public class ProjectMapRemainingItemsTests
             }
         }
     }
+
+    [Test]
+    public async Task ArchitectureViewEngine_ProjectMap_FindsProjectsWithoutContainsEdges()
+    {
+        var tempDbPath = Path.Combine(Path.GetTempPath(), $"ce_pm_fallback_{Guid.NewGuid():N}.db");
+        try
+        {
+            await using var db = new SqliteGraphClient(tempDbPath);
+
+            var nodes = new List<Node>
+            {
+                new("1:p:apps/frontend:", "Project", new() { ["name"] = "frontend", ["path"] = "apps/frontend", ["is_test"] = false }),
+                new("1:f:apps/frontend/src/index.ts", "File", new() { ["name"] = "index.ts", ["path"] = "apps/frontend/src/index.ts", ["project_name"] = "frontend", ["line_count"] = 42 })
+            };
+            await db.UploadNodesAsync(nodes);
+
+            // Notice: ZERO (Project)-[:CONTAINS]->(File) edges are uploaded!
+
+            var engine = new ArchitectureViewEngine(db);
+            var result = await engine.GetProjectMapViewAsync("frontend");
+
+            result.Should().NotBeNull();
+            result.Metadata.Should().NotContainKey("error");
+            result.Metadata.Should().ContainKey("projects");
+            result.Metadata["projects"].Should().Contain("frontend");
+            result.Nodes.Should().NotBeEmpty();
+        }
+        finally
+        {
+            if (File.Exists(tempDbPath))
+            {
+                try { File.Delete(tempDbPath); } catch { }
+            }
+        }
+    }
 }
