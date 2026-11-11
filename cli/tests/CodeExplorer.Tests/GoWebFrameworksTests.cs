@@ -608,4 +608,40 @@ func (s *Server) CallLocal(ctx context.Context, in *internalv1pb.InternalInvokeR
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Go_ReceiverMethods_LinkToStructViaHasMethod()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-go-recv-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "controller.go");
+
+        var code = @"package main
+
+type ApplicationController struct {
+    name string
+}
+
+func (ctrl *ApplicationController) Run() {}
+func (ctrl *ApplicationController) Stop() {}
+";
+        await File.WriteAllTextAsync(filePath, code);
+        try
+        {
+            var parser = new GoParser();
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", "ws-id", tempDir);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, "ws-id", tempDir);
+            syntaxTree.Should().NotBeNull();
+            syntaxTree.FileNode.Should().NotBeNull();
+
+            var structNode = syntaxTree.FileNode.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>().FirstOrDefault(c => c.Name == "ApplicationController");
+            structNode.Should().NotBeNull();
+            structNode!.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().Contain(c => c.Name == "Run");
+            structNode!.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().Contain(c => c.Name == "Stop");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

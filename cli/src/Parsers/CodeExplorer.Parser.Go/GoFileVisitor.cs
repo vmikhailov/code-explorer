@@ -3,13 +3,12 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go;
 
-public class GoFileVisitor : BaseParserVisitor
+public partial class GoFileVisitor : BaseParserVisitor
 {
     private const char BackslashChar = '\\';
     private const char SlashChar = '/';
     private static readonly char[] QuoteSeparators = ['"', '`'];
     private readonly GoParser _parser;
-
     public GoFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,

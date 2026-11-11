@@ -704,13 +704,41 @@ public partial class SqliteCompiler
     {
         const string patternCompPrefix = "_pc";
         var (fromJoins, conditions) = BuildSubqueryPath(patComp.Path, patternCompPrefix);
-        if (patComp.Filter != null)
+
+        var addedNodes = new List<string>();
+        var addedRels = new List<string>();
+
+        if (patComp.Path.Head.Variable != null && _declaredNodes.Add(patComp.Path.Head.Variable))
         {
-            conditions.Add(VisitExpression(patComp.Filter));
+            addedNodes.Add(patComp.Path.Head.Variable);
+        }
+        foreach (var elem in patComp.Path.Chain)
+        {
+            if (elem.Relationship.Variable != null && _declaredRels.Add(elem.Relationship.Variable))
+            {
+                addedRels.Add(elem.Relationship.Variable);
+            }
+            if (elem.Target.Variable != null && _declaredNodes.Add(elem.Target.Variable))
+            {
+                addedNodes.Add(elem.Target.Variable);
+            }
         }
 
-        var projSql = VisitExpression(patComp.Projection);
-        var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
-        return SqlTemplates.RenderCollectSubquery(false, projSql, fromJoins.ToString(), whereSql);
+        try
+        {
+            if (patComp.Filter != null)
+            {
+                conditions.Add(VisitExpression(patComp.Filter));
+            }
+
+            var projSql = VisitExpression(patComp.Projection);
+            var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
+            return SqlTemplates.RenderCollectSubquery(false, projSql, fromJoins.ToString(), whereSql);
+        }
+        finally
+        {
+            foreach (var n in addedNodes) _declaredNodes.Remove(n);
+            foreach (var r in addedRels) _declaredRels.Remove(r);
+        }
     }
 }

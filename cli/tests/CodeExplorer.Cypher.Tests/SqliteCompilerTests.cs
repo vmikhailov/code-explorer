@@ -1067,4 +1067,28 @@ public class SqliteCompilerTests
         compiled.Sql.Should().NotContain("FROM nodes _src_anc CROSS JOIN edges e ON e.to_id = _src_anc.rowid");
         compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.rowid");
     }
+
+    [Test]
+    public void Test_PatternComprehension_SupportsNodeAndRelVariableProjection()
+    {
+        InsertNode("fn:pc_parent", "Function", new() { ["name"] = "ParentFn" });
+        InsertNode("fn:pc_child1", "Function", new() { ["name"] = "ChildFn1" });
+        InsertNode("fn:pc_child2", "Function", new() { ["name"] = "ChildFn2" });
+        InsertEdge("fn:pc_parent", "fn:pc_child1", "CALLS");
+        InsertEdge("fn:pc_parent", "fn:pc_child2", "CALLS");
+
+        var cypher = @"
+            MATCH (fn:Function {name: 'ParentFn'})
+            RETURN fn.name AS name,
+                   [(fn)-[:CALLS]->(m:Function) | m.name] AS called_names,
+                   [(fn)-[:CALLS]->(m:Function) | m] AS called_nodes,
+                   [(fn)-[r:CALLS]->(m:Function) | type(r)] AS rel_types";
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(1);
+        rows[0]["name"].Should().Be("ParentFn");
+        rows[0]["called_names"]?.ToString().Should().Contain("ChildFn1");
+        rows[0]["called_names"]?.ToString().Should().Contain("ChildFn2");
+        rows[0]["rel_types"]?.ToString().Should().Contain("CALLS");
+    }
 }
