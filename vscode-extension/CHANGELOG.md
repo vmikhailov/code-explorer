@@ -8,12 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.80.0] - 2026-11-11
 
 ### Added & Improved
-- **Full Upgrade to .NET 11 (`net11.0`)**:
+- **Full Upgrade to .NET 11 (`net11.0`) & Zero-Warning Trimming**:
   - Migrated all 21 projects across `cli/src/` and `cli/tests/` to target .NET 11 (`net11.0`) and C# 14.
   - Upgraded GitHub Actions CI and Release build workflows to .NET SDK `11.0.x`.
   - Delivered up to **2.47× faster** AST rule evaluation (163 ms vs 402 ms across 3,000 files / 504k visits) and ~11% faster synthetic graph query latency via .NET 11 JIT and runtime optimizations.
   - Enabled assembly trimming (`PublishTrimmed=true`) with targeted trim-safe ontology annotations and `TrimmerRoots.xml`, shrinking standalone binary footprints by **41.6%** (from 91.7 MB down to **53.6 MB**) with zero trim warnings and 100% test and architectural gate parity.
   - Transitioned single-file publishing profiles to modern in-memory assembly loading, deprecating `IncludeAllContentForSelfExtract` and achieving zero compilation/publish warnings (`NETSDK1244`).
+- **Resilient Project Map File & Project Discovery (`ArchitectureViewEngine.ProjectMap.cs`)**:
+  - Eliminated rigid dependencies on explicit `(Project)-[:CONTAINS]->(File)` edges by using `MATCH (p:Project) OPTIONAL MATCH (p)-[:CONTAINS]->(f:File)` with fallback counting via `f.project_name = p.name` and path prefix matching.
+  - Added resilient fallback resolution in `LoadProjectMapFilesAsync` to locate project files even in workspaces where `CONTAINS` edges were omitted or interrupted during bulk ingestion.
+  - Guaranteed `projectRels` persistence in `ctx.TreeRelationships` during Layer 3 parsing.
+- **Dedicated VS Code Output Channels for Tool Lifecycle & Protocol Logs (`extension.ts`)**:
+  - Separated tool execution / binary management logs and communication protocol traffic into two distinct VS Code output channels: `CodeExplorer` and `CodeExplorer (Protocol)`.
+- **Inspector Header UI Clean-up (`InspectorSidebarView.tsx`)**:
+  - Removed the redundant dock button from the inspector sidebar header, decluttering the view controls.
+- **Cypher Recursive Path Limit Safeguard (`SqliteCompiler.cs`)**:
+  - Implemented `MaxPathTraversals` safeguard across compiled Cypher path traversals to protect against unbounded recursion.
 
 ## [1.79.0] - 2026-11-10
 
