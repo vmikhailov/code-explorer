@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-I-005",
-  "allowedViolations": 130,
+  "allowedViolations": 124,
   "entries": [
     {
       "fingerprint": "1d728bbd7fee839f25c5be56e4cc55d2e345f30d6076309b9a0785eb359cc5eb",
@@ -56,26 +56,6 @@
       "fingerprint": "1b48ba76a89651504a86e7e5ace75fccc45ee49414dc56339411257363f2e1bd",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.cs",
       "line": 176,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "b127173bacada0209ee304376cbc5d4922aa3c2e9efe9d1d1864eb348c2d202a",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
-      "line": 90,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "b9342b1e15c5c93f23ca66b515fad652913f2d1e9d5319822d697ef39e455482",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
-      "line": 165,
       "column": 0,
       "symbol": "",
       "target": "catch",
@@ -1156,46 +1136,6 @@
       "fingerprint": "d00b8a444e70c56e9e5e9ef0077d8574415884b21def339ce189521cdfbee2e6",
       "file": "vscode-extension/src/webview/layers.ts",
       "line": 60,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "dc08ef006160e2beb72ecb6ebb5b07a3b549ed2fc6d6809f3eedafa3faaec445",
-      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
-      "line": 789,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "d10e02700bc21d5d20d8ffe3df48215fea2290a7385dfdfb525a7bb8a3ced8d2",
-      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
-      "line": 794,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "70d6ea986b1571f6f9634acd74dff8ce4de193f7d0c9a610f893423c9b67202b",
-      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
-      "line": 820,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "cc1a8dceacb592fc627d7db6d81db360a6418c60851c73cc0361762bcd12bf15",
-      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
-      "line": 850,
       "column": 0,
       "symbol": "",
       "target": "catch",

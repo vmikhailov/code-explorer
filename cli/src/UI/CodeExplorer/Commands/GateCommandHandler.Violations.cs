@@ -10,6 +10,11 @@ public partial class GateCommandHandler : BaseCommandHandler
 {
     private static int RenderViolations(IReadOnlyList<GateCheckResult> results, GateOptions opts)
     {
+        if (IsCiFormat(opts.Format))
+        {
+            return RenderCiFormat(results, opts, 0);
+        }
+
         var items = new List<(GateViolation Violation, bool IsTolerated)>();
         foreach (var r in results)
         {

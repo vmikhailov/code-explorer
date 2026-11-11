@@ -513,26 +513,40 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        void AddLifted(string fromId, string toId, RelationshipKind relKind, Action<Relationship> configure)
+        var liftedByKey = new Dictionary<(string From, string To, RelationshipKind Kind), Relationship>();
+
+        void AddLifted(string fromId, string toId, RelationshipKind relKind, Relationship sourceEdge, Action<Relationship> configure)
         {
+            var actualFrom = fromId;
+            var actualTo = toId;
+            var setSemanticDefault = false;
             if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(fromId, out var semFrom) && semFrom != null)
             {
-                var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
-                if (semFrom != semTo && existingEdges.Add((semFrom, semTo, relKind)))
-                {
-                    var rel = new Relationship(semFrom, semTo, relKind) { IsSemantic = true };
-                    configure(rel);
-                    liftedRels.Add(rel);
-                }
+                actualFrom = semFrom;
+                actualTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
+                setSemanticDefault = true;
+            }
+
+            if (actualFrom == actualTo) return;
+
+            var key = (actualFrom, actualTo, relKind);
+            if (liftedByKey.TryGetValue(key, out var existingLifted))
+            {
+                EvidenceProvenanceHelper.PropagateEdgeProvenance(existingLifted, sourceEdge);
                 return;
             }
 
-            if (existingEdges.Add((fromId, toId, relKind)))
+            if (!existingEdges.Add(key))
             {
-                var rel = new Relationship(fromId, toId, relKind);
-                configure(rel);
-                liftedRels.Add(rel);
+                return;
             }
+
+            var rel = new Relationship(actualFrom, actualTo, relKind);
+            if (setSemanticDefault) rel.IsSemantic = true;
+            configure(rel);
+            EvidenceProvenanceHelper.PropagateEdgeProvenance(rel, sourceEdge);
+            liftedByKey[key] = rel;
+            liftedRels.Add(rel);
         }
 
         foreach (var service in services)
@@ -590,6 +604,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 inEdge.From,
                                 RelationshipKind.SubscribesTo,
+                                inEdge,
                                 r =>
                                 {
                                     r.DependencyType = "messaging";
@@ -632,6 +647,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 targetDbId,
                                 RelationshipKind.UsesDb,
+                                edge,
                                 r =>
                                 {
                                     r.DependencyType = "database";
@@ -653,6 +669,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 targetProjId,
                                 RelationshipKind.ServiceCall,
+                                edge,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -673,6 +690,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 edge.To,
                                 RelationshipKind.ServiceCall,
+                                edge,
                                 r =>
                                 {
                                     r.DependencyType = "service_call";
@@ -703,6 +721,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 service.Id,
                                 edge.To,
                                 outKind,
+                                edge,
                                 r =>
                                 {
                                     r.DependencyType = "messaging";

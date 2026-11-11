@@ -1,6 +1,6 @@
 # Proposal: Project Map (C3 Internal Architecture View)
 
-> **Status (2026-10-22):** Slices 1–2 implemented in v1.56.0 (backend `project-map` view + VS Code Project Map panel), following the §8 review notes. Still open: §6 DDL table linking (separate patch) and the optional module-cycle SIG gate (§8.3).
+> **Status (2026-11-11):** Complete (`v1.56.0`–`v1.80.4`). Backend `project-map` view, VS Code Project Map panel (`UniversalGraphMap`), §6 DDL `.sql` table linking (`PostIndexAnalyzer.CanonicalizeDatabasesAsync`), §8.3 Module Cycle Prohibition gate (`SIG-C-B-004`), and direct `src/` root file unpacking (`v1.80.4`) are all shipped and verified in `ProjectMapRemainingItemsTests.cs`.
 
 ## 1. Problem Statement
 

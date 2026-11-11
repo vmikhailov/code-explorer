@@ -23,7 +23,7 @@ public class GateOptions : ITargetOption
     [Option('d', "dimension", Required = false, HelpText = "Dimension filter ('Boundaries', 'Rules', 'Contract', 'Resources').")]
     public string? Dimension { get; set; }
 
-    [Option('f', "format", Required = false, Default = "table", HelpText = "Output format: 'table', 'markdown', 'json'.")]
+    [Option('f', "format", Required = false, Default = "table", HelpText = "Output format: 'table', 'markdown', 'json', 'sarif', 'github'.")]
     public string Format { get; set; } = "table";
 
     [Option('u', "update", Required = false, Default = false, HelpText = "When used with 'ratchet', updates baselines to lock in technical debt improvements.")]

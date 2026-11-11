@@ -251,6 +251,11 @@ public partial class GateCommandHandler : BaseCommandHandler
         var isSingleFail = r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error
             || ((opts.FailOnWarning || opts.Strict) && r.Status == GateCheckStatus.Warning);
 
+        if (IsCiFormat(opts.Format))
+        {
+            return RenderCiFormat([r], opts, isSingleFail ? 1 : 0);
+        }
+
         if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
             var summary = new
@@ -339,6 +344,11 @@ public partial class GateCommandHandler : BaseCommandHandler
         var failOnWarnings = opts.FailOnWarning || opts.Strict;
         var maxWarningsExceeded = opts.MaxWarnings >= 0 && suite.WarningCount > opts.MaxWarnings;
         var isFailure = suite.FailedCount > 0 || (failOnWarnings && suite.WarningCount > 0) || maxWarningsExceeded;
+
+        if (IsCiFormat(opts.Format))
+        {
+            return RenderCiFormat(suite.Results, opts, isFailure ? 1 : 0);
+        }
 
         if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
@@ -534,6 +544,11 @@ public partial class GateCommandHandler : BaseCommandHandler
         var isFailure = results.Any(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error)
             || (failOnWarnings && results.Any(r => r.Status == GateCheckStatus.Warning))
             || maxWarningsExceeded;
+
+        if (IsCiFormat(opts.Format))
+        {
+            return RenderCiFormat(results, opts, isFailure ? 1 : 0);
+        }
 
         if (gatesToDisplay.Count == 0)
         {

@@ -5,6 +5,22 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.81.0] - 2026-11-12
+
+### Added
+- **Semantic Gates CI/CD Output Formats (`GateCommandHandler.CiFormats.cs`, `GateOptions.cs`)**:
+  - Added `--format sarif` (SARIF v2.1.0 schema output with rule descriptors, severity levels, physical locations with `startLine`/`startColumn`, `codeExplorerViolationHash/v1` fingerprints, and ratchet baseline suppressions).
+  - Added `--format github` (GitHub Actions workflow annotations `::error` and `::warning` with escaped file, line, column, and rule metadata) across `ce gate check`, `ce gate details`, and `ce gate violations`.
+
+### Fixed & Improved
+- **Gate Editor 0-Row Node Query Validation (`WebSocketServerHandler.Endpoints.cs`)**:
+  - Fixed `TestGateQueryAsync` so OpenCypher queries returning bound graph entities (`RETURN fn, r, tgt` or `RETURN DISTINCT f`) with zero current violations no longer report false-positive `missingColumns` (`file`, `line`, `symbol`).
+- **Universal Edge & Node Evidence Provenance Merging (`EvidenceProvenanceHelper.cs`, `PostIndexAnalyzer.cs`, `PostIndexAnalyzer.Databases.Helpers.cs`, `SqliteGraphClient.PostIndexMaintenance.cs`)**:
+  - Added `EvidenceProvenanceHelper.PropagateEdgeProvenance` and merged `evidence_ids`, `call_sites`, and `operation` across multiple consolidated database edges in `UploadProjectDatabaseRelationshipsAsync` and transitive library-lifted edges in `LiftTransitiveSemanticRelations`.
+  - Included `READS_FROM` and `WRITES_TO` relationships in `LoadDatabaseCandidateRelationshipsAsync` during Layer 5 database canonicalization.
+- **Structured Diagnostics on `GetNodeUsagesAsync` (`ArchitectureViewEngine.DatabaseEvidence.cs`, `WebSocketProtocol.cs`)**:
+  - Replaced silent `catch` blocks in `GetNodeUsagesAsync` with `RecordEvidenceWarning` and `NodeUsagesResponseDto.Warnings`, ratcheting down the `SIG-M-I-005` baseline.
+
 ## [1.80.5] - 2026-11-11
 
 ### Changed & Improved

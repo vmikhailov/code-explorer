@@ -484,6 +484,10 @@ public class NodeUsagesResponseDto
 
     [JsonPropertyName("total")]
     public int Total => Usages.Count;
+
+    [JsonPropertyName("warnings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Warnings { get; set; }
 }
 
 // ============================================================================

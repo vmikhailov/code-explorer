@@ -364,7 +364,7 @@ public partial class PostIndexAnalyzer
         Dictionary<string, string>? projectToWorkloadMap = null)
     {
         var relationshipsToUpload = new List<Relationship>();
-        var seen = new HashSet<(string From, string To)>();
+        var byPair = new Dictionary<(string From, string To), Relationship>();
 
         foreach (var (owner, rawTarget, rel, isImplicitEdge) in projectDbEdges)
         {
@@ -404,20 +404,25 @@ public partial class PostIndexAnalyzer
                 ? semFrom
                 : owner.Id;
 
-            if (effectiveFrom != target && seen.Add((effectiveFrom, target)))
+            if (effectiveFrom != target)
             {
-                var created = new Relationship(effectiveFrom, target, OntologyConstants.Relationships.UsesDb)
+                if (!byPair.TryGetValue((effectiveFrom, target), out var canonicalRel))
                 {
-                    DependencyType = "database",
-                    IsSemantic = true,
-                    IsCanonical = true
-                };
-                EvidenceProvenanceHelper.MergeRelationships(created, rel);
-                created.DependencyType = "database";
-                created.IsSemantic = true;
-                created.IsCanonical = true;
+                    canonicalRel = new Relationship(effectiveFrom, target, OntologyConstants.Relationships.UsesDb)
+                    {
+                        DependencyType = "database",
+                        IsSemantic = true,
+                        IsCanonical = true
+                    };
+                    byPair[(effectiveFrom, target)] = canonicalRel;
+                    relationshipsToUpload.Add(canonicalRel);
+                }
 
-                relationshipsToUpload.Add(created);
+                EvidenceProvenanceHelper.MergeRelationships(canonicalRel, rel);
+                EvidenceProvenanceHelper.PropagateEdgeProvenance(canonicalRel, rel);
+                canonicalRel.DependencyType = "database";
+                canonicalRel.IsSemantic = true;
+                canonicalRel.IsCanonical = true;
             }
         }
 

@@ -605,6 +605,7 @@ public partial class WebSocketServerHandler
             if (projectedCols.Count == 0)
             {
                 projectedCols = ExtractReturnColumnAliases(query);
+                hasGraphNode = ReturnsBoundNodeVariable(query);
             }
 
             var missingCols = new List<string>();
@@ -729,32 +730,100 @@ public partial class WebSocketServerHandler
 
     private static List<string> ExtractReturnColumnAliases(string query)
     {
-        var returnIdx = query.LastIndexOf("RETURN", StringComparison.OrdinalIgnoreCase);
+        var rawItems = SplitReturnClauseExpressions(query);
+        var result = new List<string>(rawItems.Count);
+        foreach (var raw in rawItems)
+        {
+            var asIdx = raw.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
+            if (asIdx >= 0)
+            {
+                result.Add(raw[(asIdx + 4)..].Trim());
+            }
+            else
+            {
+                var dotIdx = raw.LastIndexOf('.');
+                result.Add(dotIdx >= 0 ? raw[(dotIdx + 1)..].Trim() : raw);
+            }
+        }
+        return result;
+    }
+
+    private static bool ReturnsBoundNodeVariable(string query)
+    {
+        foreach (var raw in SplitReturnClauseExpressions(query))
+        {
+            var asIdx = raw.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
+            var expr = (asIdx >= 0 ? raw[..asIdx] : raw).Trim();
+            if (expr == "*") return true;
+            if (IsBareCypherIdentifier(expr) && IsBoundInNodePattern(query, expr))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<string> SplitReturnClauseExpressions(string query)
+    {
+        const string kwReturn = "RETURN";
+        const string kwDistinct = "DISTINCT ";
+        var returnIdx = query.LastIndexOf(kwReturn, StringComparison.OrdinalIgnoreCase);
         if (returnIdx < 0) return [];
-        var afterReturn = query[(returnIdx + 6)..].Trim();
-        var stopClauses = new[] { "ORDER BY", "LIMIT", "SKIP" };
-        foreach (var stop in stopClauses)
+        var afterReturn = query[(returnIdx + kwReturn.Length)..].Trim();
+        if (afterReturn.StartsWith(kwDistinct, StringComparison.OrdinalIgnoreCase))
+        {
+            afterReturn = afterReturn[kwDistinct.Length..].Trim();
+        }
+        foreach (var stop in new[] { "ORDER BY", "LIMIT", "SKIP" })
         {
             var idx = afterReturn.IndexOf(stop, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0) afterReturn = afterReturn[..idx].Trim();
         }
-        var columns = afterReturn.Split(',');
+
         var result = new List<string>();
-        foreach (var col in columns)
+        foreach (var col in afterReturn.Split(','))
         {
             var trimmed = col.Trim();
-            if (string.IsNullOrEmpty(trimmed)) continue;
-            var asIdx = trimmed.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
-            if (asIdx >= 0)
-            {
-                result.Add(trimmed[(asIdx + 4)..].Trim());
-            }
-            else
-            {
-                var dotIdx = trimmed.LastIndexOf('.');
-                result.Add(dotIdx >= 0 ? trimmed[(dotIdx + 1)..].Trim() : trimmed);
-            }
+            if (!string.IsNullOrEmpty(trimmed)) result.Add(trimmed);
         }
         return result;
+    }
+
+    private static bool IsBareCypherIdentifier(string expr)
+    {
+        if (string.IsNullOrEmpty(expr)) return false;
+        if (expr.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+            expr.Equals("false", StringComparison.OrdinalIgnoreCase) ||
+            expr.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (!(char.IsLetter(expr[0]) || expr[0] == '_')) return false;
+        for (var i = 1; i < expr.Length; i++)
+        {
+            if (!(char.IsLetterOrDigit(expr[i]) || expr[i] == '_')) return false;
+        }
+        return true;
+    }
+
+    private static bool IsBoundInNodePattern(string query, string identifier)
+    {
+        var pos = 0;
+        while ((pos = query.IndexOf('(', pos)) >= 0)
+        {
+            var i = pos + 1;
+            while (i < query.Length && char.IsWhiteSpace(query[i])) i++;
+            if (i + identifier.Length <= query.Length &&
+                query.AsSpan(i, identifier.Length).Equals(identifier.AsSpan(), StringComparison.Ordinal))
+            {
+                var after = i + identifier.Length;
+                if (after == query.Length || query[after] is ':' or ')' or '{' || char.IsWhiteSpace(query[after]))
+                {
+                    return true;
+                }
+            }
+            pos++;
+        }
+        return false;
     }
 }

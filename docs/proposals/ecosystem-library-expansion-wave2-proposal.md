@@ -1,6 +1,6 @@
 # Proposal: Ecosystem Library Expansion Wave 2 (Next 60 Polyglot Libraries)
 
-**Status:** In Progress  
+**Status:** Complete (All 4 phases / 60 libraries shipped on `DeclarativeSemanticExtension`, `v1.74.0`+)  
 **Created:** 2026-11-07  
 **Target Layer:** Layer 4 (Semantic Structure) & Layer 2 (Host Components)  
 **Related Proposals:** [`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md), [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md)

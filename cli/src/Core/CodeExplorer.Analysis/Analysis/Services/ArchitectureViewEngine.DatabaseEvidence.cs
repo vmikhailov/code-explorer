@@ -56,6 +56,7 @@ public partial class ArchitectureViewEngine
     {
         var response = new NodeUsagesResponseDto { TargetId = nodeId };
         if (string.IsNullOrWhiteSpace(nodeId)) return response;
+        var warnings = new List<string>();
 
         // 1. Resolve target node details (Name, Kind, discovery file)
         var targetQuery = "MATCH (t) WHERE t.id = $id OR t.name = $id RETURN t.id AS id, t.name AS name, labels(t)[0] AS kind, coalesce(t.file_path, t.path) AS file_path, t.line AS line LIMIT 1";
@@ -81,7 +82,10 @@ public partial class ArchitectureViewEngine
                 declLine = first.GetNullableIntProp(colLine);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, $"Resolve target node '{nodeId}'", ex);
+        }
 
         response.TargetName = targetName ?? nodeId;
         response.TargetKind = EnumExtensions.ParseNodeKind(targetKind ?? "");
@@ -147,7 +151,10 @@ public partial class ArchitectureViewEngine
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, $"Node usages scan for '{response.TargetId}'", ex);
+        }
 
         // Also if the target node itself has a declaration/discovery file, include it
         if (!string.IsNullOrEmpty(declFile))
@@ -167,6 +174,10 @@ public partial class ArchitectureViewEngine
             }
         }
 
+        if (warnings.Count > 0)
+        {
+            response.Warnings = warnings;
+        }
         return response;
     }
 

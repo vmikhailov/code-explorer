@@ -1,5 +1,7 @@
 using CodeExplorer.Commands;
+using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -265,5 +267,99 @@ public class GateCommandTests
         viols.Count.Should().Be(1);
         viols[0].GetStringProp("symbol").Should().Be("CallerMethod");
         viols[0].GetStringProp("location").Should().Be("src/Domain/OrderService.cs:45");
+    }
+
+    [Test]
+    public async Task GateCheck_SarifFormat_EmitsValidSarifV210WithRulesAndLocations()
+    {
+        await SetupWorkspaceWithGatesAsync();
+
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exitCode = await GateCommandHandler.HandleAsync(new GateOptions
+        {
+            Action = "check",
+            Format = "sarif",
+            Dir = _tempWorkspace
+        });
+
+        exitCode.Should().Be(1);
+        var sarif = CypherValue.TryParseJsonText(sw.ToString());
+        sarif.GetStringProp("version").Should().Be("2.1.0");
+        sarif.GetStringProp("$schema").Should().Contain("sarif-2.1.0.json");
+
+        var run = sarif["runs"].AsArray()[0];
+        run["tool"]["driver"].GetStringProp("name").Should().Be("CodeExplorer");
+        var rules = run["tool"]["driver"]["rules"].AsArray();
+        rules.Count.Should().Be(2);
+
+        var results = run["results"].AsArray();
+        results.Count.Should().Be(1);
+        var finding = results[0];
+        finding.GetStringProp("ruleId").Should().Be("SIG-FAIL-001");
+        finding.GetStringProp("level").Should().Be("error");
+        finding["partialFingerprints"].GetStringProp("codeExplorerViolationHash/v1").Should().NotBeNullOrWhiteSpace();
+
+        var phys = finding["locations"].AsArray()[0]["physicalLocation"];
+        phys["artifactLocation"].GetStringProp("uri").Should().Be("src/Domain/OrderService.cs");
+        phys["region"].GetIntProp("startLine").Should().Be(45);
+        phys["region"].GetIntProp("startColumn").Should().Be(1);
+    }
+
+    [Test]
+    public async Task GateCheck_GithubFormat_EmitsWorkflowAnnotations()
+    {
+        await SetupWorkspaceWithGatesAsync();
+
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exitCode = await GateCommandHandler.HandleAsync(new GateOptions
+        {
+            Action = "check",
+            Format = "github",
+            Dir = _tempWorkspace
+        });
+
+        exitCode.Should().Be(1);
+        var output = sw.ToString().Trim();
+        output.Should().StartWith("::error file=src/Domain/OrderService.cs,line=45,col=1,title=SIG-FAIL-001");
+        output.Should().Contain("CallerMethod: Forbidden direct call");
+    }
+
+    [Test]
+    public async Task TestGateQueryAsync_ZeroRowNodeReturnQuery_ReportsZeroMissingColumns()
+    {
+        await SetupWorkspaceWithGatesAsync();
+        var ws = WorkspaceLocator.Find(_tempWorkspace)!;
+        using var client = new SqliteGraphClient(ws.DbPath);
+        var handler = new WebSocketServerHandler(
+            client,
+            new CodeExplorerRepository(client),
+            new WorkspaceIndexer(client),
+            NullLogger<WebSocketServerHandler>.Instance,
+            idleTimeoutSeconds: 0,
+            workspaceRoot: _tempWorkspace);
+
+        var nodeQueryResult = await handler.TestGateQueryAsync(
+            "MATCH (fn:Function)-[r:CALLS]->(tgt:Function) WHERE fn.name = '__nonexistent__' RETURN fn, r, tgt",
+            gateId: "SIG-CUSTOM-001",
+            messageTemplate: null,
+            targetTemplate: null);
+
+        nodeQueryResult.Success.Should().BeTrue();
+        nodeQueryResult.ViolationsCount.Should().Be(0);
+        nodeQueryResult.MissingColumns.Should().BeEmpty();
+
+        var incompleteScalarResult = await handler.TestGateQueryAsync(
+            "MATCH (fn:Function) WHERE fn.name = '__nonexistent__' RETURN fn.name AS symbol",
+            gateId: "SIG-CUSTOM-002",
+            messageTemplate: null,
+            targetTemplate: null);
+
+        incompleteScalarResult.Success.Should().BeTrue();
+        incompleteScalarResult.MissingColumns.Should().Contain("file");
+        incompleteScalarResult.MissingColumns.Should().Contain("line");
     }
 }

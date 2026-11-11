@@ -1,5 +1,7 @@
 # Proposal: Semantic Invariant Gates v2 — Node-Aware Extraction, Parameterized Templates, Call-Site Coordinates & Threshold Governance
 
+- **Status:** 🟢 **Complete (Implemented)**
+
 ## 1. Problem Statement & Motivation
 
 Semantic Invariant Gates (SIG) enforce architectural, security, ontology, and evolution invariants using OpenCypher queries following the **Zero-Match Contract** ($R(Q) = \emptyset \implies \text{PASS}$).
@@ -212,22 +214,23 @@ thresholds:
 - [x] `--fail-on-warning` (`--strict`) and `--max-warnings` in [`GateOptions`](../../cli/src/UI/CodeExplorer/Options/GateOptions.cs) and [`GateCommandHandler`](../../cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs).
 - [x] Unit test coverage in [`SemanticInvariantGateTests.cs`](../../cli/tests/CodeExplorer.Tests/SemanticInvariantGateTests.cs).
 
-### Phase 2: Edge Evidence Call-Site Coordinates & Engine Refinement
-- [ ] Add `Line` and `Column` to `Reference` in [`ParseResult.cs`](../../cli/src/Core/CodeExplorer.Core/Models/ParseResult.cs) and populate them across Tree-sitter visitors ([`BaseParserVisitor.cs`](../../cli/src/Core/CodeExplorer.Core/Parser/TreeSitter/BaseParserVisitor.cs) and language visitors) when creating `CALLS` and `USES_TYPE` references.
-- [ ] Persist `line`, `column`, `call_sites` (`["line:col", ...]`), and `call_count` onto `CALLS` / `USES_TYPE` edge properties during Layer 3/5 edge construction and deduplication in [`SqliteGraphClient.cs`](../../cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs) / [`EvidenceProvenanceHelper.cs`](../../cli/src/Core/CodeExplorer.Core/Analysis/EvidenceProvenanceHelper.cs).
-- [ ] Refine [`GateExecutionEngine.ParseViolations`](../../cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs):
+### Phase 2: Edge Evidence Call-Site Coordinates & Engine Refinement *(Completed)*
+- [x] Add `Line` and `Column` to `Reference` in [`ParseResult.cs`](../../cli/src/Core/CodeExplorer.Core/Models/ParseResult.cs) and populate them across Tree-sitter visitors ([`BaseParserVisitor.cs`](../../cli/src/Core/CodeExplorer.Core/Parser/TreeSitter/BaseParserVisitor.cs) and language visitors) when creating `CALLS` and `USES_TYPE` references.
+- [x] Persist `line`, `column`, `call_sites` (`["line:col", ...]`), and `call_count` onto `CALLS` / `USES_TYPE` edge properties during Layer 3/5 edge construction and deduplication in [`SqliteGraphClient.cs`](../../cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs) / [`EvidenceProvenanceHelper.cs`](../../cli/src/Core/CodeExplorer.Core/Analysis/EvidenceProvenanceHelper.cs).
+- [x] Refine [`GateExecutionEngine.ParseViolations`](../../cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs):
   - Strictly separate **Node** vs. **Relationship** objects so `r` in `RETURN fn, r, target` is never treated as `tgtNode`.
   - Unroll `r.properties.call_sites` into individual call-site violations with accurate `Occurrence` counters.
   - Support optional `gate.Target` template interpolation and `JsonValueKind.Array` formatting in `InterpolateMessage`.
   - Enforce the Implicit Warning Guard when `thresholds.error` is specified without `thresholds.warning`.
 
-### Phase 3: Migrate 31 Built-In Gates Catalog to Node-First + Message Templates
-- [ ] Refactor [`BuiltInGateCatalog.cs`](../../cli/src/Core/CodeExplorer.Core/Gates/Storage/BuiltInGateCatalog.cs), [`BuiltInGateCatalog.EvolutionGates.cs`](../../cli/src/Core/CodeExplorer.Core/Gates/Storage/BuiltInGateCatalog.EvolutionGates.cs), and [`BuiltInGateCatalog.PlatformAndResourceGates.cs`](../../cli/src/Core/CodeExplorer.Core/Gates/Storage/BuiltInGateCatalog.PlatformAndResourceGates.cs) to set `Message = "..."` (and `Target = "..."` where needed for single-node gates) and return graph nodes/edges (`RETURN src, r, target`), verifying 100% fingerprint stability against `.codeexplorer/gates/baselines/*.json`.
-- [ ] Update `.codeexplorer/gates/*.yaml` in the CodeExplorer repository and [`.agents/skills/semantic-invariant-gates/SKILL.md`](../../.agents/skills/semantic-invariant-gates/SKILL.md).
+### Phase 3: Migrate 31 Built-In Gates Catalog to Node-First + Message Templates *(Completed)*
+- [x] Refactor [`BuiltInGateCatalog.cs`](../../cli/src/Core/CodeExplorer.Core/Gates/Storage/BuiltInGateCatalog.cs), [`BuiltInGateCatalog.EvolutionGates.cs`](../../cli/src/Core/CodeExplorer.Core/Gates/Storage/BuiltInGateCatalog.EvolutionGates.cs), and [`BuiltInGateCatalog.PlatformAndResourceGates.cs`](../../cli/src/Core/CodeExplorer.Core/Gates/Storage/BuiltInGateCatalog.PlatformAndResourceGates.cs) to set `Message = "..."` (and `Target = "..."` where needed for single-node gates) and return graph nodes/edges (`RETURN src, r, target`), verifying 100% fingerprint stability against `.codeexplorer/gates/baselines/*.json`.
+- [x] Update `.codeexplorer/gates/*.yaml` in the CodeExplorer repository and [`.agents/skills/semantic-invariant-gates/SKILL.md`](../../.agents/skills/semantic-invariant-gates/SKILL.md).
 
-### Phase 4: Server DTOs, WebSocket Endpoints & VS Code `GateEditorView`
-- [ ] Update [`WebSocketDtos.cs`](../../cli/src/UI/CodeExplorer/Server/WebSocketDtos.cs), [`WebSocketServerHandler.Endpoints.cs`](../../cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.Endpoints.cs), and [`proto/types.ts`](../../proto/types.ts) with `message`, `target`, `thresholds`, `warningCount`, `nodeId`, and `targetNodeId`.
-- [ ] Fix `TestGateQueryAsync` column contract check to recognize node-returning queries and `message` templates without false-positive `missingColumns` warnings.
-- [ ] Update [`GateEditorView.tsx`](../../vscode-extension/src/webview/components/GateEditorView.tsx) and `GatesTreeProvider` to edit `message`, `target`, and `thresholds`, display `Warning` statuses, and jump to exact `file:line:column` locations.
+### Phase 4: Server DTOs, WebSocket Endpoints, VS Code `GateEditorView` & CI Formats *(Completed)*
+- [x] Update [`WebSocketDtos.cs`](../../cli/src/UI/CodeExplorer/Server/WebSocketDtos.cs), [`WebSocketServerHandler.Endpoints.cs`](../../cli/src/Server/CodeExplorer.Server/WebSocketServerHandler.Endpoints.cs), and [`proto/types.ts`](../../proto/types.ts) with `message`, `target`, `thresholds`, `warningCount`, `nodeId`, and `targetNodeId`.
+- [x] Fix `TestGateQueryAsync` column contract check (including 0-row node-returning queries) to recognize node-returning queries and `message` templates without false-positive `missingColumns` warnings.
+- [x] Update [`GateEditorView.tsx`](../../vscode-extension/src/webview/components/GateEditorView.tsx) and `GatesTreeProvider` to edit `message`, `target`, and `thresholds`, display `Warning` statuses, and jump to exact `file:line:column` locations.
+- [x] Add `--format sarif` (SARIF v2.1.0) and `--format github` (GitHub Actions `::error` / `::warning` workflow annotations) in [`GateCommandHandler.CiFormats.cs`](../../cli/src/UI/CodeExplorer/Commands/GateCommandHandler.CiFormats.cs).
 
 

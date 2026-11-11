@@ -1,143 +1,78 @@
-# CodeExplorer — Master Implementation Roadmap 🗺️
+# CodeExplorer — Master Product & Engineering Roadmap 🗺️
 
-This document consolidates all **8 architectural proposals** in [`docs/proposals/`](./) and defines their dependency-ordered implementation sequence from core graph & UAST foundations up to declarative parsers and developer tooling.
+This document tracks the verified implementation status of all architectural proposals in [`docs/proposals/`](./) and defines the **priority-ordered roadmap (in descending order of importance)** for CodeExplorer across IDE experience, Architecture Encyclopedia & SIG Packs, CI/PR Guard, Web Explorer, and Core Engine.
 
-**Last Updated:** 2026-11-11
-
----
-
-## 1. Summary of All Proposals & Current Status
-
-| Order | Proposal | Current Status | Remaining Scope |
-| :---: | :--- | :--- | :--- |
-| **1** | [`strongly-typed-kinds-and-types-enum-migration-proposal.md`](./strongly-typed-kinds-and-types-enum-migration-proposal.md) | 🟢 **Complete** | Canonical `NodeKind`, `RelationshipKind`, `SemanticExtensionType`, and `ProjectEntityKind` migrated to domain enums across Core, AST, and 136 library parsers. `SIG-C-C-001` untolerated passing with 0 violations. |
-| **2** | [`uast-completion-and-lightweight-flow-analysis-proposal.md`](./uast-completion-and-lightweight-flow-analysis-proposal.md) | 🟢 **Complete** | **Pillar 1**: Complete UAST property population (`PopulateSyntaxNode`) across declarations, statements, expressions in all 6 languages; **Pillar 2**: `CallExecutionFlags` & `CallSiteExecutionContext` (`in_loop`, `loop_depth`, `is_conditional`, `in_try`, `in_catch`, `in_lock`, `is_awaited`); **Pillar 3**: `FunctionDataflowSummary` intra-procedural def-use analysis (`df_summary`, `df_return`, `df_writes` on `FunctionNode`, and `arg_flow` on `CALLS` edges). |
-| **3** | [`universal-edge-and-node-evidence-proposal.md`](./universal-edge-and-node-evidence-proposal.md) | 🟡 **~50% Complete** (API & UI shipped in v1.52–1.53) | Record creation-time provenance (`file_path`, `line`, `line_end`, `operation`, `evidence_kind`) on Layer 4 edges, aggregate `evidence_ids` on Layer 5 rolled-up edges, and retire query-time heuristics. |
-| **4** | [`project-map-proposal.md`](./project-map-proposal.md) | 🟢 **~90% Complete** (Slices 1–2 shipped in v1.56.0) | Finish §6 (DDL `.sql` table linking to `Database` / `Project`) and §8.3 (optional `SIG-C-B-00x` Module Cycle Prohibition gate). |
-| **5** | [`semantic-gates-v2-node-extraction-and-thresholds-proposal.md`](./semantic-gates-v2-node-extraction-and-thresholds-proposal.md) | 🟡 **~50% Complete** (Core CLI engine ready) | Populate exact call-site coordinates (`r.line`, `r.call_sites`) on `CALLS` edges, migrate all 31 built-in gates to `RETURN fn, r, target` + `message` templates, update `GateEditorView.tsx`, and add GitHub/SARIF warning annotations. |
-| **6** | [`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md) | 🟡 **~15% Complete** (Initial `DeclarativeSemanticExtension` exists) | Build `YamlSemanticProjectionEngine` ($O(1)$ `FrozenDictionary` dispatch), migrate 16 Host Component parsers (Bucket A) and 106 Library parsers (Bucket B) to YAML packs, and extract shared `RoutePrefixResolver` (Bucket C). |
-| **7** | [`universal-parser-proposal.md`](./universal-parser-proposal.md) | ⚪ Scoped PoC | Implement `UniversalAstVisitor` + `LanguageSyntaxProfile` + `ILanguageHooks`. Track A: 100% parity harness on Java; Track B: new `CodeExplorer.Parser.Swift` assembly. |
-| **8** | [`ontology-visualization-and-cypher-intellisense-proposal.md`](./ontology-visualization-and-cypher-intellisense-proposal.md) | ⚪ Draft | Emit `ontology-schema.json` in `CodeExplorer.OntologyGen`, expose `/api/ontology` with Schema Drift detection, build 5-layer swimlane Ontology View, and add context-aware OpenCypher + SIG IntelliSense. |
-| **9** | [`partial-layer-and-in-memory-scanning-proposal.md`](./partial-layer-and-in-memory-scanning-proposal.md) | 🟢 **Complete** | First-class partial-layer (`MaxLayer = Layer1..Layer5`) and zero-overhead pure in-memory scanning API (`WorkspaceIndexer.ScanInMemoryAsync`) in `CodeExplorer.Core`, removing Passport-specific hooks from `ParsingContext`. |
-| **10** | [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md) | ⚪ **Proposed (Next)** | **Pillar 1**: Algorithmic loop bottleneck detection (`has_linear_scan_in_loop`, `has_alloc_in_loop`, `max_access_depth`) & gates `SIG-M-P-001/002`; **Pillar 2**: Post-Layer-4 UAST memory compaction (`SyntaxDocument.Compact()`); **Pillar 3**: Pre-resolved numeric `TSFieldId` lookup caching; **Pillar 4**: Deterministic `MaxAstNodeBudget`; **Pillar 5**: Direct UAST type/import resolution retiring `RawImports`/`RawVariables`/`RawTypeBindings`. |
-| **11** | [`ecosystem-library-expansion-proposal.md`](./ecosystem-library-expansion-proposal.md) | ⚪ **Proposed** | Top 10 high-value ecosystem libraries across 6 languages (60 total: Celery, Hangfire, tRPC, Ktor, Exposed, Watermill, Temporal, etc.) implemented via hybrid Declarative YAML rule packs & C# UAST analyzers. |
-| **12** | [`vscode-extension-architecture-v2-proposal.md`](./vscode-extension-architecture-v2-proposal.md) | ⚪ **Proposed** | **Phase 1**: Resilient `EngineSupervisor` FSM (zero `spawnSync`, zero log spam) & single Extension Host RPC broker; **Phase 2**: Deterministic projections & headless `GraphSessionStore` + two-tier view persistence; **Phase 3**: Hexagonal `<DiagramShell>`, `ViewportGate`, `Cytoscape`/`ReactFlow`/`Swimlane` adapters & unified `Inspector`; **Phase 4**: Hybrid `System · Modules · Code · Data · Gates` tree (9 diagrams on `Map / Dependencies / Flow` vocabulary). |
+**Last Updated:** 2026-11-12 (All in-flight proposal debts closed)
 
 ---
 
-## 2. Dependency Graph & Execution Waves
+## 1. Completed Foundations (100% Implemented & Verified)
+
+| Initiative / Proposal | Status | Shipped Scope |
+| :--- | :---: | :--- |
+| **Strongly-Typed Ontology Enums & SQLite Schema v6** (`v1.70.0`, `v1.75.0`) | 🟢 **Complete** | `NodeKind`, `RelationshipKind`, and all 1-byte taxonomy enums (`TypeKind`, `EndpointType`, `DatabaseType`, etc.) with `GraphKindCodec`, `IGraphRepository` (`PersistedGraphRepository` + `InMemoryGraphRepository`), and zero-tolerance `SIG-C-C-001`. |
+| [`uast-completion-and-lightweight-flow-analysis-proposal.md`](./uast-completion-and-lightweight-flow-analysis-proposal.md) | 🟢 **Complete** | Full UAST property population across all languages, `CallSiteExecutionContext` (`in_loop`, `loop_depth`, `is_conditional`, `in_try`, `in_lock`, `is_awaited`), and intra-procedural `FunctionDataflowSummary` (`arg_flow`, `df_return`, `df_writes`). |
+| [`partial-layer-and-in-memory-scanning-proposal.md`](./partial-layer-and-in-memory-scanning-proposal.md) | 🟢 **Complete** | First-class `MaxLayer = Layer1..Layer5` and pure in-memory `WorkspaceIndexer.ScanInMemoryAsync`. |
+| [`universal-graph-map-and-inspector-unification-proposal.md`](./universal-graph-map-and-inspector-unification-proposal.md) | 🟢 **Complete** | 4-stage `GraphProjectionEngine`, `<UniversalGraphMap />`, 4-tab `InspectorSidebarView` two-way sync, node/category grouping (`v1.78.1`), and `SIG-P-B-010`. |
+| [`project-map-proposal.md`](./project-map-proposal.md) | 🟢 **Complete** | C3 `Project Map`, resilient fallback file discovery (`v1.80.0`), direct `src/` root file rendering (`v1.80.4`), DDL `.sql` table linking (`PostIndexAnalyzer.CanonicalizeDatabasesAsync`), and `SIG-C-B-004` (*Module Dependency Cycle Prohibition*). |
+| **Unified `DeclarativeSemanticExtension` & Ecosystem Waves 1 + 2 (250+ Parsers)** ([`ecosystem-library-expansion-wave2-proposal.md`](./ecosystem-library-expansion-wave2-proposal.md)) | 🟢 **Complete** | Wave 1 (59 libraries, `v1.73.0`) + Wave 2 (all 60 libraries across C#, Java, Kotlin, TS, Python, Go) unified onto $O(1)$ `CompiledDeclarativeRuleIndex` (`v1.74.0`). |
+| **Semantic Argument Provenance & Multi-Dialect `Superpower` SQL Parser** (`v1.79.0`) | 🟢 **Complete** | `:Parameter`, `:CallArgument`, `FLOWS_TO`, `TARGETED_BY`, interprocedural parameter coloring, and combinator SQL parser across 8 dialects (ANSI, Postgres, MySQL, T-SQL, PL/SQL, BigQuery, ClickHouse, SOQL). |
+| **`.NET 11` Runtime, Trimmed Native Binary & 120-Repo Validation Matrix** (`v1.80.0`–`v1.80.1`) | 🟢 **Complete** | Full migration to `net11.0` / C# 14, `PublishTrimmed=true` (`53.6 MB` binary, `-41.6%`), 120-repo polyglot validation harness, and Case Study 06 (`argoproj/argo-cd` 398 ms pre-commit guard). |
+| [`semantic-gates-v2-node-extraction-and-thresholds-proposal.md`](./semantic-gates-v2-node-extraction-and-thresholds-proposal.md) | 🟢 **Complete** | Node-first `RETURN src, r, tgt`, `call_sites` multi-site unrolling, parameterized `message`/`target` templates, `GateEditorView` thresholds, 0-row node-query validation in `TestGateQueryAsync`, `--format sarif` (SARIF v2.1.0), and `--format github` workflow annotations. |
+| [`universal-edge-and-node-evidence-proposal.md`](./universal-edge-and-node-evidence-proposal.md) | 🟢 **Complete** | `EvidenceProvenanceHelper` (`evidence_ids`, `evidence_count`, `evidence_truncated`, `PropagateEdgeProvenance`), consolidated DB & library-lifted edge provenance merging, structural `EvidenceScope.ContainedNodeIds`, `recorded`/`inferred` confidence, and structured `warnings` across all evidence & usage resolvers. |
+
+---
+
+## 2. Active Roadmap (Ordered Strictly by Decreasing Priority)
+
+### Tier 1 — Flagship UX, Product Differentiation & Team Adoption
+
+| Priority | Initiative / Proposal | Current Status | Scope & Why Now |
+| :---: | :--- | :---: | :--- |
+| **P1** | **VS Code Extension Architecture v2** ([`vscode-extension-architecture-v2-proposal.md`](./vscode-extension-architecture-v2-proposal.md)) | ⚪ **Ready to Start** | **Phase 1**: Resilient `EngineSupervisor` FSM (no `spawnSync`, no log spam) + single Extension Host RPC broker; **Phase 2**: Headless `GraphSessionStore` + two-tier persistence; **Phase 3**: Hexagonal `<DiagramShell>`, `ViewportGate`, renderer adapters & unified `Inspector`; **Phase 4**: Clean `System · Modules · Code · Data · Gates` tree. *Unblocks every future IDE workflow.* |
+| **P2** | **Architecture Encyclopedia (`code-explorer.app/architectures`) & Downloadable SIG Packs + `ce gate install`** (Prototype: [`site/architectures.html`](../../site/architectures.html)) | 🟡 **UI Prototype Ready** | Curate canonical OpenCypher gate packs (`clean-architecture`, `hexagonal`, `modular-monolith`, `vertical-slice`, `feature-sliced-design`, `microservices-isolation`) with stack presets, add `ce gate install <pack> [--stack <s>]` in CLI, and launch the interactive Encyclopedia on `code-explorer.app`. *Solves cold-start adoption in 30s and drives organic SEO.* |
+| **P3** | **PR Architectural Guard & Incremental Diff Mode (`ce gate check --since <git-ref>`)** | ⚪ **Proposed** (SARIF & GitHub formats ready) | Sub-second incremental scan + gate check scoped to changed files/blast radius since `<git-ref>`, plus a turnkey GitHub Action posting PR architectural diff & violation summary comments (building directly on `--format sarif` and `--format github`). *Turns `ce` into a team-wide CI gatekeeper.* |
+
+---
+
+### Tier 2 — Viral Web Distribution & Monorepo Scale
+
+| Priority | Initiative / Proposal | Current Status | Scope & Why Now |
+| :---: | :--- | :---: | :--- |
+| **P4** | **`WebGraphSnapshot` (`ce export --web`) & Live Browser Explorer** ([`web-graph-snapshot-and-live-explorer-proposal.md`](./web-graph-snapshot-and-live-explorer-proposal.md)) | ⚪ **Proposed** | **Phase 1**: `ce export --web` compact JSON (`30–120 KB` gzip) + lightweight read-only browser viewer (`<= 140 KB`) hosting flagship repos (`twenty`, `argo-cd`, `OrchardCore`) on `code-explorer.app/demo` and inside Encyclopedia pages. **Phase 2**: On-demand `code-explorer.app/<owner>/<repo>` public scanner (`$0` LLM cost). |
+| **P5** | **UAST Memory Compaction & Loop Complexity Gates ($O(N^2)$)** ([`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md)) | ⚪ **Proposed** | Post-Layer-4 `SyntaxDocument.Compact()` (`-75..80%` peak RAM on `15k+`-file monorepos), numeric `TSFieldId` lookup tables, deterministic `MaxAstNodeBudget`, retirement of legacy `RawImports`/`RawVariables`/`RawTypeBindings`, and `has_linear_scan_in_loop` / `has_alloc_in_loop` with built-in gates `SIG-M-P-001/002`. |
+
+---
+
+### Tier 3 — Domain Clustering v2, Authoring DX & Ecosystem Breadth
+
+| Priority | Initiative / Proposal | Current Status | Scope & Why Now |
+| :---: | :--- | :---: | :--- |
+| **P6** | **Domains & Bounded Contexts v2 (Graph Clustering & Declarative Manifest)** | ⚪ **Scoped (Legacy UI Hidden in `v1.80.3–1.80.5`)** | Reintroduce domain modeling cleanly on top of VS Code v2 (`P1`): deterministic community/cluster detection over `L3` call cohesion + shared `L4` database tables/topics, paired with explicit `.codeexplorer/domains.yaml` boundaries and cross-domain SIG rules. |
+| **P7** | **Stratified Ontology Explorer & OpenCypher / SIG IntelliSense** ([`ontology-visualization-and-cypher-intellisense-proposal.md`](./ontology-visualization-and-cypher-intellisense-proposal.md)) | ⚪ **Draft** | Emit `ontology-schema.json` in `CodeExplorer.OntologyGen`, expose `/api/ontology` with Schema Drift detection, build the 5-layer swimlane Ontology View, and add context-aware autocomplete in `CypherEditor.tsx` and `GateEditorView.tsx`. |
+| **P8** | **External YAML Semantic Projection Packs** ([`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md)) | 🟡 **~50% Complete** (C# `DeclarativeSemanticExtension` done) | All 250 library parsers already use compiled declarative C# rules (`v1.74.0`). Remaining scope: externalize Bucket A (`host-archetypes.yaml`) and Bucket B (`datastore.yaml`, `messaging.yaml`, `http-clients.yaml`, `web-routers.yaml`) into user-extensible YAML files without recompiling C#. |
+| **P9** | **Profile-Driven `UniversalAstVisitor` & New Languages (`Swift`, `C++`, `PHP`)** ([`universal-parser-proposal.md`](./universal-parser-proposal.md)) | ⚪ **Scoped PoC** | Implement `UniversalAstVisitor` + `LanguageSyntaxProfile` + `ILanguageHooks`, validate 100% parity on Java, and onboard `CodeExplorer.Parser.Swift` (followed by `C++` / `PHP`). |
+
+---
+
+## 3. Execution Dependency Flow
 
 ```mermaid
 flowchart TD
-    subgraph W1 ["Wave 1: Graph Repository & Complete UAST (Core Foundation)"]
-        P1["1. IGraphRepository (InMemory + Persisted)\n+ Strongly-Typed NodeKind / RelationshipKind Enums"]
-        P2["2. UAST Completion (PopulateSyntaxNode)\n+ CallSiteExecutionContext + FunctionDataflowSummary"]
-        P1 --> P2
-    end
+    P1["P1. VS Code Extension Architecture v2\n(EngineSupervisor + GraphSessionStore + DiagramShell)"]
+    P2["P2. Architecture Encyclopedia & SIG Packs\n(code-explorer.app/architectures + ce gate install)"]
+    P3["P3. PR Architectural Guard & Diff Mode\n(ce gate check --since + GitHub Action)"]
+    P4["P4. WebGraphSnapshot & Live Browser Explorer\n(ce export --web + code-explorer.app/demo)"]
+    P5["P5. UAST Compaction & Loop O(N^2) Gates\n(SyntaxDocument.Compact + SIG-M-P-001/002)"]
+    P6["P6. Domains & Bounded Contexts v2\n(L3+L4 Graph Clustering + domains.yaml)"]
+    P7["P7. Ontology View & Cypher/SIG IntelliSense\n(ontology-schema.json + Autocomplete)"]
+    P8["P8. External YAML Library Rule Packs\n(User-extensible L4 semantic rules)"]
+    P9["P9. UniversalAstVisitor & New Languages\n(Java Parity PoC + Swift / C++ / PHP)"]
 
-    subgraph W2 ["Wave 2: Edge Provenance, Semantic Gates v2 & Project Map Completion"]
-        P3["3. Universal Edge & Node Evidence\n(Creation-time line/col/operation in L4 + evidence_ids in L5)"]
-        P4["4. Semantic Gates v2\n(31 Built-In Gates on RETURN fn, r, target + GateEditorView UI)"]
-        P5["5. Project Map Tail\n(DDL .sql Table Linking + Module Cycle Gate)"]
-        P2 --> P3 --> P4 --> P5
-    end
-
-    subgraph W3 ["Wave 3: Declarative Parsers (Ending the 146-Class Parser Zoo)"]
-        P6["6. Semantic Archetypes & YAML Projections\n(Migrate 122 C# Component/Library Parsers to YAML)"]
-        P7["7. UniversalParser PoC\n(UniversalAstVisitor: Java Parity + Swift)"]
-        P5 --> P6 --> P7
-    end
-
-    subgraph W4 ["Wave 4: Developer Experience & Ontology Intelligence"]
-        P8["8. Ontology Visualization & Cypher IntelliSense\n(ontology-schema.json, Schema Drift Audit, Autocomplete)"]
-        P7 --> P8
-    end
+    P2 --> P3
+    P1 --> P4
+    P1 --> P6
+    P2 --> P6
+    P2 --> P7
+    P5 --> P8 --> P9
 ```
-
----
-
-## 3. Detailed Wave-by-Wave Implementation Plan
-
-### Wave 1: Core Graph Abstraction & Complete UAST
-
-1. **Step 1.1 — Unified `IGraphRepository` & Strongly-Typed Enums**
-   - **Proposal:** [`strongly-typed-kinds-and-types-enum-migration-proposal.md`](./strongly-typed-kinds-and-types-enum-migration-proposal.md)
-   - **Why First:**
-     - Decouples domain graph access (`IGraphRepository`) from physical DB storage drivers (`IGraphClient` $\to$ `ISqliteClient`, `IClickHouseClient`).
-     - Replaces the stub `InMemoryGraphClient` with a true indexed **`InMemoryGraphRepository`** alongside **`PersistedGraphRepository(IGraphClient)`**.
-     - Migrating `Node.Kind` and `Relationship.Kind` to 1-byte enums (`NodeKind`, `RelationshipKind`) at the same time allows `InMemoryGraphRepository` to index nodes and edges by compact integer keys without rewriting repository signatures twice.
-
-2. **Step 1.2 — Complete UAST Population, Execution Context & Function Dataflow Summaries**
-   - **Proposal:** [`uast-completion-and-lightweight-flow-analysis-proposal.md`](./uast-completion-and-lightweight-flow-analysis-proposal.md)
-   - **Why Second:**
-     - Eliminates "hollow shell" UAST nodes by populating all strongly-typed properties (`Parameters`, `Body`, `Arguments`, `Initializer`, `Left/Right`, `Condition`, `ThenBranch/ElseBranch`) in `TreeSitterSyntaxConverterBase` and language converters.
-     - Computes `CallSiteExecutionContext` (`in_loop`, `loop_depth`, `is_conditional`, `in_try`, `in_catch`, `in_lock`, `is_awaited`) in $O(\text{depth})$ parent hops.
-     - Computes intra-procedural `FunctionDataflowSummary` (`arg_flow` on `CALLS` edges, `df_return` and `df_writes` on `FunctionNode`) during standard Layer 3 scanning.
-
-3. **Step 1.3 — UAST Performance Engineering, Memory Compaction & Algorithmic Loop Semantics**
-   - **Proposal:** [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md)
-   - **Scope:**
-     - Computes `has_linear_scan_in_loop`, `has_alloc_in_loop`, and `max_access_depth` during `FunctionDataflowAnalyzer` and adds built-in gates `SIG-M-P-001` (Hidden $O(N^2)$ linear scan in loop) and `SIG-M-P-002` (Law of Demeter chain depth).
-     - Adds `SyntaxDocument.Compact()` after Layer 4 to release statement bodies and expression subtrees before Layer 5 (~75–80% UAST RAM reduction).
-     - Pre-resolves numeric `TSFieldId` lookup tables (`GetChildByFieldId`) and enforces a deterministic `MaxAstNodeBudget` (`5,000,000` nodes).
-     - Retires legacy `RawImports`, `RawVariables`, and `RawTypeBindings` buffers on `SyntaxTree` in favor of direct UAST queries.
-
----
-
-### Wave 2: Creation-Time Edge Provenance, Semantic Gates v2 & Project Map Completion
-
-With the graph repository and Layer 3–5 dataflow/context enrichment in place, Wave 2 upgrades evidence precision and gate ergonomics across the platform.
-
-3. **Step 2.1 — Creation-Time Edge & Node Provenance**
-   - **Proposal:** [`universal-edge-and-node-evidence-proposal.md`](./universal-edge-and-node-evidence-proposal.md)
-   - **Scope:**
-     - Record `file_path`, `line`, `line_end`, `operation`, and `evidence_kind` directly on symbol-level Layer 4 edges at creation time.
-     - Aggregate `evidence_ids`, `evidence_count`, and `evidence_truncated` on rolled-up Layer 5 edges (`SERVICE_CALL`, `USES_DB`, `PUBLISHES_TO`).
-     - Replace directory-prefix guessing in `EvidenceScope` with structural `CONTAINS` queries and retire query-time heuristics.
-
-4. **Step 2.2 — Semantic Invariant Gates v2 (End-to-End)**
-   - **Proposal:** [`semantic-gates-v2-node-extraction-and-thresholds-proposal.md`](./semantic-gates-v2-node-extraction-and-thresholds-proposal.md)
-   - **Scope:**
-     - Leverages exact call-site coordinates (`r.line`, `r.call_sites`) and `CallExecutionFlags` (`r.in_loop`, `r.in_lock`) on `CALLS` edges.
-     - Migrates all 31 built-in gates in `BuiltInGateCatalog` to node-returning queries (`RETURN fn, r, target`) with parameterized `message` and `target` templates.
-     - Updates WebSocket/MCP contracts, `GateEditorView.tsx` threshold/template UI, and CI GitHub Actions / SARIF warning annotations.
-
-5. **Step 2.3 — Project Map Remaining Items (§6 & §8.3)**
-   - **Proposal:** [`project-map-proposal.md`](./project-map-proposal.md)
-   - **Scope:**
-     - Link DDL `.sql` schema tables to `(:Database)-[:CONTAINS]->(:Table)` and their owning `:Project` / `:Module`.
-     - Add built-in gate `SIG-C-B-00x` (*Module Cycle Prohibition*) reusing the SCC detector.
-
----
-
-### Wave 3: Declarative YAML Projections & Universal AST Visitor
-
-Once Layer 3 and Layer 4 contracts (including creation-time provenance) are stable, Wave 3 eliminates ~25,000+ lines of repetitive C# parser code.
-
-6. **Step 3.1 — Semantic Archetypes & Declarative YAML Projection Engine**
-   - **Proposal:** [`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md)
-   - **Scope:**
-     - Build `YamlSemanticProjectionEngine` using startup-compiled `FrozenDictionary` lookup tables ($O(1)$ dispatch by annotation, base type, method call, and config key).
-     - Migrate **Bucket A** (all 16 `IComponentLibraryParser` classes) into `host-archetypes.yaml`.
-     - Migrate **Bucket B** (106 standard `ISemanticExtension` library parsers) into declarative YAML rule packs (`datastore.yaml`, `messaging.yaml`, `http-clients.yaml`, `web-routers.yaml`).
-     - Consolidate **Bucket C** (11 complex multi-hop route/DI parsers) onto a shared `RoutePrefixResolver` + YAML signatures.
-
-7. **Step 3.2 — Profile-Driven `UniversalAstVisitor` PoC (Java Parity & Swift)**
-   - **Proposal:** [`universal-parser-proposal.md`](./universal-parser-proposal.md)
-   - **Scope:**
-     - With Layer 4 library logic extracted into YAML, language visitors reduce to pure Layer 3 structural extraction.
-     - Implement `UniversalAstVisitor`, extended `LanguageSyntaxProfile`, and `ILanguageHooks`.
-     - Validate 100% output parity on Java (`UniversalParserParityTests`) and onboard `CodeExplorer.Parser.Swift` as a net-new language.
-
----
-
-### Wave 4: Ontology Visualization, Schema Audit & OpenCypher IntelliSense
-
-With `NodeKind` / `RelationshipKind` enums and all Layer 1–5 properties finalized, Wave 4 exposes the complete ontology schema interactively in VS Code.
-
-8. **Step 4.1 — Stratified Ontology Explorer & Context-Aware Cypher IntelliSense**
-   - **Proposal:** [`ontology-visualization-and-cypher-intellisense-proposal.md`](./ontology-visualization-and-cypher-intellisense-proposal.md)
-   - **Scope:**
-     - Extend `CodeExplorer.OntologyGen` to emit `proto/ontology-schema.json` at build time.
-     - Add `/api/ontology` endpoint combining static schema metadata with live workspace counts and **Schema Drift** detection.
-     - Build the 5-layer swimlane **Ontology View** and `cypherCompletionEngine.ts` autocomplete inside `CypherEditor.tsx` and `GateEditorView.tsx`.

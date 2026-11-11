@@ -1,8 +1,8 @@
 # Universal Edge & Node Evidence Architecture Proposal 🔍
 ## Creation-Time Provenance for Layer 4 Nodes and Rolled-Up Edges
 
-- **Document Version:** 2.0.0
-- **Status:** Proposal (remaining work only)
+- **Document Version:** 2.1.0
+- **Status:** 🟢 **Complete (Implemented)**
 - **Target Audience:** Core Maintainers, Systems Architects, Frontend/Extension Engineers
 - **Target Subsystems:** `Analysis/Layers/Layer4_Semantic`, `Analysis/Layers/Layer5_Global`, `Analysis/Services/ArchitectureViewEngine.*Evidence*`, `Protocol`, `vscode-extension`
 

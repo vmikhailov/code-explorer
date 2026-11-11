@@ -368,7 +368,7 @@ public partial class SqliteGraphClient
     public async Task<List<Relationship>> LoadDatabaseCandidateRelationshipsAsync(CancellationToken cancellationToken = default)
     {
         var relEdgesQuery =
-            $"SELECT fn.id AS from_id, tn.id AS to_id, ce_rel_kind(e.kind) AS kind, e.properties FROM edges e JOIN nodes fn ON fn.rowid = e.from_id JOIN nodes tn ON tn.rowid = e.to_id WHERE e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.UsesDb, RelationshipKind.Configures, RelationshipKind.DependsOn, RelationshipKind.ImplementedBy, RelationshipKind.Deploys, RelationshipKind.AccessedBy, RelationshipKind.QueriedBy, RelationshipKind.DeclaredIn)})";
+            $"SELECT fn.id AS from_id, tn.id AS to_id, ce_rel_kind(e.kind) AS kind, e.properties FROM edges e JOIN nodes fn ON fn.rowid = e.from_id JOIN nodes tn ON tn.rowid = e.to_id WHERE e.kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.UsesDb, RelationshipKind.Configures, RelationshipKind.DependsOn, RelationshipKind.ReadsFrom, RelationshipKind.WritesTo, RelationshipKind.ImplementedBy, RelationshipKind.Deploys, RelationshipKind.AccessedBy, RelationshipKind.QueriedBy, RelationshipKind.DeclaredIn)})";
         return await QueryAsync<Relationship>(relEdgesQuery, null, cancellationToken);
     }
 

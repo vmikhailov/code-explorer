@@ -1,3 +1,5 @@
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -366,5 +368,105 @@ public class EdgeEvidenceTests
 
         var orderEvidence = await _engine.GetNodeEvidenceAsync(["service:order-service"], "Service");
         Assert.That(orderEvidence.Items.Select(i => i.Kind), Does.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Orm).And.Contain(CodeExplorer.Cypher.Common.EvidenceKind.Config));
+    }
+
+    [Test]
+    public void LiftTransitiveSemanticRelations_PropagatesAndMergesLibraryEdgeProvenance()
+    {
+        var projects = new List<ProjectNode>
+        {
+            new("ws:project:checkout-svc:", "checkout-svc", "services/checkout", "csharp", "Service", IsLibrary: false),
+            new("ws:project:shared-http-a:", "shared-http-a", "libs/shared-http-a", "csharp", "Library", IsLibrary: true),
+            new("ws:project:shared-http-b:", "shared-http-b", "libs/shared-http-b", "csharp", "Library", IsLibrary: true)
+        };
+
+        const string extStripe = "ws:res:service:external:stripe";
+        var libEdgeA = new Relationship("ws:project:shared-http-a:", extStripe, RelationshipKind.ServiceCall)
+        {
+            Operation = "POST"
+        };
+        EvidenceProvenanceHelper.RecordContributingEdge(libEdgeA, "ws:fn:stripeA", OntologyConstants.Relationships.Calls, extStripe);
+
+        var libEdgeB = new Relationship("ws:project:shared-http-b:", extStripe, RelationshipKind.ServiceCall)
+        {
+            Operation = "GET"
+        };
+        EvidenceProvenanceHelper.RecordContributingEdge(libEdgeB, "ws:fn:stripeB", OntologyConstants.Relationships.Calls, extStripe);
+
+        var allRels = new List<Relationship>
+        {
+            new("ws:project:checkout-svc:", "ws:project:shared-http-a:", RelationshipKind.DependsOn),
+            new("ws:project:checkout-svc:", "ws:project:shared-http-b:", RelationshipKind.DependsOn),
+            libEdgeA,
+            libEdgeB
+        };
+
+        var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations(projects, allRels);
+        Assert.That(lifted, Has.Count.EqualTo(1));
+        var liftedEdge = lifted[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(liftedEdge.IsSemanticLifted, Is.True);
+            Assert.That(liftedEdge.EvidenceIds, Is.Not.Null);
+            Assert.That(liftedEdge.EvidenceIds, Does.Contain("ws:fn:stripeA|CALLS|ws:res:service:external:stripe"));
+            Assert.That(liftedEdge.EvidenceIds, Does.Contain("ws:fn:stripeB|CALLS|ws:res:service:external:stripe"));
+            Assert.That(liftedEdge.EvidenceCount, Is.EqualTo(2));
+            Assert.That(liftedEdge.Operation, Is.EqualTo("POST, GET"));
+        });
+    }
+
+    [Test]
+    public async Task CanonicalizeDatabases_MergesProvenanceFromMultipleConsolidatedEdges()
+    {
+        var tempDbPath = Path.Combine(_tempDir, "canon_prov.db").Replace('\\', '/');
+        using var canonDb = new SqliteGraphClient(tempDbPath);
+        await canonDb.CreateIndicesAsync();
+
+        const string svcId = "ws:project:billing:";
+        const string rawDb1 = "ws:db:postgres:billing_a";
+        const string rawDb2 = "ws:db:postgres:billing_b";
+        const string fn1 = "ws:sym:services/billing/InvoiceRepo.cs:Function:ReadInvoices";
+        const string fn2 = "ws:sym:services/billing/PaymentRepo.cs:Function:WriteLedger";
+
+        await canonDb.UploadNodesAsync(
+        [
+            new Node(svcId, "Project", new() { ["name"] = "billing", ["path"] = "services/billing" }),
+            new Node(fn1, "Function", new() { ["name"] = "ReadInvoices", ["path"] = "services/billing/InvoiceRepo.cs", ["start_line"] = 14 }),
+            new Node(fn2, "Function", new() { ["name"] = "WriteLedger", ["path"] = "services/billing/PaymentRepo.cs", ["start_line"] = 29 }),
+            new Node(rawDb1, "Database", new() { ["name"] = "postgres.billing", ["engine"] = "postgres", ["schema"] = "billing", ["db_type"] = "relational", ["from_config"] = "true", ["path"] = "services/billing/appsettings.json" }),
+            new Node(rawDb2, "Database", new() { ["name"] = "postgres.billing", ["engine"] = "postgres", ["schema"] = "billing", ["db_type"] = "relational", ["from_config"] = "true", ["path"] = "services/billing/appsettings.Production.json" })
+        ]);
+
+        var rel1 = new Relationship(fn1, rawDb1, RelationshipKind.ReadsFrom) { Operation = "SELECT", Line = 18 };
+        var rel2 = new Relationship(fn2, rawDb2, RelationshipKind.WritesTo) { Operation = "INSERT", Line = 34 };
+        await canonDb.UploadRelationshipsAsync([rel1, rel2]);
+
+        await PostIndexAnalyzer.CanonicalizeDatabasesAsync(canonDb, "ws");
+
+        var check = await canonDb.ExecuteCypherAsync(
+            "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE p.id = $svc RETURN r.properties AS props",
+            new { svc = svcId });
+
+        Assert.That(check.Rows, Has.Count.EqualTo(1));
+        var propsJson = check.Rows[0].GetStringProp("props");
+        Assert.Multiple(() =>
+        {
+            Assert.That(propsJson, Does.Contain("ReadInvoices|READS_FROM|"));
+            Assert.That(propsJson, Does.Contain("WriteLedger|WRITES_TO|"));
+            Assert.That(propsJson, Does.Contain("SELECT").And.Contain("INSERT"));
+            Assert.That(propsJson, Does.Contain("\"evidence_count\":2"));
+        });
+    }
+
+    [Test]
+    public async Task GetNodeUsages_DisposedClient_RecordsWarningsInsteadOfSwallowingSilently()
+    {
+        var tempDbPath = Path.Combine(_tempDir, "disposed_usages.db").Replace('\\', '/');
+        var disposedClient = new SqliteGraphClient(tempDbPath);
+        disposedClient.Dispose();
+
+        var brokenEngine = new ArchitectureViewEngine(disposedClient);
+        var res = await brokenEngine.GetNodeUsagesAsync("ws:fn:close");
+        Assert.That(res.Warnings, Is.Not.Null.And.Not.Empty);
     }
 }

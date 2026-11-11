@@ -111,6 +111,37 @@ public static class EvidenceProvenanceHelper
         }
     }
 
+    public static void PropagateEdgeProvenance(
+        Relationship target,
+        Relationship? source,
+        int cap = DefaultEvidenceCap)
+    {
+        if (source is null) return;
+
+        var sourceHasRecordedEvidenceIds = source.HasMaterializedProperties
+            ? ParseEvidenceIds(source.Properties).Count > 0
+            : source.EvidenceIds is { Count: > 0 };
+
+        MergeProvenance(target, source, cap);
+
+        if (!sourceHasRecordedEvidenceIds &&
+            !(string.Equals(target.From, source.From, StringComparison.OrdinalIgnoreCase) &&
+              string.Equals(target.To, source.To, StringComparison.OrdinalIgnoreCase) &&
+              target.Kind == source.Kind))
+        {
+            RecordContributingEdge(target, source, cap);
+        }
+
+        if (target.HasMaterializedProperties || source.HasMaterializedProperties)
+        {
+            MergeOperationProperty(target.Properties, source.Properties);
+        }
+        else
+        {
+            target.Operation = MergeDistinctCsv(target.Operation, source.Operation);
+        }
+    }
+
     public static void MergeProvenance(
         Relationship target,
         Relationship? source,
