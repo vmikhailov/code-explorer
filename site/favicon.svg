@@ -28,12 +28,12 @@
     </filter>
   </defs>
 
-  <!-- Seamless Full-Bleed Background (no outer border to clip in link previews) -->
-  <rect x="0" y="0" width="512" height="512" fill="url(#bgGrad)"/>
-  <circle cx="256" cy="256" r="220" fill="url(#coreGlow)"/>
+  <!-- Rounded App-Icon Background -->
+  <rect x="0" y="0" width="512" height="512" rx="92" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="250" fill="url(#coreGlow)"/>
 
-  <!-- Scaled Emblem (0.78x around center 256,256 for generous top/bottom safe zone in Teams/Slack) -->
-  <g transform="translate(256, 256) scale(0.78) translate(-256, -256)">
+  <!-- Tightly Framed Emblem (1.12x around center 256,256) -->
+  <g transform="translate(256, 256) scale(1.12) translate(-256, -256)">
     <!-- Concentric Orbital Rings (5-Layer Architecture Ontology) -->
     <circle cx="256" cy="256" r="168" stroke="#334155" stroke-width="1.6" stroke-dasharray="6 8" opacity="0.65"/>
     <circle cx="256" cy="256" r="122" stroke="#475569" stroke-width="1.6" opacity="0.45"/>

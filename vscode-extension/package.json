@@ -5,7 +5,7 @@
   "version": "1.80.5",
   "publisher": "vmikhailov",
   "license": "MIT",
-  "icon": "media/icon_512_quant.png",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/vmikhailov/code-explorer"
