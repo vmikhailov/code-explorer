@@ -66,7 +66,7 @@
 
         <div class="table-surface" role="region" aria-label="Track 1: AI agent workflow benchmarks">
           <div class="table-caption-bar">
-            <span>Track 1: End-to-End AI Agent Workflows (Cases 01, 02 &amp; 05)</span>
+            <span>Track 1: End-to-End AI Agent &amp; Quality Gate Workflows (Cases 01, 02, 05 &amp; 06)</span>
             <span class="measured">Full runtime transcripts</span>
           </div>
           <table class="bench-table catalog-table">
@@ -100,6 +100,13 @@
                 <td><code>CodeExplorer</code><br>vs<br><code>ripgrep</code></td>
                 <td class="cell-win" data-bind-html="catalog.cs05_outcome"><strong class="tone-ok">~2.5× faster</strong> (4m 25s vs 11m 04s, 92 vs 193 turns)<br><strong class="tone-ok">~3.3× fewer file reads</strong> (36 vs 117, ~2.9× cheaper)<br><strong>100% vs 100%</strong> (0 vs 0 compactions)</td>
                 <td><a href="/benchmarks/05-polyglot-architecture-and-blast-radius.html" class="btn">Read Case 05</a></td>
+              </tr>
+              <tr>
+                <td><strong><a href="/benchmarks/06-precommit-architectural-guard.html">Case Study 06</a></strong><br><span class="tone-muted">argoproj/argo-cd</span></td>
+                <td>Automated pre-commit architectural guard: verify 6 core invariant rules (reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling, and auth bypasses) across 18 subsystems (4,216 files).</td>
+                <td><code>CodeExplorer</code><br>vs<br><code>CBM</code></td>
+                <td class="cell-win" data-bind-html="catalog.cs06_outcome"><strong class="tone-ok">~3.2× faster in agent mode</strong> (1m 23s vs 4m 24s)<br><strong class="tone-ok">398 ms native CLI check</strong> (vs ~4m 24s, $0.00 vs $0.14)<br><strong>100% vs 100%</strong> (6 of 6 invariant gates evaluated)</td>
+                <td><a href="/benchmarks/06-precommit-architectural-guard.html" class="btn">Read Case 06</a></td>
               </tr>
             </tbody>
           </table>
@@ -151,7 +158,7 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-xl);" data-bind-html="catalog.participants_html"><strong>Tested participants &amp; versions across the benchmark suite:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.78.1</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.75.0 to v1.80.0</code> (.NET 10, SQLite + OpenCypher, 36 MCP tools)<br>
           2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (<code>win32-x64</code> Go + SQLite binary, 17 MCP tools)<br>
           3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>v0.9.104</code> (Python 3.10, Tree-sitter + NetworkX <code>--code-only</code>, 10 MCP tools)<br>
           4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg v14.1.1</code>) + Python <code>3.10</code> (Case 02) + <code>view_file</code><br>

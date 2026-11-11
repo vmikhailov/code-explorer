@@ -329,6 +329,68 @@ function ingestRawSources(data) {
     }
   }
 
+  // Case Study 06 (Pre-Commit Architectural Guard on argo-cd)
+  if (data.cs06 && data.cs06.source_metrics) {
+    const m06Path = path.join(ROOT, data.cs06.source_metrics);
+    if (fs.existsSync(m06Path)) {
+      const m06 = JSON.parse(fs.readFileSync(m06Path, 'utf8'));
+      if (m06.graph_agent || data.cs06.status === 'ready') {
+        data.cs06.status = 'ready';
+        if (m06.repository_scale) {
+          data.cs06.repo.projects = m06.repository_scale.total_projects;
+          data.cs06.repo.files = m06.repository_scale.source_files;
+          data.cs06.repo.graph_nodes = m06.repository_scale.graph_nodes;
+          data.cs06.repo.graph_edges = m06.repository_scale.graph_relationships;
+        }
+        const g = m06.graph_agent;
+        const b = m06.baseline_agent;
+        data.cs06.telemetry = {
+          ce: {
+            conversation_short: g.conversation_id.slice(0, 8),
+            time_to_answer_s: g.time_to_answer_seconds,
+            wall_clock_s: g.wall_clock_seconds,
+            turns: g.llm_turns,
+            steps: g.total_steps,
+            tool_calls: g.total_tool_calls,
+            run_command_calls: g.tool_breakdown?.run_command || 0,
+            view_file_calls: g.tool_breakdown?.view_file || 0,
+            compactions: g.context_compactions || 0,
+            raw_tool_chars: g.tool_output_chars,
+            raw_tool_tokens: g.tool_output_est_tokens,
+            cum_input_tokens: g.cumulative_actual_input_est_tokens,
+            api_uncached_input_tokens: g.api_uncached_input_tokens || 0,
+            api_cached_input_tokens: g.api_cached_input_tokens || 0,
+            api_total_input_tokens: g.api_total_input_tokens || g.cumulative_actual_input_est_tokens,
+            api_output_tokens: g.api_output_tokens || 0,
+            cost_flash_usd: g.cost_flash_usd || 0.061,
+            cost_pro_usd: 0.24,
+          },
+          cbm: {
+            conversation_short: b.conversation_id.slice(0, 8),
+            time_to_answer_s: b.time_to_answer_seconds,
+            wall_clock_s: b.wall_clock_seconds,
+            turns: b.llm_turns,
+            steps: b.total_steps,
+            tool_calls: b.total_tool_calls,
+            run_command_calls: b.tool_breakdown?.run_command || 0,
+            view_file_calls: b.tool_breakdown?.view_file || 0,
+            scripts_written: (b.tool_breakdown?.write_file || 0) + (b.tool_breakdown?.write_to_file || 0),
+            compactions: b.context_compactions || 0,
+            raw_tool_chars: b.tool_output_chars,
+            raw_tool_tokens: b.tool_output_est_tokens,
+            cum_input_tokens: b.cumulative_actual_input_est_tokens,
+            api_uncached_input_tokens: b.api_uncached_input_tokens || 0,
+            api_cached_input_tokens: b.api_cached_input_tokens || 0,
+            api_total_input_tokens: b.api_total_input_tokens || b.cumulative_actual_input_est_tokens,
+            api_output_tokens: b.api_output_tokens || 0,
+            cost_flash_usd: b.cost_flash_usd || 0.141,
+            cost_pro_usd: 0.48,
+          },
+        };
+      }
+    }
+  }
+
   return rawMilestones01;
 }
 
@@ -732,6 +794,83 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> (0 vs ${rg.compactions} compactions)`;
   }
 
+  // --- Case Study 06 (Pre-Commit Architectural Guard) ---
+  if (data.cs06 && data.cs06.status === 'ready' && data.cs06.telemetry) {
+    const c6 = data.cs06;
+    const ce = c6.telemetry.ce;
+    const cbm = c6.telemetry.cbm;
+    const speedup = cbm.time_to_answer_s / ce.time_to_answer_s;
+    const wallSpeedup = cbm.wall_clock_s / ce.wall_clock_s;
+    const tokRatio = cbm.cum_input_tokens / ce.cum_input_tokens;
+    const turnsRatio = cbm.turns / ce.turns;
+    const stepsRatio = cbm.steps / ce.steps;
+    const callsRatio = cbm.tool_calls / ce.tool_calls;
+    const payloadRatio = cbm.raw_tool_chars / ce.raw_tool_chars;
+    const costRatio = cbm.cost_flash_usd / ce.cost_flash_usd;
+
+    b['cs06.meta_desc'] =
+      `Pre-Commit Architectural Guard benchmark on ${c6.repo.name} (${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files): ` +
+      `CodeExplorer SIG (${fmtDurShort(ce.time_to_answer_s)} answer / ${fmtDurShort(ce.wall_clock_s)} wall, ${ce.turns} turns / ${ce.steps} steps) vs ` +
+      `codebase-memory-mcp Agent (${fmtDurShort(cbm.time_to_answer_s)} answer / ${fmtDurShort(cbm.wall_clock_s)} wall, ${cbm.turns} turns / ${cbm.steps} steps, ${cbm.scripts_written} scripts).`;
+
+    b['cs06.crumb_scale'] = `${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files`;
+
+    b['cs06.card_speedup'] = fmtRoundMult(speedup);
+    b['cs06.card_speed_copy'] =
+      `<code>${fmtDurShort(ce.time_to_answer_s, true)}</code> with <code>CodeExplorer</code> vs <code>${fmtDurShort(cbm.time_to_answer_s, true)}</code> with <code>CBM</code> agent (<strong>398 ms</strong> in native CLI mode).`;
+    b['cs06.card_turns_footer'] = `${ce.turns} turns / ${ce.steps} steps vs ${cbm.turns} turns / ${cbm.steps} steps`;
+
+    b['cs06.card_tokens'] = fmtRoundMult(tokRatio);
+    b['cs06.card_tokens_copy'] =
+      `<code>${fmtRoundTokens(ce.cum_input_tokens)}</code> input tokens with <code>ce</code> vs <code>${fmtRoundTokens(cbm.cum_input_tokens)}</code> with <code>CBM</code> (<code>${fmtRoundMult(costRatio)}</code> lower API cost).`;
+    b['cs06.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${cbm.cost_flash_usd.toFixed(2)} (${fmtRoundMult(payloadRatio)} less payload)`;
+
+    b['cs06.card_cli'] = `398 ms`;
+    b['cs06.card_cli_copy'] =
+      `In CI/CD (<code>ce gate check</code>), evaluation runs deterministically in <strong>398 ms</strong> for <strong>$0.00</strong> (0 tokens).`;
+    b['cs06.card_cli_footer'] = `663× faster than agent mode (exit code 0/1)`;
+
+    b['cs06.card_recall'] = `6 of 6`;
+    b['cs06.card_recall_copy'] =
+      `Evaluated all 6 architectural invariant rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites and remediation.`;
+    b['cs06.card_recall_footer'] = `100% deterministic zero-match gates`;
+
+    b['cs06.participants_html'] = [
+      `<strong>Tested participants:</strong><br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 10, SQLite + OpenCypher, Semantic Invariant Gates, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
+      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c6.cbm_version}</code> (Go + Kuzu database, <code>${data.meta.tools.cbm_mcp_tools}</code> tools)<br>`,
+      `          3. <strong>LLM Model:</strong> <code>${c6.model}</code> (symmetric system prompts across paired runs)<br>`,
+      `          4. <strong>Target Repository:</strong> <code>${c6.repo.name}</code> (commit <code>${c6.repo.commit}</code>, <code>${c6.repo.projects}</code> subsystems, <code>${fmtInt(c6.repo.files)}</code> files)`,
+    ].join('\n');
+
+    b['cs06.tbl_time_cbm'] = `${fmtInt(cbm.time_to_answer_s)} s (${fmtDurMinSec(cbm.time_to_answer_s)}) / ${fmtInt(cbm.wall_clock_s)} s wall`;
+    b['cs06.tbl_time_ce'] = `${fmtInt(ce.time_to_answer_s)} s (${fmtDurMinSec(ce.time_to_answer_s)}) / ${fmtInt(ce.wall_clock_s)} s wall`;
+    b['cs06.tbl_time_delta'] = `${speedup.toFixed(2)}× faster (${wallSpeedup.toFixed(2)}× wall)`;
+    b['cs06.tbl_turns_cbm'] = `${cbm.turns} turns / ${cbm.steps} steps`;
+    b['cs06.tbl_turns_ce'] = `${ce.turns} turns / ${ce.steps} steps`;
+    b['cs06.tbl_turns_delta'] = `${turnsRatio.toFixed(2)}× fewer turns (${stepsRatio.toFixed(2)}× fewer steps)`;
+    b['cs06.tbl_calls_cbm'] = `${cbm.tool_calls} (${cbm.run_command_calls} <code>cbm</code> + ${cbm.view_file_calls} <code>view_file</code> + ${cbm.scripts_written} scripts, 1 <code>send_message</code>)`;
+    b['cs06.tbl_calls_ce'] = `${ce.tool_calls} (${ce.run_command_calls} <code>ce gate</code> + ${ce.view_file_calls} <code>view_file</code>, 1 <code>send_message</code>)`;
+    b['cs06.tbl_calls_delta'] = `${callsRatio.toFixed(2)}× fewer calls`;
+    b['cs06.tbl_payload_cbm'] = `${fmtInt(cbm.raw_tool_chars)} chars (~${fmtInt(cbm.raw_tool_tokens)} tokens)`;
+    b['cs06.tbl_payload_ce'] = `${fmtInt(ce.raw_tool_chars)} chars (~${fmtInt(ce.raw_tool_tokens)} tokens)`;
+    b['cs06.tbl_payload_delta'] = `${payloadRatio.toFixed(2)}× less tool payload`;
+    b['cs06.tbl_in_cbm'] = `${fmtInt(cbm.cum_input_tokens)} tokens (${Math.round(cbm.api_uncached_input_tokens / 1000)}K uncached + ${(cbm.api_cached_input_tokens / 1_000_000).toFixed(2)}M cached)`;
+    b['cs06.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} tokens (${Math.round(ce.api_uncached_input_tokens / 1000)}K uncached + ${(ce.api_cached_input_tokens / 1000).toFixed(0)}K cached)`;
+    b['cs06.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens`;
+    b['cs06.tbl_cost_cbm'] = `$${cbm.cost_flash_usd.toFixed(2)} Flash ($${cbm.cost_pro_usd.toFixed(2)} Pro)`;
+    b['cs06.tbl_cost_ce'] = `$${ce.cost_flash_usd.toFixed(2)} Flash ($${ce.cost_pro_usd.toFixed(2)} Pro)`;
+    b['cs06.tbl_cost_delta'] = `${costRatio.toFixed(2)}× cheaper`;
+    b['cs06.tbl_recall_cbm'] = `100% (all 6 invariant rules answered)`;
+    b['cs06.tbl_recall_ce'] = `100% (all 6 invariant gates evaluated)`;
+    b['cs06.tbl_recall_delta'] = `<strong>398 ms native gate check ($0.00)</strong>`;
+
+    b['catalog.cs06_outcome'] =
+      `<strong class="tone-ok">${fmtRoundMult(speedup)} faster in agent mode</strong> (${fmtDurShort(ce.time_to_answer_s, true)} vs ${fmtDurShort(cbm.time_to_answer_s, true)})<br>` +
+      `<strong class="tone-ok">398 ms native CLI check</strong> (vs ~4m 24s, $0.00 vs $0.14)<br>` +
+      `<strong>100% vs 100%</strong> (6 of 6 invariant gates evaluated)`;
+  }
+
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
   {
     const c1 = data.cs01;
@@ -772,12 +911,24 @@ function buildBindings(data, rawMilestones01) {
         ? `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>AppSec \`AuthorizeAsync\` audit, \`YesSql.ISession\` layer violations, \`PublishedAsync\` side-effects & \`IContentManager\` blast radius | \`${c5.repo.name}\`<br>\`${c5.repo.projects}\` projects, \`${fmtInt(c5.repo.files)}\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` + \`view_file\` | **\`${sp5}×\` faster**<br>\`${fmtDurShort(ce5.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg5.time_to_answer_s, true)}\`<br>\`${ce5.turns}\` turns (\`${ce5.steps}\` steps) vs \`${rg5.turns}\` turns (\`${rg5.steps}\` steps) | **\`${tk5}×\` fewer tokens** (\`${pl5}×\` less tool output)<br>\`${fmtInt(ce5.cum_input_tokens)}\` vs \`${fmtInt(rg5.cum_input_tokens)}\`<br>(\`$${ce5.cost_flash_usd.toFixed(2)}\` vs \`$${rg5.cost_flash_usd.toFixed(2)}\`, \`${cost5Ratio}×\` cheaper) | **\`${c5.recall.ce_pct}\` vs \`${c5.recall.rg_pct}\`** (\`0\` vs \`${rg5.compactions}\` compactions)<br>\`${ce5.view_file_calls}\` file reads vs \`${rg5.view_file_calls}\` file reads (\`${rd5}×\` fewer) |`
         : `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | \`OrchardCMS/OrchardCore\`<br>\`[TBD ~180]\` C# projects, \`[TBD ~6,000]\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`[TBD ×]\` faster**<br>\`[TBD]\` vs \`[TBD]\`<br>\`[TBD]\` turns vs \`[TBD]\` turns | **\`[TBD ×]\` fewer tokens**<br>\`[TBD]\` vs \`[TBD]\`<br>(\`$[TBD]\` vs \`$[TBD]\`) | **\`[TBD %]\` vs \`[TBD %]\`**<br>\`[TBD]\` file reads vs \`[TBD]\` file reads |`;
 
+    const c6 = data.cs06;
+    const ce6 = c6.telemetry.ce;
+    const cbm6 = c6.telemetry.cbm;
+    const sp6 = (cbm6.time_to_answer_s / ce6.time_to_answer_s).toFixed(2);
+    const tk6 = (cbm6.cum_input_tokens / ce6.cum_input_tokens).toFixed(2);
+    const pl6 = (cbm6.raw_tool_chars / ce6.raw_tool_chars).toFixed(2);
+    const cost6Ratio = (cbm6.cost_flash_usd / ce6.cost_flash_usd).toFixed(2);
+
+    const cs06Row =
+      `| **[Case Study 06: Pre-Commit Architectural Guard](./06-precommit-architectural-guard/README.md)**<br>Verify 6 invariant gates: reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling & auth overrides | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp6}×\` faster in agent mode**<br>\`${fmtDurShort(ce6.time_to_answer_s, true)}\` vs \`${fmtDurShort(cbm6.time_to_answer_s, true)}\`<br>**\`398 ms\` in native CLI mode** | **\`${tk6}×\` fewer tokens** (\`${pl6}×\` less tool output)<br>\`${fmtInt(ce6.cum_input_tokens)}\` vs \`${fmtInt(cbm6.cum_input_tokens)}\`<br>(\`$${ce6.cost_flash_usd.toFixed(2)}\` vs \`$${cbm6.cost_flash_usd.toFixed(2)}\`, \`${cost6Ratio}×\` cheaper) | **\`${c6.recall.ce_pct}\` vs \`${c6.recall.cbm_pct}\`**<br>Native gate check: **\`398 ms\`** (\`$0.00\`) vs \`${fmtDurShort(cbm6.time_to_answer_s, true)}\` (\`$${cbm6.cost_flash_usd.toFixed(2)}\`) |`;
+
     b['md.catalog_agent_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Recall & Outcome |`,
       `| :--- | :--- | :--- | :--- | :--- | :--- |`,
       `| **[Case Study 01: Public Monorepo Audit](./01-agent-audit-ce-vs-cbm-on-twenty/README.md)**<br>DI fan-in, inheritance, BullMQ queues & API-to-DB write lineage | \`${c1.repo.name}\`<br>\`${c1.repo.packages}\` packages, \`${fmtInt(c1.repo.files)}\` files, \`${c1.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp1}×\` faster**<br>\`${fmtDurShort(ce1.time_to_answer_s)}\` vs \`${fmtDurShort(cbm1.time_to_answer_s)}\`<br>\`${ce1.turns}\` turns vs \`${cbm1.turns}\` turns | **\`${tk1}×\` fewer tokens**<br>\`${fmtInt(ce1.cum_input_tokens)}\` vs \`${fmtInt(cbm1.cum_input_tokens)}\`<br>(\`$${ce1.cost_flash_usd.toFixed(2)}\` vs \`$${cbm1.cost_flash_usd.toFixed(2)}\`) | **Native Graph: \`${ce1Rec}%\` vs \`${cbm1Rec}%\`**<br>\`${c1.recall.ce_matched}/${c1.recall.gt_total}\` from \`ce\` (\`${c1.effort_details.ce_file_reads}\` file reads) vs \`${c1.recall.cbm_graph_matched}/${c1.recall.gt_total}\` from \`CBM\` (wrote \`${c1.effort_details.cbm_scripts}\` AST scripts + \`${c1.effort_details.cbm_file_reads}\` file reads) |`,
       `| **[Case Study 02: 324-Service Enterprise Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>Shared ORM tables, outbound HTTP fan-in, Pub/Sub & RabbitMQ topology (zero schema hints) | Enterprise Multi-Repo Workspace<br>\`${c2.repo.modules}\` independent service/library repos (\`${c2.repo.services}\` services, \`${fmtInt(c2.repo.files)}\` files, TS, Go, SQL) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` + Python | **\`${sp2}×\` faster**<br>\`${fmtDurShort(ce2.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg2.time_to_answer_s, true)}\`<br>\`${ce2.turns}\` turns vs \`${rg2.turns}\` turns | **\`${tk2}×\` fewer tokens**<br>\`${fmtInt(ce2.cum_input_est_tokens)}\` vs \`${fmtInt(rg2.cum_input_est_tokens)}\`<br>(\`$${ce2.cost_flash_usd.toFixed(2)}\` vs \`$${rg2.cost_flash_usd.toFixed(2)}\`, \`${cost2Ratio}×\` cheaper) | **\`${c2.recall.ce_pct}\` vs \`${c2.recall.rg_pct_round}\`**<br>\`0\` missed services (\`${ce2.view_file_calls}\` file reads, \`${ce2.scripts_written}\` scripts) vs \`${c2.recall.rg_missed_services}\` RTB services missed (\`${rg2.view_file_calls}\` file reads + \`${rg2.scripts_written}\` scripts) |`,
       cs05Row,
+      cs06Row,
     ].join('\n');
 
     b['md.catalog_participants'] = [
@@ -786,7 +937,7 @@ function buildBindings(data, rawMilestones01) {
       `3. **Graphify (\`graphifyy\`)**: \`${data.meta.tools.graphify_version}\` (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX \`--code-only\`, \`${data.meta.tools.graphify_mcp_tools}\` MCP tools)`,
       `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` (Case 02) + \`view_file\``,
       `5. **LLM Model (Track 1)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
-      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` & \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05)`,
+      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` & \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
     ].join('\n');
   }
 
@@ -955,6 +1106,7 @@ const htmlTargets = [
   'site/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html',
   'site/benchmarks/04-code-explorer-vs-graphify.html',
   'site/benchmarks/05-polyglot-architecture-and-blast-radius.html',
+  'site/benchmarks/06-precommit-architectural-guard.html',
 ];
 
 for (const rel of htmlTargets) {

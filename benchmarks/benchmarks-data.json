@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.78.1",
+      "ce_suite_versions": "v1.75.0 to v1.80.0",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -429,6 +429,71 @@
         "api_output_tokens": 66698,
         "cost_flash_usd": 1.91,
         "cost_pro_usd": 2.02
+      }
+    }
+  },
+  "cs06": {
+    "id": "06-precommit-architectural-guard",
+    "status": "ready",
+    "expected_repo_match": "argo-cd",
+    "source_metrics": "benchmarks/06-precommit-architectural-guard/results/metrics.json",
+    "ce_version": "v1.80.0",
+    "cbm_version": "v0.12.1",
+    "model": "Gemini 3.8 Flash",
+    "repo": {
+      "name": "argoproj/argo-cd",
+      "commit": "6d689fa3",
+      "projects": 18,
+      "files": 4216,
+      "graph_nodes": 45616,
+      "graph_edges": 134005
+    },
+    "recall": {
+      "ce_pct": "100%",
+      "cbm_pct": "100%",
+      "summary_note": "Evaluated 6 architectural invariant gates: 2 PASS, 1 WARN, 3 FAIL"
+    },
+    "telemetry": {
+      "ce": {
+        "conversation_short": "5e260b11",
+        "time_to_answer_s": 83,
+        "wall_clock_s": 104,
+        "turns": 28,
+        "steps": 56,
+        "tool_calls": 27,
+        "run_command_calls": 13,
+        "view_file_calls": 13,
+        "compactions": 0,
+        "raw_tool_chars": 72079,
+        "raw_tool_tokens": 18020,
+        "cum_input_tokens": 956308,
+        "api_uncached_input_tokens": 148348,
+        "api_cached_input_tokens": 807960,
+        "api_total_input_tokens": 956308,
+        "api_output_tokens": 14297,
+        "cost_flash_usd": 0.061,
+        "cost_pro_usd": 0.24
+      },
+      "cbm": {
+        "conversation_short": "86aa7d48",
+        "time_to_answer_s": 264,
+        "wall_clock_s": 277,
+        "turns": 62,
+        "steps": 148,
+        "tool_calls": 61,
+        "run_command_calls": 24,
+        "view_file_calls": 15,
+        "scripts_written": 0,
+        "compactions": 0,
+        "raw_tool_chars": 78644,
+        "raw_tool_tokens": 19661,
+        "cum_input_tokens": 2770995,
+        "api_uncached_input_tokens": 276870,
+        "api_cached_input_tokens": 2494125,
+        "api_total_input_tokens": 2770995,
+        "api_output_tokens": 9321,
+        "cost_flash_usd": 0.141,
+        "cost_pro_usd": 0.48
       }
     }
   }

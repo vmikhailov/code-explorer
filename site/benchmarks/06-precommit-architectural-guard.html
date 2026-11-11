@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Case Study 06: Pre-Commit Architectural Guard (CodeExplorer vs CBM)</title>
+  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Guard benchmark on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer SIG (1m 23s answer / 1m 44s wall, 28 turns / 56 steps) vs codebase-memory-mcp Agent (4m 24s answer / 4m 37s wall, 62 turns / 148 steps, 0 scripts).">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="../fonts/fonts.css?v=1">
+  <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
+</head>
+<body>
+
+  <header class="slab-header">
+    <nav class="wrap slab-bar" aria-label="Primary">
+      <a href="/index.html" class="brand-lockup">
+        <span class="brand-mark">ce</span>
+        <span>CodeExplorer</span>
+      </a>
+      <ul class="slab-links">
+        <li><a href="/index.html">Overview</a></li>
+        <li><a href="/benchmarks.html" class="nav-framed">All Benchmarks</a></li>
+      </ul>
+      <div class="slab-actions">
+        <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/06-precommit-architectural-guard" target="_blank" rel="noopener" class="btn">Raw Artifacts on GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero-stage">
+      <div class="wrap">
+        <div class="crumb-bar">
+          <div class="crumb-trail">
+            <a href="/benchmarks.html">Benchmarks Catalog</a>
+            <span>/</span>
+            <span class="tone-ink">Case Study 06: Pre-Commit Architectural Guard</span>
+          </div>
+          <span class="measured" data-bind="cs06.crumb_scale">18 subsystems, 4,216 files</span>
+        </div>
+
+        <div class="hero-top">
+          <div>
+            <h1 class="hero-title">Case Study 06: Automated Pre-Commit Architectural Guard (ce vs CBM).</h1>
+          </div>
+          <div class="hero-aside">
+            <p class="hero-lede">
+              Continuous architectural governance benchmark on <code>argoproj/argo-cd</code> (Kubernetes continuous delivery platform with <code>18</code> subsystems and <code>4,216</code> files). Measures how an automated guard verifies 6 core architectural invariant rules: reverse layer leaks, God Structs, package dependency DAGs, raw secret access encapsulation, and authentication overrides.
+            </p>
+            <div class="hero-controls">
+              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/06-precommit-architectural-guard/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
+              <a href="#prompts" class="btn">Inspect Tested Prompts</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="panels panels--4" style="margin-top: var(--space-xl);">
+          <div class="panel panel--sunken">
+            <span class="reading tone-ok" data-bind="cs06.card_speedup">~3.2×</span>
+            <h2 class="panel-title">Shorter Time to Answer</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_speed_copy"><code>1m 23s</code> with <code>CodeExplorer</code> vs <code>4m 24s</code> with <code>CBM</code> agent (<strong>398 ms</strong> in native CLI mode).</p>
+            <code class="panel-code" data-bind="cs06.card_turns_footer">28 turns / 56 steps vs 62 turns / 148 steps</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-accent" data-bind="cs06.card_tokens">~2.9×</span>
+            <h2 class="panel-title">Fewer Input Tokens</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_tokens_copy"><code>~956K</code> input tokens with <code>ce</code> vs <code>~2.8M</code> with <code>CBM</code> (<code>~2.3×</code> lower API cost).</p>
+            <code class="panel-code" data-bind="cs06.card_cost_footer">$0.06 vs $0.14 (~1.1× less payload)</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading tone-cool" data-bind="cs06.card_cli">398 ms</span>
+            <h2 class="panel-title">Native CI/CD Check</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_cli_copy">In CI/CD (<code>ce gate check</code>), evaluation runs deterministically in <strong>398 ms</strong> for <strong>$0.00</strong> (0 tokens).</p>
+            <code class="panel-code" data-bind="cs06.card_cli_footer">663× faster than agent mode (exit code 0/1)</code>
+          </div>
+          <div class="panel panel--sunken">
+            <span class="reading" data-bind="cs06.card_recall">6 of 6</span>
+            <h2 class="panel-title">Architectural Invariants</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_recall_copy">Evaluated all 6 architectural invariant rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites and remediation.</p>
+            <code class="panel-code" data-bind="cs06.card_recall_footer">100% deterministic zero-match gates</code>
+          </div>
+        </div>
+
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs06.participants_html"><strong>Tested participants:</strong><br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.80.0</code> (.NET 10, SQLite + OpenCypher, Semantic Invariant Gates, <code>45,616</code> nodes, <code>134,005</code> edges)<br>
+          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (Go + Kuzu database, <code>17</code> tools)<br>
+          3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (symmetric system prompts across paired runs)<br>
+          4. <strong>Target Repository:</strong> <code>argoproj/argo-cd</code> (commit <code>6d689fa3</code>, <code>18</code> subsystems, <code>4,216</code> files)</div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">1. The 6 pre-commit architectural invariant rules.</h2>
+          <p class="band-lede">
+            To prevent architecture drift, teams enforce rules at pre-commit and PR review time. Rather than burning minutes and LLM tokens per commit, CodeExplorer evaluates these invariants deterministically as zero-match OpenCypher gates.
+          </p>
+        </div>
+
+        <div class="panels panels--3">
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Reverse Layer Inversion Shield</h3>
+              <code class="badge badge--win">SIG-P-B-101</code>
+            </div>
+            <p class="panel-copy">Foundational utility packages (<code>util/**</code>) must remain self-contained and never call higher-level business services (<code>server/**</code>, <code>controller/**</code>, <code>reposerver/**</code>).</p>
+            <code class="panel-code">FAIL: 104 call sites detected</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">God Struct Complexity Limit</h3>
+              <code class="badge badge--accent">SIG-C-R-102</code>
+            </div>
+            <p class="panel-copy">No production struct may declare more than 30 methods in a single type unit without an explicit ratchet exemption.</p>
+            <code class="panel-code">FAIL: 12 structs exceeded limit</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Package Dependency DAG</h3>
+              <code class="badge badge--cool">SIG-P-I-103</code>
+            </div>
+            <p class="panel-copy">Package import relationships across the repository must form a strictly acyclic directed graph (DAG with zero import cycles).</p>
+            <code class="panel-code">PASS: 0 cyclic dependencies</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Storage Abstraction Boundary</h3>
+              <code class="badge badge--cool">SIG-P-B-104</code>
+            </div>
+            <p class="panel-copy">Raw Kubernetes secret repository storage backends (<code>repository_secrets.go</code>) must be encapsulated strictly within <code>util/db</code>.</p>
+            <code class="panel-code">PASS: 0 external call sites</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Notification DB Decoupling</h3>
+              <code class="badge badge--win">SIG-P-B-105</code>
+            </div>
+            <p class="panel-copy">Notification utilities in <code>util/notification</code> must not instantiate standalone database instances or call <code>db.NewDB</code> directly.</p>
+            <code class="panel-code">FAIL: 2 violation sites in service.go</code>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 class="panel-title">Public Auth Bypass Audit</h3>
+              <code class="badge badge--accent">SIG-M-B-106</code>
+            </div>
+            <p class="panel-copy">All server endpoints implementing <code>AuthFuncOverride</code> bypass standard authentication and must be explicitly audited and allowlisted.</p>
+            <code class="panel-code">WARN: 4 legitimate overrides audited</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band band--deep">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">2. Execution telemetry scorecard.</h2>
+          <p class="band-lede">
+            Measured from paired head-to-head runs on <code>argoproj/argo-cd @ 6d689fa3</code> with matched subagent system prompts.
+          </p>
+        </div>
+
+        <div class="table-surface">
+          <div class="table-caption-bar">
+            <span>Paired Guard Evaluation on argoproj/argo-cd (18 Subsystems, 4,216 Files)</span>
+            <span class="measured">Source: benchmarks/06-precommit-architectural-guard/results/metrics.json</span>
+          </div>
+          <table class="bench-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th><code>codebase-memory-mcp</code></th>
+                <th><code>CodeExplorer</code></th>
+                <th>Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Time to Answer (<code>send_message</code>)</td>
+                <td class="cell-loss" data-bind="cs06.tbl_time_cbm">264 s (4 min 24 sec) / 277 s wall</td>
+                <td class="cell-win" data-bind="cs06.tbl_time_ce">83 s (1 min 23 sec) / 104 s wall</td>
+                <td class="cell-win" data-bind="cs06.tbl_time_delta">3.18× faster (2.66× wall)</td>
+              </tr>
+              <tr>
+                <td>LLM Turns &amp; Steps</td>
+                <td class="cell-loss" data-bind="cs06.tbl_turns_cbm">62 turns / 148 steps</td>
+                <td class="cell-win" data-bind="cs06.tbl_turns_ce">28 turns / 56 steps</td>
+                <td class="cell-win" data-bind="cs06.tbl_turns_delta">2.21× fewer turns (2.64× fewer steps)</td>
+              </tr>
+              <tr>
+                <td>Total Tool Calls &amp; File Reads</td>
+                <td class="cell-loss" data-bind-html="cs06.tbl_calls_cbm">61 (24 <code>cbm</code> + 15 <code>view_file</code> + 0 scripts, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind-html="cs06.tbl_calls_ce">27 (13 <code>ce gate</code> + 13 <code>view_file</code>, 1 <code>send_message</code>)</td>
+                <td class="cell-win" data-bind="cs06.tbl_calls_delta">2.26× fewer calls</td>
+              </tr>
+              <tr>
+                <td>Raw Tool Output Ingested</td>
+                <td class="cell-loss" data-bind="cs06.tbl_payload_cbm">78,644 chars (~19,661 tokens)</td>
+                <td class="cell-win" data-bind="cs06.tbl_payload_ce">72,079 chars (~18,020 tokens)</td>
+                <td class="cell-win" data-bind="cs06.tbl_payload_delta">1.09× less tool payload</td>
+              </tr>
+              <tr>
+                <td>Cumulative Input Tokens</td>
+                <td class="cell-loss" data-bind="cs06.tbl_in_cbm">2,770,995 tokens (277K uncached + 2.49M cached)</td>
+                <td class="cell-win" data-bind="cs06.tbl_in_ce">956,308 tokens (148K uncached + 808K cached)</td>
+                <td class="cell-win" data-bind="cs06.tbl_in_delta">2.90× fewer input tokens</td>
+              </tr>
+              <tr>
+                <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
+                <td class="cell-num" data-bind="cs06.tbl_cost_cbm">$0.14 Flash ($0.48 Pro)</td>
+                <td class="cell-win" data-bind="cs06.tbl_cost_ce">$0.06 Flash ($0.24 Pro)</td>
+                <td class="cell-win" data-bind="cs06.tbl_cost_delta">2.31× cheaper</td>
+              </tr>
+              <tr>
+                <td>Invariant Rule Recall &amp; Native CLI Check</td>
+                <td class="cell-num" data-bind="cs06.tbl_recall_cbm">100% (all 6 invariant rules answered)</td>
+                <td class="cell-win" data-bind="cs06.tbl_recall_ce">100% (all 6 invariant gates evaluated)</td>
+                <td data-bind-html="cs06.tbl_recall_delta"><strong>398 ms native gate check ($0.00)</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);">
+          <strong>Methodological note: Agent reasoning vs native deterministic gates</strong><br>
+          1. <strong>The CBM agent workflow:</strong> Because <code>codebase-memory-mcp</code> lacks a built-in architectural gate engine, the CBM agent had to iterate through 62 turns, formulate Cypher queries for each rule, write 5 custom Python extraction scripts, and read 18 source files to verify line numbers, consuming 4 minutes 24 seconds and 1.88M tokens.<br>
+          2. <strong>The CodeExplorer advantage:</strong> In agent mode, <code>ce gate check</code> and <code>ce gate details</code> delivered structured violations in 28 turns (1 minute 23 seconds). Even more decisively, when invoked directly in CI/CD (<code>ce gate check --dir "..."</code>), CodeExplorer evaluates all 6 gates in <strong>398 milliseconds</strong> with <strong>0 tokens</strong> and <strong>$0.00 API cost</strong>, returning a deterministic binary exit code (<code>0</code> for pass, <code>1</code> for fail) ideal for pre-commit git hooks and GitHub Actions.
+        </div>
+      </div>
+    </section>
+
+    <section class="band" style="border-bottom: none;">
+      <div class="wrap">
+        <div id="prompts" class="prompt-stack" style="margin-top: 0; padding-top: 0; border-top: none;">
+          <div class="prompt-stack-head">
+            <h2 class="prompt-stack-title">3. Reproducibility: matched prompts &amp; task specification.</h2>
+            <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
+          </div>
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--accent">Task Prompt</span>
+                <span>prompts/task-prompt.md: Shared Pre-Commit Architectural Guard Task Given Identically to Both Agents</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/prompts/task-prompt.md"># Shared Task Prompt: Automated Pre-Commit Architectural Guard Audit on `argoproj/argo-cd`
+
+You are acting as an automated Pre-Commit / CI Pull-Request Architectural Guard on `argoproj/argo-cd`.
+
+Before any new code can be merged into `main`, it must pass an exhaustive verification of the following 6 core architectural invariant rules:
+
+1. **Rule 1 (Reverse Layer Leaks)**: Foundational utility packages (`util/**`, excluding `*_test.go`) must remain self-contained and must never call code in higher-level business services (`server/**`, `controller/**`, `reposerver/**`).
+2. **Rule 2 (God Structs &amp; Complexity Limit)**: No production struct may exceed 30 declared methods.
+3. **Rule 3 (Package Dependency DAG)**: Package import relationships across the repository must form a strictly acyclic directed graph (zero import cycles).
+4. **Rule 4 (Storage Abstraction Boundary)**: Raw Kubernetes secret repository storage backends (`repository_secrets.go`) must be encapsulated strictly within `util/db` and never called from other packages.
+5. **Rule 5 (Notification Subsystem Decoupling)**: Notification utilities in `util/notification` must not instantiate standalone database instances or call `db.NewDB` directly (DB instances must be injected).
+6. **Rule 6 (Public Authentication Bypass Audit)**: Identify all server endpoints that implement `AuthFuncOverride` to bypass standard authentication.
+
+Your task is to evaluate each of the 6 rules across the entire repository and produce a comprehensive Pre-Commit Architectural Guard Report:
+For each rule, report:
+- Rule status: `PASS` / `FAIL` / `WARNING`
+- Total count of violations
+- Concrete list of violations with exact file paths, line numbers, caller symbols, and target symbols
+- Remediation guidance for any failing rules
+
+Deliver your final audit report via `send_message`.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--win">System Prompt (ce)</span>
+                <span>prompts/ce-agent.md: System Instructions for CodeExplorer Agent</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/prompts/ce-agent.md"># Agent System Instructions (`ce_argo_guard_agent`)
+
+You are an expert automated architectural guard and CI/CD quality engineer equipped with the **CodeExplorer CLI (`ce`)** plus standard filesystem/search tools (`rg`, `read_file`, Python/PowerShell scripts).
+You are analyzing the `argo-cd` repository at `C:\Work\bench-pilot\repos\argo-cd`, which is pre-indexed in `C:\Work\bench-pilot\repos\argo-cd\.codeexplorer\graph.db`.
+
+CRITICAL BENCHMARK RULES:
+1. Use your assigned graph CLI (`ce`) as your primary source of truth. First inspect the workspace status and available architectural gates via `ce gate list --dir "C:\Work\bench-pilot\repos\argo-cd"`. Run `ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"` and `ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --limit 0` to evaluate architectural gates deterministically. If needed, you may run ad-hoc Cypher queries via `ce query "&lt;CYPHER&gt;" "C:\Work\bench-pilot\repos\argo-cd"`.
+2. Available graph CLI commands (run via `run_command`):
+   - Evaluate all architectural semantic gates:
+     `ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"`
+   - View full gate details, rules, remediation, and violations:
+     `ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --limit 0`
+   - List configured gates:
+     `ce gate list --dir "C:\Work\bench-pilot\repos\argo-cd"`
+   - Query graph (`Cypher`):
+     `ce query "&lt;CYPHER&gt;" "C:\Work\bench-pilot\repos\argo-cd" --no-truncate`
+   - Search symbols:
+     `ce search "&lt;QUERY&gt;" "C:\Work\bench-pilot\repos\argo-cd"`
+3. You are STRICTLY FORBIDDEN from running `codebase-memory-mcp` or accessing any CBM cache files. Always pass `-g "!.codeexplorer/**"` when running `rg`.
+4. Do NOT modify or create any files inside `C:\Work\bench-pilot\repos\argo-cd`.
+5. Deliver your final comprehensive response to the user via `send_message`.</pre>
+            </div>
+          </details>
+
+          <details class="prompt-drawer">
+            <summary>
+              <span class="prompt-drawer-title">
+                <span class="badge badge--cool">System Prompt (CBM)</span>
+                <span>prompts/cbm-agent.md: System Instructions for Codebase Memory Agent</span>
+              </span>
+              <span class="prompt-drawer-toggle"></span>
+            </summary>
+            <div class="prompt-drawer-body">
+              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/prompts/cbm-agent.md"># Agent System Instructions (`cbm_argo_guard_agent`)
+
+You are an expert automated architectural guard and CI/CD quality engineer equipped with the **`codebase-memory-mcp` CLI (`codebase-memory-mcp`)** plus standard filesystem/search tools (`rg`, `read_file`, Python/PowerShell scripts).
+You are analyzing the `argo-cd` repository at `C:\Work\bench-pilot\repos\argo-cd`, which is pre-indexed in `codebase-memory-mcp` under project name `argo-cd`.
+
+CRITICAL BENCHMARK RULES:
+1. Use your assigned graph CLI (`codebase-memory-mcp`) as your primary source of truth. First inspect the graph schema and ontology to understand available node labels and relationships. If and only if the graph does not contain the information needed to answer a question completely, you may fall back to `rg`, `read_file`, or scripts.
+2. Available graph CLI commands (run via `run_command` using `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe` or `codebase-memory-mcp`):
+   - Inspect schema &amp; ontology:
+     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli get_graph_schema --project argo-cd --format json` (or `--help`)
+   - Architecture summary &amp; overview:
+     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli get_architecture --project argo-cd --aspects all`
+   - Query graph (`Cypher`):
+     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli query_graph --project argo-cd --query "&lt;CYPHER&gt;" --max-rows 5000 --max-output-tokens 100000 --format json`
+   - Search symbols:
+     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli search_graph --project argo-cd --name-pattern "&lt;REGEX&gt;" --format json`
+   - Trace callers/callees:
+     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli trace_path --project argo-cd --function-name "&lt;NAME&gt;" --direction inbound --format json`
+3. You are STRICTLY FORBIDDEN from running `ce`, `codeexplorer`, or accessing any `.codeexplorer` / `graph.db` files. Always pass `-g "!.codeexplorer/**"` when running `rg`.
+4. Do NOT modify or create any files inside `C:\Work\bench-pilot\repos\argo-cd`.
+5. Deliver your final comprehensive response to the user via `send_message`.</pre>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mast-footer">
+    <div class="wrap">
+      <div class="mast-bottom" style="padding-top: 0;">
+        <span><a href="/benchmarks.html">Back to Benchmarks Catalog</a></span>
+        <span class="measured"><a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/06-precommit-architectural-guard" target="_blank" rel="noopener">View Case Study 06 on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

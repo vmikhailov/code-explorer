@@ -1,0 +1,58 @@
+{
+  "benchmark_id": "06-precommit-architectural-guard",
+  "repository": "argoproj/argo-cd",
+  "model": "Gemini 3.8 Flash",
+  "repository_scale": {
+    "total_projects": 18,
+    "source_files": 4216,
+    "graph_nodes": 45616,
+    "graph_relationships": 134005
+  },
+  "graph_agent": {
+    "conversation_id": "5e260b11-c47e-4c45-bd3e-01080326cf4b",
+    "time_to_answer_seconds": 83,
+    "wall_clock_seconds": 104,
+    "total_steps": 56,
+    "llm_turns": 28,
+    "context_compactions": 0,
+    "total_tool_calls": 27,
+    "tool_breakdown": {
+      "run_command": 13,
+      "view_file": 13,
+      "send_message": 1
+    },
+    "tool_output_chars": 72079,
+    "tool_output_est_tokens": 18020,
+    "cumulative_actual_input_chars": 0,
+    "cumulative_actual_input_est_tokens": 956308,
+    "api_uncached_input_tokens": 148348,
+    "api_cached_input_tokens": 807960,
+    "api_total_input_tokens": 956308,
+    "api_output_tokens": 14297,
+    "cost_flash_usd": 0.061
+  },
+  "baseline_agent": {
+    "conversation_id": "86aa7d48-940d-4e4f-9de1-0c84343919cc",
+    "time_to_answer_seconds": 264,
+    "wall_clock_seconds": 277,
+    "total_steps": 148,
+    "llm_turns": 62,
+    "context_compactions": 0,
+    "total_tool_calls": 61,
+    "tool_breakdown": {
+      "run_command": 24,
+      "manage_task": 21,
+      "view_file": 15,
+      "send_message": 1
+    },
+    "tool_output_chars": 78644,
+    "tool_output_est_tokens": 19661,
+    "cumulative_actual_input_chars": 0,
+    "cumulative_actual_input_est_tokens": 2770995,
+    "api_uncached_input_tokens": 276870,
+    "api_cached_input_tokens": 2494125,
+    "api_total_input_tokens": 2770995,
+    "api_output_tokens": 9321,
+    "cost_flash_usd": 0.141
+  }
+}
