@@ -5,6 +5,25 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.80.1] - 2026-11-11
+
+### Added & Improved
+- **Tree-Sitter Go 1.26 Grammar Patch & Receiver Method Linking (`GoFileVisitor.Receivers.cs`, `GoParser.cs`)**:
+  - Updated Go grammar and parser to support Go 1.26 language features.
+  - Implemented struct receiver method resolution, cross-linking receiver methods to their parent types and updating member declarations.
+  - Enhanced generated file filtering heuristics in Go workspaces.
+- **OpenCypher Engine Pattern Comprehension Joins (`SqliteCompiler.VariablePaths.cs`)**:
+  - Fixed pattern comprehension joins and variable-length path resolution in the SQLite Cypher compiler.
+- **Core Parser Safeguard (`TreeSitterSyntaxBuilder.cs`)**:
+  - Added `MaxAstDepth` safeguard to prevent stack overflow when parsing pathologically nested syntax trees.
+- **Multi-Language Validation Test Harness**:
+  - Added automated multi-language scanning verification harness across 120 target repositories (`scripts/multilang-repositories.json`, `scripts/run-multilang-validation.ps1`).
+- **Benchmark Case Study 06: Pre-Commit Architectural Guard (`benchmarks/06-precommit-architectural-guard/`)**:
+  - Added Case Study 06 on `argoproj/argo-cd` demonstrating deterministic 398 ms pre-commit architectural guard (`ce gate check`) vs 4m 24s iterative agent search.
+  - Published interactive case study page to website (`site/benchmarks/06-precommit-architectural-guard.html`) and updated benchmark catalogs.
+- **Architectural Gate Invariance Compliance (`ArchitectureViewEngine.ProjectMap.cs`)**:
+  - Extracted column names and path separators to named constants in project map fallback queries to satisfy `SIG-M-I-001`.
+
 ## [1.80.0] - 2026-11-11
 
 ### Added & Improved
