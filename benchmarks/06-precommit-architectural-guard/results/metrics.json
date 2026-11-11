@@ -1,68 +1,85 @@
 {
   "benchmark_id": "06-precommit-architectural-guard",
+  "mode": "standalone_showcase",
   "repository": "argoproj/argo-cd",
-  "model": "Deterministic CLI (CE) vs Gemini 3.8 Flash (CBM Agent)",
+  "commit": "6d689fa3",
+  "evaluator": "CodeExplorer Native CLI (ce gate check)",
   "repository_scale": {
     "total_projects": 18,
     "source_files": 4216,
     "graph_nodes": 45616,
     "graph_relationships": 134005
   },
-  "graph_agent": {
-    "conversation_id": "native-cli-gate-check",
-    "mode": "build_gate",
-    "time_to_answer_seconds": 0.398,
-    "wall_clock_seconds": 0.398,
-    "total_steps": 1,
+  "gate_check": {
+    "duration_ms": 422,
+    "query_sum_ms": 330,
+    "total_gates": 6,
+    "passed_count": 2,
+    "warning_count": 1,
+    "failed_count": 3,
+    "blocking_errors": 17,
+    "audited_warnings": 4,
+    "total_findings": 21,
     "llm_turns": 0,
-    "context_compactions": 0,
-    "total_tool_calls": 1,
-    "tool_breakdown": {
-      "run_command": 1
-    },
-    "tool_output_chars": 2180,
-    "tool_output_est_tokens": 545,
-    "cumulative_actual_input_chars": 0,
-    "cumulative_actual_input_est_tokens": 0,
-    "api_uncached_input_tokens": 0,
-    "api_cached_input_tokens": 0,
     "api_total_input_tokens": 0,
     "api_output_tokens": 0,
-    "cost_flash_usd": 0.0,
-    "cost_pro_usd": 0.0,
-    "exit_code": 1
-  },
-  "baseline_agent": {
-    "conversation_id": "86aa7d48-940d-4e4f-9de1-0c84343919cc",
-    "mode": "agent_search",
-    "time_to_answer_seconds": 264,
-    "wall_clock_seconds": 277,
-    "total_steps": 148,
-    "llm_turns": 62,
-    "context_compactions": 0,
-    "total_tool_calls": 61,
-    "tool_breakdown": {
-      "run_command": 24,
-      "manage_task": 21,
-      "view_file": 15,
-      "send_message": 1
-    },
-    "tool_output_chars": 78644,
-    "tool_output_est_tokens": 19661,
-    "cumulative_actual_input_chars": 0,
-    "cumulative_actual_input_est_tokens": 2770995,
-    "api_uncached_input_tokens": 276870,
-    "api_cached_input_tokens": 2494125,
-    "api_total_input_tokens": 2770995,
-    "api_output_tokens": 9321,
-    "cost_flash_usd": 0.141,
-    "cost_pro_usd": 2.15,
-    "exit_code": 1
-  },
-  "agent_audit_reference": {
-    "graph_agent_turns": 28,
-    "graph_agent_time_s": 83,
-    "graph_agent_cost_usd": 0.061,
-    "graph_agent_tokens": 956308
+    "cost_usd": 0.0,
+    "exit_code": 1,
+    "gates": [
+      {
+        "id": "SIG-P-B-101",
+        "name": "Reverse Layer Inversion Shield (util/ calling higher services)",
+        "scope": "Module",
+        "dimension": "Boundaries",
+        "status": "FAIL",
+        "violations": 3,
+        "duration_ms": 58.2
+      },
+      {
+        "id": "SIG-C-R-102",
+        "name": "God Type Complexity Limit (>30 methods)",
+        "scope": "Class",
+        "dimension": "Resources",
+        "status": "FAIL",
+        "violations": 12,
+        "duration_ms": 206.0
+      },
+      {
+        "id": "SIG-P-B-103",
+        "name": "GitOps Engine Layer Isolation (Zero Host Calls)",
+        "scope": "Module",
+        "dimension": "Boundaries",
+        "status": "PASS",
+        "violations": 0,
+        "duration_ms": 26.6
+      },
+      {
+        "id": "SIG-P-B-104",
+        "name": "Storage Abstraction Boundary (Raw Secrets Access Shield)",
+        "scope": "Module",
+        "dimension": "Boundaries",
+        "status": "PASS",
+        "violations": 0,
+        "duration_ms": 28.9
+      },
+      {
+        "id": "SIG-P-B-105",
+        "name": "Notification Subsystem DB Decoupling",
+        "scope": "Module",
+        "dimension": "Boundaries",
+        "status": "FAIL",
+        "violations": 2,
+        "duration_ms": 2.3
+      },
+      {
+        "id": "SIG-M-B-106",
+        "name": "Public Authentication Bypass Audit (AuthFuncOverride)",
+        "scope": "Method",
+        "dimension": "Boundaries",
+        "status": "WARN",
+        "violations": 4,
+        "duration_ms": 8.4
+      }
+    ]
   }
 }

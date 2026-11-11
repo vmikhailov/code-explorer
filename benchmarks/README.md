@@ -1,14 +1,14 @@
 # CodeExplorer Benchmarks: Agent Workflows & Graph Engine Comparisons
 
-We run two distinct types of benchmarks:
-1. **End-to-End AI Agent Workflows (`Cases 01, 02 & 05`)** — measuring how much time, tokens, and missed dependencies a graph saves an LLM on real multi-hop architectural tasks compared to `codebase-memory-mcp` (`CBM`) or `ripgrep`.
+We run two distinct types of benchmarks plus an architectural governance showcase:
+1. **End-to-End AI Agent & Quality Gate Workflows (`Cases 01, 02, 05 & 06`)** — measuring how much time, tokens, and missed dependencies a graph saves an LLM on real multi-hop architectural tasks compared to `codebase-memory-mcp` (`CBM`) or `ripgrep`, plus deterministic `0`-token CI gate enforcement (`ce gate check`).
 2. **Graph Engine Head-to-Head (`Cases 03 & 04`)** — measuring cold scan speed, RAM footprint, MCP JSON-RPC query latency, and extraction recall across `371` source-verified items without an LLM in the loop.
 
-Live interactive versions of all 5 reports are published at **[https://code-explorer.app/benchmarks.html](https://code-explorer.app/benchmarks.html)**.
+Live interactive versions of all 6 reports are published at **[https://code-explorer.app/benchmarks.html](https://code-explorer.app/benchmarks.html)**.
 
 ---
 
-## 1. End-to-End AI Agent Workflows (`Cases 01, 02 & 05`)
+## 1. End-to-End AI Agent & Quality Gate Workflows (`Cases 01, 02, 05 & 06`)
 
 Two identical AI agents receive the exact same multi-hop architectural audit task simultaneously on the same commit. We measure how many turns, files, tokens, and seconds each tool requires to answer, and whether any production dependencies are missed.
 
@@ -18,7 +18,7 @@ Two identical AI agents receive the exact same multi-hop architectural audit tas
 | **[Case Study 01: Public Monorepo Audit](./01-agent-audit-ce-vs-cbm-on-twenty/README.md)**<br>DI fan-in, inheritance, BullMQ queues & API-to-DB write lineage | `twentyhq/twenty`<br>`46` packages, `24,527` files, `2.49M` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | `CodeExplorer`<br>vs<br>`CBM` | **`6.0×` faster**<br>`1m 33s` vs `9m 15s`<br>`7` turns vs `28` turns | **`7.0×` fewer tokens**<br>`241,528` vs `1,678,913`<br>(`$0.06` vs `$0.23`) | **Native Graph: `100%` vs `3.4%`**<br>`381/381` from `ce` (`0` file reads) vs `13/381` from `CBM` (wrote `3` AST scripts + `10` file reads) |
 | **[Case Study 02: 324-Service Enterprise Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>Shared ORM tables, outbound HTTP fan-in, Pub/Sub & RabbitMQ topology (zero schema hints) | Enterprise Multi-Repo Workspace<br>`450` independent service/library repos (`324` services, `13,782` files, TS, Go, SQL) | `CodeExplorer`<br>vs<br>`ripgrep` + Python | **`7.00×` faster**<br>`4m 16s` vs `29m 52s`<br>`18` turns vs `285` turns | **`25.07×` fewer tokens**<br>`685,738` vs `17,194,141`<br>(`$0.10` vs `$1.15`, `11.50×` cheaper) | **`100%` vs `~82%`**<br>`0` missed services (`16` file reads, `0` scripts) vs `9` RTB services missed (`114` file reads + `14` scripts) |
 | **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>AppSec `AuthorizeAsync` audit, `YesSql.ISession` layer violations, `PublishedAsync` side-effects & `IContentManager` blast radius | `OrchardCMS/OrchardCore`<br>`334` projects, `7,837` files (.NET, ASP.NET Core, YesSql) | `CodeExplorer`<br>vs<br>`ripgrep` + `view_file` | **`2.51×` faster**<br>`4m 25s` vs `11m 04s`<br>`92` turns (`184` steps) vs `193` turns (`389` steps) | **`4.12×` fewer tokens** (`1.95×` less tool output)<br>`3,910,897` vs `16,098,025`<br>(`$0.65` vs `$1.91`, `2.94×` cheaper) | **`100%` vs `~93%`** (`331/331` vs `307/331`)<br>`36` file reads vs `117` file reads (`3.25×` fewer) |
-| **[Case Study 06: Pre-Commit Architectural Guard](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling & auth overrides | `argoproj/argo-cd`<br>`18` subsystems, `4,216` files (Go, TypeScript, K8s) | `CodeExplorer` (`ce gate check`) | **`398 ms`** native execution<br>`0` turns (`1` CLI process) | **`0` tokens**<br>(**`$0.00`**) | **100% deterministic exit code**<br>Native gate check blocks PRs in git pre-commit / CI without LLM or network |
+| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Types, GitOps engine isolation, storage boundaries, notification decoupling & auth overrides | `argoproj/argo-cd`<br>`18` subsystems, `4,216` files (Go, TypeScript, K8s) | `CodeExplorer` (`ce gate check`) | **`422 ms`** native execution<br>`0` turns (`1` CLI process) | **`0` tokens**<br>(**`$0.00`**) | **100% deterministic (`Exit 1`)**<br>`2` PASS, `1` WARN, `3` FAIL (`17` errors + `4` warnings) |
 <!-- END:md.catalog_agent_table -->
 
 ---

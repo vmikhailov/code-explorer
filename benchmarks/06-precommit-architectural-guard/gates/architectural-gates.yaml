@@ -12,30 +12,32 @@ scope: Module
 dimension: Boundaries
 name: "Reverse Layer Inversion Shield (util/ calling higher services)"
 severity: Error
-description: "Foundational utility packages (util/) must remain self-contained and must never call server/, controller/, or reposerver/."
-remediation: "Invert dependency using interfaces, callbacks, or move the function to a higher layer package."
+description: "Foundational utility packages (util/) must remain self-contained and must never directly call package-level functions in server/, controller/, reposerver/, or cmpserver/."
+remediation: "Invert dependency using interfaces defined in util/, callbacks, or move the caller to the owning service layer."
 message: "Reverse layer inversion: util function '{caller.name}' ({caller.path}) prohibited from calling '{callee.name}' ({callee.path})"
 thresholds:
   warning: 1
   error: 1
 query: |
   MATCH (caller:Function)-[r:CALLS]->(callee:Function)
-  WHERE caller.path CONTAINS 'util/'
-    AND (callee.path CONTAINS 'server/' OR callee.path CONTAINS 'controller/' OR callee.path CONTAINS 'reposerver/')
+  WHERE caller.path STARTS WITH 'util/'
     AND NOT caller.path CONTAINS '_test.go'
+    AND (callee.path STARTS WITH 'server/' OR callee.path STARTS WITH 'controller/' OR callee.path STARTS WITH 'reposerver/' OR callee.path STARTS WITH 'cmpserver/')
+    AND NOT (:Type)-[:HAS_METHOD]->(callee)
+    AND callee.name >= 'A' AND callee.name <= 'Z'
   RETURN caller, r, callee AS target
 
 ---
-# --- Gate 2: God Struct Complexity Limit ---
+# --- Gate 2: God Type Complexity Limit ---
 id: SIG-C-R-102
 category: Architectural
 platform: agnostic
 scope: Class
 dimension: Resources
-name: "God Struct Complexity Limit (>30 methods)"
+name: "God Type Complexity Limit (>30 methods)"
 severity: Error
-description: "Structs must declare at most 30 methods in production code. Monolithic God Structs degrade maintainability and violate the Single Responsibility Principle."
-remediation: "Decompose the struct into smaller, cohesive domain components or service delegates."
+description: "Production structs and classes must declare at most 30 methods. Monolithic God Types degrade maintainability and violate the Single Responsibility Principle."
+remediation: "Decompose the struct or class into smaller, cohesive domain components or service delegates."
 thresholds:
   warning: 1
   error: 1
@@ -51,33 +53,32 @@ query: |
     coalesce(t.start_line, 1) AS line,
     coalesce(t.start_col, 1) AS column,
     t.name AS symbol,
-    'GodStruct' AS target,
-    'God struct detected: ' + t.name + ' has ' + toString(method_count) + ' methods (max allowed: 30)' AS message
+    'GodType' AS target,
+    'God type detected: ' + t.name + ' has ' + toString(method_count) + ' methods (max allowed: 30)' AS message
 
 ---
-# --- Gate 3: Package Dependency DAG Integrity ---
-id: SIG-P-I-103
+# --- Gate 3: GitOps Engine Layer Isolation ---
+id: SIG-P-B-103
 category: Architectural
 platform: agnostic
 scope: Module
-dimension: Rules
-name: "Package Dependency DAG Integrity (Zero Import Cycles)"
+dimension: Boundaries
+name: "GitOps Engine Layer Isolation (Zero Host Calls)"
 severity: Error
-description: "Package import relationships across the repository must form a strictly acyclic directed graph (DAG)."
-remediation: "Break circular dependencies by extracting shared types to a common leaf package or introducing interfaces."
+description: "The embedded gitops-engine/ subsystem must remain strictly standalone and never call upward into Argo CD host services or util/ packages."
+remediation: "Keep gitops-engine self-contained; pass Argo CD host behavior via interfaces defined inside gitops-engine/pkg."
+message: "Engine boundary leak: gitops-engine function '{caller.name}' ({caller.path}) prohibited from calling host symbol '{callee.name}' ({callee.path})"
 thresholds:
   warning: 1
   error: 1
 query: |
-  MATCH (p1:Package)-[:DEPENDS_ON*1..3]->(p2:Package)
-  WHERE (p2)-[:DEPENDS_ON*1..3]->(p1) AND p1.id <> p2.id
-  RETURN 
-    p1.name AS file,
-    1 AS line,
-    1 AS column,
-    p1.name AS symbol,
-    p2.name AS target,
-    'Circular package dependency detected between ' + p1.name + ' and ' + p2.name AS message
+  MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+  WHERE caller.path STARTS WITH 'gitops-engine/'
+    AND NOT caller.path CONTAINS '_test.go'
+    AND (callee.path STARTS WITH 'server/' OR callee.path STARTS WITH 'controller/' OR callee.path STARTS WITH 'reposerver/' OR callee.path STARTS WITH 'cmpserver/' OR callee.path STARTS WITH 'applicationset/' OR callee.path STARTS WITH 'util/')
+    AND NOT (:Type)-[:HAS_METHOD]->(callee)
+    AND callee.name >= 'A' AND callee.name <= 'Z'
+  RETURN caller, r, callee AS target
 
 ---
 # --- Gate 4: Storage Abstraction Boundary ---

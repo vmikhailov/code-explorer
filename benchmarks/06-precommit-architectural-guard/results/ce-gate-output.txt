@@ -1,0 +1,78 @@
+$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+
+--- Semantic Invariant Gates Evaluation ---
+
+STATUS         ID              CATEGORY        PLATFORM   SCOPE     VIOLATIONS      NAME
+---------------------------------------------------------------------------------------------------------
+[FAIL]         SIG-C-R-102     Architectural   agnostic   Class     12 new          God Type Complexity Limit (>30 methods)
+[WARN]         SIG-M-B-106     Architectural   agnostic   Method    4 new           Public Authentication Bypass Audit (AuthFuncOverride)
+[FAIL]         SIG-P-B-101     Architectural   agnostic   Module    3 new           Reverse Layer Inversion Shield (util/ calling higher services)
+[PASS]         SIG-P-B-103     Architectural   agnostic   Module    0               GitOps Engine Layer Isolation (Zero Host Calls)
+[PASS]         SIG-P-B-104     Architectural   agnostic   Module    0               Storage Abstraction Boundary (Raw Secrets Access Shield)
+[FAIL]         SIG-P-B-105     Architectural   agnostic   Module    2 new           Notification Subsystem DB Decoupling
+---------------------------------------------------------------------------------------------------------
+Total: 6 gates | Passed: 2 | Warnings: 1 | Failed: 3 | Duration: 422ms
+
+Tip: Run 'ce gate details' to view failure details and remediation.
+Exit code: 1
+
+$ ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --all
+
+--- Semantic Invariant Gate Details ---
+
+[FAIL] SIG-C-R-102 [Architectural/agnostic] - God Type Complexity Limit (>30 methods) (206ms)
+  Rule: Production structs and classes must declare at most 30 methods. Monolithic God Types degrade maintainability and violate the Single Responsibility Principle.
+  Remediation: Decompose the struct or class into smaller, cohesive domain components or service delegates.
+
+  Violations (12 new, 0 tolerated) | Showing 12 of 12:
+  STATUS | LOCATION                                                | SYMBOL                | TARGET / CALL
+  -------+---------------------------------------------------------+-----------------------+--------------
+  [NEW]  | controller/appcontroller.go:120:6                       | ApplicationController | GodType
+  [NEW]  | gitops-engine/pkg/cache/cluster.go:243:6                | store                 | GodType
+  [NEW]  | gitops-engine/pkg/sync/sync_context.go:364:1            | syncContext           | GodType
+  [NEW]  | pkg/apiclient/apiclient.go:164:6                        | client                | GodType
+  [NEW]  | reposerver/cache/cache.go:32:6                          | Cache                 | GodType
+  [NEW]  | reposerver/repository/repository.go:93:6                | Service               | GodType
+  [NEW]  | server/application/application.go:103:6                 | Server                | GodType
+  [NEW]  | ui/src/app/shared/services/applications-service.ts:57:8 | ApplicationsService   | GodType
+  [NEW]  | util/db/repository.go:58:1                              | db                    | GodType
+  [NEW]  | util/git/client.go:202:6                                | nativeGitClient       | GodType
+  [NEW]  | util/settings/settings.go:87:6                          | ArgoCDSettings        | GodType
+  [NEW]  | util/settings/settings.go:632:6                         | SettingsManager       | GodType
+  -------+---------------------------------------------------------+-----------------------+--------------
+
+[WARN] SIG-M-B-106 [Architectural/agnostic] - Public Authentication Bypass Audit (AuthFuncOverride) (8ms)
+  Rule: All server endpoints implementing AuthFuncOverride bypass standard JWT authentication and must be explicitly audited and documented as intentionally public.
+  Remediation: Verify that each AuthFuncOverride implementation is intended to be public, or enforce standard JWT authentication.
+
+  Violations (4 new, 0 tolerated) | Showing 4 of 4:
+  STATUS | LOCATION                          | SYMBOL           | TARGET / CALL
+  -------+-----------------------------------+------------------+--------------
+  [NEW]  | server/session/session.go:103:1   | AuthFuncOverride | AuthBypass
+  [NEW]  | server/settings/settings.go:202:1 | AuthFuncOverride | AuthBypass
+  [NEW]  | server/version/version.go:76:1    | AuthFuncOverride | AuthBypass
+  [NEW]  | server/server.go:969:1            | AuthFuncOverride | AuthBypass
+  -------+-----------------------------------+------------------+--------------
+
+[FAIL] SIG-P-B-101 [Architectural/agnostic] - Reverse Layer Inversion Shield (util/ calling higher services) (58ms)
+  Rule: Foundational utility packages (util/) must remain self-contained and must never directly call package-level functions in server/, controller/, reposerver/, or cmpserver/.
+  Remediation: Invert dependency using interfaces defined in util/, callbacks, or move the caller to the owning service layer.
+
+  Violations (3 new, 0 tolerated) | Showing 3 of 3:
+  STATUS | LOCATION                               | SYMBOL                         | TARGET / CALL
+  -------+----------------------------------------+--------------------------------+-----------------------------------
+  [NEW]  | util/session/sessionmanager.go:288:27  | Parse                          | GetProjectRoleFromSubject
+  [NEW]  | util/app/discovery/discovery.go:171:18 | cmpSupports                    | NewConfigManagementPluginClientSet
+  [NEW]  | util/webhook/webhook.go:500:20         | storePreviouslyCachedManifests | NewManifestKey
+  -------+----------------------------------------+--------------------------------+-----------------------------------
+
+[FAIL] SIG-P-B-105 [Architectural/agnostic] - Notification Subsystem DB Decoupling (2ms)
+  Rule: Notification utilities in util/notification must not construct standalone database instances or call db.NewDB directly; DB instances must be injected.
+  Remediation: Inject ArgoDB as a dependency rather than creating a new DB instance inside the notification service.
+
+  Violations (2 new, 0 tolerated) | Showing 2 of 2:
+  STATUS | LOCATION                                  | SYMBOL            | TARGET / CALL
+  -------+-------------------------------------------+-------------------+--------------
+  [NEW]  | util/notification/argocd/service.go:66:14 | GetCommitMetadata | NewDB
+  [NEW]  | util/notification/argocd/service.go:89:14 | GetAppDetails     | NewDB
+  -------+-------------------------------------------+-------------------+--------------

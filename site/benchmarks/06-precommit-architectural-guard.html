@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Case Study 06: Pre-Commit Architectural Guard (CodeExplorer)</title>
-  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Guard showcase on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer evaluates 6 production invariant rules in 398 ms with zero LLM tokens ($0.00) and deterministic binary exit code.">
+  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Guard showcase on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer evaluates 6 production invariant rules in 422 ms with zero LLM tokens ($0.00) and deterministic binary exit code.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
   <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
@@ -45,7 +45,7 @@
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Continuous architectural governance showcase on <code>argoproj/argo-cd</code> (Kubernetes continuous delivery platform with <code>18</code> subsystems and <code>4,216</code> files). Demonstrates how CodeExplorer Semantic Invariant Gates (SIG) evaluate 6 production architectural rules in 398 ms with zero LLM tokens, $0.00 cost, and deterministic binary exit code (Exit 1) to block architectural drift in git pre-commit hooks and CI pipelines.
+              Continuous architectural governance showcase on <code>argoproj/argo-cd</code> (Kubernetes continuous delivery platform with <code>18</code> subsystems and <code>4,216</code> files). Demonstrates how CodeExplorer Semantic Invariant Gates (SIG) evaluate 6 production architectural rules in 422 ms with zero LLM tokens, $0.00 cost, and deterministic binary exit code (Exit 1) to block architectural drift in git pre-commit hooks and CI pipelines.
             </p>
             <div class="hero-controls">
               <a href="#scorecard" class="btn btn--primary">View Invariant Scorecard</a>
@@ -56,10 +56,10 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok" data-bind="cs06.card_speedup">398 ms</span>
+            <span class="reading tone-ok" data-bind="cs06.card_speedup">422 ms</span>
             <h2 class="panel-title">Pre-Commit Latency</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_speed_copy">Evaluates all 6 production architectural gates across 4,216 files in under 400 milliseconds.</p>
-            <code class="panel-code" data-bind="cs06.card_turns_footer">66 ms average latency per invariant gate</code>
+            <p class="panel-copy" data-bind-html="cs06.card_speed_copy">Evaluates all 6 production architectural gates across 4,216 files in 422 ms (330 ms pure query execution).</p>
+            <code class="panel-code" data-bind="cs06.card_turns_footer">55 ms average query time per gate</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading tone-accent" data-bind="cs06.card_tokens">0</span>
@@ -77,7 +77,7 @@
             <span class="reading" data-bind="cs06.card_recall">6 of 6</span>
             <h2 class="panel-title">Architectural Invariants</h2>
             <p class="panel-copy" data-bind-html="cs06.card_recall_copy">Evaluated all 6 rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites, line numbers, and AST symbols.</p>
-            <code class="panel-code" data-bind="cs06.card_recall_footer">104 layer leaks &amp; 12 god structs caught</code>
+            <code class="panel-code" data-bind="cs06.card_recall_footer">3 layer leaks &amp; 12 god types caught</code>
           </div>
         </div>
 
@@ -103,24 +103,24 @@
               <h3 class="panel-title">Reverse Layer Inversion Shield</h3>
               <code class="badge badge--win">SIG-P-B-101</code>
             </div>
-            <p class="panel-copy">Foundational utility packages (<code>util/**</code>) must remain self-contained and never call higher-level business services (<code>server/**</code>, <code>controller/**</code>, <code>reposerver/**</code>).</p>
-            <code class="panel-code">FAIL: 104 call sites detected</code>
+            <p class="panel-copy">Foundational utility packages (<code>util/**</code>) must remain self-contained and never directly call package functions in <code>server/**</code>, <code>controller/**</code>, <code>reposerver/**</code>, or <code>cmpserver/**</code>.</p>
+            <code class="panel-code">FAIL: 3 direct cross-layer call sites</code>
           </div>
           <div class="panel">
             <div class="panel-head">
-              <h3 class="panel-title">God Struct Complexity Limit</h3>
+              <h3 class="panel-title">God Type Complexity Limit</h3>
               <code class="badge badge--accent">SIG-C-R-102</code>
             </div>
-            <p class="panel-copy">No production struct may declare more than 30 methods in a single type unit without an explicit ratchet exemption.</p>
-            <code class="panel-code">FAIL: 12 structs exceeded limit</code>
+            <p class="panel-copy">No production Go struct or TypeScript class may declare more than 30 methods in a single type unit without an explicit ratchet exemption.</p>
+            <code class="panel-code">FAIL: 12 types (11 Go + 1 TS)</code>
           </div>
           <div class="panel">
             <div class="panel-head">
-              <h3 class="panel-title">Package Dependency DAG</h3>
-              <code class="badge badge--cool">SIG-P-I-103</code>
+              <h3 class="panel-title">GitOps Engine Isolation</h3>
+              <code class="badge badge--cool">SIG-P-B-103</code>
             </div>
-            <p class="panel-copy">Package import relationships across the repository must form a strictly acyclic directed graph (DAG with zero import cycles).</p>
-            <code class="panel-code">PASS: 0 cyclic dependencies</code>
+            <p class="panel-copy">The embedded <code>gitops-engine/**</code> subsystem must remain strictly standalone with zero upward package calls into Argo CD host services or <code>util/**</code>.</p>
+            <code class="panel-code">PASS: 0 upward host calls</code>
           </div>
           <div class="panel">
             <div class="panel-head">
@@ -155,7 +155,7 @@
         <div id="scorecard" class="band-head">
           <h2 class="band-title">2. Semantic invariant gates evaluation scorecard.</h2>
           <p class="band-lede">
-            Evaluated natively on <code>argoproj/argo-cd @ 6d689fa3</code> via <code>ce gate check</code> in 398 ms total wall-clock time across 45,616 graph nodes and 134,005 relationships.
+            Evaluated natively on <code>argoproj/argo-cd @ 6d689fa3</code> via <code>ce gate check</code> in 422 ms total wall-clock time (330 ms pure OpenCypher query execution) across 45,616 graph nodes and 134,005 relationships.
           </p>
         </div>
 
@@ -170,8 +170,8 @@
                 <th>Gate ID &amp; Invariant Rule</th>
                 <th>Scope &amp; Dimension</th>
                 <th>Target Subsystems</th>
-                <th>Latency</th>
-                <th>Violations Detected</th>
+                <th>Query Time</th>
+                <th>Findings Detected</th>
                 <th>Status &amp; Action</th>
               </tr>
             </thead>
@@ -179,32 +179,32 @@
               <tr>
                 <td><code>SIG-P-B-101</code><br><strong>Reverse Layer Inversion Shield</strong></td>
                 <td>Module &times; Boundaries</td>
-                <td><code>util/**</code> &rarr; <code>server/**</code>, <code>controller/**</code>, <code>reposerver/**</code></td>
-                <td class="cell-num">74 ms</td>
-                <td class="cell-loss">104 call sites</td>
+                <td><code>util/**</code> &rarr; <code>server/**</code>, <code>controller/**</code>, <code>reposerver/**</code>, <code>cmpserver/**</code></td>
+                <td class="cell-num">58 ms</td>
+                <td class="cell-loss">3 call sites</td>
                 <td class="cell-loss"><code class="badge badge--loss">FAIL</code> (Block PR)</td>
               </tr>
               <tr>
-                <td><code>SIG-C-R-102</code><br><strong>God Struct Complexity Limit</strong></td>
+                <td><code>SIG-C-R-102</code><br><strong>God Type Complexity Limit</strong></td>
                 <td>Class &times; Resources</td>
-                <td>Production structs (&gt;30 methods)</td>
-                <td class="cell-num">62 ms</td>
-                <td class="cell-loss">12 structs</td>
+                <td>Production Go structs &amp; TS classes (&gt;30 methods)</td>
+                <td class="cell-num">206 ms</td>
+                <td class="cell-loss">12 types (11 Go + 1 TS)</td>
                 <td class="cell-loss"><code class="badge badge--loss">FAIL</code> (Block PR)</td>
               </tr>
               <tr>
-                <td><code>SIG-P-I-103</code><br><strong>Package Dependency DAG Integrity</strong></td>
-                <td>Module &times; Rules</td>
-                <td>Repository-wide package imports</td>
-                <td class="cell-num">68 ms</td>
-                <td class="cell-win">0 cycles</td>
-                <td class="cell-win"><code class="badge badge--win">PASS</code> (Clean DAG)</td>
+                <td><code>SIG-P-B-103</code><br><strong>GitOps Engine Layer Isolation</strong></td>
+                <td>Module &times; Boundaries</td>
+                <td><code>gitops-engine/**</code> &rarr; Argo CD host packages</td>
+                <td class="cell-num">27 ms</td>
+                <td class="cell-win">0 upward calls</td>
+                <td class="cell-win"><code class="badge badge--win">PASS</code> (Isolated)</td>
               </tr>
               <tr>
                 <td><code>SIG-P-B-104</code><br><strong>Storage Abstraction Boundary</strong></td>
                 <td>Module &times; Boundaries</td>
                 <td><code>repository_secrets.go</code> access outside <code>util/db</code></td>
-                <td class="cell-num">48 ms</td>
+                <td class="cell-num">29 ms</td>
                 <td class="cell-win">0 external calls</td>
                 <td class="cell-win"><code class="badge badge--win">PASS</code> (Encapsulated)</td>
               </tr>
@@ -212,7 +212,7 @@
                 <td><code>SIG-P-B-105</code><br><strong>Notification Subsystem Decoupling</strong></td>
                 <td>Module &times; Boundaries</td>
                 <td><code>util/notification</code> direct <code>db.NewDB</code> calls</td>
-                <td class="cell-num">51 ms</td>
+                <td class="cell-num">2 ms</td>
                 <td class="cell-loss">2 call sites</td>
                 <td class="cell-loss"><code class="badge badge--loss">FAIL</code> (Block PR)</td>
               </tr>
@@ -220,16 +220,16 @@
                 <td><code>SIG-M-B-106</code><br><strong>Public Authentication Bypass Audit</strong></td>
                 <td>Method &times; Boundaries</td>
                 <td><code>server/**</code> <code>AuthFuncOverride</code> endpoints</td>
-                <td class="cell-num">55 ms</td>
+                <td class="cell-num">8 ms</td>
                 <td class="cell-num">4 endpoints</td>
                 <td class="cell-num"><code class="badge badge--accent">WARN</code> (Audited)</td>
               </tr>
-              <tr style="border-top: 1px solid var(--border-subtle); font-weight: 600;">
-                <td><strong>Total: 6 Production Invariant Rules</strong></td>
+              <tr style="border-top: 1px solid var(--border-subtle);">
+                <td><strong>Total Suite (incl. SQLite &amp; YAML init)</strong></td>
                 <td>Agnostic</td>
                 <td>4,216 files across 18 subsystems</td>
-                <td class="cell-win"><strong>398 ms</strong></td>
-                <td>118 violations across 3 gates</td>
+                <td class="cell-win"><strong>422 ms</strong> (330 ms queries)</td>
+                <td>17 errors + 4 warnings</td>
                 <td class="cell-loss"><strong>Exit 1 (Build Blocked)</strong></td>
               </tr>
             </tbody>
@@ -237,9 +237,10 @@
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-lg);">
-          <strong>Key architectural takeaway: Deterministic pre-commit gate execution</strong><br>
-          1. <strong>Compiled native binary execution:</strong> <code>ce gate check</code> evaluates pre-compiled OpenCypher structural invariant rules directly against the local SQLite graph database. Because graph traversal and pattern matching are purely relational, all 6 gates execute in <strong>398 milliseconds</strong> with <strong>0 tokens</strong> and <strong>$0.00 cost</strong>.<br>
-          2. <strong>Continuous CI/CD enforcement:</strong> Returns an immutable binary exit code (<code>0</code> for pass, <code>1</code> for fail) suitable for git pre-commit hooks and GitHub Actions. Teams can enforce zero-drift policies without introducing slow, non-deterministic LLM reasoning loops into the pull-request path.
+          <strong>Key architectural takeaways: Deterministic pre-commit gate execution</strong><br>
+          1. <strong>Compiled native binary execution:</strong> <code>ce gate check</code> evaluates declarative OpenCypher structural invariant rules directly against the local SQLite graph database. All 6 gates complete in <strong>422 milliseconds</strong> wall-clock time (<strong>330 ms</strong> pure query execution) with <strong>0 tokens</strong> and <strong>$0.00 cost</strong>.<br>
+          2. <strong>Zero false positives on Dependency Inversion:</strong> By targeting direct exported package-level calls (<code>NOT (:Type)-[:HAS_METHOD]-&gt;(callee)</code>), <code>SIG-P-B-101</code> isolates the exact 3 true upward dependencies in <code>util/session</code>, <code>util/app/discovery</code>, and <code>util/webhook</code> while cleanly passing <code>util/git</code> and <code>util/helm</code> (which properly invert dependencies via local cache interfaces).<br>
+          3. <strong>Continuous CI/CD enforcement:</strong> Returns an immutable binary exit code (<code>0</code> for pass, <code>1</code> for fail) suitable for git pre-commit hooks and GitHub Actions without introducing non-deterministic LLM loops into the pull-request path.
         </div>
       </div>
     </section>
@@ -274,30 +275,32 @@ scope: Module
 dimension: Boundaries
 name: "Reverse Layer Inversion Shield (util/ calling higher services)"
 severity: Error
-description: "Foundational utility packages (util/) must remain self-contained and must never call server/, controller/, or reposerver/."
-remediation: "Invert dependency using interfaces, callbacks, or move the function to a higher layer package."
+description: "Foundational utility packages (util/) must remain self-contained and must never directly call package-level functions in server/, controller/, reposerver/, or cmpserver/."
+remediation: "Invert dependency using interfaces defined in util/, callbacks, or move the caller to the owning service layer."
 message: "Reverse layer inversion: util function '{caller.name}' ({caller.path}) prohibited from calling '{callee.name}' ({callee.path})"
 thresholds:
   warning: 1
   error: 1
 query: |
   MATCH (caller:Function)-[r:CALLS]-&gt;(callee:Function)
-  WHERE caller.path CONTAINS 'util/'
-    AND (callee.path CONTAINS 'server/' OR callee.path CONTAINS 'controller/' OR callee.path CONTAINS 'reposerver/')
+  WHERE caller.path STARTS WITH 'util/'
     AND NOT caller.path CONTAINS '_test.go'
+    AND (callee.path STARTS WITH 'server/' OR callee.path STARTS WITH 'controller/' OR callee.path STARTS WITH 'reposerver/' OR callee.path STARTS WITH 'cmpserver/')
+    AND NOT (:Type)-[:HAS_METHOD]-&gt;(callee)
+    AND callee.name &gt;= 'A' AND callee.name &lt;= 'Z'
   RETURN caller, r, callee AS target
 
 ---
-# --- Gate 2: God Struct Complexity Limit ---
+# --- Gate 2: God Type Complexity Limit ---
 id: SIG-C-R-102
 category: Architectural
 platform: agnostic
 scope: Class
 dimension: Resources
-name: "God Struct Complexity Limit (&gt;30 methods)"
+name: "God Type Complexity Limit (&gt;30 methods)"
 severity: Error
-description: "Structs must declare at most 30 methods in production code. Monolithic God Structs degrade maintainability and violate the Single Responsibility Principle."
-remediation: "Decompose the struct into smaller, cohesive domain components or service delegates."
+description: "Production structs and classes must declare at most 30 methods. Monolithic God Types degrade maintainability and violate the Single Responsibility Principle."
+remediation: "Decompose the struct or class into smaller, cohesive domain components or service delegates."
 thresholds:
   warning: 1
   error: 1
@@ -313,33 +316,32 @@ query: |
     coalesce(t.start_line, 1) AS line,
     coalesce(t.start_col, 1) AS column,
     t.name AS symbol,
-    'GodStruct' AS target,
-    'God struct detected: ' + t.name + ' has ' + toString(method_count) + ' methods (max allowed: 30)' AS message
+    'GodType' AS target,
+    'God type detected: ' + t.name + ' has ' + toString(method_count) + ' methods (max allowed: 30)' AS message
 
 ---
-# --- Gate 3: Package Dependency DAG Integrity ---
-id: SIG-P-I-103
+# --- Gate 3: GitOps Engine Layer Isolation ---
+id: SIG-P-B-103
 category: Architectural
 platform: agnostic
 scope: Module
-dimension: Rules
-name: "Package Dependency DAG Integrity (Zero Import Cycles)"
+dimension: Boundaries
+name: "GitOps Engine Layer Isolation (Zero Host Calls)"
 severity: Error
-description: "Package import relationships across the repository must form a strictly acyclic directed graph (DAG)."
-remediation: "Break circular dependencies by extracting shared types to a common leaf package or introducing interfaces."
+description: "The embedded gitops-engine/ subsystem must remain strictly standalone and never call upward into Argo CD host services or util/ packages."
+remediation: "Keep gitops-engine self-contained; pass Argo CD host behavior via interfaces defined inside gitops-engine/pkg."
+message: "Engine boundary leak: gitops-engine function '{caller.name}' ({caller.path}) prohibited from calling host symbol '{callee.name}' ({callee.path})"
 thresholds:
   warning: 1
   error: 1
 query: |
-  MATCH (p1:Package)-[:DEPENDS_ON*1..3]-&gt;(p2:Package)
-  WHERE (p2)-[:DEPENDS_ON*1..3]-&gt;(p1) AND p1.id &lt;&gt; p2.id
-  RETURN 
-    p1.name AS file,
-    1 AS line,
-    1 AS column,
-    p1.name AS symbol,
-    p2.name AS target,
-    'Circular package dependency detected between ' + p1.name + ' and ' + p2.name AS message
+  MATCH (caller:Function)-[r:CALLS]-&gt;(callee:Function)
+  WHERE caller.path STARTS WITH 'gitops-engine/'
+    AND NOT caller.path CONTAINS '_test.go'
+    AND (callee.path STARTS WITH 'server/' OR callee.path STARTS WITH 'controller/' OR callee.path STARTS WITH 'reposerver/' OR callee.path STARTS WITH 'cmpserver/' OR callee.path STARTS WITH 'applicationset/' OR callee.path STARTS WITH 'util/')
+    AND NOT (:Type)-[:HAS_METHOD]-&gt;(callee)
+    AND callee.name &gt;= 'A' AND callee.name &lt;= 'Z'
+  RETURN caller, r, callee AS target
 
 ---
 # --- Gate 4: Storage Abstraction Boundary ---
@@ -412,45 +414,89 @@ query: |
             <summary>
               <span class="prompt-drawer-title">
                 <span class="badge badge--cool">CLI Execution</span>
-                <span>Terminal output: ce gate check on argoproj/argo-cd</span>
+                <span>results/ce-gate-output.txt: Verbatim ce gate check &amp; ce gate details output on argo-cd</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
             <div class="prompt-drawer-body">
-              <pre class="code-block">$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
-Evaluating 6 semantic invariant gates against argo-cd (45,616 nodes, 134,005 relationships)...
+              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/results/ce-gate-output.txt">$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
 
-[FAIL] SIG-P-B-101: Reverse Layer Inversion Shield (util/ calling higher services)
-       Scope: Module | Dimension: Boundaries | Duration: 74 ms
-       Violations: 104 call sites detected
-       Example: util/webhook/webhook.go:500 -> reposerver/cache.NewManifestKey
+--- Semantic Invariant Gates Evaluation ---
 
-[FAIL] SIG-C-R-102: God Struct Complexity Limit (>30 methods)
-       Scope: Class | Dimension: Resources | Duration: 62 ms
-       Violations: 12 structs exceeded limit
-       Example: SettingsManager (70 methods), ApplicationController (64 methods)
+STATUS         ID              CATEGORY        PLATFORM   SCOPE     VIOLATIONS      NAME
+---------------------------------------------------------------------------------------------------------
+[FAIL]         SIG-C-R-102     Architectural   agnostic   Class     12 new          God Type Complexity Limit (&gt;30 methods)
+[WARN]         SIG-M-B-106     Architectural   agnostic   Method    4 new           Public Authentication Bypass Audit (AuthFuncOverride)
+[FAIL]         SIG-P-B-101     Architectural   agnostic   Module    3 new           Reverse Layer Inversion Shield (util/ calling higher services)
+[PASS]         SIG-P-B-103     Architectural   agnostic   Module    0               GitOps Engine Layer Isolation (Zero Host Calls)
+[PASS]         SIG-P-B-104     Architectural   agnostic   Module    0               Storage Abstraction Boundary (Raw Secrets Access Shield)
+[FAIL]         SIG-P-B-105     Architectural   agnostic   Module    2 new           Notification Subsystem DB Decoupling
+---------------------------------------------------------------------------------------------------------
+Total: 6 gates | Passed: 2 | Warnings: 1 | Failed: 3 | Duration: 422ms
 
-[PASS] SIG-P-I-103: Package Dependency DAG Integrity (Zero Import Cycles)
-       Scope: Module | Dimension: Rules | Duration: 68 ms
-       Violations: 0 circular dependencies detected
+Tip: Run 'ce gate details' to view failure details and remediation.
+Exit code: 1
 
-[PASS] SIG-P-B-104: Storage Abstraction Boundary (Raw Secrets Access Shield)
-       Scope: Module | Dimension: Boundaries | Duration: 48 ms
-       Violations: 0 external call sites detected
+$ ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --all
 
-[FAIL] SIG-P-B-105: Notification Subsystem DB Decoupling
-       Scope: Module | Dimension: Boundaries | Duration: 51 ms
-       Violations: 2 call sites detected
-       Example: util/notification/argocd/service.go:66 -> db.NewDB
+--- Semantic Invariant Gate Details ---
 
-[WARN] SIG-M-B-106: Public Authentication Bypass Audit (AuthFuncOverride)
-       Scope: Method | Dimension: Boundaries | Duration: 55 ms
-       Violations: 4 audited override endpoints detected
-       Example: server/session/session.go:103 -> AuthFuncOverride (login endpoint)
+[FAIL] SIG-C-R-102 [Architectural/agnostic] - God Type Complexity Limit (&gt;30 methods) (206ms)
+  Rule: Production structs and classes must declare at most 30 methods. Monolithic God Types degrade maintainability and violate the Single Responsibility Principle.
+  Remediation: Decompose the struct or class into smaller, cohesive domain components or service delegates.
 
-Gate check completed in 398 ms (0.398 s).
-Result: 3 FAILED, 1 WARNING, 2 PASSED
-Exit code: 1 (Pull Request Blocked)</pre>
+  Violations (12 new, 0 tolerated) | Showing 12 of 12:
+  STATUS | LOCATION                                                | SYMBOL                | TARGET / CALL
+  -------+---------------------------------------------------------+-----------------------+--------------
+  [NEW]  | controller/appcontroller.go:120:6                       | ApplicationController | GodType
+  [NEW]  | gitops-engine/pkg/cache/cluster.go:243:6                | store                 | GodType
+  [NEW]  | gitops-engine/pkg/sync/sync_context.go:364:1            | syncContext           | GodType
+  [NEW]  | pkg/apiclient/apiclient.go:164:6                        | client                | GodType
+  [NEW]  | reposerver/cache/cache.go:32:6                          | Cache                 | GodType
+  [NEW]  | reposerver/repository/repository.go:93:6                | Service               | GodType
+  [NEW]  | server/application/application.go:103:6                 | Server                | GodType
+  [NEW]  | ui/src/app/shared/services/applications-service.ts:57:8 | ApplicationsService   | GodType
+  [NEW]  | util/db/repository.go:58:1                              | db                    | GodType
+  [NEW]  | util/git/client.go:202:6                                | nativeGitClient       | GodType
+  [NEW]  | util/settings/settings.go:87:6                          | ArgoCDSettings        | GodType
+  [NEW]  | util/settings/settings.go:632:6                         | SettingsManager       | GodType
+  -------+---------------------------------------------------------+-----------------------+--------------
+
+[WARN] SIG-M-B-106 [Architectural/agnostic] - Public Authentication Bypass Audit (AuthFuncOverride) (8ms)
+  Rule: All server endpoints implementing AuthFuncOverride bypass standard JWT authentication and must be explicitly audited and documented as intentionally public.
+  Remediation: Verify that each AuthFuncOverride implementation is intended to be public, or enforce standard JWT authentication.
+
+  Violations (4 new, 0 tolerated) | Showing 4 of 4:
+  STATUS | LOCATION                          | SYMBOL           | TARGET / CALL
+  -------+-----------------------------------+------------------+--------------
+  [NEW]  | server/session/session.go:103:1   | AuthFuncOverride | AuthBypass
+  [NEW]  | server/settings/settings.go:202:1 | AuthFuncOverride | AuthBypass
+  [NEW]  | server/version/version.go:76:1    | AuthFuncOverride | AuthBypass
+  [NEW]  | server/server.go:969:1            | AuthFuncOverride | AuthBypass
+  -------+-----------------------------------+------------------+--------------
+
+[FAIL] SIG-P-B-101 [Architectural/agnostic] - Reverse Layer Inversion Shield (util/ calling higher services) (58ms)
+  Rule: Foundational utility packages (util/) must remain self-contained and must never directly call package-level functions in server/, controller/, reposerver/, or cmpserver/.
+  Remediation: Invert dependency using interfaces defined in util/, callbacks, or move the caller to the owning service layer.
+
+  Violations (3 new, 0 tolerated) | Showing 3 of 3:
+  STATUS | LOCATION                               | SYMBOL                         | TARGET / CALL
+  -------+----------------------------------------+--------------------------------+-----------------------------------
+  [NEW]  | util/session/sessionmanager.go:288:27  | Parse                          | GetProjectRoleFromSubject
+  [NEW]  | util/app/discovery/discovery.go:171:18 | cmpSupports                    | NewConfigManagementPluginClientSet
+  [NEW]  | util/webhook/webhook.go:500:20         | storePreviouslyCachedManifests | NewManifestKey
+  -------+----------------------------------------+--------------------------------+-----------------------------------
+
+[FAIL] SIG-P-B-105 [Architectural/agnostic] - Notification Subsystem DB Decoupling (2ms)
+  Rule: Notification utilities in util/notification must not construct standalone database instances or call db.NewDB directly; DB instances must be injected.
+  Remediation: Inject ArgoDB as a dependency rather than creating a new DB instance inside the notification service.
+
+  Violations (2 new, 0 tolerated) | Showing 2 of 2:
+  STATUS | LOCATION                                  | SYMBOL            | TARGET / CALL
+  -------+-------------------------------------------+-------------------+--------------
+  [NEW]  | util/notification/argocd/service.go:66:14 | GetCommitMetadata | NewDB
+  [NEW]  | util/notification/argocd/service.go:89:14 | GetAppDetails     | NewDB
+  -------+-------------------------------------------+-------------------+--------------</pre>
             </div>
           </details>
         </div>

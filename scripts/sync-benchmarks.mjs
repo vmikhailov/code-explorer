@@ -331,12 +331,12 @@ function ingestRawSources(data) {
     }
   }
 
-  // Case Study 06 (Pre-Commit Architectural Guard on argo-cd)
+  // Case Study 06 (Pre-Commit Architectural Guard Showcase on argo-cd)
   if (data.cs06 && data.cs06.source_metrics) {
     const m06Path = path.join(ROOT, data.cs06.source_metrics);
     if (fs.existsSync(m06Path)) {
       const m06 = JSON.parse(fs.readFileSync(m06Path, 'utf8'));
-      if (m06.graph_agent || data.cs06.status === 'ready') {
+      if (m06.gate_check || data.cs06.status === 'ready') {
         data.cs06.status = 'ready';
         if (m06.repository_scale) {
           data.cs06.repo.projects = m06.repository_scale.total_projects;
@@ -344,51 +344,21 @@ function ingestRawSources(data) {
           data.cs06.repo.graph_nodes = m06.repository_scale.graph_nodes;
           data.cs06.repo.graph_edges = m06.repository_scale.graph_relationships;
         }
-        const g = m06.graph_agent;
-        const b = m06.baseline_agent;
-        data.cs06.telemetry = {
-          ce: {
-            conversation_short: g.conversation_id.slice(0, 8),
-            time_to_answer_s: g.time_to_answer_seconds,
-            wall_clock_s: g.wall_clock_seconds,
-            turns: g.llm_turns,
-            steps: g.total_steps,
-            tool_calls: g.total_tool_calls,
-            run_command_calls: g.tool_breakdown?.run_command || 0,
-            view_file_calls: g.tool_breakdown?.view_file || 0,
-            compactions: g.context_compactions || 0,
-            raw_tool_chars: g.tool_output_chars,
-            raw_tool_tokens: g.tool_output_est_tokens,
-            cum_input_tokens: g.cumulative_actual_input_est_tokens,
-            api_uncached_input_tokens: g.api_uncached_input_tokens || 0,
-            api_cached_input_tokens: g.api_cached_input_tokens || 0,
-            api_total_input_tokens: g.api_total_input_tokens || g.cumulative_actual_input_est_tokens,
-            api_output_tokens: g.api_output_tokens || 0,
-            cost_flash_usd: g.cost_flash_usd || 0.061,
-            cost_pro_usd: 0.24,
-          },
-          cbm: {
-            conversation_short: b.conversation_id.slice(0, 8),
-            time_to_answer_s: b.time_to_answer_seconds,
-            wall_clock_s: b.wall_clock_seconds,
-            turns: b.llm_turns,
-            steps: b.total_steps,
-            tool_calls: b.total_tool_calls,
-            run_command_calls: b.tool_breakdown?.run_command || 0,
-            view_file_calls: b.tool_breakdown?.view_file || 0,
-            scripts_written: (b.tool_breakdown?.write_file || 0) + (b.tool_breakdown?.write_to_file || 0),
-            compactions: b.context_compactions || 0,
-            raw_tool_chars: b.tool_output_chars,
-            raw_tool_tokens: b.tool_output_est_tokens,
-            cum_input_tokens: b.cumulative_actual_input_est_tokens,
-            api_uncached_input_tokens: b.api_uncached_input_tokens || 0,
-            api_cached_input_tokens: b.api_cached_input_tokens || 0,
-            api_total_input_tokens: b.api_total_input_tokens || b.cumulative_actual_input_est_tokens,
-            api_output_tokens: b.api_output_tokens || 0,
-            cost_flash_usd: b.cost_flash_usd || 0.141,
-            cost_pro_usd: 0.48,
-          },
-        };
+        const gc = m06.gate_check;
+        if (gc) {
+          data.cs06.telemetry = {
+            duration_ms: gc.duration_ms,
+            query_sum_ms: gc.query_sum_ms,
+            total_gates: gc.total_gates,
+            passed_count: gc.passed_count,
+            warning_count: gc.warning_count,
+            failed_count: gc.failed_count,
+            blocking_errors: gc.blocking_errors,
+            audited_warnings: gc.audited_warnings,
+            total_findings: gc.total_findings,
+            exit_code: gc.exit_code,
+          };
+        }
       }
     }
   }
@@ -796,45 +766,37 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> (331/331 vs 307/331 items)`;
   }
 
-  // --- Case Study 06 (Pre-Commit Architectural Guard) ---
+  // --- Case Study 06 (Pre-Commit Architectural Guard Showcase) ---
   if (data.cs06 && data.cs06.status === 'ready' && data.cs06.telemetry) {
     const c6 = data.cs06;
-    const ce = c6.telemetry.ce;
-    const cbm = c6.telemetry.cbm;
-    const speedup = cbm.time_to_answer_s / ce.time_to_answer_s;
-    const wallSpeedup = cbm.wall_clock_s / ce.wall_clock_s;
-    const tokRatio = cbm.cum_input_tokens / ce.cum_input_tokens;
-    const turnsRatio = cbm.turns / ce.turns;
-    const stepsRatio = cbm.steps / ce.steps;
-    const callsRatio = cbm.tool_calls / ce.tool_calls;
-    const payloadRatio = cbm.raw_tool_chars / ce.raw_tool_chars;
-    const costRatio = cbm.cost_flash_usd / ce.cost_flash_usd;
+    const t6 = c6.telemetry;
+    const avgQueryMs = Math.round(t6.query_sum_ms / t6.total_gates);
 
     b['cs06.meta_desc'] =
       `Pre-Commit Architectural Guard showcase on ${c6.repo.name} (${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files): ` +
-      `CodeExplorer evaluates 6 production invariant rules in 398 ms with zero LLM tokens ($0.00) and deterministic binary exit code.`;
+      `CodeExplorer evaluates ${t6.total_gates} production invariant rules in ${t6.duration_ms} ms with zero LLM tokens ($0.00) and deterministic binary exit code.`;
 
     b['cs06.crumb_scale'] = `${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files`;
 
-    b['cs06.card_speedup'] = `398 ms`;
+    b['cs06.card_speedup'] = `${t6.duration_ms} ms`;
     b['cs06.card_speed_copy'] =
-      `Evaluates all 6 production architectural gates across 4,216 files in under 400 milliseconds.`;
-    b['cs06.card_turns_footer'] = `66 ms average latency per invariant gate`;
+      `Evaluates all ${t6.total_gates} production architectural gates across ${fmtInt(c6.repo.files)} files in ${t6.duration_ms} ms (${t6.query_sum_ms} ms pure query execution).`;
+    b['cs06.card_turns_footer'] = `${avgQueryMs} ms average query time per gate`;
 
     b['cs06.card_tokens'] = `0`;
     b['cs06.card_tokens_copy'] =
       `<strong>0 tokens ($0.00 cost)</strong>. Runs entirely offline as a compiled native binary with zero network calls.`;
     b['cs06.card_cost_footer'] = `Zero API cost / local pre-commit execution`;
 
-    b['cs06.card_cli'] = `Exit 1`;
+    b['cs06.card_cli'] = `Exit ${t6.exit_code}`;
     b['cs06.card_cli_copy'] =
       `Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines.`;
     b['cs06.card_cli_footer'] = `SHA-256 ratchet baseline support`;
 
-    b['cs06.card_recall'] = `6 of 6`;
+    b['cs06.card_recall'] = `${t6.total_gates} of ${t6.total_gates}`;
     b['cs06.card_recall_copy'] =
-      `Evaluated all 6 rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites, line numbers, and AST symbols.`;
-    b['cs06.card_recall_footer'] = `104 layer leaks & 12 god structs caught`;
+      `Evaluated all ${t6.total_gates} rules: ${t6.passed_count} PASS, ${t6.warning_count} WARN, ${t6.failed_count} FAIL with exact call sites, line numbers, and AST symbols.`;
+    b['cs06.card_recall_footer'] = `3 layer leaks & 12 god types caught`;
 
     b['cs06.participants_html'] = [
       `<strong>Evaluated system &amp; configuration:</strong><br>`,
@@ -844,9 +806,9 @@ function buildBindings(data, rawMilestones01) {
     ].join('\n');
 
     b['catalog.cs06_outcome'] =
-      `<strong class="tone-ok">398 ms native build check</strong><br>` +
+      `<strong class="tone-ok">${t6.duration_ms} ms native build check</strong><br>` +
       `<strong class="tone-ok">0 tokens ($0.00)</strong> · 100% deterministic exit code<br>` +
-      `<strong>6 of 6 gates evaluated</strong> (2 PASS, 1 WARN, 3 FAIL)`;
+      `<strong>${t6.total_gates} of ${t6.total_gates} gates evaluated</strong> (${t6.passed_count} PASS, ${t6.warning_count} WARN, ${t6.failed_count} FAIL)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
@@ -890,12 +852,10 @@ function buildBindings(data, rawMilestones01) {
         : `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | \`OrchardCMS/OrchardCore\`<br>\`[TBD ~180]\` C# projects, \`[TBD ~6,000]\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`[TBD ×]\` faster**<br>\`[TBD]\` vs \`[TBD]\`<br>\`[TBD]\` turns vs \`[TBD]\` turns | **\`[TBD ×]\` fewer tokens**<br>\`[TBD]\` vs \`[TBD]\`<br>(\`$[TBD]\` vs \`$[TBD]\`) | **\`[TBD %]\` vs \`[TBD %]\`**<br>\`[TBD]\` file reads vs \`[TBD]\` file reads |`;
 
     const c6 = data.cs06;
-    const ce6 = c6.telemetry.ce;
-    const cbm6 = c6.telemetry.cbm;
-    const sp6 = Math.round(cbm6.time_to_answer_s / ce6.time_to_answer_s);
+    const t6 = c6.telemetry;
 
     const cs06Row =
-      `| **[Case Study 06: Pre-Commit Architectural Guard](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling & auth overrides | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\`) | **\`398 ms\`** native execution<br>\`0\` turns (\`1\` CLI process) | **\`0\` tokens**<br>(**\`$0.00\`**) | **100% deterministic exit code**<br>Native gate check blocks PRs in git pre-commit / CI without LLM or network |`;
+      `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Types, GitOps engine isolation, storage boundaries, notification decoupling & auth overrides | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\`) | **\`${t6.duration_ms} ms\`** native execution<br>\`0\` turns (\`1\` CLI process) | **\`0\` tokens**<br>(**\`$0.00\`**) | **100% deterministic (\`Exit ${t6.exit_code}\`)**<br>\`${t6.passed_count}\` PASS, \`${t6.warning_count}\` WARN, \`${t6.failed_count}\` FAIL (\`${t6.blocking_errors}\` errors + \`${t6.audited_warnings}\` warnings) |`;
 
     b['md.catalog_agent_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Recall & Outcome |`,
