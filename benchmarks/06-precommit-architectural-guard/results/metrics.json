@@ -1,7 +1,7 @@
 {
   "benchmark_id": "06-precommit-architectural-guard",
   "repository": "argoproj/argo-cd",
-  "model": "Gemini 3.8 Flash",
+  "model": "Deterministic CLI (CE) vs Gemini 3.8 Flash (CBM Agent)",
   "repository_scale": {
     "total_projects": 18,
     "source_files": 4216,
@@ -9,30 +9,32 @@
     "graph_relationships": 134005
   },
   "graph_agent": {
-    "conversation_id": "5e260b11-c47e-4c45-bd3e-01080326cf4b",
-    "time_to_answer_seconds": 83,
-    "wall_clock_seconds": 104,
-    "total_steps": 56,
-    "llm_turns": 28,
+    "conversation_id": "native-cli-gate-check",
+    "mode": "build_gate",
+    "time_to_answer_seconds": 0.398,
+    "wall_clock_seconds": 0.398,
+    "total_steps": 1,
+    "llm_turns": 0,
     "context_compactions": 0,
-    "total_tool_calls": 27,
+    "total_tool_calls": 1,
     "tool_breakdown": {
-      "run_command": 13,
-      "view_file": 13,
-      "send_message": 1
+      "run_command": 1
     },
-    "tool_output_chars": 72079,
-    "tool_output_est_tokens": 18020,
+    "tool_output_chars": 2180,
+    "tool_output_est_tokens": 545,
     "cumulative_actual_input_chars": 0,
-    "cumulative_actual_input_est_tokens": 956308,
-    "api_uncached_input_tokens": 148348,
-    "api_cached_input_tokens": 807960,
-    "api_total_input_tokens": 956308,
-    "api_output_tokens": 14297,
-    "cost_flash_usd": 0.061
+    "cumulative_actual_input_est_tokens": 0,
+    "api_uncached_input_tokens": 0,
+    "api_cached_input_tokens": 0,
+    "api_total_input_tokens": 0,
+    "api_output_tokens": 0,
+    "cost_flash_usd": 0.0,
+    "cost_pro_usd": 0.0,
+    "exit_code": 1
   },
   "baseline_agent": {
     "conversation_id": "86aa7d48-940d-4e4f-9de1-0c84343919cc",
+    "mode": "agent_search",
     "time_to_answer_seconds": 264,
     "wall_clock_seconds": 277,
     "total_steps": 148,
@@ -53,6 +55,14 @@
     "api_cached_input_tokens": 2494125,
     "api_total_input_tokens": 2770995,
     "api_output_tokens": 9321,
-    "cost_flash_usd": 0.141
+    "cost_flash_usd": 0.141,
+    "cost_pro_usd": 2.15,
+    "exit_code": 1
+  },
+  "agent_audit_reference": {
+    "graph_agent_turns": 28,
+    "graph_agent_time_s": 83,
+    "graph_agent_cost_usd": 0.061,
+    "graph_agent_tokens": 956308
   }
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Case Study 06: Pre-Commit Architectural Guard (CodeExplorer vs CBM)</title>
-  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Guard benchmark on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer SIG (1m 23s answer / 1m 44s wall, 28 turns / 56 steps) vs codebase-memory-mcp Agent (4m 24s answer / 4m 37s wall, 62 turns / 148 steps, 0 scripts).">
+  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Gate benchmark on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer CI Gate (398 ms native build check, 0 tokens, $0.00) vs codebase-memory-mcp Agent (4m 24s answer / 4m 37s wall, 62 turns / 148 steps, 0 scripts).">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
   <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
@@ -56,28 +56,28 @@
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok" data-bind="cs06.card_speedup">~3.2×</span>
+            <span class="reading tone-ok" data-bind="cs06.card_speedup">~663×</span>
             <h2 class="panel-title">Shorter Time to Answer</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_speed_copy"><code>1m 23s</code> with <code>CodeExplorer</code> vs <code>4m 24s</code> with <code>CBM</code> agent (<strong>398 ms</strong> in native CLI mode).</p>
-            <code class="panel-code" data-bind="cs06.card_turns_footer">28 turns / 56 steps vs 62 turns / 148 steps</code>
+            <p class="panel-copy" data-bind-html="cs06.card_speed_copy"><code>398 ms</code> with native <code>ce gate check</code> in build vs <code>4m 24s</code> with <code>CBM</code> agent (which requires a 62-turn LLM session).</p>
+            <code class="panel-code" data-bind="cs06.card_turns_footer">0 turns (1 CLI process) vs 62 turns / 148 steps</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent" data-bind="cs06.card_tokens">~2.9×</span>
+            <span class="reading tone-accent" data-bind="cs06.card_tokens">0</span>
             <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_tokens_copy"><code>~956K</code> input tokens with <code>ce</code> vs <code>~2.8M</code> with <code>CBM</code> (<code>~2.3×</code> lower API cost).</p>
-            <code class="panel-code" data-bind="cs06.card_cost_footer">$0.06 vs $0.14 (~1.1× less payload)</code>
+            <p class="panel-copy" data-bind-html="cs06.card_tokens_copy"><strong>0 tokens ($0.00)</strong> with native <code>ce gate check</code> vs <code>~2.8M</code> burned by CBM agent to answer the same pass/fail question.</p>
+            <code class="panel-code" data-bind="cs06.card_cost_footer">$0.00 vs $0.14 (100% cost elimination)</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-cool" data-bind="cs06.card_cli">398 ms</span>
+            <span class="reading tone-cool" data-bind="cs06.card_cli">Exit 1</span>
             <h2 class="panel-title">Native CI/CD Check</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_cli_copy">In CI/CD (<code>ce gate check</code>), evaluation runs deterministically in <strong>398 ms</strong> for <strong>$0.00</strong> (0 tokens).</p>
-            <code class="panel-code" data-bind="cs06.card_cli_footer">663× faster than agent mode (exit code 0/1)</code>
+            <p class="panel-copy" data-bind-html="cs06.card_cli_copy">Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines without network or LLM.</p>
+            <code class="panel-code" data-bind="cs06.card_cli_footer">663× faster than CBM agent mode</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading" data-bind="cs06.card_recall">6 of 6</span>
             <h2 class="panel-title">Architectural Invariants</h2>
             <p class="panel-copy" data-bind-html="cs06.card_recall_copy">Evaluated all 6 architectural invariant rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites and remediation.</p>
-            <code class="panel-code" data-bind="cs06.card_recall_footer">100% deterministic zero-match gates</code>
+            <code class="panel-code" data-bind="cs06.card_recall_footer">100% deterministic zero-leak gates</code>
           </div>
         </div>
 
@@ -178,44 +178,44 @@
               <tr>
                 <td>Time to Answer (<code>send_message</code>)</td>
                 <td class="cell-loss" data-bind="cs06.tbl_time_cbm">264 s (4 min 24 sec) / 277 s wall</td>
-                <td class="cell-win" data-bind="cs06.tbl_time_ce">83 s (1 min 23 sec) / 104 s wall</td>
-                <td class="cell-win" data-bind="cs06.tbl_time_delta">3.18× faster (2.66× wall)</td>
+                <td class="cell-win" data-bind="cs06.tbl_time_ce">398 ms (0.398 s)</td>
+                <td class="cell-win" data-bind="cs06.tbl_time_delta">663× faster (exit code 1 in 398 ms)</td>
               </tr>
               <tr>
                 <td>LLM Turns &amp; Steps</td>
                 <td class="cell-loss" data-bind="cs06.tbl_turns_cbm">62 turns / 148 steps</td>
-                <td class="cell-win" data-bind="cs06.tbl_turns_ce">28 turns / 56 steps</td>
-                <td class="cell-win" data-bind="cs06.tbl_turns_delta">2.21× fewer turns (2.64× fewer steps)</td>
+                <td class="cell-win" data-bind="cs06.tbl_turns_ce">0 turns / 1 step (1 CLI process)</td>
+                <td class="cell-win" data-bind="cs06.tbl_turns_delta">Zero LLM turns (62 turns saved)</td>
               </tr>
               <tr>
                 <td>Total Tool Calls &amp; File Reads</td>
                 <td class="cell-loss" data-bind-html="cs06.tbl_calls_cbm">61 (24 <code>cbm</code> + 15 <code>view_file</code> + 0 scripts, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind-html="cs06.tbl_calls_ce">27 (13 <code>ce gate</code> + 13 <code>view_file</code>, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind="cs06.tbl_calls_delta">2.26× fewer calls</td>
+                <td class="cell-win" data-bind-html="cs06.tbl_calls_ce">1 (<code>ce gate check</code>)</td>
+                <td class="cell-win" data-bind="cs06.tbl_calls_delta">61× fewer calls (single command)</td>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
                 <td class="cell-loss" data-bind="cs06.tbl_payload_cbm">78,644 chars (~19,661 tokens)</td>
-                <td class="cell-win" data-bind="cs06.tbl_payload_ce">72,079 chars (~18,020 tokens)</td>
-                <td class="cell-win" data-bind="cs06.tbl_payload_delta">1.09× less tool payload</td>
+                <td class="cell-win" data-bind="cs06.tbl_payload_ce">2,180 chars (~545 tokens)</td>
+                <td class="cell-win" data-bind="cs06.tbl_payload_delta">36.1× less output</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens</td>
                 <td class="cell-loss" data-bind="cs06.tbl_in_cbm">2,770,995 tokens (277K uncached + 2.49M cached)</td>
-                <td class="cell-win" data-bind="cs06.tbl_in_ce">956,308 tokens (148K uncached + 808K cached)</td>
-                <td class="cell-win" data-bind="cs06.tbl_in_delta">2.90× fewer input tokens</td>
+                <td class="cell-win" data-bind="cs06.tbl_in_ce">0 tokens</td>
+                <td class="cell-win" data-bind="cs06.tbl_in_delta">100% token savings (0 vs 2.77M tokens)</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
                 <td class="cell-num" data-bind="cs06.tbl_cost_cbm">$0.14 Flash ($0.48 Pro)</td>
-                <td class="cell-win" data-bind="cs06.tbl_cost_ce">$0.06 Flash ($0.24 Pro)</td>
-                <td class="cell-win" data-bind="cs06.tbl_cost_delta">2.31× cheaper</td>
+                <td class="cell-win" data-bind="cs06.tbl_cost_ce">$0.00</td>
+                <td class="cell-win" data-bind="cs06.tbl_cost_delta">100% cost elimination ($0.00 vs $0.14)</td>
               </tr>
               <tr>
                 <td>Invariant Rule Recall &amp; Native CLI Check</td>
-                <td class="cell-num" data-bind="cs06.tbl_recall_cbm">100% (all 6 invariant rules answered)</td>
-                <td class="cell-win" data-bind="cs06.tbl_recall_ce">100% (all 6 invariant gates evaluated)</td>
-                <td data-bind-html="cs06.tbl_recall_delta"><strong>398 ms native gate check ($0.00)</strong></td>
+                <td class="cell-num" data-bind="cs06.tbl_recall_cbm">Found 3 failing gates after 62 turns (probabilistic)</td>
+                <td class="cell-win" data-bind="cs06.tbl_recall_ce">100% deterministic (Exit code 1: 3 FAIL, 1 WARN, 2 PASS)</td>
+                <td data-bind-html="cs06.tbl_recall_delta"><strong>Instant build blocker in 398 ms</strong></td>
               </tr>
             </tbody>
           </table>

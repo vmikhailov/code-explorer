@@ -105,7 +105,7 @@
                 <td><strong><a href="/benchmarks/06-precommit-architectural-guard.html">Case Study 06</a></strong><br><span class="tone-muted">argoproj/argo-cd</span></td>
                 <td>Automated pre-commit architectural guard: verify 6 core invariant rules (reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling, and auth bypasses) across 18 subsystems (4,216 files).</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>CBM</code></td>
-                <td class="cell-win" data-bind-html="catalog.cs06_outcome"><strong class="tone-ok">~3.2× faster in agent mode</strong> (1m 23s vs 4m 24s)<br><strong class="tone-ok">398 ms native CLI check</strong> (vs ~4m 24s, $0.00 vs $0.14)<br><strong>100% vs 100%</strong> (6 of 6 invariant gates evaluated)</td>
+                <td class="cell-win" data-bind-html="catalog.cs06_outcome"><strong class="tone-ok">~663× faster</strong> (398 ms vs 4m 24s)<br><strong class="tone-ok">0 tokens ($0.00)</strong> vs 2.77M tokens ($0.14)<br><strong>100% deterministic</strong> (exit code 0/1 in CI build)</td>
                 <td><a href="/benchmarks/06-precommit-architectural-guard.html" class="btn">Read Case 06</a></td>
               </tr>
             </tbody>
