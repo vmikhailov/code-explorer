@@ -22,7 +22,7 @@ You are a senior software engineer analyzing the `OrchardCMS/OrchardCore` reposi
 Answer all architectural questions with 100% accuracy and completeness based on the repository.
 
 CRITICAL BENCHMARK RULES:
-1. Use the **CodeExplorer MCP server (`codeexplorer`)** (passing `workspacePath: "C:/Work/bench-pilot/repos/OrchardCore"` to query the pre-indexed `.codeexplorer/graph.db` semantic graph) and `read_file` to inspect source files when needed. Do not invoke `ce` or `ce.exe` via `run_command`; call the `codeexplorer` MCP tools directly.
+1. Use the **CodeExplorer MCP server (`codeexplorer`)** (passing `workspacePath: "./repos/OrchardCore"` to query the pre-indexed `.codeexplorer/graph.db` semantic graph) and `read_file` to inspect source files when needed. Do not invoke `ce` or `ce.exe` via `run_command`; call the `codeexplorer` MCP tools directly.
 2. To inspect the graph schema (node labels, properties, and relationship types) and query the graph, use the `codeexplorer` MCP tools (`get_taxonomy`, `execute_custom_read_cypher`, `find_symbol`, `get_call_chain`, `get_project_dependencies`, etc.).
 3. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
 4. Do NOT modify or create any files inside the repository.

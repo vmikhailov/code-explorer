@@ -564,7 +564,7 @@ query: |
               <span class="prompt-drawer-toggle"></span>
             </summary>
             <div class="prompt-drawer-body">
-              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/results/ce-gate-output.txt">$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/results/ce-gate-output.txt">$ ce gate check --dir ./repos/argo-cd
 
 --- Semantic Invariant Gates Evaluation ---
 
@@ -582,7 +582,7 @@ Total: 6 gates | Passed: 2 | Warnings: 1 | Failed: 3 | Duration: 422ms
 Tip: Run 'ce gate details' to view failure details and remediation.
 Exit code: 1
 
-$ ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --all
+$ ce gate details --dir ./repos/argo-cd --all
 
 --- Semantic Invariant Gate Details ---
 
@@ -657,7 +657,7 @@ $ ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --all
               <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/results/ratchet-lifecycle-output.txt"># ==============================================================================
 # Phase 2A: Freeze Legacy Debt into SHA-256 Baselines (Day 1 CI Adoption)
 # ==============================================================================
-$ ce gate ratchet --update --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate ratchet --update --dir ./repos/argo-cd
 Successfully ratcheted down and updated baselines for 6 gate(s).
 
 # Generated snapshot: .codeexplorer/baselines/SIG-P-B-105.json
@@ -692,7 +692,7 @@ Successfully ratcheted down and updated baselines for 6 gate(s).
 # Phase 2B: Line-Shift Immunity (+15 comment lines inserted at top of service.go,
 # shifting GetCommitMetadata 66 -&gt; 81 and GetAppDetails 89 -&gt; 104)
 # ==============================================================================
-$ ce gate check --scan --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate check --scan --dir ./repos/argo-cd
 [Incremental] Changes detected: 0 added, 1 modified, 0 deleted.
 [Incremental:Decision] Logic-only change in 'util/notification/argocd/service.go' (0 logic edits, 0 line shifts, 0 graph modifications). Preserving graph.
 
@@ -715,7 +715,7 @@ Exit code: 0
 # ==============================================================================
 # Phase 3: PR Regression Catch (New method GetClusterSecretCount calls db.NewDB)
 # ==============================================================================
-$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate check --dir ./repos/argo-cd
 
 --- Semantic Invariant Gates Evaluation ---
 
@@ -733,7 +733,7 @@ Total: 6 gates | Passed: 5 | Warnings: 0 | Failed: 1 | Duration: 196ms
 Tip: Run 'ce gate details' to view failure details and remediation.
 Exit code: 1
 
-$ ce gate details --new --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate details --new --dir ./repos/argo-cd
 
 --- Semantic Invariant Gate Details ---
 
@@ -750,7 +750,7 @@ $ ce gate details --new --dir "C:\Work\bench-pilot\repos\argo-cd"
 # ==============================================================================
 # Phase 4: Monotonic Ratchet Tightening (GetCommitMetadata refactored: 2 -&gt; 1)
 # ==============================================================================
-$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate check --dir ./repos/argo-cd
 
 --- Semantic Invariant Gates Evaluation ---
 
@@ -770,7 +770,7 @@ Total: 6 gates | Passed: 6 | Warnings: 0 | Failed: 0 | Duration: 183ms
 All architectural semantic gates passed successfully.
 Exit code: 0
 
-$ ce gate ratchet --update --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate ratchet --update --dir ./repos/argo-cd
 Successfully ratcheted down and updated baselines for 6 gate(s).</pre>
             </div>
           </details>

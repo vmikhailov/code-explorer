@@ -1,4 +1,4 @@
-$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+$ ce gate check --dir ./repos/argo-cd
 
 --- Semantic Invariant Gates Evaluation ---
 
@@ -16,7 +16,7 @@ Total: 6 gates | Passed: 2 | Warnings: 1 | Failed: 3 | Duration: 422ms
 Tip: Run 'ce gate details' to view failure details and remediation.
 Exit code: 1
 
-$ ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --all
+$ ce gate details --dir ./repos/argo-cd --all
 
 --- Semantic Invariant Gate Details ---
 

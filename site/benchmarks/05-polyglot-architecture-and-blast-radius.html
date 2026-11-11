@@ -230,7 +230,7 @@
               <span class="prompt-drawer-toggle"></span>
             </summary>
             <div class="prompt-drawer-body">
-              <pre class="code-block" data-bind-file="benchmarks/05-polyglot-architecture-and-blast-radius/prompts/task-prompt.md">Perform a comprehensive, 4-part architectural governance, security, and blast-radius audit on the `OrchardCMS/OrchardCore` modular .NET monolith located at `C:/Work/bench-pilot/repos/OrchardCore` (`src/OrchardCore/OrchardCore.*` and `src/OrchardCore.Modules/OrchardCore.*`, excluding `test/` projects, `src/Templates/`, and `*Tests*` files). Answer all four engineering questions below with 100% completeness (do not guess, sample, or truncate items). To keep both query outputs and your final report concise, **do not include file path columns** and **use compact grouped bullet lists** rather than wide multi-line Markdown tables:
+              <pre class="code-block" data-bind-file="benchmarks/05-polyglot-architecture-and-blast-radius/prompts/task-prompt.md">Perform a comprehensive, 4-part architectural governance, security, and blast-radius audit on the `OrchardCMS/OrchardCore` modular .NET monolith located at `./repos/OrchardCore` (`src/OrchardCore/OrchardCore.*` and `src/OrchardCore.Modules/OrchardCore.*`, excluding `test/` projects, `src/Templates/`, and `*Tests*` files). Answer all four engineering questions below with 100% completeness (do not guess, sample, or truncate items). To keep both query outputs and your final report concise, **do not include file path columns** and **use compact grouped bullet lists** rather than wide multi-line Markdown tables:
 
 1. **Task 1 — AppSec Authorization Audit: State-Mutating Controller Actions Missing `AuthorizeAsync` (`Negative Graph Query / NOT EXISTS`)**:
    Across the following 5 security-sensitive modules:
@@ -284,7 +284,7 @@ You are a senior software engineer analyzing the `OrchardCMS/OrchardCore` reposi
 Answer all architectural questions with 100% accuracy and completeness based on the repository.
 
 CRITICAL BENCHMARK RULES:
-1. Use the **CodeExplorer MCP server (`codeexplorer`)** (passing `workspacePath: "C:/Work/bench-pilot/repos/OrchardCore"` to query the pre-indexed `.codeexplorer/graph.db` semantic graph) and `read_file` to inspect source files when needed. Do not invoke `ce` or `ce.exe` via `run_command`; call the `codeexplorer` MCP tools directly.
+1. Use the **CodeExplorer MCP server (`codeexplorer`)** (passing `workspacePath: "./repos/OrchardCore"` to query the pre-indexed `.codeexplorer/graph.db` semantic graph) and `read_file` to inspect source files when needed. Do not invoke `ce` or `ce.exe` via `run_command`; call the `codeexplorer` MCP tools directly.
 2. To inspect the graph schema (node labels, properties, and relationship types) and query the graph, use the `codeexplorer` MCP tools (`get_taxonomy`, `execute_custom_read_cypher`, `find_symbol`, `get_call_chain`, `get_project_dependencies`, etc.).
 3. You are STRICTLY FORBIDDEN from reading or referencing anything inside `benchmarks/`.
 4. Do NOT modify or create any files inside the repository.</pre>
