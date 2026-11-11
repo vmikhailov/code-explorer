@@ -292,7 +292,9 @@ public abstract class TreeSitterSyntaxConverterBase
 
         using var cursor = tree.RootNode.Walk();
 
-        SyntaxNode ConvertNode(TreeSitter.TreeCursor cur, SyntaxNode parent, string? fieldRole, string parentRawKind)
+        const int MaxAstDepth = 256;
+
+        SyntaxNode ConvertNode(TreeSitter.TreeCursor cur, SyntaxNode parent, string? fieldRole, string parentRawKind, int depth)
         {
             var id = nextNodeId++;
             var tsNode = cur.CurrentNode;
@@ -333,7 +335,7 @@ public abstract class TreeSitterSyntaxConverterBase
             syntaxNode.Document = doc;
             syntaxNode.Parent = parent;
 
-            if (cur.GotoFirstChild())
+            if (depth < MaxAstDepth && cur.GotoFirstChild())
             {
                 SyntaxNode? firstChild = null;
                 SyntaxNode? secondChild = null;
@@ -368,7 +370,7 @@ public abstract class TreeSitterSyntaxConverterBase
                         continue;
                     }
 
-                    var convertedChild = ConvertNode(cur, syntaxNode, childField, rawKind);
+                    var convertedChild = ConvertNode(cur, syntaxNode, childField, rawKind, depth + 1);
                     convertedChild.ChildIndex = childCount;
 
                     if (childCount == 0)
@@ -461,7 +463,7 @@ public abstract class TreeSitterSyntaxConverterBase
                     continue;
                 }
                 const string rootDocumentRawKind = "document";
-                var childSyntax = ConvertNode(cursor, doc, childField, rootDocumentRawKind);
+                var childSyntax = ConvertNode(cursor, doc, childField, rootDocumentRawKind, 0);
                 childSyntax.ChildIndex = docChildren.Count;
                 docChildren.Add(childSyntax);
 
