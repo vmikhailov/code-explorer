@@ -128,6 +128,8 @@ public partial class ArchitectureViewEngine
             "RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, coalesce(p.kind, p.role, '') AS kind, count(f) AS files";
         const string colIsTest = "is_test";
         const string colIsBuildOrch = "is_build_orch";
+        const string colName = "name";
+        const string colFiles = "files";
         var res = await db.ExecuteCypherAsync(query, null, ct);
 
         var list = res.Rows
@@ -152,10 +154,10 @@ public partial class ArchitectureViewEngine
                 const string fileCountQuery = "MATCH (f:File) RETURN f.project_name AS name, count(f) AS files";
                 var fileCountRes = await db.ExecuteCypherAsync(fileCountQuery, null, ct);
                 var countsByProjectName = fileCountRes.Rows
-                    .Where(r => !string.IsNullOrEmpty(r.GetStringProp("name")))
+                    .Where(r => !string.IsNullOrEmpty(r.GetStringProp(colName)))
                     .ToDictionary(
-                        r => r.GetStringProp("name"),
-                        r => r.GetNullableIntProp("files") ?? 0,
+                        r => r.GetStringProp(colName),
+                        r => r.GetNullableIntProp(colFiles) ?? 0,
                         StringComparer.OrdinalIgnoreCase);
 
                 for (var i = 0; i < list.Count; i++)
@@ -276,10 +278,14 @@ public partial class ArchitectureViewEngine
         const string query =
             "MATCH (p:Project)-[:CONTAINS]->(f:File) WHERE p.id = $pid RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
         const string colIsTest = "is_test";
+        const string colPath = "path";
+        const string colLineCount = "line_count";
+        const char backslashChar = '\\';
+        const char slashChar = '/';
         var res = await db.ExecuteCypherAsync(query, new { pid = projectId }, ct);
 
         var files = res.Rows
-            .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
+            .Select(e => new ProjectMapFile(e.GetStringProp(colPath).Replace(backslashChar, slashChar), e.GetBoolProp(colIsTest), e.GetNullableIntProp(colLineCount)))
             .Where(f => f.Path.Length > 0)
             .ToList();
 
@@ -294,7 +300,7 @@ public partial class ArchitectureViewEngine
                     "MATCH (f:File) WHERE f.project_name = $pname RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
                 var nameRes = await db.ExecuteCypherAsync(nameQuery, new { pname = projectName }, ct);
                 files = nameRes.Rows
-                    .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
+                    .Select(e => new ProjectMapFile(e.GetStringProp(colPath).Replace(backslashChar, slashChar), e.GetBoolProp(colIsTest), e.GetNullableIntProp(colLineCount)))
                     .Where(f => f.Path.Length > 0)
                     .ToList();
                 if (files.Count > 0) return files;
@@ -306,7 +312,7 @@ public partial class ArchitectureViewEngine
         }
 
         // Fallback 2: match files by project directory path prefix
-        var normPath = projectPath?.Replace('\\', '/').Trim('/');
+        var normPath = projectPath?.Replace(backslashChar, slashChar).Trim(slashChar);
         if (!string.IsNullOrEmpty(normPath))
         {
             try
@@ -316,7 +322,7 @@ public partial class ArchitectureViewEngine
                     "MATCH (f:File) WHERE f.path STARTS WITH $prefix RETURN f.path AS path, f.is_test AS is_test, f.line_count AS line_count";
                 var pathRes = await db.ExecuteCypherAsync(pathQuery, new { prefix }, ct);
                 files = pathRes.Rows
-                    .Select(e => new ProjectMapFile(e.GetStringProp("path").Replace('\\', '/'), e.GetBoolProp(colIsTest), e.GetNullableIntProp("line_count")))
+                    .Select(e => new ProjectMapFile(e.GetStringProp(colPath).Replace(backslashChar, slashChar), e.GetBoolProp(colIsTest), e.GetNullableIntProp(colLineCount)))
                     .Where(f => f.Path.Length > 0)
                     .ToList();
             }
