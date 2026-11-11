@@ -1,0 +1,602 @@
+[
+  {
+    "lang": "Go",
+    "repo": "gin-gonic/gin",
+    "name": "gin"
+  },
+  {
+    "lang": "Go",
+    "repo": "gofiber/fiber",
+    "name": "fiber"
+  },
+  {
+    "lang": "Go",
+    "repo": "pocketbase/pocketbase",
+    "name": "pocketbase"
+  },
+  {
+    "lang": "Go",
+    "repo": "charmbracelet/bubbletea",
+    "name": "bubbletea"
+  },
+  {
+    "lang": "Go",
+    "repo": "charmbracelet/lipgloss",
+    "name": "lipgloss"
+  },
+  {
+    "lang": "Go",
+    "repo": "jesseduffield/lazygit",
+    "name": "lazygit"
+  },
+  {
+    "lang": "Go",
+    "repo": "zyedidia/micro",
+    "name": "micro"
+  },
+  {
+    "lang": "Go",
+    "repo": "nektos/act",
+    "name": "act"
+  },
+  {
+    "lang": "Go",
+    "repo": "spf13/cobra",
+    "name": "cobra"
+  },
+  {
+    "lang": "Go",
+    "repo": "spf13/viper",
+    "name": "viper"
+  },
+  {
+    "lang": "Go",
+    "repo": "stretchr/testify",
+    "name": "testify"
+  },
+  {
+    "lang": "Go",
+    "repo": "dapr/dapr",
+    "name": "dapr"
+  },
+  {
+    "lang": "Go",
+    "repo": "caddyserver/caddy",
+    "name": "caddy"
+  },
+  {
+    "lang": "Go",
+    "repo": "gohugoio/hugo",
+    "name": "hugo"
+  },
+  {
+    "lang": "Go",
+    "repo": "junegunn/fzf",
+    "name": "fzf"
+  },
+  {
+    "lang": "Go",
+    "repo": "cli/cli",
+    "name": "gh-cli"
+  },
+  {
+    "lang": "Go",
+    "repo": "traefik/traefik",
+    "name": "traefik"
+  },
+  {
+    "lang": "Go",
+    "repo": "argoproj/argo-cd",
+    "name": "argo-cd"
+  },
+  {
+    "lang": "Go",
+    "repo": "syncthing/syncthing",
+    "name": "syncthing"
+  },
+  {
+    "lang": "Go",
+    "repo": "moby/buildkit",
+    "name": "buildkit"
+  },
+  {
+    "lang": "Python",
+    "repo": "tiangolo/fastapi",
+    "name": "fastapi"
+  },
+  {
+    "lang": "Python",
+    "repo": "pallets/flask",
+    "name": "flask"
+  },
+  {
+    "lang": "Python",
+    "repo": "pallets/click",
+    "name": "click"
+  },
+  {
+    "lang": "Python",
+    "repo": "pallets/jinja",
+    "name": "jinja"
+  },
+  {
+    "lang": "Python",
+    "repo": "psf/requests",
+    "name": "requests"
+  },
+  {
+    "lang": "Python",
+    "repo": "psf/black",
+    "name": "black"
+  },
+  {
+    "lang": "Python",
+    "repo": "pydantic/pydantic",
+    "name": "pydantic"
+  },
+  {
+    "lang": "Python",
+    "repo": "tiangolo/sqlmodel",
+    "name": "sqlmodel"
+  },
+  {
+    "lang": "Python",
+    "repo": "encode/httpx",
+    "name": "httpx"
+  },
+  {
+    "lang": "Python",
+    "repo": "encode/starlette",
+    "name": "starlette"
+  },
+  {
+    "lang": "Python",
+    "repo": "encode/django-rest-framework",
+    "name": "drf"
+  },
+  {
+    "lang": "Python",
+    "repo": "Textualize/rich",
+    "name": "rich"
+  },
+  {
+    "lang": "Python",
+    "repo": "Textualize/textual",
+    "name": "textual"
+  },
+  {
+    "lang": "Python",
+    "repo": "httpie/cli",
+    "name": "httpie"
+  },
+  {
+    "lang": "Python",
+    "repo": "python-poetry/poetry",
+    "name": "poetry"
+  },
+  {
+    "lang": "Python",
+    "repo": "tornadoweb/tornado",
+    "name": "tornado"
+  },
+  {
+    "lang": "Python",
+    "repo": "marshmallow-code/marshmallow",
+    "name": "marshmallow"
+  },
+  {
+    "lang": "Python",
+    "repo": "celery/celery",
+    "name": "celery"
+  },
+  {
+    "lang": "Python",
+    "repo": "mitmproxy/mitmproxy",
+    "name": "mitmproxy"
+  },
+  {
+    "lang": "Python",
+    "repo": "paperless-ngx/paperless-ngx",
+    "name": "paperless-ngx"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "trpc/trpc",
+    "name": "trpc"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "expressjs/express",
+    "name": "express"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "remix-run/remix",
+    "name": "remix"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nestjs/nest",
+    "name": "nest"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "prisma/prisma",
+    "name": "prisma"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "vuejs/core",
+    "name": "vue"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "sveltejs/svelte",
+    "name": "svelte"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "formbricks/formbricks",
+    "name": "formbricks"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "shadcn-ui/ui",
+    "name": "shadcn-ui"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "excalidraw/excalidraw",
+    "name": "excalidraw"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "hoppscotch/hoppscotch",
+    "name": "hoppscotch"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "directus/directus",
+    "name": "directus"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "strapi/strapi",
+    "name": "strapi"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nocodb/nocodb",
+    "name": "nocodb"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "facebook/docusaurus",
+    "name": "docusaurus"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "calcom/cal.com",
+    "name": "calcom"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "twentyhq/twenty",
+    "name": "twenty"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "payloadcms/payload",
+    "name": "payload"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "toeverything/AFFiNE",
+    "name": "affine"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "fastify/fastify",
+    "name": "fastify"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dotnet/eShop",
+    "name": "eshop"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jasontaylordev/CleanArchitecture",
+    "name": "clean-architecture"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jbogard/MediatR",
+    "name": "mediatr"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "reactiveui/refit",
+    "name": "refit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "App-vNext/Polly",
+    "name": "polly"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "CarterCommunity/Carter",
+    "name": "carter"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "AutoMapper/AutoMapper",
+    "name": "automapper"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "serilog/serilog",
+    "name": "serilog"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "DapperLib/Dapper",
+    "name": "dapper"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "FluentValidation/FluentValidation",
+    "name": "fluent-validation"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "HangfireIO/Hangfire",
+    "name": "hangfire"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "MassTransit/MassTransit",
+    "name": "masstransit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "DuendeSoftware/IdentityServer",
+    "name": "identityserver"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "MudBlazor/MudBlazor",
+    "name": "mudblazor"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dotnet/BenchmarkDotNet",
+    "name": "benchmarkdotnet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "domaindrivendev/Swashbuckle.AspNetCore",
+    "name": "swashbuckle"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dotnet-state-machine/stateless",
+    "name": "stateless"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "Humanizr/Humanizer",
+    "name": "humanizer"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "JamesNK/Newtonsoft.Json",
+    "name": "newtonsoft-json"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "OrchardCMS/OrchardCore",
+    "name": "orchard-core"
+  },
+  {
+    "lang": "Rust",
+    "repo": "BurntSushi/ripgrep",
+    "name": "ripgrep"
+  },
+  {
+    "lang": "Rust",
+    "repo": "sharkdp/bat",
+    "name": "bat"
+  },
+  {
+    "lang": "Rust",
+    "repo": "sharkdp/fd",
+    "name": "fd"
+  },
+  {
+    "lang": "Rust",
+    "repo": "starship/starship",
+    "name": "starship"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tokio-rs/tokio",
+    "name": "tokio"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tokio-rs/axum",
+    "name": "axum"
+  },
+  {
+    "lang": "Rust",
+    "repo": "actix/actix-web",
+    "name": "actix-web"
+  },
+  {
+    "lang": "Rust",
+    "repo": "alacritty/alacritty",
+    "name": "alacritty"
+  },
+  {
+    "lang": "Rust",
+    "repo": "zellij-org/zellij",
+    "name": "zellij"
+  },
+  {
+    "lang": "Rust",
+    "repo": "ClementTsang/bottom",
+    "name": "bottom"
+  },
+  {
+    "lang": "Rust",
+    "repo": "dandavison/delta",
+    "name": "delta"
+  },
+  {
+    "lang": "Rust",
+    "repo": "helix-editor/helix",
+    "name": "helix"
+  },
+  {
+    "lang": "Rust",
+    "repo": "hyperium/hyper",
+    "name": "hyper"
+  },
+  {
+    "lang": "Rust",
+    "repo": "diesel-rs/diesel",
+    "name": "diesel"
+  },
+  {
+    "lang": "Rust",
+    "repo": "meilisearch/meilisearch",
+    "name": "meilisearch"
+  },
+  {
+    "lang": "Rust",
+    "repo": "astral-sh/ruff",
+    "name": "ruff"
+  },
+  {
+    "lang": "Rust",
+    "repo": "nushell/nushell",
+    "name": "nushell"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rust-lang/cargo",
+    "name": "cargo"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tauri-apps/tauri",
+    "name": "tauri"
+  },
+  {
+    "lang": "Rust",
+    "repo": "surrealdb/surrealdb",
+    "name": "surrealdb"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-petclinic",
+    "name": "spring-petclinic"
+  },
+  {
+    "lang": "Java",
+    "repo": "quarkusio/quarkus-super-heroes",
+    "name": "quarkus-super-heroes"
+  },
+  {
+    "lang": "Java",
+    "repo": "micronaut-projects/micronaut-examples",
+    "name": "micronaut-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "sqshq/piggymetrics",
+    "name": "piggymetrics"
+  },
+  {
+    "lang": "Java",
+    "repo": "macrozheng/mall-tiny",
+    "name": "mall-tiny"
+  },
+  {
+    "lang": "Java",
+    "repo": "apache/dubbo-samples",
+    "name": "dubbo-samples"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "android/nowinandroid",
+    "name": "nowinandroid"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "JetBrains/kotlinconf-app",
+    "name": "kotlinconf-app"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ktorio/ktor",
+    "name": "ktor"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "mockk/mockk",
+    "name": "mockk"
+  },
+  {
+    "lang": "Java",
+    "repo": "square/retrofit",
+    "name": "retrofit"
+  },
+  {
+    "lang": "Java",
+    "repo": "square/okhttp",
+    "name": "okhttp"
+  },
+  {
+    "lang": "Java",
+    "repo": "google/guava",
+    "name": "guava"
+  },
+  {
+    "lang": "Java",
+    "repo": "dropwizard/dropwizard",
+    "name": "dropwizard"
+  },
+  {
+    "lang": "Java",
+    "repo": "checkstyle/checkstyle",
+    "name": "checkstyle"
+  },
+  {
+    "lang": "Java",
+    "repo": "zxing/zxing",
+    "name": "zxing"
+  },
+  {
+    "lang": "Java",
+    "repo": "iluwatar/java-design-patterns",
+    "name": "java-design-patterns"
+  },
+  {
+    "lang": "Java",
+    "repo": "alibaba/canal",
+    "name": "canal"
+  },
+  {
+    "lang": "Java",
+    "repo": "OpenAPITools/openapi-generator",
+    "name": "openapi-generator"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-boot",
+    "name": "spring-boot"
+  }
+]
