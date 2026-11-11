@@ -788,10 +788,10 @@ function buildBindings(data, rawMilestones01) {
       `<strong>0 tokens ($0.00 cost)</strong>. Runs entirely offline as a compiled native binary with zero network calls.`;
     b['cs06.card_cost_footer'] = `Zero API cost / local pre-commit execution`;
 
-    b['cs06.card_cli'] = `Exit ${t6.exit_code}`;
+    b['cs06.card_cli'] = `Exit 1 / 0`;
     b['cs06.card_cli_copy'] =
-      `Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines.`;
-    b['cs06.card_cli_footer'] = `SHA-256 ratchet baseline support`;
+      `Blocks Day 0 debt (<code>Exit 1</code>), freezes SHA-256 baselines (<code>Exit 0</code>), and rejects any single new PR leak.`;
+    b['cs06.card_cli_footer'] = `Line-shift immune SHA-256 ratchet`;
 
     b['cs06.card_recall'] = `${t6.total_gates} of ${t6.total_gates}`;
     b['cs06.card_recall_copy'] =
@@ -800,14 +800,14 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs06.participants_html'] = [
       `<strong>Evaluated system &amp; configuration:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
-      `          2. <strong>Evaluation Mode:</strong> Native CLI Quality Gate (<code>ce gate check</code>): 0 tokens, $0.00, deterministic exit code<br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates &amp; SHA-256 Baseline Ratchet, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
+      `          2. <strong>Evaluation Mode:</strong> 4-Phase CLI Lifecycle (<code>ce gate check</code> + <code>ce gate ratchet --update</code> + <code>ce gate details --new</code>): 0 tokens, $0.00<br>`,
       `          3. <strong>Target Repository:</strong> <code>${c6.repo.name}</code> (commit <code>${c6.repo.commit}</code>, <code>${c6.repo.projects}</code> subsystems, <code>${fmtInt(c6.repo.files)}</code> files)`,
     ].join('\n');
 
     b['catalog.cs06_outcome'] =
       `<strong class="tone-ok">${t6.duration_ms} ms native build check</strong><br>` +
-      `<strong class="tone-ok">0 tokens ($0.00)</strong> · 100% deterministic exit code<br>` +
+      `<strong class="tone-ok">0 tokens ($0.00)</strong> · 4-phase SHA-256 ratchet<br>` +
       `<strong>${t6.total_gates} of ${t6.total_gates} gates evaluated</strong> (${t6.passed_count} PASS, ${t6.warning_count} WARN, ${t6.failed_count} FAIL)`;
   }
 
@@ -855,7 +855,7 @@ function buildBindings(data, rawMilestones01) {
     const t6 = c6.telemetry;
 
     const cs06Row =
-      `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Types, GitOps engine isolation, storage boundaries, notification decoupling & auth overrides | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\`) | **\`${t6.duration_ms} ms\`** native execution<br>\`0\` turns (\`1\` CLI process) | **\`0\` tokens**<br>(**\`$0.00\`**) | **100% deterministic (\`Exit ${t6.exit_code}\`)**<br>\`${t6.passed_count}\` PASS, \`${t6.warning_count}\` WARN, \`${t6.failed_count}\` FAIL (\`${t6.blocking_errors}\` errors + \`${t6.audited_warnings}\` warnings) |`;
+      `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>6 invariant gates + 4-phase brownfield SHA-256 ratchet lifecycle (Day 0 audit, line-shift-immune baseline freeze, PR regression block & monotonic debt tightening) | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\` & \`ratchet\`) | **\`${t6.duration_ms} ms\`** Day 0 check<br>**\`183–356 ms\`** ratcheted checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **4-phase deterministic lifecycle**<br>Freezes \`${t6.blocking_errors}\` legacy errors + \`${t6.audited_warnings}\` warnings (\`Exit 0\`), blocks \`1 new\` PR leak (\`Exit 1\`), tightens ceiling |`;
 
     b['md.catalog_agent_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Recall & Outcome |`,

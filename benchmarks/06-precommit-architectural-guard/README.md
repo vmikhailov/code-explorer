@@ -53,7 +53,24 @@ Measured on `argoproj/argo-cd @ 6d689fa3` ([`results/metrics.json`](./results/me
 
 ---
 
-## 4. Source-Verified Findings Breakdown
+## 4. Brownfield Adoption & Monotonic SHA-256 Ratchet Lifecycle
+
+In a mature 4,216-file repository like `argoproj/argo-cd`, teams cannot freeze feature pull requests for weeks to refactor `SettingsManager` (`70` methods) and `ApplicationController` (`64` methods) on Day 1. CodeExplorer solves brownfield adoption via **line-shift-immune SHA-256 baseline ratchets**:
+
+$$\text{Fingerprint} = \text{SHA256}(\text{GateId} \parallel \text{FilePath} \parallel \text{Symbol} \parallel \text{Target} \parallel \text{Occurrence})$$
+
+We executed the complete 4-phase lifecycle live on `argoproj/argo-cd @ 6d689fa3` ([`results/ratchet-lifecycle-output.txt`](./results/ratchet-lifecycle-output.txt)):
+
+| Lifecycle Phase | Engineering Scenario on `argo-cd` | CLI Command | Gate Latency | Findings (`new` vs `tolerated`) | Exit Code & Outcome |
+| :--- | :--- | :--- | :---: | :---: | :--- |
+| **Phase 1: Day 0 Audit** | Evaluate 6 rules on unbaselined `argo-cd` | `ce gate check` | **422 ms** | `21 new` (`17` errors + `4` warnings) | **`Exit 1`** — Discovers full baseline debt |
+| **Phase 2: Baseline Freeze & Line-Shift Test** | Freeze debt into `.codeexplorer/baselines/*.json`, then insert `+15` comment lines at top of `service.go` (`66` &rarr; `81`, `89` &rarr; `104`) | `ce gate ratchet --update`<br>`ce gate check --scan` | **356 ms**<br>(`2.63 s` w/ scan) | `0 new`, `21 tolerated` | **`Exit 0`** — CI turns green immediately; zero false alarms when line numbers shift |
+| **Phase 3: Pre-Commit / PR Regression Block** | Developer PR adds `GetClusterSecretCount` calling `db.NewDB` at `util/notification/argocd/service.go:188:14` | `ce gate check`<br>`ce gate details --new` | **196 ms**<br>(`3 ms` details) | **`1 new`** on `SIG-P-B-105`, `21 tolerated` | **`Exit 1`** — Blocks PR and prints *only* the single new violation |
+| **Phase 4: Monotonic Debt Tightening** | Engineer refactors `GetCommitMetadata` to use injected `ArgoDB` (dropping `SIG-P-B-105` from `2` &rarr; `1` violation) | `ce gate check`<br>`ce gate ratchet --update` | **183 ms** | `0 new`, `20 tolerated` (`1` ratchet opportunity) | **`Exit 0`** — Prompts & locks ceiling down (`allowedViolations: 2` &rarr; `1`) |
+
+---
+
+## 5. Source-Verified Findings Breakdown
 
 ### Rule 1: Reverse Layer Inversion Shield (`SIG-P-B-101`) — FAIL (`3` violations)
 Pinpoints the exact 3 direct package-level function calls where foundational `util/` packages import and call higher-level service layers (while cleanly ignoring packages like `util/git` and `util/helm` that properly invert dependencies through local interfaces):
@@ -96,8 +113,9 @@ Identified all 4 public gRPC entry points implementing `AuthFuncOverride`:
 
 ---
 
-## 5. Declarative Gate Definitions & Artifacts
+## 6. Declarative Gate Definitions & Artifacts
 
 - **YAML Gate Suite**: [`gates/architectural-gates.yaml`](./gates/architectural-gates.yaml)
-- **Verbatim CLI Output (`ce gate check` + `ce gate details`)**: [`results/ce-gate-output.txt`](./results/ce-gate-output.txt)
+- **Phase 1 Verbatim CLI Output (`ce gate check` + `ce gate details`)**: [`results/ce-gate-output.txt`](./results/ce-gate-output.txt)
+- **Phases 2–4 Verbatim Ratchet Lifecycle Transcript**: [`results/ratchet-lifecycle-output.txt`](./results/ratchet-lifecycle-output.txt)
 - **Telemetry Data**: [`results/metrics.json`](./results/metrics.json)

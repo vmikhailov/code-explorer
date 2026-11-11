@@ -1,0 +1,118 @@
+# ==============================================================================
+# Phase 2A: Freeze Legacy Debt into SHA-256 Baselines (Day 1 CI Adoption)
+# ==============================================================================
+$ ce gate ratchet --update --dir "C:\Work\bench-pilot\repos\argo-cd"
+Successfully ratcheted down and updated baselines for 6 gate(s).
+
+# Generated snapshot: .codeexplorer/baselines/SIG-P-B-105.json
+{
+  "gateId": "SIG-P-B-105",
+  "allowedViolations": 2,
+  "entries": [
+    {
+      "fingerprint": "45d53d82dfc5293dcd8391c8a4a541653fd994b1199d68ebc3df085a21f61879",
+      "file": "util/notification/argocd/service.go",
+      "line": 66,
+      "column": 14,
+      "symbol": "GetCommitMetadata",
+      "target": "NewDB",
+      "acknowledgedAt": "2026-11-11T13:31:15.0720811+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-11 13:31:15"
+    },
+    {
+      "fingerprint": "30f65d321503411ce4332641c5d5503b044daa3c85bea47a9bd5598474b9e8b9",
+      "file": "util/notification/argocd/service.go",
+      "line": 89,
+      "column": 14,
+      "symbol": "GetAppDetails",
+      "target": "NewDB",
+      "acknowledgedAt": "2026-11-11T13:31:15.0720811+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-11 13:31:15"
+    }
+  ]
+}
+
+# ==============================================================================
+# Phase 2B: Line-Shift Immunity (+15 comment lines inserted at top of service.go,
+# shifting GetCommitMetadata 66 -> 81 and GetAppDetails 89 -> 104)
+# ==============================================================================
+$ ce gate check --scan --dir "C:\Work\bench-pilot\repos\argo-cd"
+[Incremental] Changes detected: 0 added, 1 modified, 0 deleted.
+[Incremental:Decision] Logic-only change in 'util/notification/argocd/service.go' (0 logic edits, 0 line shifts, 0 graph modifications). Preserving graph.
+
+--- Semantic Invariant Gates Evaluation ---
+
+STATUS         ID              CATEGORY        PLATFORM   SCOPE     VIOLATIONS      NAME
+---------------------------------------------------------------------------------------------------------
+[TOLERATED]    SIG-C-R-102     Architectural   agnostic   Class     12 tol          God Type Complexity Limit (>30 methods)
+[TOLERATED]    SIG-M-B-106     Architectural   agnostic   Method    4 tol           Public Authentication Bypass Audit (AuthFuncOverride)
+[TOLERATED]    SIG-P-B-101     Architectural   agnostic   Module    3 tol           Reverse Layer Inversion Shield (util/ calling higher services)
+[PASS]         SIG-P-B-103     Architectural   agnostic   Module    0               GitOps Engine Layer Isolation (Zero Host Calls)
+[PASS]         SIG-P-B-104     Architectural   agnostic   Module    0               Storage Abstraction Boundary (Raw Secrets Access Shield)
+[TOLERATED]    SIG-P-B-105     Architectural   agnostic   Module    2 tol           Notification Subsystem DB Decoupling
+---------------------------------------------------------------------------------------------------------
+Total: 6 gates | Passed: 6 | Warnings: 0 | Failed: 0 | Duration: 356ms
+
+All architectural semantic gates passed successfully.
+Exit code: 0
+
+# ==============================================================================
+# Phase 3: PR Regression Catch (New method GetClusterSecretCount calls db.NewDB)
+# ==============================================================================
+$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+
+--- Semantic Invariant Gates Evaluation ---
+
+STATUS         ID              CATEGORY        PLATFORM   SCOPE     VIOLATIONS      NAME
+---------------------------------------------------------------------------------------------------------
+[TOLERATED]    SIG-C-R-102     Architectural   agnostic   Class     12 tol          God Type Complexity Limit (>30 methods)
+[TOLERATED]    SIG-M-B-106     Architectural   agnostic   Method    4 tol           Public Authentication Bypass Audit (AuthFuncOverride)
+[TOLERATED]    SIG-P-B-101     Architectural   agnostic   Module    3 tol           Reverse Layer Inversion Shield (util/ calling higher services)
+[PASS]         SIG-P-B-103     Architectural   agnostic   Module    0               GitOps Engine Layer Isolation (Zero Host Calls)
+[PASS]         SIG-P-B-104     Architectural   agnostic   Module    0               Storage Abstraction Boundary (Raw Secrets Access Shield)
+[FAIL]         SIG-P-B-105     Architectural   agnostic   Module    1 new           Notification Subsystem DB Decoupling
+---------------------------------------------------------------------------------------------------------
+Total: 6 gates | Passed: 5 | Warnings: 0 | Failed: 1 | Duration: 196ms
+
+Tip: Run 'ce gate details' to view failure details and remediation.
+Exit code: 1
+
+$ ce gate details --new --dir "C:\Work\bench-pilot\repos\argo-cd"
+
+--- Semantic Invariant Gate Details ---
+
+[FAIL] SIG-P-B-105 [Architectural/agnostic] - Notification Subsystem DB Decoupling (3ms)
+  Rule: Notification utilities in util/notification must not construct standalone database instances or call db.NewDB directly; DB instances must be injected.
+  Remediation: Inject ArgoDB as a dependency rather than creating a new DB instance inside the notification service.
+
+  Violations (1 new, 0 tolerated) | Showing 1 of 1:
+  STATUS | LOCATION                                   | SYMBOL                | TARGET / CALL
+  -------+--------------------------------------------+-----------------------+--------------
+  [NEW]  | util/notification/argocd/service.go:188:14 | GetClusterSecretCount | NewDB
+  -------+--------------------------------------------+-----------------------+--------------
+
+# ==============================================================================
+# Phase 4: Monotonic Ratchet Tightening (GetCommitMetadata refactored: 2 -> 1)
+# ==============================================================================
+$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+
+--- Semantic Invariant Gates Evaluation ---
+
+STATUS         ID              CATEGORY        PLATFORM   SCOPE     VIOLATIONS      NAME
+---------------------------------------------------------------------------------------------------------
+[TOLERATED]    SIG-C-R-102     Architectural   agnostic   Class     12 tol          God Type Complexity Limit (>30 methods)
+[TOLERATED]    SIG-M-B-106     Architectural   agnostic   Method    4 tol           Public Authentication Bypass Audit (AuthFuncOverride)
+[TOLERATED]    SIG-P-B-101     Architectural   agnostic   Module    3 tol           Reverse Layer Inversion Shield (util/ calling higher services)
+[PASS]         SIG-P-B-103     Architectural   agnostic   Module    0               GitOps Engine Layer Isolation (Zero Host Calls)
+[PASS]         SIG-P-B-104     Architectural   agnostic   Module    0               Storage Abstraction Boundary (Raw Secrets Access Shield)
+[TOLERATED]    SIG-P-B-105     Architectural   agnostic   Module    1 tol           Notification Subsystem DB Decoupling
+---------------------------------------------------------------------------------------------------------
+Total: 6 gates | Passed: 6 | Warnings: 0 | Failed: 0 | Duration: 183ms
+
+1 gate(s) have fewer violations than allowed by baseline.
+   Run 'ce gate ratchet --update' to lock down resolved technical debt.
+All architectural semantic gates passed successfully.
+Exit code: 0
+
+$ ce gate ratchet --update --dir "C:\Work\bench-pilot\repos\argo-cd"
+Successfully ratcheted down and updated baselines for 6 gate(s).

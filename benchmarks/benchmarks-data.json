@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.80.1",
+      "ce_suite_versions": "v1.75.0 to v1.80.2",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -440,7 +440,7 @@
     "status": "ready",
     "expected_repo_match": "argo-cd",
     "source_metrics": "benchmarks/06-precommit-architectural-guard/results/metrics.json",
-    "ce_version": "v1.80.1",
+    "ce_version": "v1.80.2",
     "repo": {
       "name": "argoproj/argo-cd",
       "commit": "6d689fa3",

@@ -81,5 +81,39 @@
         "duration_ms": 8.4
       }
     ]
+  },
+  "ratchet_lifecycle": {
+    "phase_1_day0_audit": {
+      "command": "ce gate check",
+      "duration_ms": 422,
+      "new_violations": 21,
+      "tolerated_violations": 0,
+      "exit_code": 1
+    },
+    "phase_2_baseline_and_line_shift": {
+      "command": "ce gate ratchet --update && ce gate check --scan",
+      "line_shift_inserted": 15,
+      "incremental_scan_and_check_ms": 2631,
+      "gate_check_ms": 356,
+      "new_violations": 0,
+      "tolerated_violations": 21,
+      "exit_code": 0
+    },
+    "phase_3_pr_regression_block": {
+      "command": "ce gate check && ce gate details --new",
+      "gate_check_ms": 196,
+      "details_new_ms": 3,
+      "new_violations": 1,
+      "tolerated_violations": 21,
+      "exit_code": 1
+    },
+    "phase_4_monotonic_tightening": {
+      "command": "ce gate check && ce gate ratchet --update",
+      "gate_check_ms": 183,
+      "new_violations": 0,
+      "tolerated_violations": 20,
+      "ratchet_opportunities": 1,
+      "exit_code": 0
+    }
   }
 }
