@@ -295,35 +295,55 @@ public static partial class ProjectMapBuilder
         return m is ".ctor" or ".cctor" or "constructor" or "__init__" || m.StartsWith('<');
     }
 
+    private const char SlashChar = '/';
+    private const char BackslashChar = '\\';
+    private const char DotChar = '.';
+    private const string DefaultModuleFallbackName = "module";
+    private const string IndexStem = "index";
+    private const string RoutersFolderName = "routers";
+    private const string RoutesFolderName = "routes";
+
+    private static readonly HashSet<string> TransparentSourceRootNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "src", "source", "sources"
+    };
+
     private static string DeriveFileModuleName(string filePath, Func<string, bool> exists)
     {
-        var norm = filePath.Replace('\\', '/').Trim('/');
-        var parts = norm.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var fileName = parts.LastOrDefault() ?? "module";
-        var dotIdx = fileName.IndexOf('.');
+        var norm = filePath.Replace(BackslashChar, SlashChar).Trim(SlashChar);
+        var parts = norm.Split(SlashChar, StringSplitOptions.RemoveEmptyEntries);
+        var fileName = parts.LastOrDefault() ?? DefaultModuleFallbackName;
+        var dotIdx = fileName.IndexOf(DotChar);
         var stem = dotIdx > 0 ? fileName[..dotIdx] : fileName;
 
-        if (stem.Equals("index", StringComparison.OrdinalIgnoreCase) && parts.Length >= 2)
+        if (stem.Equals(IndexStem, StringComparison.OrdinalIgnoreCase) &&
+            parts.Length >= 2 &&
+            !TransparentSourceRootNames.Contains(parts[^2]))
         {
             stem = parts[^2];
         }
 
         // If in a router or route folder, always qualify with router/route folder to avoid collision with controllers and ensure consistent naming
-        if (parts.Length >= 2 && (parts[^2].Equals("routers", StringComparison.OrdinalIgnoreCase) || parts[^2].Equals("routes", StringComparison.OrdinalIgnoreCase)))
+        if (parts.Length >= 2 &&
+            (parts[^2].Equals(RoutersFolderName, StringComparison.OrdinalIgnoreCase) ||
+             parts[^2].Equals(RoutesFolderName, StringComparison.OrdinalIgnoreCase)))
         {
             var routerQualified = $"{parts[^2]}/{stem}";
             if (!exists(routerQualified)) return routerQualified;
         }
 
         if (!exists(stem)) return stem;
-        if (parts.Length >= 2)
+        if (parts.Length >= 2 && !TransparentSourceRootNames.Contains(parts[^2]))
         {
             var qualified = $"{parts[^2]}/{stem}";
             if (!exists(qualified)) return qualified;
         }
         if (parts.Length >= 3)
         {
-            var subQualified = $"{parts[^3]}/{parts[^2]}/{stem}";
+            var parentPrefix = TransparentSourceRootNames.Contains(parts[^2])
+                ? parts[^3]
+                : (TransparentSourceRootNames.Contains(parts[^3]) ? parts[^2] : $"{parts[^3]}/{parts[^2]}");
+            var subQualified = $"{parentPrefix}/{stem}";
             if (!exists(subQualified)) return subQualified;
         }
         return norm;

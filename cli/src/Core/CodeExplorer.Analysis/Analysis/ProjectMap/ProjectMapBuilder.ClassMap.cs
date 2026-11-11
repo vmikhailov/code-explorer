@@ -164,8 +164,8 @@ public static partial class ProjectMapBuilder
                     LineCount = fileLineCounts.GetValueOrDefault(fn.FilePath, fn.LineCount ?? 0)
                 };
                 classes[moduleName] = modCand;
-                fileToPrimaryClass[fn.FilePath] = moduleName;
             }
+            fileToPrimaryClass[fn.FilePath] = moduleName;
             modCand.Files.Add(fn.FilePath);
             modCand.Methods[fn.Name] = new ProjectMapMethod(fn.Name, fn.FilePath, fn.StartLine);
         }

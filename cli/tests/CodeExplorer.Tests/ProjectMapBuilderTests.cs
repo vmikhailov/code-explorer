@@ -556,4 +556,94 @@ public class ProjectMapBuilderTests
         result.Edges.Should().NotContain(e => e.SourceId == derB.Id && e.TargetId == derA.Id);
         result.Cycles.Should().BeEmpty();
     }
+
+    [Test]
+    public void Partition_MultipleDirectFilesInSrc_EachGetsOwnSeparateFileNode_NeverPackedIntoSrcOrRootBucket()
+    {
+        var files = new[]
+        {
+            F("apps/web/eslint.config.mjs"),
+            F("apps/web/jest.config.mjs"),
+            F("apps/web/next.config.mjs"),
+            F("apps/web/postcss.config.mjs"),
+            F("apps/web/tailwind.config.mjs"),
+            F("apps/web/index.d.ts"),
+            F("apps/web/src/index.ts"),
+            F("apps/web/src/config.ts"),
+            F("apps/web/src/proxy.ts"),
+            F("apps/web/src/connections/algolia.ts"),
+            F("apps/web/src/services/orders.ts"),
+            F("apps/web/src/utils/logger.ts")
+        };
+
+        var result = ProjectMapPartitioner.Partition("apps/web", files);
+
+        result.SourceRoot.Should().Be("src/");
+        result.Modules.Select(m => m.Name).Should().BeEquivalentTo(
+            "index.ts", "config.ts", "proxy.ts", "connections", "services", "utils");
+        result.Modules.Should().NotContain(m => m.Name == "src" || m.Name == "(root files)");
+        result.Modules.Single(m => m.Name == "index.ts").NodeKindOverride.Should().Be(CodeExplorer.Cypher.Common.NodeKind.File);
+        result.Modules.Single(m => m.Name == "config.ts").NodeKindOverride.Should().Be(CodeExplorer.Cypher.Common.NodeKind.File);
+        result.Modules.Single(m => m.Name == "proxy.ts").NodeKindOverride.Should().Be(CodeExplorer.Cypher.Common.NodeKind.File);
+    }
+
+    [Test]
+    public void Partition_MixedTopLevelFoldersWithSrc_ExpandsDirectFilesInSrcIndividually_NeverCreatesSrcNode()
+    {
+        var files = new[]
+        {
+            F("repo/scripts/deploy.mjs"),
+            F("repo/tools/check.mjs"),
+            F("repo/lib/rules.mjs"),
+            F("repo/src/index.ts"),
+            F("repo/src/handler.ts"),
+            F("repo/src/connections/db.ts"),
+            F("repo/src/utils/log.ts")
+        };
+
+        var result = ProjectMapPartitioner.Partition("repo", files);
+
+        result.Modules.Should().NotContain(m => m.Name == "src");
+        result.Modules.Select(m => m.Name).Should().Contain(["index.ts", "handler.ts", "src/connections", "src/utils"]);
+        result.Modules.Single(m => m.Name == "index.ts").Files.Should().ContainSingle().Which.Should().Be("repo/src/index.ts");
+        result.Modules.Single(m => m.Name == "handler.ts").Files.Should().ContainSingle().Which.Should().Be("repo/src/handler.ts");
+    }
+
+    [Test]
+    public void Build_ClassMap_RootIndexTsInSrc_UsesIndexInsteadOfSrc()
+    {
+        var input = new ProjectMapInput
+        {
+            ProjectId = "ws:p:lambdas/faq-api:",
+            ProjectName = "faq-api",
+            ProjectPath = "lambdas/faq-api",
+            Files =
+            [
+                F("lambdas/faq-api/src/index.ts"),
+                F("lambdas/faq-api/src/connections/algolia/index.ts"),
+                F("lambdas/faq-api/src/connections/contentful.ts"),
+                F("lambdas/faq-api/src/utils/config.ts")
+            ],
+            Functions =
+            [
+                new ProjectMapFunctionNode("fn:handler", "handler", "lambdas/faq-api/src/index.ts", 10, 40, false),
+                new ProjectMapFunctionNode("fn:syncAlgolia", "syncAlgolia", "lambdas/faq-api/src/connections/algolia/index.ts", 5, 30, false),
+                new ProjectMapFunctionNode("fn:fetchEntries", "fetchEntries", "lambdas/faq-api/src/connections/contentful.ts", 5, 50, false),
+                new ProjectMapFunctionNode("fn:loadConfig", "loadConfig", "lambdas/faq-api/src/utils/config.ts", 1, 20, false)
+            ],
+            SymbolEdges =
+            [
+                new ProjectMapSymbolEdge("lambdas/faq-api/src/index.ts", "lambdas/faq-api/src/connections/algolia/index.ts", "CALLS", "handler", "syncAlgolia", 15),
+                new ProjectMapSymbolEdge("lambdas/faq-api/src/index.ts", "lambdas/faq-api/src/connections/contentful.ts", "CALLS", "handler", "fetchEntries", 20),
+                new ProjectMapSymbolEdge("lambdas/faq-api/src/connections/algolia/index.ts", "lambdas/faq-api/src/utils/config.ts", "CALLS", "syncAlgolia", "loadConfig", 12)
+            ]
+        };
+
+        var result = ProjectMapBuilder.Build(input);
+
+        result.Granularity.Should().Be(ProjectMapGranularity.Class);
+        result.Modules.Should().NotContain(m => m.Name == "src");
+        result.Modules.Select(m => m.Name).Should().BeEquivalentTo("index", "algolia", "contentful", "config");
+        result.Edges.Should().Contain(e => e.SourceId == "pm:cls:index" && e.TargetId == "pm:cls:algolia");
+    }
 }

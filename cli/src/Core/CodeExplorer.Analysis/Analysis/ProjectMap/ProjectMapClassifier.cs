@@ -45,13 +45,20 @@ public static class ProjectMapClassifier
         }
     }
 
+    private const char SlashChar = '/';
+    private const char DotChar = '.';
+    private static readonly string[] StartupFileStems =
+    [
+        "program", "startup", "mauiprogram", "app", "index", "main", "server", "proxy", "middleware"
+    ];
+
     private static (ProjectMapTier, string) ClassifyModule(ProjectMapModule m, int moduleCount)
     {
         var isDependedOn = m.FanIn >= 2 && m.FanIn > m.FanOut;
         if (m.EntryPointCount > 0 && !isDependedOn)
             return (ProjectMapTier.Ingress, $"Exposes {m.EntryPointCount} endpoint/entry point(s)");
 
-        if (m.IsRootFiles && m.FanIn == 0)
+        if (m.IsRootFiles && m.FanIn == 0 && (m.FanOut > 0 || IsStartupModuleName(m.Name)))
             return (ProjectMapTier.Ingress, "Project startup / host entrypoint files");
 
         var others = Math.Max(1, moduleCount - 1);
@@ -85,9 +92,19 @@ public static class ProjectMapClassifier
             : (ProjectMapTier.Core, $"Instability {m.Instability:0.00}: stable, depended on by other modules");
     }
 
+    private static string ExtractModuleStem(string moduleName)
+    {
+        var leaf = moduleName.Split(SlashChar).Last().Trim().ToLowerInvariant();
+        var dotIdx = leaf.IndexOf(DotChar);
+        return dotIdx > 0 ? leaf[..dotIdx] : leaf;
+    }
+
+    private static bool IsStartupModuleName(string moduleName) =>
+        StartupFileStems.Contains(ExtractModuleStem(moduleName), StringComparer.OrdinalIgnoreCase);
+
     internal static ProjectMapTier? ClassifyByName(string moduleName)
     {
-        var leaf = moduleName.Split('/').Last().Trim().ToLowerInvariant();
+        var leaf = ExtractModuleStem(moduleName);
         if (IngressNames.Contains(leaf)) return ProjectMapTier.Ingress;
         if (DataNames.Contains(leaf)) return ProjectMapTier.Data;
         if (FoundationNames.Contains(leaf)) return ProjectMapTier.Foundation;

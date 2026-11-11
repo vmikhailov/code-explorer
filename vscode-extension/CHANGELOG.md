@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.80.4] - 2026-11-11
+
+### Fixed
+- **Project Map Direct Source Root Files (`ProjectMapPartitioner.cs`, `ProjectMapBuilder.cs`, `ProjectMapClassifier.cs`)**:
+  - Stopped collapsing non-recursive files inside `src/` into a single shared `(root files)` or `src` bucket during folder/submodule partitioning; each direct file in `src/` now renders as its own individual `File` node alongside sibling folder modules.
+  - Prevented `DeriveFileModuleName` from naming root `src/index.*` functional modules `src` by skipping transparent source-root directory segments (`src`, `source`, `sources`).
+  - Excluded JS/TS bundler, linter, test-runner config files (`eslint.config.*`, `jest.config.*`, `next.config.*`, `postcss.config.*`, `tailwind.config.*`, `prettier.config.*`, `vitest.config.*`, `playwright.config.*`, etc.) and ambient `.d.ts` declarations from distorting `DetectSourceRoot` share calculation.
+
 ## [1.80.3] - 2026-11-11
 
 ### Changed & Improved
