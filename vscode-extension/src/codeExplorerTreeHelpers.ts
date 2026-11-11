@@ -190,6 +190,59 @@ export type TreeItemType =
   | 'empty-notice'
   | 'init-action';
 
+export const TREE_ITEM_TYPES = {
+  ROOT_DIAGRAMS: 'root-diagrams' as TreeItemType,
+  ROOT_LAYERS: 'root-layers' as TreeItemType,
+  ROOT_GATES: 'root-gates' as TreeItemType,
+  ROOT_MANAGEMENT: 'root-management' as TreeItemType,
+  DIAGRAM_ITEM: 'diagram-item' as TreeItemType,
+  LAYER_GROUP: 'layer-group' as TreeItemType,
+  ONTOLOGY_SERVICE: 'ontology-service' as TreeItemType,
+  SERVICE_GROUP: 'service-group' as TreeItemType,
+  DOMAIN_ITEM: 'domain-item' as TreeItemType,
+  DATABASE_NODE_ITEM: 'database-node-item' as TreeItemType,
+  DATABASE_EVIDENCE_ITEM: 'database-evidence-item' as TreeItemType,
+  MANAGEMENT_SERVER: 'management-server' as TreeItemType,
+  MANAGEMENT_GRAPH: 'management-graph' as TreeItemType,
+  MANAGEMENT_SETTINGS: 'management-settings' as TreeItemType,
+  EMPTY_NOTICE: 'empty-notice' as TreeItemType,
+} as const;
+
+export const TREE_ICONS = {
+  LAYOUT: 'layout',
+  LAYERS: 'layers',
+  SHIELD: 'shield',
+  TOOLS: 'tools',
+  FOLDER: 'folder',
+  INFO: 'info',
+  PASS: 'pass',
+  LOADING_SPIN: 'loading~spin',
+  CIRCLE_SLASH: 'circle-slash',
+  DATABASE: 'database',
+  SETTINGS_GEAR: 'settings-gear',
+} as const;
+
+export const TREE_LABELS = {
+  ROOT_DIAGRAMS: 'Architecture Diagrams',
+  ROOT_LAYERS: 'Graph Layers (Ontology 1 - 5)',
+  ROOT_GATES: 'Semantic Invariant Gates',
+  ROOT_MANAGEMENT: 'Management',
+  SERVER: 'Server',
+  GRAPH: 'Graph',
+  SETTINGS: 'Settings',
+  NO_EVIDENCE: 'No query or model evidence recorded',
+  NO_CONTEXTS: 'No Bounded Contexts Discovered',
+  NO_DATABASES: 'No databases found',
+} as const;
+
+const ZERO_PAD_CHAR = '0';
+const UTF8_ENCODING: BufferEncoding = 'utf-8';
+const CE_DIR_NAME = '.codeexplorer';
+const GRAPH_DB_FILE = 'graph.db';
+const GRAPH_WAL_FILE = 'graph.db-wal';
+const SETTINGS_JSON_FILE = 'settings.json';
+const VERSION_PREFIX = 'v';
+
 export class CodeExplorerTreeItem extends vscode.TreeItem {
   constructor(
     public readonly itemType: TreeItemType,
@@ -452,13 +505,6 @@ export function buildContextSectionLeafItems(items?: Array<{ label: string; kind
 export function buildDiagramItems(): CodeExplorerTreeItem[] {
   const diagrams = [
     {
-      mode: 'contexts',
-      label: 'Bounded Context Map',
-      desc: 'AI domain contexts & DDD map',
-      icon: 'circuit-board',
-      tooltip: 'Bounded Context Map — AI-distilled business domains, capabilities, CQRS roles, and ubiquitous entities',
-    },
-    {
       mode: 'semantic',
       label: 'Architecture Map',
       desc: 'Services, resources & topology',
@@ -497,7 +543,7 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
 
   return diagrams.map((d) => {
     const item = new CodeExplorerTreeItem(
-      'diagram-item',
+      TREE_ITEM_TYPES.DIAGRAM_ITEM,
       d.label,
       vscode.TreeItemCollapsibleState.None,
       { viewMode: d.mode }
@@ -521,13 +567,13 @@ export function buildGraphLayerGroups(ontology: OntologyLayersResponseDto | null
 
   return ontology.layers.map((l) => {
     const item = new CodeExplorerTreeItem(
-      'layer-group',
+      TREE_ITEM_TYPES.LAYER_GROUP,
       l.title || `Layer ${l.layerId}: ${l.name}`,
       vscode.TreeItemCollapsibleState.Collapsed,
       { layerId: l.layerId, title: l.title || l.name }
     );
     item.description = `${l.totalCount.toLocaleString()} nodes`;
-    item.iconPath = new vscode.ThemeIcon(l.icon || 'folder');
+    item.iconPath = new vscode.ThemeIcon(l.icon || TREE_ICONS.FOLDER);
     item.tooltip = l.description;
     return item;
   });
@@ -593,7 +639,7 @@ export function buildServicesListItems(
       ? ` [+${s.secondaryRoles.map(r => r.slice(0, 3).toUpperCase()).join(', +')}]`
       : '';
     const item = new CodeExplorerTreeItem(
-      'ontology-service',
+      TREE_ITEM_TYPES.ONTOLOGY_SERVICE,
       `${s.serviceName}${secondarySuffix}`,
       vscode.TreeItemCollapsibleState.Collapsed,
       { serviceName: s.serviceName, serviceId: s.serviceId, layerTitle }
@@ -637,12 +683,12 @@ export function buildServiceOntologyGroups(
       : 'ExternalService';
 
     const item = new CodeExplorerTreeItem(
-      'service-group',
+      TREE_ITEM_TYPES.SERVICE_GROUP,
       `${g.label} (${g.count})`,
       g.count > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
       { serviceName, categoryKey: g.categoryKey, items: g.items, kind }
     );
-    item.iconPath = new vscode.ThemeIcon(g.icon || 'folder');
+    item.iconPath = new vscode.ThemeIcon(g.icon || TREE_ICONS.FOLDER);
     item.description = `${g.count}`;
     item.tooltip = `${g.label} (${g.count}) belonging to ${serviceName} in graph ontology`;
     return item;
@@ -688,13 +734,13 @@ export function buildServiceGroupItems(
 
 export function buildDatabaseEvidenceItems(res: DatabaseEvidenceResponseDto | null): CodeExplorerTreeItem[] {
   if (!res || !res.items || res.items.length === 0) {
-    return [new CodeExplorerTreeItem('empty-notice', 'No query or model evidence recorded', vscode.TreeItemCollapsibleState.None)];
+    return [new CodeExplorerTreeItem(TREE_ITEM_TYPES.EMPTY_NOTICE, TREE_LABELS.NO_EVIDENCE, vscode.TreeItemCollapsibleState.None)];
   }
 
   return res.items.map((ev: ArchitectureEvidenceItemDto) => {
     const opTag = ev.operation ? `[${ev.operation.toUpperCase()}] ` : '';
     const item = new CodeExplorerTreeItem(
-      'database-evidence-item',
+      TREE_ITEM_TYPES.DATABASE_EVIDENCE_ITEM,
       `${opTag}${ev.title}`,
       vscode.TreeItemCollapsibleState.None,
       { evidence: ev }
@@ -743,8 +789,8 @@ export function formatGraphUpdateTime(date: Date): string {
   const diffMs = Math.max(0, now.getTime() - date.getTime());
   const diffMin = Math.floor(diffMs / 60000);
 
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, ZERO_PAD_CHAR);
+  const minutes = date.getMinutes().toString().padStart(2, ZERO_PAD_CHAR);
   const timeStr = `${hours}:${minutes}`;
 
   if (diffMin < 1) {
@@ -754,8 +800,8 @@ export function formatGraphUpdateTime(date: Date): string {
   } else if (now.toDateString() === date.toDateString()) {
     return `Updated today at ${timeStr}`;
   } else {
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, ZERO_PAD_CHAR);
+    const day = date.getDate().toString().padStart(2, ZERO_PAD_CHAR);
     return `Updated ${day}.${month} ${timeStr}`;
   }
 }
@@ -766,30 +812,31 @@ export function buildManagementItems(
   meta: MetadataDto | null,
   wsRoot: string | undefined,
   engineVersion: string | undefined,
-  bcMap: BoundedContextMapDto | null
+  _bcMap: BoundedContextMapDto | null = null
 ): CodeExplorerTreeItem[] {
-  const cleanVersion = engineVersion ? (engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`) : 'Unknown';
+  const cleanVersion = engineVersion ? (engineVersion.startsWith(VERSION_PREFIX) ? engineVersion : `v${engineVersion}`) : 'Unknown';
 
   const serverItem = new CodeExplorerTreeItem(
-    'management-server',
-    'Server',
+    TREE_ITEM_TYPES.MANAGEMENT_SERVER,
+    TREE_LABELS.SERVER,
     vscode.TreeItemCollapsibleState.None
   );
   if (serverInfo) {
     serverItem.description = `Online :${serverInfo.port} (${cleanVersion})`;
-    serverItem.iconPath = new vscode.ThemeIcon('pass');
+    serverItem.iconPath = new vscode.ThemeIcon(TREE_ICONS.PASS);
     serverItem.tooltip = `CodeExplorer daemon running at ${serverInfo.httpUrl}\nVersion: ${cleanVersion}\nUse inline buttons to restart server or check for engine updates.`;
   } else {
     serverItem.description = isStarting ? `Starting... (${cleanVersion})` : `Offline (${cleanVersion})`;
-    serverItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'circle-slash');
+    const offlineIcon = isStarting ? TREE_ICONS.LOADING_SPIN : TREE_ICONS.CIRCLE_SLASH;
+    serverItem.iconPath = new vscode.ThemeIcon(offlineIcon);
     serverItem.tooltip = isStarting ? 'Daemon is launching...' : `Daemon is offline. Engine version: ${cleanVersion}`;
   }
 
   let dbMtime: Date | null = null;
   if (wsRoot) {
     try {
-      const dbPath = path.join(wsRoot, '.codeexplorer', 'graph.db');
-      const walPath = path.join(wsRoot, '.codeexplorer', 'graph.db-wal');
+      const dbPath = path.join(wsRoot, CE_DIR_NAME, GRAPH_DB_FILE);
+      const walPath = path.join(wsRoot, CE_DIR_NAME, GRAPH_WAL_FILE);
       if (fs.existsSync(dbPath)) {
         dbMtime = fs.statSync(dbPath).mtime;
       }
@@ -799,22 +846,26 @@ export function buildManagementItems(
           dbMtime = walMtime;
         }
       }
-    } catch {}
+    } catch {
+      // ignored: graph.db or WAL file may not exist or may be transiently locked during scan
+    }
   }
   if (!dbMtime && meta?.lastUpdatedUtc) {
     try {
       dbMtime = new Date(meta.lastUpdatedUtc);
-    } catch {}
+    } catch {
+      // ignored: malformed timestamp string falls back to unindexed status
+    }
   }
 
   const updateStr = dbMtime ? formatGraphUpdateTime(dbMtime) : 'Not indexed yet';
 
   const graphItem = new CodeExplorerTreeItem(
-    'management-graph',
-    'Graph',
+    TREE_ITEM_TYPES.MANAGEMENT_GRAPH,
+    TREE_LABELS.GRAPH,
     vscode.TreeItemCollapsibleState.None
   );
-  graphItem.iconPath = new vscode.ThemeIcon('database');
+  graphItem.iconPath = new vscode.ThemeIcon(TREE_ICONS.DATABASE);
   if (meta?.isSchemaOutdated) {
     const warningIconId = 'warning';
     const warningColorId = 'problemsWarningIcon.foreground';
@@ -833,56 +884,32 @@ export function buildManagementItems(
     graphItem.tooltip = 'Knowledge graph has not been indexed yet. Use inline button to scan workspace.';
   }
 
-  let intentMtime: Date | null = null;
-  if (wsRoot) {
-    try {
-      const intentDbPath = path.join(wsRoot, '.codeexplorer', 'graph.db');
-      if (fs.existsSync(intentDbPath)) {
-        intentMtime = fs.statSync(intentDbPath).mtime;
-      }
-    } catch {}
-  }
-
-  const intentItem = new CodeExplorerTreeItem(
-    'management-intent',
-    'Intents',
-    vscode.TreeItemCollapsibleState.None
-  );
-  if (bcMap && bcMap.hasIntents && bcMap.domains.length > 0) {
-    const intentTimeStr = intentMtime ? formatGraphUpdateTime(intentMtime) : updateStr;
-    intentItem.description = `${bcMap.domains.length} domains · ${intentTimeStr}`;
-    intentItem.iconPath = new vscode.ThemeIcon('sparkle');
-    intentItem.tooltip = `Architectural Intents & Bounded Contexts:\nDomains: ${bcMap.domains.length}\nBounded Contexts: ${bcMap.contexts.length}\nTotal Classified Intents: ${bcMap.totalIntents}\nLast Updated: ${intentMtime ? intentMtime.toLocaleString() : updateStr}\nUse inline buttons to distill intents or run full re-distill.`;
-  } else {
-    intentItem.description = 'Not distilled yet';
-    intentItem.iconPath = new vscode.ThemeIcon('sparkle');
-    intentItem.tooltip = 'Architectural intents have not been distilled yet. Use inline button to distill intents.';
-  }
-
   let excludeCount = 0;
   if (wsRoot) {
     try {
-      const settingsPath = path.join(wsRoot, '.codeexplorer', 'settings.json');
+      const settingsPath = path.join(wsRoot, CE_DIR_NAME, SETTINGS_JSON_FILE);
       if (fs.existsSync(settingsPath)) {
-        const raw = fs.readFileSync(settingsPath, 'utf-8');
+        const raw = fs.readFileSync(settingsPath, UTF8_ENCODING);
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.exclude)) {
           excludeCount = parsed.exclude.filter((p: any) => typeof p === 'string' && p.trim().length > 0).length;
         }
       }
-    } catch {}
+    } catch {
+      // ignored: optional .codeexplorer/settings.json may not exist or contain invalid JSON
+    }
   }
 
   const settingsItem = new CodeExplorerTreeItem(
-    'management-settings',
-    'Settings',
+    TREE_ITEM_TYPES.MANAGEMENT_SETTINGS,
+    TREE_LABELS.SETTINGS,
     vscode.TreeItemCollapsibleState.None
   );
   settingsItem.description =
     excludeCount > 0
       ? `${excludeCount} excluded ${excludeCount === 1 ? 'path' : 'paths'} · settings.json`
       : '.codeexplorer/settings.json';
-  settingsItem.iconPath = new vscode.ThemeIcon('settings-gear');
+  settingsItem.iconPath = new vscode.ThemeIcon(TREE_ICONS.SETTINGS_GEAR);
   settingsItem.tooltip =
     `Workspace Scan Settings (.codeexplorer/settings.json)\n` +
     `Excluded paths/patterns: ${excludeCount}\n` +
@@ -892,5 +919,5 @@ export function buildManagementItems(
     title: 'Open Workspace Settings (.codeexplorer/settings.json)',
   };
 
-  return [serverItem, graphItem, intentItem, settingsItem];
+  return [serverItem, graphItem, settingsItem];
 }

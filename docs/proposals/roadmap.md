@@ -2,7 +2,7 @@
 
 This document consolidates all **8 architectural proposals** in [`docs/proposals/`](./) and defines their dependency-ordered implementation sequence from core graph & UAST foundations up to declarative parsers and developer tooling.
 
-**Last Updated:** 2026-10-29
+**Last Updated:** 2026-11-11
 
 ---
 
@@ -21,6 +21,7 @@ This document consolidates all **8 architectural proposals** in [`docs/proposals
 | **9** | [`partial-layer-and-in-memory-scanning-proposal.md`](./partial-layer-and-in-memory-scanning-proposal.md) | 🟢 **Complete** | First-class partial-layer (`MaxLayer = Layer1..Layer5`) and zero-overhead pure in-memory scanning API (`WorkspaceIndexer.ScanInMemoryAsync`) in `CodeExplorer.Core`, removing Passport-specific hooks from `ParsingContext`. |
 | **10** | [`uast-performance-and-loop-semantics-proposal.md`](./uast-performance-and-loop-semantics-proposal.md) | ⚪ **Proposed (Next)** | **Pillar 1**: Algorithmic loop bottleneck detection (`has_linear_scan_in_loop`, `has_alloc_in_loop`, `max_access_depth`) & gates `SIG-M-P-001/002`; **Pillar 2**: Post-Layer-4 UAST memory compaction (`SyntaxDocument.Compact()`); **Pillar 3**: Pre-resolved numeric `TSFieldId` lookup caching; **Pillar 4**: Deterministic `MaxAstNodeBudget`; **Pillar 5**: Direct UAST type/import resolution retiring `RawImports`/`RawVariables`/`RawTypeBindings`. |
 | **11** | [`ecosystem-library-expansion-proposal.md`](./ecosystem-library-expansion-proposal.md) | ⚪ **Proposed** | Top 10 high-value ecosystem libraries across 6 languages (60 total: Celery, Hangfire, tRPC, Ktor, Exposed, Watermill, Temporal, etc.) implemented via hybrid Declarative YAML rule packs & C# UAST analyzers. |
+| **12** | [`vscode-extension-architecture-v2-proposal.md`](./vscode-extension-architecture-v2-proposal.md) | ⚪ **Proposed** | **Phase 1**: Resilient `EngineSupervisor` FSM (zero `spawnSync`, zero log spam) & single Extension Host RPC broker; **Phase 2**: Deterministic projections & headless `GraphSessionStore` + two-tier view persistence; **Phase 3**: Hexagonal `<DiagramShell>`, `ViewportGate`, `Cytoscape`/`ReactFlow`/`Swimlane` adapters & unified `Inspector`; **Phase 4**: Hybrid `System · Modules · Code · Data · Gates` tree (9 diagrams on `Map / Dependencies / Flow` vocabulary). |
 
 ---
 

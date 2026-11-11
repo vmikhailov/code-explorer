@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Make AI coding agents production-safe. Live cross-service map of APIs, queues & databases in VS Code, surgical MCP context (Claude Code, Cursor, Copilot), and CI architecture gates.",
-  "version": "1.80.1",
+  "version": "1.80.3",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",
@@ -286,11 +286,6 @@
           "command": "codeExplorer.reindex",
           "when": "view == codeExplorerView",
           "group": "navigation@3"
-        },
-        {
-          "command": "codeExplorer.distillIntents",
-          "when": "view == codeExplorerView",
-          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -345,16 +340,6 @@
           "group": "inline@2"
         },
         {
-          "command": "codeExplorer.distillIntents",
-          "when": "viewItem == management-intent",
-          "group": "inline@1"
-        },
-        {
-          "command": "codeExplorer.reindexIntentsFull",
-          "when": "viewItem == management-intent",
-          "group": "inline@2"
-        },
-        {
           "command": "codeExplorer.openWorkspaceSettings",
           "when": "viewItem == management-settings",
           "group": "inline@1"
@@ -362,11 +347,6 @@
         {
           "command": "codeExplorer.openNodeGrid",
           "when": "viewItem == ontology-service",
-          "group": "inline@1"
-        },
-        {
-          "command": "codeExplorer.showGraph",
-          "when": "viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item",
           "group": "inline@1"
         },
         {
@@ -386,7 +366,7 @@
         },
         {
           "command": "codeExplorer.showGraph",
-          "when": "viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item || viewItem == ontology-service || viewItem == management-graph",
+          "when": "viewItem == ontology-service || viewItem == management-graph",
           "group": "1_open@3"
         },
         {
@@ -435,21 +415,6 @@
           "group": "2_actions@3"
         },
         {
-          "command": "codeExplorer.distillIntents",
-          "when": "viewItem == root-management || viewItem == management-intent || viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item",
-          "group": "3_intent@1"
-        },
-        {
-          "command": "codeExplorer.reindexIntentsFull",
-          "when": "viewItem == root-management || viewItem == management-intent",
-          "group": "3_intent@2"
-        },
-        {
-          "command": "codeExplorer.clearIntents",
-          "when": "viewItem == root-management || viewItem == management-intent",
-          "group": "3_intent@3"
-        },
-        {
           "command": "codeExplorer.restartServer",
           "when": "viewItem == root-management || viewItem == management-server",
           "group": "4_server@1"
@@ -461,7 +426,7 @@
         },
         {
           "command": "codeExplorer.refreshTree",
-          "when": "viewItem == root-management || viewItem == management-server || viewItem == management-graph || viewItem == management-intent || viewItem == management-settings || viewItem == root-gates",
+          "when": "viewItem == root-management || viewItem == management-server || viewItem == management-graph || viewItem == management-settings || viewItem == root-gates",
           "group": "4_server@3"
         }
       ],

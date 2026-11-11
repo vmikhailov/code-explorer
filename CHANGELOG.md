@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.80.3] - 2026-11-11
+
+### Changed & Improved
+- **VS Code Extension Tree Simplification (codeExplorerTreeProvider.ts, codeExplorerTreeHelpers.ts, package.json)**:
+  - Hidden experimental **Domains & Bounded Contexts** (Bounded Context Map, Domains & Bounded Contexts tree section, and AI intent distillation menu actions) from the sidebar tree while retaining the underlying modules for upcoming v2 architecture rework.
+  - Extracted strongly-named tree item, icon, and label constants and documented optional file-probe catch blocks, reducing baseline technical debt on SIG-M-I-001 and SIG-M-I-005.
+- **Architecture v2 Proposal (docs/proposals/vscode-extension-architecture-v2-proposal.md)**:
+  - Added comprehensive 4-phase architectural specification for the System · Modules · Code · Data · Gates tree, hexagonal GraphSessionStore + renderer adapters, and single-broker EngineSupervisor RPC lifecycle.
 ## [1.80.1] - 2026-11-11
 
 ### Added & Improved

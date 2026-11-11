@@ -34,7 +34,16 @@ import {
   buildDatabaseEvidenceItems,
   formatGraphUpdateTime,
   buildManagementItems,
+  TREE_ITEM_TYPES,
+  TREE_ICONS,
+  TREE_LABELS,
 } from './codeExplorerTreeHelpers';
+
+const DATABASE_NODES_ENDPOINT = '/api/nodes?kind=Database&limit=500';
+const DATABASE_PROP_ENGINE = 'engine';
+const DATABASE_PROP_TYPE = 'db_type';
+const DATABASE_PROP_SCHEMA = 'schema';
+const QUERY_PARAM_SERVICE = 'service';
 
 // Re-export all types, interfaces, and helper items so existing imports from codeExplorerTreeProvider remain 100% compatible
 export {
@@ -256,39 +265,31 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       }
 
       // Root level sections:
-      const domainsRoot = new CodeExplorerTreeItem(
-        'root-domains',
-        'Domains & Bounded Contexts',
-        vscode.TreeItemCollapsibleState.Collapsed
-      );
-      domainsRoot.iconPath = new vscode.ThemeIcon('symbol-namespace');
-      domainsRoot.tooltip = 'Domain-Driven Design Architecture: Problem Space (Domains) › Solution Space (Bounded Contexts) › Services › Capabilities';
-
       const diagramsRoot = new CodeExplorerTreeItem(
-        'root-diagrams',
-        'Architecture Diagrams',
+        TREE_ITEM_TYPES.ROOT_DIAGRAMS,
+        TREE_LABELS.ROOT_DIAGRAMS,
         vscode.TreeItemCollapsibleState.Expanded
       );
-      diagramsRoot.iconPath = new vscode.ThemeIcon('layout');
-      diagramsRoot.tooltip = 'Architecture diagrams, domain microservice maps, tiers, and project flow visualizers';
+      diagramsRoot.iconPath = new vscode.ThemeIcon(TREE_ICONS.LAYOUT);
+      diagramsRoot.tooltip = 'Architecture diagrams, service maps, tiers, and project flow visualizers';
 
       const layersRoot = new CodeExplorerTreeItem(
-        'root-layers',
-        'Graph Layers (Ontology 1 - 5)',
+        TREE_ITEM_TYPES.ROOT_LAYERS,
+        TREE_LABELS.ROOT_LAYERS,
         vscode.TreeItemCollapsibleState.Collapsed
       );
-      layersRoot.iconPath = new vscode.ThemeIcon('layers');
+      layersRoot.iconPath = new vscode.ThemeIcon(TREE_ICONS.LAYERS);
       layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
 
       const gatesCache = this.gateStateManager.getSuite();
       const isEvaluating = this.gateStateManager.isEvaluating();
       const gatesRoot = new CodeExplorerTreeItem(
-        'root-gates',
-        'Semantic Invariant Gates',
+        TREE_ITEM_TYPES.ROOT_GATES,
+        TREE_LABELS.ROOT_GATES,
         vscode.TreeItemCollapsibleState.Collapsed
       );
-      gatesRoot.id = 'root-gates';
-      gatesRoot.iconPath = new vscode.ThemeIcon('shield');
+      gatesRoot.id = TREE_ITEM_TYPES.ROOT_GATES;
+      gatesRoot.iconPath = new vscode.ThemeIcon(TREE_ICONS.SHIELD);
       if (isEvaluating) {
         gatesRoot.description = 'Evaluating...';
       } else if (gatesCache) {
@@ -318,17 +319,17 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       const metaCache = this._metadataCache;
 
       const managementRoot = new CodeExplorerTreeItem(
-        'root-management',
-        'Management',
+        TREE_ITEM_TYPES.ROOT_MANAGEMENT,
+        TREE_LABELS.ROOT_MANAGEMENT,
         vscode.TreeItemCollapsibleState.Collapsed
       );
-      managementRoot.iconPath = new vscode.ThemeIcon('tools');
+      managementRoot.iconPath = new vscode.ThemeIcon(TREE_ICONS.TOOLS);
       managementRoot.description = serverInfo
         ? (metaCache ? `Online :${serverInfo.port} · ${metaCache.totalNodes.toLocaleString()} nodes` : `Online :${serverInfo.port}`)
         : isStarting ? 'Starting...' : 'Offline';
       managementRoot.tooltip = 'Graph server, SQLite WAL storage, AI models, and workspace lifecycle';
 
-      return [diagramsRoot, layersRoot, domainsRoot, gatesRoot, managementRoot];
+      return [diagramsRoot, layersRoot, gatesRoot, managementRoot];
     }
 
     if (element.itemType === 'root-gates') {
@@ -404,12 +405,12 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const bcMap = await this.getBoundedContextMap();
     if (!bcMap || !bcMap.contexts || bcMap.contexts.length === 0) {
       const emptyItem = new CodeExplorerTreeItem(
-        'empty-notice',
-        'No Bounded Contexts Discovered',
+        TREE_ITEM_TYPES.EMPTY_NOTICE,
+        TREE_LABELS.NO_CONTEXTS,
         vscode.TreeItemCollapsibleState.None
       );
       emptyItem.description = 'Run ce scan or ce intent';
-      emptyItem.iconPath = new vscode.ThemeIcon('info');
+      emptyItem.iconPath = new vscode.ThemeIcon(TREE_ICONS.INFO);
       return [emptyItem];
     }
 
@@ -417,9 +418,10 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
     if (bcMap.domains && bcMap.domains.length > 0) {
       for (const dom of bcMap.domains) {
+        const domainTitle = `${dom.icon || '🎯'} ${dom.displayName}`;
         const item = new CodeExplorerTreeItem(
-          'domain-item',
-          `${dom.icon || '🎯'} ${dom.displayName}`,
+          TREE_ITEM_TYPES.DOMAIN_ITEM,
+          domainTitle,
           vscode.TreeItemCollapsibleState.Collapsed,
           { domain: dom, map: bcMap }
         );
@@ -438,27 +440,28 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
   private async getDatabaseListItems(): Promise<CodeExplorerTreeItem[]> {
     try {
-      const resp = await this.transport.get<NodesResponseDto>('/api/nodes?kind=Database&limit=500');
+      const resp = await this.transport.get<NodesResponseDto>(DATABASE_NODES_ENDPOINT);
       if (!resp || !resp.nodes || resp.nodes.length === 0) {
-        return [new CodeExplorerTreeItem('empty-notice', 'No databases found', vscode.TreeItemCollapsibleState.None)];
+        return [new CodeExplorerTreeItem(TREE_ITEM_TYPES.EMPTY_NOTICE, TREE_LABELS.NO_DATABASES, vscode.TreeItemCollapsibleState.None)];
       }
 
       const sorted = [...resp.nodes].sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
 
       return sorted.map((n) => {
         const item = new CodeExplorerTreeItem(
-          'database-node-item',
+          TREE_ITEM_TYPES.DATABASE_NODE_ITEM,
           n.displayName || n.name,
           vscode.TreeItemCollapsibleState.Collapsed,
           { databaseId: n.id, databaseName: n.name }
         );
-        item.iconPath = new vscode.ThemeIcon('database');
-        item.description = n.properties?.['engine'] || n.properties?.['db_type'] || 'database';
-        item.tooltip = `${n.displayName || n.name}\nID: ${n.id}\nEngine: ${n.properties?.['engine'] || 'Unknown'}\nSchema: ${n.properties?.['schema'] || 'default'}`;
+        item.iconPath = new vscode.ThemeIcon(TREE_ICONS.DATABASE);
+        item.description = n.properties?.[DATABASE_PROP_ENGINE] || n.properties?.[DATABASE_PROP_TYPE] || 'database';
+        item.tooltip = `${n.displayName || n.name}\nID: ${n.id}\nEngine: ${n.properties?.[DATABASE_PROP_ENGINE] || 'Unknown'}\nSchema: ${n.properties?.[DATABASE_PROP_SCHEMA] || 'default'}`;
         return item;
       });
     } catch (err: any) {
-      return [new CodeExplorerTreeItem('empty-notice', `Failed to load databases: ${err?.message || err}`, vscode.TreeItemCollapsibleState.None)];
+      const dbErrorLabel = `Failed to load databases: ${err?.message || err}`;
+      return [new CodeExplorerTreeItem(TREE_ITEM_TYPES.EMPTY_NOTICE, dbErrorLabel, vscode.TreeItemCollapsibleState.None)];
     }
   }
 
@@ -466,11 +469,13 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     if (!databaseId) return [];
     try {
       const queryParams = new URLSearchParams({ id: databaseId });
-      if (serviceId) queryParams.set('service', serviceId);
-      const res = await this.transport.get<DatabaseEvidenceResponseDto>(`/api/database/evidence?${queryParams.toString()}`);
+      if (serviceId) queryParams.set(QUERY_PARAM_SERVICE, serviceId);
+      const evidenceUrl = `/api/database/evidence?${queryParams.toString()}`;
+      const res = await this.transport.get<DatabaseEvidenceResponseDto>(evidenceUrl);
       return buildDatabaseEvidenceItems(res);
     } catch (err: any) {
-      return [new CodeExplorerTreeItem('empty-notice', `Failed to load evidence: ${err?.message || err}`, vscode.TreeItemCollapsibleState.None)];
+      const evErrorLabel = `Failed to load evidence: ${err?.message || err}`;
+      return [new CodeExplorerTreeItem(TREE_ITEM_TYPES.EMPTY_NOTICE, evErrorLabel, vscode.TreeItemCollapsibleState.None)];
     }
   }
 
@@ -493,7 +498,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       }
     }
 
-    const bcMap = await this.getBoundedContextMap();
-    return buildManagementItems(serverInfo, isStarting, meta, wsRoot, engineVersion, bcMap);
+    return buildManagementItems(serverInfo, isStarting, meta, wsRoot, engineVersion, null);
   }
 }
