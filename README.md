@@ -27,7 +27,7 @@ It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints
 | **Time to Answer** | `9m 15s` → **`1m 33s` (`6.0×` faster)** | `29m 52s` → **`4m 16s` (`7.00×` faster)** | `11m 04s` → **`4m 25s` (`2.51×` faster)** |
 | **Cumulative Input Tokens** | `1.68M` → **`242K` (`7.0×` fewer)** | `17.19M` → **`686K` (`25.07×` fewer, `11.50×` cheaper)** | `16.10M` → **`3.91M` (`4.12×` fewer, `1.95×` less tool output, `2.94×` cheaper)** |
 | **Agent Effort** | `28` turns (`8` `CBM` + `3` AST scripts + `10` reads) → **`7` turns (`13` queries, `0` reads)** | `285` turns (`142` CLI, `114` reads, `14` scripts) → **`18` turns (`10` CLI, `16` reads, `0` scripts)** | `193` turns / `389` steps (`117` file reads) → **`92` turns / `184` steps (`36` file reads, `3.25×` fewer)** |
-| **Recall & Context Health** | `3.4%` (`13 / 381`) from `CBM` graph → **`100%` (`381 / 381`) from `graph.db`** | `82%` *(missed 9 RTB services, 1 compaction)* → **`100%` recall (`0` blind spots)** | `100%` *(0 compactions)* → **`100%` symbol recall (`0` compactions)** |
+| **Recall & Context Health** | `3.4%` (`13 / 381`) from `CBM` graph → **`100%` (`381 / 381`) from `graph.db`** | `82%` *(missed 9 RTB services, 1 compaction)* → **`100%` recall (`0` blind spots)** | `92.7%` (`307 / 331`, *24 caller errors*) → **`100%` (`331 / 331`)** |
 <!-- END:md.root_agent_table -->
 
 ### Head-to-Head vs. Other MCP Code Graphs (`immich` & `twenty`)

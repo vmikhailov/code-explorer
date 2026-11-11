@@ -29,7 +29,8 @@
     "api_cached_input_tokens": 5525969,
     "api_total_input_tokens": 6000146,
     "api_output_tokens": 46283,
-    "cost_flash_usd": 0.65
+    "cost_flash_usd": 0.65,
+    "cost_pro_usd": 2.52
   },
   "baseline_agent": {
     "conversation_id": "b933d749-7b7f-4543-9e48-043f085a2d92",
@@ -52,6 +53,7 @@
     "api_cached_input_tokens": 24953179,
     "api_total_input_tokens": 25878074,
     "api_output_tokens": 66698,
-    "cost_flash_usd": 1.91
+    "cost_flash_usd": 1.91,
+    "cost_pro_usd": 7.51
   }
 }

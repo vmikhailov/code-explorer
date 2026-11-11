@@ -62,22 +62,22 @@
             <code class="panel-code" data-bind="cs05.card_turns_footer">92 turns / 184 steps vs 193 turns / 389 steps</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading tone-accent" data-bind="cs05.card_tokens">~1.9×</span>
-            <h2 class="panel-title">Less Tool Payload</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>~74K</code> tool output tokens with <code>CodeExplorer</code> vs <code>~143K</code> with <code>ripgrep</code> (<code>~2.9×</code> lower API cost).</p>
-            <code class="panel-code" data-bind="cs05.card_cost_footer">$0.65 vs $1.91 (~4.1× fewer input tokens)</code>
+            <span class="reading tone-accent" data-bind="cs05.card_tokens">~4.1×</span>
+            <h2 class="panel-title">Fewer Input Tokens</h2>
+            <p class="panel-copy" data-bind-html="cs05.card_tokens_copy"><code>~3.9M</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>~16.1M</code> with <code>ripgrep</code> (<code>~2.9×</code> lower API cost).</p>
+            <code class="panel-code" data-bind="cs05.card_cost_footer">$0.65 vs $1.91 (~1.9× less tool output)</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading tone-cool" data-bind="cs05.card_reads">~3.3×</span>
             <h2 class="panel-title">Fewer File Reads</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_reads_copy"><code>36</code> <code>view_file</code> reads (<code>0</code> repo source files) by the graph agent vs <code>117</code> reads by <code>ripgrep</code>.</p>
+            <p class="panel-copy" data-bind-html="cs05.card_reads_copy"><code>36</code> <code>view_file</code> reads (<code>31</code> C# files + <code>5</code> schema/spill reads) vs <code>117</code> C# reads by <code>ripgrep</code>.</p>
             <code class="panel-code" data-bind="cs05.card_reads_footer">287 KB vs 560 KB tool output</code>
           </div>
           <div class="panel panel--sunken">
-            <span class="reading" data-bind="cs05.card_recall">100% vs 100%</span>
+            <span class="reading" data-bind="cs05.card_recall">100% vs ~93%</span>
             <h2 class="panel-title">Symbol Recall &amp; Context</h2>
-            <p class="panel-copy" data-bind-html="cs05.card_recall_copy">Both reached 100% recall across all 4 tasks; <code>CodeExplorer</code> stayed in one window while <code>ripgrep</code> hit <code>0</code> compactions.</p>
-            <code class="panel-code" data-bind="cs05.card_recall_footer">0 vs 0 context compactions</code>
+            <p class="panel-copy" data-bind-html="cs05.card_recall_copy"><code>CodeExplorer</code> matched all <code>331/331</code> items; <code>ripgrep</code> guessed or missed <code>24</code> Task 4a caller methods from raw grep lines.</p>
+            <code class="panel-code" data-bind="cs05.card_recall_footer">331/331 vs 307/331 verified items</code>
           </div>
         </div>
 
@@ -121,7 +121,7 @@
               <span class="badge badge--cool">Task 3</span>
             </div>
             <p class="panel-copy">Locate all <code>PublishingAsync</code> and <code>PublishedAsync</code> content handlers across the monorepo and trace their 1 to 2 hop downstream calls into DB/index stores, tag caches, and workflows.</p>
-            <code class="panel-code">16 concrete + 10 base handler methods</code>
+            <code class="panel-code">16 concrete + 6 base handler methods</code>
           </div>
           <div class="panel">
             <div class="panel-head">
@@ -129,7 +129,7 @@
               <span class="badge badge--accent">Task 4</span>
             </div>
             <p class="panel-copy">Find all projects calling <code>GetAsync</code>, <code>CreateAsync</code>, or <code>PublishAsync</code> (including via DI service locators) and isolate over-coupled <code>DEPENDS_ON</code> projects with 0 calls.</p>
-            <code class="panel-code">20 caller projects + 38 over-coupled projects</code>
+            <code class="panel-code">19 caller projects + 38 over-coupled projects</code>
           </div>
         </div>
       </div>
@@ -187,19 +187,19 @@
                 <td>Cumulative Input Tokens</td>
                 <td class="cell-loss" data-bind="cs05.tbl_in_rg">16,098,025 est. (25,878,074 API tokens)</td>
                 <td class="cell-win" data-bind="cs05.tbl_in_ce">3,910,897 est. (6,000,146 API tokens)</td>
-                <td class="cell-win" data-bind="cs05.tbl_in_delta">4.12× fewer input tokens (1.95× uncached)</td>
+                <td class="cell-win" data-bind="cs05.tbl_in_delta">4.12× fewer input tokens (4.31× API tokens)</td>
               </tr>
               <tr>
                 <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
-                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$1.91 Flash ($2.02 Pro)</td>
-                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$0.65 Flash ($0.97 Pro)</td>
+                <td class="cell-num" data-bind="cs05.tbl_cost_rg">$1.91 Flash ($7.51 Pro)</td>
+                <td class="cell-win" data-bind="cs05.tbl_cost_ce">$0.65 Flash ($2.52 Pro)</td>
                 <td class="cell-win" data-bind="cs05.tbl_cost_delta">2.94× cheaper</td>
               </tr>
               <tr>
                 <td>Symbol Recall &amp; Context Health (Tasks 1 to 4)</td>
-                <td class="cell-num" data-bind="cs05.tbl_recall_rg">100% symbol recall (0 context compactions)</td>
-                <td class="cell-win" data-bind="cs05.tbl_recall_ce">100% symbol recall (single uncompacted window)</td>
-                <td data-bind-html="cs05.tbl_recall_delta"><strong>0 compactions vs 0 compactions</strong></td>
+                <td class="cell-num" data-bind="cs05.tbl_recall_rg">92.7% (307 / 331; 24 Task 4a caller errors)</td>
+                <td class="cell-win" data-bind="cs05.tbl_recall_ce">100% (331 / 331 verified items)</td>
+                <td data-bind-html="cs05.tbl_recall_delta"><strong>+24 caller edges resolved via AST</strong></td>
               </tr>
             </tbody>
           </table>
@@ -208,8 +208,8 @@
         <div class="tradeoff-note" style="margin-top: var(--space-lg);">
           <strong>Methodological &amp; impartiality notes:</strong><br>
           1. <strong>Controlled baseline scope (pure <code>rg</code> + <code>view_file</code>):</strong> Unlike Case Studies 01 and 02 (where baseline agents had <code>write_to_file</code> access and wrote custom TypeScript/Python AST parsers), neither subagent here had <code>write_to_file</code>, and <code>baseline-agent.md</code> explicitly forbade writing custom AST/graph-walking scripts. This isolates the interactive <code>rg</code> + <code>view_file</code> workflow most coding agents run out of the box.<br>
-          2. <strong>Why <code>CodeExplorer</code> finished in <code>15</code> turns (<code>61</code> steps, <code>0</code> compactions) vs <code>ripgrep</code>'s <code>38</code> turns (<code>227</code> steps, <code>2</code> compactions):</strong> The <code>CodeExplorer</code> MCP agent executed <code>22</code> parallelized OpenCypher queries, <code>1</code> <code>get_taxonomy</code> call, and <code>5</code> targeted <code>fetch_code_snippets</code> calls (with <code>0</code> direct repository <code>view_file</code> reads; its <code>15</code> <code>view_file</code> calls read only <code>4</code> lazy MCP tool schemas and <code>11</code> spilled query outputs). By contrast, <code>ripgrep</code> ran <code>22</code> <code>rg</code> searches and <code>163</code> <code>view_file</code> calls (<code>151</code> source files + <code>12</code> spilled outputs), ingesting <code>1.63 MB</code> of raw text and triggering <code>2</code> context compactions (Turns 20 and 31).<br>
-          3. <strong>Source-verified output audit:</strong> Both agents achieved <code>100%</code> ground-truth symbol recall across Tasks 1 to 4 (<code>88</code> state-mutating actions = <code>67</code> calling vs <code>21</code> missing <code>AuthorizeAsync</code>; <code>25</code> <code>ISession</code>-violating classes across <code>13</code> modules; <code>16</code> concrete + <code>6</code> base <code>PublishingAsync</code>/<code>PublishedAsync</code> handlers; <code>19</code> <code>IContentManager</code> caller projects + <code>38</code> over-coupled <code>DEPENDS_ON</code> projects), isolating pure wall-clock speedup (<code>2.32×</code> faster answer), context savings (<code>4.91×</code> fewer cumulative input tokens, <code>4.62×</code> fewer API tokens), and cost reduction (<code>2.83×</code> cheaper).
+          2. <strong>Why <code>CodeExplorer</code> finished in <code>92</code> turns (<code>184</code> steps) vs <code>ripgrep</code>'s <code>193</code> turns (<code>389</code> steps):</strong> The <code>CodeExplorer</code> MCP agent executed <code>54</code> MCP calls (<code>51</code> <code>execute_custom_read_cypher</code> queries, <code>2</code> <code>get_taxonomy</code> calls, and <code>1</code> <code>get_workspace_status</code> call) plus <code>36</code> targeted <code>view_file</code> calls (<code>31</code> C# source files, <code>1</code> MCP schema, and <code>4</code> spilled outputs). By contrast, <code>ripgrep</code> ran <code>74</code> <code>rg</code> searches and <code>117</code> C# <code>view_file</code> reads, burning <code>4.12×</code> more cumulative input tokens (<code>16.10M</code> vs <code>3.91M</code>).<br>
+          3. <strong>Source-verified output audit (<code>331</code> ground-truth items):</strong> <code>CodeExplorer</code> matched <code>331 / 331</code> items (<code>100%</code>). <code>ripgrep</code> matched <code>307 / 331</code> (<code>92.7%</code>): while it reached <code>100%</code> on Tasks 1, 2, 3, and 4b, on Task 4a (<code>94 / 118</code>) raw <code>rg</code> call-site lines lacked enclosing method headers, leading the agent to guess non-existent method names (<code>AddCreateContentEndpoint</code> instead of <code>HandleAsync</code> on <code>CreateEndpoint</code>, <code>ExecuteAsync</code> instead of <code>SaveAsync</code> on <code>SaveContentItemsStep</code>, <code>BuildMenuShapeAsync</code> instead of <code>DiscoverAsync</code> on <code>MenuShapes</code>, and <code>MetaWeblogGetUserBlogsAsync</code> in place of 5 distinct <code>MetaWeblog*</code> methods on <code>MetaWeblogHandler</code>).
         </div>
       </div>
     </section>

@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.80.0",
+      "ce_suite_versions": "v1.75.0 to v1.80.1",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -384,9 +384,12 @@
       "graph_edges": 288527
     },
     "recall": {
+      "gt_total": 331,
+      "ce_matched": 331,
+      "rg_matched": 307,
       "ce_pct": "100%",
-      "rg_pct": "100%",
-      "summary_note": "0 compactions vs 2 compactions (both reached 100% symbol recall)"
+      "rg_pct": "~93%",
+      "summary_note": "331/331 (100%) vs 307/331 (92.7%: rg misnamed or missed 24 Task 4a caller edges)"
     },
     "telemetry": {
       "ce": {
@@ -408,7 +411,7 @@
         "api_total_input_tokens": 6000146,
         "api_output_tokens": 46283,
         "cost_flash_usd": 0.65,
-        "cost_pro_usd": 0.97
+        "cost_pro_usd": 2.52
       },
       "rg": {
         "conversation_short": "b933d749",
@@ -428,7 +431,7 @@
         "api_total_input_tokens": 25878074,
         "api_output_tokens": 66698,
         "cost_flash_usd": 1.91,
-        "cost_pro_usd": 2.02
+        "cost_pro_usd": 7.51
       }
     }
   },

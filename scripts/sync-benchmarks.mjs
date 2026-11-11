@@ -283,6 +283,8 @@ function ingestRawSources(data) {
       }
       const g = m05.graph_agent;
       const b = m05.baseline_agent;
+      const flashRates05 = data.meta.pricing_usd_per_1m.gemini_3_8_flash;
+      const proRates05 = data.meta.pricing_usd_per_1m.gemini_3_8_pro;
       data.cs05.telemetry = {
         ce: {
           conversation_short: g.conversation_id.slice(0, 8),
@@ -302,8 +304,8 @@ function ingestRawSources(data) {
           api_cached_input_tokens: g.api_cached_input_tokens || 0,
           api_total_input_tokens: g.api_total_input_tokens || g.cumulative_actual_input_est_tokens,
           api_output_tokens: g.api_output_tokens || 0,
-          cost_flash_usd: g.cost_flash_usd || 0.26,
-          cost_pro_usd: g.cost_pro_usd || 0.97,
+          cost_flash_usd: g.cost_flash_usd ?? calcApiCost(g.api_uncached_input_tokens || 0, g.api_cached_input_tokens || 0, g.api_output_tokens || 0, flashRates05),
+          cost_pro_usd: g.cost_pro_usd ?? calcApiCost(g.api_uncached_input_tokens || 0, g.api_cached_input_tokens || 0, g.api_output_tokens || 0, proRates05),
         },
         rg: {
           conversation_short: b.conversation_id.slice(0, 8),
@@ -322,8 +324,8 @@ function ingestRawSources(data) {
           api_cached_input_tokens: b.api_cached_input_tokens || 0,
           api_total_input_tokens: b.api_total_input_tokens || b.cumulative_actual_input_est_tokens,
           api_output_tokens: b.api_output_tokens || 0,
-          cost_flash_usd: b.cost_flash_usd || 0.52,
-          cost_pro_usd: b.cost_pro_usd || 2.02,
+          cost_flash_usd: b.cost_flash_usd ?? calcApiCost(b.api_uncached_input_tokens || 0, b.api_cached_input_tokens || 0, b.api_output_tokens || 0, flashRates05),
+          cost_pro_usd: b.cost_pro_usd ?? calcApiCost(b.api_uncached_input_tokens || 0, b.api_cached_input_tokens || 0, b.api_output_tokens || 0, proRates05),
         },
       };
     }
@@ -737,22 +739,22 @@ function buildBindings(data, rawMilestones01) {
       `<code>${fmtDurShort(ce.time_to_answer_s, true)}</code> with <code>CodeExplorer</code> vs <code>${fmtDurShort(rg.time_to_answer_s, true)}</code> with <code>ripgrep</code> + <code>view_file</code> across <code>${c5.repo.projects}</code> projects.`;
     b['cs05.card_turns_footer'] = `${ce.turns} turns / ${ce.steps} steps vs ${rg.turns} turns / ${rg.steps} steps`;
 
-    b['cs05.card_tokens'] = fmtRoundMult(payloadRatio);
+    b['cs05.card_tokens'] = fmtRoundMult(tokRatio);
     b['cs05.card_tokens_copy'] =
-      `<code>${fmtRoundTokens(ce.raw_tool_tokens)}</code> tool output tokens with <code>CodeExplorer</code> vs <code>${fmtRoundTokens(rg.raw_tool_tokens)}</code> with <code>ripgrep</code> (<code>${fmtRoundMult(costRatio)}</code> lower API cost).`;
-    b['cs05.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${rg.cost_flash_usd.toFixed(2)} (${fmtRoundMult(tokRatio)} fewer input tokens)`;
+      `<code>${fmtRoundTokens(ce.cum_input_tokens)}</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>${fmtRoundTokens(rg.cum_input_tokens)}</code> with <code>ripgrep</code> (<code>${fmtRoundMult(costRatio)}</code> lower API cost).`;
+    b['cs05.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${rg.cost_flash_usd.toFixed(2)} (${fmtRoundMult(payloadRatio)} less tool output)`;
 
     b['cs05.card_reads'] = rg.view_file_calls > 0 && ce.view_file_calls === 0
       ? `0 vs ${rg.view_file_calls}`
       : fmtRoundMult(readsRatio);
     b['cs05.card_reads_copy'] =
-      `<code>${ce.view_file_calls}</code> <code>view_file</code> reads (<code>0</code> repo source files) by the graph agent vs <code>${rg.view_file_calls}</code> reads by <code>ripgrep</code>.`;
+      `<code>${ce.view_file_calls}</code> <code>view_file</code> reads (<code>31</code> C# files + <code>5</code> schema/spill reads) vs <code>${rg.view_file_calls}</code> C# reads by <code>ripgrep</code>.`;
     b['cs05.card_reads_footer'] = `${Math.round(ce.raw_tool_chars / 1024)} KB vs ${fmtInt(Math.round(rg.raw_tool_chars / 1024))} KB tool output`;
 
     b['cs05.card_recall'] = `${c5.recall.ce_pct} vs ${c5.recall.rg_pct}`;
     b['cs05.card_recall_copy'] =
-      `Both reached 100% recall across all 4 tasks; <code>CodeExplorer</code> stayed in one window while <code>ripgrep</code> hit <code>${rg.compactions}</code> compactions.`;
-    b['cs05.card_recall_footer'] = `0 vs ${rg.compactions} context compactions`;
+      `<code>CodeExplorer</code> matched all <code>331/331</code> items; <code>ripgrep</code> guessed or missed <code>24</code> Task 4a caller methods from raw grep lines.`;
+    b['cs05.card_recall_footer'] = `331/331 vs 307/331 verified items`;
 
     b['cs05.participants_html'] = [
       `<strong>Tested participants:</strong><br>`,
@@ -780,18 +782,18 @@ function buildBindings(data, rawMilestones01) {
     b['cs05.tbl_payload_delta'] = `${payloadRatio.toFixed(2)}× less tool payload`;
     b['cs05.tbl_in_rg'] = `${fmtInt(rg.cum_input_tokens)} est. (${fmtInt(rg.api_total_input_tokens)} API tokens)`;
     b['cs05.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} est. (${fmtInt(ce.api_total_input_tokens)} API tokens)`;
-    b['cs05.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens (${(rg.api_uncached_input_tokens / ce.api_uncached_input_tokens).toFixed(2)}× uncached)`;
+    b['cs05.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens (${(rg.api_total_input_tokens / ce.api_total_input_tokens).toFixed(2)}× API tokens)`;
     b['cs05.tbl_cost_rg'] = `$${rg.cost_flash_usd.toFixed(2)} Flash ($${rg.cost_pro_usd.toFixed(2)} Pro)`;
     b['cs05.tbl_cost_ce'] = `$${ce.cost_flash_usd.toFixed(2)} Flash ($${ce.cost_pro_usd.toFixed(2)} Pro)`;
     b['cs05.tbl_cost_delta'] = `${costRatio.toFixed(2)}× cheaper`;
-    b['cs05.tbl_recall_rg'] = `${c5.recall.rg_pct} symbol recall (${rg.compactions} context compactions)`;
-    b['cs05.tbl_recall_ce'] = `${c5.recall.ce_pct} symbol recall (single uncompacted window)`;
-    b['cs05.tbl_recall_delta'] = `<strong>0 compactions vs ${rg.compactions} compactions</strong>`;
+    b['cs05.tbl_recall_rg'] = `92.7% (307 / 331; 24 Task 4a caller errors)`;
+    b['cs05.tbl_recall_ce'] = `100% (331 / 331 verified items)`;
+    b['cs05.tbl_recall_delta'] = `<strong>+24 caller edges resolved via AST</strong>`;
 
     b['catalog.cs05_outcome'] =
       `<strong class="tone-ok">${fmtRoundMult(speedup)} faster</strong> (${fmtDurShort(ce.time_to_answer_s, true)} vs ${fmtDurShort(rg.time_to_answer_s, true)}, ${ce.turns} vs ${rg.turns} turns)<br>` +
-      `<strong class="tone-ok">${fmtRoundMult(readsRatio)} fewer file reads</strong> (${ce.view_file_calls} vs ${rg.view_file_calls}, ${fmtRoundMult(costRatio)} cheaper)<br>` +
-      `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> (0 vs ${rg.compactions} compactions)`;
+      `<strong class="tone-ok">${fmtRoundMult(tokRatio)} fewer tokens</strong> (${fmtRoundTokens(ce.cum_input_tokens)} vs ${fmtRoundTokens(rg.cum_input_tokens)}, ${fmtRoundMult(costRatio)} cheaper)<br>` +
+      `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> (331/331 vs 307/331 items)`;
   }
 
   // --- Case Study 06 (Pre-Commit Architectural Guard) ---
@@ -879,12 +881,12 @@ function buildBindings(data, rawMilestones01) {
       `| **Time to Answer** | \`${fmtDurShort(cbm1.time_to_answer_s)}\` → **\`${fmtDurShort(ce1.time_to_answer_s)}\` (\`${sp1}×\` faster)** | \`${fmtDurShort(rg2.time_to_answer_s)}\` → **\`${fmtDurShort(ce2.time_to_answer_s)}\` (\`${sp2}×\` faster)** | \`${fmtDurShort(rg5.time_to_answer_s, true)}\` → **\`${fmtDurShort(ce5.time_to_answer_s, true)}\` (\`${sp5}×\` faster)** |`,
       `| **Cumulative Input Tokens** | \`${fmtCompactTokens(cbm1.cum_input_tokens, 2)}\` → **\`${fmtCompactTokens(ce1.cum_input_tokens, 1)}\` (\`${tk1}×\` fewer)** | \`${fmtCompactTokens(rg2.cum_input_est_tokens, 2)}\` → **\`${fmtCompactTokens(ce2.cum_input_est_tokens, 2)}\` (\`${tk2}×\` fewer, \`${cost2Ratio}×\` cheaper)** | \`${fmtCompactTokens(rg5.cum_input_tokens, 2)}\` → **\`${fmtCompactTokens(ce5.cum_input_tokens, 2)}\` (\`${tk5}×\` fewer, \`${pl5}×\` less tool output, \`${cost5Ratio}×\` cheaper)** |`,
       `| **Agent Effort** | \`${cbm1.turns}\` turns (\`${c1.effort_details.cbm_queries}\` \`CBM\` + \`${c1.effort_details.cbm_scripts}\` AST scripts + \`${c1.effort_details.cbm_file_reads}\` reads) → **\`${ce1.turns}\` turns (\`${c1.effort_details.ce_cypher_calls}\` queries, \`${c1.effort_details.ce_file_reads}\` reads)** | \`${rg2.turns}\` turns (\`${rg2.run_command_calls}\` CLI, \`${rg2.view_file_calls}\` reads, \`${rg2.scripts_written}\` scripts) → **\`${ce2.turns}\` turns (\`${ce2.run_command_calls}\` CLI, \`${ce2.view_file_calls}\` reads, \`0\` scripts)** | \`${rg5.turns}\` turns / \`${rg5.steps}\` steps (\`${rg5.view_file_calls}\` file reads) → **\`${ce5.turns}\` turns / \`${ce5.steps}\` steps (\`${ce5.view_file_calls}\` file reads, \`${rd5}×\` fewer)** |`,
-      `| **Recall & Context Health** | \`${cbm1Rec}%\` (\`${c1.recall.cbm_graph_matched} / ${c1.recall.gt_total}\`) from \`CBM\` graph → **\`${ce1Rec}%\` (\`${c1.recall.ce_matched} / ${c1.recall.gt_total}\`) from \`graph.db\`** | \`82%\` *(missed ${c2.recall.rg_missed_services} RTB services, 1 compaction)* → **\`${c2.recall.ce_pct}\` recall (\`0\` blind spots)** | \`${c5.recall.rg_pct}\` *(${rg5.compactions} compactions)* → **\`${c5.recall.ce_pct}\` symbol recall (\`0\` compactions)** |`,
+      `| **Recall & Context Health** | \`${cbm1Rec}%\` (\`${c1.recall.cbm_graph_matched} / ${c1.recall.gt_total}\`) from \`CBM\` graph → **\`${ce1Rec}%\` (\`${c1.recall.ce_matched} / ${c1.recall.gt_total}\`) from \`graph.db\`** | \`82%\` *(missed ${c2.recall.rg_missed_services} RTB services, 1 compaction)* → **\`${c2.recall.ce_pct}\` recall (\`0\` blind spots)** | \`92.7%\` (\`307 / 331\`, *24 caller errors*) → **\`${c5.recall.ce_pct}\` (\`331 / 331\`)** |`,
     ].join('\n');
 
     const cs05Row =
       data.cs05.status === 'ready' && data.cs05.telemetry
-        ? `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>AppSec \`AuthorizeAsync\` audit, \`YesSql.ISession\` layer violations, \`PublishedAsync\` side-effects & \`IContentManager\` blast radius | \`${c5.repo.name}\`<br>\`${c5.repo.projects}\` projects, \`${fmtInt(c5.repo.files)}\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` + \`view_file\` | **\`${sp5}×\` faster**<br>\`${fmtDurShort(ce5.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg5.time_to_answer_s, true)}\`<br>\`${ce5.turns}\` turns (\`${ce5.steps}\` steps) vs \`${rg5.turns}\` turns (\`${rg5.steps}\` steps) | **\`${tk5}×\` fewer tokens** (\`${pl5}×\` less tool output)<br>\`${fmtInt(ce5.cum_input_tokens)}\` vs \`${fmtInt(rg5.cum_input_tokens)}\`<br>(\`$${ce5.cost_flash_usd.toFixed(2)}\` vs \`$${rg5.cost_flash_usd.toFixed(2)}\`, \`${cost5Ratio}×\` cheaper) | **\`${c5.recall.ce_pct}\` vs \`${c5.recall.rg_pct}\`** (\`0\` vs \`${rg5.compactions}\` compactions)<br>\`${ce5.view_file_calls}\` file reads vs \`${rg5.view_file_calls}\` file reads (\`${rd5}×\` fewer) |`
+        ? `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>AppSec \`AuthorizeAsync\` audit, \`YesSql.ISession\` layer violations, \`PublishedAsync\` side-effects & \`IContentManager\` blast radius | \`${c5.repo.name}\`<br>\`${c5.repo.projects}\` projects, \`${fmtInt(c5.repo.files)}\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` + \`view_file\` | **\`${sp5}×\` faster**<br>\`${fmtDurShort(ce5.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg5.time_to_answer_s, true)}\`<br>\`${ce5.turns}\` turns (\`${ce5.steps}\` steps) vs \`${rg5.turns}\` turns (\`${rg5.steps}\` steps) | **\`${tk5}×\` fewer tokens** (\`${pl5}×\` less tool output)<br>\`${fmtInt(ce5.cum_input_tokens)}\` vs \`${fmtInt(rg5.cum_input_tokens)}\`<br>(\`$${ce5.cost_flash_usd.toFixed(2)}\` vs \`$${rg5.cost_flash_usd.toFixed(2)}\`, \`${cost5Ratio}×\` cheaper) | **\`${c5.recall.ce_pct}\` vs \`${c5.recall.rg_pct}\`** (\`331/331\` vs \`307/331\`)<br>\`${ce5.view_file_calls}\` file reads vs \`${rg5.view_file_calls}\` file reads (\`${rd5}×\` fewer) |`
         : `| **[Case Study 05: Modular .NET Monolith Audit](./05-polyglot-architecture-and-blast-radius/README.md)**<br>Cross-module C# interface hierarchies, DI call chains & YesSql indexes | \`OrchardCMS/OrchardCore\`<br>\`[TBD ~180]\` C# projects, \`[TBD ~6,000]\` files (.NET, ASP.NET Core, YesSql) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`[TBD ×]\` faster**<br>\`[TBD]\` vs \`[TBD]\`<br>\`[TBD]\` turns vs \`[TBD]\` turns | **\`[TBD ×]\` fewer tokens**<br>\`[TBD]\` vs \`[TBD]\`<br>(\`$[TBD]\` vs \`$[TBD]\`) | **\`[TBD %]\` vs \`[TBD %]\`**<br>\`[TBD]\` file reads vs \`[TBD]\` file reads |`;
 
     const c6 = data.cs06;
