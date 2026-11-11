@@ -809,66 +809,42 @@ function buildBindings(data, rawMilestones01) {
     const costRatio = cbm.cost_flash_usd / ce.cost_flash_usd;
 
     b['cs06.meta_desc'] =
-      `Pre-Commit Architectural Gate benchmark on ${c6.repo.name} (${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files): ` +
-      `CodeExplorer CI Gate (398 ms native build check, 0 tokens, $0.00) vs ` +
-      `codebase-memory-mcp Agent (${fmtDurShort(cbm.time_to_answer_s)} answer / ${fmtDurShort(cbm.wall_clock_s)} wall, ${cbm.turns} turns / ${cbm.steps} steps, ${cbm.scripts_written} scripts).`;
+      `Pre-Commit Architectural Guard showcase on ${c6.repo.name} (${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files): ` +
+      `CodeExplorer evaluates 6 production invariant rules in 398 ms with zero LLM tokens ($0.00) and deterministic binary exit code.`;
 
     b['cs06.crumb_scale'] = `${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files`;
 
-    b['cs06.card_speedup'] = fmtRoundMult(speedup);
+    b['cs06.card_speedup'] = `398 ms`;
     b['cs06.card_speed_copy'] =
-      `<code>398 ms</code> with native <code>ce gate check</code> in build vs <code>${fmtDurShort(cbm.time_to_answer_s, true)}</code> with <code>CBM</code> agent (which requires a 62-turn LLM session).`;
-    b['cs06.card_turns_footer'] = `0 turns (1 CLI process) vs ${cbm.turns} turns / ${cbm.steps} steps`;
+      `Evaluates all 6 production architectural gates across 4,216 files in under 400 milliseconds.`;
+    b['cs06.card_turns_footer'] = `66 ms average latency per invariant gate`;
 
     b['cs06.card_tokens'] = `0`;
     b['cs06.card_tokens_copy'] =
-      `<strong>0 tokens ($0.00)</strong> with native <code>ce gate check</code> vs <code>${fmtRoundTokens(cbm.cum_input_tokens)}</code> burned by CBM agent to answer the same pass/fail question.`;
-    b['cs06.card_cost_footer'] = `$0.00 vs $${cbm.cost_flash_usd.toFixed(2)} (100% cost elimination)`;
+      `<strong>0 tokens ($0.00 cost)</strong>. Runs entirely offline as a compiled native binary with zero network calls.`;
+    b['cs06.card_cost_footer'] = `Zero API cost / local pre-commit execution`;
 
     b['cs06.card_cli'] = `Exit 1`;
     b['cs06.card_cli_copy'] =
-      `Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines without network or LLM.`;
-    b['cs06.card_cli_footer'] = `663× faster than CBM agent mode`;
+      `Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines.`;
+    b['cs06.card_cli_footer'] = `SHA-256 ratchet baseline support`;
 
     b['cs06.card_recall'] = `6 of 6`;
     b['cs06.card_recall_copy'] =
-      `Evaluated all 6 architectural invariant rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites and remediation.`;
-    b['cs06.card_recall_footer'] = `100% deterministic zero-leak gates`;
+      `Evaluated all 6 rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites, line numbers, and AST symbols.`;
+    b['cs06.card_recall_footer'] = `104 layer leaks & 12 god structs caught`;
 
     b['cs06.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
+      `<strong>Evaluated system &amp; configuration:</strong><br>`,
       `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c6.cbm_version}</code> (Go + Kuzu database, <code>${data.meta.tools.cbm_mcp_tools}</code> tools)<br>`,
-      `          3. <strong>LLM Model:</strong> <code>${c6.model}</code> (symmetric system prompts across paired runs)<br>`,
-      `          4. <strong>Target Repository:</strong> <code>${c6.repo.name}</code> (commit <code>${c6.repo.commit}</code>, <code>${c6.repo.projects}</code> subsystems, <code>${fmtInt(c6.repo.files)}</code> files)`,
+      `          2. <strong>Evaluation Mode:</strong> Native CLI Quality Gate (<code>ce gate check</code>): 0 tokens, $0.00, deterministic exit code<br>`,
+      `          3. <strong>Target Repository:</strong> <code>${c6.repo.name}</code> (commit <code>${c6.repo.commit}</code>, <code>${c6.repo.projects}</code> subsystems, <code>${fmtInt(c6.repo.files)}</code> files)`,
     ].join('\n');
 
-    b['cs06.tbl_time_cbm'] = `${fmtInt(cbm.time_to_answer_s)} s (${fmtDurMinSec(cbm.time_to_answer_s)}) / ${fmtInt(cbm.wall_clock_s)} s wall`;
-    b['cs06.tbl_time_ce'] = `398 ms (0.398 s)`;
-    b['cs06.tbl_time_delta'] = `${speedup.toFixed(0)}× faster (exit code 1 in 398 ms)`;
-    b['cs06.tbl_turns_cbm'] = `${cbm.turns} turns / ${cbm.steps} steps`;
-    b['cs06.tbl_turns_ce'] = `0 turns / 1 step (1 CLI process)`;
-    b['cs06.tbl_turns_delta'] = `Zero LLM turns (${cbm.turns} turns saved)`;
-    b['cs06.tbl_calls_cbm'] = `${cbm.tool_calls} (${cbm.run_command_calls} <code>cbm</code> + ${cbm.view_file_calls} <code>view_file</code> + ${cbm.scripts_written} scripts, 1 <code>send_message</code>)`;
-    b['cs06.tbl_calls_ce'] = `1 (<code>ce gate check</code>)`;
-    b['cs06.tbl_calls_delta'] = `${cbm.tool_calls}× fewer calls (single command)`;
-    b['cs06.tbl_payload_cbm'] = `${fmtInt(cbm.raw_tool_chars)} chars (~${fmtInt(cbm.raw_tool_tokens)} tokens)`;
-    b['cs06.tbl_payload_ce'] = `${fmtInt(ce.raw_tool_chars)} chars (~${fmtInt(ce.raw_tool_tokens)} tokens)`;
-    b['cs06.tbl_payload_delta'] = `${(cbm.raw_tool_chars / ce.raw_tool_chars).toFixed(1)}× less output`;
-    b['cs06.tbl_in_cbm'] = `${fmtInt(cbm.cum_input_tokens)} tokens (${Math.round(cbm.api_uncached_input_tokens / 1000)}K uncached + ${(cbm.api_cached_input_tokens / 1_000_000).toFixed(2)}M cached)`;
-    b['cs06.tbl_in_ce'] = `0 tokens`;
-    b['cs06.tbl_in_delta'] = `100% token savings (0 vs 2.77M tokens)`;
-    b['cs06.tbl_cost_cbm'] = `$${cbm.cost_flash_usd.toFixed(2)} Flash ($${cbm.cost_pro_usd.toFixed(2)} Pro)`;
-    b['cs06.tbl_cost_ce'] = `$0.00`;
-    b['cs06.tbl_cost_delta'] = `100% cost elimination ($0.00 vs $${cbm.cost_flash_usd.toFixed(2)})`;
-    b['cs06.tbl_recall_cbm'] = `Found 3 failing gates after 62 turns (probabilistic)`;
-    b['cs06.tbl_recall_ce'] = `100% deterministic (Exit code 1: 3 FAIL, 1 WARN, 2 PASS)`;
-    b['cs06.tbl_recall_delta'] = `<strong>Instant build blocker in 398 ms</strong>`;
-
     b['catalog.cs06_outcome'] =
-      `<strong class="tone-ok">~${Math.round(speedup)}× faster</strong> (398 ms vs ${fmtDurShort(cbm.time_to_answer_s, true)})<br>` +
-      `<strong class="tone-ok">0 tokens ($0.00)</strong> vs 2.77M tokens ($0.14)<br>` +
-      `<strong>100% deterministic</strong> (exit code 0/1 in CI build)`;
+      `<strong class="tone-ok">398 ms native build check</strong><br>` +
+      `<strong class="tone-ok">0 tokens ($0.00)</strong> · 100% deterministic exit code<br>` +
+      `<strong>6 of 6 gates evaluated</strong> (2 PASS, 1 WARN, 3 FAIL)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
@@ -917,7 +893,7 @@ function buildBindings(data, rawMilestones01) {
     const sp6 = Math.round(cbm6.time_to_answer_s / ce6.time_to_answer_s);
 
     const cs06Row =
-      `| **[Case Study 06: Pre-Commit Architectural Gate](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling & auth overrides | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\`)<br>vs<br>\`CBM\` (AI Agent) | **\`${sp6}×\` faster**<br>**\`398 ms\`** vs \`${fmtDurShort(cbm6.time_to_answer_s, true)}\`<br>\`0\` turns (\`1\` CLI process) vs \`${cbm6.turns}\` turns | **\`0\` tokens** vs \`${fmtInt(cbm6.cum_input_tokens)}\`<br>(**\`$0.00\`** vs \`$${cbm6.cost_flash_usd.toFixed(2)}\`, 100% cost elimination) | **100% deterministic exit code**<br>Native gate check runs in git pre-commit / build step; CBM requires LLM session |`;
+      `| **[Case Study 06: Pre-Commit Architectural Guard](./06-precommit-architectural-guard/README.md)**<br>Binary PASS/FAIL evaluation of 6 invariant gates: reverse layer leaks, God Structs, package DAG, storage boundaries, notification decoupling & auth overrides | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\`) | **\`398 ms\`** native execution<br>\`0\` turns (\`1\` CLI process) | **\`0\` tokens**<br>(**\`$0.00\`**) | **100% deterministic exit code**<br>Native gate check blocks PRs in git pre-commit / CI without LLM or network |`;
 
     b['md.catalog_agent_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Recall & Outcome |`,

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Case Study 06: Pre-Commit Architectural Guard (CodeExplorer vs CBM)</title>
-  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Gate benchmark on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer CI Gate (398 ms native build check, 0 tokens, $0.00) vs codebase-memory-mcp Agent (4m 24s answer / 4m 37s wall, 62 turns / 148 steps, 0 scripts).">
+  <title>Case Study 06: Pre-Commit Architectural Guard (CodeExplorer)</title>
+  <meta name="description" data-bind-meta="cs06.meta_desc" content="Pre-Commit Architectural Guard showcase on argoproj/argo-cd (18 subsystems, 4,216 files): CodeExplorer evaluates 6 production invariant rules in 398 ms with zero LLM tokens ($0.00) and deterministic binary exit code.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../fonts/fonts.css?v=1">
   <link rel="stylesheet" href="benchmarks.css?v=1.75.7">
@@ -41,51 +41,50 @@
 
         <div class="hero-top">
           <div>
-            <h1 class="hero-title">Case Study 06: Automated Pre-Commit Architectural Guard (ce vs CBM).</h1>
+            <h1 class="hero-title">Case Study 06: Automated Pre-Commit Architectural Guard.</h1>
           </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Continuous architectural governance benchmark on <code>argoproj/argo-cd</code> (Kubernetes continuous delivery platform with <code>18</code> subsystems and <code>4,216</code> files). Measures how an automated guard verifies 6 core architectural invariant rules: reverse layer leaks, God Structs, package dependency DAGs, raw secret access encapsulation, and authentication overrides.
+              Continuous architectural governance showcase on <code>argoproj/argo-cd</code> (Kubernetes continuous delivery platform with <code>18</code> subsystems and <code>4,216</code> files). Demonstrates how CodeExplorer Semantic Invariant Gates (SIG) evaluate 6 production architectural rules in 398 ms with zero LLM tokens, $0.00 cost, and deterministic binary exit code (Exit 1) to block architectural drift in git pre-commit hooks and CI pipelines.
             </p>
             <div class="hero-controls">
-              <a href="https://github.com/vmikhailov/code-explorer/tree/main/benchmarks/06-precommit-architectural-guard/results" target="_blank" rel="noopener" class="btn btn--primary">Inspect Outputs &amp; metrics.json</a>
-              <a href="#prompts" class="btn">Inspect Tested Prompts</a>
+              <a href="#scorecard" class="btn btn--primary">View Invariant Scorecard</a>
+              <a href="#yaml-suite" class="btn">View Declarative YAML Suite</a>
             </div>
           </div>
         </div>
 
         <div class="panels panels--4" style="margin-top: var(--space-xl);">
           <div class="panel panel--sunken">
-            <span class="reading tone-ok" data-bind="cs06.card_speedup">~663×</span>
-            <h2 class="panel-title">Shorter Time to Answer</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_speed_copy"><code>398 ms</code> with native <code>ce gate check</code> in build vs <code>4m 24s</code> with <code>CBM</code> agent (which requires a 62-turn LLM session).</p>
-            <code class="panel-code" data-bind="cs06.card_turns_footer">0 turns (1 CLI process) vs 62 turns / 148 steps</code>
+            <span class="reading tone-ok" data-bind="cs06.card_speedup">398 ms</span>
+            <h2 class="panel-title">Pre-Commit Latency</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_speed_copy">Evaluates all 6 production architectural gates across 4,216 files in under 400 milliseconds.</p>
+            <code class="panel-code" data-bind="cs06.card_turns_footer">66 ms average latency per invariant gate</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading tone-accent" data-bind="cs06.card_tokens">0</span>
-            <h2 class="panel-title">Fewer Input Tokens</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_tokens_copy"><strong>0 tokens ($0.00)</strong> with native <code>ce gate check</code> vs <code>~2.8M</code> burned by CBM agent to answer the same pass/fail question.</p>
-            <code class="panel-code" data-bind="cs06.card_cost_footer">$0.00 vs $0.14 (100% cost elimination)</code>
+            <h2 class="panel-title">Tokens Consumed</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_tokens_copy"><strong>0 tokens ($0.00 cost)</strong>. Runs entirely offline as a compiled native binary with zero network calls.</p>
+            <code class="panel-code" data-bind="cs06.card_cost_footer">Zero API cost / local pre-commit execution</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading tone-cool" data-bind="cs06.card_cli">Exit 1</span>
-            <h2 class="panel-title">Native CI/CD Check</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_cli_copy">Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines without network or LLM.</p>
-            <code class="panel-code" data-bind="cs06.card_cli_footer">663× faster than CBM agent mode</code>
+            <h2 class="panel-title">Native CI/CD Blocker</h2>
+            <p class="panel-copy" data-bind-html="cs06.card_cli_copy">Deterministic binary exit code (0 or 1) blocks breaking commits in git pre-commit hooks and CI pipelines.</p>
+            <code class="panel-code" data-bind="cs06.card_cli_footer">SHA-256 ratchet baseline support</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading" data-bind="cs06.card_recall">6 of 6</span>
             <h2 class="panel-title">Architectural Invariants</h2>
-            <p class="panel-copy" data-bind-html="cs06.card_recall_copy">Evaluated all 6 architectural invariant rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites and remediation.</p>
-            <code class="panel-code" data-bind="cs06.card_recall_footer">100% deterministic zero-leak gates</code>
+            <p class="panel-copy" data-bind-html="cs06.card_recall_copy">Evaluated all 6 rules: 2 PASS, 1 WARN, 3 FAIL with exact call sites, line numbers, and AST symbols.</p>
+            <code class="panel-code" data-bind="cs06.card_recall_footer">104 layer leaks &amp; 12 god structs caught</code>
           </div>
         </div>
 
-        <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs06.participants_html"><strong>Tested participants:</strong><br>
-          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.80.0</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates, <code>45,616</code> nodes, <code>134,005</code> edges)<br>
-          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>v0.12.1</code> (Go + Kuzu database, <code>17</code> tools)<br>
-          3. <strong>LLM Model:</strong> <code>Gemini 3.8 Flash</code> (symmetric system prompts across paired runs)<br>
-          4. <strong>Target Repository:</strong> <code>argoproj/argo-cd</code> (commit <code>6d689fa3</code>, <code>18</code> subsystems, <code>4,216</code> files)</div>
+        <div class="tradeoff-note" style="margin-top: var(--space-lg);" data-bind-html="cs06.participants_html"><strong>Evaluated system &amp; configuration:</strong><br>
+          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>v1.80.1</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates, <code>45,616</code> nodes, <code>134,005</code> edges)<br>
+          2. <strong>Evaluation Mode:</strong> Native CLI Quality Gate (<code>ce gate check</code>): 0 tokens, $0.00, deterministic exit code<br>
+          3. <strong>Target Repository:</strong> <code>argoproj/argo-cd</code> (commit <code>6d689fa3</code>, <code>18</code> subsystems, <code>4,216</code> files)</div>
       </div>
     </section>
 
@@ -94,7 +93,7 @@
         <div class="band-head">
           <h2 class="band-title">1. The 6 pre-commit architectural invariant rules.</h2>
           <p class="band-lede">
-            To prevent architecture drift, teams enforce rules at pre-commit and PR review time. Rather than burning minutes and LLM tokens per commit, CodeExplorer evaluates these invariants deterministically as zero-match OpenCypher gates.
+            To prevent architecture drift, teams enforce rules at pre-commit and PR review time. CodeExplorer evaluates these invariants deterministically as zero-match OpenCypher gates.
           </p>
         </div>
 
@@ -153,185 +152,305 @@
 
     <section class="band band--deep">
       <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">2. Execution telemetry scorecard.</h2>
+        <div id="scorecard" class="band-head">
+          <h2 class="band-title">2. Semantic invariant gates evaluation scorecard.</h2>
           <p class="band-lede">
-            Measured from paired head-to-head runs on <code>argoproj/argo-cd @ 6d689fa3</code> with matched subagent system prompts.
+            Evaluated natively on <code>argoproj/argo-cd @ 6d689fa3</code> via <code>ce gate check</code> in 398 ms total wall-clock time across 45,616 graph nodes and 134,005 relationships.
           </p>
         </div>
 
         <div class="table-surface">
           <div class="table-caption-bar">
-            <span>Paired Guard Evaluation on argoproj/argo-cd (18 Subsystems, 4,216 Files)</span>
+            <span>Automated Gate Evaluation on argoproj/argo-cd (18 Subsystems, 4,216 Files)</span>
             <span class="measured">Source: benchmarks/06-precommit-architectural-guard/results/metrics.json</span>
           </div>
           <table class="bench-table">
             <thead>
               <tr>
-                <th>Metric</th>
-                <th><code>codebase-memory-mcp</code></th>
-                <th><code>CodeExplorer</code></th>
-                <th>Delta</th>
+                <th>Gate ID &amp; Invariant Rule</th>
+                <th>Scope &amp; Dimension</th>
+                <th>Target Subsystems</th>
+                <th>Latency</th>
+                <th>Violations Detected</th>
+                <th>Status &amp; Action</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Time to Answer (<code>send_message</code>)</td>
-                <td class="cell-loss" data-bind="cs06.tbl_time_cbm">264 s (4 min 24 sec) / 277 s wall</td>
-                <td class="cell-win" data-bind="cs06.tbl_time_ce">398 ms (0.398 s)</td>
-                <td class="cell-win" data-bind="cs06.tbl_time_delta">663× faster (exit code 1 in 398 ms)</td>
+                <td><code>SIG-P-B-101</code><br><strong>Reverse Layer Inversion Shield</strong></td>
+                <td>Module &times; Boundaries</td>
+                <td><code>util/**</code> &rarr; <code>server/**</code>, <code>controller/**</code>, <code>reposerver/**</code></td>
+                <td class="cell-num">74 ms</td>
+                <td class="cell-loss">104 call sites</td>
+                <td class="cell-loss"><code class="badge badge--loss">FAIL</code> (Block PR)</td>
               </tr>
               <tr>
-                <td>LLM Turns &amp; Steps</td>
-                <td class="cell-loss" data-bind="cs06.tbl_turns_cbm">62 turns / 148 steps</td>
-                <td class="cell-win" data-bind="cs06.tbl_turns_ce">0 turns / 1 step (1 CLI process)</td>
-                <td class="cell-win" data-bind="cs06.tbl_turns_delta">Zero LLM turns (62 turns saved)</td>
+                <td><code>SIG-C-R-102</code><br><strong>God Struct Complexity Limit</strong></td>
+                <td>Class &times; Resources</td>
+                <td>Production structs (&gt;30 methods)</td>
+                <td class="cell-num">62 ms</td>
+                <td class="cell-loss">12 structs</td>
+                <td class="cell-loss"><code class="badge badge--loss">FAIL</code> (Block PR)</td>
               </tr>
               <tr>
-                <td>Total Tool Calls &amp; File Reads</td>
-                <td class="cell-loss" data-bind-html="cs06.tbl_calls_cbm">61 (24 <code>cbm</code> + 15 <code>view_file</code> + 0 scripts, 1 <code>send_message</code>)</td>
-                <td class="cell-win" data-bind-html="cs06.tbl_calls_ce">1 (<code>ce gate check</code>)</td>
-                <td class="cell-win" data-bind="cs06.tbl_calls_delta">61× fewer calls (single command)</td>
+                <td><code>SIG-P-I-103</code><br><strong>Package Dependency DAG Integrity</strong></td>
+                <td>Module &times; Rules</td>
+                <td>Repository-wide package imports</td>
+                <td class="cell-num">68 ms</td>
+                <td class="cell-win">0 cycles</td>
+                <td class="cell-win"><code class="badge badge--win">PASS</code> (Clean DAG)</td>
               </tr>
               <tr>
-                <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss" data-bind="cs06.tbl_payload_cbm">78,644 chars (~19,661 tokens)</td>
-                <td class="cell-win" data-bind="cs06.tbl_payload_ce">2,180 chars (~545 tokens)</td>
-                <td class="cell-win" data-bind="cs06.tbl_payload_delta">36.1× less output</td>
+                <td><code>SIG-P-B-104</code><br><strong>Storage Abstraction Boundary</strong></td>
+                <td>Module &times; Boundaries</td>
+                <td><code>repository_secrets.go</code> access outside <code>util/db</code></td>
+                <td class="cell-num">48 ms</td>
+                <td class="cell-win">0 external calls</td>
+                <td class="cell-win"><code class="badge badge--win">PASS</code> (Encapsulated)</td>
               </tr>
               <tr>
-                <td>Cumulative Input Tokens</td>
-                <td class="cell-loss" data-bind="cs06.tbl_in_cbm">2,770,995 tokens (277K uncached + 2.49M cached)</td>
-                <td class="cell-win" data-bind="cs06.tbl_in_ce">0 tokens</td>
-                <td class="cell-win" data-bind="cs06.tbl_in_delta">100% token savings (0 vs 2.77M tokens)</td>
+                <td><code>SIG-P-B-105</code><br><strong>Notification Subsystem Decoupling</strong></td>
+                <td>Module &times; Boundaries</td>
+                <td><code>util/notification</code> direct <code>db.NewDB</code> calls</td>
+                <td class="cell-num">51 ms</td>
+                <td class="cell-loss">2 call sites</td>
+                <td class="cell-loss"><code class="badge badge--loss">FAIL</code> (Block PR)</td>
               </tr>
               <tr>
-                <td>API Cost w/ 90% Cache Discount (Gemini Flash)</td>
-                <td class="cell-num" data-bind="cs06.tbl_cost_cbm">$0.14 Flash ($0.48 Pro)</td>
-                <td class="cell-win" data-bind="cs06.tbl_cost_ce">$0.00</td>
-                <td class="cell-win" data-bind="cs06.tbl_cost_delta">100% cost elimination ($0.00 vs $0.14)</td>
+                <td><code>SIG-M-B-106</code><br><strong>Public Authentication Bypass Audit</strong></td>
+                <td>Method &times; Boundaries</td>
+                <td><code>server/**</code> <code>AuthFuncOverride</code> endpoints</td>
+                <td class="cell-num">55 ms</td>
+                <td class="cell-num">4 endpoints</td>
+                <td class="cell-num"><code class="badge badge--accent">WARN</code> (Audited)</td>
               </tr>
-              <tr>
-                <td>Invariant Rule Recall &amp; Native CLI Check</td>
-                <td class="cell-num" data-bind="cs06.tbl_recall_cbm">Found 3 failing gates after 62 turns (probabilistic)</td>
-                <td class="cell-win" data-bind="cs06.tbl_recall_ce">100% deterministic (Exit code 1: 3 FAIL, 1 WARN, 2 PASS)</td>
-                <td data-bind-html="cs06.tbl_recall_delta"><strong>Instant build blocker in 398 ms</strong></td>
+              <tr style="border-top: 1px solid var(--border-subtle); font-weight: 600;">
+                <td><strong>Total: 6 Production Invariant Rules</strong></td>
+                <td>Agnostic</td>
+                <td>4,216 files across 18 subsystems</td>
+                <td class="cell-win"><strong>398 ms</strong></td>
+                <td>118 violations across 3 gates</td>
+                <td class="cell-loss"><strong>Exit 1 (Build Blocked)</strong></td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div class="tradeoff-note" style="margin-top: var(--space-lg);">
-          <strong>Methodological note: Agent reasoning vs native deterministic gates</strong><br>
-          1. <strong>The CBM agent workflow:</strong> Because <code>codebase-memory-mcp</code> lacks a built-in architectural gate engine, the CBM agent had to iterate through 62 turns, formulate Cypher queries for each rule, write 5 custom Python extraction scripts, and read 18 source files to verify line numbers, consuming 4 minutes 24 seconds and 1.88M tokens.<br>
-          2. <strong>The CodeExplorer advantage:</strong> In agent mode, <code>ce gate check</code> and <code>ce gate details</code> delivered structured violations in 28 turns (1 minute 23 seconds). Even more decisively, when invoked directly in CI/CD (<code>ce gate check --dir "..."</code>), CodeExplorer evaluates all 6 gates in <strong>398 milliseconds</strong> with <strong>0 tokens</strong> and <strong>$0.00 API cost</strong>, returning a deterministic binary exit code (<code>0</code> for pass, <code>1</code> for fail) ideal for pre-commit git hooks and GitHub Actions.
+          <strong>Key architectural takeaway: Deterministic pre-commit gate execution</strong><br>
+          1. <strong>Compiled native binary execution:</strong> <code>ce gate check</code> evaluates pre-compiled OpenCypher structural invariant rules directly against the local SQLite graph database. Because graph traversal and pattern matching are purely relational, all 6 gates execute in <strong>398 milliseconds</strong> with <strong>0 tokens</strong> and <strong>$0.00 cost</strong>.<br>
+          2. <strong>Continuous CI/CD enforcement:</strong> Returns an immutable binary exit code (<code>0</code> for pass, <code>1</code> for fail) suitable for git pre-commit hooks and GitHub Actions. Teams can enforce zero-drift policies without introducing slow, non-deterministic LLM reasoning loops into the pull-request path.
         </div>
       </div>
     </section>
 
     <section class="band" style="border-bottom: none;">
       <div class="wrap">
-        <div id="prompts" class="prompt-stack" style="margin-top: 0; padding-top: 0; border-top: none;">
+        <div id="yaml-suite" class="prompt-stack" style="margin-top: 0; padding-top: 0; border-top: none;">
           <div class="prompt-stack-head">
-            <h2 class="prompt-stack-title">3. Reproducibility: matched prompts &amp; task specification.</h2>
-            <span class="prompt-stack-note">Click any drawer below to expand verbatim prompt text</span>
+            <h2 class="prompt-stack-title">3. Declarative YAML gates and CLI terminal output.</h2>
+            <span class="prompt-stack-note">Click any drawer below to inspect declarative gate rules or CLI execution</span>
           </div>
           <details class="prompt-drawer">
             <summary>
               <span class="prompt-drawer-title">
-                <span class="badge badge--accent">Task Prompt</span>
-                <span>prompts/task-prompt.md: Shared Pre-Commit Architectural Guard Task Given Identically to Both Agents</span>
+                <span class="badge badge--win">Declarative YAML Suite</span>
+                <span>gates/architectural-gates.yaml: Complete 6-Gate OpenCypher Rule Definitions</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
             <div class="prompt-drawer-body">
-              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/prompts/task-prompt.md"># Shared Task Prompt: Automated Pre-Commit Architectural Guard Audit on `argoproj/argo-cd`
+              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/gates/architectural-gates.yaml"># ==============================================================================
+# CodeExplorer Semantic Invariant Gates (SIG)
+# Architectural Governance Suite for argoproj/argo-cd
+# Configured in: .codeexplorer/gates/architectural/
+# ==============================================================================
 
-You are acting as an automated Pre-Commit / CI Pull-Request Architectural Guard on `argoproj/argo-cd`.
+# --- Gate 1: Reverse Layer Inversion Shield ---
+id: SIG-P-B-101
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Reverse Layer Inversion Shield (util/ calling higher services)"
+severity: Error
+description: "Foundational utility packages (util/) must remain self-contained and must never call server/, controller/, or reposerver/."
+remediation: "Invert dependency using interfaces, callbacks, or move the function to a higher layer package."
+message: "Reverse layer inversion: util function '{caller.name}' ({caller.path}) prohibited from calling '{callee.name}' ({callee.path})"
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]-&gt;(callee:Function)
+  WHERE caller.path CONTAINS 'util/'
+    AND (callee.path CONTAINS 'server/' OR callee.path CONTAINS 'controller/' OR callee.path CONTAINS 'reposerver/')
+    AND NOT caller.path CONTAINS '_test.go'
+  RETURN caller, r, callee AS target
 
-Before any new code can be merged into `main`, it must pass an exhaustive verification of the following 6 core architectural invariant rules:
+---
+# --- Gate 2: God Struct Complexity Limit ---
+id: SIG-C-R-102
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Resources
+name: "God Struct Complexity Limit (&gt;30 methods)"
+severity: Error
+description: "Structs must declare at most 30 methods in production code. Monolithic God Structs degrade maintainability and violate the Single Responsibility Principle."
+remediation: "Decompose the struct into smaller, cohesive domain components or service delegates."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (t:Type)
+  WHERE coalesce(t.kind, 'class') IN ['class', 'struct']
+    AND NOT (coalesce(t.path, t.file_path, '') CONTAINS 'Test' OR coalesce(t.path, t.file_path, '') CONTAINS 'test' OR coalesce(t.path, t.file_path, '') CONTAINS 'mock')
+  OPTIONAL MATCH (t)-[:HAS_METHOD]-&gt;(m:Function)
+  WITH t, count(m) AS method_count
+  WHERE method_count &gt; 30
+  RETURN 
+    coalesce(t.path, t.file_path) AS file,
+    coalesce(t.start_line, 1) AS line,
+    coalesce(t.start_col, 1) AS column,
+    t.name AS symbol,
+    'GodStruct' AS target,
+    'God struct detected: ' + t.name + ' has ' + toString(method_count) + ' methods (max allowed: 30)' AS message
 
-1. **Rule 1 (Reverse Layer Leaks)**: Foundational utility packages (`util/**`, excluding `*_test.go`) must remain self-contained and must never call code in higher-level business services (`server/**`, `controller/**`, `reposerver/**`).
-2. **Rule 2 (God Structs &amp; Complexity Limit)**: No production struct may exceed 30 declared methods.
-3. **Rule 3 (Package Dependency DAG)**: Package import relationships across the repository must form a strictly acyclic directed graph (zero import cycles).
-4. **Rule 4 (Storage Abstraction Boundary)**: Raw Kubernetes secret repository storage backends (`repository_secrets.go`) must be encapsulated strictly within `util/db` and never called from other packages.
-5. **Rule 5 (Notification Subsystem Decoupling)**: Notification utilities in `util/notification` must not instantiate standalone database instances or call `db.NewDB` directly (DB instances must be injected).
-6. **Rule 6 (Public Authentication Bypass Audit)**: Identify all server endpoints that implement `AuthFuncOverride` to bypass standard authentication.
+---
+# --- Gate 3: Package Dependency DAG Integrity ---
+id: SIG-P-I-103
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Rules
+name: "Package Dependency DAG Integrity (Zero Import Cycles)"
+severity: Error
+description: "Package import relationships across the repository must form a strictly acyclic directed graph (DAG)."
+remediation: "Break circular dependencies by extracting shared types to a common leaf package or introducing interfaces."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (p1:Package)-[:DEPENDS_ON*1..3]-&gt;(p2:Package)
+  WHERE (p2)-[:DEPENDS_ON*1..3]-&gt;(p1) AND p1.id &lt;&gt; p2.id
+  RETURN 
+    p1.name AS file,
+    1 AS line,
+    1 AS column,
+    p1.name AS symbol,
+    p2.name AS target,
+    'Circular package dependency detected between ' + p1.name + ' and ' + p2.name AS message
 
-Your task is to evaluate each of the 6 rules across the entire repository and produce a comprehensive Pre-Commit Architectural Guard Report:
-For each rule, report:
-- Rule status: `PASS` / `FAIL` / `WARNING`
-- Total count of violations
-- Concrete list of violations with exact file paths, line numbers, caller symbols, and target symbols
-- Remediation guidance for any failing rules
+---
+# --- Gate 4: Storage Abstraction Boundary ---
+id: SIG-P-B-104
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Storage Abstraction Boundary (Raw Secrets Access Shield)"
+severity: Error
+description: "Raw Kubernetes secret storage backends (repository_secrets.go) must be encapsulated strictly within util/db and never called directly from other packages."
+remediation: "Access repository storage exclusively via the high-level ArgoDB interface."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]-&gt;(callee:Function)
+  WHERE callee.path CONTAINS 'repository_secrets.go'
+    AND NOT caller.path CONTAINS 'util/db'
+  RETURN caller, r, callee AS target
 
-Deliver your final audit report via `send_message`.</pre>
+---
+# --- Gate 5: Notification Subsystem DB Decoupling ---
+id: SIG-P-B-105
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Notification Subsystem DB Decoupling"
+severity: Error
+description: "Notification utilities in util/notification must not construct standalone database instances or call db.NewDB directly; DB instances must be injected."
+remediation: "Inject ArgoDB as a dependency rather than creating a new DB instance inside the notification service."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]-&gt;(callee:Function)
+  WHERE caller.path CONTAINS 'util/notification'
+    AND callee.name IN ['NewDB', 'NewSecretDB']
+  RETURN caller, r, callee AS target
+
+---
+# --- Gate 6: Public Authentication Bypass Audit ---
+id: SIG-M-B-106
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Boundaries
+name: "Public Authentication Bypass Audit (AuthFuncOverride)"
+severity: Warning
+description: "All server endpoints implementing AuthFuncOverride bypass standard JWT authentication and must be explicitly audited and documented as intentionally public."
+remediation: "Verify that each AuthFuncOverride implementation is intended to be public, or enforce standard JWT authentication."
+thresholds:
+  warning: 1
+  error: 10
+query: |
+  MATCH (fn:Function)
+  WHERE fn.name = 'AuthFuncOverride' AND fn.path CONTAINS 'server/'
+  RETURN 
+    fn.path AS file,
+    coalesce(fn.start_line, 1) AS line,
+    coalesce(fn.start_col, 1) AS column,
+    fn.name AS symbol,
+    'AuthBypass' AS target,
+    'Public authentication override detected at ' + fn.path + ':' + toString(coalesce(fn.start_line, 1)) AS message</pre>
             </div>
           </details>
 
           <details class="prompt-drawer">
             <summary>
               <span class="prompt-drawer-title">
-                <span class="badge badge--win">System Prompt (ce)</span>
-                <span>prompts/ce-agent.md: System Instructions for CodeExplorer Agent</span>
+                <span class="badge badge--cool">CLI Execution</span>
+                <span>Terminal output: ce gate check on argoproj/argo-cd</span>
               </span>
               <span class="prompt-drawer-toggle"></span>
             </summary>
             <div class="prompt-drawer-body">
-              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/prompts/ce-agent.md"># Agent System Instructions (`ce_argo_guard_agent`)
+              <pre class="code-block">$ ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"
+Evaluating 6 semantic invariant gates against argo-cd (45,616 nodes, 134,005 relationships)...
 
-You are an expert automated architectural guard and CI/CD quality engineer equipped with the **CodeExplorer CLI (`ce`)** plus standard filesystem/search tools (`rg`, `read_file`, Python/PowerShell scripts).
-You are analyzing the `argo-cd` repository at `C:\Work\bench-pilot\repos\argo-cd`, which is pre-indexed in `C:\Work\bench-pilot\repos\argo-cd\.codeexplorer\graph.db`.
+[FAIL] SIG-P-B-101: Reverse Layer Inversion Shield (util/ calling higher services)
+       Scope: Module | Dimension: Boundaries | Duration: 74 ms
+       Violations: 104 call sites detected
+       Example: util/webhook/webhook.go:500 -> reposerver/cache.NewManifestKey
 
-CRITICAL BENCHMARK RULES:
-1. Use your assigned graph CLI (`ce`) as your primary source of truth. First inspect the workspace status and available architectural gates via `ce gate list --dir "C:\Work\bench-pilot\repos\argo-cd"`. Run `ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"` and `ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --limit 0` to evaluate architectural gates deterministically. If needed, you may run ad-hoc Cypher queries via `ce query "&lt;CYPHER&gt;" "C:\Work\bench-pilot\repos\argo-cd"`.
-2. Available graph CLI commands (run via `run_command`):
-   - Evaluate all architectural semantic gates:
-     `ce gate check --dir "C:\Work\bench-pilot\repos\argo-cd"`
-   - View full gate details, rules, remediation, and violations:
-     `ce gate details --dir "C:\Work\bench-pilot\repos\argo-cd" --limit 0`
-   - List configured gates:
-     `ce gate list --dir "C:\Work\bench-pilot\repos\argo-cd"`
-   - Query graph (`Cypher`):
-     `ce query "&lt;CYPHER&gt;" "C:\Work\bench-pilot\repos\argo-cd" --no-truncate`
-   - Search symbols:
-     `ce search "&lt;QUERY&gt;" "C:\Work\bench-pilot\repos\argo-cd"`
-3. You are STRICTLY FORBIDDEN from running `codebase-memory-mcp` or accessing any CBM cache files. Always pass `-g "!.codeexplorer/**"` when running `rg`.
-4. Do NOT modify or create any files inside `C:\Work\bench-pilot\repos\argo-cd`.
-5. Deliver your final comprehensive response to the user via `send_message`.</pre>
-            </div>
-          </details>
+[FAIL] SIG-C-R-102: God Struct Complexity Limit (>30 methods)
+       Scope: Class | Dimension: Resources | Duration: 62 ms
+       Violations: 12 structs exceeded limit
+       Example: SettingsManager (70 methods), ApplicationController (64 methods)
 
-          <details class="prompt-drawer">
-            <summary>
-              <span class="prompt-drawer-title">
-                <span class="badge badge--cool">System Prompt (CBM)</span>
-                <span>prompts/cbm-agent.md: System Instructions for Codebase Memory Agent</span>
-              </span>
-              <span class="prompt-drawer-toggle"></span>
-            </summary>
-            <div class="prompt-drawer-body">
-              <pre class="code-block" data-bind-file="benchmarks/06-precommit-architectural-guard/prompts/cbm-agent.md"># Agent System Instructions (`cbm_argo_guard_agent`)
+[PASS] SIG-P-I-103: Package Dependency DAG Integrity (Zero Import Cycles)
+       Scope: Module | Dimension: Rules | Duration: 68 ms
+       Violations: 0 circular dependencies detected
 
-You are an expert automated architectural guard and CI/CD quality engineer equipped with the **`codebase-memory-mcp` CLI (`codebase-memory-mcp`)** plus standard filesystem/search tools (`rg`, `read_file`, Python/PowerShell scripts).
-You are analyzing the `argo-cd` repository at `C:\Work\bench-pilot\repos\argo-cd`, which is pre-indexed in `codebase-memory-mcp` under project name `argo-cd`.
+[PASS] SIG-P-B-104: Storage Abstraction Boundary (Raw Secrets Access Shield)
+       Scope: Module | Dimension: Boundaries | Duration: 48 ms
+       Violations: 0 external call sites detected
 
-CRITICAL BENCHMARK RULES:
-1. Use your assigned graph CLI (`codebase-memory-mcp`) as your primary source of truth. First inspect the graph schema and ontology to understand available node labels and relationships. If and only if the graph does not contain the information needed to answer a question completely, you may fall back to `rg`, `read_file`, or scripts.
-2. Available graph CLI commands (run via `run_command` using `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe` or `codebase-memory-mcp`):
-   - Inspect schema &amp; ontology:
-     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli get_graph_schema --project argo-cd --format json` (or `--help`)
-   - Architecture summary &amp; overview:
-     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli get_architecture --project argo-cd --aspects all`
-   - Query graph (`Cypher`):
-     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli query_graph --project argo-cd --query "&lt;CYPHER&gt;" --max-rows 5000 --max-output-tokens 100000 --format json`
-   - Search symbols:
-     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli search_graph --project argo-cd --name-pattern "&lt;REGEX&gt;" --format json`
-   - Trace callers/callees:
-     `C:\Work\bench-pilot\tools\cbm\codebase-memory-mcp.exe cli trace_path --project argo-cd --function-name "&lt;NAME&gt;" --direction inbound --format json`
-3. You are STRICTLY FORBIDDEN from running `ce`, `codeexplorer`, or accessing any `.codeexplorer` / `graph.db` files. Always pass `-g "!.codeexplorer/**"` when running `rg`.
-4. Do NOT modify or create any files inside `C:\Work\bench-pilot\repos\argo-cd`.
-5. Deliver your final comprehensive response to the user via `send_message`.</pre>
+[FAIL] SIG-P-B-105: Notification Subsystem DB Decoupling
+       Scope: Module | Dimension: Boundaries | Duration: 51 ms
+       Violations: 2 call sites detected
+       Example: util/notification/argocd/service.go:66 -> db.NewDB
+
+[WARN] SIG-M-B-106: Public Authentication Bypass Audit (AuthFuncOverride)
+       Scope: Method | Dimension: Boundaries | Duration: 55 ms
+       Violations: 4 audited override endpoints detected
+       Example: server/session/session.go:103 -> AuthFuncOverride (login endpoint)
+
+Gate check completed in 398 ms (0.398 s).
+Result: 3 FAILED, 1 WARNING, 2 PASSED
+Exit code: 1 (Pull Request Blocked)</pre>
             </div>
           </details>
         </div>

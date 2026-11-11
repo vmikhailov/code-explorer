@@ -1,0 +1,145 @@
+# ==============================================================================
+# CodeExplorer Semantic Invariant Gates (SIG)
+# Architectural Governance Suite for argoproj/argo-cd
+# Configured in: .codeexplorer/gates/architectural/
+# ==============================================================================
+
+# --- Gate 1: Reverse Layer Inversion Shield ---
+id: SIG-P-B-101
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Reverse Layer Inversion Shield (util/ calling higher services)"
+severity: Error
+description: "Foundational utility packages (util/) must remain self-contained and must never call server/, controller/, or reposerver/."
+remediation: "Invert dependency using interfaces, callbacks, or move the function to a higher layer package."
+message: "Reverse layer inversion: util function '{caller.name}' ({caller.path}) prohibited from calling '{callee.name}' ({callee.path})"
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+  WHERE caller.path CONTAINS 'util/'
+    AND (callee.path CONTAINS 'server/' OR callee.path CONTAINS 'controller/' OR callee.path CONTAINS 'reposerver/')
+    AND NOT caller.path CONTAINS '_test.go'
+  RETURN caller, r, callee AS target
+
+---
+# --- Gate 2: God Struct Complexity Limit ---
+id: SIG-C-R-102
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Resources
+name: "God Struct Complexity Limit (>30 methods)"
+severity: Error
+description: "Structs must declare at most 30 methods in production code. Monolithic God Structs degrade maintainability and violate the Single Responsibility Principle."
+remediation: "Decompose the struct into smaller, cohesive domain components or service delegates."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (t:Type)
+  WHERE coalesce(t.kind, 'class') IN ['class', 'struct']
+    AND NOT (coalesce(t.path, t.file_path, '') CONTAINS 'Test' OR coalesce(t.path, t.file_path, '') CONTAINS 'test' OR coalesce(t.path, t.file_path, '') CONTAINS 'mock')
+  OPTIONAL MATCH (t)-[:HAS_METHOD]->(m:Function)
+  WITH t, count(m) AS method_count
+  WHERE method_count > 30
+  RETURN 
+    coalesce(t.path, t.file_path) AS file,
+    coalesce(t.start_line, 1) AS line,
+    coalesce(t.start_col, 1) AS column,
+    t.name AS symbol,
+    'GodStruct' AS target,
+    'God struct detected: ' + t.name + ' has ' + toString(method_count) + ' methods (max allowed: 30)' AS message
+
+---
+# --- Gate 3: Package Dependency DAG Integrity ---
+id: SIG-P-I-103
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Rules
+name: "Package Dependency DAG Integrity (Zero Import Cycles)"
+severity: Error
+description: "Package import relationships across the repository must form a strictly acyclic directed graph (DAG)."
+remediation: "Break circular dependencies by extracting shared types to a common leaf package or introducing interfaces."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (p1:Package)-[:DEPENDS_ON*1..3]->(p2:Package)
+  WHERE (p2)-[:DEPENDS_ON*1..3]->(p1) AND p1.id <> p2.id
+  RETURN 
+    p1.name AS file,
+    1 AS line,
+    1 AS column,
+    p1.name AS symbol,
+    p2.name AS target,
+    'Circular package dependency detected between ' + p1.name + ' and ' + p2.name AS message
+
+---
+# --- Gate 4: Storage Abstraction Boundary ---
+id: SIG-P-B-104
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Storage Abstraction Boundary (Raw Secrets Access Shield)"
+severity: Error
+description: "Raw Kubernetes secret storage backends (repository_secrets.go) must be encapsulated strictly within util/db and never called directly from other packages."
+remediation: "Access repository storage exclusively via the high-level ArgoDB interface."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+  WHERE callee.path CONTAINS 'repository_secrets.go'
+    AND NOT caller.path CONTAINS 'util/db'
+  RETURN caller, r, callee AS target
+
+---
+# --- Gate 5: Notification Subsystem DB Decoupling ---
+id: SIG-P-B-105
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Notification Subsystem DB Decoupling"
+severity: Error
+description: "Notification utilities in util/notification must not construct standalone database instances or call db.NewDB directly; DB instances must be injected."
+remediation: "Inject ArgoDB as a dependency rather than creating a new DB instance inside the notification service."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+  WHERE caller.path CONTAINS 'util/notification'
+    AND callee.name IN ['NewDB', 'NewSecretDB']
+  RETURN caller, r, callee AS target
+
+---
+# --- Gate 6: Public Authentication Bypass Audit ---
+id: SIG-M-B-106
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Boundaries
+name: "Public Authentication Bypass Audit (AuthFuncOverride)"
+severity: Warning
+description: "All server endpoints implementing AuthFuncOverride bypass standard JWT authentication and must be explicitly audited and documented as intentionally public."
+remediation: "Verify that each AuthFuncOverride implementation is intended to be public, or enforce standard JWT authentication."
+thresholds:
+  warning: 1
+  error: 10
+query: |
+  MATCH (fn:Function)
+  WHERE fn.name = 'AuthFuncOverride' AND fn.path CONTAINS 'server/'
+  RETURN 
+    fn.path AS file,
+    coalesce(fn.start_line, 1) AS line,
+    coalesce(fn.start_col, 1) AS column,
+    fn.name AS symbol,
+    'AuthBypass' AS target,
+    'Public authentication override detected at ' + fn.path + ':' + toString(coalesce(fn.start_line, 1)) AS message

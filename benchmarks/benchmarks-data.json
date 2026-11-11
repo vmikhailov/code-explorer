@@ -437,7 +437,7 @@
     "status": "ready",
     "expected_repo_match": "argo-cd",
     "source_metrics": "benchmarks/06-precommit-architectural-guard/results/metrics.json",
-    "ce_version": "v1.80.0",
+    "ce_version": "v1.80.1",
     "cbm_version": "v0.12.1",
     "model": "Gemini 3.8 Flash",
     "repo": {
