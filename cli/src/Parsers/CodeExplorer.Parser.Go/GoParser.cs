@@ -94,6 +94,19 @@ public class GoParser : IProjectParser, IFileParser
         return fileExtension.Equals(".go", StringComparison.OrdinalIgnoreCase);
     }
 
+    public bool ShouldSkipFileName(string fileName)
+    {
+        var fn = fileName.ToLowerInvariant();
+        if (fn.EndsWith(".pb.go", StringComparison.Ordinal) ||
+            fn.EndsWith(".pb.gw.go", StringComparison.Ordinal) ||
+            fn.EndsWith("_generated.go", StringComparison.Ordinal) ||
+            fn.EndsWith(".generated.go", StringComparison.Ordinal))
+        {
+            return true;
+        }
+        return IProjectParser.DefaultShouldSkipFileName(fileName);
+    }
+
     public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
     {
         GoDeclarationExtractor.Extract(rootNode, registerDeclaration);

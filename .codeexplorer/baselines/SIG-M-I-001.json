@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-I-001",
-  "allowedViolations": 3263,
+  "allowedViolations": 3265,
   "entries": [
     {
       "fingerprint": "27da4b2bca08c9fceb5ce0ea452dbf8b08c50f2fd31b3ec60992ce9d7040bb02",
@@ -30883,22 +30883,22 @@
       "reason": "Baseline snapshot captured at 2026-10-20 13:19:24"
     },
     {
-      "fingerprint": "043f0315b19fe8aeb6d686b0c1f643bb8c1607101903061f58ff0a53f245d529",
-      "file": "vscode-extension/src/commands.ts",
-      "line": 441,
-      "column": 40,
-      "symbol": "registerWorkspaceLifecycleCommands",
-      "target": "vscode.window.showErrorMessage",
-      "acknowledgedAt": "2026-10-20T13:19:24.2234884+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 13:19:24"
-    },
-    {
       "fingerprint": "25d1a812e974cbf80999f5637fb57e68f2193e16c22fd114806231c095e259d3",
       "file": "vscode-extension/src/commands.ts",
       "line": 464,
       "column": 59,
       "symbol": "registerWorkspaceLifecycleCommands",
       "target": "vscode.commands.registerCommand",
+      "acknowledgedAt": "2026-10-20T13:19:24.2234884+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-20 13:19:24"
+    },
+    {
+      "fingerprint": "043f0315b19fe8aeb6d686b0c1f643bb8c1607101903061f58ff0a53f245d529",
+      "file": "vscode-extension/src/commands.ts",
+      "line": 441,
+      "column": 40,
+      "symbol": "registerWorkspaceLifecycleCommands",
+      "target": "vscode.window.showErrorMessage",
       "acknowledgedAt": "2026-10-20T13:19:24.2234884+00:00",
       "reason": "Baseline snapshot captured at 2026-10-20 13:19:24"
     },
@@ -30911,6 +30911,16 @@
       "target": "vscode.commands.registerCommand",
       "acknowledgedAt": "2026-10-20T13:19:24.2234884+00:00",
       "reason": "Baseline snapshot captured at 2026-10-20 13:19:24"
+    },
+    {
+      "fingerprint": "d047fb3b8c457ac84a1bb4f67ca26a1197c546c103862be8cde4b216c303b68d",
+      "file": "vscode-extension/src/commands.ts",
+      "line": 484,
+      "column": 5,
+      "symbol": "registerWorkspaceLifecycleCommands",
+      "target": "vscode.commands.registerCommand",
+      "acknowledgedAt": "2026-11-11T00:22:06.3446535+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-11 00:22:06"
     },
     {
       "fingerprint": "0788db82356e7785718cde16dfe19bdfb26e4e6aa595bda223fb52cf050287c7",
@@ -31751,6 +31761,16 @@
       "target": "vscode.window.createOutputChannel",
       "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
       "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
+    },
+    {
+      "fingerprint": "3d01cf3430041d1a4e059ad8d49bd3039dbe7c80a53369bf5b777e82b24d031a",
+      "file": "vscode-extension/src/extension.ts",
+      "line": 25,
+      "column": 61,
+      "symbol": "activate",
+      "target": "vscode.window.createOutputChannel",
+      "acknowledgedAt": "2026-11-11T00:22:06.3446535+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-11 00:22:06"
     },
     {
       "fingerprint": "39a983334096c2c86e146112bb85d931fc5da43420cbc03dec50a74f0a013663",

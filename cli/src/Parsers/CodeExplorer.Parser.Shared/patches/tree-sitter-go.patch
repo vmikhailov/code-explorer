@@ -1,0 +1,27 @@
+diff --git a/grammar.js b/grammar.js
+index 3648f02..e503c55 100644
+--- a/grammar.js
++++ b/grammar.js
+@@ -93,6 +93,7 @@ module.exports = grammar({
+     [$.type_parameter_declaration, $._simple_type, $._expression],
+     [$.type_parameter_declaration, $._expression],
+     [$.type_parameter_declaration, $._simple_type, $.generic_type, $._expression],
++    [$.special_argument_list, $.argument_list],
+   ],
+ 
+   reserved: {
+@@ -691,9 +692,13 @@ module.exports = grammar({
+ 
+     call_expression: $ => prec(PREC.primary, choice(
+       seq(
+-        field('function', alias(choice('new', 'make'), $.identifier)),
++        field('function', alias('make', $.identifier)),
+         field('arguments', alias($.special_argument_list, $.argument_list)),
+       ),
++      seq(
++        field('function', alias('new', $.identifier)),
++        field('arguments', alias(choice($.special_argument_list, $.argument_list), $.argument_list)),
++      ),
+       seq(
+         field('function', $._expression),
+         field('type_arguments', optional($.type_arguments)),
