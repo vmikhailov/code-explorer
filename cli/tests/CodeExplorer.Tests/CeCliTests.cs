@@ -359,4 +359,23 @@ public class CeCliTests
         grpCode.Should().Be(0);
         grpOut.Should().Contain("Violations Summary Grouped by 'file'");
     }
+
+    [Test]
+    public async Task CeCli_DomainIntentAndModelCommands_AreTemporarilyHidden()
+    {
+        var (helpExit, helpOut, _) = await RunCliAsync("--help");
+        helpExit.Should().Be(0);
+        helpOut.Should().NotContain("  domain ");
+        helpOut.Should().NotContain("  intent ");
+        helpOut.Should().NotContain("  model ");
+
+        var (domainExit, _, _) = await RunCliAsync("domain");
+        domainExit.Should().Be(1);
+
+        var (intentExit, _, _) = await RunCliAsync("intent");
+        intentExit.Should().Be(1);
+
+        var (modelExit, _, _) = await RunCliAsync("model");
+        modelExit.Should().Be(1);
+    }
 }

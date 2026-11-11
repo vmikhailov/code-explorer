@@ -189,7 +189,7 @@ public partial class McpGraphHandler
     [Description("Export Mermaid or C4 system architecture diagrams from the knowledge graph.")]
     public async Task<CallToolResult> ExportArchitectureDiagramAsync(
         [Description("Format: 'mermaid' or 'c4'. Default: 'mermaid'.")] string format = "mermaid",
-        [Description("Type: 'architecture', 'domain', 'lineage', 'cqrs'. Default: 'architecture'.")] string type = "architecture",
+        [Description("Type: 'architecture', 'lineage', 'cqrs'. Default: 'architecture'.")] string type = "architecture",
         [Description("Optional project filter.")] string? project = null,
         [Description("Include shared libraries. Default: false.")] bool includeLibraries = false,
         [Description("Optional workspace root path.")] string? workspacePath = null,
@@ -265,17 +265,15 @@ public partial class McpGraphHandler
     }
 
     [UsedImplicitly]
-    [McpServerTool]
-    [Description("List, add, or remove architectural domain definitions in .codeexplorer/domains.json.")]
     public async Task<CallToolResult> ManageDomainAsync(
-        [Description("Action: 'list', 'add', or 'remove'.")] string action,
-        [Description("Domain name (required for 'add' and 'remove').")] string? name = null,
-        [Description("Display name.")] string? displayName = null,
-        [Description("Domain description.")] string? description = null,
-        [Description("Domain icon or emoji.")] string? icon = null,
-        [Description("Hex color code.")] string? color = null,
-        [Description("Reassign target domain when deleting.")] string? reassignTo = null,
-        [Description("Optional workspace root path.")] string? workspacePath = null,
+        string action,
+        string? name = null,
+        string? displayName = null,
+        string? description = null,
+        string? icon = null,
+        string? color = null,
+        string? reassignTo = null,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         string? wsRoot;
@@ -322,14 +320,12 @@ public partial class McpGraphHandler
     }
 
     [UsedImplicitly]
-    [McpServerTool]
-    [Description("Assign or override the architectural domain and bounded context for a service.")]
     public async Task<CallToolResult> AssignServiceDomainAsync(
-        [Description("Service or project name.")] string serviceName,
-        [Description("Target domain name.")] string? domainName = null,
-        [Description("Optional bounded context name.")] string? boundedContext = null,
-        [Description("Remove existing override if true.")] bool removeOverride = false,
-        [Description("Optional workspace root path.")] string? workspacePath = null,
+        string serviceName,
+        string? domainName = null,
+        string? boundedContext = null,
+        bool removeOverride = false,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         string? wsRoot;

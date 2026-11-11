@@ -74,8 +74,6 @@ public static class HelpDisplay
         Console.WriteLine("  configure               Auto-configure MCP servers and agent rules for AI tools");
         Console.WriteLine("  serve                   Run real-time WebSocket and HTTP API server (ws:// on --port)");
         Console.WriteLine("  ingest                  Direct batch ingestion of code nodes and relationships");
-        Console.WriteLine("  intent                  Enrich graph with architectural intents using native LLM distillation");
-        Console.WriteLine("  model                   Manage local LLM models (status, download)");
         Console.WriteLine("  test                    Test Impact Analysis (TIA): find exact test methods affected by changes");
         Console.WriteLine("  coverage                Analyze static test reachability coverage");
 

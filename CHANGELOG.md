@@ -5,6 +5,13 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.80.5] - 2026-11-11
+
+### Changed & Improved
+- **MCP & CLI Surface Cleanup (`McpGraphHandler.cs`, `McpGraphHandler.Tools.cs`, `CodeExplorerRepository.Lineage.cs`, `Program.cs`, `HelpDisplay.cs`)**:
+  - Temporarily hidden experimental **Domains & Bounded Contexts** from MCP (`get_bounded_contexts`, `manage_domain`, `assign_service_domain`, and `'domain'` view/diagram modes) and CLI (`ce domain`, `ce intent`, `ce model`, `ce scan --intent`) while keeping underlying ontology and services intact for upcoming architecture rework.
+  - Filtered `Domain`, `BoundedContext`, `LogicalStructure`, `BELONGS_TO_DOMAIN`, and intent/domain properties from `get_taxonomy` / `ce taxonomy`, `scan_workspace`, and `get_workspace_status` summaries.
+
 ## [1.80.4] - 2026-11-11
 
 ### Fixed

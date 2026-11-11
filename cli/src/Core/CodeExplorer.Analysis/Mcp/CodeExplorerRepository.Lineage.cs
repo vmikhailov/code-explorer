@@ -164,6 +164,27 @@ public partial class CodeExplorerRepository
         return finalYaml;
     }
 
+    private const string HiddenLabelDomain = "Domain";
+    private const string HiddenLabelBoundedContext = "BoundedContext";
+    private const string HiddenLabelLogicalStructure = "LogicalStructure";
+    private const string HiddenPropDomain = "domain";
+    private const string HiddenPropBoundedContext = "bounded_context";
+    private const string HiddenPropIntentSummary = "intent_summary";
+    private const string HiddenRelBelongsToDomain = "BELONGS_TO_DOMAIN";
+
+    public static bool IsTemporarilyHiddenTaxonomyLabel(string? label) =>
+        string.Equals(label, HiddenLabelDomain, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(label, HiddenLabelBoundedContext, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(label, HiddenLabelLogicalStructure, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTemporarilyHiddenTaxonomyProperty(string? prop) =>
+        string.Equals(prop, HiddenPropDomain, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(prop, HiddenPropBoundedContext, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(prop, HiddenPropIntentSummary, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTemporarilyHiddenTaxonomyRelationship(string? rel) =>
+        string.Equals(rel, HiddenRelBelongsToDomain, StringComparison.OrdinalIgnoreCase);
+
     public static string FormatTaxonomyYaml(string taxonomyJson)
     {
         var root = CypherValue.TryParseJsonText(taxonomyJson);
@@ -198,7 +219,9 @@ public partial class CodeExplorerRepository
         foreach (var entry in taxArr.AsArray())
         {
             var label = entry.GetStringProp(ColLabel);
-            if (string.IsNullOrEmpty(label) || OntologyRegistry.IsSystemNode(label))
+            if (string.IsNullOrEmpty(label)
+                || OntologyRegistry.IsSystemNode(label)
+                || IsTemporarilyHiddenTaxonomyLabel(label))
             {
                 continue;
             }
@@ -211,6 +234,7 @@ public partial class CodeExplorerRepository
                     var pStr = p.AsString();
                     if (!string.IsNullOrEmpty(pStr)
                         && !OntologyRegistry.IsSystemProperty(pStr)
+                        && !IsTemporarilyHiddenTaxonomyProperty(pStr)
                         && !OntologyRegistry.CommonPropertySet.Contains(pStr))
                     {
                         props.Add(pStr);
@@ -233,7 +257,11 @@ public partial class CodeExplorerRepository
                 {
                     var rel = edge.GetStringProp(PropRelationship);
                     var target = edge.GetStringProp(PropTarget);
-                    if (string.IsNullOrEmpty(rel) || string.IsNullOrEmpty(target) || OntologyRegistry.IsSystemNode(target))
+                    if (string.IsNullOrEmpty(rel)
+                        || string.IsNullOrEmpty(target)
+                        || OntologyRegistry.IsSystemNode(target)
+                        || IsTemporarilyHiddenTaxonomyLabel(target)
+                        || IsTemporarilyHiddenTaxonomyRelationship(rel))
                     {
                         continue;
                     }

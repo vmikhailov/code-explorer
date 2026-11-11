@@ -172,6 +172,47 @@ public class ToonYamlSerializerTests
     }
 
     [Test]
+    public void FormatTaxonomyYaml_HidesDomainAndBoundedContextLabelsEdgesAndProperties()
+    {
+        var taxonomyJson = """
+        {
+          "taxonomy": [
+            {
+              "label": "Project",
+              "properties": ["id", "name", "path", "project_id", "language", "domain", "bounded_context", "intent_summary"],
+              "outgoing": [
+                {"relationship": "BELONGS_TO_DOMAIN", "target": "Domain"},
+                {"relationship": "CONTAINS", "target": "File"}
+              ]
+            },
+            {
+              "label": "Domain",
+              "properties": ["id", "name", "path", "project_id"],
+              "outgoing": [
+                {"relationship": "CONTAINS", "target": "BoundedContext"}
+              ]
+            },
+            {
+              "label": "BoundedContext",
+              "properties": ["id", "name", "path", "project_id"],
+              "outgoing": []
+            }
+          ]
+        }
+        """;
+
+        var yaml = CodeExplorerRepository.FormatTaxonomyYaml(taxonomyJson);
+
+        yaml.Should().Contain("    Project: [language]");
+        yaml.Should().NotContain("Domain:");
+        yaml.Should().NotContain("BoundedContext");
+        yaml.Should().NotContain("L5_logical");
+        yaml.Should().NotContain("BELONGS_TO_DOMAIN");
+        yaml.Should().NotContain("bounded_context");
+        yaml.Should().NotContain("intent_summary");
+    }
+
+    [Test]
     public void OntologyRegistry_ResolvesSystemNodesPropertiesAndCommonPropertiesFromAttributes()
     {
         OntologyRegistry.CommonPropertyKeys.Should().BeEquivalentTo(["id", "name", "path", "project_id"], o => o.WithStrictOrdering());

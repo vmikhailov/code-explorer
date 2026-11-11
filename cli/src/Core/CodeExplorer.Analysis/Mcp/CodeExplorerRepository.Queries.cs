@@ -239,6 +239,9 @@ public partial class CodeExplorerRepository
 
         var indexer = new WorkspaceIndexer(client);
         var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetDir, ws.RootDirectory, clear: false, cancellationToken: cancellationToken);
+        var visibleNodesByKind = nodesByKind
+            .Where(kv => !IsTemporarilyHiddenTaxonomyLabel(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
 
         InvalidateCache();
 
@@ -249,7 +252,7 @@ public partial class CodeExplorerRepository
             scannedPath = targetDir,
             nodesCount,
             relationshipsCount = relsCount,
-            nodesByKind
+            nodesByKind = visibleNodesByKind
         });
     }
 
@@ -273,7 +276,7 @@ public partial class CodeExplorerRepository
         var client = await ResolveClientAsync(ws.RootDirectory);
 
         const string projectsStatusQuery = "MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path";
-        const string nodeCountsQuery = "MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC";
+        const string nodeCountsQuery = "MATCH (n) WHERE NOT n:Domain AND NOT n:BoundedContext AND NOT n:LogicalStructure RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC";
         var projRes = await client.ExecuteCypherAsync(projectsStatusQuery, null, cancellationToken);
         var countRes = await client.ExecuteCypherAsync(nodeCountsQuery, null, cancellationToken);
 

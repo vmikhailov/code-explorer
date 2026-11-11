@@ -75,7 +75,7 @@ public static class ScanCommandHandler
                     logger.LogInformation("Running fast incremental scan check...");
 
                     var changed = await indexer.IndexIncrementalAsync(targetPath, ws.RootDirectory,
-                        enableIntentAnalysis: opts.Intent);
+                        enableIntentAnalysis: false);
 
                     if (!changed)
                     {
@@ -109,7 +109,7 @@ public static class ScanCommandHandler
             if (performedFullIndex)
             {
                 var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath,
-                    ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: opts.Intent);
+                    ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: false);
                 PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
             }
 
@@ -139,7 +139,7 @@ public static class ScanCommandHandler
                     {
                         var changed = await indexer.IndexIncrementalAsync(targetPath,
                             ws.RootDirectory, cancellationToken: cts.Token,
-                            enableIntentAnalysis: opts.Intent);
+                            enableIntentAnalysis: false);
 
                         if (changed)
                         {
@@ -196,7 +196,9 @@ public static class ScanCommandHandler
         Console.ResetColor();
 
         Console.WriteLine("Nodes breakdown:");
-        foreach (var (kind, count) in nodesByKind.OrderByDescending(x => x.Value))
+        foreach (var (kind, count) in nodesByKind
+                     .Where(x => !CodeExplorer.Core.Mcp.CodeExplorerRepository.IsTemporarilyHiddenTaxonomyLabel(x.Key))
+                     .OrderByDescending(x => x.Value))
         {
             Console.WriteLine($"  - {kind,-20}: {count,6}");
         }

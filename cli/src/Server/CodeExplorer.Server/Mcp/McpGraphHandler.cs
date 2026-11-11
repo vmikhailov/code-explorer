@@ -300,9 +300,9 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'project-map', 'domain', 'tiers').")]
+    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'project-map', 'tiers').")]
     public async Task<CallToolResult> GetArchitectureViewAsync(
-        [Description("View level: 'c1', 'c2', 'c3', 'project-map' (internal modules, lifted calls & cycles of one project), 'domain', or 'tiers'. Default: 'c1'.")] string level = "c1",
+        [Description("View level: 'c1', 'c2', 'c3', 'project-map' (internal modules, lifted calls & cycles of one project), or 'tiers'. Default: 'c1'.")] string level = "c1",
         [Description("Optional project/service name filter. For 'project-map': project name, id, or path (defaults to the largest project).")] string? scope = null,
         [Description("Include shared libraries. Default: false.")] bool includeLibraries = false,
         [Description("Optional workspace root path.")] string? workspacePath = null,
@@ -312,10 +312,8 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool]
-    [Description("DDD Context Map: domains, entities, events, CQRS roles, and cross-context interactions.")]
     public async Task<CallToolResult> GetBoundedContextsAsync(
-        [Description("Optional workspace root path.")] string? workspacePath = null,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetBoundedContextsAsync(ws, cancellationToken), cancellationToken);
@@ -323,7 +321,7 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("High-level architecture overview grouped by semantic layers (Domain, Services, UI, Infra, Tests).")]
+    [Description("High-level architecture overview grouped by semantic layers (Core, Services, UI, Infra, Tests).")]
     public async Task<CallToolResult> GetArchitectureOverviewAsync(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)

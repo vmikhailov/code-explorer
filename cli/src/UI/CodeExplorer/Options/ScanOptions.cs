@@ -16,7 +16,7 @@ public class ScanOptions
 
     public bool ShouldClear => Clear || Clean;
 
-    [Option("intent", Default = false, HelpText = "Run LLM architectural intent distillation (cached intents are applied automatically by default).")]
+    [Option("intent", Default = false, Hidden = true, HelpText = "Run LLM architectural intent distillation (cached intents are applied automatically by default).")]
     public bool Intent { get; set; }
 
     [Option("watch", Default = false, HelpText = "Watch directory for file changes and reindex incrementally in background.")]

@@ -381,6 +381,43 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_ToolsList_OmitsDomainAndBoundedContextTools()
+    {
+        var payload = """
+        {
+            "jsonrpc": "2.0",
+            "id": 24,
+            "method": "tools/list",
+            "params": {}
+        }
+        """;
+
+        var responsePost = await PostMessageAsync(payload);
+        responsePost.IsSuccessStatusCode.Should().BeTrue();
+
+        var responseStr = await ReadNextSseResponseAsync();
+        var root = CypherValue.TryParseJsonText(responseStr);
+        root.GetIntProp("id").Should().Be(24);
+        root.TryGetProperty("result", out var resultElement).Should().BeTrue();
+        resultElement.TryGetProperty("tools", out var toolsElement).Should().BeTrue();
+
+        var tools = toolsElement.AsArray();
+        var toolNames = tools.Select(t => t.GetStringProp("name")).ToList();
+
+        toolNames.Should().Contain("get_architecture_map");
+        toolNames.Should().Contain("get_architecture_view");
+        toolNames.Should().NotContain("get_bounded_contexts");
+        toolNames.Should().NotContain("manage_domain");
+        toolNames.Should().NotContain("assign_service_domain");
+
+        var archViewTool = tools.First(t => t.GetStringProp("name") == "get_architecture_view");
+        archViewTool.ToJsonString().Should().NotContain("'domain'");
+
+        var exportDiagramTool = tools.First(t => t.GetStringProp("name") == "export_architecture_diagram");
+        exportDiagramTool.ToJsonString().Should().NotContain("'domain'");
+    }
+
+    [Test]
     public async Task Test_InspectDataLineage_AtsProject_Performance()
     {
         var atsDbPath = Environment.GetEnvironmentVariable("ATS_GRAPH_DB_PATH");

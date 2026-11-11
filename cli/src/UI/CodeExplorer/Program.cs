@@ -42,7 +42,7 @@ public class Program
             typeof(InitOptions), typeof(ScanOptions), typeof(IndexOptions), typeof(StatusOptions), typeof(InfoOptions),
             typeof(ClearOptions), typeof(QueriesOptions), typeof(QueryOptions), typeof(McpOptions), typeof(IngestOptions),
             typeof(ExportOptions), typeof(ServeOptions), typeof(DependenciesOptions), typeof(DepsOptions),
-            typeof(ContractsOptions), typeof(TraceOptions), typeof(IntentOptions), typeof(ModelOptions), typeof(DomainOptions),
+            typeof(ContractsOptions), typeof(TraceOptions),
             typeof(TestOptions), typeof(CoverageOptions), typeof(ConfigureOptions), typeof(GateOptions), typeof(CallersOptions),
             typeof(ImpactOptions), typeof(SearchOptions), typeof(TaxonomyOptions), typeof(SchemaOptions)
         ]);
@@ -65,9 +65,6 @@ public class Program
                 DependenciesOptions opts => await DependenciesCommandHandler.HandleAsync(opts),
                 ContractsOptions opts => await ContractsCommandHandler.HandleAsync(opts),
                 TraceOptions opts => await TraceCommandHandler.HandleAsync(opts),
-                IntentOptions opts => await IntentCommandHandler.HandleAsync(opts),
-                ModelOptions opts => await ModelCommandHandler.HandleAsync(opts),
-                DomainOptions opts => await DomainCommandHandler.HandleAsync(opts),
                 TestOptions opts => await TestCommandHandler.HandleAsync(opts),
                 CoverageOptions opts => await CoverageCommandHandler.HandleAsync(opts),
                 GateOptions opts => await GateCommandHandler.HandleAsync(opts),
