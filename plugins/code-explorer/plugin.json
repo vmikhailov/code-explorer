@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "code-explorer",
+  "displayName": "CodeExplorer",
+  "version": "1.82.0",
+  "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius analysis, and OpenCypher Semantic Invariant Gates for C#, TypeScript/JS, Go, Python, Java, Kotlin, Rust, and SQL.",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "Slava Mikhailov",
+    "url": "https://code-explorer.app"
+  },
+  "homepage": "https://code-explorer.app",
+  "repository": "https://github.com/vmikhailov/code-explorer",
+  "license": "MIT",
+  "keywords": [
+    "architecture",
+    "code-graph",
+    "mcp",
+    "call-graph",
+    "data-lineage",
+    "blast-radius",
+    "opencypher",
+    "architecture-gates"
+  ],
+  "suggestedPrompts": [
+    "Map this repository's services, APIs, message queues, and databases using CodeExplorer.",
+    "Analyze the blast radius and affected tests before refactoring this symbol.",
+    "Run Semantic Invariant Gates and fix any architectural violations."
+  ]
+}

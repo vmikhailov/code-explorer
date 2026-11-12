@@ -47,6 +47,7 @@
     <Compile Include="..\..\src\Tools\CodeExplorer.OntologyGen\Models.cs" Link="OntologyGen\Models.cs" />
     <Compile Include="..\..\src\Tools\CodeExplorer.OntologyGen\OntologyExtractor.cs" Link="OntologyGen\OntologyExtractor.cs" />
     <Compile Include="..\..\src\Tools\CodeExplorer.OntologyGen\MarkdownRenderer.cs" Link="OntologyGen\MarkdownRenderer.cs" />
+    <Compile Include="..\..\src\Tools\CodeExplorer.OntologyGen\JsonSchemaRenderer.cs" Link="OntologyGen\JsonSchemaRenderer.cs" />
   </ItemGroup>
 
   <ItemGroup>

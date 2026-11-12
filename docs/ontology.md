@@ -68,10 +68,9 @@ graph TD
         LogicalStructure["LogicalStructure"]
     end
 
+    ApiInUse -->|DECLARED_IN| File
     ApiInUse -->|ACCESSED_BY| Function
     ApiInUse -->|ACCESSED_BY| Type
-    App -->|LOCATED_IN| Folder
-    App -->|LOCATED_IN| Workspace
     App -->|IMPLEMENTED_BY| Project
     App -->|DEPENDS_ON| Library
     App -->|DEPENDS_ON| Package
@@ -84,6 +83,7 @@ graph TD
     App -->|READS_FROM| CloudService
     App -->|WRITES_TO| CloudService
     App -->|COORDINATES_WITH| PeerMesh
+    App -->|EXPOSES| Endpoint
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
     App -->|USES_API| ApiInUse
@@ -101,8 +101,6 @@ graph TD
     CallArgument -->|FLOWS_TO| Parameter
     CallLiteral -->|DECLARED_IN| File
     CatchClause -->|DECLARED_IN| File
-    CliTool -->|LOCATED_IN| Folder
-    CliTool -->|LOCATED_IN| Workspace
     CliTool -->|IMPLEMENTED_BY| Project
     CliTool -->|DEPENDS_ON| Library
     CliTool -->|DEPENDS_ON| Package
@@ -115,12 +113,19 @@ graph TD
     CliTool -->|WRITES_TO| CloudService
     CliTool -->|COORDINATES_WITH| PeerMesh
     CliTool -->|USES_DB| Database
+    CliTool -->|EXPOSES| Endpoint
     CliTool -->|CONTAINS| Endpoint
     CliTool -->|USES_API| ApiInUse
+    CliTool -->|CALLED_BY| Function
+    CloudService -->|DECLARED_IN| File
     CloudService -->|ACCESSED_BY| Function
     CloudService -->|ACCESSED_BY| Type
+    CloudService -->|TRANSITIVELY_CALLS| Function
+    Database -->|DECLARED_IN| File
     Database -->|ACCESSED_BY| Function
     Database -->|ACCESSED_BY| Type
+    Database -->|ACCESSED_BY| Query
+    Database -->|TRANSITIVELY_CALLS| Function
     Database -->|CONTAINS| Table
     Database -->|CONTAINS| Procedure
     Database -->|CONTAINS| Query
@@ -132,11 +137,23 @@ graph TD
     Endpoint -->|EXPOSED_BY| Function
     Endpoint -->|SUBSCRIBES_TO| Topic
     Endpoint -->|TARGETED_BY| CallArgument
+    Endpoint -->|DECLARED_IN| File
+    Endpoint -->|DECLARED_IN| Project
+    Endpoint -->|CALLS| Function
+    Endpoint -->|PASSES_LITERAL| CallLiteral
+    Endpoint -->|DECLARES| CatchClause
+    Endpoint -->|ATTRIBUTED_TO| Query
+    Endpoint -->|ATTRIBUTED_TO| Database
+    Endpoint -->|ATTRIBUTED_TO| ExternalService
+    Endpoint -->|ATTRIBUTED_TO| CloudService
     EntryPoint -->|DECLARED_IN| File
     EntryPoint -->|TRIGGERS| File
     EntryPoint -->|BELONGS_TO| Project
+    ExternalService -->|DECLARED_IN| File
+    ExternalService -->|DECLARED_IN| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
+    ExternalService -->|TRANSITIVELY_CALLS| Function
     ExternalService -->|TARGETED_BY| CallArgument
     File -->|CONTAINS| ScanIssue
     FilesStructure -->|CONTAINS| Folder
@@ -148,12 +165,19 @@ graph TD
     Folder -->|CONTAINS| ScanIssue
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
+    Function -->|CALLS| Type
     Function -->|USES_TYPE| Type
+    Function -->|INSTANTIATES| Type
+    Function -->|INSTANTIATES| Function
+    Function -->|INSTANTIATES| EntryPoint
     Function -->|IMPLEMENTS| EntryPoint
     Function -->|HAS_PARAMETER| Parameter
     Function -->|PASSES_ARGUMENT| CallArgument
-    Library -->|LOCATED_IN| Folder
-    Library -->|LOCATED_IN| Workspace
+    Function -->|PASSES_LITERAL| CallLiteral
+    Function -->|DECLARES| CatchClause
+    Function -->|DECLARES| Function
+    Function -->|DECLARES| Member
+    Function -->|DECLARES| Type
     Library -->|IMPLEMENTED_BY| Project
     Library -->|DEPENDS_ON| Library
     Library -->|DEPENDS_ON| Package
@@ -166,9 +190,8 @@ graph TD
     Library -->|READS_FROM| CloudService
     Library -->|WRITES_TO| CloudService
     Library -->|COORDINATES_WITH| PeerMesh
+    Library -->|EXPOSES| Endpoint
     Library -->|USES_API| ApiInUse
-    Library -->|CONTAINS| Type
-    Library -->|CONTAINS| Function
     Library -->|CALLED_BY| Function
     LogicalStructure -->|CONTAINS| Domain
     Member -->|DECLARED_IN| File
@@ -179,6 +202,7 @@ graph TD
     Parameter -->|DECLARED_IN| File
     Parameter -->|FLOWS_TO| CallArgument
     Procedure -->|CONTAINS| Query
+    Procedure -->|ACCESSED_BY| Function
     Procedure -->|TARGETED_BY| CallArgument
     Project -->|LOCATED_IN| Folder
     Project -->|LOCATED_IN| Workspace
@@ -189,16 +213,19 @@ graph TD
     Project -->|CONTAINS| File
     Project -->|CONTAINS| EntryPoint
     Project -->|HAS_ENTRYPOINT| EntryPoint
+    Project -->|USES_GIT| GitSettings
     ProjectsStructure -->|CONTAINS| Project
     ProjectsStructure -->|CONTAINS| EntryPoint
     ProjectSyntax -->|CONTAINS| Type
     ProjectSyntax -->|CONTAINS| Function
     ProjectSyntax -->|BELONGS_TO| Project
+    Query -->|DECLARED_IN| File
     Query -->|READS_FROM| Table
     Query -->|WRITES_TO| Table
     Query -->|DEPENDS_ON| Table
     Query -->|ACCESSED_BY| Function
     Query -->|ACCESSED_BY| Type
+    Query -->|TRANSITIVELY_CALLS| Function
     ScanIssue -->|DECLARED_IN| File
     SemanticStructure -->|CONTAINS| App
     SemanticStructure -->|CONTAINS| Service
@@ -216,8 +243,6 @@ graph TD
     SemanticStructure -->|CONTAINS| ApiInUse
     SemanticStructure -->|CONTAINS| Endpoint
     SemanticStructure -->|CONTAINS| PeerMesh
-    Service -->|LOCATED_IN| Folder
-    Service -->|LOCATED_IN| Workspace
     Service -->|IMPLEMENTED_BY| Project
     Service -->|DEPENDS_ON| Library
     Service -->|DEPENDS_ON| Package
@@ -226,6 +251,7 @@ graph TD
     Service -->|USES_DB| Database
     Service -->|PUBLISHES_TO| Topic
     Service -->|SUBSCRIBES_TO| Topic
+    Service -->|EXPOSES| Endpoint
     Service -->|CONTAINS| Endpoint
     Service -->|CONTAINS| CloudService
     Service -->|USES_CLOUD| CloudService
@@ -238,16 +264,18 @@ graph TD
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|ACCESSED_BY| Function
     Table -->|ACCESSED_BY| Type
+    Table -->|ACCESSED_BY| Query
     Table -->|TARGETED_BY| CallArgument
-    TestSuite -->|LOCATED_IN| Folder
-    TestSuite -->|LOCATED_IN| Workspace
     TestSuite -->|IMPLEMENTED_BY| Project
+    TestSuite -->|DEPENDS_ON| Library
     TestSuite -->|DEPENDS_ON| Package
+    TestSuite -->|USES_API| ApiInUse
     TestSuite -->|TESTS| Service
     TestSuite -->|TESTS| Library
     TestSuite -->|TESTS| App
     TestSuite -->|TESTS| Worker
     TestSuite -->|TESTS| CliTool
+    Topic -->|DECLARED_IN| File
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
     Topic -->|TARGETED_BY| CallArgument
@@ -258,8 +286,9 @@ graph TD
     Type -->|POTENTIAL_TYPE| Type
     Type -->|HAS_METHOD| Function
     Type -->|HAS_MEMBER| Member
-    Worker -->|LOCATED_IN| Folder
-    Worker -->|LOCATED_IN| Workspace
+    Type -->|CALLS| Function
+    Type -->|PASSES_LITERAL| CallLiteral
+    Type -->|DECLARES| Type
     Worker -->|IMPLEMENTED_BY| Project
     Worker -->|DEPENDS_ON| Library
     Worker -->|DEPENDS_ON| Package
@@ -272,6 +301,7 @@ graph TD
     Worker -->|READS_FROM| CloudService
     Worker -->|WRITES_TO| CloudService
     Worker -->|COORDINATES_WITH| PeerMesh
+    Worker -->|EXPOSES| Endpoint
     Worker -->|CONTAINS| Endpoint
     Worker -->|USES_API| ApiInUse
     Worker -->|CALLED_BY| Function
@@ -306,13 +336,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `App` | `LOCATED_IN` |
-| `CliTool` | `LOCATED_IN` |
-| `Library` | `LOCATED_IN` |
 | `Project` | `LOCATED_IN` |
-| `Service` | `LOCATED_IN` |
-| `TestSuite` | `LOCATED_IN` |
-| `Worker` | `LOCATED_IN` |
 
 **Properties:**
 
@@ -356,18 +380,25 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `ApiInUse` | `DECLARED_IN` |
 | `CallArgument` | `DECLARED_IN` |
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
+| `CloudService` | `DECLARED_IN` |
+| `Database` | `DECLARED_IN` |
+| `Endpoint` | `DECLARED_IN` |
 | `EntryPoint` | `DECLARED_IN` |
 | `EntryPoint` | `TRIGGERS` |
+| `ExternalService` | `DECLARED_IN` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
 | `Parameter` | `DECLARED_IN` |
 | `Project` | `CONTAINS` |
+| `Query` | `DECLARED_IN` |
 | `ScanIssue` | `DECLARED_IN` |
+| `Topic` | `DECLARED_IN` |
 | `Type` | `DECLARED_IN` |
 
 **Properties:**
@@ -429,15 +460,9 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `App` | `LOCATED_IN` |
-| `CliTool` | `LOCATED_IN` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
-| `Library` | `LOCATED_IN` |
 | `Project` | `LOCATED_IN` |
-| `Service` | `LOCATED_IN` |
-| `TestSuite` | `LOCATED_IN` |
-| `Worker` | `LOCATED_IN` |
 
 **Properties:**
 
@@ -457,6 +482,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `Folder` | `CONTAINS` |
+| `Project` | `USES_GIT` |
 
 **Properties:**
 
@@ -526,6 +552,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Function` | `INSTANTIATES` |
 | `Function` | `IMPLEMENTS` |
 | `Project` | `CONTAINS` |
 | `Project` | `HAS_ENTRYPOINT` |
@@ -602,6 +629,7 @@ graph TD
 | `CONTAINS` | `File` |
 | `CONTAINS` | `EntryPoint` |
 | `HAS_ENTRYPOINT` | `EntryPoint` |
+| `USES_GIT` | `GitSettings` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -609,7 +637,9 @@ graph TD
 | :--- | :--- |
 | `App` | `IMPLEMENTED_BY` |
 | `CliTool` | `IMPLEMENTED_BY` |
+| `Endpoint` | `DECLARED_IN` |
 | `EntryPoint` | `BELONGS_TO` |
+| `ExternalService` | `DECLARED_IN` |
 | `Library` | `IMPLEMENTED_BY` |
 | `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
@@ -736,6 +766,14 @@ graph TD
 | :--- | :--- |
 | `DECLARED_IN` | `File` |
 
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Endpoint` | `PASSES_LITERAL` |
+| `Function` | `PASSES_LITERAL` |
+| `Type` | `PASSES_LITERAL` |
+
 **Properties:**
 
 | Property | Type | Description |
@@ -765,6 +803,13 @@ graph TD
 | :--- | :--- |
 | `DECLARED_IN` | `File` |
 
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Endpoint` | `DECLARES` |
+| `Function` | `DECLARES` |
+
 **Properties:**
 
 | Property | Type | Description |
@@ -792,10 +837,19 @@ graph TD
 | :--- | :--- |
 | `DECLARED_IN` | `File` |
 | `CALLS` | `Function` |
+| `CALLS` | `Type` |
 | `USES_TYPE` | `Type` |
+| `INSTANTIATES` | `Type` |
+| `INSTANTIATES` | `Function` |
+| `INSTANTIATES` | `EntryPoint` |
 | `IMPLEMENTS` | `EntryPoint` |
 | `HAS_PARAMETER` | `Parameter` |
 | `PASSES_ARGUMENT` | `CallArgument` |
+| `PASSES_LITERAL` | `CallLiteral` |
+| `DECLARES` | `CatchClause` |
+| `DECLARES` | `Function` |
+| `DECLARES` | `Member` |
+| `DECLARES` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -803,22 +857,31 @@ graph TD
 | :--- | :--- |
 | `ApiInUse` | `ACCESSED_BY` |
 | `App` | `CALLED_BY` |
+| `CliTool` | `CALLED_BY` |
 | `CloudService` | `ACCESSED_BY` |
+| `CloudService` | `TRANSITIVELY_CALLS` |
 | `Database` | `ACCESSED_BY` |
+| `Database` | `TRANSITIVELY_CALLS` |
 | `Endpoint` | `TRIGGERS` |
 | `Endpoint` | `EXPOSED_BY` |
+| `Endpoint` | `CALLS` |
 | `ExternalService` | `CALLED_BY` |
+| `ExternalService` | `TRANSITIVELY_CALLS` |
 | `Function` | `CALLS` |
-| `Library` | `CONTAINS` |
+| `Function` | `INSTANTIATES` |
+| `Function` | `DECLARES` |
 | `Library` | `CALLED_BY` |
 | `Member` | `ACCESSED_BY` |
+| `Procedure` | `ACCESSED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
+| `Query` | `TRANSITIVELY_CALLS` |
 | `Service` | `CALLED_BY` |
 | `Table` | `ACCESSED_BY` |
 | `Topic` | `PUBLISHED_BY` |
 | `Topic` | `SUBSCRIBED_BY` |
 | `Type` | `HAS_METHOD` |
+| `Type` | `CALLS` |
 | `Worker` | `CALLED_BY` |
 
 **Properties:**
@@ -863,6 +926,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Function` | `DECLARES` |
 | `Type` | `HAS_MEMBER` |
 
 **Properties:**
@@ -987,6 +1051,9 @@ graph TD
 | `POTENTIAL_TYPE` | `Type` |
 | `HAS_METHOD` | `Function` |
 | `HAS_MEMBER` | `Member` |
+| `CALLS` | `Function` |
+| `PASSES_LITERAL` | `CallLiteral` |
+| `DECLARES` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -997,8 +1064,10 @@ graph TD
 | `CloudService` | `ACCESSED_BY` |
 | `Database` | `ACCESSED_BY` |
 | `Endpoint` | `EXPOSED_BY` |
+| `Function` | `CALLS` |
 | `Function` | `USES_TYPE` |
-| `Library` | `CONTAINS` |
+| `Function` | `INSTANTIATES` |
+| `Function` | `DECLARES` |
 | `Member` | `OF_TYPE` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
@@ -1007,6 +1076,7 @@ graph TD
 | `Type` | `IMPLEMENTS` |
 | `Type` | `INHERITS_FROM` |
 | `Type` | `POTENTIAL_TYPE` |
+| `Type` | `DECLARES` |
 
 **Properties:**
 
@@ -1039,6 +1109,7 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `DECLARED_IN` | `File` |
 | `ACCESSED_BY` | `Function` |
 | `ACCESSED_BY` | `Type` |
 
@@ -1053,6 +1124,7 @@ graph TD
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `CONTAINS` |
 | `Service` | `USES_API` |
+| `TestSuite` | `USES_API` |
 | `Worker` | `USES_API` |
 
 **Properties:**
@@ -1075,8 +1147,6 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `LOCATED_IN` | `Folder` |
-| `LOCATED_IN` | `Workspace` |
 | `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
@@ -1089,6 +1159,7 @@ graph TD
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
+| `EXPOSES` | `Endpoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `ApiInUse` |
 | `USES_API` | `ApiInUse` |
@@ -1124,8 +1195,6 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `LOCATED_IN` | `Folder` |
-| `LOCATED_IN` | `Workspace` |
 | `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
@@ -1138,8 +1207,10 @@ graph TD
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
 | `USES_DB` | `Database` |
+| `EXPOSES` | `Endpoint` |
 | `CONTAINS` | `Endpoint` |
 | `USES_API` | `ApiInUse` |
+| `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1171,8 +1242,10 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `DECLARED_IN` | `File` |
 | `ACCESSED_BY` | `Function` |
 | `ACCESSED_BY` | `Type` |
+| `TRANSITIVELY_CALLS` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1184,6 +1257,7 @@ graph TD
 | `CliTool` | `USES_CLOUD` |
 | `CliTool` | `READS_FROM` |
 | `CliTool` | `WRITES_TO` |
+| `Endpoint` | `ATTRIBUTED_TO` |
 | `Library` | `USES_CLOUD` |
 | `Library` | `READS_FROM` |
 | `Library` | `WRITES_TO` |
@@ -1203,6 +1277,8 @@ graph TD
 | `Name` | `string` | The name of the entity. |
 | `ResourceType` | `CloudResourceType` | The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `Provider` | `string?` | Cloud or SaaS vendor (aws, gcp, azure, cloudflare, stripe, firebase, supabase). |
+| `ResourceRole` | `string?` | Operational role of the cloud resource (storage, secrets, auth, compute, cdn, ai). |
 
 ---
 
@@ -1214,8 +1290,11 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `DECLARED_IN` | `File` |
 | `ACCESSED_BY` | `Function` |
 | `ACCESSED_BY` | `Type` |
+| `ACCESSED_BY` | `Query` |
+| `TRANSITIVELY_CALLS` | `Function` |
 | `CONTAINS` | `Table` |
 | `CONTAINS` | `Procedure` |
 | `CONTAINS` | `Query` |
@@ -1228,6 +1307,7 @@ graph TD
 | `App` | `USES_DB` |
 | `BoundedContext` | `CONTAINS` |
 | `CliTool` | `USES_DB` |
+| `Endpoint` | `ATTRIBUTED_TO` |
 | `Library` | `USES_DB` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `USES_DB` |
@@ -1240,6 +1320,16 @@ graph TD
 | `Name` | `string` | The database engine or catalog name. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `DbType` | `DatabaseType` | The database system type (sqlserver, postgres, sqlite, mongodb, neo4j). |
+| `DisplayName` | `string?` | Human-readable database or catalog display name. |
+| `Engine` | `string?` | Detected database engine (e.g. postgresql, sqlserver, sqlite, mysql, mongodb, redis). |
+| `Technology` | `string?` | ORM, driver, or client technology accessing the database (e.g. EF Core, Dapper, Prisma, TypeORM). |
+| `Schema` | `string?` | Physical database schema name when declared (e.g. public, dbo, billing). |
+| `Provider` | `string?` | Database driver or provider package identifier. |
+| `Role` | `string?` | Storage role classification (primary, cache, analytics, read-replica). |
+| `ConfigKey` | `string?` | Configuration key or connection string name bound to this database. |
+| `FromConfig` | `bool?` | Indicates whether the database connection was discovered from configuration files. |
+| `IsTest` | `bool?` | Indicates whether this database instance is used exclusively in tests. |
+| `IsOrm` | `bool?` | Indicates whether access was inferred via an ORM entity/DbContext mapping. |
 
 ---
 
@@ -1268,16 +1358,30 @@ graph TD
 | `EXPOSED_BY` | `Function` |
 | `SUBSCRIBES_TO` | `Topic` |
 | `TARGETED_BY` | `CallArgument` |
+| `DECLARED_IN` | `File` |
+| `DECLARED_IN` | `Project` |
+| `CALLS` | `Function` |
+| `PASSES_LITERAL` | `CallLiteral` |
+| `DECLARES` | `CatchClause` |
+| `ATTRIBUTED_TO` | `Query` |
+| `ATTRIBUTED_TO` | `Database` |
+| `ATTRIBUTED_TO` | `ExternalService` |
+| `ATTRIBUTED_TO` | `CloudService` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `EXPOSES` |
 | `App` | `CONTAINS` |
+| `CliTool` | `EXPOSES` |
 | `CliTool` | `CONTAINS` |
 | `ExternalService` | `CALLS_ENDPOINT` |
+| `Library` | `EXPOSES` |
 | `SemanticStructure` | `CONTAINS` |
+| `Service` | `EXPOSES` |
 | `Service` | `CONTAINS` |
+| `Worker` | `EXPOSES` |
 | `Worker` | `CONTAINS` |
 
 **Properties:**
@@ -1295,6 +1399,15 @@ graph TD
 | `RequestType` | `string?` | The request payload type (e.g. StartRideRequest, CreateOrderDto). |
 | `ResponseType` | `string?` | The response payload type (e.g. RideDto, OrderResponse). |
 | `OperationType` | `OperationType?` | The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming). |
+| `FilePath` | `string?` | Workspace-relative source file declaring the endpoint. |
+| `StartLine` | `int?` | 1-indexed starting line number of the endpoint declaration. |
+| `Line` | `int?` | 1-indexed source line number of the route or contract mapping. |
+| `Operation` | `string?` | Operation or handler action name associated with this endpoint. |
+| `EvidenceKind` | `string?` | Extraction provenance kind (endpoint, grpc, graphql, ws, consumer). |
+| `GraphqlField` | `string?` | Exposed GraphQL root field name when protocol is GraphQL. |
+| `IsGraphqlSdl` | `bool?` | Indicates whether the endpoint was extracted from a GraphQL SDL schema. |
+| `StatusCode` | `string?` | Declared HTTP response status codes (e.g. 200, 201, 404). |
+| `Summary` | `string?` | OpenAPI / Swagger or docstring endpoint summary. |
 
 ---
 
@@ -1306,8 +1419,11 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `DECLARED_IN` | `Project` |
 | `CALLS_ENDPOINT` | `Endpoint` |
 | `CALLED_BY` | `Function` |
+| `TRANSITIVELY_CALLS` | `Function` |
 | `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1316,10 +1432,29 @@ graph TD
 | :--- | :--- |
 | `App` | `SERVICE_CALL` |
 | `CliTool` | `SERVICE_CALL` |
+| `Endpoint` | `ATTRIBUTED_TO` |
 | `Library` | `SERVICE_CALL` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `SERVICE_CALL` |
 | `Worker` | `SERVICE_CALL` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | Logical host or external client dependency name. |
+| `Protocol` | `string` | Outbound transport protocol (HTTP, HTTPS, gRPC, GraphQL, WS, WCF). |
+| `DomainOrService` | `string` | Target domain hostname or logical service identifier. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `FilePath` | `string?` | Workspace-relative source file issuing the outbound call. |
+| `StartLine` | `int?` | 1-indexed line number of the outbound client call. |
+| `BaseUrl` | `string?` | Configured base URL or service address. |
+| `Url` | `string?` | Resolved outbound request URL or path template. |
+| `ConfigKey` | `string?` | Configuration setting or environment variable supplying the host URL. |
+| `GraphqlField` | `string?` | Queried GraphQL field name on the remote service. |
+| `OperationType` | `string?` | Remote operation kind (Query, Mutation, Unary, Streaming). |
+| `Method` | `string?` | Outbound HTTP verb or RPC method name. |
+| `IsExternal` | `bool?` | True when the target resolves outside workspace services. |
 
 ---
 
@@ -1331,8 +1466,6 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `LOCATED_IN` | `Folder` |
-| `LOCATED_IN` | `Workspace` |
 | `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
@@ -1345,9 +1478,8 @@ graph TD
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
+| `EXPOSES` | `Endpoint` |
 | `USES_API` | `ApiInUse` |
-| `CONTAINS` | `Type` |
-| `CONTAINS` | `Function` |
 | `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1360,6 +1492,7 @@ graph TD
 | `Library` | `DEPENDS_ON` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `DEPENDS_ON` |
+| `TestSuite` | `DEPENDS_ON` |
 | `TestSuite` | `TESTS` |
 | `Worker` | `DEPENDS_ON` |
 
@@ -1412,6 +1545,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CONTAINS` | `Query` |
+| `ACCESSED_BY` | `Function` |
 | `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1431,19 +1565,38 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `DECLARED_IN` | `File` |
 | `READS_FROM` | `Table` |
 | `WRITES_TO` | `Table` |
 | `DEPENDS_ON` | `Table` |
 | `ACCESSED_BY` | `Function` |
 | `ACCESSED_BY` | `Type` |
+| `TRANSITIVELY_CALLS` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `Database` | `ACCESSED_BY` |
 | `Database` | `CONTAINS` |
+| `Endpoint` | `ATTRIBUTED_TO` |
 | `Procedure` | `CONTAINS` |
 | `SemanticStructure` | `CONTAINS` |
+| `Table` | `ACCESSED_BY` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | Short query identifier or operation summary. |
+| `QueryText` | `string` | Extracted SQL or query statement text. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `StartLine` | `int` | 1-indexed starting line number of the query in source. |
+| `Verb` | `string?` | SQL DML/DDL verb (SELECT, INSERT, UPDATE, DELETE, MERGE, EXEC). |
+| `Operation` | `string?` | Normalized data access operation (read, write, schema). |
+| `EvidenceKind` | `string?` | Extraction provenance kind (query, orm, migration, procedure). |
+| `FilePath` | `string?` | Workspace-relative source file path declaring the query. |
+| `Line` | `int?` | 1-indexed source line of the query call site. |
 
 ---
 
@@ -1495,8 +1648,6 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `LOCATED_IN` | `Folder` |
-| `LOCATED_IN` | `Workspace` |
 | `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
@@ -1505,6 +1656,7 @@ graph TD
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
 | `SUBSCRIBES_TO` | `Topic` |
+| `EXPOSES` | `Endpoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `CloudService` |
 | `USES_CLOUD` | `CloudService` |
@@ -1552,6 +1704,7 @@ graph TD
 | :--- | :--- |
 | `ACCESSED_BY` | `Function` |
 | `ACCESSED_BY` | `Type` |
+| `ACCESSED_BY` | `Query` |
 | `TARGETED_BY` | `CallArgument` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1565,6 +1718,16 @@ graph TD
 | `Query` | `DEPENDS_ON` |
 | `SemanticStructure` | `CONTAINS` |
 
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | Physical database table or view name. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `Engine` | `string?` | Database engine hosting this table (e.g. postgresql, sqlserver, sqlite). |
+| `Schema` | `string?` | Database schema qualifying this table (e.g. dbo, public, core). |
+| `EntityName` | `string?` | Mapped ORM entity or domain model type name, if applicable. |
+
 ---
 
 #### `TestSuite`
@@ -1575,10 +1738,10 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `LOCATED_IN` | `Folder` |
-| `LOCATED_IN` | `Workspace` |
 | `IMPLEMENTED_BY` | `Project` |
+| `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
+| `USES_API` | `ApiInUse` |
 | `TESTS` | `Service` |
 | `TESTS` | `Library` |
 | `TESTS` | `App` |
@@ -1613,6 +1776,7 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `DECLARED_IN` | `File` |
 | `PUBLISHED_BY` | `Function` |
 | `SUBSCRIBED_BY` | `Function` |
 | `TARGETED_BY` | `CallArgument` |
@@ -1642,6 +1806,11 @@ graph TD
 | `Name` | `string` | The name of the topic or exchange. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `BrokerType` | `BrokerType` | The broker system type (rabbitmq, kafka, sqs, in-memory). |
+| `FilePath` | `string?` | Workspace-relative source file declaring or referencing the topic. |
+| `Line` | `int?` | 1-indexed source line of the publish or subscribe site. |
+| `MessagingDirection` | `string?` | Direction of broker interaction (publish, subscribe, both). |
+| `Scope` | `string?` | Broker scope or virtual host / namespace. |
+| `MessageType` | `string?` | Payload or event contract type published/consumed on this topic. |
 
 ---
 
@@ -1653,8 +1822,6 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `LOCATED_IN` | `Folder` |
-| `LOCATED_IN` | `Workspace` |
 | `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
@@ -1667,6 +1834,7 @@ graph TD
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
+| `EXPOSES` | `Endpoint` |
 | `CONTAINS` | `Endpoint` |
 | `USES_API` | `ApiInUse` |
 | `CALLED_BY` | `Function` |
@@ -1793,6 +1961,7 @@ graph TD
 | Relationship Label | Description |
 | :--- | :--- |
 | `ACCESSED_BY` | Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it. |
+| `ATTRIBUTED_TO` | Links an ingress endpoint or binary entry point to a downstream database, query, cloud resource, or external service reached along its call chain. |
 | `BELONGS_TO` | Links an entity to its parent project or container. |
 | `CALLED_BY` | Links a service, external service, or database to the function that invokes or queries it. |
 | `CALLS` | Links a calling function to the function it directly invokes. |
@@ -1832,7 +2001,9 @@ graph TD
 | `SUBSCRIBED_BY` | Links a topic to the function that subscribes to it. |
 | `SUBSCRIBES_TO` | Links a service or handler function to a message queue or topic it listens to or consumes events from. |
 | `TARGETED_BY` | Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it. |
+| `TESTS` | Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies. |
 | `TRANSFORMS_TO` | Links a data model or dataset representing a transformation step to its destination structure. |
+| `TRANSITIVELY_CALLS` | Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph. |
 | `TRIGGERS` | Links an entry point or API endpoint to the handler function it triggers. |
 | `USES_API` | Links a project, file, or class to an external API library or client model. |
 | `USES_CLOUD` | Links a project, file, or class to a cloud service resource. |

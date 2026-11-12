@@ -45,6 +45,11 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
         return _viewEngine.GetOntologyLayersAsync(ct);
     }
 
+    public Task<OntologySchemaResponseDto> GetOntologySchemaAsync(CancellationToken ct = default)
+    {
+        return _viewEngine.GetOntologySchemaAsync(ct);
+    }
+
     public Task<List<ServiceSummaryDto>> GetServicesOntologySummaryAsync(CancellationToken ct = default)
     {
         return _viewEngine.GetServicesOntologySummaryAsync(ct);

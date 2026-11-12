@@ -15,21 +15,22 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<QueryNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record TableNode(
     string Id,
-    string Name,
-    string Path,
+    [property: OntologyProperty("Physical database table or view name.")] string Name,
+    [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     Dictionary<string, string>? CustomProperties = null
 ) : CompositeNode(Id, CustomProperties)
 {
-    [JsonPropertyName("engine")]
+    [JsonPropertyName("engine"), OntologyProperty("Database engine hosting this table (e.g. postgresql, sqlserver, sqlite).")]
     public string? Engine { get; set; }
 
-    [JsonPropertyName("schema")]
+    [JsonPropertyName("schema"), OntologyProperty("Database schema qualifying this table (e.g. dbo, public, core).")]
     public string? Schema { get; set; }
 
-    [JsonPropertyName("entity")]
+    [JsonPropertyName("entity"), OntologyProperty("Mapped ORM entity or domain model type name, if applicable.")]
     public string? EntityName { get; set; }
 
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the table node uses an implicit default schema.", isSystem: true)]

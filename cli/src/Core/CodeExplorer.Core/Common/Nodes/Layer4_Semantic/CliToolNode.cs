@@ -1,7 +1,7 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
@@ -14,8 +14,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 4,
     pluralLabel: "CLI Tools"
 )]
-[OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
-[OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
@@ -28,8 +26,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.WritesTo)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.CoordinatesWith)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Exposes)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
 public record CliToolNode(
     string Id,
     [property: OntologyProperty("The CLI tool name.")] string Name,

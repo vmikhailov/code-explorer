@@ -5,6 +5,26 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.82.0] - 2026-11-12
+
+### Added
+- **Consent-First MCP Registration in VS Code Extension (`mcpRegistration.ts`, `processManager.ts`, `extension.ts`, `package.json`)**:
+  - Added non-blocking startup consent prompt (`Register MCP` / `Later` / `Don't Ask Again`, controlled by `codeExplorer.mcp.promptToRegister`) when CodeExplorer is not yet registered in the host IDE's MCP configuration.
+  - Registered native VS Code MCP provider (`codeExplorer.mcpProvider` via `vscode.lm.registerMcpServerDefinitionProvider`) gated strictly by user consent, alongside global config writers for VS Code, Cursor, Google Antigravity, Windsurf, and Claude Code.
+  - Added interactive multi-select `CodeExplorer: Register MCP Server for AI Agents` (`codeExplorer.registerMcp`) command so users can pick exact target IDEs/agents at any time.
+- **Multi-Agent Marketplace Plugin Bundle (`plugins/code-explorer/`, `.claude-plugin/`, `.cursor-plugin/`, `.agents/plugins/`, `gemini-extension.json`)**:
+  - Added native plugin manifests, `SKILL.md` routing instructions, `AGENTS.md` exploration rules, and zero-dependency `plugins/code-explorer/mcp/launch.mjs` stdio launcher (resolving local binaries or auto-provisioning from GitHub Releases) for Claude Code, Cursor, OpenAI Codex, Gemini CLI, and Google Antigravity.
+- **Interactive Ontology Explorer & Schema Generator (`OntologyExplorerView.tsx`, `OntologyForceGraph.tsx`, `ArchitectureViewEngine.OntologyServices.cs`, `ServerRouteBuilderExtensions.Ontology.cs`, `CodeExplorer.OntologyGen`)**:
+  - Added interactive 5-layer graph ontology map (`codeExplorer.openOntologyMap`, `GET /api/ontology`, and WebSocket schema queries) with force-directed canvas rendering, layer/category filtering, relationship inspection, and live entity counts.
+  - Added `JsonSchemaRenderer` and generated canonical `proto/ontology-schema.json` alongside updated `docs/ontology.md` and relationship definitions (`TESTS`, `TRANSITIVELY_CALLS`, `ATTRIBUTED_TO`).
+- **Website Interactive Ontology & Architecture Showcase (`site/ontology.html`, `site/architectures.html`)**:
+  - Added interactive ontology explorer and real-world open-source architecture showcase pages on `code-explorer.app`.
+
+### Improved & Fixed
+- **CLI `ce configure` Global Executable Resolution (`McpCommandResolver.cs`, `ConfigureOptions.cs`, `ConfigureCommandHandler.cs`, `CursorAdapter.cs`, `VsCodeAdapter.cs`)**:
+  - Added `--command-path` flag and automatic full-path fallback (`Environment.ProcessPath`) when writing global MCP configs while `ce` is not on system `PATH`.
+  - Updated Cursor global Windows config path to `~/.cursor/mcp.json` and added `ConfigScope.Global` (`User/mcp.json` with `"servers"` / `"type": "stdio"`) support to `VsCodeAdapter`.
+
 ## [1.81.0] - 2026-11-12
 
 ### Added

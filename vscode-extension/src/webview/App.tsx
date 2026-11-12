@@ -26,6 +26,7 @@ import { MermaidDiagramView } from './components/MermaidDiagramView';
 import { SettingsView, AiSettings, ModelDescriptor, ModelStatus } from './components/SettingsView';
 import { GateEditorView } from './components/GateEditorView';
 import { ProjectMapView } from './components/ProjectMapView';
+import { OntologyExplorerView } from './components/OntologyExplorerView';
 import {
   CommandManager,
   CommandProvider,
@@ -140,6 +141,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return this.props.children;
   }
 }
+
+const VIEW_MODE_GRID: ViewMode = 'grid';
 
 export const App: React.FC = () => {
   const initialConfig = typeof window !== 'undefined' ? window.__CE_CONFIG__ : undefined;
@@ -1730,17 +1733,17 @@ export const App: React.FC = () => {
             )}
 
             {viewMode === 'gate-editor' && (
-              <GateEditorView
-                gateId={gateEditorRequest?.gateId}
-                serverHttpUrl={serverHttpUrl}
-                onOpenFile={handleOpenFile}
-              />
+              <GateEditorView gateId={gateEditorRequest?.gateId} serverHttpUrl={serverHttpUrl} onOpenFile={handleOpenFile} />
+            )}
+
+            {viewMode === 'ontology' && (
+              <OntologyExplorerView serverHttpUrl={serverHttpUrl} onOpenNodeGrid={(kind, layerTitle) => { setGridCategory({ kind, layerTitle }); handleViewModeChange(VIEW_MODE_GRID); }} onRunSampleCypher={setCypherQuery} />
             )}
           </ErrorBoundary>
         </main>
 
-        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view, settings, and gate editor) */}
-        {selectedDrawerNode && viewMode !== 'semantic' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
+        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view, settings, gate editor, and ontology map) */}
+        {selectedDrawerNode && viewMode !== 'semantic' && viewMode !== 'settings' && viewMode !== 'gate-editor' && viewMode !== 'ontology' && (
           <aside className="drawer" role="complementary" aria-label="Node Inspector">
             <div className="drawer-header">
               <span className={`badge badge-${(selectedDrawerNode.kind || '').toLowerCase()}`}>

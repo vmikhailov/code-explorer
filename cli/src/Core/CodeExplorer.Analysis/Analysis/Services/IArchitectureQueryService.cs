@@ -43,6 +43,11 @@ public interface IArchitectureQueryService
     Task<OntologyLayersResponseDto> GetOntologyLayersAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Retrieves the static build-time ontology schema paired with live workspace node, edge, and triple counts.
+    /// </summary>
+    Task<OntologySchemaResponseDto> GetOntologySchemaAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Retrieves ontology services summary list with component counts (endpoints, dbs, topics, external APIs).
     /// </summary>
     Task<List<ServiceSummaryDto>> GetServicesOntologySummaryAsync(CancellationToken ct = default);

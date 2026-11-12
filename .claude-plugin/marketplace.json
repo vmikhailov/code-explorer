@@ -1,0 +1,17 @@
+{
+  "name": "code-explorer",
+  "owner": {
+    "name": "Slava Mikhailov",
+    "url": "https://code-explorer.app"
+  },
+  "metadata": {
+    "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius analysis, and OpenCypher Semantic Invariant Gates."
+  },
+  "plugins": [
+    {
+      "name": "code-explorer",
+      "source": "./plugins/code-explorer",
+      "description": "Query your repository's resolved 5-layer architecture graph via MCP & OpenCypher: cross-service HTTP/gRPC/Kafka flows, SQL/ORM table lineage, blast-radius impact, and CI architecture gates. C#, TypeScript/JS, Go, Python, Java, Kotlin, Rust, SQL."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "codeexplorer": {
+      "command": "node",
+      "args": ["mcp/launch.mjs"],
+      "cwd": "."
+    }
+  }
+}

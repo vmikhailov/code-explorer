@@ -552,6 +552,48 @@ public class OntologyLayersResponseDto
     public long TotalEdges { get; set; }
 }
 
+public class OntologyObservedTripleDto
+{
+    [JsonPropertyName("fromKind")]
+    public string FromLabel { get; set; } = string.Empty;
+
+    [JsonPropertyName("rel")]
+    public string Rel { get; set; } = string.Empty;
+
+    [JsonPropertyName("toKind")]
+    public string ToLabel { get; set; } = string.Empty;
+
+    [JsonPropertyName("count")]
+    public long Count { get; set; }
+}
+
+public class OntologyWorkspaceStatsDto
+{
+    [JsonPropertyName("totalNodes")]
+    public long TotalNodes { get; set; }
+
+    [JsonPropertyName("totalEdges")]
+    public long TotalEdges { get; set; }
+
+    [JsonPropertyName("nodeCounts")]
+    public Dictionary<string, long> NodeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonPropertyName("relationshipCounts")]
+    public Dictionary<string, long> RelationshipCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonPropertyName("observedTriples")]
+    public List<OntologyObservedTripleDto> ObservedTriples { get; set; } = [];
+}
+
+public class OntologySchemaResponseDto
+{
+    [JsonPropertyName("schema")]
+    public JsonElement Schema { get; set; }
+
+    [JsonPropertyName("workspace")]
+    public OntologyWorkspaceStatsDto Workspace { get; set; } = new();
+}
+
 // ============================================================================
 // Domain Architecture DTOs (Service Map & Bounded Contexts)
 // ============================================================================

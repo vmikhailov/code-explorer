@@ -539,6 +539,13 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
       icon: 'git-compare',
       tooltip: 'Project Flow — Topological dependency columns, call chains, and message flows',
     },
+    {
+      mode: 'ontology',
+      label: 'Ontology Map',
+      desc: '4-layer schema, properties & edges',
+      icon: 'symbol-structure',
+      tooltip: 'Ontology Map — Interactive 4-layer visualization of all entity kinds, properties, and relationships collected by CodeExplorer',
+    },
   ];
 
   return diagrams.map((d) => {

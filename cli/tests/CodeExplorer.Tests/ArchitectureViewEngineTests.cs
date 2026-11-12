@@ -324,6 +324,25 @@ public class ArchitectureViewEngineTests
     }
 
     [Test]
+    public async Task GetOntologySchemaAsync_ReturnsEmbeddedSchemaAndObservedWorkspaceTriples()
+    {
+        var schemaResponse = await _engine.GetOntologySchemaAsync();
+
+        schemaResponse.Schema.GetProperty("schemaVersion").GetString().Should().Be("1.0");
+        schemaResponse.Schema.GetProperty("layers").GetArrayLength().Should().Be(4);
+        schemaResponse.Schema.GetProperty("nodes").GetArrayLength().Should().BeGreaterThan(15);
+
+        var schemaText = schemaResponse.Schema.GetRawText();
+        schemaText.Should().NotContain("\"Domain\"");
+        schemaText.Should().NotContain("\"BoundedContext\"");
+        schemaText.Should().NotContain("BELONGS_TO_DOMAIN");
+
+        schemaResponse.Workspace.TotalNodes.Should().BeGreaterThan(0);
+        schemaResponse.Workspace.NodeCounts.Should().NotContainKey("Domain");
+        schemaResponse.Workspace.ObservedTriples.Should().NotBeEmpty();
+    }
+
+    [Test]
     public async Task GetMetadataAsync_DoesNotDoubleCountSemanticWorkloadNodes()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_double_count_test_" + Guid.NewGuid().ToString("N"));

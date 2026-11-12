@@ -1,5 +1,6 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -13,8 +14,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 13,
     pluralLabel: "Cloud Resources"
 )]
+[OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.TransitivelyCalls)]
 public record CloudServiceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
@@ -28,10 +31,10 @@ public record CloudServiceNode(
     {
     }
 
-    [JsonPropertyName("provider")]
+    [JsonPropertyName("provider"), OntologyProperty("Cloud or SaaS vendor (aws, gcp, azure, cloudflare, stripe, firebase, supabase).")]
     public string? Provider { get; set; }
 
-    [JsonPropertyName("resource_role")]
+    [JsonPropertyName("resource_role"), OntologyProperty("Operational role of the cloud resource (storage, secrets, auth, compute, cdn, ai).")]
     public string? ResourceRole { get; set; }
 
     [JsonIgnore]

@@ -261,7 +261,21 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         noticeItem.iconPath = new vscode.ThemeIcon('info');
         noticeItem.tooltip = 'Run Initialize & Scan Workspace to parse ASTs and build the architecture graph.';
 
-        return [initItem, noticeItem];
+        const ontologyPreviewItem = new CodeExplorerTreeItem(
+          TREE_ITEM_TYPES.DIAGRAM_ITEM,
+          'Ontology Map',
+          vscode.TreeItemCollapsibleState.None,
+          { viewMode: 'ontology' }
+        );
+        ontologyPreviewItem.description = '4-layer schema & properties';
+        ontologyPreviewItem.iconPath = new vscode.ThemeIcon('symbol-structure');
+        ontologyPreviewItem.tooltip = 'Explore all 4 ontology layers, properties, and relationships collected by CodeExplorer';
+        ontologyPreviewItem.command = {
+          command: 'codeExplorer.openOntologyMap',
+          title: 'Open Ontology Map',
+        };
+
+        return [initItem, ontologyPreviewItem, noticeItem];
       }
 
       // Root level sections:

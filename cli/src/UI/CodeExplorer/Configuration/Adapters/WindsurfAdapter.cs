@@ -28,20 +28,29 @@ public class WindsurfAdapter : IMcpTargetAdapter
         return Path.Combine(userProfile, ".codeium", "windsurf", "mcp_config.json");
     }
 
+    private const string KeyCommand = "command";
+    private const string KeyArgs = "args";
+    private const string KeyCwd = "cwd";
+    private const string KeyEnv = "env";
+    private const string EnvWorkspaceRoot = "WORKSPACE_ROOT";
+    private const string ArgMcp = "mcp";
+    private const string ArgQuiet = "-q";
+    private const string WorkspaceFolderPlaceholder = "${workspaceFolder}";
+
     public JsonObject GenerateMcpConfig(string workspaceRoot, ConfigScope scope)
     {
         var config = new JsonObject
         {
-            ["command"] = "ce",
-            ["args"] = new JsonArray("mcp")
+            [KeyCommand] = McpCommandResolver.ResolveCommand(scope),
+            [KeyArgs] = new JsonArray(ArgMcp, ArgQuiet)
         };
 
         if (scope == ConfigScope.Workspace)
         {
-            config["cwd"] = "${workspaceFolder}";
-            config["env"] = new JsonObject
+            config[KeyCwd] = WorkspaceFolderPlaceholder;
+            config[KeyEnv] = new JsonObject
             {
-                ["WORKSPACE_ROOT"] = "${workspaceFolder}"
+                [EnvWorkspaceRoot] = WorkspaceFolderPlaceholder
             };
         }
 

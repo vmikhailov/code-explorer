@@ -34,4 +34,7 @@ public class ConfigureOptions : ITargetOption
 
     [Option("root", Required = false, HelpText = "Workspace root directory (defaults to current workspace).")]
     public string? Root { get; set; }
+
+    [Option("command-path", Required = false, HelpText = "Explicit path to the 'ce' executable to write into MCP configuration.")]
+    public string? CommandPath { get; set; }
 }

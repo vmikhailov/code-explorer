@@ -401,6 +401,110 @@ export interface NodeEvidenceResponseDto {
 }
 
 // ============================================================================
+// Ontology Schema & Live Workspace Telemetry DTOs (/api/ontology)
+// ============================================================================
+
+export type OntologyEdgeCategoryId = 'control_flow' | 'data_flow' | 'type_dependency' | 'structural' | string;
+
+export interface OntologyLayerMetaDto {
+  layerId: number;
+  key: string;
+  name: string;
+  title: string;
+  description: string;
+}
+
+export interface OntologyEdgeCategoryMetaDto {
+  id: OntologyEdgeCategoryId;
+  label: string;
+  description: string;
+}
+
+export interface OntologyPropertySchemaDto {
+  name: string;
+  sourceName: string;
+  type: string;
+  description: string;
+}
+
+export interface OntologyOutboundEdgeSchemaDto {
+  rel: string;
+  toKind: string;
+  category: OntologyEdgeCategoryId;
+  description: string;
+}
+
+export interface OntologyInboundEdgeSchemaDto {
+  rel: string;
+  fromKind: string;
+  category: OntologyEdgeCategoryId;
+  description: string;
+}
+
+export interface OntologyNodeSchemaDto {
+  kind: string;
+  pluralLabel: string;
+  layerId: number;
+  layerKey: string;
+  icon: string;
+  order: number;
+  idScheme: string;
+  purpose: string;
+  properties: OntologyPropertySchemaDto[];
+  outEdges: OntologyOutboundEdgeSchemaDto[];
+  inEdges: OntologyInboundEdgeSchemaDto[];
+  sampleCypher: string;
+}
+
+export interface OntologyEdgePropertySchemaDto {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface OntologyEdgePairSchemaDto {
+  fromKind: string;
+  toKind: string;
+}
+
+export interface OntologyRelationshipSchemaDto {
+  rel: string;
+  category: OntologyEdgeCategoryId;
+  description: string;
+  properties: OntologyEdgePropertySchemaDto[];
+  pairs: OntologyEdgePairSchemaDto[];
+}
+
+export interface OntologySchemaDocumentDto {
+  schemaVersion: string;
+  layers: OntologyLayerMetaDto[];
+  edgeCategories: OntologyEdgeCategoryMetaDto[];
+  commonProperties: OntologyPropertySchemaDto[];
+  nodes: OntologyNodeSchemaDto[];
+  relationships: OntologyRelationshipSchemaDto[];
+}
+
+export interface OntologyObservedTripleDto {
+  fromKind: string;
+  rel: string;
+  toKind: string;
+  count: number;
+}
+
+export interface OntologyWorkspaceStatsDto {
+  totalNodes: number;
+  totalEdges: number;
+  nodeCounts: Record<string, number>;
+  relationshipCounts: Record<string, number>;
+  observedTriples: OntologyObservedTripleDto[];
+}
+
+export interface OntologySchemaResponseDto {
+  schema: OntologySchemaDocumentDto;
+  workspace: OntologyWorkspaceStatsDto;
+}
+
+// ============================================================================
 // Envelope Message
 // ============================================================================
 

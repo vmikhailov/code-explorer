@@ -32,6 +32,8 @@ export function getViewTitle(viewMode?: string): string {
       return 'CodeExplorer: AI & Model Settings';
     case 'gate-editor':
       return 'CodeExplorer: Gate Editor';
+    case 'ontology':
+      return 'CodeExplorer: Ontology Map';
     default:
       return 'CodeExplorer: Architecture';
   }
@@ -51,6 +53,7 @@ export class GraphPanel {
     'mermaid',
     'settings',
     'gate-editor',
+    'ontology',
   ] as const;
   public static readonly panels = new Map<string, GraphPanel>();
   public static activePanel: GraphPanel | undefined;

@@ -16,10 +16,19 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.Calls)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.UsesType)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.Instantiates)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Instantiates)]
+[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Instantiates)]
 [OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Implements)]
 [OntologyEdge<ParameterNode>(OntologyConstants.Relationships.HasParameter)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.PassesArgument)]
+[OntologyEdge<CallLiteralNode>(OntologyConstants.Relationships.PassesLiteral)]
+[OntologyEdge<CatchClauseNode>(OntologyConstants.Relationships.Declares)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Declares)]
+[OntologyEdge<MemberNode>(OntologyConstants.Relationships.Declares)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.Declares)]
 public record FunctionNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

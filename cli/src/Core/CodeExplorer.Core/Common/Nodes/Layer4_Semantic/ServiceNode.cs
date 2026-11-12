@@ -15,8 +15,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 2,
     pluralLabel: "Services"
 )]
-[OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
-[OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
@@ -25,6 +23,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Exposes)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.UsesCloud)]

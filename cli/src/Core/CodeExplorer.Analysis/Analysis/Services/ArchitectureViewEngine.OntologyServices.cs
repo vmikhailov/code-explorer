@@ -127,6 +127,133 @@ public partial class ArchitectureViewEngine
         };
     }
 
+    private const string EmbeddedOntologySchemaResource = "ontology-schema.json";
+    private const string FallbackEmptySchemaJson = "{\"schemaVersion\":\"1.0\",\"layers\":[],\"edgeCategories\":[],\"commonProperties\":[],\"nodes\":[],\"relationships\":[]}";
+    private const string ObservedTriplesSql =
+        "SELECT ce_node_kind(n1.kind), ce_rel_kind(e.kind), ce_node_kind(n2.kind), count(*) " +
+        "FROM edges e JOIN nodes n1 ON n1.rowid = e.from_id JOIN nodes n2 ON n2.rowid = e.to_id " +
+        "GROUP BY n1.kind, e.kind, n2.kind";
+
+    private static readonly HashSet<string> HiddenOntologyLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        OntologyConstants.NodeLabels.Domain,
+        OntologyConstants.NodeLabels.BoundedContext,
+        OntologyConstants.NodeLabels.LogicalStructure,
+        OntologyConstants.Relationships.BelongsToDomain,
+        OntologyConstants.Relationships.ExposesDomain,
+        OntologyConstants.Relationships.SubdomainOf
+    };
+
+    private static readonly Lazy<JsonElement> EmbeddedOntologySchema = new(LoadEmbeddedOntologySchema);
+
+    private static JsonElement LoadEmbeddedOntologySchema()
+    {
+        using var stream = typeof(ArchitectureViewEngine).Assembly.GetManifestResourceStream(EmbeddedOntologySchemaResource);
+        if (stream is null)
+        {
+            using var fallbackDoc = JsonDocument.Parse(FallbackEmptySchemaJson);
+            return fallbackDoc.RootElement.Clone();
+        }
+        using var doc = JsonDocument.Parse(stream);
+        return doc.RootElement.Clone();
+    }
+
+    public async Task<OntologySchemaResponseDto> GetOntologySchemaAsync(CancellationToken ct = default)
+    {
+        var meta = await GetMetadataAsync(ct);
+        var filteredNodeCounts = meta.NodeCounts
+            .Where(kv => !Mcp.OntologyRegistry.IsSystemNode(kv.Key) && !HiddenOntologyLabels.Contains(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+
+        var filteredRelCounts = meta.RelationshipCounts
+            .Where(kv => !HiddenOntologyLabels.Contains(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+
+        var triples = await QueryObservedOntologyTriplesAsync(ct);
+
+        return new OntologySchemaResponseDto
+        {
+            Schema = EmbeddedOntologySchema.Value,
+            Workspace = new OntologyWorkspaceStatsDto
+            {
+                TotalNodes = filteredNodeCounts.Values.Sum(),
+                TotalEdges = filteredRelCounts.Values.Sum(),
+                NodeCounts = filteredNodeCounts,
+                RelationshipCounts = filteredRelCounts,
+                ObservedTriples = triples
+            }
+        };
+    }
+
+    private async Task<List<OntologyObservedTripleDto>> QueryObservedOntologyTriplesAsync(CancellationToken ct)
+    {
+        if (db is not SqliteGraphClient sqliteClient || sqliteClient.IsSchemaOutdated)
+        {
+            return [];
+        }
+
+        try
+        {
+            return await sqliteClient.ExecuteRawAsync(async conn =>
+            {
+                var list = new List<OntologyObservedTripleDto>();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = ObservedTriplesSql;
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    var fromKind = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                    var rel = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                    var toKind = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+                    var cnt = reader.IsDBNull(3) ? 0L : reader.GetInt64(3);
+                    if (string.IsNullOrEmpty(fromKind) || string.IsNullOrEmpty(rel) || string.IsNullOrEmpty(toKind))
+                    {
+                        continue;
+                    }
+                    if (Mcp.OntologyRegistry.IsSystemNode(fromKind) || Mcp.OntologyRegistry.IsSystemNode(toKind) ||
+                        HiddenOntologyLabels.Contains(fromKind) || HiddenOntologyLabels.Contains(toKind) ||
+                        HiddenOntologyLabels.Contains(rel))
+                    {
+                        continue;
+                    }
+                    list.Add(new OntologyObservedTripleDto
+                    {
+                        FromLabel = NormalizeSemanticWorkloadKind(fromKind),
+                        Rel = rel,
+                        ToLabel = NormalizeSemanticWorkloadKind(toKind),
+                        Count = cnt
+                    });
+                }
+                return MergeDuplicateTriples(list);
+            }, ct);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex.Message);
+            return [];
+        }
+    }
+
+    private static string NormalizeSemanticWorkloadKind(string kind) => kind switch
+    {
+        "FrontendApp" => OntologyConstants.NodeLabels.App,
+        "SharedLibrary" => OntologyConstants.NodeLabels.Library,
+        "Test" => OntologyConstants.NodeLabels.TestSuite,
+        _ => kind
+    };
+
+    private static List<OntologyObservedTripleDto> MergeDuplicateTriples(List<OntologyObservedTripleDto> raw) =>
+        raw.GroupBy(t => (t.FromLabel, t.Rel, t.ToLabel))
+           .Select(g => new OntologyObservedTripleDto
+           {
+               FromLabel = g.Key.FromLabel,
+               Rel = g.Key.Rel,
+               ToLabel = g.Key.ToLabel,
+               Count = g.Sum(x => x.Count)
+           })
+           .OrderByDescending(t => t.Count)
+           .ToList();
+
     public async Task<List<ServiceSummaryDto>> GetServicesOntologySummaryAsync(CancellationToken ct = default)
     {
         var list = new List<ServiceSummaryDto>();

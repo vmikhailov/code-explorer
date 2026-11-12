@@ -22,6 +22,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.HasEntrypoint)]
+[OntologyEdge<GitSettingsNode>(OntologyConstants.Relationships.UsesGit)]
 public record ProjectNode(
     string Id,
     string Name,

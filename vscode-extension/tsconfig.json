@@ -9,10 +9,11 @@
     "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*", "../proto/types.ts"]
+  "include": ["src/**/*", "../proto/types.ts", "../proto/ontology-schema.json"]
 }

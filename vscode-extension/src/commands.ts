@@ -11,6 +11,11 @@ import { isProjectKind } from '../../proto/types';
 import { compareSemver } from './binaryManager';
 import { GateStateManager } from './gateStateManager';
 
+const EMPTY_WS_URL = '';
+const VIEW_MODE_ONTOLOGY = 'ontology' as const;
+const CMD_OPEN_ONTOLOGY_MAP = 'codeExplorer.openOntologyMap';
+const CMD_OPEN_VIEW = 'codeExplorer.openView';
+
 export function registerGraphCommands(
   context: vscode.ExtensionContext,
   processManager: ProcessManager,
@@ -159,6 +164,18 @@ export function registerGraphCommands(
           : viewModeOrItem?.data?.viewMode || (viewModeOrItem?.itemType === 'layer-group' ? 'layers' : 'layers');
 
       if (!transport.hasWorkspace(workspaceRoot)) {
+        if (viewMode === VIEW_MODE_ONTOLOGY) {
+          const panel = GraphPanel.createOrShow(
+            context.extensionUri,
+            transport,
+            EMPTY_WS_URL,
+            workspaceRoot,
+            panelChannel,
+            VIEW_MODE_ONTOLOGY
+          );
+          panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: VIEW_MODE_ONTOLOGY });
+          return;
+        }
         const choice = await vscode.window.showInformationMessage(
           'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
           'Initialize & Scan',
@@ -301,11 +318,32 @@ export function registerGraphCommands(
     }
   );
 
+  const openOntologyMapCommand = vscode.commands.registerCommand(
+    CMD_OPEN_ONTOLOGY_MAP,
+    async () => {
+      const workspaceRoot = getWorkspaceRoot() || EMPTY_WS_URL;
+      if (!workspaceRoot || !transport.hasWorkspace(workspaceRoot)) {
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          transport,
+          EMPTY_WS_URL,
+          workspaceRoot,
+          panelChannel,
+          VIEW_MODE_ONTOLOGY
+        );
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: VIEW_MODE_ONTOLOGY });
+        return;
+      }
+      await vscode.commands.executeCommand(CMD_OPEN_VIEW, VIEW_MODE_ONTOLOGY);
+    }
+  );
+
   context.subscriptions.push(
     showGraphCommand,
     refreshTreeCommand,
     openNodeGridCommand,
     openViewCommand,
+    openOntologyMapCommand,
     focusBoundedContextCommand,
     focusNodeCommand,
     openSourceCommand

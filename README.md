@@ -74,12 +74,25 @@ CodeExplorer is distributed as a self-contained single-file binary (`ce` / `ce.e
 brew install vmikhailov/tap/ce
 ```
 
-### VS Code Extension
+### VS Code / Cursor / Windsurf / Antigravity Extension
 
-Install from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode) or [Open VSX Registry](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode):
+Install from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode) or [Open VSX Registry](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode) — on activation, the extension offers one-click registration of the CodeExplorer MCP server in your IDE (VS Code Copilot Agent Mode, Cursor, Windsurf, Google Antigravity, and Claude Code) and manages the native `ce` binary automatically:
 
 ```bash
 code --install-extension vmikhailov.code-explorer-vscode
+```
+
+### AI Agent Plugins (Claude Code, Gemini CLI, Cursor, Codex)
+
+Install the bundled MCP server + architecture routing skill directly from GitHub (auto-bootstraps the native `ce` binary on first launch):
+
+```bash
+# Claude Code
+/plugin marketplace add vmikhailov/code-explorer
+/plugin install code-explorer@code-explorer
+
+# Gemini CLI
+gemini extensions install https://github.com/vmikhailov/code-explorer
 ```
 
 ### Install Script

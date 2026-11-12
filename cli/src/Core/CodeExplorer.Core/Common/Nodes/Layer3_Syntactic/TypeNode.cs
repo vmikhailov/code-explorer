@@ -20,6 +20,9 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.PotentialType)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.HasMethod)]
 [OntologyEdge<MemberNode>(OntologyConstants.Relationships.HasMember)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
+[OntologyEdge<CallLiteralNode>(OntologyConstants.Relationships.PassesLiteral)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.Declares)]
 public record TypeNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

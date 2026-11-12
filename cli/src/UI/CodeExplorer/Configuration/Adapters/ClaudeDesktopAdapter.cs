@@ -33,12 +33,17 @@ public class ClaudeDesktopAdapter : IMcpTargetAdapter
         return Path.Combine(configHome, ".config", "Claude", "claude_desktop_config.json");
     }
 
+    private const string KeyCommand = "command";
+    private const string KeyArgs = "args";
+    private const string ArgMcp = "mcp";
+    private const string ArgQuiet = "-q";
+
     public JsonObject GenerateMcpConfig(string workspaceRoot, ConfigScope scope)
     {
         return new JsonObject
         {
-            ["command"] = "ce",
-            ["args"] = new JsonArray("mcp", "-q")
+            [KeyCommand] = McpCommandResolver.ResolveCommand(ConfigScope.Global),
+            [KeyArgs] = new JsonArray(ArgMcp, ArgQuiet)
         };
     }
 

@@ -90,6 +90,24 @@ if (Test-Path $pkgLockPath) {
     Write-Host "  [OK] Updated $pkgLockPath" -ForegroundColor Gray
 }
 
+# 5b. Update Agent Plugin & Extension manifests
+$pluginManifests = @(
+    "gemini-extension.json",
+    "plugins\code-explorer\plugin.json",
+    "plugins\code-explorer\.claude-plugin\plugin.json",
+    "plugins\code-explorer\.cursor-plugin\plugin.json",
+    "plugins\code-explorer\.codex-plugin\plugin.json"
+)
+foreach ($relManifest in $pluginManifests) {
+    $manifestPath = Join-Path $repoRoot $relManifest
+    if (Test-Path $manifestPath) {
+        $manifestContent = Get-Content $manifestPath -Raw
+        $updatedManifest = $manifestContent -replace '("version":\s*")\d+\.\d+\.\d+(")', ('${1}' + $newVersion + '${2}')
+        Set-Content -Path $manifestPath -Value $updatedManifest -NoNewline
+        Write-Host "  [OK] Updated $manifestPath" -ForegroundColor Gray
+    }
+}
+
 # 6. Check & synchronize CHANGELOG.md -> vscode-extension/CHANGELOG.md
 $rootChangelog = Join-Path $repoRoot "CHANGELOG.md"
 $extChangelog = Join-Path $repoRoot "vscode-extension\CHANGELOG.md"

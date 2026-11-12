@@ -1,0 +1,12 @@
+{
+  "name": "code-explorer",
+  "version": "1.82.0",
+  "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius impact analysis, and OpenCypher Semantic Invariant Gates. C#, TypeScript/JS, Go, Python, Java, Kotlin, Rust, SQL.",
+  "author": {
+    "name": "Slava Mikhailov",
+    "url": "https://code-explorer.app"
+  },
+  "homepage": "https://code-explorer.app",
+  "repository": "https://github.com/vmikhailov/code-explorer",
+  "license": "MIT"
+}

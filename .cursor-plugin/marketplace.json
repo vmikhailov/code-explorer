@@ -1,0 +1,14 @@
+{
+  "name": "code-explorer",
+  "owner": {
+    "name": "Slava Mikhailov"
+  },
+  "plugins": [
+    {
+      "name": "code-explorer",
+      "source": "plugins/code-explorer",
+      "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius analysis, and OpenCypher Semantic Invariant Gates.",
+      "category": "Developer Tools"
+    }
+  ]
+}

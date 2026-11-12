@@ -13,6 +13,10 @@ echo "🚀 Deploying CodeExplorer site to ${TARGET_USER}@${TARGET_HOST}:${TARGET
 
 tar -czf - \
   index.html \
+  architectures.html \
+  architectures \
+  ontology.html \
+  ontology \
   benchmarks.html \
   benchmarks \
   fonts \

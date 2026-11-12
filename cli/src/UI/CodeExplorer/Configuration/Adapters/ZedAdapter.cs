@@ -36,14 +36,20 @@ public class ZedAdapter : IMcpTargetAdapter
         return Path.Combine(home, ".config", "zed", "settings.json");
     }
 
+    private const string KeyCommand = "command";
+    private const string KeyPath = "path";
+    private const string KeyArgs = "args";
+    private const string ArgMcp = "mcp";
+    private const string ArgQuiet = "-q";
+
     public JsonObject GenerateMcpConfig(string workspaceRoot, ConfigScope scope)
     {
         return new JsonObject
         {
-            ["command"] = new JsonObject
+            [KeyCommand] = new JsonObject
             {
-                ["path"] = "ce",
-                ["args"] = new JsonArray("mcp")
+                [KeyPath] = McpCommandResolver.ResolveCommand(scope),
+                [KeyArgs] = new JsonArray(ArgMcp, ArgQuiet)
             }
         };
     }

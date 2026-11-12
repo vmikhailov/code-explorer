@@ -55,6 +55,10 @@ public class OntologyRegistryTests
         definition.Should().Contain("inbound_relationships:");
         definition.Should().Contain("Folder -CONTAINS-> File");
         definition.Should().Contain("FilesStructure -CONTAINS-> File");
+
+        OntologyRegistry.GetNodeDefinition("CallLiteral").Should().Contain("Function -PASSES_LITERAL-> CallLiteral");
+        OntologyRegistry.GetNodeDefinition("CatchClause").Should().Contain("Function -DECLARES-> CatchClause");
+        OntologyRegistry.GetNodeDefinition("GitSettings").Should().Contain("Project -USES_GIT-> GitSettings");
     }
 
     [Test]

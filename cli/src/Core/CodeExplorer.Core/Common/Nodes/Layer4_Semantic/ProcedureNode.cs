@@ -14,6 +14,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     pluralLabel: "Stored Procedures"
 )]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record ProcedureNode(
     string Id,

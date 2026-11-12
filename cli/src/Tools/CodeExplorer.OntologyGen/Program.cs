@@ -2,14 +2,16 @@ using OntologyGen;
 
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: OntologyGen <commonDir> <outputMdPath>");
-    Console.Error.WriteLine("  commonDir   - path to the Common/ folder containing Nodes/ and Relationships/");
-    Console.Error.WriteLine("  outputMdPath - path to write the generated ontology.md");
+    Console.Error.WriteLine("Usage: OntologyGen <commonDir> <outputMdPath> [outputJsonPath]");
+    Console.Error.WriteLine("  commonDir      - path to the Common/ folder containing Nodes/ and Relationships/");
+    Console.Error.WriteLine("  outputMdPath   - path to write the generated ontology.md");
+    Console.Error.WriteLine("  outputJsonPath - optional path to write ontology-schema.json");
     return 1;
 }
 
 var commonDir = args[0];
 var outputPath = args[1];
+var outputJsonPath = args.Length >= 3 ? args[2] : null;
 
 if (!Directory.Exists(commonDir))
 {
@@ -56,10 +58,34 @@ if (!string.Equals(existingMarkdown, markdown, StringComparison.Ordinal))
     {
         await File.WriteAllTextAsync(outputPath, markdown);
     }
-    catch (IOException)
+    catch (IOException ex)
     {
-        // Ignore transient file lock when IDE or another MSBuild worker has docs/ontology.md memory-mapped
+        System.Diagnostics.Debug.WriteLine(ex.Message);
     }
+}
+
+if (!string.IsNullOrWhiteSpace(outputJsonPath))
+{
+    var jsonSchema = JsonSchemaRenderer.Render(nodeInfos, relInfos);
+    var jsonDir = Path.GetDirectoryName(outputJsonPath);
+    if (!string.IsNullOrEmpty(jsonDir))
+    {
+        Directory.CreateDirectory(jsonDir);
+    }
+
+    var existingJson = File.Exists(outputJsonPath) ? await File.ReadAllTextAsync(outputJsonPath) : null;
+    if (!string.Equals(existingJson, jsonSchema, StringComparison.Ordinal))
+    {
+        try
+        {
+            await File.WriteAllTextAsync(outputJsonPath, jsonSchema);
+        }
+        catch (IOException ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex.Message);
+        }
+    }
+    Console.WriteLine($"[OntologyGen] Written JSON schema -> {outputJsonPath}");
 }
 
 Console.WriteLine($"[OntologyGen] Written {nodeInfos.Count} nodes, {relInfos.Count} relationships → {outputPath}");

@@ -1,5 +1,7 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -18,6 +20,15 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.ExposedBy)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
+[OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeclaredIn)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
+[OntologyEdge<CallLiteralNode>(OntologyConstants.Relationships.PassesLiteral)]
+[OntologyEdge<CatchClauseNode>(OntologyConstants.Relationships.Declares)]
+[OntologyEdge<QueryNode>(OntologyConstants.Relationships.AttributedTo)]
+[OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.AttributedTo)]
+[OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.AttributedTo)]
+[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.AttributedTo)]
 public record EndpointNode(
     string Id,
     [property: OntologyProperty("The endpoint name (e.g. GET /api/orders, MSG:SubmitOrder).")] string Name,
@@ -52,37 +63,37 @@ public record EndpointNode(
     {
     }
 
-    [JsonPropertyName("file_path")]
+    [JsonPropertyName("file_path"), OntologyProperty("Workspace-relative source file declaring the endpoint.")]
     public string? FilePath { get; set; }
 
-    [JsonPropertyName("start_line")]
+    [JsonPropertyName("start_line"), OntologyProperty("1-indexed starting line number of the endpoint declaration.")]
     public int? StartLine { get; set; }
 
     [JsonPropertyName("end_line"), OntologyProperty("The ending line number of the endpoint declaration.", isSystem: true)]
     public int? EndLine { get; set; }
 
-    [JsonPropertyName("line")]
+    [JsonPropertyName("line"), OntologyProperty("1-indexed source line number of the route or contract mapping.")]
     public int? Line { get; set; }
 
     [JsonPropertyName("line_end"), OntologyProperty("The ending line number of the endpoint declaration.", isSystem: true)]
     public int? LineEnd { get; set; }
 
-    [JsonPropertyName("operation")]
+    [JsonPropertyName("operation"), OntologyProperty("Operation or handler action name associated with this endpoint.")]
     public string? Operation { get; set; }
 
-    [JsonPropertyName("evidence_kind")]
+    [JsonPropertyName("evidence_kind"), OntologyProperty("Extraction provenance kind (endpoint, grpc, graphql, ws, consumer).")]
     public string? EvidenceKind { get; set; }
 
-    [JsonPropertyName("graphql_field")]
+    [JsonPropertyName("graphql_field"), OntologyProperty("Exposed GraphQL root field name when protocol is GraphQL.")]
     public string? GraphqlField { get; set; }
 
-    [JsonPropertyName("graphql_sdl")]
+    [JsonPropertyName("graphql_sdl"), OntologyProperty("Indicates whether the endpoint was extracted from a GraphQL SDL schema.")]
     public bool? IsGraphqlSdl { get; set; }
 
-    [JsonPropertyName("status_code")]
+    [JsonPropertyName("status_code"), OntologyProperty("Declared HTTP response status codes (e.g. 200, 201, 404).")]
     public string? StatusCode { get; set; }
 
-    [JsonPropertyName("summary")]
+    [JsonPropertyName("summary"), OntologyProperty("OpenAPI / Swagger or docstring endpoint summary.")]
     public string? Summary { get; set; }
 
     [JsonIgnore]

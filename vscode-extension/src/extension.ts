@@ -12,17 +12,30 @@ import { GateStateManager } from './gateStateManager';
 import { GraphPanel } from './graphPanel';
 import { GraphInspectorViewProvider } from './graphInspectorViewProvider';
 import { ServerTransport } from './serverTransport';
+import { initializeMcpAutoRegistration } from './mcpRegistration';
 
 let processManager: ProcessManager | null = null;
 let serverTransport: ServerTransport | null = null;
 
 const VIEW_ID_CODE_EXPLORER = 'codeExplorerView';
 const CMD_FOCUS_INSPECTOR = 'codeExplorer.focusInspector';
+const CMD_INIT_AND_SCAN = 'codeExplorer.initAndScan';
+const CMD_MARKDOWN_PREVIEW = 'markdown.showPreview';
+const CMD_VSCODE_OPEN = 'vscode.open';
 const STATE_KEY_LAST_VERSION = 'codeExplorer.lastVersion';
+const STATE_KEY_INIT_DISMISSED = 'codeExplorer.initPromptDismissed';
+const OUTPUT_CHANNEL_MAIN = 'CodeExplorer';
+const OUTPUT_CHANNEL_PROTOCOL = 'CodeExplorer (Protocol)';
+const PROMPT_NO_GRAPH = 'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?';
+const ACTION_INIT_AND_SCAN = 'Initialize & Scan';
+const ACTION_LATER = 'Later';
+const ACTION_WHATS_NEW = "What's New";
+const ACTION_DISMISS = 'Dismiss';
+const FILE_CHANGELOG = 'CHANGELOG.md';
 
 export function activate(context: vscode.ExtensionContext) {
-  const outputChannel = vscode.window.createOutputChannel('CodeExplorer');
-  const protocolChannel = vscode.window.createOutputChannel('CodeExplorer (Protocol)');
+  const outputChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_MAIN);
+  const protocolChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_PROTOCOL);
   context.subscriptions.push(outputChannel, protocolChannel);
 
   processManager = new ProcessManager(outputChannel, context);
@@ -172,15 +185,20 @@ export function activate(context: vscode.ExtensionContext) {
     const hasCe = serverTransport.hasWorkspace(workspaceRoot);
     if (!hasCe) {
       outputChannel.appendLine(`[CodeExplorer] No .codeexplorer directory found in: ${workspaceRoot}`);
+      if (context.workspaceState.get<boolean>(STATE_KEY_INIT_DISMISSED)) {
+        return;
+      }
       vscode.window
         .showInformationMessage(
-          'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
-          'Initialize & Scan',
-          'Later'
+          PROMPT_NO_GRAPH,
+          ACTION_INIT_AND_SCAN,
+          ACTION_LATER
         )
         .then((choice) => {
-          if (choice === 'Initialize & Scan') {
-            vscode.commands.executeCommand('codeExplorer.initAndScan');
+          if (choice === ACTION_INIT_AND_SCAN) {
+            vscode.commands.executeCommand(CMD_INIT_AND_SCAN);
+          } else if (choice === ACTION_LATER) {
+            void context.workspaceState.update(STATE_KEY_INIT_DISMISSED, true);
           }
         });
     } else {
@@ -241,18 +259,19 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const showWhatsNew = async () => {
-    const changelogPath = path.join(context.extensionPath, 'CHANGELOG.md');
+    const changelogPath = path.join(context.extensionPath, FILE_CHANGELOG);
     const changelogUri = vscode.Uri.file(changelogPath);
     try {
-      await vscode.commands.executeCommand('markdown.showPreview', changelogUri);
+      await vscode.commands.executeCommand(CMD_MARKDOWN_PREVIEW, changelogUri);
     } catch {
-      await vscode.commands.executeCommand('vscode.open', changelogUri);
+      await vscode.commands.executeCommand(CMD_VSCODE_OPEN, changelogUri);
     }
   };
 
   registerGraphCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, serverTransport, protocolChannel);
   registerWorkspaceCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, showWhatsNew, protocolChannel);
   registerIntentCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot);
+  initializeMcpAutoRegistration(context, processManager, getWorkspaceRoot, outputChannel);
 
   // Check for extension update and show What's New prompt
   const previousVersion = context.globalState.get<string>(STATE_KEY_LAST_VERSION);
@@ -262,11 +281,11 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window
         .showInformationMessage(
           `CodeExplorer updated to v${currentVersion}!`,
-          "What's New",
-          'Dismiss'
+          ACTION_WHATS_NEW,
+          ACTION_DISMISS
         )
         .then((selection) => {
-          if (selection === "What's New") {
+          if (selection === ACTION_WHATS_NEW) {
             showWhatsNew();
           }
         });

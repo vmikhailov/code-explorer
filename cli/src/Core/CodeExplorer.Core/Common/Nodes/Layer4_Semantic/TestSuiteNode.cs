@@ -14,10 +14,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 7,
     pluralLabel: "Test Suites"
 )]
-[OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
-[OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
+[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
 [OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Tests)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Tests)]
 [OntologyEdge<AppNode>(OntologyConstants.Relationships.Tests)]

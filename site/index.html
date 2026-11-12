@@ -338,9 +338,10 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
 .slab-links {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-md);
+  row-gap: var(--space-2xs);
+  column-gap: var(--space-md);
   list-style: none;
 }
 
@@ -392,17 +393,17 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     gap: var(--space-md);
   }
   .slab-links {
-    gap: var(--space-sm);
+    column-gap: var(--space-sm);
   }
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1280px) {
   #heroReleaseBadge {
     display: none;
   }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 720px) {
   .slab-links {
     display: none;
   }
@@ -1192,8 +1193,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     --section-gap: 80px;
     --section-gap-s: 56px;
   }
-  .slab-links {
-    display: none;
+  .slab-bar {
+    padding-block: var(--space-2xs);
   }
   .hero-top,
   .band-head,
@@ -1332,11 +1333,11 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </a>
 
       <ul class="slab-links">
-        <li><a href="#cockpit">Architecture Map</a></li>
-        <li><a href="#playground">OpenCypher</a></li>
-        <li><a href="#ai-mcp">Terminal &amp; MCP</a></li>
-        <li><a href="#gates">Invariant Gates</a></li>
-        <li><a href="/benchmarks.html" class="nav-framed">Benchmarks</a></li>
+        <li><a href="#playground">Query</a></li>
+        <li><a href="#ai-mcp">MCP</a></li>
+        <li><a href="#gates">Gates</a></li>
+        <li><a href="/ontology.html">Ontology</a></li>
+        <li><a href="/benchmarks.html">Benchmarks</a></li>
         <li><a href="#install">Install</a></li>
         <li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener" class="tone-accent">CodePassport</a></li>
       </ul>
@@ -1948,10 +1949,9 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         <div class="mast-col">
           <span class="mast-heading">Architecture &amp; Docs</span>
           <ul class="mast-list">
+            <li><a href="/ontology.html">Graph Ontology Map</a></li>
             <li><a href="/benchmarks.html">Competitor Benchmarks</a></li>
             <li><a href="/presentation.html" target="_blank" rel="noopener">Interactive Presentation</a></li>
-            <li><a href="https://github.com/vmikhailov/code-explorer/tree/main/docs" target="_blank" rel="noopener">Ontology Specification</a></li>
-            <li><a href="#gates">Semantic Invariant Gates</a></li>
             <li><a href="/llms.txt" target="_blank" rel="noopener">llms.txt for Agents</a></li>
           </ul>
         </div>

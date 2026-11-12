@@ -87,6 +87,9 @@ public class ConfigureCommandHandler : BaseCommandHandler
         return opts.Target;
     }
 
+    private const string KeyCommand = "command";
+    private const string KeyPath = "path";
+
     private static bool ConfigureSingle(
         IMcpTargetAdapter adapter,
         string wsRoot,
@@ -105,6 +108,18 @@ public class ConfigureCommandHandler : BaseCommandHandler
 
         var configPath = adapter.GetConfigPath(wsRoot, effectiveScope);
         var serverConfig = adapter.GenerateMcpConfig(wsRoot, effectiveScope);
+        if (!string.IsNullOrWhiteSpace(opts.CommandPath))
+        {
+            var customCommand = opts.CommandPath.Trim();
+            if (serverConfig[KeyCommand] is JsonObject nestedCommand)
+            {
+                nestedCommand[KeyPath] = customCommand;
+            }
+            else
+            {
+                serverConfig[KeyCommand] = customCommand;
+            }
+        }
 
         var mergeResult = ConfigMerger.Merge(
             configPath,
@@ -152,6 +167,9 @@ public class ConfigureCommandHandler : BaseCommandHandler
         return allOk ? 0 : 1;
     }
 
+    private const string OptionAll = "A";
+    private const string OptionQuit = "Q";
+
     private static int RunInteractiveWizard(
         IReadOnlyList<IMcpTargetAdapter> detected,
         string wsRoot,
@@ -175,12 +193,12 @@ public class ConfigureCommandHandler : BaseCommandHandler
         Console.Write("Select an option [A]: ");
 
         var input = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(input) || IsOneOf(input, "A"))
+        if (string.IsNullOrEmpty(input) || IsOneOf(input, OptionAll))
         {
             return ConfigureMultiple(detected, wsRoot, scope, opts);
         }
 
-        if (IsOneOf(input, "Q"))
+        if (IsOneOf(input, OptionQuit))
         {
             Console.WriteLine("Operation cancelled.");
             return 0;
@@ -232,7 +250,10 @@ public class ConfigureCommandHandler : BaseCommandHandler
                 return rel.StartsWith('.') ? rel : "./" + rel;
             }
         }
-        catch { }
+        catch (ArgumentException)
+        {
+            return fullPath;
+        }
         return fullPath;
     }
 
@@ -244,7 +265,7 @@ public class ConfigureCommandHandler : BaseCommandHandler
         Console.ResetColor();
 
         // 1. Check ce in PATH
-        var ceInPath = ToolDetector.IsExecutableInPath("ce");
+        var ceInPath = ToolDetector.IsExecutableInPath(McpCommandResolver.DefaultCommand);
         Console.Write("  • 'ce' command in PATH: ");
         if (ceInPath)
         {

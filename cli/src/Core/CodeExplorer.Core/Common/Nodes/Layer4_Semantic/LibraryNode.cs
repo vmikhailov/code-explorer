@@ -15,8 +15,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 5,
     pluralLabel: "Libraries & SDKs"
 )]
-[OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
-[OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
@@ -29,9 +27,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.ReadsFrom)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.WritesTo)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.CoordinatesWith)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Exposes)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
-[OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
 public record LibraryNode(
     string Id,

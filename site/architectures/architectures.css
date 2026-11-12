@@ -1,0 +1,347 @@
+/* Hallmark · theme: Console · modern-minimal · dark · restrained · host-grotesk + atkinson-hyperlegible-mono · hero: stage · nav: slab · footer: mast · signature: interactive-topology-blueprint */
+/* Pre-emit critique: Extends the Console (graphite) system from benchmarks.css for the Architecture Encyclopedia prototype. Uses only tokenized oklch surfaces, 1px rules, Host Grotesk for UI and headings, and Atkinson Hyperlegible Mono for gate IDs, Cypher queries, and CLI commands. Interactive topology schematic visualizes allowed vs blocked layer dependencies alongside live stack-adapted YAML gate packs. */
+
+.arch-hero-stage {
+  padding-top: var(--space-lg);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.stage-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--gap-columns);
+  align-items: start;
+}
+
+.stage-intro > * {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .stage-intro {
+    grid-template-columns: 1fr;
+  }
+}
+
+.badge--bad {
+  color: var(--color-bad);
+  border-color: var(--color-bad);
+  background: var(--color-bad-soft);
+}
+
+.arch-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-lg);
+}
+
+@media (max-width: 980px) {
+  .arch-switcher {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .arch-switcher {
+    grid-template-columns: 1fr;
+  }
+}
+
+.arch-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-2);
+  color: var(--color-ink-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+
+.arch-tab:hover {
+  background: var(--color-paper);
+  border-color: var(--color-rule-2);
+  color: var(--color-ink);
+}
+
+.arch-tab:active {
+  transform: translateY(1px);
+}
+
+.arch-tab[aria-selected="true"] {
+  background: var(--color-paper-3);
+  border-color: var(--color-accent);
+  color: var(--color-ink);
+}
+
+.arch-tab-count {
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  padding: var(--space-3xs) var(--space-2xs);
+  border-radius: var(--space-2xs);
+  background: var(--color-paper-3);
+  border: 1px solid var(--color-rule);
+}
+
+.arch-tab[aria-selected="true"] .arch-tab-count {
+  color: var(--color-accent);
+  border-color: var(--color-accent-border);
+}
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--gap-columns);
+  align-items: stretch;
+}
+
+@media (max-width: 980px) {
+  .workbench-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blueprint-surface {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-card);
+  min-width: 0;
+}
+
+.blueprint-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.blueprint-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.legend-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-3xs) var(--space-xs);
+  border-radius: var(--space-2xs);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+}
+
+.legend-tag--allow {
+  color: var(--color-ok);
+  background: var(--color-ok-soft);
+  border: 1px solid var(--color-ok-border);
+}
+
+.legend-tag--block {
+  color: var(--color-bad);
+  background: var(--color-bad-soft);
+  border: 1px solid var(--color-bad);
+}
+
+.topology-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-paper-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+
+.topo-layer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+}
+
+.topo-layer--core {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+}
+
+.topo-layer-name {
+  font-weight: 500;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.topo-layer-paths {
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.topo-layer--core .topo-layer-paths {
+  color: var(--color-accent);
+}
+
+.topo-connectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+@media (max-width: 600px) {
+  .topo-connectors {
+    grid-template-columns: 1fr;
+  }
+  .topo-layer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.edge-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--space-2xs);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  transition: border-color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+}
+
+.edge-rule--allow {
+  background: var(--color-ok-soft);
+  border: 1px solid var(--color-ok-border);
+  color: var(--color-ink-2);
+}
+
+.edge-rule--block {
+  background: var(--color-bad-soft);
+  border: 1px dashed var(--color-bad);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.edge-rule--block:hover {
+  border-style: solid;
+  color: var(--color-ink);
+}
+
+.edge-rule-code {
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.edge-rule--allow .edge-rule-code {
+  color: var(--color-ok);
+}
+
+.edge-rule--block .edge-rule-code {
+  color: var(--color-bad);
+}
+
+.pack-console {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-card);
+  min-width: 0;
+}
+
+.stack-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+}
+
+@media (max-width: 480px) {
+  .stack-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stack-btn {
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-muted);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+
+.stack-btn:hover {
+  color: var(--color-ink);
+  border-color: var(--color-rule-2);
+}
+
+.stack-btn[aria-pressed="true"] {
+  background: transparent;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.cli-install-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-paper-3);
+  border: 1px solid var(--color-rule-2);
+  border-radius: var(--radius-card);
+}
+
+.cli-install-cmd {
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+}
+
+.pack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pack-actions .btn {
+  flex: 1 1 auto;
+}
+
+.section-top-gap {
+  margin-top: var(--space-xl);
+}

@@ -8,7 +8,11 @@ public sealed record NodeInfo(
     string Purpose,
     string Layer,
     List<EdgeInfo> OutEdges,
-    List<PropertyInfo> Properties
+    List<PropertyInfo> Properties,
+    string Icon = "symbol-class",
+    int Order = 0,
+    string PluralLabel = "",
+    bool IsSystemNode = false
 );
 
 /// <summary>One outbound edge declared on a node via [OntologyEdge&lt;TTo&gt;].</summary>
@@ -18,11 +22,12 @@ public sealed record EdgeInfo(
     string ToTypeName   // simple class name, e.g. "ClassNode"
 );
 
-/// <summary>One constructor parameter annotated with [OntologyProperty].</summary>
+/// <summary>One constructor parameter or property annotated with [OntologyProperty].</summary>
 public sealed record PropertyInfo(
     string Name,
     string Type,
-    string Description
+    string Description,
+    string CypherName = ""
 );
 
 /// <summary>Metadata extracted from a relationship record class.</summary>

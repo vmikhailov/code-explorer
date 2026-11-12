@@ -161,6 +161,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           {viewMode === 'contexts' && '🧩 Bounded Context Map'}
           {viewMode === 'layers' && '🏛️ Architecture Tiers'}
           {viewMode === 'flow' && '🔀 Project Flow'}
+          {viewMode === 'ontology' && '🧬 Ontology Map'}
           {viewMode === 'settings' && '⚙️ Settings & AI Models'}
         </span>
       </div>

@@ -33,35 +33,44 @@ public class CursorAdapter : IMcpTargetAdapter
         return false;
     }
 
+    private const string DirCursor = ".cursor";
+    private const string FileMcpJson = "mcp.json";
+    private const string FileCursorRules = ".cursorrules";
+    private const string FileRuleMdc = "code-explorer.mdc";
+    private const string DirRules = "rules";
+    private const string KeyCommand = "command";
+    private const string KeyArgs = "args";
+    private const string KeyCwd = "cwd";
+    private const string KeyEnv = "env";
+    private const string EnvWorkspaceRoot = "WORKSPACE_ROOT";
+    private const string ArgMcp = "mcp";
+    private const string ArgQuiet = "-q";
+    private const string WorkspaceFolderPlaceholder = "${workspaceFolder}";
+
     public string GetConfigPath(string workspaceRoot, ConfigScope scope)
     {
         if (scope == ConfigScope.Global)
         {
-            if (OperatingSystem.IsWindows())
-            {
-                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                return Path.Combine(appData, "Cursor", "User", "globalStorage", "rooveterinaryinc.cursor-mcp", "mcp.json");
-            }
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(home, ".cursor", "mcp.json");
+            return Path.Combine(home, DirCursor, FileMcpJson);
         }
-        return Path.Combine(workspaceRoot, ".cursor", "mcp.json");
+        return Path.Combine(workspaceRoot, DirCursor, FileMcpJson);
     }
 
     public JsonObject GenerateMcpConfig(string workspaceRoot, ConfigScope scope)
     {
         var config = new JsonObject
         {
-            ["command"] = "ce",
-            ["args"] = new JsonArray("mcp")
+            [KeyCommand] = McpCommandResolver.ResolveCommand(scope),
+            [KeyArgs] = new JsonArray(ArgMcp, ArgQuiet)
         };
 
         if (scope == ConfigScope.Workspace)
         {
-            config["cwd"] = "${workspaceFolder}";
-            config["env"] = new JsonObject
+            config[KeyCwd] = WorkspaceFolderPlaceholder;
+            config[KeyEnv] = new JsonObject
             {
-                ["WORKSPACE_ROOT"] = "${workspaceFolder}"
+                [EnvWorkspaceRoot] = WorkspaceFolderPlaceholder
             };
         }
 
@@ -70,10 +79,10 @@ public class CursorAdapter : IMcpTargetAdapter
 
     public RuleConfigInfo? GetRuleConfigInfo(string workspaceRoot)
     {
-        var cursorRulesDir = Path.Combine(workspaceRoot, ".cursor", "rules");
-        string rulePath = Directory.Exists(cursorRulesDir)
-            ? Path.Combine(cursorRulesDir, "code-explorer.mdc")
-            : Path.Combine(workspaceRoot, ".cursorrules");
+        var cursorRulesDir = Path.Combine(workspaceRoot, DirCursor, DirRules);
+        var rulePath = Directory.Exists(cursorRulesDir)
+            ? Path.Combine(cursorRulesDir, FileRuleMdc)
+            : Path.Combine(workspaceRoot, FileCursorRules);
 
         return new RuleConfigInfo(rulePath, StandardRules.GenerateRuleContent(), StandardRules.HeaderMarker);
     }

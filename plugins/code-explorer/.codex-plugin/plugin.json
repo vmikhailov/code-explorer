@@ -1,0 +1,21 @@
+{
+  "name": "code-explorer",
+  "version": "1.82.0",
+  "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius impact analysis, and OpenCypher Semantic Invariant Gates.",
+  "author": {
+    "name": "Slava Mikhailov",
+    "url": "https://code-explorer.app"
+  },
+  "homepage": "https://code-explorer.app",
+  "repository": "https://github.com/vmikhailov/code-explorer",
+  "skills": "./skills/",
+  "mcpServers": "./.codex-plugin/mcp.json",
+  "interface": {
+    "displayName": "CodeExplorer",
+    "shortDescription": "Polyglot architecture graph, lineage & CI gates",
+    "developerName": "Slava Mikhailov",
+    "category": "Developer Tools",
+    "capabilities": ["Skills", "MCP tools"],
+    "websiteURL": "https://code-explorer.app"
+  }
+}

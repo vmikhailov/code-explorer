@@ -1,5 +1,6 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -13,6 +14,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 11,
     pluralLabel: "Message Topics & Queues"
 )]
+[OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
@@ -29,25 +31,25 @@ public record TopicNode(
     {
     }
 
-    [JsonPropertyName("file_path")]
+    [JsonPropertyName("file_path"), OntologyProperty("Workspace-relative source file declaring or referencing the topic.")]
     public string? FilePath { get; set; }
 
-    [JsonPropertyName("line")]
+    [JsonPropertyName("line"), OntologyProperty("1-indexed source line of the publish or subscribe site.")]
     public int? Line { get; set; }
 
     [JsonPropertyName("line_end"), OntologyProperty("The ending line number of the topic usage.", isSystem: true)]
     public int? LineEnd { get; set; }
 
-    [JsonPropertyName("messaging_direction")]
+    [JsonPropertyName("messaging_direction"), OntologyProperty("Direction of broker interaction (publish, subscribe, both).")]
     public string? MessagingDirection { get; set; }
 
-    [JsonPropertyName("is_internal")]
+    [JsonPropertyName("is_internal"), OntologyProperty("Indicates an in-process mediator bus rather than an external broker.", isSystem: true)]
     public bool? IsInternal { get; set; }
 
-    [JsonPropertyName("scope")]
+    [JsonPropertyName("scope"), OntologyProperty("Broker scope or virtual host / namespace.")]
     public string? Scope { get; set; }
 
-    [JsonPropertyName("message_type")]
+    [JsonPropertyName("message_type"), OntologyProperty("Payload or event contract type published/consumed on this topic.")]
     public string? MessageType { get; set; }
 
     [JsonIgnore]

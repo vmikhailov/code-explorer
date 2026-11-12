@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Make AI coding agents production-safe. Live cross-service map of APIs, queues & databases in VS Code, surgical MCP context (Claude Code, Cursor, Copilot), and CI architecture gates.",
-  "version": "1.81.0",
+  "version": "1.82.0",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -58,6 +58,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onStartupFinished",
     "onView:codeExplorerView",
     "onView:codeExplorerInspectorView",
     "workspaceContains:.codeexplorer/graph.db",
@@ -71,15 +72,24 @@
     "onWebviewPanel:codeExplorerGraph.mermaid",
     "onWebviewPanel:codeExplorerGraph.settings",
     "onWebviewPanel:codeExplorerGraph.gate-editor",
+    "onWebviewPanel:codeExplorerGraph.ontology",
     "onCommand:codeExplorer.showGraph",
+    "onCommand:codeExplorer.openOntologyMap",
     "onCommand:codeExplorer.focusInspector",
     "onCommand:codeExplorer.reindex",
     "onCommand:codeExplorer.reindexFull",
     "onCommand:codeExplorer.initAndScan",
     "onCommand:codeExplorer.openWorkspaceSettings",
-    "onCommand:codeExplorer.excludeFromScan"
+    "onCommand:codeExplorer.excludeFromScan",
+    "onCommand:codeExplorer.registerMcp"
   ],
   "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "codeExplorer.mcpProvider",
+        "label": "CodeExplorer Architecture Graph"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -153,6 +163,16 @@
         "command": "codeExplorer.openView",
         "title": "CodeExplorer: Open View",
         "icon": "$(play)"
+      },
+      {
+        "command": "codeExplorer.openOntologyMap",
+        "title": "CodeExplorer: Open Ontology Map",
+        "icon": "$(symbol-structure)"
+      },
+      {
+        "command": "codeExplorer.registerMcp",
+        "title": "CodeExplorer: Register MCP Server for AI Agents",
+        "icon": "$(plug)"
       },
       {
         "command": "codeExplorer.focusNode",
@@ -475,6 +495,11 @@
           "default": 0,
           "description": "Idle timeout in seconds before the background ce.exe server terminates when all windows are closed (0 = managed by extension transport)."
         },
+        "codeExplorer.mcp.promptToRegister": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask whether to register the CodeExplorer MCP server for AI coding agents when not yet configured in the current IDE."
+        },
         "codeExplorer.ai.provider": {
           "type": "string",
           "enum": [
@@ -513,7 +538,7 @@
     "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/orbitConfig.test.ts src/webview/layout/domainLayouts.test.ts src/webview/layout/projectMapLayout.test.ts src/binaryManager.test.ts src/serverTransport.test.ts src/webview/utils/wheelZoom.test.ts src/webview/components/FloatingPanel.test.ts src/webview/components/UniversalGraphMap.test.ts src/webview/components/ProjectMapView.test.ts src/webview/domain/searchUtils.test.ts src/webview/domain/hiddenState.test.ts src/webview/domain/unifiedSidebar.test.ts src/webview/domain/gateState.test.ts src/webview/domain/gateEditor.test.ts src/webview/domain/entityBadges.test.ts src/webview/domain/nodeGrouping.test.ts src/webview/domain/inspectorSchema.test.ts src/webview/services/webviewTransport.test.ts src/webview/nodePresentation.test.ts --bundle --platform=node --external:vscode --outdir=dist/test --outbase=src && node dist/test/webview/commands/CommandManager.test.js && node dist/test/webview/layout/concentricLayout.test.js && node dist/test/webview/layout/orbitConfig.test.js && node dist/test/webview/layout/domainLayouts.test.js && node dist/test/webview/layout/projectMapLayout.test.js && node dist/test/binaryManager.test.js && node dist/test/serverTransport.test.js && node dist/test/webview/utils/wheelZoom.test.js && node dist/test/webview/components/FloatingPanel.test.js && node dist/test/webview/components/UniversalGraphMap.test.js && node dist/test/webview/components/ProjectMapView.test.js && node dist/test/webview/domain/searchUtils.test.js && node dist/test/webview/domain/hiddenState.test.js && node dist/test/webview/domain/unifiedSidebar.test.js && node dist/test/webview/domain/gateState.test.js && node dist/test/webview/domain/gateEditor.test.js && node dist/test/webview/domain/entityBadges.test.js && node dist/test/webview/domain/nodeGrouping.test.js && node dist/test/webview/domain/inspectorSchema.test.js && node dist/test/webview/services/webviewTransport.test.js && node dist/test/webview/nodePresentation.test.js",
+    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/orbitConfig.test.ts src/webview/layout/domainLayouts.test.ts src/webview/layout/projectMapLayout.test.ts src/binaryManager.test.ts src/mcpRegistration.test.ts src/serverTransport.test.ts src/webview/utils/wheelZoom.test.ts src/webview/components/FloatingPanel.test.ts src/webview/components/UniversalGraphMap.test.ts src/webview/components/ProjectMapView.test.ts src/webview/components/OntologyExplorerView.test.ts src/webview/domain/searchUtils.test.ts src/webview/domain/hiddenState.test.ts src/webview/domain/unifiedSidebar.test.ts src/webview/domain/gateState.test.ts src/webview/domain/gateEditor.test.ts src/webview/domain/entityBadges.test.ts src/webview/domain/nodeGrouping.test.ts src/webview/domain/inspectorSchema.test.ts src/webview/domain/ontologyModel.test.ts src/webview/services/webviewTransport.test.ts src/webview/nodePresentation.test.ts --bundle --platform=node --external:vscode --outdir=dist/test --outbase=src && node dist/test/webview/commands/CommandManager.test.js && node dist/test/webview/layout/concentricLayout.test.js && node dist/test/webview/layout/orbitConfig.test.js && node dist/test/webview/layout/domainLayouts.test.js && node dist/test/webview/layout/projectMapLayout.test.js && node dist/test/binaryManager.test.js && node dist/test/mcpRegistration.test.js && node dist/test/serverTransport.test.js && node dist/test/webview/utils/wheelZoom.test.js && node dist/test/webview/components/FloatingPanel.test.js && node dist/test/webview/components/UniversalGraphMap.test.js && node dist/test/webview/components/ProjectMapView.test.js && node dist/test/webview/components/OntologyExplorerView.test.js && node dist/test/webview/domain/searchUtils.test.js && node dist/test/webview/domain/hiddenState.test.js && node dist/test/webview/domain/unifiedSidebar.test.js && node dist/test/webview/domain/gateState.test.js && node dist/test/webview/domain/gateEditor.test.js && node dist/test/webview/domain/entityBadges.test.js && node dist/test/webview/domain/nodeGrouping.test.js && node dist/test/webview/domain/inspectorSchema.test.js && node dist/test/webview/domain/ontologyModel.test.js && node dist/test/webview/services/webviewTransport.test.js && node dist/test/webview/nodePresentation.test.js",
     "build:binaries": "node scripts/build-extension-binaries.mjs",
     "package": "node scripts/package-extension.mjs",
     "package:all": "node scripts/package-extension.mjs --all",

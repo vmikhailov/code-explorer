@@ -347,6 +347,53 @@ export class ProcessManager implements vscode.Disposable {
     });
   }
 
+  private static readonly CONFIG_SECTION = 'codeExplorer';
+  private static readonly SETTING_EXECUTABLE_PATH = 'executablePath';
+  private static readonly SETTING_ENGINE_VERSION = 'engineVersion';
+  private static readonly DEFAULT_BIN_NAME = 'ce';
+  private static readonly DOTNET_CMD = 'dotnet';
+  private static readonly DLL_SUFFIX = '.dll';
+  private static readonly BIN_SUBDIR = 'bin';
+  private static readonly TASKKILL_CMD = 'taskkill';
+
+  /**
+   * Synchronously resolves an already-installed CodeExplorer executable (no network download).
+   */
+  public resolveInstalledExecutableSync(workspaceRoot?: string): { command: string; args: string[] } | null {
+    if (this.cachedExecutable) {
+      return this.cachedExecutable;
+    }
+
+    const config = vscode.workspace.getConfiguration(ProcessManager.CONFIG_SECTION);
+    const customPath = config.get<string>(ProcessManager.SETTING_EXECUTABLE_PATH, '')?.trim() || process.env.CE_EXECUTABLE?.trim();
+    if (customPath) {
+      const resolved = path.isAbsolute(customPath)
+        ? customPath
+        : (workspaceRoot ? path.resolve(workspaceRoot, customPath) : path.resolve(customPath));
+      if (fs.existsSync(resolved)) {
+        return resolved.endsWith(ProcessManager.DLL_SUFFIX)
+          ? { command: ProcessManager.DOTNET_CMD, args: [resolved] }
+          : { command: resolved, args: [] };
+      }
+    }
+
+    const bestInstalled = this.binaryManager?.getBestInstalledEngine(workspaceRoot) || null;
+    if (bestInstalled) {
+      return { command: bestInstalled.command, args: bestInstalled.args };
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves the CodeExplorer executable, downloading the managed binary if none is installed.
+   */
+  public async resolveExecutable(workspaceRoot?: string): Promise<{ command: string; args: string[] } | null> {
+    const config = vscode.workspace.getConfiguration(ProcessManager.CONFIG_SECTION);
+    const customPath = config.get<string>(ProcessManager.SETTING_EXECUTABLE_PATH, '');
+    return this.findExecutable(workspaceRoot, customPath);
+  }
+
   /**
    * Resolves the executable command and arguments to launch CodeExplorer.
    * Runs once at server start and reuses the result until the next restart.
@@ -401,8 +448,8 @@ export class ProcessManager implements vscode.Disposable {
         `[ProcessManager] Best installed engine candidate: v${bestInstalled.version} (${bestInstalled.source}) at ${bestInstalled.command}`
       );
       const extVersion = this.binaryManager?.getExtensionVersion() || '1.18.2';
-      const config = vscode.workspace.getConfiguration('codeExplorer');
-      const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
+      const config = vscode.workspace.getConfiguration(ProcessManager.CONFIG_SECTION);
+      const userSetting = config?.get<string>(ProcessManager.SETTING_ENGINE_VERSION, '')?.trim() || undefined;
       const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
 
       if (matchesEnginePattern(bestInstalled.version, pattern) || compareSemver(bestInstalled.version, extVersion) >= 0) {
@@ -437,9 +484,9 @@ export class ProcessManager implements vscode.Disposable {
     }
 
     // 5. Bundled platform-specific binary in extension (legacy/offline fallback)
-    const binName = getExecutableName('ce');
+    const binName = getExecutableName(ProcessManager.DEFAULT_BIN_NAME);
     const extensionRoot = path.resolve(__dirname, '..');
-    const bundledCandidate = path.resolve(extensionRoot, 'bin', binName);
+    const bundledCandidate = path.resolve(extensionRoot, ProcessManager.BIN_SUBDIR, binName);
 
     if (fs.existsSync(bundledCandidate)) {
       ensureExecutablePermissions(bundledCandidate);
@@ -460,7 +507,7 @@ export class ProcessManager implements vscode.Disposable {
       if (process.platform === 'win32' && pid) {
         try {
           // On Windows, terminate the entire process tree to prevent orphaned dotnet/ce processes
-          cp.spawnSync('taskkill', ['/F', '/T', '/PID', pid.toString()], {
+          cp.spawnSync(ProcessManager.TASKKILL_CMD, ['/F', '/T', '/PID', pid.toString()], {
             windowsHide: true,
             stdio: 'ignore',
           });

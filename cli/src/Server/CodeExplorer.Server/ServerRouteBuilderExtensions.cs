@@ -7,7 +7,7 @@ using ArchitectureViewType = CodeExplorer.Core.Analysis.ArchitectureViewType;
 
 namespace CodeExplorer.Server;
 
-public static class ServerRouteBuilderExtensions
+public static partial class ServerRouteBuilderExtensions
 {
     public static IEndpointRouteBuilder MapCodeExplorerApi(
         this IEndpointRouteBuilder endpoints,
@@ -262,6 +262,7 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        MapOntologySchemaRoute(endpoints, logger);
         MapDatabaseUpgradeRoute(endpoints, wsHandler, logger);
 
         endpoints.MapGet("/api/nodes", async (IArchitectureQueryService archQueryService, string? kind, int? offset, int? limit, string? search, string? service, CancellationToken ct) =>

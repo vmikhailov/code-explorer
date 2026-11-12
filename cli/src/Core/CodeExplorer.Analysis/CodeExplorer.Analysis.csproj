@@ -30,6 +30,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\**\*.cypher" />
     <EmbeddedResource Include="Resources\**\*.json" />
+    <EmbeddedResource Include="..\..\..\..\proto\ontology-schema.json" LogicalName="ontology-schema.json" />
   </ItemGroup>
   <Target Name="ExcludeLLamaNativeFromPack" BeforeTargets="_GetPackageFiles">
     <ItemGroup>

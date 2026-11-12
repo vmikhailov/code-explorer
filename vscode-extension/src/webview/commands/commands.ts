@@ -2,7 +2,7 @@ import { ICommand } from './types';
 import { GraphNode } from '../../../../proto/types';
 import { EdgeCategory } from '../components/ProjectFlowView';
 
-export type ViewMode = 'c1' | 'semantic' | 'matrix' | 'project' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid' | 'contexts' | 'settings' | 'gate-editor';
+export type ViewMode = 'c1' | 'semantic' | 'matrix' | 'project' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid' | 'contexts' | 'settings' | 'gate-editor' | 'ontology';
 
 function getViewModeLabel(mode: ViewMode): string {
   switch (mode) {
@@ -30,6 +30,8 @@ function getViewModeLabel(mode: ViewMode): string {
       return 'Settings & AI Model Preferences';
     case 'gate-editor':
       return 'Semantic Invariant Gate Editor';
+    case 'ontology':
+      return 'Ontology Map';
     default:
       return mode;
   }

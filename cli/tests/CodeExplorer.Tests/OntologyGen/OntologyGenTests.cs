@@ -213,4 +213,56 @@ public class OntologyGenTests
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
         md.Should().Contain("AUTO-GENERATED");
     }
+
+    [Test]
+    public void JsonSchemaRenderer_ResolvesTargetLabelsInboundEdgesAndExcludesHiddenDomains()
+    {
+        var nodesWithHidden = new List<NodeInfo>(_nodes!)
+        {
+            new(
+                ClassName: "DomainNode",
+                Label: "Domain",
+                IdScheme: "{workspaceId}:dom:{name}",
+                Purpose: "Hidden domain entity.",
+                Layer: "Layer 5: Logical Structure",
+                OutEdges: [new EdgeInfo("Domain", "BELONGS_TO_DOMAIN", "ZooNode")],
+                Properties: []),
+            new(
+                ClassName: "SyntaxStructureNode",
+                Label: "SyntaxStructure",
+                IdScheme: "{workspaceId}:ss",
+                Purpose: "Internal root container.",
+                Layer: "Layer 3: Syntax Structure",
+                OutEdges: [],
+                Properties: [],
+                IsSystemNode: true)
+        };
+        var relsWithHidden = new List<RelInfo>(_rels!)
+        {
+            new("BELONGS_TO_DOMAIN", "Hidden domain edge.")
+        };
+
+        var json = JsonSchemaRenderer.Render(nodesWithHidden, relsWithHidden);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        root.GetProperty("schemaVersion").GetString().Should().Be("1.0");
+        root.GetProperty("layers").GetArrayLength().Should().Be(4);
+
+        var nodeKinds = root.GetProperty("nodes").EnumerateArray()
+            .Select(n => n.GetProperty("kind").GetString()!)
+            .ToList();
+
+        nodeKinds.Should().Contain(["Zoo", "Animal", "Habitat"]);
+        nodeKinds.Should().NotContain("Domain");
+        nodeKinds.Should().NotContain("SyntaxStructure");
+
+        var animalNode = root.GetProperty("nodes").EnumerateArray()
+            .Single(n => n.GetProperty("kind").GetString() == "Animal");
+        animalNode.GetProperty("outEdges")[0].GetProperty("toKind").GetString().Should().Be("Habitat");
+        animalNode.GetProperty("inEdges")[0].GetProperty("fromKind").GetString().Should().Be("Zoo");
+        animalNode.GetProperty("sampleCypher").GetString().Should().Contain("MATCH");
+
+        json.Should().NotContain("BELONGS_TO_DOMAIN");
+    }
 }
