@@ -12,7 +12,9 @@ public sealed record NodeInfo(
     string Icon = "symbol-class",
     int Order = 0,
     string PluralLabel = "",
-    bool IsSystemNode = false
+    bool IsSystemNode = false,
+    bool IsAbstract = false,
+    string? BaseClassName = null
 );
 
 /// <summary>One outbound edge declared on a node via [OntologyEdge&lt;TTo&gt;].</summary>
@@ -27,7 +29,8 @@ public sealed record PropertyInfo(
     string Name,
     string Type,
     string Description,
-    string CypherName = ""
+    string CypherName = "",
+    string? InheritedFrom = null
 );
 
 /// <summary>Metadata extracted from a relationship record class.</summary>

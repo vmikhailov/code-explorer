@@ -1,7 +1,5 @@
-using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
@@ -14,45 +12,19 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 7,
     pluralLabel: "Test Suites"
 )]
-[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
-[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
-[OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
-[OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
-[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Tests)]
-[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Tests)]
-[OntologyEdge<AppNode>(OntologyConstants.Relationships.Tests)]
-[OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Tests)]
-[OntologyEdge<CliToolNode>(OntologyConstants.Relationships.Tests)]
+[OntologyEdge<ModuleNode>(OntologyConstants.Relationships.Tests)]
 public record TestSuiteNode(
     string Id,
-    [property: OntologyProperty("The test suite name.")] string Name,
-    [property: OntologyProperty("The path of the test suite directory relative to the workspace.")] string Path,
-    [property: OntologyProperty("The project type or language.")] ProjectLanguage ProjectType,
+    string Name,
+    string Path,
+    ProjectLanguage ProjectType,
     Dictionary<string, string>? CustomProperties = null
-) : CompositeNode(Id, CustomProperties)
+) : ModuleNode(Id, Name, Path, ProjectType, CustomProperties)
 {
     public TestSuiteNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? CustomProperties = null)
         : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), CustomProperties)
     {
     }
-
-    [JsonPropertyName("role"), OntologyProperty("The primary semantic role of the test suite.")]
-    public string? Role { get; set; }
-
-    [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a library.")]
-    public bool? IsLibrary { get; set; }
-
-    [JsonPropertyName("primary_role"), OntologyProperty("The primary architectural role.")]
-    public string? PrimaryRole { get; set; }
-
-    [JsonPropertyName("secondary_roles"), OntologyProperty("Comma-separated secondary roles.", isSystem: true)]
-    public string? SecondaryRoles { get; set; }
-
-    [JsonPropertyName("all_roles"), OntologyProperty("All detected roles.", isSystem: true)]
-    public string? AllRoles { get; set; }
-
-    [JsonPropertyName("framework"), OntologyProperty("The detected test framework.")]
-    public string? Framework { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.TestSuite;

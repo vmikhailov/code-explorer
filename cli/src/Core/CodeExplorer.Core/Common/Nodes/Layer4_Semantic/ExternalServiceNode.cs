@@ -9,16 +9,19 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ExternalService,
     idScheme: "{workspaceId}:es:{protocol}:{host}",
-    purpose: "Represents a physical/logical external host dependency.",
+    purpose: "Represents an external API, managed cloud resource, or remote service dependency outside the workspace (REST, gRPC, GraphQL, S3, Stripe, Auth0).",
     layer: OntologyConstants.Layers.Semantic,
-    icon: "cloud",
+    icon: "globe",
     order: 12,
-    pluralLabel: "External Services"
+    pluralLabel: "External Services & Resources"
 )]
+[OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.CallsEndpoint)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.TransitivelyCalls)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record ExternalServiceNode(
@@ -59,6 +62,12 @@ public record ExternalServiceNode(
 
     [JsonPropertyName("method"), OntologyProperty("Outbound HTTP verb or RPC method name.")]
     public string? Method { get; set; }
+
+    [JsonPropertyName("provider"), OntologyProperty("Cloud platform or SaaS vendor hosting this external service (e.g. AWS, GCP, Azure, Stripe, Auth0).")]
+    public string? Provider { get; set; }
+
+    [JsonPropertyName("resource_role"), OntologyProperty("Operational role when representing a managed cloud resource (storage, secrets, auth, compute, cdn, ai).")]
+    public string? ResourceRole { get; set; }
 
     [JsonPropertyName("is_external"), OntologyProperty("True when the target resolves outside workspace services.")]
     public bool? IsExternal { get; set; }

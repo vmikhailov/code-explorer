@@ -551,17 +551,9 @@ public partial class SqliteCompiler
     private void AddNodeFiltersToConditions(NodePattern node, string nodeVar, List<string> conditions)
     {
         var nVar = EscapeVar(nodeVar);
-        if (node.NodeKinds.Count == 1)
+        if (node.NodeKinds.Count >= 1)
         {
-            var kind = node.NodeKinds[0];
-            var kindId = kind != NodeKind.Unspecified ? GraphKindCodec.EncodeNodeKind(kind) : GraphKindCodec.EncodeNodeKind(node.Labels[0]);
-            conditions.Add($"{nVar}.kind = {kindId}");
-        }
-        else if (node.NodeKinds.Count > 1)
-        {
-            var kinds = string.Join(", ", node.NodeKinds.Select((k, idx) =>
-                k != NodeKind.Unspecified ? GraphKindCodec.EncodeNodeKind(k) : GraphKindCodec.EncodeNodeKind(node.Labels[idx])));
-            conditions.Add($"{nVar}.kind IN ({kinds})");
+            conditions.Add(GraphKindCodec.BuildLabelsFilterSql($"{nVar}.kind", node.NodeKinds, node.Labels));
         }
 
         if (node.Properties != null)

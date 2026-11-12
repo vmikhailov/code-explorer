@@ -480,6 +480,27 @@ public static class ConfigurationParser
             relationships.Add(usesDbRel);
             ctx.AddGlobalProjectDependency(usesDbRel);
         }
+
+        if (CloudProviderHelper.TryResolve(connStr, engine) is { } dbCloudMatch)
+        {
+            var cloudId = CloudProviderHelper.BuildCloudNodeId(workspaceId, dbCloudMatch.ProviderId);
+            if (!targetTreeContainer.Children.Any(c => c.Id == cloudId))
+            {
+                targetTreeContainer.Children.Add(new CloudNode(cloudId, dbCloudMatch.DisplayName, relativePath)
+                {
+                    Provider = dbCloudMatch.ProviderId,
+                    Category = dbCloudMatch.TierSlug
+                });
+            }
+            var hostedRel = Relationship.FromRelationship(new HostedInRelationship(dbId, cloudId)
+            {
+                FilePath = relativePath,
+                Operation = "CONFIG",
+                EvidenceKind = OntologyConstants.EvidenceKinds.Config
+            });
+            relationships.Add(hostedRel);
+            ctx.AddGlobalProjectDependency(hostedRel);
+        }
     }
 
     public static void CreateTopicNode(
@@ -545,17 +566,36 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        var cloudId = $"{workspaceId}:cloud:{cloudName.ToLowerInvariant().Replace(' ', '_')}";
+        var slug = CloudProviderHelper.NormalizeSlug(cloudName);
+        var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:cloud:{slug}";
+        var cloudMatch = CloudProviderHelper.ResolveOrFallback(cloudName);
+        var cloudId = CloudProviderHelper.BuildCloudNodeId(workspaceId, cloudMatch.ProviderId);
 
         var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
-        if (!targetTreeContainer.Children.Any(c => c.Id == cloudId))
+        if (!targetTreeContainer.Children.Any(c => c.Id == extId))
         {
-            var cloudNode = new CloudServiceNode(cloudId, cloudName, "CloudService", relativePath);
-            targetTreeContainer.Children.Add(cloudNode);
-            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, cloudName, cloudId);
+            const string httpsProtocol = "HTTPS";
+            var extNode = new ExternalServiceNode(extId, cloudName, httpsProtocol, cloudName, relativePath)
+            {
+                Provider = cloudMatch.DisplayName,
+                IsExternal = true
+            };
+            targetTreeContainer.Children.Add(extNode);
+            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, cloudName, extId);
         }
 
-        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(cloudId, fileNodeId)
+        if (!targetTreeContainer.Children.Any(c => c.Id == cloudId))
+        {
+            var cloudNode = new CloudNode(cloudId, cloudMatch.DisplayName, relativePath)
+            {
+                Provider = cloudMatch.ProviderId,
+                Category = cloudMatch.TierSlug
+            };
+            targetTreeContainer.Children.Add(cloudNode);
+            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Cloud, cloudMatch.DisplayName, cloudId);
+        }
+
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(extId, fileNodeId)
         {
             FilePath = relativePath,
             Operation = "CONFIG",
@@ -563,19 +603,37 @@ public static class ConfigurationParser
         });
         relationships.Add(cfgRel);
 
+        var cloudDeclRel = Relationship.FromRelationship(new DeclaredInRelationship(cloudId, fileNodeId)
+        {
+            FilePath = relativePath,
+            Operation = "CONFIG",
+            EvidenceKind = OntologyConstants.EvidenceKinds.Config
+        });
+        relationships.Add(cloudDeclRel);
+
+        var hostedInRel = Relationship.FromRelationship(new HostedInRelationship(extId, cloudId)
+        {
+            FilePath = relativePath,
+            Provider = cloudMatch.ProviderId,
+            EvidenceKind = OntologyConstants.EvidenceKinds.Config
+        });
+        relationships.Add(hostedInRel);
+        ctx.AddGlobalProjectDependency(hostedInRel);
+
         var (_, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
         if (!string.IsNullOrEmpty(workloadId))
         {
-            var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId)
+            var serviceCallRel = Relationship.FromRelationship(new ServiceCallRelationship(workloadId, extId)
             {
                 FilePath = relativePath,
                 Operation = "CONFIG",
+                Provider = cloudMatch.ProviderId,
                 EvidenceKind = OntologyConstants.EvidenceKinds.Config
             });
-            EvidenceProvenanceHelper.RecordContributingEdge(usesCloudRel, cfgRel);
-            relationships.Add(usesCloudRel);
-            ctx.AddGlobalProjectDependency(usesCloudRel);
+            EvidenceProvenanceHelper.RecordContributingEdge(serviceCallRel, cfgRel);
+            relationships.Add(serviceCallRel);
+            ctx.AddGlobalProjectDependency(serviceCallRel);
         }
     }
 

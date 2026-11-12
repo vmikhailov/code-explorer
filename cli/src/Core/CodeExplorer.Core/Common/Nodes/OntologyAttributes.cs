@@ -11,7 +11,8 @@ public class OntologyNodeAttribute(
     string icon = "symbol-class",
     int order = 0,
     string? pluralLabel = null,
-    bool isSystemNode = false) : Attribute
+    bool isSystemNode = false,
+    bool isAbstract = false) : Attribute
 {
     public string Label { get; } = label;
     public string IdScheme { get; } = idScheme;
@@ -21,6 +22,7 @@ public class OntologyNodeAttribute(
     public int Order { get; } = order;
     public string PluralLabel { get; } = pluralLabel ?? label;
     public bool IsSystemNode { get; init; } = isSystemNode;
+    public bool IsAbstract { get; init; } = isAbstract;
 }
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]

@@ -564,7 +564,13 @@ public class SemanticRuntimeParityGateTests
     {
         var projDir = Path.Combine(_tempDir, "OrderService").Replace('\\', '/');
         Directory.CreateDirectory(projDir);
-        await File.WriteAllTextAsync(Path.Combine(projDir, "OrderService.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+        await File.WriteAllTextAsync(Path.Combine(projDir, "OrderService.csproj"), """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <ItemGroup>
+                <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+              </ItemGroup>
+            </Project>
+            """);
         await File.WriteAllTextAsync(Path.Combine(projDir, "OrderController.cs"), """
             using System.ComponentModel.DataAnnotations.Schema;
             using Microsoft.AspNetCore.Mvc;
@@ -585,6 +591,16 @@ public class SemanticRuntimeParityGateTests
                 public string GetOrders() => "ok";
             }
             """);
+        await File.WriteAllTextAsync(Path.Combine(projDir, "appsettings.json"), """
+            {
+              "ConnectionStrings": {
+                "OrdersDb": "Host=db.supabase.co;Database=orders_db;Username=postgres;Password=secret"
+              },
+              "Stripe": {
+                "ApiKey": "sk_test_12345"
+              }
+            }
+            """);
 
         var dbPath = Path.Combine(_tempDir, "layer5_test.db").Replace('\\', '/');
         await using var client = new SqliteGraphClient(dbPath);
@@ -592,36 +608,67 @@ public class SemanticRuntimeParityGateTests
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-        // 1. Verify Level 5 LogicalStructure, Domain, and BoundedContext nodes are persisted
-        var l5Res = await client.ExecuteCypherAsync("MATCH (ls:LogicalStructure)-[:CONTAINS]->(d:Domain)-[:CONTAINS]->(bc:BoundedContext) RETURN ls.id AS lsId, d.id AS domId, bc.id AS bcId");
-        l5Res.Count.Should().BeGreaterThan(0, "Level 5 LogicalStructure -> Domain -> BoundedContext hierarchy must be persisted");
+        // 1a. Verify Level 5 is NOT populated by default (while DomainDetectionEnabled is false)
+        var l5DefaultRes = await client.ExecuteCypherAsync("MATCH (n) WHERE n:LogicalStructure OR n:Domain OR n:BoundedContext RETURN count(n) AS cnt");
+        l5DefaultRes.Rows[0].GetIntProp("cnt").Should().Be(0, "Level 5 nodes remain unpopulated during default scans while DomainDetectionEnabled is false");
 
-        // 2. Verify zero upward cross-layer edges across the entire indexed workspace
+        // 1b. Verify Ontology v2.0 polymorphic (:Workload / :Module), (:Database)->(:DbSchema)->(:Table), and -[:HOSTED_IN]->(:Cloud)
+        var polyRes = await client.ExecuteCypherAsync("MATCH (w:Workload)-[:USES_DB]->(db:Database)-[:CONTAINS]->(sch:DbSchema)-[:CONTAINS]->(t:Table) WHERE w:Module RETURN w.name AS wl, db.name AS dbName, sch:DbSchema AS isSch, sch.name AS schemaName, t.name AS tblName");
+        polyRes.Count.Should().BeGreaterThan(0, "Workload -> Database -> DbSchema -> Table lineage and Module/Workload polymorphism must materialize");
+
+        var cloudRes = await client.ExecuteCypherAsync("MATCH (n)-[:HOSTED_IN]->(c:Cloud) RETURN labels(n)[0] AS srcKind, c.name AS cloudName");
+        cloudRes.Rows.Select(r => r.GetStringProp("cloudName")).Should().Contain(["Supabase", "Stripe"]);
+
+        // 2. Verify zero upward cross-layer edges across the entire indexed workspace (and also when DomainDetectionEnabled is explicitly enabled)
         static int GetLayerRank(string label) => label switch
         {
             "Workspace" or "FilesStructure" or "Folder" or "File" => 1,
             "ProjectsStructure" or "Project" or "Package" => 2,
             "SyntaxStructure" or "Namespace" or "Type" or "Function" or "Member" or "Parameter" or "CallArgument" or "CallLiteral" or "CatchClause" => 3,
-            "SemanticStructure" or "Service" or "App" or "Worker" or "Library" or "CliTool" or "TestSuite" or "EntryPoint" or "Endpoint" or "Database" or "Table" or "Query" or "StoredProcedure" or "DataSet" or "ExternalService" or "Topic" or "CloudService" or "PeerMesh" or "ApiInUse" => 4,
+            "SemanticStructure" or "Service" or "App" or "Worker" or "Library" or "CliTool" or "TestSuite" or "EntryPoint" or "Endpoint" or "Database" or "DbSchema" or "Table" or "Query" or "StoredProcedure" or "DataSet" or "ExternalService" or "Topic" or "Cloud" or "CloudService" or "PeerMesh" or "ApiInUse" => 4,
             "LogicalStructure" or "Domain" or "BoundedContext" => 5,
             _ => 0
         };
 
-        var edgesRes = await client.ExecuteCypherAsync("MATCH (a)-[r]->(b) RETURN labels(a)[0] AS fromKind, type(r) AS rel, labels(b)[0] AS toKind, a.id AS fromId, b.id AS toId");
-        var upwardEdges = new List<string>();
-        foreach (var row in edgesRes.Rows)
+        static async Task AssertZeroUpwardEdgesAsync(SqliteGraphClient dbClient)
         {
-            var fromKind = row.GetStringProp("fromKind");
-            var toKind = row.GetStringProp("toKind");
-            var rel = row.GetStringProp("rel");
-            var fromRank = GetLayerRank(fromKind);
-            var toRank = GetLayerRank(toKind);
-            if (fromRank > 0 && toRank > 0 && !(fromKind == "Workspace" && rel == "CONTAINS") && toRank > fromRank)
+            var edgesRes = await dbClient.ExecuteCypherAsync("MATCH (a)-[r]->(b) RETURN labels(a)[0] AS fromKind, type(r) AS rel, labels(b)[0] AS toKind, a.id AS fromId, b.id AS toId");
+            var upwardEdges = new List<string>();
+            foreach (var row in edgesRes.Rows)
             {
-                upwardEdges.Add($"{fromKind} (L{fromRank}) -[{rel}]-> {toKind} (L{toRank})");
+                var fromKind = row.GetStringProp("fromKind");
+                var toKind = row.GetStringProp("toKind");
+                var rel = row.GetStringProp("rel");
+                var fromRank = GetLayerRank(fromKind);
+                var toRank = GetLayerRank(toKind);
+                if (fromRank > 0 && toRank > 0 && !(fromKind == "Workspace" && rel == "CONTAINS") && toRank > fromRank)
+                {
+                    upwardEdges.Add($"{fromKind} (L{fromRank}) -[{rel}]-> {toKind} (L{toRank})");
+                }
             }
+
+            upwardEdges.Should().BeEmpty("Ontology edges must never point upward from Layer K to Layer M > K");
         }
 
-        upwardEdges.Should().BeEmpty("Ontology edges must never point upward from Layer K to Layer M > K");
+        await AssertZeroUpwardEdgesAsync(client);
+
+        // 3. Also verify that when DomainDetectionEnabled is explicitly enabled, Level 5 hierarchy materializes cleanly with zero upward edges
+        var dbEnabledPath = Path.Combine(_tempDir, "layer5_enabled_test.db").Replace('\\', '/');
+        await using var enabledClient = new SqliteGraphClient(dbEnabledPath);
+        var prevDomainFlag = CodeExplorer.Core.Common.WorkspaceConventions.DomainDetectionEnabled;
+        try
+        {
+            CodeExplorer.Core.Common.WorkspaceConventions.DomainDetectionEnabled = true;
+            var enabledIndexer = new WorkspaceIndexer(enabledClient);
+            await enabledIndexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+            var l5Res = await enabledClient.ExecuteCypherAsync("MATCH (ls:LogicalStructure)-[:CONTAINS]->(d:Domain)-[:CONTAINS]->(bc:BoundedContext) RETURN ls.id AS lsId, d.id AS domId, bc.id AS bcId");
+            l5Res.Count.Should().BeGreaterThan(0, "Level 5 LogicalStructure -> Domain -> BoundedContext hierarchy must materialize when DomainDetectionEnabled is true");
+            await AssertZeroUpwardEdgesAsync(enabledClient);
+        }
+        finally
+        {
+            CodeExplorer.Core.Common.WorkspaceConventions.DomainDetectionEnabled = prevDomainFlag;
+        }
     }
 }

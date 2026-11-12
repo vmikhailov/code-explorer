@@ -1,6 +1,13 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "layers": [
+    {
+      "layerId": 5,
+      "key": "L5_logical",
+      "name": "Logical Structure",
+      "title": "Layer 5: Logical Structure",
+      "description": "Business domains, bounded contexts, and strategic cross-context boundaries grouping modules, data stores, and domain types."
+    },
     {
       "layerId": 4,
       "key": "L4_semantic",
@@ -80,26 +87,192 @@
   ],
   "nodes": [
     {
-      "kind": "App",
-      "pluralLabel": "Applications",
-      "layerId": 4,
-      "layerKey": "L4_semantic",
-      "icon": "browser",
+      "kind": "Domain",
+      "pluralLabel": "Domains",
+      "layerId": 5,
+      "layerKey": "L5_logical",
+      "icon": "globe",
       "order": 1,
-      "idScheme": "{workspaceId}:app:{appName}",
-      "purpose": "Represents a single-page application, web frontend, mobile client, or desktop app (e.g. React, Next.js, Vue, Angular, Electron).",
+      "idScheme": "{workspaceId}:dom:{domainKey}",
+      "purpose": "Represents a high-level business domain (e.g. Core, Supporting, Generic, Shared) containing one or more bounded contexts in Level 5 (Logical Structure).",
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The application name."
+          "description": "The canonical domain name."
+        },
+        {
+          "name": "display_name",
+          "sourceName": "DisplayName",
+          "type": "string",
+          "description": "The human-readable display name of the domain."
+        },
+        {
+          "name": "domain_type",
+          "sourceName": "DomainType",
+          "type": "enum (DomainType)",
+          "description": "The DDD classification of the domain (Core, Supporting, Generic, Shared)."
+        },
+        {
+          "name": "summary",
+          "sourceName": "Summary",
+          "type": "string",
+          "description": "A concise summary of the domain's business responsibility."
         },
         {
           "name": "path",
           "sourceName": "Path",
           "type": "string",
-          "description": "The path of the application directory relative to the workspace."
+          "description": "Primary path associated with the domain."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Domain",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "Domain",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Domain)-[:DEPENDS_ON]->(t:Domain)\nRETURN n.name, n.display_name, n.domain_type, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "BoundedContext",
+      "pluralLabel": "Bounded Contexts",
+      "layerId": 5,
+      "layerKey": "L5_logical",
+      "icon": "layers",
+      "order": 2,
+      "idScheme": "{workspaceId}:bc:{contextKey}",
+      "purpose": "Represents a DDD Bounded Context in Level 5 (Logical Structure) that encapsulates semantic workloads, data stores, topics, and domain types.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The canonical bounded context name."
+        },
+        {
+          "name": "display_name",
+          "sourceName": "DisplayName",
+          "type": "string",
+          "description": "The human-readable display name of the bounded context."
+        },
+        {
+          "name": "domain_id",
+          "sourceName": "DomainId",
+          "type": "string",
+          "description": "The parent domain ID that owns this bounded context."
+        },
+        {
+          "name": "summary",
+          "sourceName": "Summary",
+          "type": "string",
+          "description": "A concise summary of the bounded context's business responsibility."
+        },
+        {
+          "name": "purity_percentage",
+          "sourceName": "PurityPercentage",
+          "type": "number",
+          "description": "Domain purity percentage (0-100)."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "Primary path associated with the bounded context."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "BoundedContext",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Database",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Module",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Topic",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "DEFINES",
+          "toKind": "Type",
+          "category": "structural",
+          "description": "Indicates that an entity defines a particular property or configuration."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "BoundedContext",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Domain",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:BoundedContext)-[:DEPENDS_ON]->(t:BoundedContext)\nRETURN n.name, n.display_name, n.domain_id, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Module",
+      "pluralLabel": "Software Modules",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "package",
+      "order": 0,
+      "idScheme": "{workspaceId}:{kindPrefix}:{moduleName}",
+      "purpose": "Abstract base software module encompassing executable workloads, shared libraries, and automated test suites.",
+      "isAbstract": true,
+      "subtypes": [
+        "Workload",
+        "Library",
+        "TestSuite"
+      ],
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The module name."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The path of the module directory relative to the workspace."
         },
         {
           "name": "project_type",
@@ -111,40 +284,109 @@
           "name": "role",
           "sourceName": "Role",
           "type": "string",
-          "description": "The primary semantic role of the application."
-        },
-        {
-          "name": "is_library",
-          "sourceName": "IsLibrary",
-          "type": "boolean",
-          "description": "Indicates whether the project is a library."
-        },
-        {
-          "name": "primary_role",
-          "sourceName": "PrimaryRole",
-          "type": "string",
-          "description": "The primary architectural role."
+          "description": "The primary semantic role of the module."
         },
         {
           "name": "framework",
           "sourceName": "Framework",
           "type": "string",
-          "description": "The detected application framework."
+          "description": "The detected application, service, or test framework."
         }
       ],
       "outEdges": [
         {
-          "rel": "CALLED_BY",
-          "toKind": "Function",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
+          "rel": "DEPENDS_ON",
+          "toKind": "Library",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
         },
         {
-          "rel": "EXPOSES",
-          "toKind": "Endpoint",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
+          "rel": "DEPENDS_ON",
+          "toKind": "Package",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
         },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "Project",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "TESTS",
+          "fromKind": "TestSuite",
+          "category": "type_dependency",
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Module)-[:DEPENDS_ON]->(t:Library)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Workload",
+      "pluralLabel": "Runtime Workloads",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "server",
+      "order": 1,
+      "idScheme": "{workspaceId}:{workloadPrefix}:{workloadName}",
+      "purpose": "Abstract executable runtime workload encompassing backend services, client applications, background workers, and CLI tools.",
+      "isAbstract": true,
+      "extends": "Module",
+      "ancestors": [
+        "Module"
+      ],
+      "subtypes": [
+        "App",
+        "Service",
+        "Worker",
+        "CliTool"
+      ],
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The module name.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "project_type",
+          "sourceName": "ProjectType",
+          "type": "enum (ProjectLanguage)",
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "role",
+          "sourceName": "Role",
+          "type": "string",
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
+        }
+      ],
+      "outEdges": [
         {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
@@ -164,87 +406,188 @@
           "description": "Links a service or function to a message queue or topic it publishes messages or events to."
         },
         {
-          "rel": "READS_FROM",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
-        },
-        {
           "rel": "USES_DB",
           "toKind": "Database",
           "category": "data_flow",
           "description": "Links a project to a database catalog or instance it utilizes."
         },
         {
-          "rel": "WRITES_TO",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "toKind": "PeerMesh",
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
           "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
+        }
+      ],
+      "inEdges": [],
+      "inheritedOutEdges": [
         {
           "rel": "DEPENDS_ON",
           "toKind": "Library",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Package",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "USES_API",
-          "toKind": "ApiInUse",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "toKind": "CloudService",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "ApiInUse",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "Endpoint",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
         }
       ],
-      "inEdges": [
+      "inheritedInEdges": [
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
           "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:App)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Workload)-[:SERVICE_CALL]->(t:ExternalService)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "App",
+      "pluralLabel": "Applications",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "browser",
+      "order": 2,
+      "idScheme": "{workspaceId}:app:{appName}",
+      "purpose": "Represents a single-page application, web frontend, mobile client, or desktop app (e.g. React, Next.js, Vue, Angular, Electron).",
+      "extends": "Workload",
+      "ancestors": [
+        "Workload",
+        "Module"
+      ],
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The module name.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "project_type",
+          "sourceName": "ProjectType",
+          "type": "enum (ProjectLanguage)",
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "role",
+          "sourceName": "Role",
+          "type": "string",
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
+        }
+      ],
+      "outEdges": [],
+      "inEdges": [],
+      "inheritedOutEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "toKind": "ExternalService",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "SERVICE_CALL",
+          "toKind": "Service",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "PUBLISHES_TO",
+          "toKind": "Topic",
+          "category": "data_flow",
+          "description": "Links a service or function to a message queue or topic it publishes messages or events to.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "USES_DB",
+          "toKind": "Database",
+          "category": "data_flow",
+          "description": "Links a project to a database catalog or instance it utilizes.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Library",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Package",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "Project",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
+        }
+      ],
+      "inheritedInEdges": [
+        {
+          "rel": "TESTS",
+          "fromKind": "TestSuite",
+          "category": "type_dependency",
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        }
+      ],
+      "sampleCypher": "MATCH (n:App)-[:SERVICE_CALL]->(t:ExternalService)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "Service",
@@ -252,51 +595,49 @@
       "layerId": 4,
       "layerKey": "L4_semantic",
       "icon": "server-process",
-      "order": 2,
+      "order": 3,
       "idScheme": "{workspaceId}:s:{serviceName}",
       "purpose": "Represents an executable backend service, microservice, or API daemon (e.g. ASP.NET Core Web API, NestJS, Express, Go HTTP server).",
+      "extends": "Workload",
+      "ancestors": [
+        "Workload",
+        "Module"
+      ],
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The service name."
+          "description": "The module name.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "path",
           "sourceName": "Path",
           "type": "string",
-          "description": "The path of the service directory relative to the workspace."
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "project_type",
           "sourceName": "ProjectType",
           "type": "enum (ProjectLanguage)",
-          "description": "The project type or language."
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "role",
           "sourceName": "Role",
           "type": "string",
-          "description": "The primary semantic role of the service."
-        },
-        {
-          "name": "is_library",
-          "sourceName": "IsLibrary",
-          "type": "boolean",
-          "description": "Indicates whether the project is a library."
-        },
-        {
-          "name": "primary_role",
-          "sourceName": "PrimaryRole",
-          "type": "string",
-          "description": "The primary architectural role."
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "framework",
           "sourceName": "Framework",
           "type": "string",
-          "description": "The detected service framework."
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
         }
       ],
       "outEdges": [
@@ -313,141 +654,95 @@
           "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
         },
         {
-          "rel": "SERVICE_CALL",
-          "toKind": "ExternalService",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "toKind": "Service",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "READS_FROM",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
-        },
-        {
-          "rel": "USES_DB",
-          "toKind": "Database",
-          "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "WRITES_TO",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
           "rel": "COORDINATES_WITH",
           "toKind": "PeerMesh",
           "category": "type_dependency",
           "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "toKind": "Library",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "toKind": "Package",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "IMPLEMENTED_BY",
-          "toKind": "Project",
-          "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "USES_API",
-          "toKind": "ApiInUse",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "toKind": "CloudService",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "ApiInUse",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "CloudService",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "Endpoint",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
       "inEdges": [
         {
           "rel": "SERVICE_CALL",
-          "fromKind": "App",
+          "fromKind": "Workload",
           "category": "control_flow",
           "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+        }
+      ],
+      "inheritedOutEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "toKind": "ExternalService",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "SERVICE_CALL",
-          "fromKind": "CliTool",
+          "toKind": "Service",
           "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
         },
         {
-          "rel": "SERVICE_CALL",
-          "fromKind": "Library",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+          "rel": "PUBLISHES_TO",
+          "toKind": "Topic",
+          "category": "data_flow",
+          "description": "Links a service or function to a message queue or topic it publishes messages or events to.",
+          "inheritedFrom": "Workload"
         },
         {
-          "rel": "SERVICE_CALL",
-          "fromKind": "Service",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+          "rel": "USES_DB",
+          "toKind": "Database",
+          "category": "data_flow",
+          "description": "Links a project to a database catalog or instance it utilizes.",
+          "inheritedFrom": "Workload"
         },
         {
-          "rel": "SERVICE_CALL",
-          "fromKind": "Worker",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+          "rel": "DEPENDS_ON",
+          "toKind": "Library",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Package",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "Project",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
+        }
+      ],
+      "inheritedInEdges": [
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
           "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:Service)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Service)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "Worker",
@@ -455,160 +750,135 @@
       "layerId": 4,
       "layerKey": "L4_semantic",
       "icon": "gear",
-      "order": 3,
+      "order": 4,
       "idScheme": "{workspaceId}:w:{workerName}",
       "purpose": "Represents a background job processor, queue consumer, or scheduled task (e.g. Hangfire, Celery, Worker Service).",
+      "extends": "Workload",
+      "ancestors": [
+        "Workload",
+        "Module"
+      ],
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The worker name."
+          "description": "The module name.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "path",
           "sourceName": "Path",
           "type": "string",
-          "description": "The path of the worker directory relative to the workspace."
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "project_type",
           "sourceName": "ProjectType",
           "type": "enum (ProjectLanguage)",
-          "description": "The project type or language."
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "role",
           "sourceName": "Role",
           "type": "string",
-          "description": "The primary semantic role of the worker."
-        },
-        {
-          "name": "is_library",
-          "sourceName": "IsLibrary",
-          "type": "boolean",
-          "description": "Indicates whether the project is a library."
-        },
-        {
-          "name": "primary_role",
-          "sourceName": "PrimaryRole",
-          "type": "string",
-          "description": "The primary architectural role."
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "framework",
           "sourceName": "Framework",
           "type": "string",
-          "description": "The detected worker framework."
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
         }
       ],
       "outEdges": [
-        {
-          "rel": "CALLED_BY",
-          "toKind": "Function",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "EXPOSES",
-          "toKind": "Endpoint",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "toKind": "ExternalService",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "toKind": "Service",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "READS_FROM",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
         {
           "rel": "SUBSCRIBES_TO",
           "toKind": "Topic",
           "category": "data_flow",
           "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
+        }
+      ],
+      "inEdges": [],
+      "inheritedOutEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "toKind": "ExternalService",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "SERVICE_CALL",
+          "toKind": "Service",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "PUBLISHES_TO",
+          "toKind": "Topic",
+          "category": "data_flow",
+          "description": "Links a service or function to a message queue or topic it publishes messages or events to.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "USES_DB",
           "toKind": "Database",
           "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "WRITES_TO",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "toKind": "PeerMesh",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
+          "description": "Links a project to a database catalog or instance it utilizes.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Library",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Package",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "USES_API",
-          "toKind": "ApiInUse",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "toKind": "CloudService",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "Endpoint",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
         }
       ],
-      "inEdges": [
+      "inheritedInEdges": [
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
           "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:Worker)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Worker)-[:SUBSCRIBES_TO]->(t:Topic)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "CliTool",
@@ -616,160 +886,128 @@
       "layerId": 4,
       "layerKey": "L4_semantic",
       "icon": "terminal",
-      "order": 4,
+      "order": 5,
       "idScheme": "{workspaceId}:cli:{toolName}",
       "purpose": "Represents a command-line tool, developer script, or administrative CLI utility.",
+      "extends": "Workload",
+      "ancestors": [
+        "Workload",
+        "Module"
+      ],
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The CLI tool name."
+          "description": "The module name.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "path",
           "sourceName": "Path",
           "type": "string",
-          "description": "The path of the tool directory relative to the workspace."
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "project_type",
           "sourceName": "ProjectType",
           "type": "enum (ProjectLanguage)",
-          "description": "The project type or language."
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "role",
           "sourceName": "Role",
           "type": "string",
-          "description": "The primary semantic role of the CLI tool."
-        },
-        {
-          "name": "is_library",
-          "sourceName": "IsLibrary",
-          "type": "boolean",
-          "description": "Indicates whether the project is a library."
-        },
-        {
-          "name": "primary_role",
-          "sourceName": "PrimaryRole",
-          "type": "string",
-          "description": "The primary architectural role."
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "framework",
           "sourceName": "Framework",
           "type": "string",
-          "description": "The detected CLI framework."
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
         }
       ],
-      "outEdges": [
-        {
-          "rel": "CALLED_BY",
-          "toKind": "Function",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "EXPOSES",
-          "toKind": "Endpoint",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
+      "outEdges": [],
+      "inEdges": [],
+      "inheritedOutEdges": [
         {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
           "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "SERVICE_CALL",
           "toKind": "Service",
           "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "PUBLISHES_TO",
           "toKind": "Topic",
           "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "READS_FROM",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
+          "description": "Links a service or function to a message queue or topic it publishes messages or events to.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "USES_DB",
           "toKind": "Database",
           "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "WRITES_TO",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "toKind": "PeerMesh",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
+          "description": "Links a project to a database catalog or instance it utilizes.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Library",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Package",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it.",
+          "inheritedFrom": "Workload"
         },
         {
           "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "USES_API",
-          "toKind": "ApiInUse",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "toKind": "CloudService",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "Endpoint",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
         }
       ],
-      "inEdges": [
+      "inheritedInEdges": [
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
           "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:CliTool)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:CliTool)-[:SERVICE_CALL]->(t:ExternalService)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "Library",
@@ -777,190 +1015,99 @@
       "layerId": 4,
       "layerKey": "L4_semantic",
       "icon": "library",
-      "order": 5,
+      "order": 6,
       "idScheme": "{workspaceId}:lib:{libraryName}",
       "purpose": "Represents a shared library, utility module, DTO package, or domain contract reused across services.",
+      "extends": "Module",
+      "ancestors": [
+        "Module"
+      ],
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The library name."
+          "description": "The module name.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "path",
           "sourceName": "Path",
           "type": "string",
-          "description": "The path of the library directory relative to the workspace."
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "project_type",
           "sourceName": "ProjectType",
           "type": "enum (ProjectLanguage)",
-          "description": "The project type or language."
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "role",
           "sourceName": "Role",
           "type": "string",
-          "description": "The primary semantic role of the library."
-        },
-        {
-          "name": "is_library",
-          "sourceName": "IsLibrary",
-          "type": "boolean",
-          "description": "Indicates whether the project is a library."
-        },
-        {
-          "name": "primary_role",
-          "sourceName": "PrimaryRole",
-          "type": "string",
-          "description": "The primary architectural role."
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "framework",
           "sourceName": "Framework",
           "type": "string",
-          "description": "The detected framework."
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
         }
       ],
-      "outEdges": [
+      "outEdges": [],
+      "inEdges": [
         {
-          "rel": "CALLED_BY",
-          "toKind": "Function",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "EXPOSES",
-          "toKind": "Endpoint",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "toKind": "ExternalService",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "toKind": "Service",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "READS_FROM",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "toKind": "Topic",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
-        },
-        {
-          "rel": "USES_DB",
-          "toKind": "Database",
-          "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "WRITES_TO",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "toKind": "PeerMesh",
+          "rel": "DEPENDS_ON",
+          "fromKind": "Module",
           "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        }
+      ],
+      "inheritedOutEdges": [
         {
           "rel": "DEPENDS_ON",
           "toKind": "Library",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Package",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "USES_API",
-          "toKind": "ApiInUse",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "toKind": "CloudService",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
         }
       ],
-      "inEdges": [
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "App",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "CliTool",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "Library",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "Service",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "TestSuite",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "Worker",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
+      "inheritedInEdges": [
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
           "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:Library)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Library)-[:DEPENDS_ON]->(t:Library)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "TestSuite",
@@ -971,108 +1118,96 @@
       "order": 7,
       "idScheme": "{workspaceId}:suite:{suiteName}",
       "purpose": "Represents an automated test project, runner suite, or test module (e.g. NUnit/xUnit test project, Jest test suite, pytest suite).",
+      "extends": "Module",
+      "ancestors": [
+        "Module"
+      ],
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The test suite name."
+          "description": "The module name.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "path",
           "sourceName": "Path",
           "type": "string",
-          "description": "The path of the test suite directory relative to the workspace."
+          "description": "The path of the module directory relative to the workspace.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "project_type",
           "sourceName": "ProjectType",
           "type": "enum (ProjectLanguage)",
-          "description": "The project type or language."
+          "description": "The project type or language.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "role",
           "sourceName": "Role",
           "type": "string",
-          "description": "The primary semantic role of the test suite."
-        },
-        {
-          "name": "is_library",
-          "sourceName": "IsLibrary",
-          "type": "boolean",
-          "description": "Indicates whether the project is a library."
-        },
-        {
-          "name": "primary_role",
-          "sourceName": "PrimaryRole",
-          "type": "string",
-          "description": "The primary architectural role."
+          "description": "The primary semantic role of the module.",
+          "inheritedFrom": "Module"
         },
         {
           "name": "framework",
           "sourceName": "Framework",
           "type": "string",
-          "description": "The detected test framework."
+          "description": "The detected application, service, or test framework.",
+          "inheritedFrom": "Module"
         }
       ],
       "outEdges": [
         {
+          "rel": "TESTS",
+          "toKind": "Module",
+          "category": "type_dependency",
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
+        }
+      ],
+      "inEdges": [],
+      "inheritedOutEdges": [
+        {
           "rel": "DEPENDS_ON",
           "toKind": "Library",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "DEPENDS_ON",
           "toKind": "Package",
           "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
+          "description": "Represents a dependency relationship between projects, packages, or other entities.",
+          "inheritedFrom": "Module"
         },
         {
           "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "TESTS",
-          "toKind": "App",
-          "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
-        },
-        {
-          "rel": "TESTS",
-          "toKind": "CliTool",
-          "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
-        },
-        {
-          "rel": "TESTS",
-          "toKind": "Library",
-          "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
-        },
-        {
-          "rel": "TESTS",
-          "toKind": "Service",
-          "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
-        },
-        {
-          "rel": "TESTS",
-          "toKind": "Worker",
-          "category": "type_dependency",
-          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies."
-        },
-        {
-          "rel": "USES_API",
-          "toKind": "ApiInUse",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
         }
       ],
-      "inEdges": [],
-      "sampleCypher": "MATCH (n:TestSuite)-[:DEPENDS_ON]->(t:Library)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "inheritedInEdges": [
+        {
+          "rel": "TESTS",
+          "fromKind": "TestSuite",
+          "category": "type_dependency",
+          "description": "Links a test suite to the runtime service, application, worker, CLI tool, or shared library it verifies.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        }
+      ],
+      "sampleCypher": "MATCH (n:TestSuite)-[:TESTS]->(t:Module)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "Endpoint",
@@ -1232,12 +1367,6 @@
         },
         {
           "rel": "ATTRIBUTED_TO",
-          "toKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links an ingress endpoint or binary entry point to a downstream database, query, cloud resource, or external service reached along its call chain."
-        },
-        {
-          "rel": "ATTRIBUTED_TO",
           "toKind": "Database",
           "category": "data_flow",
           "description": "Links an ingress endpoint or binary entry point to a downstream database, query, cloud resource, or external service reached along its call chain."
@@ -1300,60 +1429,12 @@
         },
         {
           "rel": "EXPOSES",
-          "fromKind": "App",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "EXPOSES",
-          "fromKind": "CliTool",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "EXPOSES",
-          "fromKind": "Library",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "EXPOSES",
           "fromKind": "Service",
           "category": "control_flow",
           "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "EXPOSES",
-          "fromKind": "Worker",
-          "category": "control_flow",
-          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "App",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "CliTool",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "Service",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "Worker",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Endpoint)-[:CALLS]->(t:Function)\nRETURN n.name, n.name, n.http_method, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Endpoint)-[:CALLS]->(t:Function)\nRETURN n.name, n.http_method, n.route_template, t.name\nLIMIT 25"
     },
     {
       "kind": "Topic",
@@ -1434,6 +1515,12 @@
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
         },
         {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
+        },
+        {
           "rel": "DECLARED_IN",
           "toKind": "File",
           "category": "structural",
@@ -1443,45 +1530,9 @@
       "inEdges": [
         {
           "rel": "PUBLISHES_TO",
-          "fromKind": "App",
+          "fromKind": "Workload",
           "category": "data_flow",
           "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "fromKind": "CliTool",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "fromKind": "Library",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "fromKind": "Service",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "PUBLISHES_TO",
-          "fromKind": "Worker",
-          "category": "data_flow",
-          "description": "Links a service or function to a message queue or topic it publishes messages or events to."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "fromKind": "App",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "fromKind": "CliTool",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
         },
         {
           "rel": "SUBSCRIBES_TO",
@@ -1491,34 +1542,28 @@
         },
         {
           "rel": "SUBSCRIBES_TO",
-          "fromKind": "Library",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
-          "fromKind": "Service",
-          "category": "data_flow",
-          "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
-        },
-        {
-          "rel": "SUBSCRIBES_TO",
           "fromKind": "Worker",
           "category": "data_flow",
           "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Topic)-[:PUBLISHED_BY]->(t:Function)\nRETURN n.name, n.name, n.broker_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Topic)-[:PUBLISHED_BY]->(t:Function)\nRETURN n.name, n.broker_type, n.file_path, t.name\nLIMIT 25"
     },
     {
       "kind": "ExternalService",
-      "pluralLabel": "External Services",
+      "pluralLabel": "External Services & Resources",
       "layerId": 4,
       "layerKey": "L4_semantic",
-      "icon": "cloud",
+      "icon": "globe",
       "order": 12,
       "idScheme": "{workspaceId}:es:{protocol}:{host}",
-      "purpose": "Represents a physical/logical external host dependency.",
+      "purpose": "Represents an external API, managed cloud resource, or remote service dependency outside the workspace (REST, gRPC, GraphQL, S3, Stripe, Auth0).",
       "properties": [
         {
           "name": "name",
@@ -1593,6 +1638,18 @@
           "description": "Outbound HTTP verb or RPC method name."
         },
         {
+          "name": "provider",
+          "sourceName": "Provider",
+          "type": "string",
+          "description": "Cloud platform or SaaS vendor hosting this external service (e.g. AWS, GCP, Azure, Stripe, Auth0)."
+        },
+        {
+          "name": "resource_role",
+          "sourceName": "ResourceRole",
+          "type": "string",
+          "description": "Operational role when representing a managed cloud resource (storage, secrets, auth, compute, cdn, ai)."
+        },
+        {
           "name": "is_external",
           "sourceName": "IsExternal",
           "type": "boolean",
@@ -1619,10 +1676,28 @@
           "description": "Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph."
         },
         {
+          "rel": "ACCESSED_BY",
+          "toKind": "Function",
+          "category": "data_flow",
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
+        },
+        {
+          "rel": "ACCESSED_BY",
+          "toKind": "Type",
+          "category": "data_flow",
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
+        },
+        {
           "rel": "TARGETED_BY",
           "toKind": "CallArgument",
           "category": "data_flow",
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
+        },
+        {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
           "rel": "DECLARED_IN",
@@ -1640,31 +1715,7 @@
       "inEdges": [
         {
           "rel": "SERVICE_CALL",
-          "fromKind": "App",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "fromKind": "CliTool",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "fromKind": "Library",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "fromKind": "Service",
-          "category": "control_flow",
-          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
-        },
-        {
-          "rel": "SERVICE_CALL",
-          "fromKind": "Worker",
+          "fromKind": "Workload",
           "category": "control_flow",
           "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
         },
@@ -1675,29 +1726,23 @@
           "description": "Links an ingress endpoint or binary entry point to a downstream database, query, cloud resource, or external service reached along its call chain."
         }
       ],
-      "sampleCypher": "MATCH (n:ExternalService)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.name, n.protocol, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:ExternalService)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.protocol, n.domain_or_service, t.name\nLIMIT 25"
     },
     {
-      "kind": "CloudService",
-      "pluralLabel": "Cloud Resources",
+      "kind": "Cloud",
+      "pluralLabel": "Cloud Platforms & Vendors",
       "layerId": 4,
       "layerKey": "L4_semantic",
-      "icon": "cloud-upload",
+      "icon": "cloud",
       "order": 13,
-      "idScheme": "{workspaceId}:p:{relativeProjectDir}:cloud:{serviceName}",
-      "purpose": "Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).",
+      "idScheme": "{workspaceId}:cloud:{provider}",
+      "purpose": "Represents a cloud platform, managed infrastructure provider, or SaaS vendor hosting external services, databases, brokers, or workloads (e.g. AWS, GCP, Azure, Cloudflare, Stripe, Supabase).",
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The name of the entity."
-        },
-        {
-          "name": "resource_type",
-          "sourceName": "ResourceType",
-          "type": "enum (CloudResourceType)",
-          "description": "The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService)."
+          "description": "Cloud platform or vendor display name (e.g. AWS, GCP, Azure, Cloudflare, Stripe)."
         },
         {
           "name": "path",
@@ -1709,34 +1754,22 @@
           "name": "provider",
           "sourceName": "Provider",
           "type": "string",
-          "description": "Cloud or SaaS vendor (aws, gcp, azure, cloudflare, stripe, firebase, supabase)."
+          "description": "Normalized cloud or vendor identifier (aws, gcp, azure, cloudflare, stripe, auth0, supabase, firebase)."
         },
         {
-          "name": "resource_role",
-          "sourceName": "ResourceRole",
+          "name": "region",
+          "sourceName": "Region",
           "type": "string",
-          "description": "Operational role of the cloud resource (storage, secrets, auth, compute, cdn, ai)."
+          "description": "Configured cloud region when declared (e.g. us-east-1, europe-west1)."
+        },
+        {
+          "name": "category",
+          "sourceName": "Category",
+          "type": "string",
+          "description": "Vendor category (hyperscaler, saas, edge, managed_data)."
         }
       ],
       "outEdges": [
-        {
-          "rel": "TRANSITIVELY_CALLS",
-          "toKind": "Function",
-          "category": "control_flow",
-          "description": "Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Function",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Type",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
         {
           "rel": "DECLARED_IN",
           "toKind": "File",
@@ -1746,109 +1779,31 @@
       ],
       "inEdges": [
         {
-          "rel": "ATTRIBUTED_TO",
-          "fromKind": "Endpoint",
-          "category": "data_flow",
-          "description": "Links an ingress endpoint or binary entry point to a downstream database, query, cloud resource, or external service reached along its call chain."
-        },
-        {
-          "rel": "READS_FROM",
-          "fromKind": "App",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "READS_FROM",
-          "fromKind": "CliTool",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "READS_FROM",
-          "fromKind": "Library",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "READS_FROM",
-          "fromKind": "Service",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "READS_FROM",
-          "fromKind": "Worker",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it reads from."
-        },
-        {
-          "rel": "WRITES_TO",
-          "fromKind": "App",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "WRITES_TO",
-          "fromKind": "CliTool",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "WRITES_TO",
-          "fromKind": "Library",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "WRITES_TO",
-          "fromKind": "Service",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "WRITES_TO",
-          "fromKind": "Worker",
-          "category": "data_flow",
-          "description": "Links a query or workload to the table or cloud resource it writes to."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "fromKind": "App",
+          "rel": "HOSTED_IN",
+          "fromKind": "Database",
           "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
-          "rel": "USES_CLOUD",
-          "fromKind": "CliTool",
+          "rel": "HOSTED_IN",
+          "fromKind": "ExternalService",
           "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
-          "rel": "USES_CLOUD",
-          "fromKind": "Library",
+          "rel": "HOSTED_IN",
+          "fromKind": "Topic",
           "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
-          "rel": "USES_CLOUD",
-          "fromKind": "Service",
+          "rel": "HOSTED_IN",
+          "fromKind": "Workload",
           "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
-        },
-        {
-          "rel": "USES_CLOUD",
-          "fromKind": "Worker",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to a cloud service resource."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "Service",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         }
       ],
-      "sampleCypher": "MATCH (n:CloudService)-[:TRANSITIVELY_CALLS]->(t:Function)\nRETURN n.name, n.name, n.resource_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Cloud)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.provider, n.region, t.name\nLIMIT 25"
     },
     {
       "kind": "PeerMesh",
@@ -1889,36 +1844,12 @@
       "inEdges": [
         {
           "rel": "COORDINATES_WITH",
-          "fromKind": "App",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "fromKind": "CliTool",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "fromKind": "Library",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
-        {
-          "rel": "COORDINATES_WITH",
           "fromKind": "Service",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "fromKind": "Worker",
           "category": "type_dependency",
           "description": "Links a workload to the symmetric peer mesh it coordinates with."
         }
       ],
-      "sampleCypher": "MATCH (s:App)-[:COORDINATES_WITH]->(n:PeerMesh)\nRETURN s.name, n.name, n.name, n.member_count\nLIMIT 25"
+      "sampleCypher": "MATCH (s:Service)-[:COORDINATES_WITH]->(n:PeerMesh)\nRETURN s.name, n.name, n.member_count, n.protocols\nLIMIT 25"
     },
     {
       "kind": "Database",
@@ -1928,7 +1859,7 @@
       "icon": "database",
       "order": 20,
       "idScheme": "{workspaceId}:db:{dbType}:{dbName}",
-      "purpose": "Represents a database instance, catalog, or physical schema.",
+      "purpose": "Represents a database server instance or catalog configured by a workload and containing one or more DbSchema namespaces.",
       "properties": [
         {
           "name": "name",
@@ -2011,50 +1942,20 @@
       ],
       "outEdges": [
         {
-          "rel": "TRANSITIVELY_CALLS",
-          "toKind": "Function",
-          "category": "control_flow",
-          "description": "Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Function",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Query",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Type",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
           "rel": "TARGETED_BY",
           "toKind": "CallArgument",
           "category": "data_flow",
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
         },
         {
-          "rel": "CONTAINS",
-          "toKind": "Procedure",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
           "rel": "CONTAINS",
-          "toKind": "Query",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "toKind": "Table",
+          "toKind": "DbSchema",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
         },
@@ -2074,36 +1975,89 @@
         },
         {
           "rel": "USES_DB",
-          "fromKind": "App",
+          "fromKind": "Workload",
           "category": "data_flow",
           "description": "Links a project to a database catalog or instance it utilizes."
         },
         {
-          "rel": "USES_DB",
-          "fromKind": "CliTool",
-          "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "USES_DB",
-          "fromKind": "Library",
-          "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "USES_DB",
-          "fromKind": "Service",
-          "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
-        },
-        {
-          "rel": "USES_DB",
-          "fromKind": "Worker",
-          "category": "data_flow",
-          "description": "Links a project to a database catalog or instance it utilizes."
+          "rel": "CONTAINS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Database)-[:TRANSITIVELY_CALLS]->(t:Function)\nRETURN n.name, n.name, n.db_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Database)-[:TARGETED_BY]->(t:CallArgument)\nRETURN n.name, n.db_type, n.display_name, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "DbSchema",
+      "pluralLabel": "Database Schemas",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "symbol-namespace",
+      "order": 21,
+      "idScheme": "{workspaceId}:db:{dbType}:{dbName}:schema:{schemaName}",
+      "purpose": "Represents a logical or physical schema namespace within a database catalog owning tables, views, and stored procedures (e.g. public, dbo, billing, main).",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "Database schema name (e.g. public, dbo, billing, main)."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The path of the folder or file relative to its parent container."
+        },
+        {
+          "name": "engine",
+          "sourceName": "Engine",
+          "type": "string",
+          "description": "Database engine owning this schema (e.g. PostgreSQL, SqlServer, SQLite)."
+        },
+        {
+          "name": "database_id",
+          "sourceName": "DatabaseId",
+          "type": "string",
+          "description": "URN of the parent Database catalog containing this schema."
+        },
+        {
+          "name": "is_default",
+          "sourceName": "IsDefault",
+          "type": "boolean",
+          "description": "True when synthesized for the engine's default schema (public, dbo, main)."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "CONTAINS",
+          "toKind": "Procedure",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Database",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:DbSchema)-[:CONTAINS]->(t:Procedure)\nRETURN n.name, n.engine, n.database_id, t.name\nLIMIT 25"
     },
     {
       "kind": "Table",
@@ -2151,19 +2105,19 @@
           "rel": "ACCESSED_BY",
           "toKind": "Function",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "toKind": "Query",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "toKind": "Type",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "TARGETED_BY",
@@ -2193,12 +2147,12 @@
         },
         {
           "rel": "CONTAINS",
-          "fromKind": "Database",
+          "fromKind": "DbSchema",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Table)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.name, n.engine, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Table)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.engine, n.schema, t.name\nLIMIT 25"
     },
     {
       "kind": "Procedure",
@@ -2215,7 +2169,7 @@
           "rel": "ACCESSED_BY",
           "toKind": "Function",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "TARGETED_BY",
@@ -2233,7 +2187,7 @@
       "inEdges": [
         {
           "rel": "CONTAINS",
-          "fromKind": "Database",
+          "fromKind": "DbSchema",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
@@ -2316,13 +2270,13 @@
           "rel": "ACCESSED_BY",
           "toKind": "Function",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "toKind": "Type",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "READS_FROM",
@@ -2352,15 +2306,9 @@
       "inEdges": [
         {
           "rel": "ACCESSED_BY",
-          "fromKind": "Database",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
           "fromKind": "Table",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ATTRIBUTED_TO",
@@ -2370,131 +2318,12 @@
         },
         {
           "rel": "CONTAINS",
-          "fromKind": "Database",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
           "fromKind": "Procedure",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Query)-[:TRANSITIVELY_CALLS]->(t:Function)\nRETURN n.name, n.name, n.query_text, t.name\nLIMIT 25"
-    },
-    {
-      "kind": "ApiInUse",
-      "pluralLabel": "APIs in Use",
-      "layerId": 4,
-      "layerKey": "L4_semantic",
-      "icon": "plug",
-      "order": 31,
-      "idScheme": "{workspaceId}:p:{relativeProjectDir}:api:{apiName}",
-      "purpose": "Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).",
-      "properties": [
-        {
-          "name": "name",
-          "sourceName": "Name",
-          "type": "string",
-          "description": "The name of the entity."
-        },
-        {
-          "name": "path",
-          "sourceName": "Path",
-          "type": "string",
-          "description": "The path of the folder or file relative to its parent container."
-        },
-        {
-          "name": "capability",
-          "sourceName": "Capability",
-          "type": "string",
-          "description": "The canonical capability identifier (e.g. fs:read, net:http-client, proc:exec)."
-        },
-        {
-          "name": "dimension",
-          "sourceName": "Dimension",
-          "type": "string",
-          "description": "The capability dimension (e.g. Filesystem, Network, Process, DynamicCode, Environment, Native, Crypto, Concurrency)."
-        },
-        {
-          "name": "semantic_role",
-          "sourceName": "SemanticRole",
-          "type": "string",
-          "description": "The semantic security role of the API call (Sink, SensitiveSource, Transform, MonkeyPatch, Benign)."
-        }
-      ],
-      "outEdges": [
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Function",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "toKind": "Type",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "DECLARED_IN",
-          "toKind": "File",
-          "category": "structural",
-          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
-        }
-      ],
-      "inEdges": [
-        {
-          "rel": "USES_API",
-          "fromKind": "App",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_API",
-          "fromKind": "CliTool",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_API",
-          "fromKind": "Library",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_API",
-          "fromKind": "Service",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_API",
-          "fromKind": "TestSuite",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "USES_API",
-          "fromKind": "Worker",
-          "category": "type_dependency",
-          "description": "Links a project, file, or class to an external API library or client model."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "App",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        },
-        {
-          "rel": "CONTAINS",
-          "fromKind": "Service",
-          "category": "structural",
-          "description": "Represents directory structure containment or syntactic scoping of elements."
-        }
-      ],
-      "sampleCypher": "MATCH (n:ApiInUse)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.name, n.capability, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Query)-[:TRANSITIVELY_CALLS]->(t:Function)\nRETURN n.name, n.query_text, n.start_line, t.name\nLIMIT 25"
     },
     {
       "kind": "Type",
@@ -2680,33 +2509,21 @@
         },
         {
           "rel": "ACCESSED_BY",
-          "fromKind": "ApiInUse",
+          "fromKind": "ExternalService",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "fromKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "fromKind": "Database",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "fromKind": "Query",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "fromKind": "Table",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "INHERITS_FROM",
@@ -2749,9 +2566,15 @@
           "fromKind": "Type",
           "category": "structural",
           "description": "Indicates that a container entity declares a sub-entity."
+        },
+        {
+          "rel": "DEFINES",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Indicates that an entity defines a particular property or configuration."
         }
       ],
-      "sampleCypher": "MATCH (n:Type)-[:CALLS]->(t:Function)\nRETURN n.name, n.name, n.symbol, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Type)-[:CALLS]->(t:Function)\nRETURN n.name, n.symbol, n.file_path, t.name\nLIMIT 25"
     },
     {
       "kind": "Function",
@@ -2973,37 +2796,13 @@
       "inEdges": [
         {
           "rel": "CALLED_BY",
-          "fromKind": "App",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "CALLED_BY",
-          "fromKind": "CliTool",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "CALLED_BY",
           "fromKind": "ExternalService",
           "category": "control_flow",
           "description": "Links a service, external service, or database to the function that invokes or queries it."
         },
         {
           "rel": "CALLED_BY",
-          "fromKind": "Library",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "CALLED_BY",
           "fromKind": "Service",
-          "category": "control_flow",
-          "description": "Links a service, external service, or database to the function that invokes or queries it."
-        },
-        {
-          "rel": "CALLED_BY",
-          "fromKind": "Worker",
           "category": "control_flow",
           "description": "Links a service, external service, or database to the function that invokes or queries it."
         },
@@ -3039,18 +2838,6 @@
         },
         {
           "rel": "TRANSITIVELY_CALLS",
-          "fromKind": "CloudService",
-          "category": "control_flow",
-          "description": "Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph."
-        },
-        {
-          "rel": "TRANSITIVELY_CALLS",
-          "fromKind": "Database",
-          "category": "control_flow",
-          "description": "Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph."
-        },
-        {
-          "rel": "TRANSITIVELY_CALLS",
           "fromKind": "ExternalService",
           "category": "control_flow",
           "description": "Links a downstream sink (query, database, external service, or cloud resource) back to functions that reach it transitively across the call graph."
@@ -3069,45 +2856,33 @@
         },
         {
           "rel": "ACCESSED_BY",
-          "fromKind": "ApiInUse",
+          "fromKind": "ExternalService",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "fromKind": "CloudService",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
-        },
-        {
-          "rel": "ACCESSED_BY",
-          "fromKind": "Database",
-          "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "fromKind": "Member",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "fromKind": "Procedure",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "fromKind": "Query",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
           "fromKind": "Table",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "PUBLISHED_BY",
@@ -3134,7 +2909,7 @@
           "description": "Links a type declaration to its declared methods or functions."
         }
       ],
-      "sampleCypher": "MATCH (n:Function)-[:CALLS]->(t:Function)\nRETURN n.name, n.name, n.symbol, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Function)-[:CALLS]->(t:Function)\nRETURN n.name, n.symbol, n.file_path, t.name\nLIMIT 25"
     },
     {
       "kind": "Member",
@@ -3224,7 +2999,7 @@
           "rel": "ACCESSED_BY",
           "toKind": "Function",
           "category": "data_flow",
-          "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it."
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "OF_TYPE",
@@ -3253,7 +3028,7 @@
           "description": "Links a type declaration to its declared member variables or fields."
         }
       ],
-      "sampleCypher": "MATCH (n:Member)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.name, n.symbol, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Member)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.symbol, n.file_path, t.name\nLIMIT 25"
     },
     {
       "kind": "Parameter",
@@ -3360,7 +3135,7 @@
           "description": "Links a function or method to one of its semantically colored parameters."
         }
       ],
-      "sampleCypher": "MATCH (n:Parameter)-[:FLOWS_TO]->(t:CallArgument)\nRETURN n.name, n.name, n.function_symbol, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Parameter)-[:FLOWS_TO]->(t:CallArgument)\nRETURN n.name, n.function_symbol, n.index, t.name\nLIMIT 25"
     },
     {
       "kind": "CallArgument",
@@ -3545,7 +3320,7 @@
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
         }
       ],
-      "sampleCypher": "MATCH (n:CallArgument)-[:FLOWS_TO]->(t:Parameter)\nRETURN n.name, n.name, n.callee, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:CallArgument)-[:FLOWS_TO]->(t:Parameter)\nRETURN n.name, n.callee, n.arg_index, t.name\nLIMIT 25"
     },
     {
       "kind": "CallLiteral",
@@ -3658,7 +3433,7 @@
           "description": "Links a calling function or scope to a literal argument passed directly into an invocation."
         }
       ],
-      "sampleCypher": "MATCH (n:CallLiteral)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.name, n.value, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:CallLiteral)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.value, n.callee, t.name\nLIMIT 25"
     },
     {
       "kind": "CatchClause",
@@ -3753,7 +3528,7 @@
           "description": "Indicates that a container entity declares a sub-entity."
         }
       ],
-      "sampleCypher": "MATCH (n:CatchClause)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.name, n.exception_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:CatchClause)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.exception_type, n.file_path, t.name\nLIMIT 25"
     },
     {
       "kind": "Project",
@@ -3957,43 +3732,13 @@
         },
         {
           "rel": "IMPLEMENTED_BY",
-          "fromKind": "App",
-          "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "IMPLEMENTED_BY",
-          "fromKind": "CliTool",
-          "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "IMPLEMENTED_BY",
-          "fromKind": "Library",
+          "fromKind": "Module",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it."
         },
         {
           "rel": "IMPLEMENTED_BY",
           "fromKind": "Package",
-          "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "IMPLEMENTED_BY",
-          "fromKind": "Service",
-          "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "IMPLEMENTED_BY",
-          "fromKind": "TestSuite",
-          "category": "type_dependency",
-          "description": "Links a library package to the project that implements or encapsulates it."
-        },
-        {
-          "rel": "IMPLEMENTED_BY",
-          "fromKind": "Worker",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it."
         },
@@ -4028,7 +3773,7 @@
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
         }
       ],
-      "sampleCypher": "MATCH (n:Project)-[:HAS_ENTRYPOINT]->(t:EntryPoint)\nRETURN n.name, n.name, n.project_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Project)-[:HAS_ENTRYPOINT]->(t:EntryPoint)\nRETURN n.name, n.project_type, n.language, t.name\nLIMIT 25"
     },
     {
       "kind": "EntryPoint",
@@ -4135,7 +3880,7 @@
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:EntryPoint)-[:TRIGGERS]->(t:File)\nRETURN n.name, n.name, n.entry_type, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:EntryPoint)-[:TRIGGERS]->(t:File)\nRETURN n.name, n.entry_type, n.file_path, t.name\nLIMIT 25"
     },
     {
       "kind": "Package",
@@ -4213,43 +3958,13 @@
       "inEdges": [
         {
           "rel": "DEPENDS_ON",
-          "fromKind": "App",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "CliTool",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "Library",
+          "fromKind": "Module",
           "category": "type_dependency",
           "description": "Represents a dependency relationship between projects, packages, or other entities."
         },
         {
           "rel": "DEPENDS_ON",
           "fromKind": "Project",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "Service",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "TestSuite",
-          "category": "type_dependency",
-          "description": "Represents a dependency relationship between projects, packages, or other entities."
-        },
-        {
-          "rel": "DEPENDS_ON",
-          "fromKind": "Worker",
           "category": "type_dependency",
           "description": "Represents a dependency relationship between projects, packages, or other entities."
         },
@@ -4260,7 +3975,7 @@
           "description": "Indicates that a library project builds and produces a package."
         }
       ],
-      "sampleCypher": "MATCH (n:Package)-[:IMPLEMENTED_BY]->(t:Project)\nRETURN n.name, n.name, n.version, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Package)-[:IMPLEMENTED_BY]->(t:Project)\nRETURN n.name, n.version, n.is_internal, t.name\nLIMIT 25"
     },
     {
       "kind": "File",
@@ -4343,12 +4058,6 @@
         },
         {
           "rel": "DECLARED_IN",
-          "fromKind": "ApiInUse",
-          "category": "structural",
-          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
-        },
-        {
-          "rel": "DECLARED_IN",
           "fromKind": "CallArgument",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -4367,13 +4076,19 @@
         },
         {
           "rel": "DECLARED_IN",
-          "fromKind": "CloudService",
+          "fromKind": "Cloud",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
         },
         {
           "rel": "DECLARED_IN",
           "fromKind": "Database",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "fromKind": "DbSchema",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
         },
@@ -4432,7 +4147,7 @@
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
         }
       ],
-      "sampleCypher": "MATCH (s:EntryPoint)-[:TRIGGERS]->(n:File)\nRETURN s.name, n.name, n.name, n.is_test\nLIMIT 25"
+      "sampleCypher": "MATCH (s:EntryPoint)-[:TRIGGERS]->(n:File)\nRETURN s.name, n.name, n.is_test, n.project_kind\nLIMIT 25"
     },
     {
       "kind": "Folder",
@@ -4491,7 +4206,7 @@
           "description": "Links a project to the physical folder or files structure where it is located."
         }
       ],
-      "sampleCypher": "MATCH (n:Folder)-[:CONTAINS]->(t:File)\nRETURN n.name, n.name, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Folder)-[:CONTAINS]->(t:File)\nRETURN n.name, n.path, t.name\nLIMIT 25"
     },
     {
       "kind": "GitSettings",
@@ -4573,7 +4288,7 @@
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (s:Project)-[:USES_GIT]->(n:GitSettings)\nRETURN s.name, n.name, n.name, n.branch\nLIMIT 25"
+      "sampleCypher": "MATCH (s:Project)-[:USES_GIT]->(n:GitSettings)\nRETURN s.name, n.name, n.branch, n.origin_url\nLIMIT 25"
     }
   ],
   "relationships": [
@@ -4590,27 +4305,11 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "Function"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Function"
-        },
-        {
           "fromKind": "ExternalService",
           "toKind": "Function"
         },
         {
-          "fromKind": "Library",
-          "toKind": "Function"
-        },
-        {
           "fromKind": "Service",
-          "toKind": "Function"
-        },
-        {
-          "fromKind": "Worker",
           "toKind": "Function"
         }
       ]
@@ -4738,23 +4437,7 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "Endpoint"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Endpoint"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "Endpoint"
-        },
-        {
           "fromKind": "Service",
-          "toKind": "Endpoint"
-        },
-        {
-          "fromKind": "Worker",
           "toKind": "Endpoint"
         }
       ]
@@ -4848,43 +4531,11 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
+          "fromKind": "Workload",
           "toKind": "ExternalService"
         },
         {
-          "fromKind": "App",
-          "toKind": "Service"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "ExternalService"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Service"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "ExternalService"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "Service"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "ExternalService"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "Service"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "ExternalService"
-        },
-        {
-          "fromKind": "Worker",
+          "fromKind": "Workload",
           "toKind": "Service"
         }
       ]
@@ -4901,14 +4552,6 @@
         }
       ],
       "pairs": [
-        {
-          "fromKind": "CloudService",
-          "toKind": "Function"
-        },
-        {
-          "fromKind": "Database",
-          "toKind": "Function"
-        },
         {
           "fromKind": "ExternalService",
           "toKind": "Function"
@@ -4944,7 +4587,7 @@
     {
       "rel": "ACCESSED_BY",
       "category": "data_flow",
-      "description": "Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it.",
+      "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it.",
       "properties": [
         {
           "name": "operation",
@@ -4969,31 +4612,11 @@
       ],
       "pairs": [
         {
-          "fromKind": "ApiInUse",
+          "fromKind": "ExternalService",
           "toKind": "Function"
         },
         {
-          "fromKind": "ApiInUse",
-          "toKind": "Type"
-        },
-        {
-          "fromKind": "CloudService",
-          "toKind": "Function"
-        },
-        {
-          "fromKind": "CloudService",
-          "toKind": "Type"
-        },
-        {
-          "fromKind": "Database",
-          "toKind": "Function"
-        },
-        {
-          "fromKind": "Database",
-          "toKind": "Query"
-        },
-        {
-          "fromKind": "Database",
+          "fromKind": "ExternalService",
           "toKind": "Type"
         },
         {
@@ -5039,14 +4662,10 @@
         {
           "name": "sink_kind",
           "type": "string",
-          "description": "Target sink classification (Database, Query, ExternalService, CloudService)."
+          "description": "Target sink classification (Database, Query, ExternalService, Topic)."
         }
       ],
       "pairs": [
-        {
-          "fromKind": "Endpoint",
-          "toKind": "CloudService"
-        },
         {
           "fromKind": "Endpoint",
           "toKind": "Database"
@@ -5206,23 +4825,7 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "Worker",
+          "fromKind": "Workload",
           "toKind": "Topic"
         }
       ]
@@ -5255,28 +4858,8 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "CloudService"
-        },
-        {
           "fromKind": "Query",
           "toKind": "Table"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "CloudService"
         }
       ]
     },
@@ -5331,23 +4914,7 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Topic"
-        },
-        {
           "fromKind": "Endpoint",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "Topic"
-        },
-        {
-          "fromKind": "Service",
           "toKind": "Topic"
         },
         {
@@ -5427,23 +4994,7 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "Database"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Database"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "Database"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "Database"
-        },
-        {
-          "fromKind": "Worker",
+          "fromKind": "Workload",
           "toKind": "Database"
         }
       ]
@@ -5476,28 +5027,8 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "CloudService"
-        },
-        {
           "fromKind": "Query",
           "toKind": "Table"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "CloudService"
         }
       ]
     },
@@ -5514,23 +5045,7 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "PeerMesh"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "PeerMesh"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "PeerMesh"
-        },
-        {
           "fromKind": "Service",
-          "toKind": "PeerMesh"
-        },
-        {
-          "fromKind": "Worker",
           "toKind": "PeerMesh"
         }
       ]
@@ -5548,27 +5063,19 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
+          "fromKind": "BoundedContext",
+          "toKind": "BoundedContext"
+        },
+        {
+          "fromKind": "Domain",
+          "toKind": "Domain"
+        },
+        {
+          "fromKind": "Module",
           "toKind": "Library"
         },
         {
-          "fromKind": "App",
-          "toKind": "Package"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Library"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Package"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "Library"
-        },
-        {
-          "fromKind": "Library",
+          "fromKind": "Module",
           "toKind": "Package"
         },
         {
@@ -5582,30 +5089,36 @@
         {
           "fromKind": "Query",
           "toKind": "Table"
+        }
+      ]
+    },
+    {
+      "rel": "HOSTED_IN",
+      "category": "type_dependency",
+      "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source or config line where the cloud hosting binding is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Database",
+          "toKind": "Cloud"
         },
         {
-          "fromKind": "Service",
-          "toKind": "Library"
+          "fromKind": "ExternalService",
+          "toKind": "Cloud"
         },
         {
-          "fromKind": "Service",
-          "toKind": "Package"
+          "fromKind": "Topic",
+          "toKind": "Cloud"
         },
         {
-          "fromKind": "TestSuite",
-          "toKind": "Library"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "Package"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "Library"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "Package"
+          "fromKind": "Workload",
+          "toKind": "Cloud"
         }
       ]
     },
@@ -5622,31 +5135,11 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "Project"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "Project"
-        },
-        {
-          "fromKind": "Library",
+          "fromKind": "Module",
           "toKind": "Project"
         },
         {
           "fromKind": "Package",
-          "toKind": "Project"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "Project"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "Project"
-        },
-        {
-          "fromKind": "Worker",
           "toKind": "Project"
         }
       ]
@@ -5741,105 +5234,7 @@
       "pairs": [
         {
           "fromKind": "TestSuite",
-          "toKind": "App"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "CliTool"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "Library"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "Service"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "Worker"
-        }
-      ]
-    },
-    {
-      "rel": "USES_API",
-      "category": "type_dependency",
-      "description": "Links a project, file, or class to an external API library or client model.",
-      "properties": [
-        {
-          "name": "line",
-          "type": "integer",
-          "description": "Optional 1-indexed source line where the relationship is declared."
-        }
-      ],
-      "pairs": [
-        {
-          "fromKind": "App",
-          "toKind": "ApiInUse"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "ApiInUse"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "ApiInUse"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "ApiInUse"
-        },
-        {
-          "fromKind": "TestSuite",
-          "toKind": "ApiInUse"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "ApiInUse"
-        }
-      ]
-    },
-    {
-      "rel": "USES_CLOUD",
-      "category": "type_dependency",
-      "description": "Links a project, file, or class to a cloud service resource.",
-      "properties": [
-        {
-          "name": "evidence_kind",
-          "type": "string",
-          "description": "Provenance source (http_call, grpc_call, publish, subscribe, config)."
-        },
-        {
-          "name": "evidence_ids",
-          "type": "string",
-          "description": "JSON array of underlying call-site or endpoint URNs proving this link."
-        },
-        {
-          "name": "hops",
-          "type": "integer",
-          "description": "Transitive call-chain hop count from workload root."
-        }
-      ],
-      "pairs": [
-        {
-          "fromKind": "App",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "CliTool",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Library",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "CloudService"
+          "toKind": "Module"
         }
       ]
     },
@@ -5914,28 +5309,32 @@
       ],
       "pairs": [
         {
-          "fromKind": "App",
-          "toKind": "ApiInUse"
+          "fromKind": "BoundedContext",
+          "toKind": "Database"
         },
         {
-          "fromKind": "App",
-          "toKind": "Endpoint"
+          "fromKind": "BoundedContext",
+          "toKind": "Module"
         },
         {
-          "fromKind": "CliTool",
-          "toKind": "Endpoint"
+          "fromKind": "BoundedContext",
+          "toKind": "Topic"
         },
         {
           "fromKind": "Database",
+          "toKind": "DbSchema"
+        },
+        {
+          "fromKind": "DbSchema",
           "toKind": "Procedure"
         },
         {
-          "fromKind": "Database",
-          "toKind": "Query"
+          "fromKind": "DbSchema",
+          "toKind": "Table"
         },
         {
-          "fromKind": "Database",
-          "toKind": "Table"
+          "fromKind": "Domain",
+          "toKind": "BoundedContext"
         },
         {
           "fromKind": "Folder",
@@ -5964,22 +5363,6 @@
         {
           "fromKind": "Project",
           "toKind": "Project"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "ApiInUse"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "CloudService"
-        },
-        {
-          "fromKind": "Service",
-          "toKind": "Endpoint"
-        },
-        {
-          "fromKind": "Worker",
-          "toKind": "Endpoint"
         }
       ]
     },
@@ -5996,10 +5379,6 @@
       ],
       "pairs": [
         {
-          "fromKind": "ApiInUse",
-          "toKind": "File"
-        },
-        {
           "fromKind": "CallArgument",
           "toKind": "File"
         },
@@ -6012,11 +5391,15 @@
           "toKind": "File"
         },
         {
-          "fromKind": "CloudService",
+          "fromKind": "Cloud",
           "toKind": "File"
         },
         {
           "fromKind": "Database",
+          "toKind": "File"
+        },
+        {
+          "fromKind": "DbSchema",
           "toKind": "File"
         },
         {
@@ -6099,6 +5482,24 @@
         },
         {
           "fromKind": "Type",
+          "toKind": "Type"
+        }
+      ]
+    },
+    {
+      "rel": "DEFINES",
+      "category": "structural",
+      "description": "Indicates that an entity defines a particular property or configuration.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "BoundedContext",
           "toKind": "Type"
         }
       ]

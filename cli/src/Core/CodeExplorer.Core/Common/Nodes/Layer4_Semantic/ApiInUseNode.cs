@@ -8,11 +8,12 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ApiInUse,
     idScheme: "{workspaceId}:p:{relativeProjectDir}:api:{apiName}",
-    purpose: "Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).",
+    purpose: "Legacy API library node superseded by ExternalService and Package dependencies.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "plug",
-    order: 31,
-    pluralLabel: "APIs in Use"
+    order: 99,
+    pluralLabel: "APIs in Use",
+    isSystemNode: true
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]

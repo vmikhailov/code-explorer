@@ -810,7 +810,7 @@ public partial class Layer5AnalysisParser
 
     private async Task MaterializeLogicalStructureAsync(Layer4Result l4Result, ParsingContext ctx)
     {
-        if (l4Result.SemanticStructure == null) return;
+        if (!WorkspaceConventions.DomainDetectionEnabled || l4Result.SemanticStructure == null) return;
         ctx.ReportProgress(86, "Layer 5: Global", "Materializing logical architecture structure...");
 
         var workspace = l4Result.Prev.Prev.Prev.Workspace;

@@ -511,6 +511,48 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         graph.Nodes.Add(cloudNode);
     }
 
+    private static void ProcessCloudNode(
+        CypherRow elem,
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        if (nodeMap.ContainsKey(id)) return;
+
+        const string propLayer = "layer";
+        const string propPath = "path";
+        const string propDisplayName = "display_name";
+
+        props["is_semantic_entity"] = "true";
+        props["is_library"] = "false";
+        props["entity_type"] = "cloud";
+
+        if (!props.ContainsKey(propLayer))
+        {
+            props["layer"] = StandardLayers.Egress.LayerId;
+            props["layerId"] = StandardLayers.Egress.LayerId;
+            props["layerName"] = StandardLayers.Egress.LayerName;
+            props["layerOrder"] = StandardLayers.Egress.Order.ToString();
+            props["layerColor"] = StandardLayers.Egress.Color;
+            props["layerIcon"] = StandardLayers.Egress.Icon;
+        }
+
+        var path = props.GetValueOrDefault(propPath);
+        var cloudNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = NodeKind.Cloud,
+            Name = name,
+            DisplayName = elem.GetStringProp(propDisplayName, name),
+            FilePath = string.IsNullOrEmpty(path) ? null : path,
+            Properties = props
+        };
+        nodeMap[id] = cloudNode;
+        graph.Nodes.Add(cloudNode);
+    }
+
     private static void ProcessPeerMeshNode(
         string id,
         string name,

@@ -1,6 +1,10 @@
 {
   "exclude": [
     "cli/tests/SampleProjects/",
-    "cli/tests/CodeExplorer.Tests/TestData/"
+    "cli/tests/CodeExplorer.Tests/TestData/",
+    "site/assets/",
+    "site/dist/",
+    "site/.prerender/",
+    "site/src/generated/"
   ]
 }

@@ -12,16 +12,10 @@ cd "$SCRIPT_DIR"
 echo "🚀 Deploying CodeExplorer site to ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
 
 tar -czf - \
+  assets \
   index.html \
-  architectures.html \
-  architectures \
-  ontology.html \
-  ontology \
-  benchmarks.html \
-  benchmarks \
   fonts \
   presentation.html \
-  privacy.html \
   llms.txt \
   install.sh \
   install.ps1 \
@@ -38,6 +32,6 @@ tar -czf - \
   sitemap.xml \
   CNAME | \
   ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${TARGET_USER}@${TARGET_HOST}" \
-    "tar -xzf - -C '${TARGET_DIR}' && chown -R root:root '${TARGET_DIR}' && chmod -R u=rwX,go=rX '${TARGET_DIR}'"
+    "rm -rf '${TARGET_DIR}/assets' '${TARGET_DIR}/architectures' '${TARGET_DIR}/ontology' '${TARGET_DIR}/benchmarks' '${TARGET_DIR}/architectures.html' '${TARGET_DIR}/ontology.html' '${TARGET_DIR}/benchmarks.html' '${TARGET_DIR}/privacy.html' && tar -xzf - -C '${TARGET_DIR}' && chown -R root:root '${TARGET_DIR}' && chmod -R u=rwX,go=rX '${TARGET_DIR}'"
 
 echo "✅ Live deployment successful: https://code-explorer.app"

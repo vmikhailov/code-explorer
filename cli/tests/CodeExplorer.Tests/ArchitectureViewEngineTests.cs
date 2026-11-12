@@ -328,13 +328,13 @@ public class ArchitectureViewEngineTests
     {
         var schemaResponse = await _engine.GetOntologySchemaAsync();
 
-        schemaResponse.Schema.GetProperty("schemaVersion").GetString().Should().Be("1.0");
-        schemaResponse.Schema.GetProperty("layers").GetArrayLength().Should().Be(4);
+        schemaResponse.Schema.GetProperty("schemaVersion").GetString().Should().Be("2.0");
+        schemaResponse.Schema.GetProperty("layers").GetArrayLength().Should().Be(5);
         schemaResponse.Schema.GetProperty("nodes").GetArrayLength().Should().BeGreaterThan(15);
 
         var schemaText = schemaResponse.Schema.GetRawText();
-        schemaText.Should().NotContain("\"Domain\"");
-        schemaText.Should().NotContain("\"BoundedContext\"");
+        schemaText.Should().Contain("\"Domain\"");
+        schemaText.Should().Contain("\"BoundedContext\"");
         schemaText.Should().NotContain("BELONGS_TO_DOMAIN");
 
         schemaResponse.Workspace.TotalNodes.Should().BeGreaterThan(0);

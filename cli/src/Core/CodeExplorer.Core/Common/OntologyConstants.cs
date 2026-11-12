@@ -46,6 +46,10 @@ public static class OntologyConstants
         public const string ScanIssue = "ScanIssue";
         public const string Parameter = "Parameter";
         public const string CallArgument = "CallArgument";
+        public const string Cloud = "Cloud";
+        public const string DbSchema = "DbSchema";
+        public const string Module = "Module";
+        public const string Workload = "Workload";
     }
 
     public static class IdPrefixes
@@ -87,6 +91,8 @@ public static class OntologyConstants
         public const string ScanIssue = "issue";
         public const string Parameter = "param";
         public const string CallArgument = "arg";
+        public const string Cloud = "cloud";
+        public const string DbSchema = "schema";
     }
 
     public static class Layers
@@ -166,6 +172,7 @@ public static class OntologyConstants
         public const string PassesArgument = "PASSES_ARGUMENT";
         public const string FlowsTo = "FLOWS_TO";
         public const string TargetedBy = "TARGETED_BY";
+        public const string HostedIn = "HOSTED_IN";
     }
 
     public static class EvidenceKinds

@@ -634,25 +634,33 @@ public class ParserValidationTests
         dbNode.Name.Should().StartWith("PostgreSQL");
         dbNode.DbType.Should().Be(DatabaseType.Relational);
 
-        // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
-        var cloudNode = semanticNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
+        // Check if ExternalServiceNode + CloudNode children were added at the project level (under SemanticStructureNode)
+        var stripeExtNode = semanticNode.Children.OfType<ExternalServiceNode>().FirstOrDefault(e => e.Name == "Stripe");
+        stripeExtNode.Should().NotBeNull();
+
+        var cloudNode = semanticNode.Children.OfType<CloudNode>().FirstOrDefault(c => c.Name == "Stripe");
         cloudNode.Should().NotBeNull();
-        cloudNode.Name.Should().Be("Stripe");
 
         // Check that downward grounding (L4 -> L3/L1) and horizontal semantic (L4 -> L4) relationships are created
         var declDb =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == dbNode.Id && (r.Kind == RelationshipKind.AccessedBy || r.Kind == RelationshipKind.DeclaredIn));
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == dbNode.Id && r.Kind == RelationshipKind.DeclaredIn);
         declDb.Should().NotBeNull();
+        var directDbSymbolAccess =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == dbNode.Id && r.Kind == RelationshipKind.AccessedBy);
+        directDbSymbolAccess.Should().BeNull("DatabaseNode should not link directly via ACCESSED_BY to symbols; access goes through Query/Table/DbSchema");
         var usesDb =
             ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == dbNode.Id && r.Kind == RelationshipKind.UsesDb);
         usesDb.Should().NotBeNull();
 
-        var declCloud =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == cloudNode.Id && (r.Kind == RelationshipKind.AccessedBy || r.Kind == RelationshipKind.DeclaredIn));
-        declCloud.Should().NotBeNull();
-        var usesCloud =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == cloudNode.Id && r.Kind == RelationshipKind.UsesCloud);
-        usesCloud.Should().NotBeNull();
+        var declStripe =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == stripeExtNode.Id && (r.Kind == RelationshipKind.CalledBy || r.Kind == RelationshipKind.DeclaredIn));
+        declStripe.Should().NotBeNull();
+        var hostedInCloud =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == stripeExtNode.Id && r.To == cloudNode.Id && r.Kind == RelationshipKind.HostedIn);
+        hostedInCloud.Should().NotBeNull();
+        var callsStripe =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == stripeExtNode.Id && r.Kind == RelationshipKind.ServiceCall);
+        callsStripe.Should().NotBeNull();
 
         // Check member nodes under TypeNode (Repository)
         var classNode = fileNode.Children.OfType<TypeNode>().FirstOrDefault();

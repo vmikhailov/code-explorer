@@ -1,4 +1,8 @@
-import { OntologyGraphEdge, OntologyGraphNode } from '../domain/ontologyGraphLayout';
+import {
+  OntologyGraphCapsule,
+  OntologyGraphEdge,
+  OntologyGraphNode,
+} from '../domain/ontologyGraphLayout';
 
 export interface OntologyViewport {
   panX: number;
@@ -9,10 +13,12 @@ export interface OntologyViewport {
 export interface OntologyRenderState {
   nodes: readonly OntologyGraphNode[];
   edges: readonly OntologyGraphEdge[];
+  capsules?: readonly OntologyGraphCapsule[];
   nodeByKind: ReadonlyMap<string, OntologyGraphNode>;
   selectedKind: string | null;
   focusedKind: string | null;
   hoveredKind: string | null;
+  hoveredCapsule?: string | null;
   viewport: OntologyViewport;
   width: number;
   height: number;
@@ -61,9 +67,9 @@ const EDGE_STROKES_ACTIVE: Record<string, string> = {
 };
 
 const EDGE_DIM_STROKE = 'rgba(100, 116, 139, 0.13)';
-const FONT_LABEL = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-const FONT_BADGE = '700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-const FONT_EDGE_PILL = '600 9.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+const FONT_LABEL = '400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const FONT_BADGE = '400 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+const FONT_EDGE_PILL = '400 9.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 const ALIGN_CENTER: CanvasTextAlign = 'center';
 const BASELINE_MIDDLE: CanvasTextBaseline = 'middle';
 const BASELINE_TOP: CanvasTextBaseline = 'top';
@@ -101,7 +107,18 @@ function drawGlyph(ctx: CanvasRenderingContext2D, glyph: string, x: number, y: n
   ctx.lineCap = LINE_CAP_ROUND;
   ctx.lineJoin = LINE_JOIN_ROUND;
 
-  if (glyph === 'database' || glyph === 'procedure') {
+  if (glyph === 'globe') {
+    ctx.beginPath();
+    ctx.arc(0, 0, 6.8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 3.1, 6.8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-6.6, 0);
+    ctx.lineTo(6.6, 0);
+    ctx.stroke();
+  } else if (glyph === 'database' || glyph === 'procedure') {
     ctx.beginPath();
     ctx.ellipse(0, -5, 6.5, 2.6, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -110,6 +127,39 @@ function drawGlyph(ctx: CanvasRenderingContext2D, glyph: string, x: number, y: n
     ctx.lineTo(-6.5, 5);
     ctx.arc(0, 5, 6.5, Math.PI, 0, true);
     ctx.lineTo(6.5, -5);
+    ctx.stroke();
+  } else if (glyph === 'schema') {
+    drawRoundedRect(ctx, -6.5, -6, 13, 4.5, 1.5);
+    ctx.stroke();
+    drawRoundedRect(ctx, -6.5, 1.5, 5.2, 4.5, 1.2);
+    ctx.stroke();
+    drawRoundedRect(ctx, 1.3, 1.5, 5.2, 4.5, 1.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -1.5);
+    ctx.lineTo(0, 0);
+    ctx.moveTo(-3.9, 0);
+    ctx.lineTo(3.9, 0);
+    ctx.moveTo(-3.9, 0);
+    ctx.lineTo(-3.9, 1.5);
+    ctx.moveTo(3.9, 0);
+    ctx.lineTo(3.9, 1.5);
+    ctx.stroke();
+  } else if (glyph === 'layers') {
+    ctx.beginPath();
+    ctx.moveTo(0, -6.5);
+    ctx.lineTo(7, -3);
+    ctx.lineTo(0, 0.5);
+    ctx.lineTo(-7, -3);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-7, 0.8);
+    ctx.lineTo(0, 4.2);
+    ctx.lineTo(7, 0.8);
+    ctx.moveTo(-7, 4.2);
+    ctx.lineTo(0, 7.2);
+    ctx.lineTo(7, 4.2);
     ctx.stroke();
   } else if (glyph === 'table') {
     drawRoundedRect(ctx, -7, -6, 14, 12, 2);
@@ -252,6 +302,56 @@ function drawArrowhead(
   ctx.restore();
 }
 
+function drawHollowArrowhead(
+  ctx: CanvasRenderingContext2D,
+  tipX: number,
+  tipY: number,
+  angle: number,
+  color: string,
+  size: number
+): void {
+  ctx.save();
+  ctx.translate(tipX, tipY);
+  ctx.rotate(angle);
+  ctx.fillStyle = CANVAS_BG;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = LINE_JOIN_ROUND;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-size, -size * 0.58);
+  ctx.lineTo(-size, size * 0.58);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function hitTestOntologyCapsuleHeader(
+  _capsules: readonly OntologyGraphCapsule[] | undefined,
+  nodes: readonly OntologyGraphNode[],
+  viewport: OntologyViewport,
+  clientOffsetX: number,
+  clientOffsetY: number
+): string | null {
+  const worldX = (clientOffsetX - viewport.panX) / viewport.zoom;
+  const worldY = (clientOffsetY - viewport.panY) / viewport.zoom;
+
+  // Check top-left [+N] / [−] hierarchy toggle badge on supertype nodes
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    const hasToggle = Boolean((n.collapsedCount && n.collapsedCount > 0) || n.hasExpandedSubtypes);
+    if (!hasToggle) continue;
+    const px = n.x - n.radius * 0.78 - 14;
+    const py = n.y - n.radius * 0.74 - 9;
+    if (worldX >= px - 4 && worldX <= px + 34 && worldY >= py - 4 && worldY <= py + 22) {
+      return n.kind;
+    }
+  }
+
+  return null;
+}
+
 export function hitTestOntologyNode(
   nodes: readonly OntologyGraphNode[],
   viewport: OntologyViewport,
@@ -276,7 +376,8 @@ export function hitTestOntologyNode(
 export function computeFitViewport(
   nodes: readonly OntologyGraphNode[],
   width: number,
-  height: number
+  height: number,
+  capsules?: readonly OntologyGraphCapsule[]
 ): OntologyViewport {
   if (nodes.length === 0 || width <= 0 || height <= 0) {
     return { panX: 0, panY: 0, zoom: 1 };
@@ -289,7 +390,15 @@ export function computeFitViewport(
     if (n.x - 68 < minX) minX = n.x - 68;
     if (n.y - 74 < minY) minY = n.y - 74;
     if (n.x + 68 > maxX) maxX = n.x + 68;
-    if (n.y + 88 > maxY) maxY = n.y + 88;
+    if (n.y + 108 > maxY) maxY = n.y + 108;
+  }
+  if (capsules) {
+    for (const c of capsules) {
+      if (c.minX - 18 < minX) minX = c.minX - 18;
+      if (c.minY - 18 < minY) minY = c.minY - 18;
+      if (c.maxX + 18 > maxX) maxX = c.maxX + 18;
+      if (c.maxY + 18 > maxY) maxY = c.maxY + 18;
+    }
   }
   const bw = Math.max(200, maxX - minX);
   const bh = Math.max(200, maxY - minY);
@@ -328,13 +437,24 @@ export function renderOntologyCanvas(
     }
   }
 
-  const activeFocus = state.hoveredKind || state.focusedKind;
-  const egoPeers = new Set<string>();
+  const activeFocus = state.focusedKind;
+  const focusLineage = new Set<string>();
   if (activeFocus) {
-    egoPeers.add(activeFocus);
+    focusLineage.add(activeFocus);
+    let cur = nodeByKind.get(activeFocus);
+    const guard = new Set<string>();
+    while (cur?.extends && !guard.has(cur.extends)) {
+      guard.add(cur.extends);
+      focusLineage.add(cur.extends);
+      cur = nodeByKind.get(cur.extends);
+    }
+  }
+
+  const egoPeers = new Set<string>(focusLineage);
+  if (activeFocus) {
     for (const e of edges) {
-      if (e.fromKind === activeFocus) egoPeers.add(e.toKind);
-      if (e.toKind === activeFocus) egoPeers.add(e.fromKind);
+      if (focusLineage.has(e.fromKind)) egoPeers.add(e.toKind);
+      if (focusLineage.has(e.toKind)) egoPeers.add(e.fromKind);
     }
   }
 
@@ -347,6 +467,7 @@ export function renderOntologyCanvas(
     my: number;
     text: string;
     active: boolean;
+    isExtends?: boolean;
     priority: number;
   }> = [];
 
@@ -356,18 +477,22 @@ export function renderOntologyCanvas(
     if (!src || !dst) continue;
 
     const isIncident = Boolean(
-      activeFocus && (edge.fromKind === activeFocus || edge.toKind === activeFocus)
+      activeFocus && (focusLineage.has(edge.fromKind) || focusLineage.has(edge.toKind))
     );
     const isDim = Boolean(activeFocus && !isIncident);
 
     const strokeColor = isDim
       ? EDGE_DIM_STROKE
-      : isIncident
-        ? EDGE_STROKES_ACTIVE[edge.category] || NODE_RING_SELECTED
-        : EDGE_STROKES[edge.category] || EDGE_STROKES.control_flow;
+      : edge.isExtends
+        ? isIncident
+          ? '#c4b5fd'
+          : 'rgba(196, 181, 253, 0.76)'
+        : isIncident
+          ? EDGE_STROKES_ACTIVE[edge.category] || NODE_RING_SELECTED
+          : EDGE_STROKES[edge.category] || EDGE_STROKES.control_flow;
 
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = isIncident ? 1.85 : 1.25;
+    ctx.lineWidth = isIncident ? 1.9 : edge.isExtends ? 1.5 : 1.25;
 
     if (edge.isSelfLoop) {
       const baseAngle = -Math.PI * 0.64 - edge.selfLoopSlot * 0.55;
@@ -429,18 +554,27 @@ export function renderOntologyCanvas(
     const endVecX = dst.x - cpx;
     const endVecY = dst.y - cpy;
     const endLen = Math.sqrt(endVecX * endVecX + endVecY * endVecY) || 1;
-    const tipPad = dst.radius + 3;
+    const tipPad = dst.radius + (edge.isExtends ? 4 : 3);
     const tx = dst.x - (endVecX / endLen) * tipPad;
     const ty = dst.y - (endVecY / endLen) * tipPad;
 
+    ctx.save();
+    if (edge.isExtends) {
+      ctx.setLineDash([5, 4]);
+    }
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.quadraticCurveTo(cpx, cpy, tx, ty);
     ctx.stroke();
+    ctx.restore();
 
     if (!isDim) {
       const arrowAngle = Math.atan2(endVecY, endVecX);
-      drawArrowhead(ctx, tx, ty, arrowAngle, strokeColor, isIncident ? 7.8 : 6.6);
+      if (edge.isExtends) {
+        drawHollowArrowhead(ctx, tx, ty, arrowAngle, strokeColor, isIncident ? 9.5 : 8.4);
+      } else {
+        drawArrowhead(ctx, tx, ty, arrowAngle, strokeColor, isIncident ? 7.8 : 6.6);
+      }
       const mx = 0.25 * sx + 0.5 * cpx + 0.25 * tx;
       const my = 0.25 * sy + 0.5 * cpy + 0.25 * ty;
       pendingPills.push({
@@ -448,6 +582,7 @@ export function renderOntologyCanvas(
         my,
         text: edge.rel,
         active: isIncident,
+        isExtends: edge.isExtends,
         priority: isIncident ? 0 : edge.priority,
       });
     }
@@ -483,6 +618,17 @@ export function renderOntologyCanvas(
       ctx.fill();
     }
 
+    if (node.isAbstract) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius + 4, 0, Math.PI * 2);
+      ctx.setLineDash([3.5, 3]);
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = 'rgba(221, 214, 254, 0.72)';
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.beginPath();
     ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
     ctx.fillStyle = node.fill;
@@ -493,6 +639,30 @@ export function renderOntologyCanvas(
     ctx.stroke();
 
     drawGlyph(ctx, node.glyph, node.x, node.y);
+
+    // Supertype [+N] expand or [−] collapse pill at top-left
+    if ((node.collapsedCount && node.collapsedCount > 0) || node.hasExpandedSubtypes) {
+      const collapseLabel =
+        node.collapsedCount && node.collapsedCount > 0 ? `+${node.collapsedCount}` : '\u2212';
+      ctx.font = FONT_BADGE;
+      const cw = Math.max(22, ctx.measureText(collapseLabel).width + 10);
+      const ch = 17;
+      const cx = node.x - node.radius * 0.78 - cw / 2;
+      const cy = node.y - node.radius * 0.74 - ch / 2;
+      const isExpandHover = state.hoveredCapsule === node.kind;
+
+      drawRoundedRect(ctx, cx, cy, cw, ch, 8.5);
+      ctx.fillStyle = isExpandHover ? '#5b21b6' : '#2e1065';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = isExpandHover ? '#ede9fe' : '#a78bfa';
+      ctx.stroke();
+
+      ctx.fillStyle = '#f5f3ff';
+      ctx.textAlign = ALIGN_CENTER;
+      ctx.textBaseline = BASELINE_MIDDLE;
+      ctx.fillText(collapseLabel, cx + cw / 2, cy + ch / 2 + 0.5);
+    }
 
     // Rim count pill at top-right (-42 deg)
     ctx.font = FONT_BADGE;
@@ -526,16 +696,13 @@ export function renderOntologyCanvas(
   ctx.restore();
 
   // Draw screen-space collision-culled relationship pills crisp at 1x scale
-  if (viewport.zoom >= 0.52) {
+  if (viewport.zoom >= 0.42) {
     pendingPills.sort((a, b) => a.priority - b.priority);
     ctx.font = FONT_EDGE_PILL;
     ctx.textAlign = ALIGN_CENTER;
     ctx.textBaseline = BASELINE_MIDDLE;
-    const shownRelCounts = new Map<string, number>();
 
     for (const pill of pendingPills) {
-      const prevShown = shownRelCounts.get(pill.text) || 0;
-      if (!pill.active && prevShown >= 2) continue;
       const px = pill.mx * viewport.zoom + viewport.panX;
       const py = pill.my * viewport.zoom + viewport.panY;
       if (px < -40 || px > width + 40 || py < -20 || py > height + 20) continue;
@@ -554,16 +721,23 @@ export function renderOntologyCanvas(
         continue;
       }
       occupiedBoxes.push(box);
-      shownRelCounts.set(pill.text, prevShown + 1);
 
       drawRoundedRect(ctx, px - pw / 2, py - ph / 2, pw, ph, 5);
       ctx.fillStyle = PILL_BG;
       ctx.fill();
       ctx.lineWidth = 1;
-      ctx.strokeStyle = pill.active ? PILL_BORDER_ACTIVE : PILL_BORDER;
+      ctx.strokeStyle = pill.active
+        ? PILL_BORDER_ACTIVE
+        : pill.isExtends
+          ? 'rgba(196, 181, 253, 0.48)'
+          : PILL_BORDER;
       ctx.stroke();
 
-      ctx.fillStyle = pill.active ? PILL_TEXT_ACTIVE : PILL_TEXT_DEFAULT;
+      ctx.fillStyle = pill.active
+        ? PILL_TEXT_ACTIVE
+        : pill.isExtends
+          ? '#ddd6fe'
+          : PILL_TEXT_DEFAULT;
       ctx.fillText(pill.text, px, py + 0.5);
     }
   }

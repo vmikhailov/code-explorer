@@ -74,9 +74,16 @@ public class ConfigurationMappingTests
 
         (topics.Any(t => t.BrokerType == BrokerType.RabbitMq)).Should().BeTrue("RabbitMQ topic/broker should be extracted");
 
-        var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
-        (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe cloud service should be extracted");
-        (cloud.Any(c => c.Name == "Auth0")).Should().BeTrue("Auth0 cloud service should be extracted");
+        var extServices = l4.SemanticNodes.OfType<ExternalServiceNode>().ToList();
+        (extServices.Any(e => e.Name == "Stripe")).Should().BeTrue("Stripe external service should be extracted");
+        (extServices.Any(e => e.Name == "Auth0")).Should().BeTrue("Auth0 external service should be extracted");
+
+        var clouds = l4.SemanticNodes.OfType<CloudNode>().ToList();
+        (clouds.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe Cloud vendor node should be extracted");
+        (clouds.Any(c => c.Name == "Auth0")).Should().BeTrue("Auth0 Cloud vendor node should be extracted");
+
+        var hostedInRels = l4.SemanticRelationships.Where(r => r.Kind == RelationshipKind.HostedIn).ToList();
+        hostedInRels.Count.Should().BeGreaterThanOrEqualTo(2, "HOSTED_IN edges should link Stripe and Auth0 external services to their Cloud nodes");
 
         var configRels = l4.SemanticRelationships.Where(r => r.Kind == RelationshipKind.DeclaredIn && r.To.Contains("appsettings.json", StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -148,7 +155,10 @@ public class ConfigurationMappingTests
         (databases.Any(d => d.DbType == DatabaseType.Relational)).Should().BeTrue("Postgres DATABASE_URL in .env should be extracted");
         (databases.Any(d => d.DbType == DatabaseType.Cache)).Should().BeTrue("REDIS_URL in .env should be extracted");
 
-        var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
-        (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe in .env should be extracted");
+        var extServices = l4.SemanticNodes.OfType<ExternalServiceNode>().ToList();
+        (extServices.Any(e => e.Name == "Stripe")).Should().BeTrue("Stripe external service in .env should be extracted");
+
+        var clouds = l4.SemanticNodes.OfType<CloudNode>().ToList();
+        (clouds.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe Cloud vendor node in .env should be extracted");
     }
 }

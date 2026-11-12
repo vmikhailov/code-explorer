@@ -174,12 +174,57 @@ public partial class PostIndexAnalyzer
         Dictionary<string, DatabaseNode> canonicalDbNodes,
         string? primaryRelationalEngine)
     {
+        var schemaNodesToUpload = new Dictionary<string, DbSchemaNode>(StringComparer.OrdinalIgnoreCase);
+        var cloudNodesToUpload = new Dictionary<string, CloudNode>(StringComparer.OrdinalIgnoreCase);
+        var schemaAndCloudEdges = new List<Relationship>();
+
+        DbSchemaNode GetOrCreateDbSchema(DatabaseNode dbNode, string? eng, string? rawSchema)
+        {
+            var effectiveSchema = !string.IsNullOrWhiteSpace(rawSchema)
+                ? rawSchema
+                : ResolveDefaultDbSchemaName(eng);
+            var isDefaultSchema = string.IsNullOrWhiteSpace(rawSchema) ||
+                                  effectiveSchema.Equals("public", StringComparison.OrdinalIgnoreCase) ||
+                                  effectiveSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) ||
+                                  effectiveSchema.Equals("main", StringComparison.OrdinalIgnoreCase) ||
+                                  effectiveSchema.Equals("default", StringComparison.OrdinalIgnoreCase);
+            var schemaId = $"{dbNode.Id}:{OntologyConstants.IdPrefixes.DbSchema}:{CloudProviderHelper.NormalizeSlug(effectiveSchema)}";
+            if (!schemaNodesToUpload.TryGetValue(schemaId, out var schemaNode))
+            {
+                schemaNode = new DbSchemaNode(schemaId, effectiveSchema, string.Empty)
+                {
+                    Engine = eng,
+                    DatabaseId = dbNode.Id,
+                    IsDefault = isDefaultSchema,
+                    IsSemanticEntity = true,
+                    Layer = StandardLayers.Foundation.LayerId,
+                    LayerId = StandardLayers.Foundation.LayerId,
+                    LayerName = StandardLayers.Foundation.LayerName,
+                    LayerColor = StandardLayers.Foundation.Color,
+                    LayerIcon = StandardLayers.Foundation.Icon
+                };
+                schemaNodesToUpload[schemaId] = schemaNode;
+                schemaAndCloudEdges.Add(new Relationship(dbNode.Id, schemaId, RelationshipKind.Contains)
+                {
+                    IsSemantic = true,
+                    IsCanonical = true
+                });
+            }
+            return schemaNode;
+        }
+
         foreach (var cNode in canonicalDbNodes.Values)
         {
             var eng = cNode.Engine ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
             var sch = cNode.Schema ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
+            var defaultSchemaNode = GetOrCreateDbSchema(cNode, eng, sch);
+            if (string.IsNullOrWhiteSpace(cNode.Schema))
+            {
+                cNode.Schema = defaultSchemaNode.Name;
+            }
 
             cNode.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
+            var retainedDbChildren = new List<IOntologyNode>();
             foreach (var child in cNode.Children)
             {
                 switch (child)
@@ -187,35 +232,112 @@ public partial class PostIndexAnalyzer
                     case DataSetNode dsNode:
                         dsNode.Engine = eng;
                         if (!string.IsNullOrEmpty(sch)) dsNode.Schema = sch;
+                        retainedDbChildren.Add(dsNode);
                         break;
                     case TableNode tblNode:
                         tblNode.Engine = eng;
-                        if (!string.IsNullOrEmpty(sch)) tblNode.Schema = sch;
+                        tblNode.Schema = !string.IsNullOrEmpty(sch) ? sch : defaultSchemaNode.Name;
+                        if (!defaultSchemaNode.Children.Any(x => x.Id == tblNode.Id))
+                        {
+                            defaultSchemaNode.Children.Add(tblNode);
+                        }
+                        schemaAndCloudEdges.Add(new Relationship(defaultSchemaNode.Id, tblNode.Id, RelationshipKind.Contains)
+                        {
+                            IsSemantic = true,
+                            IsCanonical = true
+                        });
                         break;
                     case ProcedureNode procNode:
                         procNode.Engine = eng;
-                        if (!string.IsNullOrEmpty(sch)) procNode.Schema = sch;
+                        procNode.Schema = !string.IsNullOrEmpty(sch) ? sch : defaultSchemaNode.Name;
+                        if (!defaultSchemaNode.Children.Any(x => x.Id == procNode.Id))
+                        {
+                            defaultSchemaNode.Children.Add(procNode);
+                        }
+                        schemaAndCloudEdges.Add(new Relationship(defaultSchemaNode.Id, procNode.Id, RelationshipKind.Contains)
+                        {
+                            IsSemantic = true,
+                            IsCanonical = true
+                        });
+                        break;
+                    default:
+                        retainedDbChildren.Add(child);
                         break;
                 }
                 if (child is DataSetNode ds)
                 {
                     ds.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
+                    var childSch = !string.IsNullOrEmpty(ds.Name) ? ds.Name : sch;
+                    var dsSchemaNode = GetOrCreateDbSchema(cNode, eng, childSch);
                     foreach (var tc in ds.Children)
                     {
-                        var childSch = !string.IsNullOrEmpty(ds.Name) ? ds.Name : sch;
                         switch (tc)
                         {
                             case TableNode tblChild:
                                 tblChild.Engine = eng;
-                                tblChild.Schema = childSch;
+                                tblChild.Schema = dsSchemaNode.Name;
+                                if (!dsSchemaNode.Children.Any(x => x.Id == tblChild.Id))
+                                {
+                                    dsSchemaNode.Children.Add(tblChild);
+                                }
+                                schemaAndCloudEdges.Add(new Relationship(dsSchemaNode.Id, tblChild.Id, RelationshipKind.Contains)
+                                {
+                                    IsSemantic = true,
+                                    IsCanonical = true
+                                });
                                 break;
                             case ProcedureNode procChild:
                                 procChild.Engine = eng;
-                                procChild.Schema = childSch;
+                                procChild.Schema = dsSchemaNode.Name;
+                                if (!dsSchemaNode.Children.Any(x => x.Id == procChild.Id))
+                                {
+                                    dsSchemaNode.Children.Add(procChild);
+                                }
+                                schemaAndCloudEdges.Add(new Relationship(dsSchemaNode.Id, procChild.Id, RelationshipKind.Contains)
+                                {
+                                    IsSemantic = true,
+                                    IsCanonical = true
+                                });
                                 break;
                         }
                     }
                 }
+            }
+
+            cNode.Children.Clear();
+            cNode.Children.AddRange(retainedDbChildren);
+            foreach (var dbSch in schemaNodesToUpload.Values.Where(s => s.DatabaseId == cNode.Id))
+            {
+                if (!cNode.Children.Any(x => x.Id == dbSch.Id))
+                {
+                    cNode.Children.Add(dbSch);
+                }
+            }
+
+            if (CloudProviderHelper.TryResolve(cNode.Name, string.IsNullOrWhiteSpace(cNode.Provider) ? eng : $"{eng} {cNode.Provider}") is { } cloudMatch)
+            {
+                var wsPrefix = cNode.Id.Contains(':') ? cNode.Id.Split(':', 2)[0] : OntologyConstants.IdPrefixes.Workspace;
+                var cloudId = CloudProviderHelper.BuildCloudNodeId(wsPrefix, cloudMatch.ProviderId);
+                if (!cloudNodesToUpload.ContainsKey(cloudId))
+                {
+                    cloudNodesToUpload[cloudId] = new CloudNode(cloudId, cloudMatch.DisplayName, string.Empty)
+                    {
+                        Provider = cloudMatch.ProviderId,
+                        Category = cloudMatch.TierSlug,
+                        IsSemanticEntity = true,
+                        Layer = StandardLayers.Egress.LayerId,
+                        LayerId = StandardLayers.Egress.LayerId,
+                        LayerName = StandardLayers.Egress.LayerName,
+                        LayerColor = StandardLayers.Egress.Color,
+                        LayerIcon = StandardLayers.Egress.Icon
+                    };
+                }
+                schemaAndCloudEdges.Add(new Relationship(cNode.Id, cloudId, RelationshipKind.HostedIn)
+                {
+                    Provider = cloudMatch.ProviderId,
+                    IsSemantic = true,
+                    IsCanonical = true
+                });
             }
         }
 
@@ -239,13 +361,37 @@ public partial class PostIndexAnalyzer
                 }
                 ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, node.Name, node.Id);
             }
+
+            foreach (var schNode in schemaNodesToUpload.Values)
+            {
+                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.DbSchema, schNode.Name, schNode.Id);
+            }
+
+            foreach (var clNode in cloudNodesToUpload.Values)
+            {
+                if (!semanticStructure.Children.Any(c => c.Id == clNode.Id))
+                {
+                    semanticStructure.Children.Add(clNode);
+                }
+                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Cloud, clNode.Name, clNode.Id);
+            }
         }
 
         if (canonicalDbNodes.Count > 0 && ctx.DbClient != null)
         {
             ctx.PostIndexLog.MaterializingCanonicalDatabaseNodes(canonicalDbNodes.Count);
-            await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
-            ctx.AddNodesCount(canonicalDbNodes.Count);
+            var uploadBatch = canonicalDbNodes.Values.Select(Node.FromNode)
+                .Concat(schemaNodesToUpload.Values.Select(Node.FromNode))
+                .Concat(cloudNodesToUpload.Values.Select(Node.FromNode))
+                .ToList();
+            await ctx.DbClient.UploadNodesAsync(uploadBatch);
+            ctx.AddNodesCount(uploadBatch.Count);
+
+            if (schemaAndCloudEdges.Count > 0)
+            {
+                await ctx.DbClient.UploadRelationshipsAsync(schemaAndCloudEdges);
+                ctx.AddRelsCount(schemaAndCloudEdges.Count);
+            }
         }
     }
 

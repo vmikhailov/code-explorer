@@ -472,24 +472,61 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         HashSet<(string From, string To, string Kind)> existingRelKeys,
         ParsingContext ctx)
     {
-        var detectedRoles = DetectAwsResourceRoles(effectiveSource, packageNames);
+        var detectedRoles = DetectAwsResourceRoles(effectiveSource, packageNames).ToList();
+        if (detectedRoles.Count == 0)
+        {
+            return;
+        }
+
+        const string awsProviderId = "aws";
+        const string awsDisplayName = "AWS";
+        const string sdkProtocol = "SDK";
+        const string tierHyperscaler = "hyperscaler";
+
+        var awsCloudId = CloudProviderHelper.BuildCloudNodeId(ctx.WorkspaceId, awsProviderId);
+        if (!semanticStructureNode.Children.Any(child => child.Id.Equals(awsCloudId, StringComparison.OrdinalIgnoreCase)))
+        {
+            semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.CloudNode(
+                awsCloudId,
+                awsDisplayName,
+                project.Path)
+            {
+                Provider = awsProviderId,
+                Category = tierHyperscaler,
+                IsSemanticEntity = true
+            });
+            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Cloud, awsDisplayName, awsCloudId);
+        }
+
         foreach (var resource in CloudResourceRules.Where(r => detectedRoles.Contains(r.Role, StringComparer.OrdinalIgnoreCase)))
         {
-            var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CloudService}:{resource.IdSuffix}";
+            var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:aws:{resource.IdSuffix}";
             if (!semanticStructureNode.Children.Any(child => child.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)))
             {
-                semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.CloudServiceNode(
+                semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.ExternalServiceNode(
                     resourceId,
                     resource.Name,
-                    resource.ResourceType,
+                    sdkProtocol,
+                    resource.Name,
                     project.Path)
                 {
-                    Provider = "AWS",
+                    Provider = awsDisplayName,
                     ResourceRole = resource.Role,
+                    IsExternal = true,
                     IsSemanticEntity = true
                 });
-                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, resource.Name, resourceId);
+                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, resource.Name, resourceId);
             }
+
+            AddCloudRelationship(
+                new CodeExplorer.Core.Database.Relationship(resourceId, awsCloudId, OntologyConstants.Relationships.HostedIn)
+                {
+                    Provider = "aws",
+                    ResourceRole = resource.Role,
+                    IsSemantic = true
+                },
+                semanticRelationships,
+                existingRelKeys);
 
             if (string.IsNullOrEmpty(workloadId))
             {
@@ -500,7 +537,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
             const string ValCloudResource = "cloud_resource";
 
             AddCloudRelationship(
-                new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.UsesCloud)
+                new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.ServiceCall)
                 {
                     Category = ValExternalResource,
                     DependencyType = ValCloudResource,

@@ -402,13 +402,15 @@ public partial class SqliteGraphClient
         CancellationToken cancellationToken = default)
     {
         var dbKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Database);
+        var dbSchemaKindId = GraphKindCodec.EncodeNodeKind(NodeKind.DbSchema);
         var containsRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.Contains);
         var definesRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.Defines);
         var tableKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Table);
+        var procKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Procedure);
         var fileKindId = GraphKindCodec.EncodeNodeKind(NodeKind.File);
         var projKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
         var dataSetKindId = GraphKindCodec.EncodeNodeKind(NodeKind.DataSet);
-        var dbDataSetKindsSql = GraphKindCodec.NodeKindsInSql(NodeKind.Database, NodeKind.DataSet);
+        var dbDataSetKindsSql = GraphKindCodec.NodeKindsInSql(NodeKind.Database, NodeKind.DbSchema, NodeKind.DataSet);
 
         foreach (var (rawId, canonicalId) in rawToCanonical)
         {
@@ -438,13 +440,39 @@ public partial class SqliteGraphClient
             await ExecuteWriteAsync(
                 $"DELETE FROM edges WHERE to_id IN (SELECT rowid FROM nodes WHERE kind = {dbKindId} AND id NOT IN ({placeholders})); DELETE FROM edges WHERE from_id IN (SELECT rowid FROM nodes WHERE kind = {dbKindId} AND id NOT IN ({placeholders})); DELETE FROM nodes WHERE kind = {dbKindId} AND id NOT IN ({placeholders});",
                 paramDict, cancellationToken);
+
+            await ExecuteWriteAsync(
+                $"DELETE FROM edges WHERE to_id IN (SELECT rowid FROM nodes WHERE kind = {dbSchemaKindId} AND coalesce(json_extract(properties, '$.database_id'), '') NOT IN ({placeholders})); DELETE FROM edges WHERE from_id IN (SELECT rowid FROM nodes WHERE kind = {dbSchemaKindId} AND coalesce(json_extract(properties, '$.database_id'), '') NOT IN ({placeholders})); DELETE FROM nodes WHERE kind = {dbSchemaKindId} AND coalesce(json_extract(properties, '$.database_id'), '') NOT IN ({placeholders});",
+                paramDict, cancellationToken);
         }
         else
         {
             await ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE to_id IN (SELECT rowid FROM nodes WHERE kind = {dbKindId}); DELETE FROM edges WHERE from_id IN (SELECT rowid FROM nodes WHERE kind = {dbKindId}); DELETE FROM nodes WHERE kind = {dbKindId};",
+                $"DELETE FROM edges WHERE to_id IN (SELECT rowid FROM nodes WHERE kind IN ({dbKindId}, {dbSchemaKindId})); DELETE FROM edges WHERE from_id IN (SELECT rowid FROM nodes WHERE kind IN ({dbKindId}, {dbSchemaKindId})); DELETE FROM nodes WHERE kind IN ({dbKindId}, {dbSchemaKindId});",
                 null, cancellationToken);
         }
+
+        // Reroute any direct Database -[:CONTAINS]-> Table/Procedure edges onto the Database's DbSchema node
+        await ExecuteWriteAsync($"""
+            INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+            SELECT sch.rowid, e.to_id, {containsRelId}, e.properties
+            FROM edges e
+            JOIN nodes dbn ON e.from_id = dbn.rowid AND dbn.kind = {dbKindId}
+            JOIN nodes tbl ON e.to_id = tbl.rowid AND tbl.kind IN ({tableKindId}, {procKindId})
+            JOIN edges es ON es.from_id = dbn.rowid AND es.kind = {containsRelId}
+            JOIN nodes sch ON es.to_id = sch.rowid AND sch.kind = {dbSchemaKindId}
+            WHERE e.kind = {containsRelId};
+
+            DELETE FROM edges
+            WHERE kind = {containsRelId}
+              AND from_id IN (SELECT rowid FROM nodes WHERE kind = {dbKindId})
+              AND to_id IN (SELECT rowid FROM nodes WHERE kind IN ({tableKindId}, {procKindId}))
+              AND EXISTS (
+                  SELECT 1 FROM edges es
+                  JOIN nodes sch ON es.to_id = sch.rowid AND sch.kind = {dbSchemaKindId}
+                  WHERE es.from_id = edges.from_id AND es.kind = {containsRelId}
+              );
+            """, null, cancellationToken);
 
         if (propagateChildSchemaProperties)
         {
@@ -456,13 +484,13 @@ public partial class SqliteGraphClient
         if (canonicalDatabases.Count > 0)
         {
             await LinkOrphanTablesToCanonicalDatabasesAsync(
-                canonicalDatabases, containsRelId, definesRelId, tableKindId, fileKindId, projKindId, dbDataSetKindsSql, cancellationToken);
+                canonicalDatabases, containsRelId, definesRelId, tableKindId, dbSchemaKindId, fileKindId, projKindId, dbDataSetKindsSql, cancellationToken);
         }
 
         if (propagateChildSchemaProperties)
         {
             await PropagateDatabaseEngineAndSchemaToChildrenAsync(
-                canonicalDatabases, containsRelId, dataSetKindId, tableKindId, cancellationToken);
+                canonicalDatabases, containsRelId, dataSetKindId, dbSchemaKindId, tableKindId, cancellationToken);
         }
     }
 
@@ -471,6 +499,7 @@ public partial class SqliteGraphClient
         int containsRelId,
         int definesRelId,
         int tableKindId,
+        int dbSchemaKindId,
         int fileKindId,
         int projKindId,
         string dbDataSetKindsSql,
@@ -485,7 +514,10 @@ public partial class SqliteGraphClient
 
             await ExecuteWriteAsync($"""
                 INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                SELECT dbn.rowid, t.rowid, {containsRelId}, jsonb(json_object())
+                SELECT COALESCE(
+                    (SELECT sch.rowid FROM edges es JOIN nodes sch ON es.to_id = sch.rowid AND sch.kind = {dbSchemaKindId} WHERE es.from_id = dbn.rowid AND es.kind = {containsRelId} LIMIT 1),
+                    dbn.rowid
+                ), t.rowid, {containsRelId}, jsonb(json_object())
                 FROM nodes t, nodes dbn
                 WHERE dbn.id = @dbId
                   AND t.kind = {tableKindId}
@@ -507,7 +539,10 @@ public partial class SqliteGraphClient
         var primaryCanonicalId = canonicalDatabases[0].Id;
         await ExecuteWriteAsync($"""
             INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-            SELECT dbn.rowid, t.rowid, {containsRelId}, jsonb(json_object())
+            SELECT COALESCE(
+                (SELECT sch.rowid FROM edges es JOIN nodes sch ON es.to_id = sch.rowid AND sch.kind = {dbSchemaKindId} WHERE es.from_id = dbn.rowid AND es.kind = {containsRelId} LIMIT 1),
+                dbn.rowid
+            ), t.rowid, {containsRelId}, jsonb(json_object())
             FROM nodes t, nodes dbn
             WHERE dbn.id = @primaryCanonicalId
               AND t.kind = {tableKindId}
@@ -539,6 +574,7 @@ public partial class SqliteGraphClient
         IReadOnlyList<CanonicalDatabasePropagationInfo> canonicalDatabases,
         int containsRelId,
         int dataSetKindId,
+        int dbSchemaKindId,
         int tableKindId,
         CancellationToken cancellationToken)
     {
@@ -554,7 +590,7 @@ public partial class SqliteGraphClient
                 SET properties = jsonb_set(COALESCE(NULLIF(properties, ''), jsonb(json_object())), '$.engine', @engineToUse, '$.schema', COALESCE(json_extract(properties, '$.name'), @sch))
                 WHERE rowid IN (
                     SELECT e.to_id FROM edges e JOIN nodes cn ON cn.rowid = e.from_id WHERE cn.id = @canonicalId AND e.kind = {containsRelId}
-                ) AND kind = {dataSetKindId};
+                ) AND kind IN ({dataSetKindId}, {dbSchemaKindId});
                 """,
                 new { canonicalId = dbInfo.Id, engineToUse, sch }, cancellationToken);
 
@@ -571,7 +607,7 @@ public partial class SqliteGraphClient
                 UPDATE nodes
                 SET properties = jsonb_set(COALESCE(NULLIF(properties, ''), jsonb(json_object())),
                     '$.engine', @engineToUse,
-                    '$.schema', COALESCE((SELECT json_extract(ds.properties, '$.name') FROM nodes ds JOIN edges e2 ON ds.rowid = e2.from_id WHERE e2.to_id = nodes.rowid AND e2.kind = {containsRelId} LIMIT 1), @sch)
+                    '$.schema', COALESCE((SELECT json_extract(ds.properties, '$.name') FROM nodes ds JOIN edges e2 ON ds.rowid = e2.from_id WHERE e2.to_id = nodes.rowid AND e2.kind = {containsRelId} AND ds.kind IN ({dataSetKindId}, {dbSchemaKindId}) LIMIT 1), @sch)
                 )
                 WHERE rowid IN (
                     SELECT e2.to_id FROM edges e1

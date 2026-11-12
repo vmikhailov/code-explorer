@@ -215,17 +215,21 @@ public class OntologyGenTests
     }
 
     [Test]
-    public void JsonSchemaRenderer_ResolvesTargetLabelsInboundEdgesAndExcludesHiddenDomains()
+    public void JsonSchemaRenderer_ResolvesTargetLabelsInboundEdgesAndIncludesLayer5LogicalDomains()
     {
-        var nodesWithHidden = new List<NodeInfo>(_nodes!)
+        var nodesWithLayer5 = new List<NodeInfo>(_nodes!)
         {
             new(
                 ClassName: "DomainNode",
                 Label: "Domain",
                 IdScheme: "{workspaceId}:dom:{name}",
-                Purpose: "Hidden domain entity.",
+                Purpose: "Logical business domain entity.",
                 Layer: "Layer 5: Logical Structure",
-                OutEdges: [new EdgeInfo("Domain", "BELONGS_TO_DOMAIN", "ZooNode")],
+                OutEdges:
+                [
+                    new EdgeInfo("Domain", "CONTAINS", "ZooNode"),
+                    new EdgeInfo("Domain", "BELONGS_TO_DOMAIN", "ZooNode")
+                ],
                 Properties: []),
             new(
                 ClassName: "SyntaxStructureNode",
@@ -237,25 +241,31 @@ public class OntologyGenTests
                 Properties: [],
                 IsSystemNode: true)
         };
-        var relsWithHidden = new List<RelInfo>(_rels!)
+        var relsWithLayer5 = new List<RelInfo>(_rels!)
         {
-            new("BELONGS_TO_DOMAIN", "Hidden domain edge.")
+            new("CONTAINS", "Contains child entity."),
+            new("BELONGS_TO_DOMAIN", "Legacy hidden upward edge.")
         };
 
-        var json = JsonSchemaRenderer.Render(nodesWithHidden, relsWithHidden);
+        var json = JsonSchemaRenderer.Render(nodesWithLayer5, relsWithLayer5);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        root.GetProperty("schemaVersion").GetString().Should().Be("1.0");
-        root.GetProperty("layers").GetArrayLength().Should().Be(4);
+        root.GetProperty("schemaVersion").GetString().Should().Be("2.0");
+        root.GetProperty("layers").GetArrayLength().Should().Be(5);
 
         var nodeKinds = root.GetProperty("nodes").EnumerateArray()
             .Select(n => n.GetProperty("kind").GetString()!)
             .ToList();
 
-        nodeKinds.Should().Contain(["Zoo", "Animal", "Habitat"]);
-        nodeKinds.Should().NotContain("Domain");
+        nodeKinds.Should().Contain(["Domain", "Zoo", "Animal", "Habitat"]);
         nodeKinds.Should().NotContain("SyntaxStructure");
+
+        var domainNode = root.GetProperty("nodes").EnumerateArray()
+            .Single(n => n.GetProperty("kind").GetString() == "Domain");
+        domainNode.GetProperty("layerId").GetInt32().Should().Be(5);
+        domainNode.GetProperty("layerKey").GetString().Should().Be("L5_logical");
+        domainNode.GetProperty("outEdges")[0].GetProperty("rel").GetString().Should().Be("CONTAINS");
 
         var animalNode = root.GetProperty("nodes").EnumerateArray()
             .Single(n => n.GetProperty("kind").GetString() == "Animal");
@@ -264,5 +274,98 @@ public class OntologyGenTests
         animalNode.GetProperty("sampleCypher").GetString().Should().Contain("MATCH");
 
         json.Should().NotContain("BELONGS_TO_DOMAIN");
+    }
+
+    [Test]
+    public async Task MultiLevelInheritance_ExtractsAbstractAncestorsSubtypesAndInheritedEdges()
+    {
+        const string hierarchySource = """
+            namespace OntologyHierarchyFixture;
+
+            [System.AttributeUsage(System.AttributeTargets.Class)]
+            sealed class OntologyNodeAttribute(string label, string idScheme, string purpose, bool isAbstract = false) : System.Attribute;
+            [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
+            sealed class OntologyEdgeAttribute<TTo>(string rel) : System.Attribute where TTo : class;
+            [System.AttributeUsage(System.AttributeTargets.Class)]
+            sealed class OntologyRelationshipAttribute(string label, string description) : System.Attribute;
+            [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Parameter)]
+            sealed class OntologyPropertyAttribute(string description) : System.Attribute;
+
+            [OntologyRelationship(label: "IMPLEMENTED_BY", description: "Links module to project.")]
+            public record ImplementedByRel(string From, string To);
+            [OntologyRelationship(label: "EXPOSES", description: "Links workload to endpoint.")]
+            public record ExposesRel(string From, string To);
+            [OntologyRelationship(label: "TESTS", description: "Links test suite to module.")]
+            public record TestsRel(string From, string To);
+
+            [OntologyNode(label: "Project", idScheme: "{ws}:proj:{name}", purpose: "Project.")]
+            public record ProjectNode(string Id, [property: OntologyProperty("Project name.")] string Name);
+
+            [OntologyNode(label: "Endpoint", idScheme: "{ws}:ep:{name}", purpose: "Endpoint.")]
+            public record EndpointNode(string Id, [property: OntologyProperty("Route.")] string Name);
+
+            [OntologyNode(label: "Module", idScheme: "{ws}:mod:{name}", purpose: "Abstract module.", isAbstract: true)]
+            [OntologyEdge<ProjectNode>("IMPLEMENTED_BY")]
+            public abstract record ModuleNode(string Id, [property: OntologyProperty("Module name.")] string Name)
+            {
+                [OntologyProperty("Framework name.")]
+                public string? Framework { get; set; }
+            }
+
+            [OntologyNode(label: "Workload", idScheme: "{ws}:wl:{name}", purpose: "Abstract workload.", isAbstract: true)]
+            [OntologyEdge<EndpointNode>("EXPOSES")]
+            public abstract record WorkloadNode(string Id, string Name) : ModuleNode(Id, Name);
+
+            [OntologyNode(label: "Service", idScheme: "{ws}:svc:{name}", purpose: "Concrete service.")]
+            public record ServiceNode(string Id, string Name) : WorkloadNode(Id, Name);
+
+            [OntologyNode(label: "TestSuite", idScheme: "{ws}:test:{name}", purpose: "Concrete test suite.")]
+            [OntologyEdge<ModuleNode>("TESTS")]
+            public record TestSuiteNode(string Id, string Name) : ModuleNode(Id, Name);
+            """;
+
+        var tmpFile = Path.Combine(Path.GetTempPath(), $"OntologyHierarchy_{Guid.NewGuid():N}.cs");
+        try
+        {
+            await File.WriteAllTextAsync(tmpFile, hierarchySource);
+            var extractor = new OntologyExtractor();
+            var nodes = await extractor.ExtractNodesAsync([tmpFile]);
+            var rels = await extractor.ExtractRelationshipsAsync([tmpFile]);
+
+            var json = JsonSchemaRenderer.Render(nodes, rels);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var nodesArr = doc.RootElement.GetProperty("nodes").EnumerateArray().ToList();
+
+            var moduleDto = nodesArr.Single(n => n.GetProperty("kind").GetString() == "Module");
+            moduleDto.GetProperty("isAbstract").GetBoolean().Should().BeTrue();
+            var modSubtypes = moduleDto.GetProperty("subtypes").EnumerateArray().Select(e => e.GetString()!).ToList();
+            modSubtypes.Should().Contain(["Workload", "TestSuite"]);
+
+            var workloadDto = nodesArr.Single(n => n.GetProperty("kind").GetString() == "Workload");
+            workloadDto.GetProperty("isAbstract").GetBoolean().Should().BeTrue();
+            workloadDto.GetProperty("extends").GetString().Should().Be("Module");
+
+            var serviceDto = nodesArr.Single(n => n.GetProperty("kind").GetString() == "Service");
+            serviceDto.TryGetProperty("isAbstract", out _).Should().BeFalse();
+            serviceDto.GetProperty("extends").GetString().Should().Be("Workload");
+            var ancestors = serviceDto.GetProperty("ancestors").EnumerateArray().Select(e => e.GetString()!).ToList();
+            ancestors.Should().Equal("Workload", "Module");
+
+            // Service has 0 duplicate own edges; shared edges live on Workload & Module and appear in inheritedOutEdges/inheritedInEdges
+            serviceDto.GetProperty("outEdges").GetArrayLength().Should().Be(0);
+            var inheritedOut = serviceDto.GetProperty("inheritedOutEdges").EnumerateArray().ToList();
+            inheritedOut.Select(e => e.GetProperty("rel").GetString()!).Should().Contain(["EXPOSES", "IMPLEMENTED_BY"]);
+
+            var inheritedIn = serviceDto.GetProperty("inheritedInEdges").EnumerateArray().ToList();
+            inheritedIn.Select(e => e.GetProperty("rel").GetString()!).Should().Contain("TESTS");
+
+            // Service inherits properties transitively from Module
+            var svcProps = serviceDto.GetProperty("properties").EnumerateArray().ToList();
+            svcProps.Any(p => p.GetProperty("name").GetString() == "framework" && p.GetProperty("inheritedFrom").GetString() == "Module").Should().BeTrue();
+        }
+        finally
+        {
+            if (File.Exists(tmpFile)) File.Delete(tmpFile);
+        }
     }
 }

@@ -1,0 +1,9 @@
+@import "./benchmarks.css";
+@import "./home.css";
+@import "./ontology.css";
+@import "./architectures.css";
+@import "./privacy.css";
+
+#root {
+  display: contents;
+}

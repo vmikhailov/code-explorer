@@ -8,11 +8,12 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.CloudService,
     idScheme: "{workspaceId}:p:{relativeProjectDir}:cloud:{serviceName}",
-    purpose: "Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).",
+    purpose: "Legacy cloud resource node superseded by ExternalService + HOSTED_IN -> Cloud.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "cloud-upload",
-    order: 13,
-    pluralLabel: "Cloud Resources"
+    order: 99,
+    pluralLabel: "Cloud Resources",
+    isSystemNode: true
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]

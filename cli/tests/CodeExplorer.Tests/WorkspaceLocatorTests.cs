@@ -137,4 +137,28 @@ public class WorkspaceLocatorTests
         found.Should().NotBeNull();
         found!.RootDirectory.Should().Be(_tempDir);
     }
+
+    [Test]
+    public void Find_WhenParentIsHomeDirOrGlobalStateOnly_DoesNotHijackSubdirectory()
+    {
+        var fakeHome = Path.Combine(_tempDir, "fake_home");
+        var globalCe = Path.Combine(fakeHome, ".codeexplorer");
+        Directory.CreateDirectory(Path.Combine(globalCe, "bin"));
+        File.WriteAllText(Path.Combine(globalCe, "last_workspace.txt"), fakeHome);
+
+        var childProject = Path.Combine(fakeHome, "repos", "app");
+        Directory.CreateDirectory(childProject);
+
+        var prevHome = Environment.GetEnvironmentVariable("HOME");
+        try
+        {
+            Environment.SetEnvironmentVariable("HOME", fakeHome);
+            WorkspaceLocator.Find(childProject).Should().BeNull();
+            WorkspaceLocator.Find(fakeHome).Should().BeNull();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOME", prevHome);
+        }
+    }
 }

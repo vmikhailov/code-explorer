@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 
 $repo = "vmikhailov/code-explorer"
-$target = "win-x64"
+$target = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { "win-arm64" } else { "win-x64" }
 
 Write-Host "=== CodeExplorer ('ce') Windows Installer ===" -ForegroundColor Cyan
 

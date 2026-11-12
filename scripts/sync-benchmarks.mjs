@@ -903,12 +903,7 @@ function findMatchingCloseTag(html, tagName, startPos) {
   throw new Error(`Unclosed <${tagName}> starting near index ${startPos}`);
 }
 
-function syncHtmlFile(relPath, bindings, data) {
-  const abs = path.join(ROOT, relPath);
-  if (!fs.existsSync(abs)) return false;
-  const orig = fs.readFileSync(abs, 'utf8');
-  let out = orig;
-
+function applyHtmlBindings(out, bindings, data) {
   // 1. <meta ... data-bind-meta="key" ...>
   out = out.replace(/<meta\b[^>]*\bdata-bind-meta="([^"]+)"[^>]*>/gi, (fullTag, key) => {
     if (!(key in bindings)) return fullTag;
@@ -971,9 +966,55 @@ function syncHtmlFile(relPath, bindings, data) {
     openTagRe.lastIndex = innerEnd;
   }
   result += out.slice(cursor);
+  return result;
+}
+
+function syncHtmlFile(relPath, bindings, data) {
+  const abs = path.join(ROOT, relPath);
+  if (!fs.existsSync(abs)) return false;
+  const orig = fs.readFileSync(abs, 'utf8');
+  const result = applyHtmlBindings(orig, bindings, data);
 
   if (result !== orig) {
     if (!CHECK_ONLY) fs.writeFileSync(abs, result, 'utf8');
+    return true;
+  }
+  return false;
+}
+
+function syncRoutesDataFile(relPath, bindings, data) {
+  const abs = path.join(ROOT, relPath);
+  if (!fs.existsSync(abs)) return false;
+  const orig = fs.readFileSync(abs, 'utf8');
+  const marker = 'export const ROUTES_DATA: Record<string, RouteEntry> = ';
+  const idx = orig.indexOf(marker);
+  if (idx === -1) return false;
+  const prefix = orig.slice(0, idx + marker.length);
+  const jsonPart = orig.slice(idx + marker.length).replace(/;\s*$/, '');
+  const routesObj = JSON.parse(jsonPart);
+  let modified = false;
+
+  for (const entry of Object.values(routesObj)) {
+    if (entry.descriptionMetaBind && entry.descriptionMetaBind in bindings) {
+      const nextDesc = bindings[entry.descriptionMetaBind];
+      if (entry.description !== nextDesc) {
+        entry.description = nextDesc;
+        entry.ogDescription = nextDesc;
+        modified = true;
+      }
+    }
+    if (entry.mainHtml) {
+      const nextMain = applyHtmlBindings(entry.mainHtml, bindings, data);
+      if (nextMain !== entry.mainHtml) {
+        entry.mainHtml = nextMain;
+        modified = true;
+      }
+    }
+  }
+
+  if (modified) {
+    const nextContent = `${prefix}${JSON.stringify(routesObj, null, 2)};\n`;
+    if (!CHECK_ONLY) fs.writeFileSync(abs, nextContent, 'utf8');
     return true;
   }
   return false;
@@ -1046,6 +1087,10 @@ const htmlTargets = [
 
 for (const rel of htmlTargets) {
   if (syncHtmlFile(rel, bindings, data)) changedFiles.push(rel);
+}
+
+if (syncRoutesDataFile('site/src/generated/routesData.ts', bindings, data)) {
+  changedFiles.push('site/src/generated/routesData.ts');
 }
 
 const mdTargets = [

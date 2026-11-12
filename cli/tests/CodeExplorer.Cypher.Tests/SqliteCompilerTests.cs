@@ -1091,4 +1091,58 @@ public class SqliteCompilerTests
         rows[0]["called_names"]?.ToString().Should().Contain("ChildFn2");
         rows[0]["rel_types"]?.ToString().Should().Contain("CALLS");
     }
+
+    [Test]
+    public void Test_OntologyInheritance_Module_Workload_Cloud_And_DbSchema()
+    {
+        InsertNode("inh:svc", "Service", new() { ["name"] = "PaymentsApi" });
+        InsertNode("inh:app", "App", new() { ["name"] = "CheckoutWeb" });
+        InsertNode("inh:worker", "Worker", new() { ["name"] = "SettlementWorker" });
+        InsertNode("inh:cli", "CliTool", new() { ["name"] = "OpsCli" });
+        InsertNode("inh:lib", "Library", new() { ["name"] = "SharedKernel" });
+        InsertNode("inh:suite", "TestSuite", new() { ["name"] = "PaymentsTests" });
+
+        InsertNode("inh:es", "ExternalService", new() { ["name"] = "StripeApi", ["provider"] = "Stripe" });
+        InsertNode("inh:cloud", "Cloud", new() { ["name"] = "Stripe", ["provider"] = "Stripe" });
+        InsertEdge("inh:svc", "inh:es", "SERVICE_CALL");
+        InsertEdge("inh:es", "inh:cloud", "HOSTED_IN");
+
+        InsertNode("inh:db", "Database", new() { ["name"] = "PostgreSQL.billing", ["engine"] = "PostgreSQL" });
+        InsertNode("inh:sch", "DbSchema", new() { ["name"] = "billing", ["engine"] = "PostgreSQL" });
+        InsertNode("inh:tbl", "Table", new() { ["name"] = "invoices", ["schema"] = "billing" });
+        InsertEdge("inh:svc", "inh:db", "USES_DB");
+        InsertEdge("inh:db", "inh:sch", "CONTAINS");
+        InsertEdge("inh:sch", "inh:tbl", "CONTAINS");
+
+        // 1. MATCH (w:Workload) matches Service, App, Worker, CliTool (and excludes Library, TestSuite)
+        var workloads = ExecuteCypher("MATCH (w:Workload) WHERE w.id STARTS WITH 'inh:' RETURN w.name AS name, labels(w) AS lbls ORDER BY w.name");
+        workloads.Should().HaveCount(4);
+        var workloadNames = workloads.Select(r => (string)r["name"]!).ToList();
+        workloadNames.Should().BeEquivalentTo(["CheckoutWeb", "OpsCli", "PaymentsApi", "SettlementWorker"]);
+        workloads[0]["lbls"]?.ToString().Should().Contain("Workload");
+        workloads[0]["lbls"]?.ToString().Should().Contain("Module");
+
+        // 2. MATCH (m:Module) matches all 4 workloads + Library + TestSuite
+        var modules = ExecuteCypher("MATCH (m:Module) WHERE m.id STARTS WITH 'inh:' RETURN m.name AS name");
+        modules.Should().HaveCount(6);
+
+        // 3. WHERE n:Workload and list quantifier any(l IN labels(n) WHERE l = 'Workload')
+        var whereWorkload = ExecuteCypher("MATCH (n) WHERE n.id STARTS WITH 'inh:' AND n:Workload RETURN count(n) AS cnt");
+        Convert.ToInt32(whereWorkload[0]["cnt"]).Should().Be(4);
+
+        var anyLabel = ExecuteCypher("MATCH (n) WHERE n.id STARTS WITH 'inh:' AND any(l IN labels(n) WHERE l = 'Module') RETURN count(n) AS cnt");
+        Convert.ToInt32(anyLabel[0]["cnt"]).Should().Be(6);
+
+        // 4. Polymorphic traversal: (:Workload)-[:SERVICE_CALL]->(:ExternalService)-[:HOSTED_IN]->(:Cloud)
+        var cloudFlow = ExecuteCypher("MATCH (w:Workload)-[:SERVICE_CALL]->(es:ExternalService)-[:HOSTED_IN]->(c:Cloud) RETURN w.name AS svc, es.name AS ext, c.name AS cloud");
+        cloudFlow.Should().HaveCount(1);
+        cloudFlow[0]["svc"].Should().Be("PaymentsApi");
+        cloudFlow[0]["cloud"].Should().Be("Stripe");
+
+        // 5. Database -> DbSchema -> Table lineage
+        var dbFlow = ExecuteCypher("MATCH (w:Workload)-[:USES_DB]->(d:Database)-[:CONTAINS]->(s:DbSchema)-[:CONTAINS]->(t:Table) RETURN w.name AS svc, s.name AS sch, t.name AS tbl");
+        dbFlow.Should().HaveCount(1);
+        dbFlow[0]["sch"].Should().Be("billing");
+        dbFlow[0]["tbl"].Should().Be("invoices");
+    }
 }

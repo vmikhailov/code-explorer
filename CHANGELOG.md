@@ -5,6 +5,25 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.83.0] - 2026-11-12
+
+### Added
+- **Ontology v2.0 Polymorphic Inheritance, `:Cloud`, `:DbSchema`, and `EXTENDS` Visualization**:
+  - Introduced multi-level ontology inheritance (`:Module` -> `:Workload` / `:Library` / `:TestSuite` and `:Workload` -> `:Service` / `:App` / `:Worker` / `:CliTool`) with polymorphic OpenCypher label matching (`MATCH (m:Module)`, `MATCH (w:Workload)`, `WHERE n:Workload`, `labels(n)`).
+  - Replaced legacy `:CloudService` with `:Cloud` (`{workspaceId}:cloud:{provider}`) + `-[:HOSTED_IN]->(:Cloud)` across `:Workload`, `:ExternalService`, `:Database`, and `:Topic`, retired legacy `:ApiInUse` and `USES_API` from Layer 4 emission and the public ontology schema, and introduced `:Database -[:CONTAINS]-> :DbSchema -[:CONTAINS]-> :Table | :Procedure`.
+  - Scoped runtime and contract relationships unambiguously across subtypes (`:Workload -[:SERVICE_CALL]-> :Service | :ExternalService`, `:Service -[:EXPOSES]-> :Endpoint`, `:Service -[:COORDINATES_WITH]-> :PeerMesh`, `:Worker -[:SUBSCRIBES_TO]-> :Topic`) and eliminated duplicate `CONTAINS` edges to `:Endpoint`, `:ApiInUse`, and `:ExternalService`.
+  - Updated Ontology Explorer (VS Code Extension and `code-explorer.app/ontology`) with layer filters, in-window expand/fit, interactive per-hierarchy collapse/expand toggles (`+N` / `−`), a draggable floating entity inspector overlay, and dashed `EXTENDS` generalization arrows with hollow triangle arrowheads.
+- **Elastic Spring-Force Ontology Simulation (`OntologyForceGraph.tsx`, `ontologyGraphLayout.ts`, `ontology-graph-client.mjs`)**:
+  - Added live 60fps D3-style spring-force graph simulation with degree-weighted elastic link pull during node drag, smooth spring relaxation on pointer release, coordinate preservation across filter/`EXTENDS` toggles, interactive `Air` (`0.1x` to `2.4x`) and `Hub` (`0.0x` to `5.0x`) spacing sliders, full non-colliding edge label rendering, and a `Freeze` physics pinning toggle across both the VS Code Extension and `code-explorer.app/ontology`.
+- **Vite + React + TypeScript SPA Website (`site/`)**:
+  - Migrated `code-explorer.app` to a unified Vite + React + TypeScript Single-Page Application with instant client-side routing across `/`, `/ontology`, `/architectures`, `/benchmarks`, `/benchmarks/:slug`, and `/privacy`.
+
+### Fixed
+- **Standalone Trimmed Release Binary & Clean-Environment Installation (`TrimmerRoots.xml`, `WorkspaceLocator.cs`, `launch.mjs`, `InitCommandHandler.cs`, `GateOptions.cs`, `install.ps1`, `release.yml`)**:
+  - Preserved `ce`, `CodeExplorer.Core`, `CodeExplorer.Cypher`, and `CodeExplorer.Server` in `TrimmerRoots.xml` so `-p:PublishTrimmed=true` single-file release binaries retain C# compiler-generated anonymous types required by Dapper SQL parameterization during `ce scan`.
+  - Updated `WorkspaceLocator.Find` and `plugins/code-explorer/mcp/launch.mjs` to store managed binaries in platform application data (`%LOCALAPPDATA%\CodeExplorer\bin` / `~/.local/share/codeexplorer/bin`) and ignore home-directory or global-state-only `.codeexplorer` folders (`last_workspace.txt`, `bin/`) when resolving project workspaces.
+  - Added positional workspace directory support to `ce init <dir>` and `ce gate check <dir>`, added Windows ARM64 (`win-arm64`) detection to `site/install.ps1`, and raised the `build-matrix` job timeout in `.github/workflows/release.yml` to prevent `macos-latest` runner queue cancellations.
+
 ## [1.82.0] - 2026-11-12
 
 ### Added

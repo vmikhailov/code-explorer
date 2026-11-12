@@ -138,7 +138,8 @@ public partial class ResourceSemanticAnalyzer
         string? schema,
         bool isImplicitSchema,
         bool isOrm,
-        ParsingContext ctx)
+        ParsingContext ctx,
+        bool attachSymbolAccessedBy = true)
     {
         var declaredRel = Relationship.FromRelationship(new DeclaredInRelationship(resourceId, fileNode.Id)
         {
@@ -154,6 +155,11 @@ public partial class ResourceSemanticAnalyzer
             LineEnd = usageLine > 0 ? usageLine : 0
         });
         ctx.AddGlobalProjectDependency(declaredRel);
+
+        if (!attachSymbolAccessedBy)
+        {
+            return declaredRel;
+        }
 
         Relationship primaryGroundingRel = declaredRel;
         var targetSymbols = new List<IOntologyNode>();
@@ -299,19 +305,6 @@ public partial class ResourceSemanticAnalyzer
                 };
 
                     var isOrm = IsOrmLibrary(parser.Id);
-
-                    // Record USES_API (L4 -> L4) and downward grounding (L4 -> L3/L1) for the ORM / DB driver library
-                    var apiPrefix = isOrm ? "orm" : "api";
-                    var ormApiId = $"{projectNode.Id}{apiPrefix}:{parser.Id}";
-                    var semanticNode = ctx.SemanticStructure;
-                    if (semanticNode != null && !semanticNode.Children.Any(c => c.Id == ormApiId))
-                    {
-                        var apiNode = new ApiInUseNode(ormApiId, parser.Name, fileNode.Path);
-                        semanticNode.Children.Add(apiNode);
-                    }
-                    EmitGroundingEdges(ormApiId, fileNode, 0, null, null, null, null, null, false, false, ctx);
-                    var ormUsesApiRel = new UsesApiRelationship(workloadId, ormApiId);
-                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(ormUsesApiRel));
 
                     var (detectedEngine, detectedType) = isOrm
                         ? DetectProjectDatabaseDriver(projectNode, ctx)
@@ -566,7 +559,8 @@ public partial class ResourceSemanticAnalyzer
                             currentSchema,
                             isImpSchema,
                             isOrm,
-                            ctx);
+                            ctx,
+                            attachSymbolAccessedBy: false);
                         if (projectNode.IsTest || !WorkspaceConventions.IsTestFilePath(fileNode.Path))
                         {
                             var workloadUsesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId)
@@ -587,68 +581,76 @@ public partial class ResourceSemanticAnalyzer
                         }
                     }
             }
-            else if (parser.Type is SemanticExtensionType.ApiClient or SemanticExtensionType.HttpClient or SemanticExtensionType.Queue)
-            {
-                var apiId = $"{projectNode.Id}api:{parser.Id}";
-                var semanticNodeForApi = ctx.SemanticStructure;
-                if (semanticNodeForApi != null && !semanticNodeForApi.Children.Any(c => c.Id == apiId))
-                {
-                    var apiNode = new ApiInUseNode(apiId, parser.Name, apiId);
-                    semanticNodeForApi.Children.Add(apiNode);
-                }
-
-                var apiGroundingRel = EmitGroundingEdges(
-                    apiId,
-                    fileNode,
-                    0,
-                    OpCall,
-                    OntologyConstants.EvidenceKinds.LibraryCall,
-                    null,
-                    null,
-                    null,
-                    false,
-                    false,
-                    ctx);
-                var workloadUsesApiRel = Relationship.FromRelationship(new UsesApiRelationship(workloadId, apiId)
-                {
-                    FilePath = fileNode.Path,
-                    Operation = OpCall,
-                    EvidenceKind = OntologyConstants.EvidenceKinds.LibraryCall
-                });
-                EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesApiRel, apiGroundingRel);
-                ctx.AddGlobalProjectDependency(workloadUsesApiRel);
-            }
             else if (parser.Type == SemanticExtensionType.Cloud)
             {
                 var cloudService = parser.Name;
-                var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
+                var extId = $"{projectNode.Id}es:cloud:{parser.Id}";
+                var cloudMatch = CloudProviderHelper.ResolveOrFallback(cloudService, parser.Id);
+                var cloudId = CloudProviderHelper.BuildCloudNodeId(ctx.WorkspaceId, cloudMatch.ProviderId);
                 var semanticNodeForCloud = ctx.SemanticStructure;
-                if (semanticNodeForCloud != null && !semanticNodeForCloud.Children.Any(c => c.Id == cloudId))
+                if (semanticNodeForCloud != null)
                 {
-                    var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                    semanticNodeForCloud.Children.Add(cloudNode);
+                    if (!semanticNodeForCloud.Children.Any(c => c.Id == extId))
+                    {
+                        const string sdkProtocol = "SDK";
+                        var extNode = new ExternalServiceNode(extId, cloudService, sdkProtocol, cloudService, fileNode.Path)
+                        {
+                            Provider = cloudMatch.DisplayName,
+                            IsExternal = true
+                        };
+                        semanticNodeForCloud.Children.Add(extNode);
+                    }
+
+                    if (!semanticNodeForCloud.Children.Any(c => c.Id == cloudId))
+                    {
+                        var cloudNode = new CloudNode(cloudId, cloudMatch.DisplayName, fileNode.Path)
+                        {
+                            Provider = cloudMatch.ProviderId,
+                            Category = cloudMatch.TierSlug
+                        };
+                        semanticNodeForCloud.Children.Add(cloudNode);
+                    }
                 }
 
                 var cloudGroundingRel = EmitGroundingEdges(
-                    cloudId,
+                    extId,
                     fileNode,
                     0,
                     OpCall,
                     OntologyConstants.EvidenceKinds.HttpCall,
                     null,
-                    null,
+                    cloudMatch.ProviderId,
                     null,
                     false,
                     false,
                     ctx);
-                var workloadUsesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId)
+
+                var cloudDeclRel = Relationship.FromRelationship(new DeclaredInRelationship(cloudId, fileNode.Id)
                 {
                     FilePath = fileNode.Path,
                     Operation = OpCall,
+                    Provider = cloudMatch.ProviderId,
                     EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
                 });
-                EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesCloudRel, cloudGroundingRel);
-                ctx.AddGlobalProjectDependency(workloadUsesCloudRel);
+                ctx.AddGlobalProjectDependency(cloudDeclRel);
+
+                var hostedInRel = Relationship.FromRelationship(new HostedInRelationship(extId, cloudId)
+                {
+                    FilePath = fileNode.Path,
+                    Provider = cloudMatch.ProviderId,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
+                });
+                ctx.AddGlobalProjectDependency(hostedInRel);
+
+                var workloadCallsExtRel = Relationship.FromRelationship(new ServiceCallRelationship(workloadId, extId)
+                {
+                    FilePath = fileNode.Path,
+                    Operation = OpCall,
+                    Provider = cloudMatch.ProviderId,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
+                });
+                EvidenceProvenanceHelper.RecordContributingEdge(workloadCallsExtRel, cloudGroundingRel);
+                ctx.AddGlobalProjectDependency(workloadCallsExtRel);
             }
         }
 

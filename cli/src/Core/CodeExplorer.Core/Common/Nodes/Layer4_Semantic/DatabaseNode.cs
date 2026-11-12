@@ -8,20 +8,15 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Database,
     idScheme: "{workspaceId}:db:{dbType}:{dbName}",
-    purpose: "Represents a database instance, catalog, or physical schema.",
+    purpose: "Represents a database server instance or catalog configured by a workload and containing one or more DbSchema namespaces.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "database",
     order: 20,
     pluralLabel: "Databases & Storage"
 )]
+[OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
+[OntologyEdge<DbSchemaNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
-[OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
-[OntologyEdge<QueryNode>(OntologyConstants.Relationships.AccessedBy)]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.TransitivelyCalls)]
-[OntologyEdge<TableNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<ProcedureNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<QueryNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
 public record DatabaseNode(
     string Id,

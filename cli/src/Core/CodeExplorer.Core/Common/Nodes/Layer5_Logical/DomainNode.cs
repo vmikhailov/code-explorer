@@ -13,6 +13,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer5_Logical;
     pluralLabel: "Domains"
 )]
 [OntologyEdge<BoundedContextNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<DomainNode>(OntologyConstants.Relationships.DependsOn)]
 public record DomainNode(
     string Id,
     [property: OntologyProperty("The canonical domain name.")] string Name,

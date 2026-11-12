@@ -138,12 +138,33 @@ public static class OntologyRegistry
         return [.. common.OrderBy(k => k, StringComparer.Ordinal)];
     }
 
-    public static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping = 
-        AllNodes.ToDictionary(
-            x => x.Kind.ToCypherLabel(), 
-            x => (x.Kind.ToCypherLabel(), x.NodeType), 
-            StringComparer.OrdinalIgnoreCase
-        );
+    public static readonly IReadOnlyList<(NodeKind Kind, Type NodeType, OntologyNodeAttribute Attribute)> AbstractNodes =
+    [
+        .. typeof(IOntologyNode).Assembly.GetTypes()
+            .Where(t => typeof(IOntologyNode).IsAssignableFrom(t) && !t.IsInterface && t.IsAbstract)
+            .Select(t =>
+            {
+                var attr = t.GetCustomAttribute<OntologyNodeAttribute>(inherit: false);
+                if (attr == null) return ((NodeKind, Type, OntologyNodeAttribute)?)null;
+                var kind = EnumExtensions.ParseNodeKind(attr.Label);
+                return (kind, t, attr);
+            })
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+    ];
+
+    public static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping =
+        AllNodes
+            .Where(x => x.Kind != NodeKind.CloudService)
+            .Select(x => (Label: x.Kind.ToCypherLabel(), x.NodeType))
+            .Concat(AbstractNodes
+                .Where(x => !x.Attribute.IsSystemNode)
+                .Select(x => (Label: x.Kind.ToCypherLabel(), x.NodeType)))
+            .ToDictionary(
+                x => x.Label,
+                x => (x.Label, x.NodeType),
+                StringComparer.OrdinalIgnoreCase
+            );
 
     public static string ToSnakeCase(string input)
     {
@@ -179,44 +200,46 @@ public static class OntologyRegistry
         var (capitalizedKind, nodeType) = map;
         
         var purpose = "Node of kind " + capitalizedKind + ".";
-        var nodeAttr = nodeType.GetCustomAttribute<OntologyNodeAttribute>();
+        var nodeAttr = nodeType.GetCustomAttribute<OntologyNodeAttribute>(inherit: false) ?? nodeType.GetCustomAttribute<OntologyNodeAttribute>();
         if (nodeAttr != null)
         {
             purpose = nodeAttr.Purpose;
         }
 
-        var outboundList = new List<string>();
+        var outboundSet = new HashSet<string>(StringComparer.Ordinal);
         foreach (var attr in nodeType.GetCustomAttributes(true))
         {
             if (TryGetOntologyEdge(attr, out var relVal, out var toVal))
             {
-                var targetNodeAttr = toVal.GetCustomAttribute<OntologyNodeAttribute>();
+                var targetNodeAttr = toVal.GetCustomAttribute<OntologyNodeAttribute>(inherit: false) ?? toVal.GetCustomAttribute<OntologyNodeAttribute>();
                 var targetLabel = targetNodeAttr != null ? targetNodeAttr.Label : toVal.Name.Replace("Node", "");
-                outboundList.Add($"  - {relVal} -> {targetLabel}");
+                outboundSet.Add($"  - {relVal} -> {targetLabel}");
             }
         }
+        var outboundList = outboundSet.OrderBy(x => x, StringComparer.Ordinal).ToList();
 
-        var inboundList = new List<string>();
+        var inboundSet = new HashSet<string>(StringComparer.Ordinal);
         foreach (var mapEntry in KindMapping.Values)
         {
             var otherType = mapEntry.NodeType;
             if (otherType == nodeType) continue;
 
-            foreach (var attr in otherType.GetCustomAttributes(true))
+            foreach (var attr in otherType.GetCustomAttributes(inherit: false))
             {
                 if (TryGetOntologyEdge(attr, out var relVal, out var toVal))
                 {
-                    if (toVal != nodeType)
+                    if (!toVal.IsAssignableFrom(nodeType))
                     {
                         continue;
                     }
 
-                    var otherNodeAttr = otherType.GetCustomAttribute<OntologyNodeAttribute>();
+                    var otherNodeAttr = otherType.GetCustomAttribute<OntologyNodeAttribute>(inherit: false) ?? otherType.GetCustomAttribute<OntologyNodeAttribute>();
                     var otherLabel = otherNodeAttr != null ? otherNodeAttr.Label : otherType.Name.Replace("Node", "");
-                    inboundList.Add($"  - {otherLabel} -{relVal}-> {capitalizedKind}");
+                    inboundSet.Add($"  - {otherLabel} -{relVal}-> {capitalizedKind}");
                 }
             }
         }
+        var inboundList = inboundSet.OrderBy(x => x, StringComparer.Ordinal).ToList();
 
         var propertiesYamlList = new List<string>();
         var properties = nodeType.GetProperties(BindingFlags.Public | BindingFlags.Instance);

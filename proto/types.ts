@@ -425,6 +425,7 @@ export interface OntologyPropertySchemaDto {
   sourceName: string;
   type: string;
   description: string;
+  inheritedFrom?: string;
 }
 
 export interface OntologyOutboundEdgeSchemaDto {
@@ -432,6 +433,7 @@ export interface OntologyOutboundEdgeSchemaDto {
   toKind: string;
   category: OntologyEdgeCategoryId;
   description: string;
+  inheritedFrom?: string;
 }
 
 export interface OntologyInboundEdgeSchemaDto {
@@ -439,6 +441,7 @@ export interface OntologyInboundEdgeSchemaDto {
   fromKind: string;
   category: OntologyEdgeCategoryId;
   description: string;
+  inheritedFrom?: string;
 }
 
 export interface OntologyNodeSchemaDto {
@@ -450,9 +453,15 @@ export interface OntologyNodeSchemaDto {
   order: number;
   idScheme: string;
   purpose: string;
+  isAbstract?: boolean;
+  extends?: string;
+  ancestors?: string[];
+  subtypes?: string[];
   properties: OntologyPropertySchemaDto[];
   outEdges: OntologyOutboundEdgeSchemaDto[];
   inEdges: OntologyInboundEdgeSchemaDto[];
+  inheritedOutEdges?: OntologyOutboundEdgeSchemaDto[];
+  inheritedInEdges?: OntologyInboundEdgeSchemaDto[];
   sampleCypher: string;
 }
 

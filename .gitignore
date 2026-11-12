@@ -49,6 +49,8 @@ scratch/
 
 # --- Node.js & VS Code Extension ---
 node_modules/
+site/dist/
+site/.prerender/
 out/
 *.vsix
 dist-vsix/

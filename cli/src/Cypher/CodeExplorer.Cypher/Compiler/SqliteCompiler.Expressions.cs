@@ -498,15 +498,12 @@ public partial class SqliteCompiler
 
     private string VisitHasLabel(HasLabelExpression hasLabel)
     {
-        var labelId = GraphKindCodec.EncodeNodeKind(hasLabel.Label);
         if (hasLabel.Expression is IdentifierExpression id)
         {
-            if (_nodeKindSource.TryGetValue(id.Name, out var kSrc))
-            {
-                return $"{kSrc} = {labelId}";
-            }
-
-            return $"{EscapeVar(id.Name)}.kind = {labelId}";
+            var kSrc = _nodeKindSource.TryGetValue(id.Name, out var mappedSrc)
+                ? mappedSrc
+                : $"{EscapeVar(id.Name)}.kind";
+            return GraphKindCodec.BuildSingleLabelFilterSql(kSrc, hasLabel.Label);
         }
 
         return $"({VisitExpression(hasLabel.Expression)} = '{hasLabel.Label}')";

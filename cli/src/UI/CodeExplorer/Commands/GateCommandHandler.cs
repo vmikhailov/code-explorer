@@ -15,7 +15,7 @@ public partial class GateCommandHandler : BaseCommandHandler
     public static async Task<int> HandleAsync(GateOptions opts)
     {
         var action = (opts.Action ?? "check").ToLowerInvariant();
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
+        var targetDir = Path.GetFullPath(opts.EffectiveDir ?? Directory.GetCurrentDirectory());
 
         var ws = WorkspaceLocator.Find(targetDir);
         if (ws == null && opts.ShouldAutoInit)
@@ -50,7 +50,7 @@ public partial class GateCommandHandler : BaseCommandHandler
             }
         }
 
-        ws = EnsureInitialized(opts.Dir, requireIndexed: action != "init");
+        ws = EnsureInitialized(opts.EffectiveDir, requireIndexed: action != "init");
         if (ws == null) return 1;
 
         var repo = new FileGateRepository(ws.RootDirectory);

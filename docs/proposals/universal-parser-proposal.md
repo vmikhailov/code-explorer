@@ -256,3 +256,38 @@ Steps 1–3 (Track A) come first, so Track B builds on an engine already validat
 - **[Semantic Archetypes & YAML Projections](./semantic-archetypes-and-yaml-projections-proposal.md):** consumes the uniform Layer 3 output (annotations with arguments, calls, type bindings). It is the intended home for the Layer 4 detection currently embedded in visitors.
 - **[Universal Edge & Node Evidence](./universal-edge-and-node-evidence-proposal.md):** needs exact line spans on Layer 3 symbols. `UniversalAstVisitor` must preserve `start_line` / `end_line` for every symbol it emits. Provenance itself is recorded by Layer 4/5 analyzers, not by this visitor.
 - **[Semantic Invariant Gates](./semantic-invariant-gates-proposal.md):** unaffected; gates operate on the graph regardless of which visitor produced it.
+
+---
+
+## 10. PHP & Perl Language Onboarding Specifications
+
+### 10.1 PHP (`CodeExplorer.Parser.Php` — Native `tree-sitter-php`, ~3–5 Days)
+
+`TreeSitter.DotNet 1.3.0` already ships compiled native `tree-sitter-php` binaries across `win-x64`, `osx-arm64`, and `linux-x64`, requiring zero native build changes.
+
+- **Layer 2 (`PhpProjectParser`)**:
+  - Parse `composer.json` and `composer.lock` (`require` / `require-dev` -> `:Package`, workload vs library classification, and `autoload.psr-4` namespace-to-directory mappings).
+- **Layer 3 (`PhpSyntaxConverter`, `PhpDeclarationExtractor`, `PhpFileVisitor`)**:
+  - Extract `namespace_definition`, `namespace_use_declaration`, `class_declaration`, `interface_declaration`, `trait_declaration`, `enum_declaration`, `method_declaration`, `function_definition`, and `try_statement` / `catch_clause`.
+  - Resolve constructor property promotion (`__construct(private OrderRepository $repo)`), member calls (`$this->service->run()`, `?->`), static calls (`Foo::bar()`), and `require_once` / `include` (`RawImport`).
+- **Layer 4 (Semantic Extensions)**:
+  - **SQL & ORM Lineage**: Feed `PDO::prepare`/`query`, `mysqli_query`, Doctrine DBAL (`executeQuery`), and Laravel `DB::select` SQL strings into `SqlQueryParser` (`:Query` -> `:Table`); map Doctrine `#[ORM\Table]` and Eloquent `$table` properties.
+  - **Endpoints & Messaging**: Laravel `Route::get/post/...`, Symfony PHP 8 `#[Route(...)]` attributes, and standalone `.php` web entrypoints.
+
+### 10.2 Perl (`CodeExplorer.Parser.Perl` — Pure C# on `Superpower 3.0.0`, ~3–4 Days)
+
+Because `TreeSitter.DotNet 1.3.0` does not bundle `tree-sitter-perl` and Perl's lexical grammar is context-sensitive, `CodeExplorer.Parser.Perl` uses a two-stage **Context-Aware `Tokenizer<PerlToken>` + Island-Grammar `TokenListParser<PerlToken, SyntaxNode>`** built on `Superpower 3.0.0` (already referenced by `CodeExplorer.Cypher`, 100% managed C# with zero native DLLs):
+
+- **Stage 1 — Context-Aware `PerlTokenizer` (~350–450 LOC)**:
+  - Tracks a single `ExpectingTerm` vs `ExpectingOperator` state flag to disambiguate regex literals (`/pattern/`, `m/.../`, `s///`, `tr///`) from division (`/`).
+  - Consumes balanced quote-like operators with arbitrary delimiters (`q(...)`, `qq{...}`, `qw[...]`, `qr!...!`) so inner braces/quotes never corrupt block nesting.
+  - Skips POD documentation blocks (`^=head1` / `^=pod` .. `^=cut`).
+  - Captures multi-line heredocs (`<<'SQL'`, `<<"END_SQL"`, `<<EOF`) as single `PerlToken.HeredocString` tokens while preserving the raw inner payload for downstream SQL parsing.
+- **Stage 2 — Combinator UAST Parser & Layer 3 Extraction (~500–600 LOC)**:
+  - **Packages & OOP**: `package Foo::Bar;` (statement and block forms), Perl 5.38+ `class Foo::Bar`, `use` / `require` (`Foo::Bar` -> `Foo/Bar.pm`), inheritance via `use parent`, `use base`, `our @ISA`, and `Moose` / `Moo` (`extends`, `with`, `has 'dep' => (isa => '...')` for DI type bindings).
+  - **Subroutines & `@_` Parameter Unpacking**: `sub name { ... }`, modern subroutine signatures `sub foo($self, $id)`, and classic first-statement argument unpacking (`my ($self, $order_id, $opts) = @_;` and `my $self = shift;`) emitted as first-class `:Parameter` nodes.
+  - **Error Handling**: Classic `eval { ... }; if ($@) { ... }` and `Try::Tiny` / `Syntax::Keyword::Try` (`try { ... } catch ($e) { ... }`) emitted as `:CatchClause` nodes.
+  - **Fault-Tolerant Block Skimming**: Statements inside `sub { ... }` that use complex Perl idioms are safely skimmed via brace-balanced combinators while extracting all method calls (`$self->repo->find($id)`, `Pkg::Class->new()`), function calls, and local variable assignments (`my $sql = <<'SQL'`).
+- **Stage 3 — Layer 2 & Layer 4 Perl Ecosystem (~1 Day)**:
+  - **Layer 2 (`PerlProjectParser`)**: Parse `cpanfile`, `Makefile.PL`, `Build.PL`, `META.json` (`:Package` dependencies) and `.pl` / `.psgi` / `.cgi` scripts (`:EntryPoint`).
+  - **Layer 4 (`PerlDatabaseAndWebExtensions`)**: Trace `DBI` (`$dbh->prepare`, `$dbh->do`, `$dbh->selectall_arrayref`, including local heredoc `$sql` reaching definitions) and `DBIx::Class` (`__PACKAGE__->table('...')`) into `SqlQueryParser` (`:Query` -> `:Table`), plus `Mojolicious::Lite` / `Dancer2` / `Catalyst` routes (`:Endpoint`) and `LWP::UserAgent` / `Mojo::UserAgent` / `HTTP::Tiny` outbound calls (`:ExternalService`).

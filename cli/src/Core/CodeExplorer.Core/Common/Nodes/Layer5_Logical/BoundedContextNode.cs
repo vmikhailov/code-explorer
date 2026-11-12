@@ -15,11 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer5_Logical;
     pluralLabel: "Bounded Contexts"
 )]
 [OntologyEdge<BoundedContextNode>(OntologyConstants.Relationships.DependsOn)]
-[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<AppNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<CliToolNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ModuleNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Defines)]

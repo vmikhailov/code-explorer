@@ -59,6 +59,15 @@ function isRunnable(binPath) {
   }
 }
 
+function getManagedBinDir() {
+  const home = os.homedir();
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    return path.join(localAppData, 'CodeExplorer', 'bin');
+  }
+  return path.join(home, '.local', 'share', 'codeexplorer', 'bin');
+}
+
 function getCandidatePaths() {
   const home = os.homedir();
   const bin = getBinName();
@@ -67,7 +76,9 @@ function getCandidatePaths() {
   if (process.env.CE_EXECUTABLE) {
     list.push(process.env.CE_EXECUTABLE.trim());
   }
+  list.push(path.join(getManagedBinDir(), bin));
   list.push(path.join(home, '.dotnet', 'tools', bin));
+  list.push(path.join(home, '.local', 'bin', bin));
   list.push(path.join(home, '.codeexplorer', 'bin', bin));
 
   const pathDirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
@@ -149,7 +160,7 @@ function extractArchive(archivePath, destDir, format) {
 
 async function installManagedBinary() {
   const asset = resolveReleaseArchive();
-  const destDir = path.join(os.homedir(), '.codeexplorer', 'bin');
+  const destDir = getManagedBinDir();
   const targetBin = path.join(destDir, getBinName());
   fs.mkdirSync(destDir, { recursive: true });
 

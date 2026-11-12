@@ -8,6 +8,11 @@ public class GateOptions : ITargetOption
     [Value(0, MetaName = "action", Required = false, Default = "check", HelpText = "Action: 'check' (default), 'details', 'list', 'init', 'ratchet', 'violations' (or 'show').")]
     public string Action { get; set; } = "check";
 
+    [Value(1, MetaName = "dir", Required = false, HelpText = "Optional path to workspace directory.")]
+    public string? PositionalDir { get; set; }
+
+    public string? EffectiveDir => !string.IsNullOrWhiteSpace(Dir) ? Dir : PositionalDir;
+
     [Option('g', "gate", Required = false, HelpText = "Optional specific Gate ID to evaluate (e.g. 'SIG-P-B-001').")]
     public string? GateId { get; set; }
 

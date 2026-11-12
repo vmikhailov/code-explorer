@@ -46,6 +46,11 @@ public partial class ArchitectureViewEngine
                 case "Topic":
                     ProcessTopicNode(elem, id, name, props, nodeMap, graph);
                     break;
+                case "Cloud":
+                    ProcessCloudNode(elem, id, name, props, nodeMap, graph);
+                    break;
+                case "DbSchema":
+                    break;
                 case "CloudService":
                     ProcessCloudServiceNode(elem, id, name, props, nodeMap, graph);
                     break;

@@ -183,6 +183,8 @@ public class ReleaseV14617BugFixTests
         var canonicalDb = dbNodesInSemantic[0];
         canonicalDb.Id.Should().Be(expectedCanonicalId);
         canonicalDb.Name.Should().Be("PostgreSQL.ordering");
-        canonicalDb.Children.OfType<TableNode>().Should().Contain(t => t.Name == "ordering.orders");
+        var dbSchema = canonicalDb.Children.OfType<DbSchemaNode>().Should().ContainSingle().Subject;
+        dbSchema.Name.Should().Be("ordering");
+        dbSchema.Children.OfType<TableNode>().Should().Contain(t => t.Name == "ordering.orders");
     }
 }

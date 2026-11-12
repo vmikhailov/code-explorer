@@ -1,4 +1,4 @@
-/* Stratified 4-Layer Ontology Schema Explorer */
+/* Stratified 5-Layer Ontology Schema Explorer */
 .ontology-explorer-root {
   display: flex;
   flex-direction: column;
@@ -95,6 +95,12 @@
 
 .ontology-layer-pill-btn.is-active .ontology-layer-pill-tag {
   opacity: 1;
+}
+
+.ontology-layer-pill-btn.is-active.layer-pill-5 {
+  border-color: rgba(244, 114, 182, 0.65);
+  background: rgba(244, 114, 182, 0.13);
+  color: #fce7f3;
 }
 
 .ontology-layer-pill-btn.is-active.layer-pill-4 {
@@ -302,6 +308,7 @@
   letter-spacing: 0.04em;
 }
 
+.tag-l5 { background: rgba(244, 114, 182, 0.16); color: #f9a8d4; border: 1px solid rgba(244, 114, 182, 0.35); }
 .tag-l4 { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35); }
 .tag-l3 { background: rgba(52, 211, 153, 0.16); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.35); }
 .tag-l2 { background: rgba(167, 139, 250, 0.16); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.35); }
@@ -794,7 +801,7 @@
   background: rgba(15, 23, 42, 0.9);
   color: #e2e8f0;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -807,4 +814,148 @@
   border-color: rgba(56, 189, 248, 0.55);
   background: rgba(14, 116, 144, 0.35);
   color: #e0f2fe;
+}
+
+.ontology-air-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 400;
+  user-select: none;
+}
+
+.ontology-air-control:hover {
+  border-color: rgba(125, 211, 252, 0.55);
+}
+
+.ontology-air-label {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.ontology-air-control input[type="range"] {
+  width: 60px;
+  height: 4px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.ontology-air-val {
+  min-width: 28px;
+  text-align: right;
+  color: #38bdf8;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+}
+
+/* Ontology v2.0 Inheritance Capsules & Lineage Badges */
+.ontology-hierarchy-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+
+.ontology-hierarchy-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #c4b5fd;
+  padding: 0 3px;
+}
+
+.ontology-hierarchy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.72);
+  color: #94a3b8;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.ontology-hierarchy-pill:hover {
+  border-color: rgba(196, 181, 253, 0.55);
+  color: #ede9fe;
+}
+
+.ontology-hierarchy-pill.is-active {
+  border-color: rgba(167, 139, 250, 0.72);
+  background: rgba(109, 40, 217, 0.28);
+  color: #f5f3ff;
+}
+
+.ontology-hierarchy-indicator {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.ontology-abstract-badge {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(124, 58, 237, 0.18);
+  color: #ddd6fe;
+  border: 1px dashed rgba(196, 181, 253, 0.45);
+}
+
+.ontology-lineage-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ontology-lineage-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  margin-right: 2px;
+}
+
+.ontology-peer-btn.is-supertype {
+  border-color: rgba(167, 139, 250, 0.48);
+  background: rgba(76, 29, 149, 0.35);
+  color: #ede9fe;
+}
+
+.ontology-prop-meta-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ontology-inherited-tag {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(109, 40, 217, 0.2);
+  color: #c4b5fd;
+  border: 1px solid rgba(167, 139, 250, 0.32);
 }

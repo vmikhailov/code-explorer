@@ -14,21 +14,32 @@ public static class WorkspaceLocator
 
     public static WorkspaceInfo? Find(string? startDirectory = null)
     {
-        var dirStr = string.IsNullOrWhiteSpace(startDirectory)
-            ? Directory.GetCurrentDirectory()
-            : Path.GetFullPath(startDirectory);
+        var dirStr = Path.TrimEndingDirectorySeparator(
+            string.IsNullOrWhiteSpace(startDirectory)
+                ? Directory.GetCurrentDirectory()
+                : Path.GetFullPath(startDirectory));
 
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var current = new DirectoryInfo(dirStr);
         while (current != null)
         {
+            var currentFull = Path.TrimEndingDirectorySeparator(current.FullName);
             var ceDir = Path.Combine(current.FullName, FolderName);
             if (Directory.Exists(ceDir))
             {
-                if (current.FullName.Equals(userProfile, StringComparison.OrdinalIgnoreCase) &&
-                    !dirStr.Equals(userProfile, StringComparison.OrdinalIgnoreCase))
+                if (IsUserHomeDirectory(currentFull) &&
+                    !dirStr.Equals(currentFull, StringComparison.OrdinalIgnoreCase))
                 {
                     break;
+                }
+
+                if (IsGlobalStateOnlyDirectory(ceDir))
+                {
+                    if (IsUserHomeDirectory(currentFull))
+                    {
+                        break;
+                    }
+                    current = current.Parent;
+                    continue;
                 }
 
                 EnsureGitIgnore(ceDir);
@@ -43,6 +54,50 @@ public static class WorkspaceLocator
         }
 
         return null;
+    }
+
+    private static bool IsUserHomeDirectory(string fullPath)
+    {
+        var normalized = Path.TrimEndingDirectorySeparator(fullPath);
+        string?[] candidates =
+        [
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetEnvironmentVariable("USERPROFILE"),
+            Environment.GetEnvironmentVariable("HOME")
+        ];
+
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate)) continue;
+            try
+            {
+                var normCandidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidate));
+                if (normalized.Equals(normCandidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Ignore malformed environment paths
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsGlobalStateOnlyDirectory(string ceDir)
+    {
+        if (File.Exists(Path.Combine(ceDir, DbFileName)) ||
+            Directory.Exists(Path.Combine(ceDir, QueriesFolderName)) ||
+            File.Exists(Path.Combine(ceDir, "settings.json")) ||
+            Directory.Exists(Path.Combine(ceDir, "gates")))
+        {
+            return false;
+        }
+
+        return File.Exists(Path.Combine(ceDir, "last_workspace.txt")) ||
+               Directory.Exists(Path.Combine(ceDir, "bin"));
     }
 
     public static WorkspaceInfo FindOrThrow(string? startDirectory = null)

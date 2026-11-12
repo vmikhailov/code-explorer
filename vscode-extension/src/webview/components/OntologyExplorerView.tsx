@@ -11,6 +11,9 @@ import {
   filterOntologyNodes,
   computeEgoNeighborhood,
   getWorkspaceNodeCount,
+  getDefaultExpandedHierarchies,
+  OntologyHierarchyDescriptor,
+  resolveHierarchyVisibility,
 } from '../domain/ontologyModel';
 import { getVsCodeApi } from '../vscodeApi';
 import { useServerTransport, webviewTransport } from '../services/webviewTransport';
@@ -33,8 +36,9 @@ interface SvgArc {
 
 const DEFAULT_CATEGORIES = ['control_flow', 'data_flow', 'type_dependency', 'structural'];
 const ALL_CATEGORIES = ['control_flow', 'data_flow', 'type_dependency', 'structural'];
-const ALL_LAYERS = [4, 3, 2, 1];
+const ALL_LAYERS = [5, 4, 3, 2, 1];
 const LAYER_SHORT_LABELS: Record<number, string> = {
+  5: 'Logical',
   4: 'Semantic',
   3: 'Syntax',
   2: 'Boundaries',
@@ -66,6 +70,9 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
   );
   const [activeLayers, setActiveLayers] = useState<Set<number>>(
     () => new Set(ALL_LAYERS)
+  );
+  const [expandedHierarchies, setExpandedHierarchies] = useState<Set<string>>(
+    () => getDefaultExpandedHierarchies(BUNDLED_ONTOLOGY_SCHEMA)
   );
   const [onlyActiveInWorkspace, setOnlyActiveInWorkspace] = useState<boolean>(false);
   const [showCommonProps, setShowCommonProps] = useState<boolean>(false);
@@ -129,6 +136,27 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
     });
   }, []);
 
+  const toggleHierarchy = useCallback(
+    (hierarchyKind: string) => {
+      setExpandedHierarchies((prev) => {
+        const next = new Set(prev);
+        if (next.has(hierarchyKind)) {
+          next.delete(hierarchyKind);
+        } else {
+          next.add(hierarchyKind);
+          const target = schema.nodes.find((n) => n.kind === hierarchyKind);
+          if (target?.ancestors) {
+            for (const anc of target.ancestors) {
+              next.add(anc);
+            }
+          }
+        }
+        return next;
+      });
+    },
+    [schema.nodes]
+  );
+
   const handleSelectKind = useCallback(
     (kind: string) => {
       const target = schema.nodes.find((n) => n.kind === kind);
@@ -139,13 +167,22 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
           next.add(target.layerId);
           return next;
         });
+        if (target.ancestors && target.ancestors.length > 0) {
+          setExpandedHierarchies((prev) => {
+            const next = new Set(prev);
+            for (const anc of target.ancestors!) {
+              next.add(anc);
+            }
+            return next;
+          });
+        }
       }
       setSelectedKind(kind);
     },
     [schema.nodes]
   );
 
-  const visibleNodes = useMemo(
+  const filteredNodes = useMemo(
     () =>
       filterOntologyNodes(
         schema,
@@ -154,6 +191,13 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
       ),
     [schema, searchQuery, activeCategories, onlyActiveInWorkspace, activeLayers, workspace]
   );
+
+  const hierarchyResolution = useMemo(
+    () => resolveHierarchyVisibility(schema, filteredNodes, expandedHierarchies),
+    [schema, filteredNodes, expandedHierarchies]
+  );
+
+  const visibleNodes = hierarchyResolution.visibleNodes;
 
   const visibleKindSet = useMemo(
     () => new Set(visibleNodes.map((n) => n.kind)),
@@ -176,7 +220,7 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
 
   const activeWorkspaceKindsCount = useMemo(() => {
     if (!workspace) return 0;
-    return schema.nodes.filter((n) => getWorkspaceNodeCount(workspace, n.kind) > 0).length;
+    return schema.nodes.filter((n) => getWorkspaceNodeCount(workspace, n.kind, schema) > 0).length;
   }, [schema, workspace]);
 
   const activeSelectedKind = selectedNode?.kind || selectedKind;
@@ -273,7 +317,7 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
   );
 
   const selectedWorkspaceCount = selectedNode
-    ? getWorkspaceNodeCount(workspace, selectedNode.kind)
+    ? getWorkspaceNodeCount(workspace, selectedNode.kind, schema)
     : 0;
 
   const visibleLayerDefs = useMemo(
@@ -289,6 +333,8 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
         searchQuery={searchQuery}
         activeLayers={activeLayers}
         activeCategories={activeCategories}
+        hierarchies={hierarchyResolution.hierarchies}
+        expandedHierarchies={expandedHierarchies}
         workspace={workspace}
         onlyActiveInWorkspace={onlyActiveInWorkspace}
         activeWorkspaceKindsCount={activeWorkspaceKindsCount}
@@ -297,6 +343,7 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
         onToggleLayer={toggleLayer}
         onToggleCategory={toggleCategory}
         onToggleAllCategories={toggleAllCategories}
+        onToggleHierarchy={toggleHierarchy}
         onToggleWorkspaceActive={() => setOnlyActiveInWorkspace((v) => !v)}
       />
 
@@ -309,8 +356,12 @@ export const OntologyExplorerView: React.FC<OntologyExplorerViewProps> = ({
             activeCategories={activeCategories}
             workspace={workspace}
             onlyActiveInWorkspace={onlyActiveInWorkspace}
+            expandedHierarchies={expandedHierarchies}
+            redirectMap={hierarchyResolution.redirectMap}
+            collapsedCounts={hierarchyResolution.collapsedCounts}
             selectedKind={selectedNode?.kind || DEFAULT_SELECTED_KIND}
             onSelectKind={handleSelectKind}
+            onToggleHierarchy={toggleHierarchy}
           />
         ) : (
         <div
@@ -449,6 +500,8 @@ interface OntologyFilterToolbarProps {
   searchQuery: string;
   activeLayers: Set<number>;
   activeCategories: Set<string>;
+  hierarchies: readonly OntologyHierarchyDescriptor[];
+  expandedHierarchies: ReadonlySet<string>;
   workspace: OntologyWorkspaceStatsDto | null;
   onlyActiveInWorkspace: boolean;
   activeWorkspaceKindsCount: number;
@@ -457,6 +510,7 @@ interface OntologyFilterToolbarProps {
   onToggleLayer: (layerId: number) => void;
   onToggleCategory: (catId: string) => void;
   onToggleAllCategories: () => void;
+  onToggleHierarchy: (hierarchyKind: string) => void;
   onToggleWorkspaceActive: () => void;
 }
 
@@ -466,6 +520,8 @@ const OntologyFilterToolbar: React.FC<OntologyFilterToolbarProps> = ({
   searchQuery,
   activeLayers,
   activeCategories,
+  hierarchies,
+  expandedHierarchies,
   workspace,
   onlyActiveInWorkspace,
   activeWorkspaceKindsCount,
@@ -474,6 +530,7 @@ const OntologyFilterToolbar: React.FC<OntologyFilterToolbarProps> = ({
   onToggleLayer,
   onToggleCategory,
   onToggleAllCategories,
+  onToggleHierarchy,
   onToggleWorkspaceActive,
 }) => (
   <div className="ontology-filter-bar">
@@ -494,7 +551,7 @@ const OntologyFilterToolbar: React.FC<OntologyFilterToolbarProps> = ({
         className={`ontology-mode-btn ${viewMode === MODE_LAYERS ? 'is-active' : ''}`}
         onClick={() => onChangeViewMode(MODE_LAYERS)}
       >
-        4 Layers
+        5 Layers
       </button>
     </div>
 
@@ -529,7 +586,7 @@ const OntologyFilterToolbar: React.FC<OntologyFilterToolbarProps> = ({
             aria-pressed={isOn}
             className={`ontology-layer-pill-btn layer-pill-${layer.layerId} ${isOn ? 'is-active' : ''}`}
             onClick={() => onToggleLayer(layer.layerId)}
-            title={`${layer.title} — ${layer.description}`}
+            title={`${layer.title}: ${layer.description}`}
           >
             <span className="ontology-layer-pill-tag">L{layer.layerId}</span>
             <span>{shortLabel}</span>
@@ -537,6 +594,32 @@ const OntologyFilterToolbar: React.FC<OntologyFilterToolbarProps> = ({
         );
       })}
     </div>
+
+    {hierarchies.length > 0 && (
+      <div className="ontology-hierarchy-pills" role="group" aria-label="Inheritance hierarchy toggles">
+        <span className="ontology-hierarchy-label">Extends</span>
+        {hierarchies.map((h) => {
+          const isExpanded = expandedHierarchies.has(h.kind);
+          return (
+            <button
+              key={h.kind}
+              type="button"
+              aria-pressed={isExpanded}
+              className={`ontology-hierarchy-pill ${isExpanded ? 'is-active' : ''}`}
+              onClick={() => onToggleHierarchy(h.kind)}
+              title={
+                isExpanded
+                  ? `Collapse :${h.kind} subtypes (${h.directSubtypes.join(', ')})`
+                  : `Expand :${h.kind} subtypes (${h.directSubtypes.join(', ')})`
+              }
+            >
+              <span>:{h.kind}</span>
+              <span className="ontology-hierarchy-indicator">{isExpanded ? '−' : `+${h.allDescendants.length}`}</span>
+            </button>
+          );
+        })}
+      </div>
+    )}
 
     <div className="ontology-category-pills" role="group" aria-label="Relationship category filters">
       {schema.edgeCategories.map((cat) => {
@@ -618,13 +701,26 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
   onCopyCypher,
   onOpenNodeGrid,
   onRunSampleCypher,
-}) => (
+}) => {
+  const combinedOutEdges = [
+    ...selectedNode.outEdges,
+    ...(selectedNode.inheritedOutEdges || []),
+  ];
+  const combinedInEdges = [
+    ...selectedNode.inEdges,
+    ...(selectedNode.inheritedInEdges || []),
+  ];
+
+  return (
   <aside className="ontology-inspector" aria-label="Ontology Entity Inspector">
     <div className="ontology-inspector-head">
       <div className="ontology-inspector-badges">
         <span className={`ontology-layer-tag tag-l${selectedNode.layerId}`}>
           Layer {selectedNode.layerId}
         </span>
+        {selectedNode.isAbstract && (
+          <span className="ontology-abstract-badge">Abstract</span>
+        )}
         <span className="ontology-inspector-plural">{selectedNode.pluralLabel}</span>
       </div>
       <div className="ontology-inspector-title-row">
@@ -645,6 +741,38 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
           </button>
         )}
       </div>
+      {selectedNode.ancestors && selectedNode.ancestors.length > 0 && (
+        <div className="ontology-lineage-row">
+          <span className="ontology-lineage-label">Extends</span>
+          {selectedNode.ancestors.map((anc) => (
+            <button
+              key={anc}
+              type="button"
+              className="ontology-peer-btn is-supertype"
+              onClick={() => onSelectKind(anc)}
+              title={`Inspect supertype :${anc}`}
+            >
+              :{anc}
+            </button>
+          ))}
+        </div>
+      )}
+      {selectedNode.subtypes && selectedNode.subtypes.length > 0 && (
+        <div className="ontology-lineage-row">
+          <span className="ontology-lineage-label">Subtypes</span>
+          {selectedNode.subtypes.map((sub) => (
+            <button
+              key={sub}
+              type="button"
+              className="ontology-peer-btn"
+              onClick={() => onSelectKind(sub)}
+              title={`Inspect subtype :${sub}`}
+            >
+              :{sub}
+            </button>
+          ))}
+        </div>
+      )}
       <p className="ontology-inspector-purpose">{selectedNode.purpose}</p>
       {selectedNode.idScheme && (
         <div className="ontology-urn-box">
@@ -695,7 +823,14 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
               >
                 <div className="ontology-prop-key-row">
                   <code className="ontology-prop-name">{prop.name}</code>
-                  <span className="ontology-prop-type">{prop.type}</span>
+                  <span className="ontology-prop-meta-right">
+                    {prop.inheritedFrom && (
+                      <span className="ontology-inherited-tag" title={`Inherited from :${prop.inheritedFrom}`}>
+                        :{prop.inheritedFrom}
+                      </span>
+                    )}
+                    <span className="ontology-prop-type">{prop.type}</span>
+                  </span>
                 </div>
                 <div className="ontology-prop-desc">{prop.description}</div>
               </div>
@@ -706,17 +841,17 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
 
       <div className="ontology-section">
         <div className="ontology-section-head">
-          <span>Outbound Relationships ({selectedNode.outEdges.length})</span>
+          <span>Outbound Relationships ({combinedOutEdges.length})</span>
         </div>
-        {selectedNode.outEdges.length === 0 ? (
+        {combinedOutEdges.length === 0 ? (
           <div className="ontology-empty-note">No outbound edges declared.</div>
         ) : (
           <div className="ontology-edges-list">
-            {selectedNode.outEdges.map((edge) => {
+            {combinedOutEdges.map((edge) => {
               const relMeta = relationshipMeta.get(edge.rel);
               const edgeProps = relMeta?.properties || [];
               return (
-                <div key={`${edge.rel}->${edge.toKind}`} className="ontology-edge-item">
+                <div key={`${edge.rel}->${edge.toKind}-${edge.inheritedFrom || 'own'}`} className="ontology-edge-item">
                   <div className="ontology-edge-pattern">
                     <span className={`ontology-rel-chip chip-${edge.category}`}>
                       -[:{edge.rel}]-&gt;
@@ -729,6 +864,11 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
                     >
                       :{edge.toKind}
                     </button>
+                    {edge.inheritedFrom && (
+                      <span className="ontology-inherited-tag" title={`Inherited from :${edge.inheritedFrom}`}>
+                        via :{edge.inheritedFrom}
+                      </span>
+                    )}
                   </div>
                   {edge.description && (
                     <div className="ontology-edge-desc">{edge.description}</div>
@@ -751,14 +891,14 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
 
       <div className="ontology-section">
         <div className="ontology-section-head">
-          <span>Inbound Relationships ({selectedNode.inEdges.length})</span>
+          <span>Inbound Relationships ({combinedInEdges.length})</span>
         </div>
-        {selectedNode.inEdges.length === 0 ? (
+        {combinedInEdges.length === 0 ? (
           <div className="ontology-empty-note">No inbound edges declared.</div>
         ) : (
           <div className="ontology-edges-list">
-            {selectedNode.inEdges.map((edge) => (
-              <div key={`${edge.fromKind}-${edge.rel}`} className="ontology-edge-item">
+            {combinedInEdges.map((edge) => (
+              <div key={`${edge.fromKind}-${edge.rel}-${edge.inheritedFrom || 'own'}`} className="ontology-edge-item">
                 <div className="ontology-edge-pattern">
                   <button
                     type="button"
@@ -771,6 +911,11 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
                   <span className={`ontology-rel-chip chip-${edge.category}`}>
                     -[:{edge.rel}]-&gt;
                   </span>
+                  {edge.inheritedFrom && (
+                    <span className="ontology-inherited-tag" title={`Inherited from :${edge.inheritedFrom}`}>
+                      via :{edge.inheritedFrom}
+                    </span>
+                  )}
                 </div>
                 {edge.description && (
                   <div className="ontology-edge-desc">{edge.description}</div>
@@ -809,4 +954,5 @@ const OntologyEntityInspector: React.FC<OntologyEntityInspectorProps> = ({
       </div>
     </div>
   </aside>
-);
+  );
+};

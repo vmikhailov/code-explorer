@@ -52,7 +52,11 @@ public enum NodeKind : byte
     Counter = 42,
     GitSettings = 43,
     Parameter = 44,
-    CallArgument = 45
+    CallArgument = 45,
+    Cloud = 46,
+    DbSchema = 47,
+    Module = 48,
+    Workload = 49
 }
 
 [JsonConverter(typeof(RelationshipKindJsonConverter))]
@@ -127,7 +131,8 @@ public enum RelationshipKind : byte
     HasParameter = 66,
     PassesArgument = 67,
     FlowsTo = 68,
-    TargetedBy = 69
+    TargetedBy = 69,
+    HostedIn = 70
 }
 
 /// <summary>
@@ -182,6 +187,10 @@ public static class OntologyEnumMaps
         nodeByName["parseissue"] = NodeKind.ScanIssue;
         nodeByName["call_argument"] = NodeKind.CallArgument;
         nodeByName["callargument"] = NodeKind.CallArgument;
+        nodeByName["db_schema"] = NodeKind.DbSchema;
+        nodeByName["dbschema"] = NodeKind.DbSchema;
+        nodeByName["database_schema"] = NodeKind.DbSchema;
+        nodeByName["databaseschema"] = NodeKind.DbSchema;
 
         NodeKindByName = nodeByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByNodeKind = nameByNode.ToFrozenDictionary();

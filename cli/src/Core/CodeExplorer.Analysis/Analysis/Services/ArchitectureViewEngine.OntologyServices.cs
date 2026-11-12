@@ -52,7 +52,7 @@ public partial class ArchitectureViewEngine
             }
             else if (attr.Layer == OntologyConstants.Layers.Semantic)
             {
-                if (kind == NodeKind.DataSet || (kind is NodeKind.Procedure or NodeKind.Query or NodeKind.ApiInUse && count == 0))
+                if (kind is NodeKind.DataSet or NodeKind.CloudService || (kind is NodeKind.Procedure or NodeKind.Query or NodeKind.ApiInUse or NodeKind.Cloud or NodeKind.DbSchema && count == 0))
                 {
                     continue;
                 }
@@ -165,6 +165,29 @@ public partial class ArchitectureViewEngine
             .Where(kv => !Mcp.OntologyRegistry.IsSystemNode(kv.Key) && !HiddenOntologyLabels.Contains(kv.Key))
             .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
 
+        var totalConcreteNodes = filteredNodeCounts.Values.Sum();
+
+        // Roll up concrete counts for abstract Ontology v2.0 supertypes (:Workload, :Module)
+        string[] workloadSubtypes =
+        [
+            OntologyConstants.NodeLabels.Service,
+            OntologyConstants.NodeLabels.App,
+            OntologyConstants.NodeLabels.Worker,
+            OntologyConstants.NodeLabels.CliTool
+        ];
+        var workloadCount = workloadSubtypes.Sum(k => filteredNodeCounts.GetValueOrDefault(k));
+        if (workloadCount > 0)
+        {
+            filteredNodeCounts[OntologyConstants.NodeLabels.Workload] = workloadCount;
+        }
+        var moduleCount = workloadCount
+            + filteredNodeCounts.GetValueOrDefault(OntologyConstants.NodeLabels.Library)
+            + filteredNodeCounts.GetValueOrDefault(OntologyConstants.NodeLabels.TestSuite);
+        if (moduleCount > 0)
+        {
+            filteredNodeCounts[OntologyConstants.NodeLabels.Module] = moduleCount;
+        }
+
         var filteredRelCounts = meta.RelationshipCounts
             .Where(kv => !HiddenOntologyLabels.Contains(kv.Key))
             .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
@@ -176,7 +199,7 @@ public partial class ArchitectureViewEngine
             Schema = EmbeddedOntologySchema.Value,
             Workspace = new OntologyWorkspaceStatsDto
             {
-                TotalNodes = filteredNodeCounts.Values.Sum(),
+                TotalNodes = totalConcreteNodes,
                 TotalEdges = filteredRelCounts.Values.Sum(),
                 NodeCounts = filteredNodeCounts,
                 RelationshipCounts = filteredRelCounts,

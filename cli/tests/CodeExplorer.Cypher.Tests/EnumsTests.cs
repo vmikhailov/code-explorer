@@ -39,6 +39,11 @@ public class EnumsTests
         NodeKind.Domain.ToCypherLabel().Should().Be("Domain");
         NodeKind.BoundedContext.ToCypherLabel().Should().Be("BoundedContext");
         NodeKind.Ingress.ToCypherLabel().Should().Be("Ingress");
+        NodeKind.Cloud.ToCypherLabel().Should().Be("Cloud");
+        NodeKind.DbSchema.ToCypherLabel().Should().Be("DbSchema");
+        NodeKind.Module.ToCypherLabel().Should().Be("Module");
+        NodeKind.Workload.ToCypherLabel().Should().Be("Workload");
+        RelationshipKind.HostedIn.ToCypherType().Should().Be("HOSTED_IN");
     }
 
     [TestCase("Domain", NodeKind.Domain)]

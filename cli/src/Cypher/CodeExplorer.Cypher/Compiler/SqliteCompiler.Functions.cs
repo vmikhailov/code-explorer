@@ -6,7 +6,8 @@ namespace CodeExplorer.Cypher.Compiler;
 
 public partial class SqliteCompiler
 {
-    private static readonly string ProjectRoleKindIdsSql = GraphKindCodec.ProjectRoleKindIdsSql;
+    private static readonly string WorkloadRoleKindIdsSql = GraphKindCodec.WorkloadRoleKindIdsSql;
+    private static readonly string ModuleOnlyRoleKindIdsSql = GraphKindCodec.ModuleOnlyRoleKindIdsSql;
 
     private static readonly int ProjectKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
 
@@ -304,8 +305,10 @@ public partial class SqliteCompiler
             var propSrc = _nodePropertySource.TryGetValue(nodeVar.Name, out var pSrc) ? pSrc : $"{v}.properties";
             var kExpr = $"ce_node_kind({kSrc})";
             return $"CASE " +
-                   $"WHEN {kSrc} IN ({ProjectRoleKindIdsSql}) " +
-                   $"THEN json_array({kExpr}, 'Project') " +
+                   $"WHEN {kSrc} IN ({WorkloadRoleKindIdsSql}) " +
+                   $"THEN json_array({kExpr}, 'Workload', 'Module', 'Project') " +
+                   $"WHEN {kSrc} IN ({ModuleOnlyRoleKindIdsSql}) " +
+                   $"THEN json_array({kExpr}, 'Module', 'Project') " +
                    $"WHEN {kSrc} = {ProjectKindId} AND json_extract({propSrc}, '$.kind') IS NOT NULL " +
                    $"THEN json_array('Project', json_extract({propSrc}, '$.kind')) " +
                    $"WHEN {kSrc} = {ProjectKindId} AND json_extract({propSrc}, '$.role') IS NOT NULL " +
@@ -549,29 +552,37 @@ public partial class SqliteCompiler
 
     private string? TryOptimizeLabelsPredicate(ListPredicateExpression pred)
     {
-        if (pred.List is FunctionCallExpression func &&
+        if (pred.Quantifier.Equals("any", StringComparison.OrdinalIgnoreCase) &&
+            pred.List is FunctionCallExpression func &&
             func.FunctionName.Equals("labels", StringComparison.OrdinalIgnoreCase) &&
             func.Arguments.Count > 0 &&
             func.Arguments[0] is IdentifierExpression nodeVar &&
             pred.Predicate is BinaryExpression bin && bin.Operator == BinaryOperator.Equal)
         {
             var v = EscapeVar(nodeVar.Name);
+            var kSrc = _nodeKindSource.TryGetValue(nodeVar.Name, out var mappedSrc) ? mappedSrc : $"{v}.kind";
             if (bin.Left is IdentifierExpression idL && idL.Name == pred.Variable)
             {
-                if (bin.Right is StringLiteralExpression strR)
+                if (bin.Right is StringLiteralExpression strR && !strR.Value.Equals("Project", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"({v}.kind = {GraphKindCodec.EncodeNodeKind(strR.Value)})";
+                    return $"({GraphKindCodec.BuildSingleLabelFilterSql(kSrc, strR.Value)})";
                 }
-                return $"({v}.kind = ce_node_kind_id({VisitExpression(bin.Right)}))";
+                if (bin.Right is not StringLiteralExpression)
+                {
+                    return $"({kSrc} = ce_node_kind_id({VisitExpression(bin.Right)}))";
+                }
             }
 
             if (bin.Right is IdentifierExpression idR && idR.Name == pred.Variable)
             {
-                if (bin.Left is StringLiteralExpression strL)
+                if (bin.Left is StringLiteralExpression strL && !strL.Value.Equals("Project", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"({v}.kind = {GraphKindCodec.EncodeNodeKind(strL.Value)})";
+                    return $"({GraphKindCodec.BuildSingleLabelFilterSql(kSrc, strL.Value)})";
                 }
-                return $"({v}.kind = ce_node_kind_id({VisitExpression(bin.Left)}))";
+                if (bin.Left is not StringLiteralExpression)
+                {
+                    return $"({kSrc} = ce_node_kind_id({VisitExpression(bin.Left)}))";
+                }
             }
         }
 

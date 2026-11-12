@@ -28,7 +28,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.AttributedTo)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.AttributedTo)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.AttributedTo)]
-[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.AttributedTo)]
 public record EndpointNode(
     string Id,
     [property: OntologyProperty("The endpoint name (e.g. GET /api/orders, MSG:SubmitOrder).")] string Name,

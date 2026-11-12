@@ -314,6 +314,9 @@ public partial class PostIndexAnalyzer
         Dictionary<string, (string Name, string DbType, string Key, string Engine)> canonicalNodes)
     {
         var nodesToUpload = new List<Node>();
+        var edgesToUpload = new List<Relationship>();
+        var emittedCloudIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var (canonicalId, (cName, cType, _, engineToUse)) in canonicalNodes)
         {
             var dispName = cName.Contains('.')
@@ -323,6 +326,14 @@ public partial class PostIndexAnalyzer
                     : $"{cName} [{cType}]");
 
             var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : "";
+            var effectiveSchema = !string.IsNullOrWhiteSpace(schemaToUse)
+                ? schemaToUse
+                : ResolveDefaultDbSchemaName(engineToUse);
+            var isDefaultSchema = string.IsNullOrWhiteSpace(schemaToUse) ||
+                                  effectiveSchema.Equals("public", StringComparison.OrdinalIgnoreCase) ||
+                                  effectiveSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) ||
+                                  effectiveSchema.Equals("main", StringComparison.OrdinalIgnoreCase) ||
+                                  effectiveSchema.Equals("default", StringComparison.OrdinalIgnoreCase);
 
             var dbNode = new DatabaseNode(canonicalId, cName, string.Empty, EnumExtensions.ParseDatabaseType(cType))
             {
@@ -330,7 +341,7 @@ public partial class PostIndexAnalyzer
                 Role = "database",
                 Engine = engineToUse,
                 Technology = engineToUse,
-                Schema = schemaToUse,
+                Schema = effectiveSchema,
                 IsCanonical = true,
                 IsSemanticEntity = true,
                 Layer = StandardLayers.Foundation.LayerId,
@@ -340,6 +351,54 @@ public partial class PostIndexAnalyzer
                 LayerIcon = StandardLayers.Foundation.Icon
             };
             nodesToUpload.Add(Node.FromNode(dbNode));
+
+            var schemaId = $"{canonicalId}:{OntologyConstants.IdPrefixes.DbSchema}:{CloudProviderHelper.NormalizeSlug(effectiveSchema)}";
+            var schemaNode = new DbSchemaNode(schemaId, effectiveSchema, string.Empty)
+            {
+                Engine = engineToUse,
+                DatabaseId = canonicalId,
+                IsDefault = isDefaultSchema,
+                IsSemanticEntity = true,
+                Layer = StandardLayers.Foundation.LayerId,
+                LayerId = StandardLayers.Foundation.LayerId,
+                LayerName = StandardLayers.Foundation.LayerName,
+                LayerColor = StandardLayers.Foundation.Color,
+                LayerIcon = StandardLayers.Foundation.Icon
+            };
+            nodesToUpload.Add(Node.FromNode(schemaNode));
+            edgesToUpload.Add(new Relationship(canonicalId, schemaId, RelationshipKind.Contains)
+            {
+                IsSemantic = true,
+                IsCanonical = true
+            });
+
+            if (CloudProviderHelper.TryResolve(cName, engineToUse) is { } cloudMatch)
+            {
+                var wsPrefix = canonicalId.Contains(':') ? canonicalId.Split(':', 2)[0] : OntologyConstants.IdPrefixes.Workspace;
+                var cloudId = CloudProviderHelper.BuildCloudNodeId(wsPrefix, cloudMatch.ProviderId);
+                if (emittedCloudIds.Add(cloudId))
+                {
+                    var cloudNode = new CloudNode(cloudId, cloudMatch.DisplayName, string.Empty)
+                    {
+                        Provider = cloudMatch.ProviderId,
+                        Category = cloudMatch.TierSlug,
+                        IsSemanticEntity = true,
+                        Layer = StandardLayers.Egress.LayerId,
+                        LayerId = StandardLayers.Egress.LayerId,
+                        LayerName = StandardLayers.Egress.LayerName,
+                        LayerColor = StandardLayers.Egress.Color,
+                        LayerIcon = StandardLayers.Egress.Icon
+                    };
+                    nodesToUpload.Add(Node.FromNode(cloudNode));
+                }
+
+                edgesToUpload.Add(new Relationship(canonicalId, cloudId, RelationshipKind.HostedIn)
+                {
+                    Provider = cloudMatch.ProviderId,
+                    IsSemantic = true,
+                    IsCanonical = true
+                });
+            }
         }
 
         if (nodesToUpload.Count > 0)
@@ -347,7 +406,21 @@ public partial class PostIndexAnalyzer
             await db.UploadNodesAsync(nodesToUpload);
         }
 
-        return nodesToUpload.Count;
+        if (edgesToUpload.Count > 0)
+        {
+            await db.UploadRelationshipsAsync(edgesToUpload);
+        }
+
+        return canonicalNodes.Count;
+    }
+
+    internal static string ResolveDefaultDbSchemaName(string? engine)
+    {
+        if (string.IsNullOrWhiteSpace(engine)) return "default";
+        if (engine.Contains("postgres", StringComparison.OrdinalIgnoreCase)) return "public";
+        if (engine.Contains("sqlserver", StringComparison.OrdinalIgnoreCase) || engine.Contains("mssql", StringComparison.OrdinalIgnoreCase)) return "dbo";
+        if (engine.Contains("sqlite", StringComparison.OrdinalIgnoreCase)) return "main";
+        return "default";
     }
 
     internal static async Task<int> UploadProjectDatabaseRelationshipsAsync(

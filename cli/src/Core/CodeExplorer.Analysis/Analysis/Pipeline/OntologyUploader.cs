@@ -314,10 +314,10 @@ public static class OntologyUploader
                 CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
             }
         }
-        else if (node is DatabaseNode or DataSetNode)
+        else if (node is DatabaseNode or DataSetNode or DbSchemaNode)
         {
-            // Multiple QueryNodes construct separate DatabaseNode/DataSetNode instances sharing the same canonical ID,
-            // each holding its own TableNode/ProcedureNode children. Always traverse children of duplicate DB/DataSet containers.
+            // Multiple QueryNodes construct separate DatabaseNode/DataSetNode/DbSchemaNode instances sharing the same canonical ID,
+            // each holding its own TableNode/ProcedureNode children. Always traverse children of duplicate DB/DataSet/DbSchema containers.
             foreach (var child in node.Children)
             {
                 CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
@@ -376,7 +376,7 @@ public static class OntologyUploader
             }
             return new UsesDbRelationship(parentId, child.Id);
         }
-        if (child.Kind is NodeKind.Table or NodeKind.Procedure or NodeKind.DataSet or NodeKind.Query)
+        if (child.Kind is NodeKind.Table or NodeKind.Procedure or NodeKind.DataSet or NodeKind.DbSchema or NodeKind.Query)
         {
             if (IsFileNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
             if (IsProjectNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
@@ -385,6 +385,14 @@ public static class OntologyUploader
                 return new AccessedByRelationship(child.Id, parentId);
             }
             return new ContainsRelationship(parentId, child.Id);
+        }
+        if (child.Kind == NodeKind.Cloud)
+        {
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            return new HostedInRelationship(parentId, child.Id);
         }
         if (child.Kind == NodeKind.Topic)
         {
@@ -469,7 +477,7 @@ public static class OntologyUploader
             }
             if (IsWorkloadNodeId(parentId))
             {
-                return new ContainsRelationship(parentId, child.Id);
+                return new ServiceCallRelationship(parentId, child.Id);
             }
             return new CalledByRelationship(child.Id, parentId);
         }

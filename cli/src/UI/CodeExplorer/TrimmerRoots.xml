@@ -1,11 +1,8 @@
 <linker>
-  <assembly fullname="ce">
-    <type fullname="CodeExplorer.Options.*" preserve="all" />
-  </assembly>
-  <assembly fullname="CodeExplorer.Core">
-    <type fullname="CodeExplorer.Core.Common.Nodes.*" preserve="all" />
-    <type fullname="CodeExplorer.Core.Common.Relationships.*" preserve="all" />
-  </assembly>
+  <assembly fullname="ce" preserve="all" />
+  <assembly fullname="CodeExplorer.Core" preserve="all" />
+  <assembly fullname="CodeExplorer.Cypher" preserve="all" />
+  <assembly fullname="CodeExplorer.Server" preserve="all" />
   <assembly fullname="CodeExplorer.Gates" preserve="all" />
   <assembly fullname="CodeExplorer.Analysis" preserve="all" />
   <assembly fullname="CodeExplorer.Parser.Android" preserve="all" />

@@ -85,7 +85,7 @@ public class OntologyRegistryTests
     [Test]
     public void SystemNodes_HaveIsSystemNodeFlag_True()
     {
-        var expectedSystemKinds = new[] { "Counter", "FilesStructure", "ProjectsStructure", "SyntaxStructure", "SemanticStructure", "ProjectSyntax" };
+        var expectedSystemKinds = new[] { "Counter", "FilesStructure", "ProjectsStructure", "SyntaxStructure", "SemanticStructure", "LogicalStructure", "ProjectSyntax" };
 
         foreach (var kind in expectedSystemKinds)
         {
@@ -99,7 +99,7 @@ public class OntologyRegistryTests
     [Test]
     public void DomainNodes_HaveIsSystemNodeFlag_False()
     {
-        var domainKinds = new[] { "Project", "File", "Folder", "Service", "App", "Worker", "Library", "Database", "Topic", "Type", "Function" };
+        var domainKinds = new[] { "Domain", "BoundedContext", "Project", "File", "Folder", "Service", "App", "Worker", "Library", "Database", "Topic", "Type", "Function" };
 
         foreach (var kind in domainKinds)
         {

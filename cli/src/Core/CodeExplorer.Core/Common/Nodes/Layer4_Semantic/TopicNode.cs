@@ -14,6 +14,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 11,
     pluralLabel: "Message Topics & Queues"
 )]
+[OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]

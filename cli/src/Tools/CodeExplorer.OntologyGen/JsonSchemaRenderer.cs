@@ -10,7 +10,7 @@ namespace OntologyGen;
 /// </summary>
 public static class JsonSchemaRenderer
 {
-    private const string SchemaVersionValue = "1.0";
+    private const string SchemaVersionValue = "2.0";
     private const string NodeSuffix = "Node";
 
     private const string Layer1Raw = "Layer 1: File Structure";
@@ -36,9 +36,7 @@ public static class JsonSchemaRenderer
         "LogicalStructure",
         "Counter",
         "DataSet",
-        "ScanIssue",
-        "Domain",
-        "BoundedContext"
+        "ScanIssue"
     };
 
     private static readonly HashSet<string> ExcludedRelLabels = new(StringComparer.OrdinalIgnoreCase)
@@ -51,8 +49,7 @@ public static class JsonSchemaRenderer
     private static readonly HashSet<string> ExcludedPropertySubstrings = new(StringComparer.OrdinalIgnoreCase)
     {
         "bounded_context",
-        "intent_summary",
-        "domain_id"
+        "intent_summary"
     };
 
     private static readonly HashSet<string> ControlFlowRels = new(StringComparer.OrdinalIgnoreCase)
@@ -98,10 +95,22 @@ public static class JsonSchemaRenderer
             .ToList();
 
         var activeLabelSet = activeNodes.Select(n => n.Label).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var activeByClass = activeNodes.ToDictionary(n => n.ClassName, n => n, StringComparer.Ordinal);
+        var activeByLabel = activeNodes.ToDictionary(n => n.Label, n => n, StringComparer.Ordinal);
         var allTriples = CollectValidEdgeTriples(activeNodes, classToLabel, activeLabelSet);
 
+        var subtypesByLabel = BuildDirectSubtypesMap(activeNodes, activeByClass);
+        var ancestorsByLabel = BuildAncestorsMap(activeNodes, activeByClass);
+
         var nodeDtos = activeNodes
-            .Select(n => BuildNodeSchema(n, allTriples, relDescByLabel))
+            .Select(n => BuildNodeSchema(
+                n,
+                activeByClass,
+                activeByLabel,
+                subtypesByLabel,
+                ancestorsByLabel,
+                allTriples,
+                relDescByLabel))
             .ToList();
 
         var relDtos = BuildRelationshipSchemas(relationships, allTriples);
@@ -121,10 +130,6 @@ public static class JsonSchemaRenderer
     private static bool IsPublicQueryableNode(NodeInfo node)
     {
         if (node.IsSystemNode || string.IsNullOrWhiteSpace(node.Layer))
-        {
-            return false;
-        }
-        if (string.Equals(node.Layer, Layer5Raw, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -167,13 +172,61 @@ public static class JsonSchemaRenderer
         return list;
     }
 
+    private static Dictionary<string, List<string>> BuildDirectSubtypesMap(
+        List<NodeInfo> activeNodes,
+        Dictionary<string, NodeInfo> activeByClass)
+    {
+        var map = activeNodes.ToDictionary(n => n.Label, _ => new List<string>(), StringComparer.Ordinal);
+        foreach (var node in activeNodes)
+        {
+            if (node.BaseClassName is not null &&
+                activeByClass.TryGetValue(node.BaseClassName, out var parentNode) &&
+                map.TryGetValue(parentNode.Label, out var list))
+            {
+                list.Add(node.Label);
+            }
+        }
+        return map;
+    }
+
+    private static Dictionary<string, List<string>> BuildAncestorsMap(
+        List<NodeInfo> activeNodes,
+        Dictionary<string, NodeInfo> activeByClass)
+    {
+        var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var node in activeNodes)
+        {
+            var ancestors = new List<string>();
+            var visited = new HashSet<string>(StringComparer.Ordinal) { node.ClassName };
+            var cursor = node.BaseClassName;
+            while (cursor is not null &&
+                   visited.Add(cursor) &&
+                   activeByClass.TryGetValue(cursor, out var anc))
+            {
+                ancestors.Add(anc.Label);
+                cursor = anc.BaseClassName;
+            }
+            map[node.Label] = ancestors;
+        }
+        return map;
+    }
+
     private static SchemaNodeDto BuildNodeSchema(
         NodeInfo node,
+        Dictionary<string, NodeInfo> activeByClass,
+        Dictionary<string, NodeInfo> activeByLabel,
+        Dictionary<string, List<string>> subtypesByLabel,
+        Dictionary<string, List<string>> ancestorsByLabel,
         List<(string FromKind, string Rel, string ToKind)> allTriples,
         Dictionary<string, string> relDescByLabel)
     {
         var layerId = ResolveLayerId(node.Layer);
         var props = BuildNodeProperties(node.Properties);
+        var extendsLabel = node.BaseClassName is not null && activeByClass.TryGetValue(node.BaseClassName, out var parentNode)
+            ? parentNode.Label
+            : null;
+        var ancestors = ancestorsByLabel.GetValueOrDefault(node.Label, []);
+        var subtypes = subtypesByLabel.GetValueOrDefault(node.Label, []);
 
         var outEdges = allTriples
             .Where(t => string.Equals(t.FromKind, node.Label, StringComparison.Ordinal))
@@ -201,6 +254,48 @@ public static class JsonSchemaRenderer
             ))
             .ToList();
 
+        var inheritedOutEdges = new List<SchemaNodeEdgeDto>();
+        var inheritedInEdges = new List<SchemaNodeInboundEdgeDto>();
+        if (ancestors.Count > 0)
+        {
+            foreach (var ancLabel in ancestors)
+            {
+                if (!activeByLabel.ContainsKey(ancLabel)) continue;
+                inheritedOutEdges.AddRange(allTriples
+                    .Where(t => string.Equals(t.FromKind, ancLabel, StringComparison.Ordinal))
+                    .Select(t => new SchemaNodeEdgeDto(
+                        Rel: t.Rel,
+                        TargetKind: t.ToKind,
+                        Category: ClassifyRel(t.Rel),
+                        Description: relDescByLabel.GetValueOrDefault(t.Rel, string.Empty),
+                        InheritedFrom: ancLabel
+                    )));
+                inheritedInEdges.AddRange(allTriples
+                    .Where(t => string.Equals(t.ToKind, ancLabel, StringComparison.Ordinal))
+                    .Select(t => new SchemaNodeInboundEdgeDto(
+                        Rel: t.Rel,
+                        SourceKind: t.FromKind,
+                        Category: ClassifyRel(t.Rel),
+                        Description: relDescByLabel.GetValueOrDefault(t.Rel, string.Empty),
+                        InheritedFrom: ancLabel
+                    )));
+            }
+
+            inheritedOutEdges = inheritedOutEdges
+                .OrderBy(e => CategorySortOrder(e.Category))
+                .ThenBy(e => e.Rel, StringComparer.Ordinal)
+                .ThenBy(e => e.TargetKind, StringComparer.Ordinal)
+                .ToList();
+            inheritedInEdges = inheritedInEdges
+                .OrderBy(e => CategorySortOrder(e.Category))
+                .ThenBy(e => e.Rel, StringComparer.Ordinal)
+                .ThenBy(e => e.SourceKind, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        var sampleOut = outEdges.Count > 0 ? outEdges : inheritedOutEdges;
+        var sampleIn = inEdges.Count > 0 ? inEdges : inheritedInEdges;
+
         return new SchemaNodeDto(
             Kind: node.Label,
             PluralLabel: string.IsNullOrWhiteSpace(node.PluralLabel) ? node.Label : node.PluralLabel,
@@ -210,10 +305,16 @@ public static class JsonSchemaRenderer
             Order: node.Order,
             IdScheme: node.IdScheme,
             Purpose: node.Purpose,
+            IsAbstract: node.IsAbstract ? true : null,
+            Extends: extendsLabel,
+            Ancestors: ancestors.Count > 0 ? ancestors : null,
+            Subtypes: subtypes.Count > 0 ? subtypes : null,
             Properties: props,
             OutEdges: outEdges,
             InEdges: inEdges,
-            SampleCypher: BuildSampleCypher(node.Label, props, outEdges, inEdges)
+            InheritedOutEdges: inheritedOutEdges.Count > 0 ? inheritedOutEdges : null,
+            InheritedInEdges: inheritedInEdges.Count > 0 ? inheritedInEdges : null,
+            SampleCypher: BuildSampleCypher(node.Label, props, sampleOut, sampleIn)
         );
     }
 
@@ -242,7 +343,8 @@ public static class JsonSchemaRenderer
                 Name: cypherName,
                 SourceName: p.Name,
                 Type: NormalizePropertyType(p.Type),
-                Description: p.Description
+                Description: p.Description,
+                InheritedFrom: p.InheritedFrom
             ));
         }
 
@@ -281,8 +383,13 @@ public static class JsonSchemaRenderer
         return activeRels;
     }
 
+    private const string Layer5Key = "L5_logical";
+    private const string Layer5Name = "Logical Structure";
+    private const string Layer5Desc = "Business domains, bounded contexts, and strategic cross-context boundaries grouping modules, data stores, and domain types.";
+
     private static List<SchemaLayerMetaDto> BuildLayers() =>
     [
+        new(5, Layer5Key, Layer5Name, Layer5Raw, Layer5Desc),
         new(4, "L4_semantic", "Semantic Architecture", "Layer 4: Semantic Structure",
             "Runtime workloads, API & broker contracts, databases, SQL queries, tables, and external or cloud dependencies."),
         new(3, "L3_syntactic", "Syntactic UAST & Dataflow", "Layer 3: Syntax Structure",
@@ -350,7 +457,11 @@ public static class JsonSchemaRenderer
         "ATTRIBUTED_TO" =>
         [
             new("hops", "integer", "Call-chain hop distance from the entrypoint or endpoint to the sink."),
-            new("sink_kind", "string", "Target sink classification (Database, Query, ExternalService, CloudService).")
+            new("sink_kind", "string", "Target sink classification (Database, Query, ExternalService, Topic).")
+        ],
+        "HOSTED_IN" =>
+        [
+            new("line", "integer", "Optional 1-indexed source or config line where the cloud hosting binding is declared.")
         ],
         _ =>
         [
@@ -367,7 +478,7 @@ public static class JsonSchemaRenderer
         const string alias = "n";
         var propPick = props
             .Select(p => p.Name)
-            .Where(n => n is not ("id" or "path"))
+            .Where(n => n is not ("id" or "name" or "path"))
             .Take(2)
             .ToList();
         var proj = propPick.Count > 0
@@ -395,6 +506,7 @@ public static class JsonSchemaRenderer
         Layer2Raw => 2,
         Layer3Raw => 3,
         Layer4Raw => 4,
+        Layer5Raw => 5,
         _ => 4
     };
 
@@ -403,6 +515,7 @@ public static class JsonSchemaRenderer
         1 => "L1_physical",
         2 => "L2_boundaries",
         3 => "L3_syntactic",
+        5 => Layer5Key,
         _ => "L4_semantic"
     };
 
@@ -473,9 +586,15 @@ public sealed record SchemaNodeDto(
     [property: JsonPropertyName("order")] int Order,
     [property: JsonPropertyName("idScheme")] string IdScheme,
     [property: JsonPropertyName("purpose")] string Purpose,
+    [property: JsonPropertyName("isAbstract")] bool? IsAbstract,
+    [property: JsonPropertyName("extends")] string? Extends,
+    [property: JsonPropertyName("ancestors")] List<string>? Ancestors,
+    [property: JsonPropertyName("subtypes")] List<string>? Subtypes,
     [property: JsonPropertyName("properties")] List<SchemaPropertyDto> Properties,
     [property: JsonPropertyName("outEdges")] List<SchemaNodeEdgeDto> OutEdges,
     [property: JsonPropertyName("inEdges")] List<SchemaNodeInboundEdgeDto> InEdges,
+    [property: JsonPropertyName("inheritedOutEdges")] List<SchemaNodeEdgeDto>? InheritedOutEdges,
+    [property: JsonPropertyName("inheritedInEdges")] List<SchemaNodeInboundEdgeDto>? InheritedInEdges,
     [property: JsonPropertyName("sampleCypher")] string SampleCypher
 );
 
@@ -483,21 +602,24 @@ public sealed record SchemaPropertyDto(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("sourceName")] string SourceName,
     [property: JsonPropertyName("type")] string Type,
-    [property: JsonPropertyName("description")] string Description
+    [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("inheritedFrom")] string? InheritedFrom = null
 );
 
 public sealed record SchemaNodeEdgeDto(
     [property: JsonPropertyName("rel")] string Rel,
     [property: JsonPropertyName("toKind")] string TargetKind,
     [property: JsonPropertyName("category")] string Category,
-    [property: JsonPropertyName("description")] string Description
+    [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("inheritedFrom")] string? InheritedFrom = null
 );
 
 public sealed record SchemaNodeInboundEdgeDto(
     [property: JsonPropertyName("rel")] string Rel,
     [property: JsonPropertyName("fromKind")] string SourceKind,
     [property: JsonPropertyName("category")] string Category,
-    [property: JsonPropertyName("description")] string Description
+    [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("inheritedFrom")] string? InheritedFrom = null
 );
 
 public sealed record SchemaRelationshipDto(

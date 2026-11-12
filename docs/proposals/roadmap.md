@@ -51,7 +51,7 @@ This document tracks the verified implementation status of all architectural pro
 | **P6** | **Domains & Bounded Contexts v2 (Graph Clustering & Declarative Manifest)** | ⚪ **Scoped (Legacy UI Hidden in `v1.80.3–1.80.5`)** | Reintroduce domain modeling cleanly on top of VS Code v2 (`P1`): deterministic community/cluster detection over `L3` call cohesion + shared `L4` database tables/topics, paired with explicit `.codeexplorer/domains.yaml` boundaries and cross-domain SIG rules. |
 | **P7** | **Stratified Ontology Explorer & OpenCypher / SIG IntelliSense** ([`ontology-visualization-and-cypher-intellisense-proposal.md`](./ontology-visualization-and-cypher-intellisense-proposal.md)) | ⚪ **Draft** | Emit `ontology-schema.json` in `CodeExplorer.OntologyGen`, expose `/api/ontology` with Schema Drift detection, build the 5-layer swimlane Ontology View, and add context-aware autocomplete in `CypherEditor.tsx` and `GateEditorView.tsx`. |
 | **P8** | **External YAML Semantic Projection Packs** ([`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md)) | 🟡 **~50% Complete** (C# `DeclarativeSemanticExtension` done) | All 250 library parsers already use compiled declarative C# rules (`v1.74.0`). Remaining scope: externalize Bucket A (`host-archetypes.yaml`) and Bucket B (`datastore.yaml`, `messaging.yaml`, `http-clients.yaml`, `web-routers.yaml`) into user-extensible YAML files without recompiling C#. |
-| **P9** | **Profile-Driven `UniversalAstVisitor` & New Languages (`Swift`, `C++`, `PHP`)** ([`universal-parser-proposal.md`](./universal-parser-proposal.md)) | ⚪ **Scoped PoC** | Implement `UniversalAstVisitor` + `LanguageSyntaxProfile` + `ILanguageHooks`, validate 100% parity on Java, and onboard `CodeExplorer.Parser.Swift` (followed by `C++` / `PHP`). |
+| **P9** | **Profile-Driven `UniversalAstVisitor` & New Languages (`PHP`, `Perl`, `Swift`, `C++`)** ([`universal-parser-proposal.md`](./universal-parser-proposal.md)) | ⚪ **Scoped PoC** | 1. **`CodeExplorer.Parser.Php`** (`tree-sitter-php` already bundled in `TreeSitter.DotNet 1.3.0`): `ComposerProjectParser` (`composer.json` + PSR-4 autoload), `PhpSyntaxConverter` / `UniversalAstVisitor` (`class`/`interface`/`trait`/`enum`, constructor DI, `?->` calls), and L4 PDO/Doctrine/Laravel/Symfony rules (3–5 days).<br>2. **`CodeExplorer.Parser.Perl`** (pure C# on `Superpower 3.0.0`, zero native DLLs): context-aware `PerlTokenizer` (`/regex/` vs `/`, `q/qq/qw/s///`, POD skipping, `<<'SQL'` heredocs) + `TokenListParser` island-grammar UAST (`package`, `use`/`parent`/`@ISA`/`Moose`, `sub` + `my (...) = @_` `:Parameter` unpacking, `eval`/`Try::Tiny` `:CatchClause`, `DBI`/`DBIx::Class` heredoc SQL lineage, `Mojolicious`/`Dancer2` routes) (3–4 days).<br>3. **`UniversalAstVisitor` PoC**: validate 100% parity on Java and onboard `Swift` / `C++`. |
 
 ---
 
@@ -67,7 +67,7 @@ flowchart TD
     P6["P6. Domains & Bounded Contexts v2\n(L3+L4 Graph Clustering + domains.yaml)"]
     P7["P7. Ontology View & Cypher/SIG IntelliSense\n(ontology-schema.json + Autocomplete)"]
     P8["P8. External YAML Library Rule Packs\n(User-extensible L4 semantic rules)"]
-    P9["P9. UniversalAstVisitor & New Languages\n(Java Parity PoC + Swift / C++ / PHP)"]
+    P9["P9. New Languages & UniversalAstVisitor\n(PHP on tree-sitter-php + Perl on Superpower + Swift/C++)"]
 
     P2 --> P3
     P1 --> P4

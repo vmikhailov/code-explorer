@@ -12,6 +12,23 @@ public static class GraphKindCodec
         NodeKind.Service, NodeKind.App, NodeKind.Library, NodeKind.SharedLibrary,
         NodeKind.Worker, NodeKind.CliTool, NodeKind.Test, NodeKind.TestSuite);
 
+    public static readonly string WorkloadRoleKindIdsSql = NodeKindsInSql(
+        NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.CliTool);
+
+    public static readonly string ModuleOnlyRoleKindIdsSql = NodeKindsInSql(
+        NodeKind.Library, NodeKind.SharedLibrary, NodeKind.Test, NodeKind.TestSuite);
+
+    private static readonly NodeKind[] WorkloadConcreteKinds =
+    [
+        NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.CliTool
+    ];
+
+    private static readonly NodeKind[] ModuleConcreteKinds =
+    [
+        NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.CliTool,
+        NodeKind.Library, NodeKind.SharedLibrary, NodeKind.TestSuite, NodeKind.Test
+    ];
+
     public static readonly string ProjectAndWorkloadKindsSql = NodeKindsInSql(
         NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker,
         NodeKind.Library, NodeKind.CliTool);
@@ -56,6 +73,78 @@ public static class GraphKindCodec
             throw new ArgumentException($"Unknown NodeKind label: '{kind}'. Use a valid NodeKind from the ontology.", nameof(kind));
         }
         return (int)parsed;
+    }
+
+    public static bool IsAbstractNodeKind(NodeKind kind) =>
+        kind is NodeKind.Module or NodeKind.Workload;
+
+    public static ReadOnlySpan<NodeKind> ExpandConcreteNodeKinds(NodeKind kind) => kind switch
+    {
+        NodeKind.Workload => WorkloadConcreteKinds,
+        NodeKind.Module => ModuleConcreteKinds,
+        _ => [kind]
+    };
+
+    public static string BuildSingleLabelFilterSql(string kindColumnSql, string label)
+    {
+        var parsed = EnumExtensions.ParseNodeKind(label);
+        if (parsed == NodeKind.Unspecified)
+        {
+            throw new ArgumentException($"Unknown NodeKind label: '{label}'. Use a valid NodeKind from the ontology.", nameof(label));
+        }
+
+        var expanded = ExpandConcreteNodeKinds(parsed);
+        return expanded.Length == 1
+            ? $"{kindColumnSql} = {(int)expanded[0]}"
+            : $"{kindColumnSql} IN ({NodeKindsInSql(expanded)})";
+    }
+
+    public static string BuildLabelsFilterSql(
+        string kindColumnSql,
+        IReadOnlyList<NodeKind> nodeKinds,
+        IReadOnlyList<string> labels)
+    {
+        if (nodeKinds.Count == 1)
+        {
+            var singleKind = nodeKinds[0];
+            if (singleKind == NodeKind.Unspecified)
+            {
+                return BuildSingleLabelFilterSql(kindColumnSql, labels[0]);
+            }
+
+            var expanded = ExpandConcreteNodeKinds(singleKind);
+            return expanded.Length == 1
+                ? $"{kindColumnSql} = {(int)expanded[0]}"
+                : $"{kindColumnSql} IN ({NodeKindsInSql(expanded)})";
+        }
+
+        List<int> ids = new(nodeKinds.Count * 2);
+        for (var i = 0; i < nodeKinds.Count; i++)
+        {
+            var k = nodeKinds[i];
+            if (k == NodeKind.Unspecified)
+            {
+                var parsed = EnumExtensions.ParseNodeKind(labels[i]);
+                if (parsed == NodeKind.Unspecified)
+                {
+                    throw new ArgumentException($"Unknown NodeKind label: '{labels[i]}'. Use a valid NodeKind from the ontology.", nameof(labels));
+                }
+                k = parsed;
+            }
+
+            foreach (var concrete in ExpandConcreteNodeKinds(k))
+            {
+                var id = (int)concrete;
+                if (!ids.Contains(id))
+                {
+                    ids.Add(id);
+                }
+            }
+        }
+
+        return ids.Count == 1
+            ? $"{kindColumnSql} = {ids[0]}"
+            : $"{kindColumnSql} IN ({string.Join(", ", ids)})";
     }
 
     public static string DecodeNodeKind(int id)

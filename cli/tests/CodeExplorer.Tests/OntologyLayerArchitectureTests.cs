@@ -57,7 +57,8 @@ public class OntologyLayerArchitectureTests
         {
             "CodeExplorer.Core.Common.Nodes.Layer2_Boundaries",
             "CodeExplorer.Core.Common.Nodes.Layer3_Syntactic",
-            "CodeExplorer.Core.Common.Nodes.Layer4_Semantic"
+            "CodeExplorer.Core.Common.Nodes.Layer4_Semantic",
+            "CodeExplorer.Core.Common.Nodes.Layer5_Logical"
         };
 
         var prohibitedTokens = new[]
@@ -106,7 +107,8 @@ public class OntologyLayerArchitectureTests
         var prohibitedNamespaces = new[]
         {
             "CodeExplorer.Core.Common.Nodes.Layer3_Syntactic",
-            "CodeExplorer.Core.Common.Nodes.Layer4_Semantic"
+            "CodeExplorer.Core.Common.Nodes.Layer4_Semantic",
+            "CodeExplorer.Core.Common.Nodes.Layer5_Logical"
         };
 
         var prohibitedTokens = new[]
@@ -151,14 +153,17 @@ public class OntologyLayerArchitectureTests
 
         var prohibitedNamespaces = new[]
         {
-            "CodeExplorer.Core.Common.Nodes.Layer4_Semantic"
+            "CodeExplorer.Core.Common.Nodes.Layer4_Semantic",
+            "CodeExplorer.Core.Common.Nodes.Layer5_Logical"
         };
 
         var prohibitedTokens = new[]
         {
+            "ModuleNode", "WorkloadNode",
             "ServiceNode", "AppNode", "WorkerNode", "LibraryNode", "CliToolNode",
-            "EndpointNode", "DatabaseNode", "TableNode", "TopicNode", "ExternalServiceNode",
-            "CloudServiceNode", "ApiInUseNode", "ProcedureNode", "QueryNode"
+            "EndpointNode", "DatabaseNode", "DbSchemaNode", "TableNode", "TopicNode", "ExternalServiceNode",
+            "CloudNode", "CloudServiceNode", "ApiInUseNode", "ProcedureNode", "QueryNode",
+            "DomainNode", "BoundedContextNode", "LogicalStructureNode"
         };
 
         foreach (var file in Directory.GetFiles(layer3Dir, "*.cs", SearchOption.AllDirectories))
@@ -188,6 +193,49 @@ public class OntologyLayerArchitectureTests
     }
 
     [Test]
+    public void OntologyLayer4_Semantic_HasZeroReferencesToHigherLayers()
+    {
+        var nodesDir = FindCommonNodesDirectory();
+        var layer4Dir = Path.Combine(nodesDir, "Layer4_Semantic");
+        Directory.Exists(layer4Dir).Should().BeTrue();
+
+        var prohibitedNamespaces = new[]
+        {
+            "CodeExplorer.Core.Common.Nodes.Layer5_Logical"
+        };
+
+        var prohibitedTokens = new[]
+        {
+            "DomainNode", "BoundedContextNode", "LogicalStructureNode"
+        };
+
+        foreach (var file in Directory.GetFiles(layer4Dir, "*.cs", SearchOption.AllDirectories))
+        {
+            var source = File.ReadAllText(file);
+            var tree = CSharpSyntaxTree.ParseText(source);
+            var root = tree.GetCompilationUnitRoot();
+
+            foreach (var usingDirective in root.Usings)
+            {
+                var ns = usingDirective.Name?.ToString() ?? "";
+                prohibitedNamespaces.Should().NotContain(ns,
+                    $"Layer 4 file '{Path.GetFileName(file)}' must not import higher ontology layer '{ns}'");
+            }
+
+            var identifiers = root.DescendantNodes()
+                .OfType<IdentifierNameSyntax>()
+                .Select(id => id.Identifier.Text)
+                .ToHashSet();
+
+            foreach (var prohibited in prohibitedTokens)
+            {
+                identifiers.Should().NotContain(prohibited,
+                    $"Layer 4 file '{Path.GetFileName(file)}' must not reference higher-layer model '{prohibited}'");
+            }
+        }
+    }
+
+    [Test]
     public void OntologyModels_StrictCohesion_LayerMetadataMatchesDirectory()
     {
         var nodesDir = FindCommonNodesDirectory();
@@ -198,6 +246,7 @@ public class OntologyLayerArchitectureTests
             ("Layer2_Boundaries", OntologyConstants.Layers.ProjectBoundary),
             ("Layer3_Syntactic", OntologyConstants.Layers.Syntactic),
             ("Layer4_Semantic", OntologyConstants.Layers.Semantic),
+            ("Layer5_Logical", OntologyConstants.Layers.Logical),
         };
 
         foreach (var (folder, expectedLayer) in layerExpectations)

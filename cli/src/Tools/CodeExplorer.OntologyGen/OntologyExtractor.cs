@@ -27,25 +27,66 @@ public sealed class OntologyExtractor
                 var info = TryExtractNode(record);
                 if (info is not null)
                 {
-                    results.Add(info);
                     var baseType = record.BaseList?.Types.FirstOrDefault()?.Type.ToString();
                     if (!string.IsNullOrEmpty(baseType))
                     {
+                        var genericIdx = baseType.IndexOf('<');
+                        if (genericIdx > 0) baseType = baseType[..genericIdx];
+                        var dotIdx = baseType.LastIndexOf('.');
+                        if (dotIdx >= 0) baseType = baseType[(dotIdx + 1)..];
                         recordInheritance[info.ClassName] = baseType;
+                        info = info with { BaseClassName = baseType };
                     }
+                    results.Add(info);
                 }
             }
         }
 
-        // Inherit properties from base record if current node has none
-        var nodeByClassName = results.ToDictionary(n => n.ClassName, n => n);
-        foreach (var (className, baseTypeName) in recordInheritance)
+        // Walk ontology base records transitively (e.g. ServiceNode -> WorkloadNode -> ModuleNode)
+        // and inherit properties while tagging InheritedFrom with the declaring ancestor label.
+        var nodeByClassName = results.ToDictionary(n => n.ClassName, n => n, StringComparer.Ordinal);
+        var ownPropsByClassName = results.ToDictionary(n => n.ClassName, n => n.Properties.ToList(), StringComparer.Ordinal);
+
+        for (var i = 0; i < results.Count; i++)
         {
-            if (nodeByClassName.TryGetValue(className, out var derivedNode) &&
-                derivedNode.Properties.Count == 0 &&
-                nodeByClassName.TryGetValue(baseTypeName, out var baseNode))
+            var current = results[i];
+            if (current.BaseClassName is null || !nodeByClassName.ContainsKey(current.BaseClassName))
             {
-                derivedNode.Properties.AddRange(baseNode.Properties);
+                // BaseClassName is a non-ontology technical base (e.g. CompositeNode) — clear it
+                results[i] = current with { BaseClassName = null };
+                continue;
+            }
+
+            var seenNames = current.Properties
+                .Select(p => string.IsNullOrEmpty(p.CypherName) ? ToSnakeCase(p.Name) : p.CypherName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var inheritedChain = new List<PropertyInfo>();
+            var visitedBases = new HashSet<string>(StringComparer.Ordinal) { current.ClassName };
+            var baseCursor = current.BaseClassName;
+            while (!string.IsNullOrEmpty(baseCursor) &&
+                   visitedBases.Add(baseCursor) &&
+                   nodeByClassName.TryGetValue(baseCursor, out var ancNode))
+            {
+                foreach (var ancProp in ownPropsByClassName[baseCursor])
+                {
+                    var key = string.IsNullOrEmpty(ancProp.CypherName) ? ToSnakeCase(ancProp.Name) : ancProp.CypherName;
+                    if (seenNames.Add(key))
+                    {
+                        inheritedChain.Add(ancProp with { InheritedFrom = ancNode.Label });
+                    }
+                }
+                baseCursor = recordInheritance.GetValueOrDefault(baseCursor);
+            }
+
+            if (inheritedChain.Count > 0)
+            {
+                // Place inherited base properties first (Name, Path, ...) followed by subtype-specific properties
+                var merged = new List<PropertyInfo>(inheritedChain.Count + current.Properties.Count);
+                merged.AddRange(inheritedChain);
+                merged.AddRange(current.Properties);
+                current.Properties.Clear();
+                current.Properties.AddRange(merged);
             }
         }
 
@@ -93,6 +134,7 @@ public sealed class OntologyExtractor
         var order = 0;
         var pluralLabel = string.Empty;
         var isSystemNode = false;
+        var isAbstract = record.Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword));
 
         if (argList.Count >= 3)
         {
@@ -123,6 +165,12 @@ public sealed class OntologyExtractor
             {
                 isSystemNode = string.Equals(sysExpr.ToString().Trim(), BoolTrueLiteral, StringComparison.OrdinalIgnoreCase);
             }
+
+            var absExpr = argList.Named(ArgIsAbstract) ?? PositionalArgAt(argList, 8);
+            if (absExpr is not null && string.Equals(absExpr.ToString().Trim(), BoolTrueLiteral, StringComparison.OrdinalIgnoreCase))
+            {
+                isAbstract = true;
+            }
         }
         else
         {
@@ -141,7 +189,7 @@ public sealed class OntologyExtractor
         var props = ExtractConstructorProperties(record);
         props.AddRange(ExtractBodyProperties(record));
 
-        return new NodeInfo(record.Identifier.Text, label, idScheme, purpose, layer, outEdges, props, icon, order, pluralLabel, isSystemNode);
+        return new NodeInfo(record.Identifier.Text, label, idScheme, purpose, layer, outEdges, props, icon, order, pluralLabel, isSystemNode, isAbstract);
     }
 
     private static ExpressionSyntax? PositionalArgAt(SeparatedSyntaxList<AttributeArgumentSyntax> args, int index) =>
@@ -390,6 +438,7 @@ public sealed class OntologyExtractor
     private const string ArgOrder = "order";
     private const string ArgPluralLabel = "pluralLabel";
     private const string ArgIsSystemNode = "isSystemNode";
+    private const string ArgIsAbstract = "isAbstract";
     private const string ArgIsSystem = "isSystem";
     private const string ArgIsSystemPascal = "IsSystem";
     private const string BoolTrueLiteral = "true";

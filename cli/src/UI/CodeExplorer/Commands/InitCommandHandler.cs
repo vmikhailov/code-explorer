@@ -7,8 +7,21 @@ public static class InitCommandHandler
 {
     public static async Task<int> HandleAsync(InitOptions opts)
     {
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
-        var name = string.IsNullOrWhiteSpace(opts.Name) ? new DirectoryInfo(targetDir).Name : opts.Name.Trim();
+        var rawDir = opts.Dir;
+        var rawName = opts.Name;
+        if (string.IsNullOrWhiteSpace(rawDir) &&
+            !string.IsNullOrWhiteSpace(rawName) &&
+            (Directory.Exists(rawName) ||
+             rawName is "." or ".." ||
+             rawName.Contains(Path.DirectorySeparatorChar) ||
+             rawName.Contains(Path.AltDirectorySeparatorChar)))
+        {
+            rawDir = rawName;
+            rawName = null;
+        }
+
+        var targetDir = Path.GetFullPath(rawDir ?? Directory.GetCurrentDirectory());
+        var name = string.IsNullOrWhiteSpace(rawName) ? new DirectoryInfo(targetDir).Name : rawName.Trim();
 
         var existing = WorkspaceLocator.Find(targetDir);
         if (existing != null && existing.RootDirectory.Equals(targetDir, StringComparison.OrdinalIgnoreCase) && !opts.Force)
