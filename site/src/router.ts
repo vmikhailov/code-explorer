@@ -1,14 +1,12 @@
 import { ROUTES_DATA } from './generated/routesData';
 
 const DEFAULT_ROUTE = '/';
-const INDEX_HTML_ROUTE = '/index.html';
 const SLASH_CHAR = '/';
-const HTML_SUFFIX = '.html';
 const EMPTY_STR = '';
 
 export function normalizeRoute(pathname: string): string {
   const cleaned = pathname.trim();
-  if (!cleaned || cleaned === SLASH_CHAR || cleaned === INDEX_HTML_ROUTE) {
+  if (!cleaned || cleaned === SLASH_CHAR) {
     return DEFAULT_ROUTE;
   }
   const withLeadingSlash = cleaned.startsWith(SLASH_CHAR)
@@ -19,12 +17,8 @@ export function normalizeRoute(pathname: string): string {
       ? withLeadingSlash.slice(0, -1)
       : withLeadingSlash;
 
-  const withoutHtml = withoutTrailingSlash.endsWith(HTML_SUFFIX)
-    ? withoutTrailingSlash.slice(0, -HTML_SUFFIX.length)
-    : withoutTrailingSlash;
-
-  if (ROUTES_DATA[withoutHtml]) {
-    return withoutHtml;
+  if (ROUTES_DATA[withoutTrailingSlash]) {
+    return withoutTrailingSlash;
   }
 
   return DEFAULT_ROUTE;
@@ -41,16 +35,10 @@ export function extractRouteFromHref(
     return { route: EMPTY_STR, hash: EMPTY_STR, isSpaRoute: false };
   }
   const rawPath = resolved.pathname;
-  const stripped =
+  const candidate =
     rawPath.length > 1 && rawPath.endsWith(SLASH_CHAR)
       ? rawPath.slice(0, -1)
       : rawPath;
-  const candidate =
-    stripped === INDEX_HTML_ROUTE
-      ? DEFAULT_ROUTE
-      : stripped.endsWith(HTML_SUFFIX)
-        ? stripped.slice(0, -HTML_SUFFIX.length)
-        : stripped;
 
   const isKnown = Boolean(ROUTES_DATA[candidate]);
   return {

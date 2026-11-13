@@ -4,27 +4,33 @@
     <loc>https://code-explorer.app/</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/ontology.html</loc>
+    <loc>https://code-explorer.app/architectures</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks.html</loc>
+    <loc>https://code-explorer.app/ontology</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty.html</loc>
+    <loc>https://code-explorer.app/benchmarks</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks/02-enterprise-microservices-deep-audit.html</loc>
+    <loc>https://code-explorer.app/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks/03-code-explorer-vs-codebase-memory-mcp.html</loc>
+    <loc>https://code-explorer.app/benchmarks/02-enterprise-microservices-deep-audit</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks/04-code-explorer-vs-graphify.html</loc>
+    <loc>https://code-explorer.app/benchmarks/03-code-explorer-vs-codebase-memory-mcp</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks/05-polyglot-architecture-and-blast-radius.html</loc>
+    <loc>https://code-explorer.app/benchmarks/04-code-explorer-vs-graphify</loc>
   </url>
   <url>
-    <loc>https://code-explorer.app/benchmarks/06-precommit-architectural-guard.html</loc>
+    <loc>https://code-explorer.app/benchmarks/05-polyglot-architecture-and-blast-radius</loc>
+  </url>
+  <url>
+    <loc>https://code-explorer.app/benchmarks/06-precommit-architectural-guard</loc>
+  </url>
+  <url>
+    <loc>https://code-explorer.app/privacy</loc>
   </url>
 </urlset>
