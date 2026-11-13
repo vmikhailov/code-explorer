@@ -35,6 +35,7 @@ public static class TaxonomyEnumExtensions
         MemberKind.Indexer => "indexer",
         MemberKind.Method => "method",
         MemberKind.Constructor => "constructor",
+        MemberKind.Output => "output",
         _ => "field"
     };
 
@@ -53,6 +54,7 @@ public static class TaxonomyEnumExtensions
             "indexer" => MemberKind.Indexer,
             "method" or "function" => MemberKind.Method,
             "constructor" or "ctor" => MemberKind.Constructor,
+            "output" => MemberKind.Output,
             _ => MemberKind.Field
         };
     }
@@ -75,6 +77,10 @@ public static class TaxonomyEnumExtensions
         TypeKind.Protocol => "protocol",
         TypeKind.Component => "component",
         TypeKind.Namespace => "namespace",
+        TypeKind.Resource => "resource",
+        TypeKind.DataSource => "data_source",
+        TypeKind.Provider => "provider",
+        TypeKind.Dependency => "dependency",
         _ => "class"
     };
 
@@ -98,6 +104,10 @@ public static class TaxonomyEnumExtensions
             "protocol" => TypeKind.Protocol,
             "component" => TypeKind.Component,
             "namespace" => TypeKind.Namespace,
+            "resource" => TypeKind.Resource,
+            "data_source" or "datasource" => TypeKind.DataSource,
+            "provider" => TypeKind.Provider,
+            "dependency" => TypeKind.Dependency,
             _ => TypeKind.Class
         };
     }
@@ -128,6 +138,7 @@ public static class TaxonomyEnumExtensions
         BrokerType.Event => "event",
         BrokerType.Amqp => "amqp",
         BrokerType.Spring => "spring",
+        BrokerType.Kinesis => "kinesis",
         _ => "generic"
     };
 
@@ -159,6 +170,7 @@ public static class TaxonomyEnumExtensions
             "event" => BrokerType.Event,
             "amqp" => BrokerType.Amqp,
             "spring" => BrokerType.Spring,
+            "kinesis" => BrokerType.Kinesis,
             _ => BrokerType.Generic
         };
     }

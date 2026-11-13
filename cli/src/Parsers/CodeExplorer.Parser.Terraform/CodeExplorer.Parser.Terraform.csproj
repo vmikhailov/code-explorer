@@ -6,10 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- Pure C# HCL parser (UsesTreeSitter => false) — NO TreeSitter.DotNet dependency.
-       tree-sitter-hcl is not bundled in TreeSitter.DotNet v1.3.0 and native cross-compile
-       across 6 RIDs is rejected (breaks pure `dotnet publish`). See spec §3. -->
+  <!-- HCL is parsed with Superpower combinators (UsesTreeSitter => false): tree-sitter-hcl is not
+       bundled in TreeSitter.DotNet. -->
   <ItemGroup>
+    <PackageReference Include="Superpower" Version="3.0.0" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
   </ItemGroup>
 

@@ -8,17 +8,16 @@ using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.Terraform;
-using CodeExplorer.Parser.Terraform.Hcl;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
 /// <summary>
 /// Drives the Terraform parser + Layer 4 enricher over inline HCL fixtures and asserts on the
-/// declarations, DEPENDS_ON/DEPLOYS edges, and semantic nodes they produce. Each fixture doubles
-/// as a regression guard for a specific behavior (declarations, reference anchoring, cloud mapping)
-/// and for the review findings R2/R4/R5/R9.
+/// declarations, DEPENDS_ON/CONFIGURES/DEPLOYS edges, and semantic nodes they produce. Each
+/// fixture guards one behavior (declarations, reference anchoring and resolution, cloud mapping).
 /// </summary>
 [TestFixture]
 public class TerraformParserTests
@@ -29,12 +28,19 @@ public class TerraformParserTests
         IReadOnlyList<IOntologyNode> SemanticNodes,
         IReadOnlyList<Relationship> Relationships);
 
-    // Writes the files into a temp project dir, parses each, runs the enricher for that directory,
-    // drains the context channel, and returns the declarations, semantic nodes, and edges.
-    private static async Task<EnrichResult> ParseAndEnrichAsync(params (string Name, string Content)[] files)
+    // Writes the files into a temp project dir, parses each, runs the enricher for that directory
+    // over the parsed trees, drains the context channel, and returns the declarations, semantic
+    // nodes, and edges.
+    private static Task<EnrichResult> ParseAndEnrichAsync(params (string Name, string Content)[] files) =>
+        ParseAndEnrichInDirAsync(string.Empty, files);
+
+    // As ParseAndEnrichAsync, with the files and project in module directory `projectDir`
+    // (workspace-relative, "" for the root).
+    private static async Task<EnrichResult> ParseAndEnrichInDirAsync(string projectDir, params (string Name, string Content)[] files)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce-tf-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
+        var trees = new List<SyntaxTree>();
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
@@ -46,20 +52,17 @@ public class TerraformParserTests
             };
 
             var parser = new TerraformParser();
-            FileNode firstFileNode = null!;
 
             foreach (var (name, content) in files)
             {
-                var filePath = Path.Combine(tempDir, name);
+                var filePath = Path.Combine(tempDir, projectDir, name);
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                 await File.WriteAllTextAsync(filePath, content);
-                using var tree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-                firstFileNode ??= tree.FileNode;
+                trees.Add(await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath));
             }
 
-            // The project directory is the workspace root here (flat fixture).
-            var projectNode = new ProjectNode($"{ctx.WorkspaceId}:p::", "proj", string.Empty, "hcl", null);
-            var enricher = new TerraformSyntaxEnricher(parser);
-            await enricher.EnrichAsync(projectNode, ctx);
+            var projectNode = new ProjectNode($"{ctx.WorkspaceId}:p:{projectDir}:", "proj", projectDir, "hcl", null);
+            await parser.EnrichProjectAsync(projectNode, trees, ctx);
 
             // Flush enqueued relationship uploads into the in-memory client.
             channel.Writer.Complete();
@@ -68,10 +71,11 @@ public class TerraformParserTests
                 await work();
             }
 
-            return new EnrichResult(firstFileNode, semantic.Children, client.UploadedRelationships);
+            return new EnrichResult(trees[0].FileNode, semantic.Children, client.UploadedRelationships);
         }
         finally
         {
+            foreach (var tree in trees) tree.Dispose();
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
@@ -116,8 +120,8 @@ public class TerraformParserTests
     [Test]
     public async Task ResourceReference_AnchorsAtResourceNode_NotFile()
     {
-        // E1: the DEPENDS_ON edge for a reference made inside a resource must originate at the
-        // resource declaration, not the file node.
+        // A reference made inside a resource produces a DEPENDS_ON edge from the resource
+        // declaration, not from the file node.
         var result = await ParseAndEnrichAsync(("main.tf", """
             variable "env" { type = string }
 
@@ -127,19 +131,20 @@ public class TerraformParserTests
             """));
 
         var edge = result.Relationships.Should()
-            .ContainSingle(r => r.Kind == OntologyConstants.Relationships.DependsOn
-                && r.Properties.ContainsKey("ref") && (string)r.Properties["ref"] == "var")
+            .ContainSingle(r => r.Kind == RelationshipKind.DependsOn && r.To.Contains(":Member:env"))
             .Subject;
 
         // The source is the resource's declaration URN (…:Type:aws_sqs_queue.jobs:…), not the file.
         edge.From.Should().Contain(":Type:aws_sqs_queue.jobs");
         edge.From.Should().NotContain(":File:");
+        edge.Via.Should().Be("terraform");
+        edge.Line.Should().Be(4);
     }
 
     [Test]
     public async Task OutputReference_AnchorsAtOutputNode_NotFile()
     {
-        // R4: references inside an output block anchor at the output member node.
+        // References inside an output block anchor at the output member node.
         var result = await ParseAndEnrichAsync(("main.tf", """
             resource "aws_vpc" "main" {
               cidr_block = "10.0.0.0/16"
@@ -151,7 +156,7 @@ public class TerraformParserTests
             """));
 
         var edge = result.Relationships.Should()
-            .ContainSingle(r => r.Kind == OntologyConstants.Relationships.DependsOn
+            .ContainSingle(r => r.Kind == RelationshipKind.DependsOn
                 && r.To.Contains("aws_vpc.main"))
             .Subject;
 
@@ -161,9 +166,10 @@ public class TerraformParserTests
     }
 
     [Test]
-    public async Task ModuleOutputs_DistinctReads_EachProduceAnEdge()
+    public async Task ModuleOutputs_MultipleReads_ProduceSingleEdgeToModule()
     {
-        // R9: two different outputs of the same module must each survive as a distinct edge.
+        // Reading several outputs of the same module from one resource yields one DEPENDS_ON edge
+        // from the resource to the module declaration.
         var result = await ParseAndEnrichAsync(("main.tf", """
             module "network" {
               source = "./modules/network"
@@ -175,24 +181,17 @@ public class TerraformParserTests
             }
             """));
 
-        var moduleOuts = result.Relationships
-            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn
-                && r.Properties.ContainsKey("ref") && (string)r.Properties["ref"] == "module"
-                && r.Properties.ContainsKey("out"))
-            .Select(r => (string)r.Properties["out"])
-            .ToList();
-
-        // Both distinct module outputs survive as separate edges out of the enricher (R9). The
-        // persisted SQLite graph additionally dedups edges by (from, to, kind), so these two
-        // collapse there; see KNOWN_ISSUES R9 note. This test asserts the enricher's output.
-        moduleOuts.Should().Contain(new[] { "subnet_id", "vpc_id" });
+        result.Relationships
+            .Where(r => r.Kind == RelationshipKind.DependsOn && r.To.Contains(":Type:network:"))
+            .Should().ContainSingle()
+            .Which.From.Should().Contain(":Type:aws_instance.app");
     }
 
     [Test]
     public async Task SnsTopic_MapsToTopicNode_WorkspaceGlobalId()
     {
-        // P4: an SNS topic becomes a Topic semantic node; its id is workspace-global (no dir scope)
-        // so app code and the IaC reconcile.
+        // An SNS topic with a literal name becomes a Topic node named after the deployed topic,
+        // with a workspace-global id so app code and the IaC reconcile.
         var result = await ParseAndEnrichAsync(("sns.tf", """
             resource "aws_sns_topic" "events" {
               name = "team-events"
@@ -200,15 +199,17 @@ public class TerraformParserTests
             """));
 
         var topic = result.SemanticNodes.OfType<TopicNode>().Should()
-            .ContainSingle(t => t.Name == "events").Subject;
-        topic.Id.Should().Contain(":top:");
+            .ContainSingle(t => t.Name == "team-events").Subject;
+        topic.Id.Should().EndWith(":top:sns:team-events");
+        topic.BrokerType.Should().Be(BrokerType.Sns);
     }
 
     [Test]
     public async Task CloudServiceId_IsScopedByDirectory()
     {
-        // R5: the CloudService fallback id carries a directory scope segment so same-named
-        // plumbing resources in different modules stay distinct.
+        // The CloudService id carries a directory scope segment so same-named plumbing resources
+        // in different modules stay distinct; the node is named after the deployed resource and
+        // typed by service and cloud provider.
         var result = await ParseAndEnrichAsync(("iam.tf", """
             resource "aws_iam_role" "exec" {
               name = "exec-role"
@@ -216,16 +217,18 @@ public class TerraformParserTests
             """));
 
         var svc = result.SemanticNodes.OfType<CloudServiceNode>().Should()
-            .ContainSingle(s => s.Name == "exec").Subject;
+            .ContainSingle(s => s.Name == "exec-role").Subject;
 
         // Flat fixture → "root" scope segment between the resource type and the name.
         svc.Id.Should().Contain(":cloud:aws_iam_role:root:exec");
+        svc.ResourceType.Should().Be(CloudResourceType.Iam);
+        svc.Provider.Should().Be("aws");
     }
 
     [Test]
     public async Task LockFile_ProducesNoDeclarations()
     {
-        // R2: a .terraform.lock.hcl must not produce provider declarations named after registry URLs.
+        // A .terraform.lock.hcl must not produce provider declarations named after registry URLs.
         var result = await ParseAndEnrichAsync((".terraform.lock.hcl", """
             provider "registry.terraform.io/hashicorp/aws" {
               version = "5.0.0"
@@ -238,10 +241,10 @@ public class TerraformParserTests
     }
 
     [Test]
-    public async Task Tfvars_ConfiguresVariable_SameDir()
+    public async Task Tfvars_AssignmentDependsOnVariable_SameDir()
     {
-        // S1: a .tfvars assignment links to the declared variable in the same directory, modeled as
-        // DEPENDS_ON with via=tfvars, ref=configures (see DESIGN_DECISIONS.md D1).
+        // A .tfvars assignment is a member node carrying the assigned value, with a DEPENDS_ON
+        // edge to the variable of the same name declared in the same directory.
         var result = await ParseAndEnrichAsync(
             ("variables.tf", """
                 variable "env" { type = string }
@@ -251,96 +254,62 @@ public class TerraformParserTests
                 """));
 
         var edge = result.Relationships.Should()
-            .ContainSingle(r => r.Kind == OntologyConstants.Relationships.DependsOn
-                && r.Properties.ContainsKey("ref") && (string)r.Properties["ref"] == "configures")
+            .ContainSingle(r => r.Kind == RelationshipKind.DependsOn && r.Via == "tfvars")
             .Subject;
 
-        edge.From.Should().Contain("prod.tfvars");
-        edge.To.Should().Contain(":Member:env");
-        ((string)edge.Properties["via"]).Should().Be("tfvars");
+        edge.From.Should().Contain("prod.tfvars:Member:env:1");
+        edge.To.Should().Contain("variables.tf:Member:env");
+        edge.Line.Should().Be(1);
+        result.Relationships.Should().NotContain(r => r.Kind == RelationshipKind.Configures);
     }
 
     [Test]
-    public void InputsObjectKeys_IgnoreTernaryBranch_KeepRealKeys()
+    public async Task NoEdge_StartsAtAFileNode()
     {
-        // N5: a ternary value (cond ? foo : bar) must not make `foo` look like an input key, while
-        // real keys — whether written `key =` or `key:` — are still captured.
-        var hcl = """
+        // References in locals, top-level attributes, and blocks without a declaration start at a
+        // member node (the local, or an attribute anchor), never at the file.
+        var result = await ParseAndEnrichAsync(("terragrunt.hcl", """
+            dependency "vpc" {
+              config_path = "../vpc"
+            }
+
+            locals {
+              base   = "../modules"
+              region = "us-east-1"
+              name   = "${local.region}-app"
+            }
+
+            terraform {
+              source = "${local.base}/app"
+            }
+
             inputs = {
-              env     = "prod"
-              region: "us-east-1"
-              enabled = var.flag ? alpha : beta
+              vpc_id = dependency.vpc.outputs.vpc_id
             }
-            """;
-        var ast = new HclParser(new HclLexer(hcl).Tokenize()).ParseFile();
-        var keys = TerraformDeclarationMapper.MapConfigures(ast, "live/app/terragrunt.hcl")
-            .Select(c => c.VariableName)
-            .ToList();
+            """));
 
-        keys.Should().BeEquivalentTo(new[] { "env", "region", "enabled" });
-        keys.Should().NotContain("alpha");
-        keys.Should().NotContain("beta");
-    }
-
-    [Test]
-    public async Task TerragruntInputs_ConfigureWrappedModuleVariables_CrossDir()
-    {
-        // S2: a Terragrunt unit's inputs configure the wrapped module's variables, resolved via the
-        // unit's terraform { source }. Cross-dir, so a dedicated multi-project setup is used.
-        var tempDir = Path.Combine(Path.GetTempPath(), "ce-tf-s2-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(tempDir, "modules", "app"));
-        Directory.CreateDirectory(Path.Combine(tempDir, "live", "app"));
-        try
-        {
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "modules", "app", "variables.tf"),
-                "variable \"env\" { type = string }\nvariable \"region\" { type = string }\n");
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "live", "app", "terragrunt.hcl"),
-                "terraform {\n  source = \"../../modules/app\"\n}\n\ninputs = {\n  env    = \"demo\"\n  region = \"us-east-1\"\n}\n");
-
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel)
+        var dependsOn = result.Relationships.Where(r => r.Kind == RelationshipKind.DependsOn).ToList();
+        dependsOn.Select(r => (Source: r.From[(r.From.IndexOf(":Member:") + 8)..], Target: r.To[(r.To.IndexOf(":sym:") + 5)..]))
+            .Should().BeEquivalentTo(new[]
             {
-                SemanticStructure = new SemanticStructureNode("ws:semantic", "semantic", string.Empty)
-            };
-            var parser = new TerraformParser();
-            foreach (var rel in new[] { "modules/app/variables.tf", "live/app/terragrunt.hcl" })
-            {
-                using var tree = await parser.ParseAsync(Path.Combine(tempDir, rel), "p", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            }
-            foreach (var dir in new[] { "modules/app", "live/app" })
-            {
-                var pn = new ProjectNode($"{ctx.WorkspaceId}:p:{dir}:", "p", dir, "hcl", null);
-                await new TerraformSyntaxEnricher(parser).EnrichAsync(pn, ctx);
-            }
-            channel.Writer.Complete();
-            while (channel.Reader.TryRead(out var work)) await work();
+                (Source: "name:8", Target: "terragrunt.hcl:Member:region:7"),
+                (Source: "terraform.source:12", Target: "terragrunt.hcl:Member:base:6"),
+                (Source: "inputs:15", Target: "terragrunt.hcl:Type:vpc:1")
+            });
+        dependsOn.Should().NotContain(r => r.From.Contains(":f:"));
 
-            var configuresEdges = client.UploadedRelationships
-                .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn
-                    && r.Properties.ContainsKey("ref") && (string)r.Properties["ref"] == "configures"
-                    && (string)r.Properties["via"] == "terragrunt")
-                .ToList();
-
-            configuresEdges.Should().HaveCount(2);
-            configuresEdges.Should().OnlyContain(r => r.From.Contains("live/app/terragrunt.hcl"));
-            configuresEdges.Select(r => r.To).Should()
-                .Contain(t => t.Contains(":Member:env"))
-                .And.Contain(t => t.Contains(":Member:region"));
-            configuresEdges.Should().OnlyContain(r => r.Properties.ContainsKey("inferred") && (bool)r.Properties["inferred"]);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-        }
+        var anchors = Flatten(result.FileNode).OfType<MemberNode>()
+            .Where(m => m.MemberKind == MemberKind.Property).ToDictionary(m => m.Name);
+        anchors.Keys.Should().BeEquivalentTo("inputs", "terraform.source");
+        anchors["terraform.source"].InitializerExpression.Should().Be("\"${local.base}/app\"");
     }
 
     [Test]
     public async Task HyphenatedName_InInterpolation_HarvestsFullName_NoTruncation()
     {
-        // N1: a hyphenated reference inside a ${...} interpolation must harvest the full name
-        // (var.my-flag), not truncate at the hyphen (var.my) — which would miss the edge or, with
-        // the decoy variable "my" present, resolve to the wrong node.
+        // A hyphenated reference inside a ${...} interpolation harvests the full name
+        // (var.my-flag), not one truncated at the hyphen (var.my) — which would miss the edge or,
+        // with the decoy variable "my" present, resolve to the wrong node.
         var result = await ParseAndEnrichAsync(("main.tf", """
             variable "my-flag" { type = bool }
             variable "my" { type = string }
@@ -351,21 +320,19 @@ public class TerraformParserTests
             """));
 
         var refEdges = result.Relationships
-            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn
-                && r.Properties.TryGetValue("ref", out var k) && (string)k == "var")
+            .Where(r => r.Kind == RelationshipKind.DependsOn)
             .ToList();
 
         // The edge resolves to variable "my-flag", not the truncated decoy "my".
         refEdges.Should().Contain(r => r.To.Contains(":Member:my-flag"));
-        refEdges.Should().NotContain(r => r.To.EndsWith(":Member:my:1") || r.To.Contains(":Member:my:"));
+        refEdges.Should().NotContain(r => r.To.Contains(":Member:my:"));
     }
 
     [Test]
     public async Task EscapedInterpolation_ProducesNoReferenceEdge()
     {
-        // F1: "$${var.foo}" is an escaped literal "${var.foo}", not an interpolation, so it must
-        // NOT produce a reference edge even when variable "foo" is declared. A real "${var.foo}"
-        // does produce one.
+        // "$${var.foo}" is an escaped literal "${var.foo}", not an interpolation, so it produces
+        // no reference edge even when variable "foo" is declared. A real "${var.foo}" does.
         var result = await ParseAndEnrichAsync(("main.tf", """
             variable "foo" { type = string }
 
@@ -379,7 +346,7 @@ public class TerraformParserTests
             """));
 
         var varFooEdges = result.Relationships
-            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn && r.To.Contains(":Member:foo"))
+            .Where(r => r.Kind == RelationshipKind.DependsOn && r.To.Contains(":Member:foo"))
             .ToList();
 
         // Exactly one edge — from the live interpolation resource, not the escaped one.
@@ -391,10 +358,9 @@ public class TerraformParserTests
     [Test]
     public async Task AppInfraReconciliation_TerraformDbUsesCanonicalId()
     {
-        // Spec §5.6 headline feature depends on the Terraform enricher emitting a Database node whose
-        // id matches the canonical scheme app/config parsers target (ws:db:{dbType}:{name}), so the
-        // two merge by shared id. This guards that contract — the thing that would silently break
-        // reconciliation. (End-to-end merge with an app config verified manually; see D6.)
+        // Infrastructure reconciles with application code by shared node id: the Database node
+        // emitted for a Terraform database must use the canonical scheme app/config parsers target
+        // (ws:db:{dbType}:{name}), so the two merge.
         var root = Path.Combine(Path.GetTempPath(), "ce-tf-recon-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "infra"));
         try
@@ -413,7 +379,7 @@ public class TerraformParserTests
             await indexer.IndexAsync(root, clear: false);
 
             var dbNodes = client.UploadedNodes
-                .Where(n => n.Kind == OntologyConstants.NodeLabels.Database
+                .Where(n => n.Kind == NodeKind.Database
                     && n.Properties.GetValueOrDefault("name")?.ToString() == "orders")
                 .DistinctBy(n => n.Id)
                 .ToList();
@@ -423,10 +389,10 @@ public class TerraformParserTests
             var dbId = dbNodes[0].Id;
             dbId.Should().EndWith($":{OntologyConstants.IdPrefixes.Database}:relational:orders");
 
-            // The Terraform resource provisions exactly that node.
+            // That node is deployed by the Terraform resource.
             client.UploadedRelationships.Should().Contain(r =>
-                r.Kind == OntologyConstants.Relationships.Deploys
-                && r.To == dbId && r.From.Contains("aws_db_instance.orders"));
+                r.Kind == RelationshipKind.DeployedBy
+                && r.From == dbId && r.To.Contains("aws_db_instance.orders"));
         }
         finally
         {
@@ -435,9 +401,10 @@ public class TerraformParserTests
     }
 
     [Test]
-    public async Task DependsOn_TagsEdgeRefExplicit()
+    public async Task DependsOn_SetsDependsOnEvidence()
     {
-        // S5: a depends_on meta-argument yields ref=explicit, distinct from an implicit data ref.
+        // A depends_on meta-argument yields a DEPENDS_ON edge marked with depends_on evidence,
+        // distinct from an implicit reference.
         var result = await ParseAndEnrichAsync(("main.tf", """
             resource "aws_iam_role" "r" { name = "role" }
 
@@ -448,17 +415,37 @@ public class TerraformParserTests
             """));
 
         var edge = result.Relationships.Should()
-            .ContainSingle(r => r.Kind == OntologyConstants.Relationships.DependsOn
+            .ContainSingle(r => r.Kind == RelationshipKind.DependsOn
                 && r.To.Contains("aws_iam_role.r"))
             .Subject;
-        ((string)edge.Properties["ref"]).Should().Be("explicit");
+        edge.EvidenceKind.Should().Be("depends_on");
         edge.From.Should().Contain(":Type:aws_instance.app");
     }
 
     [Test]
-    public async Task DataSourceReference_ResolvesWithRefData()
+    public async Task DependsOn_AndImplicitReference_ToSameTarget_ProduceOneExplicitEdge()
     {
-        // A data.<type>.<name> reference resolves to the data declaration with ref=data.
+        // An implicit reference and a depends_on entry to the same target collapse into one edge,
+        // which keeps the depends_on evidence regardless of order.
+        var result = await ParseAndEnrichAsync(("main.tf", """
+            resource "aws_iam_role" "r" { name = "role" }
+
+            resource "aws_instance" "app" {
+              iam_instance_profile = aws_iam_role.r.name
+              depends_on           = [aws_iam_role.r]
+            }
+            """));
+
+        result.Relationships
+            .Where(r => r.Kind == RelationshipKind.DependsOn && r.To.Contains("aws_iam_role.r"))
+            .Should().ContainSingle()
+            .Which.EvidenceKind.Should().Be("depends_on");
+    }
+
+    [Test]
+    public async Task DataSourceReference_ResolvesToDataDeclaration()
+    {
+        // A data.<type>.<name> reference resolves to the data source declaration.
         var result = await ParseAndEnrichAsync(("main.tf", """
             data "aws_ami" "ubuntu" {
               most_recent = true
@@ -470,10 +457,227 @@ public class TerraformParserTests
             """));
 
         var edge = result.Relationships.Should()
-            .ContainSingle(r => r.Kind == OntologyConstants.Relationships.DependsOn
+            .ContainSingle(r => r.Kind == RelationshipKind.DependsOn
                 && r.To.Contains("aws_ami.ubuntu"))
             .Subject;
-        ((string)edge.Properties["ref"]).Should().Be("data");
+        edge.EvidenceKind.Should().BeNull();
         edge.From.Should().Contain(":Type:aws_instance.app");
+
+        Flatten(result.FileNode).OfType<TypeNode>()
+            .Should().ContainSingle(t => t.Name == "aws_ami.ubuntu")
+            .Which.TypeKind.Should().Be(TypeKind.DataSource);
+    }
+
+    [Test]
+    public async Task Declarations_MapToTypedKinds_WithLiteralInitializers()
+    {
+        // Each HCL block maps to a typed node kind; a default or value's source text becomes the
+        // member's initializer expression.
+        var result = await ParseAndEnrichAsync(("main.tf", """
+            variable "env" {
+              default = "dev"
+            }
+
+            locals {
+              region = "us-east-1"
+            }
+
+            module "network" {
+              source = "./modules/network"
+            }
+
+            resource "aws_s3_bucket" "data" {
+              bucket = "data"
+            }
+
+            output "label" {
+              value = "fixed"
+            }
+            """));
+
+        var nodes = Flatten(result.FileNode).ToList();
+        var members = nodes.OfType<MemberNode>().ToDictionary(m => m.Name);
+        members["env"].MemberKind.Should().Be(MemberKind.Parameter);
+        members["env"].InitializerExpression.Should().Be("\"dev\"");
+        members["region"].MemberKind.Should().Be(MemberKind.Variable);
+        members["region"].InitializerExpression.Should().Be("\"us-east-1\"");
+        members["label"].MemberKind.Should().Be(MemberKind.Output);
+        members["label"].InitializerExpression.Should().Be("\"fixed\"");
+
+        var types = nodes.OfType<TypeNode>().ToDictionary(t => t.Name);
+        types["network"].TypeKind.Should().Be(TypeKind.Module);
+        types["aws_s3_bucket.data"].TypeKind.Should().Be(TypeKind.Resource);
+        nodes.Should().OnlyContain(n => !(n is CompositeNode) || ((CompositeNode)n).CustomProperties == null);
+    }
+
+    [Test]
+    public async Task ParseDependencies_ResolvesTerragruntPathsFromTheAst()
+    {
+        // Terragrunt path expressions resolve to local project paths; registry sources become
+        // external packages; commented-out blocks and calls produce nothing.
+        var root = Path.Combine(Path.GetTempPath(), "ce-tf-deps-" + Guid.NewGuid().ToString("N"));
+        var unit = Path.Combine(root, "live", "app");
+        Directory.CreateDirectory(unit);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "common.hcl"), "locals {}");
+            await File.WriteAllTextAsync(Path.Combine(unit, "terragrunt.hcl"), """
+                terraform {
+                  source = "${get_terragrunt_dir()}/../../modules/app"
+                }
+
+                dependency "vpc" {
+                  config_path = "../vpc"
+                }
+
+                dependencies {
+                  paths = ["../iam", "../kms"]
+                }
+
+                locals {
+                  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+                  label  = "${read_terragrunt_config(find_in_parent_folders("common.hcl")).locals.x}"
+                }
+
+                # dependency "old" { config_path = "../old" }
+                // x = read_terragrunt_config("../commented/c.hcl")
+                """);
+            await File.WriteAllTextAsync(Path.Combine(unit, "main.tf"), """
+                module "s3" {
+                  source = "terraform-aws-modules/s3-bucket/aws"
+                }
+                """);
+
+            var info = await new TerraformParser().ParseDependenciesAsync(unit);
+
+            var rootDir = Path.GetFullPath(root).Replace('\\', '/');
+            info.LocalProjectPaths.Should().BeEquivalentTo(
+                $"{unit}/../../modules/app", "../vpc", "../iam", "../kms", rootDir);
+            info.ExternalPackages.Select(p => p.Name).Should().Equal("terraform-aws-modules/s3-bucket/aws");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task MalformedBlock_DoesNotLoseOtherDeclarations()
+    {
+        // A syntax error inside one block costs only that attribute; the file's other
+        // declarations and references are still produced.
+        var result = await ParseAndEnrichAsync(("main.tf", """
+            variable "env" { type = string }
+
+            resource "aws_s3_bucket" "a" {
+              bucket = foo(]
+            }
+
+            resource "aws_sqs_queue" "q" {
+              name = var.env
+            }
+            """));
+
+        Flatten(result.FileNode).OfType<TypeNode>().Select(t => t.Name)
+            .Should().BeEquivalentTo("aws_s3_bucket.a", "aws_sqs_queue.q");
+        result.Relationships.Should().Contain(r => r.Kind == RelationshipKind.DependsOn
+            && r.From.Contains(":Type:aws_sqs_queue.q") && r.To.Contains(":Member:env"));
+    }
+
+    [Test]
+    public async Task ProvisionedResources_AreDeployedByResourceAndProject_WithoutRuntimeEdges()
+    {
+        // Each provisioned node links back to its resource block and to the project; the project
+        // gets no runtime-shaped edges (USES_DB / PUBLISHES_TO / USES_CLOUD), since provisioning
+        // infrastructure is not using it.
+        var result = await ParseAndEnrichInDirAsync("infra",
+            ("main.tf", """
+                resource "aws_db_instance" "orders" {
+                  db_name = "orders"
+                  engine  = "aurora-postgresql"
+                }
+
+                resource "aws_sqs_queue" "jobs" {
+                  name = "jobs-queue"
+                }
+
+                resource "aws_iam_role" "worker" {
+                  name = "worker-role"
+                }
+                """));
+
+        result.Relationships.Should().NotContain(r =>
+            r.Kind == RelationshipKind.UsesDb || r.Kind == RelationshipKind.PublishesTo
+            || r.Kind == RelationshipKind.UsesCloud || r.Kind == RelationshipKind.Deploys);
+
+        var deployedBy = result.Relationships.Where(r => r.Kind == RelationshipKind.DeployedBy).ToList();
+        deployedBy.Should().HaveCount(6);
+        foreach (var node in result.SemanticNodes)
+        {
+            deployedBy.Where(r => r.From == node.Id).Select(r => r.To).Should().HaveCount(2)
+                .And.Contain(to => to.Contains(":sym:infra/main.tf:Type:"))
+                .And.Contain(to => to.EndsWith(":p:infra:"));
+        }
+
+        var db = result.SemanticNodes.OfType<DatabaseNode>().Should().ContainSingle().Subject;
+        db.Id.Should().EndWith(":db:relational:orders");
+        db.Engine.Should().Be("postgresql");
+        result.SemanticNodes.OfType<TopicNode>().Single().Id.Should().EndWith(":top:sqs:jobs-queue");
+    }
+
+    [Test]
+    public async Task ComputedName_ScopesIdByModuleDirectory()
+    {
+        // A computed name cannot be reconciled with app code, so the node is named and identified
+        // by module directory and label: the same module deployed from two directories yields two
+        // distinct tables rather than one shared node.
+        const string module = """
+            resource "aws_dynamodb_table" "submissions" {
+              name = "${var.app_name}-submissions"
+            }
+            """;
+
+        var first = await ParseAndEnrichInDirAsync("units/a/extensions", ("tables.tf", module));
+        var second = await ParseAndEnrichInDirAsync("units/b/extensions", ("tables.tf", module));
+
+        var a = first.SemanticNodes.OfType<DatabaseNode>().Should().ContainSingle().Subject;
+        var b = second.SemanticNodes.OfType<DatabaseNode>().Should().ContainSingle().Subject;
+        a.Name.Should().Be("units/a/extensions/submissions");
+        a.Id.Should().EndWith(":db:keyvalue:units/a/extensions/submissions");
+        b.Id.Should().NotBe(a.Id);
+        a.Engine.Should().Be("dynamodb");
+    }
+
+    [Test]
+    public async Task SyntaxErrors_AreReportedAsDocumentDiagnostics()
+    {
+        // A syntax error does not fail the file: its declarations are still produced, and the error
+        // is carried on the document for Layer 3 to record as a syntax-error scan issue.
+        var dir = Path.Combine(Path.GetTempPath(), "ce-tf-diag-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "main.tf");
+            await File.WriteAllTextAsync(path, """
+                resource "aws_s3_bucket" "a" {
+                  bucket = foo(]
+                }
+
+                resource "aws_s3_bucket" "b" {}
+                """);
+
+            using var tree = await new TerraformParser().ParseAsync(path, "parent", "ws", dir);
+
+            tree.Document.Should().NotBeNull();
+            var diagnostic = tree.Document!.Diagnostics.Should().ContainSingle().Subject;
+            diagnostic.Kind.Should().Be(SyntaxDiagnosticKind.SyntaxError);
+            diagnostic.Span.StartLine.Should().Be(1); // 0-based: line 2 of the file
+            Flatten(tree.FileNode).OfType<TypeNode>().Select(t => t.Name)
+                .Should().BeEquivalentTo("aws_s3_bucket.a", "aws_s3_bucket.b");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
     }
 }

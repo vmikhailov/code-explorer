@@ -1,6 +1,7 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -19,6 +20,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.DeployedBy)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeployedBy)]
 public record TopicNode(
     string Id,
     [property: OntologyProperty("The name of the topic or exchange.")] string Name,

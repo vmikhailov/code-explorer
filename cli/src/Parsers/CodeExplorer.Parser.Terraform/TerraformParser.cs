@@ -1,9 +1,9 @@
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Parser.Terraform.Hcl;
-using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
 
 // Auto-discovered by WorkspaceIndexer.AutoRegisterParsers via reflection.
 [assembly: ParserAssembly]
@@ -11,50 +11,16 @@ using System.Text.RegularExpressions;
 namespace CodeExplorer.Parser.Terraform;
 
 /// <summary>
-/// Parser for Terraform / OpenTofu / Terragrunt (HCL). Pure C# (UsesTreeSitter => false): it lexes
-/// and parses HCL in ParseAsync and builds graph nodes directly, rather than using a tree-sitter
+/// Parser for Terraform / OpenTofu / Terragrunt (HCL). Pure C# (UsesTreeSitter => false): it parses
+/// HCL in ParseAsync and builds graph nodes directly, rather than using a tree-sitter
 /// grammar/visitor.
 /// </summary>
 public class TerraformParser : IProjectParser, IFileParser
 {
-    // The parser instance is reused across all files (parsed in parallel) and, in a long-running
-    // host, across multiple workspaces and re-scans. Cache state is therefore scoped by workspace
-    // id and bucketed by the file's directory, so one workspace never reads another's symbols and
-    // an enricher reads only the bucket for its project directory. Each level is thread-safe.
-    //   workspaceId -> (directory -> (relativePath -> per-file payload))
-    private readonly ConcurrentDictionary<string,
-        ConcurrentDictionary<string, ConcurrentDictionary<string, FileParseResult>>> _byWorkspace = new();
-
-    // Per-file declarations + harvested references carried from ParseAsync (Layer 3) to the
-    // Layer 4 enricher, since cross-file reference resolution cannot happen per file.
-    internal sealed record FileParseResult(
-        IReadOnlyList<TerraformSymbol> Symbols,
-        IReadOnlyList<HclReference> References,
-        IReadOnlyList<TerraformConfigure> Configures);
-
-    private static string DirOf(string relativePath) =>
-        (Path.GetDirectoryName(relativePath) ?? string.Empty).Replace('\\', '/').Trim('/');
-
-    private ConcurrentDictionary<string, ConcurrentDictionary<string, FileParseResult>> WorkspaceBucket(string workspaceId) =>
-        _byWorkspace.GetOrAdd(workspaceId, _ => new());
-
-    // Returns the parsed files in one directory of one workspace (the enricher's project bucket).
-    // Empty when nothing in that directory was parsed.
-    internal IReadOnlyDictionary<string, FileParseResult> FilesInDirectory(string workspaceId, string directory)
-    {
-        var dir = directory.Replace('\\', '/').Trim('/');
-        if (_byWorkspace.TryGetValue(workspaceId, out var ws) && ws.TryGetValue(dir, out var files))
-        {
-            return files;
-        }
-        return new Dictionary<string, FileParseResult>();
-    }
-
-    // Drops all cached parse state for a workspace so a re-scan in a long-running host starts clean.
-    internal void ClearWorkspace(string workspaceId) => _byWorkspace.TryRemove(workspaceId, out _);
-
     public string LanguageName => "hcl";
-    public string ProjectType => "terraform";
+    private const string TerraformProjectType = "terraform";
+
+    public string ProjectType => TerraformProjectType;
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
@@ -120,11 +86,11 @@ public class TerraformParser : IProjectParser, IFileParser
         bool Has(string fileName) =>
             filesInDirectory.Any(f => Path.GetFileName(f).Equals(fileName, StringComparison.OrdinalIgnoreCase));
 
-        if (Has("terragrunt.hcl"))
+        if (Has(TerragruntFileName))
         {
             props["is_terragrunt"] = "true";
         }
-        else if (Has("variables.tf") && Has("outputs.tf"))
+        else if (Has(VariablesFileName) && Has(OutputsFileName))
         {
             props["is_terraform_module"] = "true";
         }
@@ -132,73 +98,82 @@ public class TerraformParser : IProjectParser, IFileParser
         return props;
     }
 
+    private const string SourceAttribute = "source";
+    private const string ConfigPathAttribute = "config_path";
+    private const string PathsAttribute = "paths";
+    private const string PathAttribute = "path";
+    private const string TerragruntFileName = "terragrunt.hcl";
+    private const string VariablesFileName = "variables.tf";
+    private const string OutputsFileName = "outputs.tf";
+    private const string TerraformFilePattern = "*.tf";
+    private const string OpenTofuFilePattern = "*.tofu";
+    private const string HclFilePattern = "*.hcl";
+    private const string ReadTerragruntConfigFunction = "read_terragrunt_config";
+    private const string FindInParentFoldersFunction = "find_in_parent_folders";
+    private const string DirnameFunction = "dirname";
+    private const string GetRepoRootFunction = "get_repo_root";
+    private const string GetTerragruntDirFunction = "get_terragrunt_dir";
+    private const string GitDirectoryName = ".git";
+    private const string UnknownPackageVersion = "unknown";
+
     // Surfaces local module sources and Terragrunt dependency/include targets as LocalProjectPaths
     // (which Layer2ProjectParser turns into project-level DEPENDS_ON); registry/git module sources
-    // become external packages. Uses the HCL parser so commented-out blocks are ignored.
+    // become external packages. Reads the parsed AST, so commented-out blocks are ignored.
+    //
+    // HCL files are both this project's manifest and its source, so Layer 2 parses the files that
+    // ParseAsync parses again in Layer 3. Both read the text Layer 1 cached in PhysicalFileStore,
+    // so each file is read from disk once.
     public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
     {
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
 
-        string[] files;
-        try
-        {
-            files = Directory.GetFiles(projectDirectory, "*.tf", SearchOption.TopDirectoryOnly)
-                .Concat(Directory.GetFiles(projectDirectory, "*.tofu", SearchOption.TopDirectoryOnly))
-                .Concat(Directory.GetFiles(projectDirectory, "*.hcl", SearchOption.TopDirectoryOnly))
-                .Where(f => !IsLockFile(f))
-                .ToArray();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return new ProjectDependencyInfo(localProjectPaths, externalPackages);
-        }
+        // I/O failures propagate to Layer 2, which records them as a scan issue on the project.
+        var files = Directory.GetFiles(projectDirectory, TerraformFilePattern, SearchOption.TopDirectoryOnly)
+            .Concat(Directory.GetFiles(projectDirectory, OpenTofuFilePattern, SearchOption.TopDirectoryOnly))
+            .Concat(Directory.GetFiles(projectDirectory, HclFilePattern, SearchOption.TopDirectoryOnly))
+            .Where(f => !IsLockFile(f));
 
         foreach (var file in files)
         {
-            string content;
-            try { content = await File.ReadAllTextAsync(file); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+            var content = await PhysicalFileStore.ReadAllTextAsync(file);
+            var ast = HclParser.Parse(content);
 
-            var tokens = new HclLexer(content).Tokenize();
-
-            HclFile ast;
-            try { ast = new HclParser(tokens).ParseFile(); }
-            catch (Exception) { continue; }
-
-            // read_terragrunt_config("…") loads another HCL config at parse time → a dependency on
-            // that file's directory. Scanned over the lexed tokens (comments already stripped) so a
-            // commented-out call does not produce a phantom edge.
-            foreach (var argExpr in ExtractReadTerragruntConfigArgs(tokens))
+            // read_terragrunt_config(…) loads another HCL config at parse time → a dependency on
+            // that file's directory.
+            foreach (var call in FindCalls(ast, ReadTerragruntConfigFunction))
             {
-                AddLocalPath(ResolveTerragruntPath(argExpr, projectDirectory), localProjectPaths);
+                if (call.Arguments.Count > 0)
+                {
+                    AddLocalPath(ResolveTerragruntPath(call.Arguments[0], projectDirectory), localProjectPaths);
+                }
             }
 
             foreach (var block in ast.Blocks)
             {
-                switch (block.Type)
+                switch (block.Kind)
                 {
-                    case "module":
-                        AddModuleSource(AttrLiteral(block, "source"), projectDirectory, localProjectPaths, externalPackages);
+                    case HclBlockKind.Module:
+                    case HclBlockKind.Terraform:
+                        // module { source = … } and Terragrunt terraform { source = … }; the latter
+                        // often uses a path function (e.g. "${get_terragrunt_dir()}/../mod").
+                        AddModuleSource(FindAttribute(block, SourceAttribute), projectDirectory, localProjectPaths, externalPackages);
                         break;
-                    case "dependency":
-                        AddLocalPath(ResolveTerragruntPath(AttrLiteral(block, "config_path"), projectDirectory), localProjectPaths);
+                    case HclBlockKind.Dependency:
+                        AddLocalPath(ResolveTerragruntPath(FindAttribute(block, ConfigPathAttribute)?.Value, projectDirectory), localProjectPaths);
                         break;
-                    case "dependencies":
-                        // Plural `dependencies { paths = ["../a", "../b"] }` — each list entry is a
-                        // unit directory this unit depends on.
-                        foreach (var p in AttrTupleItems(block, "paths"))
+                    case HclBlockKind.Dependencies:
+                        // dependencies { paths = ["../a", "../b"] }: each entry is a unit directory.
+                        if (FindAttribute(block, PathsAttribute)?.Value is HclTuple paths)
                         {
-                            AddLocalPath(ResolveTerragruntPath(p, projectDirectory), localProjectPaths);
+                            foreach (var item in paths.Items)
+                            {
+                                AddLocalPath(ResolveTerragruntPath(item, projectDirectory), localProjectPaths);
+                            }
                         }
                         break;
-                    case "include":
-                        AddLocalPath(ResolveTerragruntPath(AttrLiteral(block, "path"), projectDirectory), localProjectPaths);
-                        break;
-                    case "terraform":
-                        // Terragrunt `terraform { source = … }` points at a local module, often via
-                        // a path function / interpolation (e.g. "${get_terragrunt_dir()}/../mod").
-                        AddModuleSource(AttrLiteral(block, "source"), projectDirectory, localProjectPaths, externalPackages);
+                    case HclBlockKind.Include:
+                        AddLocalPath(ResolveTerragruntPath(FindAttribute(block, PathAttribute)?.Value, projectDirectory), localProjectPaths);
                         break;
                 }
             }
@@ -209,22 +184,24 @@ public class TerraformParser : IProjectParser, IFileParser
             externalPackages);
     }
 
-    // A module/terraform source is local when it resolves to a filesystem path — either a plain
-    // relative/absolute path or a Terragrunt path expression (`${get_terragrunt_dir()}/…`). When it
-    // does not resolve (registry or git source like "terraform-aws-modules/vpc/aws" or "git::…"),
-    // it is an external package.
-    private static void AddModuleSource(string? source, string projectDirectory, List<string> localProjectPaths, List<ProducedPackageInfo> externalPackages)
+    // A module/terraform source is local when it resolves to a filesystem path — a relative or
+    // absolute path, or a Terragrunt path expression. Otherwise (registry or git source such as
+    // "terraform-aws-modules/vpc/aws" or "git::…") it is an external package.
+    private static void AddModuleSource(HclAttribute? source, string projectDirectory, List<string> localProjectPaths, List<ProducedPackageInfo> externalPackages)
     {
-        if (string.IsNullOrEmpty(source)) return;
+        if (source == null) return;
 
-        var resolved = ResolveTerragruntPath(source, projectDirectory);
+        var resolved = ResolveTerragruntPath(source.Value, projectDirectory);
         if (!string.IsNullOrEmpty(resolved))
         {
             localProjectPaths.Add(NormalizeToProjectDir(resolved)!);
+            return;
         }
-        else
+
+        var name = (source.Value as HclTemplate)?.LiteralValue ?? source.ValueText.Trim('"');
+        if (name.Length > 0)
         {
-            externalPackages.Add(new ProducedPackageInfo(source, "unknown", "terraform"));
+            externalPackages.Add(new ProducedPackageInfo(name, UnknownPackageVersion, TerraformProjectType));
         }
     }
 
@@ -248,153 +225,112 @@ public class TerraformParser : IProjectParser, IFileParser
             || ext.Equals(".tfvars", StringComparison.OrdinalIgnoreCase))
         {
             var dir = Path.GetDirectoryName(trimmed);
-            return string.IsNullOrEmpty(dir) ? trimmed : dir!.Replace('\\', '/');
+            return string.IsNullOrEmpty(dir) ? trimmed : dir.NormalizeSlashes();
         }
         return path;
     }
 
-    /// <summary>
-    /// Resolves a Terragrunt unit's <c>terraform { source }</c> to the wrapped module's directory
-    /// relative to the workspace, for the enricher's <c>inputs → CONFIGURES</c> resolution. Returns
-    /// null when the source is empty, a remote/registry/git source, or resolves outside the
-    /// workspace — in those cases the target module's variables are not in the graph.
-    /// </summary>
-    internal static string? ResolveModuleSourceDir(string? rawSource, string unitRelativeDir, string absoluteWorkspacePath)
+    private static HclAttribute? FindAttribute(HclBlock block, string name) =>
+        block.Attributes.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.Ordinal));
+
+    // Every call to `function` anywhere in the file, including inside interpolations.
+    private static IEnumerable<HclCall> FindCalls(HclFile file, string function)
     {
-        if (string.IsNullOrWhiteSpace(rawSource)) return null;
-
-        var unitAbs = Path.GetFullPath(Path.Combine(absoluteWorkspacePath, unitRelativeDir));
-        var resolved = ResolveTerragruntPath(rawSource, unitAbs);
-        if (string.IsNullOrEmpty(resolved)) return null;
-
-        var absTarget = Path.IsPathRooted(resolved)
-            ? resolved
-            : Path.GetFullPath(Path.Combine(unitAbs, resolved));
-
-        var rel = Path.GetRelativePath(absoluteWorkspacePath, absTarget).Replace('\\', '/').Trim('/');
-        // Outside the workspace (e.g. git/registry source resolving nowhere local).
-        if (rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel)) return null;
-        return rel;
+        var calls = new List<HclCall>();
+        foreach (var attribute in file.Attributes) CollectCalls(attribute.Value, function, calls);
+        foreach (var block in file.Blocks) CollectCalls(block, function, calls);
+        return calls;
     }
 
-    private static string? AttrLiteral(HclBlock block, string attrName)
+    private static void CollectCalls(HclBlock block, string function, List<HclCall> calls)
     {
-        foreach (var a in block.Attributes)
-        {
-            if (string.Equals(a.Name, attrName, StringComparison.Ordinal)) return a.Value.Literal;
-        }
-        return null;
+        foreach (var attribute in block.Attributes) CollectCalls(attribute.Value, function, calls);
+        foreach (var nested in block.Blocks) CollectCalls(nested, function, calls);
     }
 
-    // Returns the top-level string elements of a list-valued attribute (e.g. the entries of
-    // `paths = ["../a", "../b"]`), captured structurally by the parser.
-    private static IReadOnlyList<string> AttrTupleItems(HclBlock block, string attrName)
+    private static void CollectCalls(HclExpr? expr, string function, List<HclCall> calls)
     {
-        foreach (var a in block.Attributes)
+        switch (expr)
         {
-            if (string.Equals(a.Name, attrName, StringComparison.Ordinal))
-            {
-                return a.Value.TupleItems ?? [];
-            }
-        }
-        return [];
-    }
-
-    // Scans lexed tokens for read_terragrunt_config(<arg>) calls and returns each argument as a
-    // reconstructed expression string (e.g. find_in_parent_folders("common_vars.hcl")), suitable
-    // for ResolveTerragruntPath. String tokens are re-quoted since the lexer strips their quotes.
-    private static IEnumerable<string> ExtractReadTerragruntConfigArgs(IReadOnlyList<HclToken> tokens)
-    {
-        for (var i = 0; i < tokens.Count - 1; i++)
-        {
-            if (tokens[i].Kind != HclTokenKind.Identifier ||
-                !string.Equals(tokens[i].Text, "read_terragrunt_config", StringComparison.Ordinal) ||
-                tokens[i + 1].Kind != HclTokenKind.LParen)
-            {
-                continue;
-            }
-
-            // Reconstruct the argument text up to the matching close paren.
-            var sb = new System.Text.StringBuilder();
-            var depth = 0;
-            var j = i + 1;
-            for (; j < tokens.Count; j++)
-            {
-                var t = tokens[j];
-                if (t.Kind == HclTokenKind.LParen) { depth++; if (depth == 1) continue; }
-                else if (t.Kind == HclTokenKind.RParen) { depth--; if (depth == 0) break; }
-
-                sb.Append(t.Kind == HclTokenKind.String ? $"\"{t.Text}\"" : t.Text);
-            }
-
-            var arg = sb.ToString().Trim();
-            if (arg.Length > 0) yield return arg;
-            i = j; // continue scanning after this call
+            case HclCall call:
+                if (string.Equals(call.Function, function, StringComparison.Ordinal)) calls.Add(call);
+                foreach (var arg in call.Arguments) CollectCalls(arg, function, calls);
+                break;
+            case HclTemplate template:
+                foreach (var part in template.Parts)
+                {
+                    if (part is HclTemplateInterpolation i) CollectCalls(i.Expression, function, calls);
+                    else if (part is HclTemplateDirective d) CollectCalls(d.Expression, function, calls);
+                }
+                break;
+            case HclGetAttr g: CollectCalls(g.Target, function, calls); break;
+            case HclIndex ix: CollectCalls(ix.Target, function, calls); CollectCalls(ix.Key, function, calls); break;
+            case HclSplat s: CollectCalls(s.Target, function, calls); break;
+            case HclTuple t: foreach (var item in t.Items) CollectCalls(item, function, calls); break;
+            case HclObject o:
+                foreach (var item in o.Items)
+                {
+                    CollectCalls(item.KeyExpression, function, calls);
+                    CollectCalls(item.Value, function, calls);
+                }
+                break;
+            case HclFor f:
+                CollectCalls(f.Collection, function, calls);
+                CollectCalls(f.KeyExpression, function, calls);
+                CollectCalls(f.Value, function, calls);
+                CollectCalls(f.Condition, function, calls);
+                break;
+            case HclUnary u: CollectCalls(u.Operand, function, calls); break;
+            case HclBinary b: CollectCalls(b.Left, function, calls); CollectCalls(b.Right, function, calls); break;
+            case HclConditional c:
+                CollectCalls(c.Condition, function, calls);
+                CollectCalls(c.WhenTrue, function, calls);
+                CollectCalls(c.WhenFalse, function, calls);
+                break;
         }
     }
 
     /// <summary>
-    /// Best-effort resolution of a Terragrunt path expression to a local directory path, handling
-    /// the common path functions. Returns a path (relative or absolute) suitable as a local
-    /// dependency, or null if it can't be resolved to a local target.
-    ///   find_in_parent_folders()            -> nearest ancestor containing a terragrunt.hcl (the root)
-    ///   find_in_parent_folders("file.hcl")  -> nearest ancestor containing that file
-    ///   dirname(expr)                       -> parent directory of the inner resolution
-    ///   get_repo_root() / get_terragrunt_dir() -> repo root / this unit dir (best-effort)
-    ///   plain "../x" / "./x"                -> relative path as-is
-    /// Interpolation wrappers ("${ ... }/suffix") are unwrapped to the inner expression.
+    /// Best-effort resolution of a Terragrunt path expression to a local path (relative or
+    /// absolute), or null when it does not resolve to a local target:
+    ///   "../x" / "./x" / "/x"                  -> the path as written
+    ///   "${expr}suffix"                        -> resolution of expr, then the literal suffix
+    ///   find_in_parent_folders()               -> nearest ancestor containing terragrunt.hcl
+    ///   find_in_parent_folders("file.hcl")     -> nearest ancestor containing that file
+    ///   dirname(expr)                          -> parent directory of expr's resolution
+    ///   get_repo_root() / get_terragrunt_dir() -> repo root / this unit's directory
     /// </summary>
-    private static string? ResolveTerragruntPath(string? expr, string projectDirectory)
+    private static string? ResolveTerragruntPath(HclExpr? expr, string projectDirectory)
     {
-        if (string.IsNullOrWhiteSpace(expr)) return null;
-        expr = expr.Trim().Trim('"');
-
-        // "${ <inner> }<suffix>" → resolve <inner>, then re-append the literal suffix (e.g.
-        // "${dirname(find_in_parent_folders())}/_service_modules/x.hcl").
-        var interp = Regex.Match(expr, @"^\$\{\s*(?<inner>.*?)\s*\}(?<suffix>.*)$");
-        if (interp.Success)
+        switch (expr)
         {
-            var resolvedInner = ResolveTerragruntPath(interp.Groups["inner"].Value, projectDirectory);
-            if (string.IsNullOrEmpty(resolvedInner)) return null;
-            var suffix = interp.Groups["suffix"].Value;
-            return resolvedInner!.TrimEnd('/') + suffix;
-        }
+            case HclTemplate template when template.LiteralValue is { } literal:
+                return literal.StartsWith('.') || literal.StartsWith('/') ? literal : null;
 
-        // dirname(<inner>) → parent of inner's resolution.
-        var dirn = Regex.Match(expr, @"^dirname\s*\(\s*(?<inner>.*?)\s*\)$");
-        if (dirn.Success)
-        {
-            var inner = ResolveTerragruntPath(dirn.Groups["inner"].Value, projectDirectory);
-            if (string.IsNullOrEmpty(inner)) return null;
-            try { return Path.GetDirectoryName(inner!.TrimEnd('/')); }
-            catch { return null; }
-        }
+            case HclTemplate { Parts: [HclTemplateInterpolation head, ..] } template
+                when template.Parts.Skip(1).All(p => p is HclTemplateText):
+                var inner = ResolveTerragruntPath(head.Expression, projectDirectory);
+                return string.IsNullOrEmpty(inner)
+                    ? null
+                    : inner.TrimEnd('/') + string.Concat(template.Parts.Skip(1).Cast<HclTemplateText>().Select(p => p.Text));
 
-        if (expr.StartsWith("find_in_parent_folders", StringComparison.Ordinal))
-        {
-            // The named file (or root terragrunt.hcl) lives in the nearest ancestor that has it.
-            var arg = Regex.Match(expr, @"find_in_parent_folders\s*\(\s*""(?<f>[^""]*)""\s*\)");
-            var fileName = arg.Success ? arg.Groups["f"].Value : "terragrunt.hcl";
-            return FindInParentFolders(projectDirectory, fileName);
-        }
+            case HclCall { Function: DirnameFunction, Arguments: [var argument, ..] }:
+                var resolved = ResolveTerragruntPath(argument, projectDirectory);
+                return string.IsNullOrEmpty(resolved) ? null : Path.GetDirectoryName(resolved.TrimEnd('/'));
 
-        if (expr.StartsWith("get_repo_root", StringComparison.Ordinal))
-        {
-            return FindRepoRoot(projectDirectory);
-        }
+            case HclCall { Function: FindInParentFoldersFunction } call:
+                var fileName = call.Arguments is [HclTemplate { LiteralValue: { } name }, ..] ? name : TerragruntFileName;
+                return FindInParentFolders(projectDirectory, fileName);
 
-        if (expr.StartsWith("get_terragrunt_dir", StringComparison.Ordinal))
-        {
-            return projectDirectory;
-        }
+            case HclCall { Function: GetRepoRootFunction }:
+                return FindRepoRoot(projectDirectory);
 
-        // A plain relative/absolute path (possibly with a trailing "/suffix" after an unwrap).
-        if (expr.StartsWith('.') || expr.StartsWith('/'))
-        {
-            return expr;
-        }
+            case HclCall { Function: GetTerragruntDirFunction }:
+                return projectDirectory;
 
-        return null;
+            default:
+                return null;
+        }
     }
 
     private static string? FindInParentFolders(string startDir, string fileName)
@@ -405,12 +341,16 @@ public class TerraformParser : IProjectParser, IFileParser
             while (dir != null)
             {
                 if (File.Exists(Path.Combine(dir.FullName, fileName)))
-                    return dir.FullName.Replace('\\', '/');
+                    return dir.FullName.NormalizeSlashes();
                 dir = dir.Parent;
             }
+            return null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        return null;
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // An inaccessible ancestor ends the search: the path does not resolve locally.
+            return null;
+        }
     }
 
     private static string? FindRepoRoot(string startDir)
@@ -420,33 +360,37 @@ public class TerraformParser : IProjectParser, IFileParser
             var dir = new DirectoryInfo(Path.GetFullPath(startDir));
             while (dir != null)
             {
-                if (Directory.Exists(Path.Combine(dir.FullName, ".git")))
-                    return dir.FullName.Replace('\\', '/');
+                if (Directory.Exists(Path.Combine(dir.FullName, GitDirectoryName)))
+                    return dir.FullName.NormalizeSlashes();
                 dir = dir.Parent;
             }
+            return null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        return null;
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // An inaccessible ancestor ends the search: the repo root is unknown.
+            return null;
+        }
     }
 
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
         => Task.FromResult<ProducedPackageInfo?>(null);
 
-    // Project-scoped Layer 4 enrichment: resolves the references collected in ParseAsync into
-    // DEPENDS_ON edges and maps cloud resources to semantic nodes, scoped to the module directory.
-    // Runs once per project after all its files are parsed; reads this parser's per-directory cache.
+    // Project-scoped Layer 4 enrichment: resolves the references carried on this project's
+    // TerraformSyntaxTrees into DEPENDS_ON edges and maps cloud resources to semantic nodes, scoped
+    // to the module directory. Runs once per project after all its files are parsed.
     public Task EnrichProjectAsync(
         CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
         IReadOnlyList<SyntaxTree> projectTrees,
         ParsingContext ctx)
-        => new TerraformSyntaxEnricher(this).EnrichAsync(project, ctx);
+        => TerraformSyntaxEnricher.EnrichAsync(project, projectTrees, ctx);
 
-    // Lexes and parses the HCL file, emits TypeNode/MemberNode declarations into the FileNode with
-    // workspace-scoped URN IDs, and stashes the declared symbols + harvested references for the
-    // Layer 4 enricher (cross-file reference resolution cannot happen per-file).
+    // Parses the HCL file, emits TypeNode/MemberNode declarations into the FileNode with
+    // workspace-scoped URN IDs, and returns a TerraformSyntaxTree carrying the declared symbols and
+    // harvested references for the enricher (cross-file resolution cannot happen per file).
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).NormalizeSlashes();
         var fileName = Path.GetFileName(filePath);
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, fileName, relativePath, filePath);
@@ -455,35 +399,33 @@ public class TerraformParser : IProjectParser, IFileParser
         // physical topology but do not parse its contents into declarations.
         if (IsLockFile(filePath))
         {
-            return new SyntaxTree(
-                filePath, relativePath, null, null, null, fileNode, this, [], [], []);
+            return new TerraformSyntaxTree(filePath, relativePath, null, fileNode, this, [], [], []);
         }
 
-        try
-        {
-            var content = await File.ReadAllTextAsync(filePath);
-            var tokens = new HclLexer(content).Tokenize();
-            var ast = new HclParser(tokens).ParseFile();
+        // Read failures propagate to Layer 3, which logs them and records a scan issue on the file.
+        // Syntax errors do not throw: the parser skips past them and reports them as diagnostics,
+        // which Layer 3 records as syntax-error scan issues from the document.
+        var content = await PhysicalFileStore.ReadAllTextAsync(filePath);
+        var ast = HclParser.Parse(content);
 
-            var symbols = TerraformDeclarationMapper.Map(ast, fileNode, workspaceId, relativePath);
-            var configures = TerraformDeclarationMapper.MapConfigures(ast, relativePath);
+        var isTfvars = TerraformDeclarationMapper.IsTfvars(relativePath);
+        var symbols = TerraformDeclarationMapper.Map(ast, fileNode, workspaceId, relativePath);
+        var collected = TerraformReferenceCollector.Collect(ast, isTfvars);
+        symbols.AddRange(TerraformDeclarationMapper.MapAnchors(collected.Anchors, fileNode, workspaceId, relativePath));
+        var configures = TerraformDeclarationMapper.MapConfigures(ast, fileNode, workspaceId, relativePath);
 
-            var bucket = WorkspaceBucket(workspaceId).GetOrAdd(DirOf(relativePath), _ => new());
-            bucket[relativePath] = new FileParseResult(symbols, ast.References, configures);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Unreadable file: keep the empty FileNode so physical topology stays intact.
-            Console.Error.WriteLine($"[Terraform] Could not read '{relativePath}': {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            // Parse failure: keep the empty FileNode and report the error.
-            Console.Error.WriteLine($"[Terraform] Failed to parse '{relativePath}': {ex}");
-        }
+        var document = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
+        document.Diagnostics = ast.Diagnostics.Select(ToSyntaxDiagnostic).ToList();
 
-        return new SyntaxTree(
-            filePath, relativePath, null, null, null, fileNode, this, [], [], []);
+        return new TerraformSyntaxTree(filePath, relativePath, document, fileNode, this, symbols, collected.References, configures);
+    }
+
+    // An HCL diagnostic as a document diagnostic: 0-based line, spanning the reported line.
+    private static SyntaxDiagnostic ToSyntaxDiagnostic(HclDiagnostic diagnostic)
+    {
+        var line = Math.Max(0, diagnostic.Line - 1);
+        return new SyntaxDiagnostic(SyntaxDiagnosticKind.SyntaxError, diagnostic.Message,
+            new TextSpan(0, 0, line, 0, line, 0));
     }
 
     // Local module sources ("./", "../", "/") are internal; registry/git sources are external.

@@ -16,6 +16,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.OfType)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<MemberNode>(OntologyConstants.Relationships.DependsOn)]
 public record MemberNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

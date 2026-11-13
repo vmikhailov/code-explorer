@@ -1,6 +1,7 @@
 using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -19,6 +20,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.TransitivelyCalls)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.DeployedBy)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeployedBy)]
 public record CloudServiceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

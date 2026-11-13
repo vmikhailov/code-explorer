@@ -1,205 +1,169 @@
 using CodeExplorer.Core.Common;
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.Terraform.Hcl;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Parser.Terraform;
 
 /// <summary>
-/// Layer 4 semantic enricher for Terraform/Terragrunt.
+/// Layer 4 semantic enricher for Terraform/Terragrunt, invoked once per project through
+/// <see cref="IProjectParser.EnrichProjectAsync"/> after all of the project's files are parsed.
 ///
-/// Runs after all files in a project are parsed, so it can see sibling .tf files (unlike a
-/// per-file ISemanticExtension). Resolves the traversal references harvested during parsing
-/// (var.X / local.X / module.X[.Y] / data.T.N / &lt;type&gt;.N) to the matching declaration node,
-/// scoped to the module directory, and emits DEPENDS_ON edges with via/ref/line properties.
-///
-/// Resolution runs once per project (the enricher is invoked once per syntax tree, so a
-/// processed-project set guards against repeats). The edge source is the file node that contains
-/// the reference; the target is the resolved declaration node.
+/// Reads only the <see cref="TerraformSyntaxTree"/>s it is given, so it can see sibling .tf files
+/// (unlike a per-file ISemanticExtension) without holding state between scans. Resolves the
+/// traversal references harvested during parsing (var.X / local.X / module.X[.Y] / data.T.N /
+/// &lt;type&gt;.N) to the matching declaration node, scoped to the module directory, and emits one
+/// typed DEPENDS_ON edge per (source, target). The edge source is the node the reference is made
+/// from (enclosing declaration, local value, or attribute anchor); the target is the resolved
+/// declaration node.
 /// </summary>
-public sealed class TerraformSyntaxEnricher
+public static class TerraformSyntaxEnricher
 {
-    private readonly TerraformParser _parser;
-
-    // Tracks which projects have already been resolved, per scan. Keyed on the ParsingContext so
-    // the state is scoped to a single scan and collected with it, rather than living for the
-    // process lifetime. EnrichAsync is invoked once per syntax tree, so this guards repeats.
-    private static readonly ConditionalWeakTable<ParsingContext, ConcurrentDictionary<string, byte>> _processedByContext = new();
-
-    public TerraformSyntaxEnricher(TerraformParser parser) => _parser = parser;
-
-    public async Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx)
+    public static async Task EnrichAsync(ProjectNode projectNode, IReadOnlyList<SyntaxTree> projectTrees, ParsingContext ctx)
     {
-        var processed = _processedByContext.GetValue(ctx, _ => new ConcurrentDictionary<string, byte>());
-        if (!processed.TryAdd(projectNode.Id, 0))
-        {
-            return; // already resolved for this project in this scan
-        }
+        var projectDir = projectNode.Path.NormalizeSlashes().Trim('/');
 
-        var projectDir = (projectNode.Path ?? string.Empty).Replace('\\', '/').Trim('/');
-
-        // Read only the files parsed in this project's directory, within this workspace. This
-        // scopes resolution to the project (no cross-workspace or cross-project leakage) and
-        // avoids rescanning every parsed file in the workspace per project.
-        var projectFiles = _parser.FilesInDirectory(ctx.WorkspaceId, projectDir);
+        // Only files directly in the module directory: a Terraform module is a single directory,
+        // so files in a subdirectory belonging to this project are not part of its namespace.
+        var projectFiles = projectTrees
+            .OfType<TerraformSyntaxTree>()
+            .Where(t => DirOf(t.RelativePath) == projectDir)
+            .Select(t => (RelPath: t.RelativePath, File: t))
+            .ToList();
         if (projectFiles.Count == 0) return;
 
         // 1. Build a declaration lookup: refKey -> nodeId, scoped to this project's module dir.
+        // Attribute anchors are only reference sources, so they are looked up per file instead.
         var declByKey = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (_, file) in projectFiles)
         {
             foreach (var sym in file.Symbols)
             {
+                if (sym.Kind == TerraformSymbolKind.Attribute) continue;
+
                 // First declaration wins on duplicate keys (HCL would reject dupes anyway).
                 declByKey.TryAdd(sym.RefKey, sym.NodeId);
             }
         }
 
-        // 2. Resolve references from files in this project and enqueue DEPENDS_ON edges.
-        var edges = new List<Relationship>();
-        var seen = new HashSet<(string From, string To)>();
+        // 2. Resolve references from files in this project into DEPENDS_ON edges, one per
+        // (source, target). The edge is marked as a depends_on dependency when any reference behind
+        // it is an explicit `depends_on` entry.
+        var dependsOn = new Dictionary<(string From, string To), DependsOnRelationship>();
 
-        foreach (var (relPath, file) in projectFiles)
+        foreach (var (_, file) in projectFiles)
         {
-            var fileNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relPath}";
+            var anchors = file.Symbols
+                .Where(sym => sym.Kind == TerraformSymbolKind.Attribute)
+                .ToDictionary(sym => sym.RefKey, sym => sym.NodeId, StringComparer.Ordinal);
 
             foreach (var reference in file.References)
             {
-                var resolved = ResolveKey(reference);
-                if (resolved is not { } r) continue;
-
+                if (ResolveKey(reference) is not { } r) continue;
                 if (!declByKey.TryGetValue(r.Key, out var targetId)) continue;
 
-                // Anchor the edge at the enclosing declaration (e.g. the resource that made the
-                // reference) when known and resolvable; otherwise fall back to the file node.
-                var fromId = fileNodeId;
-                if (reference.EnclosingKey != null && declByKey.TryGetValue(reference.EnclosingKey, out var enclosingId))
+                // The edge starts at the node that made the reference: its attribute anchor or
+                // enclosing declaration. A reference with neither (only in malformed blocks) is
+                // dropped rather than attributed to the file.
+                if (reference.EnclosingKey == null) continue;
+                if (!anchors.TryGetValue(reference.EnclosingKey, out var fromId)
+                    && !declByKey.TryGetValue(reference.EnclosingKey, out fromId))
                 {
-                    fromId = enclosingId;
+                    continue;
                 }
 
                 if (fromId == targetId) continue; // never self-link
 
-                // Dedup per (from, to, output): distinct outputs of the same target are kept.
-                if (!seen.Add((fromId, $"{targetId}#{r.OutputName}"))) continue;
-
-                var props = new Dictionary<string, object>
+                var key = (fromId, targetId);
+                if (dependsOn.TryGetValue(key, out var existing))
                 {
-                    ["via"] = r.Via,
-                    ["ref"] = reference.Explicit ? "explicit" : r.RefKind,
-                    ["line"] = reference.Line
-                };
-                if (!string.IsNullOrEmpty(r.OutputName))
-                {
-                    props["out"] = r.OutputName!;
+                    if (reference.Explicit && existing.EvidenceKind == null)
+                    {
+                        dependsOn[key] = existing with { EvidenceKind = DependsOnEvidence };
+                    }
+                    continue;
                 }
 
-                edges.Add(new Relationship(
-                    fromId, targetId, OntologyConstants.Relationships.DependsOn, props));
+                dependsOn[key] = new DependsOnRelationship(fromId, targetId)
+                {
+                    Via = r.Kind == TerraformReferenceKind.Dependency ? ViaTerragrunt : ViaTerraform,
+                    Line = reference.Line,
+                    EvidenceKind = reference.Explicit ? DependsOnEvidence : null
+                };
             }
         }
 
-        // Configuration linkage: a .tfvars assignment or a Terragrunt `inputs` key links to the
-        // target variable declaration — same module directory for tfvars, the wrapped module (via
-        // the unit's `terraform { source }`) for `inputs`. No edge when the target variable is not
-        // in the workspace. Modeled as a tagged DEPENDS_ON (ref=configures).
-        foreach (var (relPath, file) in projectFiles)
+        var edges = dependsOn.Values.Select(Relationship.FromRelationship).ToList();
+
+        // A .tfvars assignment depends on the variable of the same name declared in this module
+        // directory. No edge when the variable is not declared here.
+        foreach (var (_, file) in projectFiles)
         {
-            if (file.Configures.Count == 0) continue;
-
-            var fileNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relPath}";
-
             foreach (var cfg in file.Configures)
             {
-                string? variableId;
-                bool inferred;
+                if (!declByKey.TryGetValue($"var.{cfg.VariableName}", out var variableId)) continue;
 
-                if (cfg.Via == "terragrunt")
-                {
-                    // Resolve the wrapped module directory and look up the variable there.
-                    var targetDir = TerraformParser.ResolveModuleSourceDir(cfg.SourceDir, projectDir, ctx.AbsoluteWorkspacePath);
-                    if (targetDir == null) continue; // remote/unresolvable module: no target in graph
-                    variableId = LookupVariable(ctx.WorkspaceId, targetDir, cfg.VariableName);
-                    inferred = true; // cross-dir: the unit does not state a -var-file
-                }
-                else // tfvars
-                {
-                    declByKey.TryGetValue($"var.{cfg.VariableName}", out variableId);
-                    inferred = false;
-                }
-
-                if (variableId == null) continue; // target variable not declared in the workspace
-                if (!seen.Add((fileNodeId, $"cfg#{variableId}"))) continue;
-
-                var props = new Dictionary<string, object>
-                {
-                    ["via"] = cfg.Via,          // "tfvars" | "terragrunt"
-                    ["ref"] = "configures",
-                    ["line"] = cfg.Line
-                };
-                if (inferred) props["inferred"] = true;
-
-                edges.Add(new Relationship(
-                    fileNodeId, variableId, OntologyConstants.Relationships.DependsOn, props));
+                edges.Add(Relationship.FromRelationship(
+                    new DependsOnRelationship(cfg.NodeId, variableId) { Via = ViaTfvars, Line = cfg.Line }));
             }
         }
 
-        // Map known cloud resource types to Layer 4 semantic nodes using the same canonical ID
-        // scheme the application parsers use, so infrastructure and the app code that uses it
-        // reconcile by shared node ID. Emits DEPLOYS and a project usage edge per resource.
+        // Map known cloud resource types to Layer 4 semantic nodes. A resource whose name is a
+        // literal gets the canonical ID application parsers build from that name, so infrastructure
+        // and the app code that uses it reconcile by shared node ID. A computed name cannot be
+        // reconciled at parse time, so the node is named and identified by module directory and
+        // label, keeping copies of a module deployed from different directories apart.
+        // Each node links back to the resource block and project that deploy it (DEPLOYED_BY).
         var semanticNodes = new List<IOntologyNode>();
         var createdSemanticIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deployedByProject = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (relPath, file) in projectFiles)
         {
             foreach (var sym in file.Symbols)
             {
-                if (sym.Kind != "resource" || sym.ResourceType == null || sym.Name == null) continue;
+                if (sym.Kind != TerraformSymbolKind.Resource || sym.ResourceType is not { } resourceType || sym.Name == null) continue;
 
-                var cls = CloudResourceCatalog.Classify(sym.ResourceType);
+                var cls = CloudResourceCatalog.Classify(resourceType);
                 if (cls.Kind == CloudResourceCatalog.SemanticKind.None) continue;
 
-                // The node is named from the Terraform resource label (stable). The `name` attribute
-                // is usually a computed interpolation and cannot be reconciled at parse time.
-                var name = sym.Name;
+                var scopedName = string.IsNullOrEmpty(projectDir) ? sym.Name : $"{projectDir}/{sym.Name}";
+                var provider = CloudResourceCatalog.ProviderOf(resourceType);
 
                 string semanticId;
                 IOntologyNode node;
-                string edgeKind;
 
                 switch (cls.Kind)
                 {
                     case CloudResourceCatalog.SemanticKind.Database:
-                        var dbType = cls.SubType ?? "relational";
-                        semanticId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:{dbType}:{name}";
-                        node = new DatabaseNode(semanticId, name, relPath, dbType,
-                            new Dictionary<string, string> { ["provisioned_by"] = "terraform", ["resource_type"] = sym.ResourceType });
-                        edgeKind = OntologyConstants.Relationships.UsesDb;
+                    {
+                        var name = sym.DeployedName ?? scopedName;
+                        semanticId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:{cls.DbType.ToCanonicalString()}:{name}";
+                        node = new DatabaseNode(semanticId, name, relPath, cls.DbType) { Provider = provider, Engine = sym.Engine };
                         break;
+                    }
 
                     case CloudResourceCatalog.SemanticKind.Topic:
-                        var broker = cls.SubType ?? "broker";
-                        semanticId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{broker}:{name}";
-                        node = new TopicNode(semanticId, name, relPath, broker,
-                            new Dictionary<string, string> { ["provisioned_by"] = "terraform", ["resource_type"] = sym.ResourceType });
-                        edgeKind = OntologyConstants.Relationships.PublishesTo;
+                    {
+                        var name = sym.DeployedName ?? scopedName;
+                        semanticId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{cls.BrokerType.ToCanonicalString()}:{name}";
+                        node = new TopicNode(semanticId, name, relPath, cls.BrokerType);
                         break;
+                    }
 
                     default: // CloudService
-                        // CloudService id is dir-scoped (plumbing, not a reconciliation target);
-                        // Database/Topic are workspace-global.
-                        var scope = string.IsNullOrEmpty(projectDir) ? "root" : projectDir;
-                        semanticId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CloudService}:{sym.ResourceType}:{scope}:{name}";
-                        node = new CloudServiceNode(semanticId, name, sym.ResourceType, relPath,
-                            new Dictionary<string, string> { ["provisioned_by"] = "terraform" });
-                        edgeKind = OntologyConstants.Relationships.UsesCloud;
+                    {
+                        // CloudService ids are always directory-scoped (not a reconciliation target).
+                        var scope = string.IsNullOrEmpty(projectDir) ? RootScope : projectDir;
+                        semanticId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CloudService}:{resourceType.Name}:{scope}:{sym.Name}";
+                        node = new CloudServiceNode(semanticId, sym.DeployedName ?? sym.Name, cls.CloudType, relPath) { Provider = provider };
                         break;
+                    }
                 }
 
                 if (createdSemanticIds.Add(semanticId))
@@ -207,15 +171,13 @@ public sealed class TerraformSyntaxEnricher
                     semanticNodes.Add(node);
                 }
 
-                // DEPLOYS: the Terraform resource provisions this semantic entity.
-                edges.Add(new Relationship(
-                    sym.NodeId, semanticId, OntologyConstants.Relationships.Deploys,
-                    new Dictionary<string, object> { ["via"] = "terraform", ["resource_type"] = sym.ResourceType }));
-
-                // Also link the project to the semantic entity with the usage-shaped edge.
-                edges.Add(new Relationship(
-                    projectNode.Id, semanticId, edgeKind,
-                    new Dictionary<string, object> { ["via"] = "terraform" }));
+                edges.Add(Relationship.FromRelationship(
+                    new DeployedByRelationship(semanticId, sym.NodeId) { Via = ViaTerraform, Line = sym.Line }));
+                if (deployedByProject.Add(semanticId))
+                {
+                    edges.Add(Relationship.FromRelationship(
+                        new DeployedByRelationship(semanticId, projectNode.Id) { Via = ViaTerraform }));
+                }
             }
         }
 
@@ -240,27 +202,15 @@ public sealed class TerraformSyntaxEnricher
         }
     }
 
-    // Finds the node id of `variable "<name>"` declared in the given workspace directory, or null.
-    private string? LookupVariable(string workspaceId, string directory, string variableName)
-    {
-        var files = _parser.FilesInDirectory(workspaceId, directory);
-        var key = $"var.{variableName}";
-        foreach (var (_, file) in files)
-        {
-            foreach (var sym in file.Symbols)
-            {
-                if (sym.RefKey == key) return sym.NodeId;
-            }
-        }
-        return null;
-    }
+    // Normalized directory of a workspace-relative path ("" for the workspace root).
+    private static string DirOf(string relativePath) =>
+        Path.GetDirectoryName(relativePath).NormalizeSlashes().Trim('/');
 
     /// <summary>
-    /// Map a harvested reference to the declaration key it should resolve against, the edge's
-    /// via/ref provenance, and (for module/dependency output reads) the referenced output name.
-    /// Returns null Key when the reference targets nothing we model.
+    /// Map a harvested reference to the declaration key it should resolve against and its kind.
+    /// Returns null when the reference targets nothing we model.
     /// </summary>
-    private static ResolvedRef? ResolveKey(HclReference reference)
+    private static ResolvedRef? ResolveKey(TerraformReference reference)
     {
         var path = reference.Path;
         var head = reference.Head;
@@ -268,31 +218,35 @@ public sealed class TerraformSyntaxEnricher
         switch (head)
         {
             case "var":
-                return path.Count >= 2 ? new ResolvedRef($"var.{path[1]}", "terraform", "var", null) : null;
+                return path.Count >= 2 ? new ResolvedRef($"var.{path[1]}", TerraformReferenceKind.Var) : null;
             case "local":
-                return path.Count >= 2 ? new ResolvedRef($"local.{path[1]}", "terraform", "local", null) : null;
+                return path.Count >= 2 ? new ResolvedRef($"local.{path[1]}", TerraformReferenceKind.Local) : null;
             case "module":
-                // module.X or module.X.Y → depends on the module declaration "module.X" (out=Y if present).
-                if (path.Count < 2) return null;
-                return new ResolvedRef($"module.{path[1]}", "terraform", "module",
-                    path.Count >= 3 ? path[2] : null);
+                // module.X or module.X.Y → depends on the module declaration "module.X".
+                return path.Count >= 2 ? new ResolvedRef($"module.{path[1]}", TerraformReferenceKind.Module) : null;
             case "data":
-                return path.Count >= 3 ? new ResolvedRef($"data.{path[1]}.{path[2]}", "terraform", "data", null) : null;
+                return path.Count >= 3 ? new ResolvedRef($"data.{path[1]}.{path[2]}", TerraformReferenceKind.Data) : null;
             case "dependency":
-                // Terragrunt dependency.X or dependency.X.outputs.Y → DEPENDS_ON the dependency block.
-                // Path shape: ["dependency","X"] or ["dependency","X","outputs","Y", ...].
-                if (path.Count < 2) return null;
-                string? outName = null;
-                if (path.Count >= 4 && string.Equals(path[2], "outputs", StringComparison.Ordinal))
-                {
-                    outName = path[3];
-                }
-                return new ResolvedRef($"dependency.{path[1]}", "terragrunt", "dependency", outName);
+                // Terragrunt dependency.X or dependency.X.outputs.Y → depends on the dependency block.
+                return path.Count >= 2 ? new ResolvedRef($"dependency.{path[1]}", TerraformReferenceKind.Dependency) : null;
             default:
                 // <resource_type>.<name> (resource reference), e.g. aws_security_group.internal
-                return path.Count >= 2 ? new ResolvedRef($"{head}.{path[1]}", "terraform", "resource", null) : null;
+                return path.Count >= 2 ? new ResolvedRef($"{head}.{path[1]}", TerraformReferenceKind.Resource) : null;
         }
     }
 
-    private readonly record struct ResolvedRef(string Key, string Via, string RefKind, string? OutputName);
+    // Edge provenance (`via`): the tool whose syntax produced the edge.
+    private const string ViaTerraform = "terraform";
+    private const string ViaTerragrunt = "terragrunt";
+    private const string ViaTfvars = "tfvars";
+
+    // Scope segment of a CloudService id for a project at the workspace root.
+    private const string RootScope = "root";
+
+    // EvidenceKind of a DEPENDS_ON edge declared by an explicit `depends_on` meta-argument.
+    private const string DependsOnEvidence = "depends_on";
+
+    private enum TerraformReferenceKind { Var, Local, Module, Data, Dependency, Resource }
+
+    private readonly record struct ResolvedRef(string Key, TerraformReferenceKind Kind);
 }

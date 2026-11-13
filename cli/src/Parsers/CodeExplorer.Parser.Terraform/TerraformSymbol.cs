@@ -16,26 +16,49 @@ namespace CodeExplorer.Parser.Terraform;
 public sealed record TerraformSymbol(
     string NodeId,
     string RefKey,
-    string Kind,          // resource | data_source | module | provider | variable | local | output | dependency
+    TerraformSymbolKind Kind,
     string RelativeDir,   // module directory (relative), used to scope resolution
     int Line,
-    string? ResourceType = null,  // for resource/data: the TF type, e.g. "aws_sqs_queue"
-    string? Name = null);         // for resource/data: the TF name label, e.g. "airflow_event_trigger"
+    TerraformResourceType? ResourceType = null,  // for resource/data: the TF type, e.g. "aws_sqs_queue"
+    string? Name = null,          // for resource/data: the TF name label, e.g. "airflow_event_trigger"
+    string? DeployedName = null,  // for resources: the literal cloud resource name, e.g. name = "orders-queue"
+    string? Engine = null);       // for database resources: the engine, e.g. "postgresql", "dynamodb"
+
+/// <summary>The HCL block a <see cref="TerraformSymbol"/> was declared by.</summary>
+public enum TerraformSymbolKind
+{
+    Resource,
+    DataSource,
+    Module,
+    Provider,
+    Variable,
+    Local,
+    Output,
+    Dependency,
+
+    /// <summary>
+    /// An attribute anchor (<see cref="TerraformAnchor"/>): a source of references, never a target,
+    /// and scoped to its own file.
+    /// </summary>
+    Attribute
+}
+
+/// <summary>
+/// A provider-defined Terraform resource type name (e.g. <c>aws_sqs_queue</c>). Open-ended — each
+/// provider defines its own — so it is carried as a typed name rather than an enum.
+/// </summary>
+public readonly record struct TerraformResourceType(string Name)
+{
+    public override string ToString() => Name;
+}
 
 
 /// <summary>
-/// A configuration intent surfaced during Layer 3: a value assigned to a Terraform
-/// <c>variable</c>, which the Layer 4 enricher resolves to the target variable declaration and
-/// emits as a <c>CONFIGURES</c> edge. Two sources:
-///   - a <c>.tfvars</c> assignment (<paramref name="Via"/> = "tfvars"), target variable in the
-///     same module directory (or cross-dir, marked inferred);
-///   - a Terragrunt <c>inputs = { }</c> key (<paramref name="Via"/> = "terragrunt"), target
-///     variable in the wrapped module resolved from this unit's <c>terraform { source }</c>.
-/// When the target module is not in the scanned workspace (e.g. a remote git module), no edge is
-/// emitted — the target variable node does not exist to point at.
+/// A <c>.tfvars</c> assignment, declared as a member node (<see cref="NodeId"/>). The Layer 4
+/// enricher links it to the <c>variable</c> of the same name declared in the same module directory;
+/// no edge is emitted when the variable is not declared there.
 /// </summary>
 public sealed record TerraformConfigure(
+    string NodeId,
     string VariableName,     // the key being assigned, e.g. "env"
-    string Via,              // "tfvars" | "terragrunt"
-    int Line,
-    string? SourceDir = null);  // for inputs: resolved wrapped-module dir (relative); null => same-dir (tfvars)
+    int Line);

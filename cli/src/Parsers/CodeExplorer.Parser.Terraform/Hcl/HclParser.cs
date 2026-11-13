@@ -1,484 +1,260 @@
+using Superpower.Model;
+
 namespace CodeExplorer.Parser.Terraform.Hcl;
 
 /// <summary>
-/// Recursive-descent HCL parser.
-/// Grammar (simplified):
-///   file       := (block | attribute | NEWLINE)*
-///   block      := IDENT (STRING | IDENT)* '{' body '}'
-///   attribute  := IDENT '=' expr
-///   body       := (block | attribute | NEWLINE)*
-///
-/// Expressions are not fully evaluated. For each attribute value and nested-block
-/// attribute we extract any traversal references (var.X, local.X, module.X[.Y],
-/// data.T.N, dependency.X.outputs.Y, &lt;resource_type&gt;.N) — including those inside
-/// "${ ... }" string interpolations — and record them as flat <see cref="HclReference"/>s.
-///
-/// Resilience: on an unexpected token, skip to the next NEWLINE or balance a brace and
-/// continue; never throw past a file (indexing must not fail a scan on one bad file).
+/// Parses an HCL file into <see cref="HclFile"/>. Attributes and block headers are read with the
+/// <see cref="HclGrammar"/> parsers; this class drives the body loop so a syntax error costs only
+/// the attribute or block it occurs in. The parser skips past the error, records an
+/// <see cref="HclDiagnostic"/>, and continues with the next body item. It never throws on malformed
+/// input.
 /// </summary>
-public sealed class HclParser
+public static class HclParser
 {
-    private readonly IReadOnlyList<HclToken> _tokens;
-    private int _pos;
-    private readonly List<HclReference> _references = [];
+    private const string MissingCloseBrace = "missing '}' at end of file";
+    private const string UnexpectedCloseBrace = "unexpected '}'";
+    private const string ExpectedBlockOrAttribute = "expected an attribute or block";
+    private const string TrailingTokens = "unexpected tokens after attribute value";
+    private const string BlockCommentClose = "*/";
 
-    // Ref-key of the top-level block currently being parsed (e.g. "aws_security_group.internal"),
-    // or null at file top level. References harvested inside the block are anchored to it.
-    private string? _enclosingKey;
-
-    // True while parsing the value of a `depends_on` meta-argument, so traversals harvested there
-    // are tagged as explicit ordering dependencies rather than implicit data references.
-    private bool _inDependsOn;
-
-    public HclParser(IReadOnlyList<HclToken> tokens) => _tokens = tokens;
-
-    private HclToken Cur => _tokens[Math.Min(_pos, _tokens.Count - 1)];
-    private HclToken Peek(int ahead = 1)
+    private static readonly Dictionary<string, HclBlockKind> TopLevelKinds = new(StringComparer.Ordinal)
     {
-        var i = _pos + ahead;
-        return i < _tokens.Count ? _tokens[i] : _tokens[^1];
+        ["resource"] = HclBlockKind.Resource,
+        ["data"] = HclBlockKind.Data,
+        ["module"] = HclBlockKind.Module,
+        ["variable"] = HclBlockKind.Variable,
+        ["output"] = HclBlockKind.Output,
+        ["provider"] = HclBlockKind.Provider,
+        ["locals"] = HclBlockKind.Locals,
+        ["terraform"] = HclBlockKind.Terraform,
+        ["dependency"] = HclBlockKind.Dependency,
+        ["dependencies"] = HclBlockKind.Dependencies,
+        ["include"] = HclBlockKind.Include
+    };
+
+    public static HclFile Parse(string source)
+    {
+        var diagnostics = new List<HclDiagnostic>();
+        var body = ParseBody(new TextSpan(source ?? string.Empty), nested: false, diagnostics);
+        return new HclFile(body.Attributes, body.Blocks, diagnostics);
     }
-    private bool Eof => Cur.Kind == HclTokenKind.Eof;
-    private void Next() { if (_pos < _tokens.Count - 1) _pos++; }
 
-    private void SkipNewlines()
-    {
-        while (Cur.Kind == HclTokenKind.Newline) Next();
-    }
+    private readonly record struct Body(List<HclAttribute> Attributes, List<HclBlock> Blocks, TextSpan Remainder);
 
-    public HclFile ParseFile()
+    // Parses body items until the closing '}' (nested) or end of input (top level). The returned
+    // remainder is just past the closing brace.
+    private static Body ParseBody(TextSpan input, bool nested, List<HclDiagnostic> diagnostics)
     {
+        var attributes = new List<HclAttribute>();
         var blocks = new List<HclBlock>();
-        var topAttrs = new List<HclAttribute>();
+        var rem = input;
 
-        var guard = 0;
-        while (!Eof)
+        while (true)
         {
-            if (++guard > _tokens.Count + 16) break; // hard safety against any non-advancing loop
+            rem = HclGrammar.Trivia(rem).Remainder;
 
-            SkipNewlines();
-            if (Eof) break;
+            if (rem.IsAtEnd)
+            {
+                if (nested) diagnostics.Add(new HclDiagnostic(rem.Position.Line, MissingCloseBrace));
+                return new Body(attributes, blocks, rem);
+            }
 
-            if (Cur.Kind == HclTokenKind.Identifier)
+            var next = rem.ConsumeChar();
+            if (next.Value == '}')
             {
-                // Decide block vs attribute by what follows the identifier (and its labels).
-                if (LooksLikeAttribute())
-                {
-                    var attr = ParseAttribute();
-                    if (attr != null) topAttrs.Add(attr);
-                }
-                else
-                {
-                    var block = ParseBlock();
-                    if (block != null) blocks.Add(block);
-                    else RecoverToNextLine();
-                }
+                if (nested) return new Body(attributes, blocks, next.Remainder);
+                diagnostics.Add(new HclDiagnostic(rem.Position.Line, UnexpectedCloseBrace));
+                rem = next.Remainder;
+                continue;
             }
-            else
-            {
-                // Unexpected at top level — recover.
-                RecoverToNextLine();
-            }
+
+            rem = ParseItem(rem, nested, attributes, blocks, diagnostics);
+        }
+    }
+
+    // Parses one attribute or block starting at `start`; on a syntax error, records it and returns
+    // the position after the skipped region.
+    private static TextSpan ParseItem(
+        TextSpan start, bool nested, List<HclAttribute> attributes, List<HclBlock> blocks, List<HclDiagnostic> diagnostics)
+    {
+        var name = HclGrammar.IdentifierToken(start);
+        if (!name.HasValue)
+        {
+            diagnostics.Add(new HclDiagnostic(start.Position.Line, ExpectedBlockOrAttribute));
+            return SkipJunk(start);
         }
 
-        return new HclFile(blocks, topAttrs, _references);
-    }
+        var line = name.Value.Position.Line;
+        var assign = HclGrammar.AssignToken(name.Remainder);
+        if (assign.HasValue)
+        {
+            var valueStart = HclGrammar.Trivia(assign.Remainder).Remainder;
+            var value = HclGrammar.Expr(valueStart);
+            if (!value.HasValue)
+            {
+                diagnostics.Add(Diagnostic(value.ErrorPosition, start, value.FormatErrorMessageFragment()));
+                return Recover(start);
+            }
 
-    /// <summary>True if the current IDENT begins an `IDENT = ...` attribute (not a block).</summary>
-    private bool LooksLikeAttribute()
-    {
-        // current is Identifier; look at the very next token
-        return Peek().Kind == HclTokenKind.Equals;
-    }
+            var valueText = valueStart.Until(value.Remainder).ToStringValue();
+            attributes.Add(new HclAttribute(name.Value.ToStringValue(), value.Value, valueText, line));
 
-    private HclBlock? ParseBlock()
-    {
-        if (Cur.Kind != HclTokenKind.Identifier) return null;
-        var type = Cur.Text;
-        var line = Cur.Line;
-        Next();
+            if (!AtItemEnd(value.Remainder))
+            {
+                diagnostics.Add(new HclDiagnostic(value.Remainder.Position.Line, TrailingTokens));
+                return Recover(value.Remainder);
+            }
+            return value.Remainder;
+        }
 
-        // Labels: zero or more STRING or bare IDENT before the opening brace.
         var labels = new List<string>();
-        while (Cur.Kind is HclTokenKind.String or HclTokenKind.Identifier)
+        var rem = name.Remainder;
+        while (HclGrammar.Label(rem) is { HasValue: true } label)
         {
-            labels.Add(Cur.Text);
-            Next();
+            labels.Add(label.Value);
+            rem = label.Remainder;
         }
 
-        if (Cur.Kind != HclTokenKind.LBrace)
+        var open = HclGrammar.BlockOpenToken(rem);
+        if (!open.HasValue)
         {
-            // Not actually a block — recover.
-            return null;
-        }
-        Next(); // consume '{'
-
-        // For a top-level block, set the enclosing ref-key so references inside it (including in
-        // nested blocks) are anchored to this declaration. Nested blocks inherit it unchanged.
-        var previousEnclosing = _enclosingKey;
-        if (_enclosingKey == null)
-        {
-            _enclosingKey = EnclosingKeyFor(type, labels);
+            diagnostics.Add(Diagnostic(open.ErrorPosition, rem, open.FormatErrorMessageFragment()));
+            return Recover(start);
         }
 
-        var (attrs, nested) = ParseBody();
-
-        _enclosingKey = previousEnclosing;
-        return new HclBlock(type, labels, attrs, nested, line);
+        var body = ParseBody(open.Remainder, nested: true, diagnostics);
+        var keyword = name.Value.ToStringValue();
+        var kind = !nested && TopLevelKinds.TryGetValue(keyword, out var k) ? k : HclBlockKind.Other;
+        blocks.Add(new HclBlock(kind, keyword, labels, body.Attributes, body.Blocks, line));
+        return body.Remainder;
     }
 
-    // Computes the ref-key a top-level block is referenced by, matching the declaration mapper:
-    //   resource "T" "N" -> "T.N";  data "T" "N" -> "data.T.N";  module/provider/dependency "N"
-    //   -> "<type>.N";  output "N" -> "output.N";  variable "N" -> "var.N".  `output` and
-    //   `variable` each wrap a single declaration node, so references in their values anchor to it.
-    //   `locals` (one block, many members) and blocks that declare nothing addressable return null,
-    //   so their inner references anchor to the file.
-    private static string? EnclosingKeyFor(string type, IReadOnlyList<string> labels)
+    private static HclDiagnostic Diagnostic(Position errorPosition, TextSpan fallback, string message) =>
+        new(errorPosition.HasValue ? errorPosition.Line : fallback.Position.Line, message);
+
+    // An attribute must be followed by a line break, a comment, a closing brace, or end of input.
+    private static bool AtItemEnd(TextSpan rem)
     {
-        switch (type)
+        var src = rem.Source!;
+        var end = rem.Position.Absolute + rem.Length;
+        var i = rem.Position.Absolute;
+        while (i < end && src[i] is ' ' or '\t' or '\r') i++;
+        if (i >= end) return true;
+        return src[i] switch
         {
-            case "resource":
-                return labels.Count >= 2 ? $"{labels[0]}.{labels[1]}" : null;
-            case "data":
-                return labels.Count >= 2 ? $"data.{labels[0]}.{labels[1]}" : null;
-            case "module":
-            case "provider":
-            case "dependency":
-                return labels.Count >= 1 ? $"{type}.{labels[0]}" : null;
-            case "output":
-                return labels.Count >= 1 ? $"output.{labels[0]}" : null;
-            case "variable":
-                return labels.Count >= 1 ? $"var.{labels[0]}" : null;
-            default:
-                return null;
-        }
-    }
-
-    private (List<HclAttribute> Attrs, List<HclBlock> Nested) ParseBody()
-    {
-        var attrs = new List<HclAttribute>();
-        var nested = new List<HclBlock>();
-
-        var guard = 0;
-        while (!Eof && Cur.Kind != HclTokenKind.RBrace)
-        {
-            if (++guard > _tokens.Count + 16) break;
-
-            SkipNewlines();
-            if (Eof || Cur.Kind == HclTokenKind.RBrace) break;
-
-            if (Cur.Kind == HclTokenKind.Identifier)
-            {
-                if (LooksLikeAttribute())
-                {
-                    var attr = ParseAttribute();
-                    if (attr != null) attrs.Add(attr);
-                }
-                else
-                {
-                    var before = _pos;
-                    var block = ParseBlock();
-                    if (block != null) nested.Add(block);
-                    else if (_pos == before) Next(); // ensure progress
-                }
-            }
-            else
-            {
-                // Unknown construct in body — skip one token to stay resilient.
-                Next();
-            }
-        }
-
-        if (Cur.Kind == HclTokenKind.RBrace) Next(); // consume '}'
-        return (attrs, nested);
-    }
-
-    private HclAttribute? ParseAttribute()
-    {
-        var name = Cur.Text;
-        var line = Cur.Line;
-        Next();                 // identifier
-        if (Cur.Kind != HclTokenKind.Equals) return null;
-        Next();                 // '='
-
-        _inDependsOn = string.Equals(name, "depends_on", StringComparison.Ordinal);
-        var expr = ParseExpressionValue(line);
-        _inDependsOn = false;
-        return new HclAttribute(name, expr, line);
-    }
-
-    /// <summary>
-    /// Consume an attribute value until the terminating NEWLINE (respecting bracket/brace/paren
-    /// nesting), building a coarse <see cref="HclExpr"/> and harvesting traversal references.
-    /// </summary>
-    private HclExpr ParseExpressionValue(int line)
-    {
-        var startTok = Cur;
-        var textParts = new List<string>();
-        var depth = 0;
-        var isObject = startTok.Kind == HclTokenKind.LBrace;
-        var isTuple = startTok.Kind == HclTokenKind.LBracket;
-        // Top-level keys of an object literal: identifiers at brace-depth 1 followed by '=' (or ':').
-        List<string>? objectKeys = isObject ? [] : null;
-        // Top-level string elements of a tuple literal (e.g. the entries of paths = ["../a","../b"]).
-        List<string>? tupleItems = isTuple ? [] : null;
-        // True when the next token begins a new object element (after '{' or a depth-1 ',').
-        var atObjectElementStart = true;
-
-        while (!Eof)
-        {
-            var k = Cur.Kind;
-            if (depth == 0 && (k == HclTokenKind.Newline || k == HclTokenKind.RBrace || k == HclTokenKind.Comma))
-            {
-                break;
-            }
-
-            switch (k)
-            {
-                case HclTokenKind.LBrace or HclTokenKind.LBracket or HclTokenKind.LParen:
-                    depth++;
-                    if (isObject && depth == 1) atObjectElementStart = true;
-                    break;
-                case HclTokenKind.RBrace or HclTokenKind.RBracket or HclTokenKind.RParen:
-                    depth--;
-                    if (depth < 0) depth = 0;
-                    break;
-                case HclTokenKind.String or HclTokenKind.Heredoc:
-                    // A string element directly inside the tuple (bracket-depth 1) is a list item.
-                    if (tupleItems != null && depth == 1)
-                    {
-                        tupleItems.Add(Cur.Text);
-                    }
-                    HarvestInterpolations(Cur.Text, Cur.Line);
-                    if (depth == 1) atObjectElementStart = false;
-                    break;
-                case HclTokenKind.Identifier:
-                    // Only an element-leading identifier before '=' or ':' is a key.
-                    if (objectKeys != null && depth == 1 && atObjectElementStart &&
-                        (Peek().Kind == HclTokenKind.Equals || Peek().Kind == HclTokenKind.Colon))
-                    {
-                        objectKeys.Add(Cur.Text);
-                    }
-                    if (depth == 1) atObjectElementStart = false;
-                    // Capture IDENT ('.' IDENT | '[' .. ']')* as one unit and advance the cursor
-                    // past the whole traversal, so interior segments are not examined again.
-                    var travEnd = TryHarvestTraversalFromTokens();
-                    while (_pos < travEnd)
-                    {
-                        textParts.Add(Cur.Text);
-                        Next();
-                    }
-                    continue;
-                case HclTokenKind.Comma or HclTokenKind.Newline:
-                    // Both separate object elements at depth 1; the next identifier starts a key.
-                    if (depth == 1) atObjectElementStart = true;
-                    break;
-                default:
-                    if (depth == 1) atObjectElementStart = false;
-                    break;
-            }
-
-            textParts.Add(Cur.Text);
-            Next();
-        }
-
-        var literal = JoinExprText(textParts);
-        var kind = startTok.Kind switch
-        {
-            HclTokenKind.String or HclTokenKind.Heredoc => HclExprKind.Template,
-            HclTokenKind.Number or HclTokenKind.Bool or HclTokenKind.Null => HclExprKind.Literal,
-            HclTokenKind.LBracket => HclExprKind.Tuple,
-            HclTokenKind.LBrace => HclExprKind.ObjectExpr,
-            _ => HclExprKind.Unknown
+            '\n' or '}' or '#' => true,
+            '/' => i + 1 < end && src[i + 1] is '/' or '*',
+            _ => false
         };
-        return new HclExpr(kind, literal, null, null, null, line,
-            objectKeys is { Count: > 0 } ? objectKeys : null,
-            tupleItems is { Count: > 0 } ? tupleItems : null);
     }
 
     /// <summary>
-    /// Joins expression tokens into a display string with single spaces, EXCEPT around "." tokens
-    /// so dotted traversals read naturally (e.g. "module.vpc.id" rather than "module . vpc . id").
+    /// Skips a malformed body item: everything up to the end of the line on which all brackets
+    /// opened since <paramref name="from"/> are closed, or up to (not past) a '}' that closes the
+    /// enclosing block. Strings, comments, and heredocs are skipped whole so brackets inside them
+    /// are not counted. Always advances at least one character.
     /// </summary>
-    private static string JoinExprText(IReadOnlyList<string> parts)
+    private static TextSpan Recover(TextSpan from)
     {
-        var sb = new System.Text.StringBuilder();
-        for (var idx = 0; idx < parts.Count; idx++)
+        var src = from.Source!;
+        var start = from.Position.Absolute;
+        var end = start + from.Length;
+        var depth = 0;
+        var i = start;
+
+        while (i < end)
         {
-            var part = parts[idx];
-            var isDot = part == ".";
-            var prevIsDot = idx > 0 && parts[idx - 1] == ".";
-            // No leading space before a "." or immediately after a "."; otherwise space-separate.
-            if (sb.Length > 0 && !isDot && !prevIsDot)
+            var c = src[i];
+            if (c == '\n' && depth == 0) { i++; break; }
+
+            switch (c)
             {
-                sb.Append(' ');
-            }
-            sb.Append(part);
-        }
-        return sb.ToString().Trim();
-    }
-
-    /// <summary>
-    /// At an Identifier token that may start a traversal. Reads IDENT ('.' IDENT | '[' .. ']' )*
-    /// and records it as a reference candidate (any dotted path, head kept as-is). Verification
-    /// against declared symbols happens later in the Layer 4 enricher — no lexical filter here.
-    /// Does NOT move the cursor; returns the token index just past the whole traversal so the
-    /// caller can consume it as a unit (always &gt; _pos, guaranteeing forward progress).
-    /// </summary>
-    private int TryHarvestTraversalFromTokens()
-    {
-        var (path, next) = ReadTraversal(_tokens, _pos);
-
-        if (path.Count >= 2)
-        {
-            _references.Add(new HclReference(path[0], path, Cur.Line, _enclosingKey, _inDependsOn));
-        }
-
-        return next;
-    }
-
-    /// <summary>
-    /// Reads a traversal starting at an identifier token at <paramref name="start"/>: the head
-    /// identifier followed by zero or more <c>.segment</c> (identifier or splat <c>*</c>) and
-    /// <c>[ ... ]</c> index groups (bracket-balanced and skipped). Returns the dotted path
-    /// (head + segments) and the index just past the whole traversal. Pure over the supplied token
-    /// list, so it serves both the main parse walk and interpolation inner-text.
-    /// </summary>
-    private static (List<string> Path, int Next) ReadTraversal(IReadOnlyList<HclToken> tokens, int start)
-    {
-        var path = new List<string> { tokens[start].Text };
-        var i = start + 1;
-        while (i < tokens.Count)
-        {
-            var t = tokens[i];
-            if (t.Kind == HclTokenKind.Dot && i + 1 < tokens.Count &&
-                (tokens[i + 1].Kind == HclTokenKind.Identifier || tokens[i + 1].Kind == HclTokenKind.Star))
-            {
-                path.Add(tokens[i + 1].Text);
-                i += 2;
-                continue;
-            }
-            if (t.Kind == HclTokenKind.LBracket)
-            {
-                var d = 1; i++;
-                while (i < tokens.Count && d > 0)
-                {
-                    if (tokens[i].Kind == HclTokenKind.LBracket) d++;
-                    else if (tokens[i].Kind == HclTokenKind.RBracket) d--;
-                    i++;
-                }
-                continue;
-            }
-            break;
-        }
-        return (path, i);
-    }
-
-    /// <summary>Extract traversals that appear inside "${ ... }" interpolations in a string/heredoc.</summary>
-    private void HarvestInterpolations(string text, int line)
-    {
-        if (string.IsNullOrEmpty(text) || !text.Contains("${")) return;
-
-        foreach (var inner in ExtractInterpolations(text))
-        {
-            // Lex the interpolation expression and harvest traversals with the same token logic the
-            // main walk uses, so hyphens, index access, and splats are treated identically.
-            var tokens = new HclLexer(inner).Tokenize();
-            for (var i = 0; i < tokens.Count; i++)
-            {
-                if (tokens[i].Kind != HclTokenKind.Identifier) continue;
-
-                var (path, next) = ReadTraversal(tokens, i);
-                if (path.Count >= 2)
-                {
-                    _references.Add(new HclReference(path[0], path, line, _enclosingKey, _inDependsOn));
-                }
-                // Advance past the harvested traversal (next is always > i) so interior segments
-                // are not re-examined; -1 compensates for the loop's own increment.
-                i = next - 1;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Extracts the inner text of every `${ ... }` interpolation in <paramref name="text"/>,
-    /// tracking brace nesting so that `}` characters inside the interpolation (object literals,
-    /// nested interpolations, function args) do not prematurely terminate it. String literals
-    /// inside the interpolation are skipped so a `"}"` within them is not counted as a brace.
-    /// </summary>
-    private static IEnumerable<string> ExtractInterpolations(string text)
-    {
-        var results = new List<string>();
-        var n = text.Length;
-        var p = 0;
-
-        while (p < n - 1)
-        {
-            // `$$` / `%%` escape a literal `${` / `%{`: skip both chars so the escaped opener is
-            // not read as an interpolation.
-            if ((text[p] == '$' || text[p] == '%') && text[p + 1] == text[p])
-            {
-                p += 2;
-                continue;
-            }
-
-            // Find the next interpolation opener "${".
-            if (text[p] != '$' || text[p + 1] != '{')
-            {
-                p++;
-                continue;
-            }
-
-            var start = p + 2;   // first char inside the interpolation
-            var i = start;
-            var depth = 1;       // we are inside one '{'
-
-            while (i < n && depth > 0)
-            {
-                var c = text[i];
-                if (c == '"')
-                {
-                    // Skip a string literal: advance to the matching unescaped closing quote.
-                    i++;
-                    while (i < n)
-                    {
-                        if (text[i] == '\\') { i += 2; continue; }
-                        if (text[i] == '"') { i++; break; }
-                        i++;
-                    }
+                case '"':
+                    i = SkipQuoted(src, i + 1, end);
                     continue;
-                }
-                if (c == '{') depth++;
-                else if (c == '}') depth--;
-
-                if (depth == 0) break;
-                i++;
+                case '#':
+                    i = SkipToLineEnd(src, i, end);
+                    continue;
+                case '/' when i + 1 < end && src[i + 1] == '/':
+                    i = SkipToLineEnd(src, i, end);
+                    continue;
+                case '/' when i + 1 < end && src[i + 1] == '*':
+                    var close = src.IndexOf(BlockCommentClose, i + 2, end - i - 2, StringComparison.Ordinal);
+                    i = close < 0 ? end : close + 2;
+                    continue;
+                case '<' when i + 1 < end && src[i + 1] == '<':
+                    i = SkipHeredoc(src, i, end);
+                    continue;
+                case '{' or '[' or '(':
+                    depth++;
+                    break;
+                case '}' when depth == 0:
+                    return Advance(from, Math.Max(i, start + 1));
+                case '}' or ']' or ')':
+                    depth = Math.Max(0, depth - 1);
+                    break;
             }
-
-            if (depth == 0 && i <= n)
-            {
-                results.Add(text.Substring(start, i - start));
-                p = i + 1;       // continue after the closing '}'
-            }
-            else
-            {
-                // Unterminated interpolation — take the rest and stop.
-                results.Add(text.Substring(start));
-                break;
-            }
+            i++;
         }
 
-        return results;
+        return Advance(from, Math.Max(i, start + 1));
     }
 
-    private void RecoverToNextLine()
+    // An item that does not start with an identifier: skip only the characters before the next
+    // identifier, whitespace, or '}', so a stray character does not cost the block after it.
+    // Strings and multi-line constructs fall back to Recover.
+    private static TextSpan SkipJunk(TextSpan from)
     {
-        var guard = 0;
-        while (!Eof && Cur.Kind != HclTokenKind.Newline)
+        var src = from.Source!;
+        var start = from.Position.Absolute;
+        var end = start + from.Length;
+        var i = start;
+        while (i < end && !char.IsWhiteSpace(src[i]) && !char.IsLetter(src[i]) && src[i] != '_' && src[i] != '}')
         {
-            Next();
-            if (++guard > _tokens.Count) break;
+            if (src[i] is '"' or '{' or '[' or '(' or '<' or '#' or '/') return Recover(from);
+            i++;
         }
-        SkipNewlines();
+        return Advance(from, Math.Max(i, start + 1));
+    }
+
+    private static TextSpan Advance(TextSpan from, int absolute) =>
+        from.Skip(Math.Min(absolute, from.Position.Absolute + from.Length) - from.Position.Absolute);
+
+    private static int SkipQuoted(string src, int i, int end)
+    {
+        while (i < end && src[i] != '"' && src[i] != '\n')
+        {
+            i += src[i] == '\\' ? 2 : 1;
+        }
+        return Math.Min(end, i < end && src[i] == '"' ? i + 1 : i);
+    }
+
+    private static int SkipToLineEnd(string src, int i, int end)
+    {
+        var newline = src.IndexOf('\n', i, end - i);
+        return newline < 0 ? end : newline;
+    }
+
+    // Skips `<<[-]DELIM` through its closing delimiter line; if unterminated, only the `<<`.
+    private static int SkipHeredoc(string src, int i, int end)
+    {
+        var j = i + 2;
+        if (j < end && src[j] == '-') j++;
+        var delimiterStart = j;
+        while (j < end && (char.IsLetterOrDigit(src[j]) || src[j] == '_')) j++;
+        if (j == delimiterStart) return i + 2;
+
+        var delimiter = src[delimiterStart..j];
+        var lineStart = SkipToLineEnd(src, j, end) + 1;
+        while (lineStart < end)
+        {
+            var lineEnd = SkipToLineEnd(src, lineStart, end);
+            if (src.AsSpan(lineStart, lineEnd - lineStart).Trim().Equals(delimiter, StringComparison.Ordinal))
+            {
+                return lineEnd;
+            }
+            lineStart = lineEnd + 1;
+        }
+        return i + 2;
     }
 }
