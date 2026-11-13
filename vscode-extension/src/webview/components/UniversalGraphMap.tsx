@@ -33,15 +33,36 @@ import {
   DomainLayoutName,
 } from '../domain/types';
 import { getNodeBadgeSvgDataUri, getEntityBadgeMeta } from '../domain/entityBadges';
-import { computeGroupedGraph } from '../domain/nodeGrouping';
 import { matchesSearchTokens } from '../domain/searchUtils';
 import {
   OrbitLegendItem,
+  GROUP_NODE_SIZE,
   buildAllOrbitLegendItems,
   applyEdgeCurveMode,
   applyEdgeLabelVisibility,
 } from './DomainArchitectureView';
 import { RawEdgeInfo } from '../domain/inspectorSchema';
+
+const universalSessionMemory = new Map<string, string>();
+
+const CATEGORY_PLURAL_LABELS: Record<string, string> = {
+  Service: 'Services',
+  Worker: 'Workers',
+  TestSuite: 'Tests',
+  Database: 'Databases',
+  Table: 'Tables',
+  Procedure: 'Procedures',
+  Topic: 'Topics',
+  ExternalService: 'External',
+  CloudService: 'Cloud Services',
+  App: 'Apps',
+  CliTool: 'CLI Tools',
+  Library: 'Libraries',
+  Endpoint: 'Endpoints',
+  EntryPoint: 'EntryPoints',
+  Type: 'Classes',
+  Module: 'Modules',
+};
 
 try {
   cytoscape.use(dagre);
@@ -124,6 +145,25 @@ const DEFAULT_SEVEN_TIER_ORBIT_CONFIG: OrbitConfig = {
   kindTiers: {},
 };
 
+const KEY_GROUPED_TYPES = 'grouped_types';
+const KEY_CUSTOM_GROUPS = 'custom_groups';
+const EMPTY_STR = '';
+const CLS_MULTI_SELECTED = 'multi-selected';
+const CLS_HIGHLIGHTED_DIMMED = 'highlighted dimmed';
+const EVT_CXTTAP = 'cxttap';
+const SEL_NODE = 'node';
+const GROUP_PREFIX = 'group:';
+const CUSTOM_GROUP_PREFIX = 'group:custom:';
+const KIND_GROUP_PREFIX = 'group:kind:';
+const COLON_CHAR = ':';
+const ELLIPSIS_SUFFIX = '...';
+const CHECK_PREFIX = '✓ ';
+const SPACE_STR = ' ';
+const KEY_ENTER = 'Enter';
+const RADIX_36 = 36;
+const CUSTOM_GROUP_ID_PREFIX = 'cg_';
+const UNDERSCORE_STR = '_';
+
 const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'node',
@@ -162,16 +202,6 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     },
   },
   {
-    selector: 'node:selected',
-    style: {
-      'border-color': '#ffffff',
-      'border-width': 4,
-      'underlay-color': '#38bdf8',
-      'underlay-padding': '8px',
-      'underlay-opacity': 0.5,
-    },
-  },
-  {
     selector: 'node.group-node',
     style: {
       'width': 'data(size)',
@@ -188,6 +218,16 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'underlay-color': '#38bdf8',
       'underlay-padding': '8px',
       'underlay-opacity': 0.65,
+    },
+  },
+  {
+    selector: 'node:selected',
+    style: {
+      'border-color': '#ffffff',
+      'border-width': 4,
+      'underlay-color': '#38bdf8',
+      'underlay-padding': '8px',
+      'underlay-opacity': 0.5,
     },
   },
   {
@@ -338,6 +378,994 @@ function classifyEdgeCategory(
   return 'service_call';
 }
 
+export interface ParsedUniversalGraph {
+  detailMap: Map<string, SelectedNodeDetail>;
+  echelonMap: Map<string, number>;
+  rawEdges: RawEdgeInfo[];
+  allCyNodes: cytoscape.NodeDefinition[];
+  outAdj: Map<string, string[]>;
+}
+
+export function parseUniversalGraph(
+  graph: GraphData | null,
+  customTitlesByTier: Record<number, string> = {}
+): ParsedUniversalGraph {
+  const detailMap = new Map<string, SelectedNodeDetail>();
+  const echelonMap = new Map<string, number>();
+  const rawEdges: RawEdgeInfo[] = [];
+  const allCyNodes: cytoscape.NodeDefinition[] = [];
+  const outAdj = new Map<string, string[]>();
+
+  const nodes = graph?.nodes ?? [];
+  const edges = graph?.edges ?? [];
+
+  for (const n of nodes) {
+    const p = n.properties ?? {};
+    const rawKind = String(n.kind || 'Type');
+    const kind: EntityKind =
+      rawKind === 'Folder' || rawKind === 'File'
+        ? 'Module'
+        : ((rawKind as EntityKind) || 'Type');
+    const badgeMeta = getEntityBadgeMeta(kind);
+    const tier = Number.isFinite(Number(p.tier))
+      ? Number(p.tier)
+      : Number.isFinite(Number(p.echelon_tier))
+      ? Number(p.echelon_tier)
+      : 2;
+    echelonMap.set(n.id, tier);
+
+    let filesList: Array<{ id: string; name: string; filePath: string; lineStart: number }> = [];
+    if (p.files) {
+      try {
+        const parsed = JSON.parse(p.files);
+        if (Array.isArray(parsed)) {
+          filesList = parsed.map((f: string, idx: number) => ({
+            id: `${n.id}:file:${idx}`,
+            name: String(f).split(/[/\\]/).pop() || String(f),
+            filePath: String(f),
+            lineStart: 1,
+          }));
+        }
+      } catch {
+        // ignored: files property is not a JSON array
+      }
+    }
+
+    const primaryFilePath =
+      n.filePath || p.file_path || p.path || (filesList.length > 0 ? filesList[0].filePath : undefined);
+    const primaryLineStart = n.lineStart || (p.start_line ? parseInt(p.start_line, 10) : undefined);
+
+    const detail: SelectedNodeDetail = {
+      id: n.id,
+      name: n.name || n.id,
+      displayName: n.displayName || n.name || n.id,
+      kind,
+      displayTag: p.sub_kind || badgeMeta.code,
+      bgColor: p.color || p.bgColor || badgeMeta.bgColor,
+      borderColor: p.borderColor || badgeMeta.borderColor,
+      primaryFilePath,
+      primaryLineStart,
+      properties: p,
+      tier,
+      tierLabel: p.tier_label || customTitlesByTier[tier] || `Tier ${tier}`,
+      tierReason: p.tier_reason,
+      inboundCallsCount: Number(p.fan_in || 0),
+      outboundCallsCount: Number(p.fan_out || 0),
+      dbCount: Number(p.data_file_count || 0),
+      messagingCount: 0,
+      fileCount: Number(p.file_count || filesList.length || 1),
+      projects: filesList,
+    };
+    detailMap.set(n.id, detail);
+
+    allCyNodes.push({
+      group: 'nodes',
+      data: {
+        id: n.id,
+        kind,
+        echelonTier: tier,
+      },
+    });
+  }
+
+  // Compute accurate inbound/outbound/db/messaging counts from edges
+  const inCounts = new Map<string, number>();
+  const outCounts = new Map<string, number>();
+  const dbCounts = new Map<string, number>();
+  const msgCounts = new Map<string, number>();
+
+  for (const e of edges) {
+    const sDetail = detailMap.get(e.source);
+    const tDetail = detailMap.get(e.target);
+    if (!sDetail || !tDetail) continue;
+
+    const count = Number(e.properties?.call_count ?? e.properties?.count ?? 1) || 1;
+    const category = classifyEdgeCategory(e.kind, tDetail.kind);
+    const edgeId = e.id ?? `${e.source}->${e.target}`;
+
+    rawEdges.push({
+      id: edgeId,
+      source: e.source,
+      target: e.target,
+      category,
+      label: e.kind || 'CALLS',
+      count,
+      kind: e.kind,
+    });
+
+    if (e.source !== e.target) {
+      let targets = outAdj.get(e.source);
+      if (!targets) {
+        targets = [];
+        outAdj.set(e.source, targets);
+      }
+      targets.push(e.target);
+    }
+
+    if (category === 'database') {
+      dbCounts.set(e.source, (dbCounts.get(e.source) ?? 0) + 1);
+      dbCounts.set(e.target, (dbCounts.get(e.target) ?? 0) + 1);
+    } else if (category === 'messaging') {
+      msgCounts.set(e.source, (msgCounts.get(e.source) ?? 0) + 1);
+      msgCounts.set(e.target, (msgCounts.get(e.target) ?? 0) + 1);
+    } else {
+      outCounts.set(e.source, (outCounts.get(e.source) ?? 0) + count);
+      inCounts.set(e.target, (inCounts.get(e.target) ?? 0) + count);
+    }
+  }
+
+  for (const [id, detail] of detailMap.entries()) {
+    if (inCounts.has(id)) detail.inboundCallsCount = inCounts.get(id)!;
+    if (outCounts.has(id)) detail.outboundCallsCount = outCounts.get(id)!;
+    if (dbCounts.has(id)) detail.dbCount = Math.max(detail.dbCount, dbCounts.get(id)!);
+    if (msgCounts.has(id)) detail.messagingCount = msgCounts.get(id)!;
+  }
+
+  return { detailMap, echelonMap, rawEdges, allCyNodes, outAdj };
+}
+
+export interface ComputeUniversalVisibleGraphOptions {
+  parsedGraph: ParsedUniversalGraph;
+  hiddenNodeIds?: Set<string>;
+  hiddenTypes?: Set<EntityKind>;
+  hiddenOrbitTiers?: Set<number>;
+  hideIsolatedNodes?: boolean;
+  groupedTypes?: Set<EntityKind>;
+  customGroups?: CustomNodeGroup[];
+  orbitConfig?: OrbitConfig;
+  customTitlesByTier?: Record<number, string>;
+  baseIconSize?: number;
+  nodeSizingMode?: NodeSizingMode;
+  nodeContentMode?: NodeContentMode;
+}
+
+export function computeUniversalVisibleGraph(options: ComputeUniversalVisibleGraphOptions) {
+  const {
+    parsedGraph,
+    hiddenNodeIds = new Set<string>(),
+    hiddenTypes = new Set<EntityKind>(),
+    hiddenOrbitTiers = new Set<number>(),
+    hideIsolatedNodes = false,
+    groupedTypes = new Set<EntityKind>(),
+    customGroups = [],
+    orbitConfig = DEFAULT_SEVEN_TIER_ORBIT_CONFIG,
+    customTitlesByTier = {},
+    baseIconSize = 48,
+    nodeSizingMode = 'sqrt-weight',
+    nodeContentMode = 'icon',
+  } = options;
+
+  const candidateNodeIds = new Set<string>();
+  for (const [id, detail] of parsedGraph.detailMap.entries()) {
+    if (hiddenNodeIds.has(id)) continue;
+    if (hiddenTypes.has(detail.kind)) continue;
+    const effTier = effectiveOrbitTier(orbitConfig, detail.kind, detail.tier ?? 2);
+    if (hiddenOrbitTiers.has(effTier)) continue;
+    candidateNodeIds.add(id);
+  }
+
+  const activeRawEdges = parsedGraph.rawEdges.filter(
+    (e) => candidateNodeIds.has(e.source) && candidateNodeIds.has(e.target) && e.source !== e.target
+  );
+
+  if (hideIsolatedNodes) {
+    const connected = new Set<string>();
+    for (const e of activeRawEdges) {
+      connected.add(e.source);
+      connected.add(e.target);
+    }
+    for (const id of Array.from(candidateNodeIds)) {
+      if (!connected.has(id)) {
+        candidateNodeIds.delete(id);
+      }
+    }
+  }
+
+  const nodeToGroupId = new Map<string, string>();
+  const synthesizedGroupNodes: SelectedNodeDetail[] = [];
+  const synthesizedGroupCyNodes: cytoscape.ElementDefinition[] = [];
+
+  // 1. Custom Groups (precedence over category collapse)
+  for (const group of customGroups) {
+    if (!group.collapsed) continue;
+    const memberIds = group.nodeIds.filter((id) => candidateNodeIds.has(id));
+    if (memberIds.length < 1) continue;
+
+    const groupId = `group:custom:${group.id}`;
+    for (const mId of memberIds) {
+      nodeToGroupId.set(mId, groupId);
+    }
+
+    const memberNodes = memberIds
+      .map((id) => parsedGraph.detailMap.get(id)!)
+      .filter(Boolean);
+    const memberTiers = memberNodes.map((m) =>
+      effectiveOrbitTier(orbitConfig, m.kind, m.tier ?? parsedGraph.echelonMap.get(m.id) ?? 2)
+    );
+    const minTier = memberTiers.length > 0 ? Math.min(...memberTiers) : 2;
+
+    const allSameKind = memberNodes.length > 0 && memberNodes.every((m) => m.kind === memberNodes[0].kind);
+    const groupKind: EntityKind = allSameKind ? memberNodes[0].kind : 'Group';
+    const badgeMeta = getEntityBadgeMeta(groupKind);
+    const displayName = `${group.name} (${memberNodes.length})`;
+    const badgeSvg = getNodeBadgeSvgDataUri(groupKind, { isGroup: true, count: memberNodes.length });
+
+    const groupDetail: SelectedNodeDetail = {
+      id: groupId,
+      name: group.name,
+      displayName,
+      kind: groupKind,
+      isGroup: true,
+      groupType: 'custom',
+      customGroupId: group.id,
+      groupKind: allSameKind ? groupKind : undefined,
+      memberIds,
+      memberNodes,
+      internalConnections: [],
+      displayTag: allSameKind ? badgeMeta.code : 'GRP',
+      bgColor: badgeMeta.bgColor,
+      borderColor: badgeMeta.borderColor,
+      tier: minTier,
+      tierLabel: customTitlesByTier[minTier] || `Tier ${minTier}`,
+      inboundCallsCount: 0,
+      outboundCallsCount: 0,
+      dbCount: 0,
+      messagingCount: 0,
+      fileCount: memberNodes.reduce((sum, m) => sum + (m.fileCount || 1), 0),
+      projects: memberNodes.flatMap((m) => m.projects || []),
+    };
+
+    synthesizedGroupNodes.push(groupDetail);
+    synthesizedGroupCyNodes.push({
+      group: 'nodes',
+      classes: 'group-node',
+      data: {
+        id: groupId,
+        name: group.name,
+        displayLabel: displayName,
+        kind: groupKind,
+        isGroup: 'true',
+        groupType: 'custom',
+        shape: badgeMeta.shape,
+        size: GROUP_NODE_SIZE,
+        bgColor: badgeMeta.bgColor,
+        borderColor: badgeMeta.borderColor,
+        badgeSvg,
+        echelonTier: minTier,
+      },
+    });
+  }
+
+  // 2. Category Groups (for kinds in groupedTypes)
+  for (const kind of groupedTypes) {
+    if (hiddenTypes.has(kind)) continue;
+    const memberIds: string[] = [];
+    for (const id of candidateNodeIds) {
+      if (nodeToGroupId.has(id)) continue;
+      const d = parsedGraph.detailMap.get(id);
+      if (d?.kind === kind) {
+        memberIds.push(id);
+      }
+    }
+
+    if (memberIds.length < 2) continue; // Only collapse if >= 2 visible nodes of this kind
+
+    const groupId = `group:kind:${kind}`;
+    for (const mId of memberIds) {
+      nodeToGroupId.set(mId, groupId);
+    }
+
+    const memberNodes = memberIds
+      .map((id) => parsedGraph.detailMap.get(id)!)
+      .filter(Boolean);
+    const memberTiers = memberNodes.map((m) =>
+      effectiveOrbitTier(orbitConfig, m.kind, m.tier ?? parsedGraph.echelonMap.get(m.id) ?? 2)
+    );
+    const minTier = memberTiers.length > 0 ? Math.min(...memberTiers) : 2;
+
+    const badgeMeta = getEntityBadgeMeta(kind);
+    const pluralLabel = CATEGORY_PLURAL_LABELS[kind] || `${badgeMeta.label || kind}s`;
+    const displayName = `${pluralLabel} (${memberNodes.length})`;
+    const badgeSvg = getNodeBadgeSvgDataUri(kind, { isGroup: true, count: memberNodes.length });
+
+    const groupDetail: SelectedNodeDetail = {
+      id: groupId,
+      name: pluralLabel,
+      displayName,
+      kind,
+      isGroup: true,
+      groupType: 'category',
+      groupKind: kind,
+      memberIds,
+      memberNodes,
+      internalConnections: [],
+      displayTag: badgeMeta.code,
+      bgColor: badgeMeta.bgColor,
+      borderColor: badgeMeta.borderColor,
+      tier: minTier,
+      tierLabel: customTitlesByTier[minTier] || `Tier ${minTier}`,
+      inboundCallsCount: 0,
+      outboundCallsCount: 0,
+      dbCount: 0,
+      messagingCount: 0,
+      fileCount: memberNodes.reduce((sum, m) => sum + (m.fileCount || 1), 0),
+      projects: memberNodes.flatMap((m) => m.projects || []),
+    };
+
+    synthesizedGroupNodes.push(groupDetail);
+    synthesizedGroupCyNodes.push({
+      group: 'nodes',
+      classes: 'group-node',
+      data: {
+        id: groupId,
+        name: pluralLabel,
+        displayLabel: displayName,
+        kind,
+        isGroup: 'true',
+        groupType: 'category',
+        shape: badgeMeta.shape,
+        size: GROUP_NODE_SIZE,
+        bgColor: badgeMeta.bgColor,
+        borderColor: badgeMeta.borderColor,
+        badgeSvg,
+        echelonTier: minTier,
+      },
+    });
+  }
+
+  const effDetailMap = new Map<string, SelectedNodeDetail>(parsedGraph.detailMap);
+  for (const g of synthesizedGroupNodes) {
+    effDetailMap.set(g.id, g);
+  }
+
+  const vNodes: cytoscape.ElementDefinition[] = [];
+  for (const id of candidateNodeIds) {
+    if (nodeToGroupId.has(id)) continue;
+    const detail = parsedGraph.detailMap.get(id)!;
+    const badgeMeta = getEntityBadgeMeta(detail.kind);
+    const effTier = effectiveOrbitTier(orbitConfig, detail.kind, detail.tier ?? 2);
+    const totalConnections =
+      detail.inboundCallsCount + detail.outboundCallsCount + detail.dbCount + detail.messagingCount;
+    const weightVal = Math.max(1, detail.fileCount || totalConnections || 1);
+
+    let computedSize = baseIconSize;
+    if (nodeSizingMode === 'sqrt-weight') {
+      const base = Math.round(baseIconSize * (34 / 52));
+      const factor = (baseIconSize / 52) * 8.5;
+      const minSize = Math.round(baseIconSize * (36 / 52));
+      const maxSize = Math.round(baseIconSize * (88 / 52));
+      computedSize = Math.round(Math.max(minSize, Math.min(maxSize, base + factor * Math.sqrt(weightVal))));
+    } else if (nodeSizingMode === 'degree') {
+      const base = Math.round(baseIconSize * (36 / 52));
+      const factor = (baseIconSize / 52) * 6.5;
+      const minSize = Math.round(baseIconSize * (38 / 52));
+      const maxSize = Math.round(baseIconSize * (88 / 52));
+      computedSize = Math.round(
+        Math.max(minSize, Math.min(maxSize, base + factor * Math.sqrt(Math.max(1, totalConnections))))
+      );
+    }
+
+    const metricText = detail.fileCount && detail.fileCount > 1 ? `${detail.fileCount}f` : `${totalConnections}`;
+    const badgeSvg = getNodeBadgeSvgDataUri(detail.kind, {
+      isGroup: false,
+      count: 0,
+      contentMode: nodeContentMode,
+      metricText,
+    });
+
+    vNodes.push({
+      group: 'nodes',
+      data: {
+        id,
+        displayLabel: detail.displayName,
+        name: detail.name,
+        kind: detail.kind,
+        echelonTier: effTier,
+        shape: badgeMeta.shape,
+        size: computedSize,
+        bgColor: detail.bgColor,
+        borderColor: detail.borderColor,
+        badgeSvg,
+      },
+    });
+  }
+  vNodes.push(...synthesizedGroupCyNodes);
+
+  const visibleNodeIds = new Set<string>(vNodes.map((n) => n.data.id as string));
+
+  interface MappedInteraction {
+    id: string;
+    source: string;
+    target: string;
+    originalSourceId: string;
+    originalSourceName: string;
+    originalTargetId: string;
+    originalTargetName: string;
+    category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
+    label: string;
+    count: number;
+    kind?: string;
+  }
+
+  // Bundle parallel edges per effective pair {effU, effV} and record intra-group connections
+  const pairMap = new Map<string, MappedInteraction[]>();
+  const effRawEdges: RawEdgeInfo[] = [];
+
+  for (const e of activeRawEdges) {
+    if (!candidateNodeIds.has(e.source) || !candidateNodeIds.has(e.target)) continue;
+    const effU = nodeToGroupId.get(e.source) ?? e.source;
+    const effV = nodeToGroupId.get(e.target) ?? e.target;
+
+    if (effU === effV && e.source !== e.target) {
+      const gDetail = effDetailMap.get(effU);
+      if (gDetail && gDetail.internalConnections) {
+        gDetail.internalConnections.push({
+          id: `${effU}:int:${e.source}->${e.target}:${e.category}:${e.kind || e.label}`,
+          sourceId: e.source,
+          sourceName: parsedGraph.detailMap.get(e.source)?.displayName || e.source,
+          targetId: e.target,
+          targetName: parsedGraph.detailMap.get(e.target)?.displayName || e.target,
+          category: e.category,
+          kind: e.kind || e.label || 'CALLS',
+          label: e.label,
+          count: e.count,
+          isTransitive: false,
+        });
+      }
+    } else if (effU !== effV && visibleNodeIds.has(effU) && visibleNodeIds.has(effV)) {
+      const key = effU < effV ? `${effU}--${effV}` : `${effV}--${effU}`;
+      let list = pairMap.get(key);
+      if (!list) {
+        list = [];
+        pairMap.set(key, list);
+      }
+      list.push({
+        id: e.id,
+        source: effU,
+        target: effV,
+        originalSourceId: e.source,
+        originalSourceName: parsedGraph.detailMap.get(e.source)?.displayName || e.source,
+        originalTargetId: e.target,
+        originalTargetName: parsedGraph.detailMap.get(e.target)?.displayName || e.target,
+        category: e.category,
+        label: e.label,
+        count: e.count,
+        kind: e.kind,
+      });
+
+      effRawEdges.push({
+        id: e.id,
+        source: effU,
+        target: effV,
+        category: e.category,
+        label: e.label,
+        count: e.count,
+        kind: e.kind,
+      });
+    }
+  }
+
+  const vEdges: cytoscape.ElementDefinition[] = [];
+  const eDetailMap = new Map<string, SelectedEdgeDetail>();
+
+  for (const [pairKey, items] of pairMap.entries()) {
+    const [nodeU, nodeV] = pairKey.split('--');
+    const hasUtoV = items.some((i) => i.source === nodeU && i.target === nodeV);
+    const hasVtoU = items.some((i) => i.source === nodeV && i.target === nodeU);
+    const isBidirectional = hasUtoV && hasVtoU;
+
+    const edgeSource = hasUtoV ? nodeU : nodeV;
+    const edgeTarget = hasUtoV ? nodeV : nodeU;
+    const primaryCategory =
+      items[0].category === 'library' || items[0].category === 'test' ? 'service_call' : items[0].category;
+    const totalCount = items.reduce((sum, i) => sum + i.count, 0);
+    const directCallsCount = items
+      .filter((i) => i.category === 'service_call' || i.category === 'library')
+      .reduce((s, i) => s + i.count, 0);
+    const messagingCount = items.filter((i) => i.category === 'messaging').reduce((s, i) => s + i.count, 0);
+    const dbCount = items.filter((i) => i.category === 'database').reduce((s, i) => s + i.count, 0);
+
+    const edgeLabel = isBidirectional
+      ? `⇄ ${totalCount}`
+      : primaryCategory === 'database'
+      ? 'USES_DB'
+      : totalCount > 1
+      ? `${totalCount} calls`
+      : items[0].label || 'CALLS';
+
+    const edgeId = `edge:${pairKey}`;
+    vEdges.push({
+      group: 'edges',
+      data: {
+        id: edgeId,
+        source: edgeSource,
+        target: edgeTarget,
+        category: items[0].category,
+        label: edgeLabel,
+        count: totalCount,
+        isBidirectional: isBidirectional ? 'true' : 'false',
+      },
+    });
+
+    const sDetail = effDetailMap.get(edgeSource);
+    const tDetail = effDetailMap.get(edgeTarget);
+    const detailItems: ConnectionDetailItem[] = items.map((it) => ({
+      id: it.id,
+      sourceId: it.originalSourceId,
+      sourceName: it.originalSourceName,
+      targetId: it.originalTargetId,
+      targetName: it.originalTargetName,
+      category: it.category,
+      kind: it.kind || it.label,
+      label: it.label,
+      count: it.count,
+      isTransitive: false,
+    }));
+
+    eDetailMap.set(edgeId, {
+      id: edgeId,
+      sourceId: edgeSource,
+      sourceName: sDetail?.displayName || edgeSource,
+      sourceKind: sDetail?.kind || 'Type',
+      sourceTag: sDetail?.displayTag || 'TYP',
+      sourceBgColor: sDetail?.bgColor || '#3b82f6',
+      targetId: edgeTarget,
+      targetName: tDetail?.displayName || edgeTarget,
+      targetKind: tDetail?.kind || 'Type',
+      targetTag: tDetail?.displayTag || 'TYP',
+      targetBgColor: tDetail?.bgColor || '#3b82f6',
+      isBidirectional,
+      hasForward: hasUtoV,
+      hasReverse: hasVtoU,
+      totalInteractions: totalCount,
+      directCallsCount,
+      messagingCount,
+      transitiveCount: 0,
+      dbCount,
+      primaryCategory,
+      items: detailItems,
+    });
+
+    if (sDetail?.isGroup) {
+      sDetail.outboundCallsCount +=
+        directCallsCount + items.filter((i) => i.category === 'external').reduce((s, i) => s + i.count, 0);
+      sDetail.dbCount += dbCount;
+      sDetail.messagingCount += messagingCount;
+    }
+    if (tDetail?.isGroup) {
+      tDetail.inboundCallsCount +=
+        directCallsCount + items.filter((i) => i.category === 'external').reduce((s, i) => s + i.count, 0);
+      tDetail.dbCount += dbCount;
+      tDetail.messagingCount += messagingCount;
+    }
+  }
+
+  return {
+    visibleNodes: vNodes,
+    visibleEdges: vEdges,
+    edgeDetailMap: eDetailMap,
+    effectiveRawEdges: effRawEdges,
+    effectiveDetailMap: effDetailMap,
+  };
+}
+
+interface UniversalGraphSwimlaneGuidesProps {
+  swimlaneGuides: SwimlaneGuide[];
+  zoom: number;
+}
+
+const UniversalGraphSwimlaneGuides: React.FC<UniversalGraphSwimlaneGuidesProps> = ({
+  swimlaneGuides,
+  zoom,
+}) => {
+  return (
+    <>
+      {swimlaneGuides.map((g) => {
+        const strokeW = Math.max(1, Math.min(3, 1.5 / zoom));
+        const dashPattern = `${Math.round(6 / zoom)} ${Math.round(4 / zoom)}`;
+        const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / zoom));
+        const headerHeight = Math.max(24, Math.min(36, 28 * zoomFactor));
+        const hPad = Math.max(6, Math.min(12, 8 * zoomFactor));
+        const boxWidth = Math.max(40, g.width - hPad * 2);
+        const maxTextWidth = Math.max(20, boxWidth - 14);
+
+        const fullLabel = `${g.icon ? g.icon + SPACE_STR : EMPTY_STR}${g.title} (${g.count})`;
+        const estCharWidth = 0.56;
+        const preferredFontSize = 11.5 * zoomFactor;
+        const maxFittingFontSize = maxTextWidth / (fullLabel.length * estCharWidth);
+        const finalFontSize = Math.min(preferredFontSize, Math.max(8, maxFittingFontSize));
+
+        let displayLabel = fullLabel;
+        if (fullLabel.length * 8 * estCharWidth > maxTextWidth) {
+          const iconPart = g.icon ? g.icon + SPACE_STR : EMPTY_STR;
+          const countPart = ` (${g.count})`;
+          const fixedLen = iconPart.length + countPart.length + 3;
+          const availableTitleChars = Math.max(
+            3,
+            Math.floor(maxTextWidth / (8 * estCharWidth) - fixedLen)
+          );
+          const truncatedTitle =
+            g.title.length > availableTitleChars
+              ? g.title.substring(0, availableTitleChars).trim() + ELLIPSIS_SUFFIX
+              : g.title;
+          displayLabel = `${iconPart}${truncatedTitle}${countPart}`;
+        }
+
+        const isSqueezed = fullLabel.length * finalFontSize * estCharWidth > maxTextWidth;
+
+        return (
+          <g key={g.id}>
+            <rect
+              x={g.x}
+              y={g.y}
+              width={g.width}
+              height={g.height}
+              rx={Math.min(12, 8 * zoomFactor)}
+              fill="rgba(15, 23, 42, 0.45)"
+              stroke={`${g.color}35`}
+              strokeWidth={strokeW}
+              strokeDasharray={dashPattern}
+            />
+            <rect
+              x={g.x + hPad}
+              y={g.y + hPad}
+              width={boxWidth}
+              height={headerHeight}
+              rx={Math.min(6, 4 * zoomFactor)}
+              fill="rgba(15, 23, 42, 0.92)"
+              stroke={`${g.color}70`}
+              strokeWidth={strokeW}
+            />
+            <text
+              x={g.x + g.width / 2}
+              y={g.y + hPad + headerHeight / 2}
+              fill={g.color}
+              fontSize={`${finalFontSize}px`}
+              fontWeight="700"
+              textAnchor="middle"
+              dominantBaseline="central"
+              textLength={isSqueezed ? maxTextWidth : undefined}
+              lengthAdjust={isSqueezed ? 'spacingAndGlyphs' : undefined}
+            >
+              <title>{fullLabel}</title>
+              {displayLabel}
+            </text>
+          </g>
+        );
+      })}
+    </>
+  );
+};
+
+interface UniversalGraphContextMenuState {
+  x: number;
+  y: number;
+  nodeId: string;
+  nodeName: string;
+  nodeKind: EntityKind;
+}
+
+interface UniversalGraphGroupingOverlaysProps {
+  multiSelectedNodeIds: Set<string>;
+  floatingGroupName: string;
+  setFloatingGroupName: React.Dispatch<React.SetStateAction<string>>;
+  createCustomGroup: (name: string, nodeIds: string[]) => void;
+  clearMultiSelection: () => void;
+  contextMenu: UniversalGraphContextMenuState | null;
+  setContextMenu: React.Dispatch<React.SetStateAction<UniversalGraphContextMenuState | null>>;
+  isAddGroupSubmenuOpen: boolean;
+  setIsAddGroupSubmenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  customGroups: CustomNodeGroup[];
+  addNodesToCustomGroup: (groupId: string, nodeIds: string[]) => void;
+  deleteCustomGroup: (groupId: string) => void;
+  toggleTypeGrouping: (kind: EntityKind) => void;
+  setSelectedNodeId: React.Dispatch<React.SetStateAction<string | null>>;
+  getDownstreamNodeIds: (rootNodeId: string) => string[];
+  hideNode: (nodeId: string) => void;
+  hideDownstreamNodes: (rootNodeId: string) => void;
+  hideAllOfKind: (kind: EntityKind) => void;
+}
+
+const UniversalGraphGroupingOverlays: React.FC<UniversalGraphGroupingOverlaysProps> = ({
+  multiSelectedNodeIds,
+  floatingGroupName,
+  setFloatingGroupName,
+  createCustomGroup,
+  clearMultiSelection,
+  contextMenu,
+  setContextMenu,
+  isAddGroupSubmenuOpen,
+  setIsAddGroupSubmenuOpen,
+  customGroups,
+  addNodesToCustomGroup,
+  deleteCustomGroup,
+  toggleTypeGrouping,
+  setSelectedNodeId,
+  getDownstreamNodeIds,
+  hideNode,
+  hideDownstreamNodes,
+  hideAllOfKind,
+}) => {
+  return (
+    <>
+      {multiSelectedNodeIds.size > 0 && (
+        <div
+          className="canvas-multiselect-bar"
+          style={{
+            position: 'absolute',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'rgba(15, 23, 42, 0.92)',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            borderRadius: 8,
+            padding: '6px 12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8' }}>
+            {multiSelectedNodeIds.size} selected
+          </span>
+          <input
+            type="text"
+            placeholder="Group name (optional)..."
+            value={floatingGroupName}
+            onChange={(e) => setFloatingGroupName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === KEY_ENTER) {
+                e.preventDefault();
+                createCustomGroup(
+                  floatingGroupName.trim() || `Group (${multiSelectedNodeIds.size})`,
+                  Array.from(multiSelectedNodeIds)
+                );
+                setFloatingGroupName(EMPTY_STR);
+              }
+            }}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: 4,
+              padding: '3px 8px',
+              fontSize: '11px',
+              color: '#f8fafc',
+              outline: 'none',
+              width: 150,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              createCustomGroup(
+                floatingGroupName.trim() || `Group (${multiSelectedNodeIds.size})`,
+                Array.from(multiSelectedNodeIds)
+              );
+              setFloatingGroupName(EMPTY_STR);
+            }}
+            style={{
+              background: '#0284c7',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 4,
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <span>Group</span>
+          </button>
+          <button
+            type="button"
+            onClick={clearMultiSelection}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#94a3b8',
+              borderRadius: 4,
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
+            title="Clear multi-selection"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {contextMenu &&
+        (() => {
+          const isGroupNode = contextMenu.nodeId.startsWith(GROUP_PREFIX);
+          const targetNodeIds =
+            multiSelectedNodeIds.has(contextMenu.nodeId) && multiSelectedNodeIds.size > 1
+              ? Array.from(multiSelectedNodeIds)
+              : [contextMenu.nodeId];
+          const downstreamNodeIds = isGroupNode ? [] : getDownstreamNodeIds(contextMenu.nodeId);
+          const isSubmenuLeft =
+            typeof window !== 'undefined' && contextMenu.x + 360 > window.innerWidth;
+
+          return (
+            <div
+              className="domain-node-context-menu"
+              style={{
+                position: 'absolute',
+                left: `${contextMenu.x}px`,
+                top: `${contextMenu.y}px`,
+                zIndex: 1000,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="context-menu-header">
+                <span className="context-menu-title" title={contextMenu.nodeName}>
+                  {contextMenu.nodeName}
+                </span>
+                <span className="context-menu-kind">{contextMenu.nodeKind}</span>
+              </div>
+              <div className="context-menu-divider" />
+              {multiSelectedNodeIds.size > 1 && (
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => {
+                    createCustomGroup(
+                      `Group (${multiSelectedNodeIds.size})`,
+                      Array.from(multiSelectedNodeIds)
+                    );
+                    setContextMenu(null);
+                  }}
+                >
+                  <span>Group {multiSelectedNodeIds.size} Selected</span>
+                </button>
+              )}
+              {!isGroupNode && (
+                <>
+                  <div
+                    className="context-menu-submenu-container"
+                    onMouseEnter={() => setIsAddGroupSubmenuOpen(true)}
+                    onMouseLeave={() => setIsAddGroupSubmenuOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      className="context-menu-item context-menu-submenu-trigger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsAddGroupSubmenuOpen((prev) => !prev);
+                      }}
+                    >
+                      <span>Add to group</span>
+                      <span className="submenu-arrow">▶</span>
+                    </button>
+                    {isAddGroupSubmenuOpen && (
+                      <div className={`context-menu-submenu ${isSubmenuLeft ? 'submenu-left' : EMPTY_STR}`}>
+                        {customGroups.map((group) => {
+                          const isMember = targetNodeIds.every((id) => group.nodeIds.includes(id));
+                          return (
+                            <button
+                              key={group.id}
+                              type="button"
+                              className="context-menu-item"
+                              onClick={() => {
+                                addNodesToCustomGroup(group.id, targetNodeIds);
+                                setContextMenu(null);
+                              }}
+                            >
+                              <span className="context-menu-submenu-item-name" title={group.name}>
+                                {isMember ? CHECK_PREFIX : EMPTY_STR}
+                                {group.name}
+                              </span>
+                              <span className="context-menu-badge">{group.nodeIds.length}</span>
+                            </button>
+                          );
+                        })}
+                        {customGroups.length > 0 && <div className="context-menu-divider" />}
+                        <button
+                          type="button"
+                          className="context-menu-item"
+                          onClick={() => {
+                            const defaultName =
+                              targetNodeIds.length > 1
+                                ? `Group (${targetNodeIds.length})`
+                                : `Group of ${contextMenu.nodeName}`;
+                            createCustomGroup(defaultName, targetNodeIds);
+                            setContextMenu(null);
+                          }}
+                        >
+                          <span>+ New Group...</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    disabled={downstreamNodeIds.length === 0}
+                    onClick={() => {
+                      createCustomGroup(`Downstream of ${contextMenu.nodeName}`, downstreamNodeIds);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <span>
+                      Group all downstream{' '}
+                      {downstreamNodeIds.length > 0 ? `(${downstreamNodeIds.length})` : EMPTY_STR}
+                    </span>
+                  </button>
+                </>
+              )}
+              {isGroupNode && (
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => {
+                    const gId = contextMenu.nodeId;
+                    if (gId.startsWith(CUSTOM_GROUP_PREFIX)) {
+                      deleteCustomGroup(gId.replace(CUSTOM_GROUP_PREFIX, EMPTY_STR));
+                    } else if (gId.startsWith(KIND_GROUP_PREFIX)) {
+                      toggleTypeGrouping(gId.replace(KIND_GROUP_PREFIX, EMPTY_STR) as EntityKind);
+                    }
+                    setContextMenu(null);
+                    setSelectedNodeId(null);
+                  }}
+                >
+                  <span>Ungroup / Expand</span>
+                </button>
+              )}
+              <div className="context-menu-divider" />
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => hideNode(contextMenu.nodeId)}
+              >
+                <span>Hide Node</span>
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
+              >
+                <span>Hide Downstream</span>
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => hideAllOfKind(contextMenu.nodeKind)}
+              >
+                <span>Hide all {contextMenu.nodeKind}s</span>
+              </button>
+            </div>
+          );
+        })()}
+    </>
+  );
+};
+
 export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
   graph,
   loading = false,
@@ -360,9 +1388,27 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
 }) => {
   const readStored = useCallback(
     (suffix: string, fallback: string): string => {
+      const key = `${storagePrefix}${suffix}`;
+      if (universalSessionMemory.has(key)) {
+        return universalSessionMemory.get(key) ?? fallback;
+      }
+      try {
+        const api = getVsCodeApi();
+        const state = api?.getState();
+        if (state?.domainSession && typeof state.domainSession[key] === 'string') {
+          universalSessionMemory.set(key, state.domainSession[key]);
+          return state.domainSession[key];
+        }
+      } catch {
+        // ignored
+      }
       try {
         if (typeof localStorage !== 'undefined') {
-          return localStorage.getItem(`${storagePrefix}${suffix}`) ?? fallback;
+          const val = localStorage.getItem(key);
+          if (val !== null) {
+            universalSessionMemory.set(key, val);
+            return val;
+          }
         }
       } catch {
         // ignored: localStorage unavailable in restricted webview context
@@ -374,9 +1420,21 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
 
   const writeStored = useCallback(
     (suffix: string, val: string): void => {
+      const key = `${storagePrefix}${suffix}`;
+      universalSessionMemory.set(key, val);
+      try {
+        const api = getVsCodeApi();
+        if (api) {
+          const current = api.getState() || {};
+          const domainSession = { ...(current.domainSession || {}), [key]: val };
+          api.setState({ ...current, domainSession });
+        }
+      } catch {
+        // ignored
+      }
       try {
         if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(`${storagePrefix}${suffix}`, val);
+          localStorage.setItem(key, val);
         }
       } catch {
         // ignored: localStorage quota or security restriction
@@ -436,38 +1494,66 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
 
   const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = readStored('grouped_types', '');
+      const saved = readStored(KEY_GROUPED_TYPES, EMPTY_STR);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
       }
-    } catch {}
+    } catch {
+      // ignored
+    }
     return new Set<EntityKind>();
   });
 
   const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
     try {
-      const saved = readStored('custom_groups', '');
+      const saved = readStored(KEY_CUSTOM_GROUPS, EMPTY_STR);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       }
-    } catch {}
+    } catch {
+      // ignored
+    }
     return [];
   });
 
   const [multiSelectedNodeIds, setMultiSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [floatingGroupName, setFloatingGroupName] = useState('');
+  const [floatingGroupName, setFloatingGroupName] = useState(EMPTY_STR);
   const multiSelectedNodeIdsRef = useRef(multiSelectedNodeIds);
   multiSelectedNodeIdsRef.current = multiSelectedNodeIds;
+  const effectiveDetailMapRef = useRef<Map<string, SelectedNodeDetail>>(new Map());
+
+  const [contextMenu, setContextMenu] = useState<UniversalGraphContextMenuState | null>(null);
+  const [isAddGroupSubmenuOpen, setIsAddGroupSubmenuOpen] = useState(false);
 
   useEffect(() => {
-    writeStored('grouped_types', JSON.stringify([...groupedTypes]));
+    if (!contextMenu) {
+      setIsAddGroupSubmenuOpen(false);
+    }
+  }, [contextMenu]);
+
+  useEffect(() => {
+    writeStored(KEY_GROUPED_TYPES, JSON.stringify(Array.from(groupedTypes)));
   }, [groupedTypes, writeStored]);
 
   useEffect(() => {
-    writeStored('custom_groups', JSON.stringify(customGroups));
+    writeStored(KEY_CUSTOM_GROUPS, JSON.stringify(customGroups));
   }, [customGroups, writeStored]);
+
+  useEffect(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    cy.batch(() => {
+      cy.nodes().forEach((node) => {
+        if (multiSelectedNodeIds.has(node.id())) {
+          node.addClass(CLS_MULTI_SELECTED);
+        } else {
+          node.removeClass(CLS_MULTI_SELECTED);
+        }
+      });
+    });
+  }, [multiSelectedNodeIds]);
 
   const toggleTypeGrouping = useCallback((kind: EntityKind) => {
     setGroupedTypes((prev) => {
@@ -479,10 +1565,12 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
   }, []);
 
   const createCustomGroup = useCallback((name: string, nodeIds: string[]) => {
+    const uniqueIds = Array.from(new Set(nodeIds));
+    if (uniqueIds.length === 0) return;
     const newGroup: CustomNodeGroup = {
       id: 'cg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
-      name: name.trim() || `Group (${nodeIds.length})`,
-      nodeIds: Array.from(new Set(nodeIds)),
+      name: name.trim() || `Group (${uniqueIds.length})`,
+      nodeIds: uniqueIds,
       collapsed: true,
     };
     setCustomGroups((prev) => [...prev, newGroup]);
@@ -510,19 +1598,6 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     );
   }, []);
 
-  const toggleMultiSelectedNode = useCallback((id: string) => {
-    setMultiSelectedNodeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const clearMultiSelection = useCallback(() => {
-    setMultiSelectedNodeIds(new Set());
-  }, []);
-
   const addNodesToCustomGroup = useCallback((groupId: string, nodeIds: string[]) => {
     setCustomGroups((prev) =>
       prev.map((g) => {
@@ -535,32 +1610,18 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     setMultiSelectedNodeIds(new Set());
   }, []);
 
-  // Context Menu State for Right-Click on Nodes
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    nodeName: string;
-    nodeKind: EntityKind;
-  } | null>(null);
-  const [isAddGroupSubmenuOpen, setIsAddGroupSubmenuOpen] = useState(false);
+  const toggleMultiSelectedNode = useCallback((id: string) => {
+    setMultiSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
-  useEffect(() => {
-    if (!contextMenu) {
-      setIsAddGroupSubmenuOpen(false);
-    }
-  }, [contextMenu]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setContextMenu(null);
-        clearMultiSelection();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [clearMultiSelection]);
+  const clearMultiSelection = useCallback(() => {
+    setMultiSelectedNodeIds(new Set());
+  }, []);
 
   const [nodeContentMode, setNodeContentMode] = useState<NodeContentMode>(() => {
     const v = readStored('nodeContentMode', defaultNodeContentMode);
@@ -626,358 +1687,93 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
   }, [tierDefinitions]);
 
   // Parse raw graph into rich SelectedNodeDetail & RawEdgeInfo models
-  const parsedGraph = useMemo(() => {
-    const detailMap = new Map<string, SelectedNodeDetail>();
-    const echelonMap = new Map<string, number>();
-    const rawEdges: RawEdgeInfo[] = [];
-    const allCyNodes: cytoscape.NodeDefinition[] = [];
+  const parsedGraph = useMemo(
+    () => parseUniversalGraph(graph, customTitlesByTier),
+    [graph, customTitlesByTier]
+  );
 
-    const nodes = graph?.nodes ?? [];
-    const edges = graph?.edges ?? [];
+  const getDownstreamNodeIds = useCallback(
+    (rootNodeId: string): string[] => {
+      const downstreamIds: string[] = [];
+      const queue = [rootNodeId];
+      const visited = new Set<string>([rootNodeId]);
 
-    for (const n of nodes) {
-      const p = n.properties ?? {};
-      const rawKind = String(n.kind || 'Type');
-      const kind: EntityKind =
-        rawKind === 'Folder' || rawKind === 'File'
-          ? 'Module'
-          : ((rawKind as EntityKind) || 'Type');
-      const badgeMeta = getEntityBadgeMeta(kind);
-      const tier = Number.isFinite(Number(p.tier)) ? Number(p.tier) : Number.isFinite(Number(p.echelon_tier)) ? Number(p.echelon_tier) : 2;
-      echelonMap.set(n.id, tier);
-
-      let filesList: Array<{ id: string; name: string; filePath: string; lineStart: number }> = [];
-      if (p.files) {
-        try {
-          const parsed = JSON.parse(p.files);
-          if (Array.isArray(parsed)) {
-            filesList = parsed.map((f: string, idx: number) => ({
-              id: `${n.id}:file:${idx}`,
-              name: String(f).split(/[/\\]/).pop() || String(f),
-              filePath: String(f),
-              lineStart: 1,
-            }));
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        const outgoing = parsedGraph.outAdj.get(curr) || [];
+        for (const target of outgoing) {
+          if (!visited.has(target)) {
+            visited.add(target);
+            downstreamIds.push(target);
+            queue.push(target);
           }
-        } catch {
-          // ignored: files property is not a JSON array
         }
       }
+      return downstreamIds;
+    },
+    [parsedGraph.outAdj]
+  );
 
-      const primaryFilePath = n.filePath || p.file_path || p.path || (filesList.length > 0 ? filesList[0].filePath : undefined);
-      const primaryLineStart = n.lineStart || (p.start_line ? parseInt(p.start_line, 10) : undefined);
+  const hideNode = useCallback((nodeId: string) => {
+    setHiddenNodeIds((prev) => new Set(prev).add(nodeId));
+    setSelectedNodeId((curr) => (curr === nodeId ? null : curr));
+    setContextMenu(null);
+    cyRef.current?.elements().removeClass(CLS_HIGHLIGHTED_DIMMED);
+  }, []);
 
-      const detail: SelectedNodeDetail = {
-        id: n.id,
-        name: n.name || n.id,
-        displayName: n.displayName || n.name || n.id,
-        kind,
-        displayTag: p.sub_kind || badgeMeta.code,
-        bgColor: p.color || p.bgColor || badgeMeta.bgColor,
-        borderColor: p.borderColor || badgeMeta.borderColor,
-        primaryFilePath,
-        primaryLineStart,
-        properties: p,
-        tier,
-        tierLabel: p.tier_label || customTitlesByTier[tier] || `Tier ${tier}`,
-        tierReason: p.tier_reason,
-        inboundCallsCount: Number(p.fan_in || 0),
-        outboundCallsCount: Number(p.fan_out || 0),
-        dbCount: Number(p.data_file_count || 0),
-        messagingCount: 0,
-        fileCount: Number(p.file_count || filesList.length || 1),
-        projects: filesList,
-      };
-      detailMap.set(n.id, detail);
-
-      allCyNodes.push({
-        group: 'nodes',
-        data: {
-          id: n.id,
-          kind,
-          echelonTier: tier,
-        },
-      });
-    }
-
-    // Compute accurate inbound/outbound/db/messaging counts from edges
-    const inCounts = new Map<string, number>();
-    const outCounts = new Map<string, number>();
-    const dbCounts = new Map<string, number>();
-    const msgCounts = new Map<string, number>();
-
-    for (const e of edges) {
-      const sDetail = detailMap.get(e.source);
-      const tDetail = detailMap.get(e.target);
-      if (!sDetail || !tDetail) continue;
-
-      const count = Number(e.properties?.call_count ?? e.properties?.count ?? 1) || 1;
-      const category = classifyEdgeCategory(e.kind, tDetail.kind);
-      const edgeId = e.id ?? `${e.source}->${e.target}`;
-
-      rawEdges.push({
-        id: edgeId,
-        source: e.source,
-        target: e.target,
-        category,
-        label: e.kind || 'CALLS',
-        count,
-        kind: e.kind,
-      });
-
-      if (category === 'database') {
-        dbCounts.set(e.source, (dbCounts.get(e.source) ?? 0) + 1);
-        dbCounts.set(e.target, (dbCounts.get(e.target) ?? 0) + 1);
-      } else if (category === 'messaging') {
-        msgCounts.set(e.source, (msgCounts.get(e.source) ?? 0) + 1);
-        msgCounts.set(e.target, (msgCounts.get(e.target) ?? 0) + 1);
-      } else {
-        outCounts.set(e.source, (outCounts.get(e.source) ?? 0) + count);
-        inCounts.set(e.target, (inCounts.get(e.target) ?? 0) + count);
+  const hideDownstreamNodes = useCallback(
+    (rootNodeId: string) => {
+      const downstreamIds = getDownstreamNodeIds(rootNodeId);
+      if (downstreamIds.length > 0) {
+        setHiddenNodeIds((prev) => {
+          const next = new Set(prev);
+          for (const id of downstreamIds) next.add(id);
+          return next;
+        });
       }
-    }
+      setContextMenu(null);
+      cyRef.current?.elements().removeClass(CLS_HIGHLIGHTED_DIMMED);
+    },
+    [getDownstreamNodeIds]
+  );
 
-    for (const [id, detail] of detailMap.entries()) {
-      if (inCounts.has(id)) detail.inboundCallsCount = inCounts.get(id)!;
-      if (outCounts.has(id)) detail.outboundCallsCount = outCounts.get(id)!;
-      if (dbCounts.has(id)) detail.dbCount = Math.max(detail.dbCount, dbCounts.get(id)!);
-      if (msgCounts.has(id)) detail.messagingCount = msgCounts.get(id)!;
-    }
+  const hideAllOfKind = useCallback((kind: EntityKind) => {
+    setHiddenTypes((prev) => new Set(prev).add(kind));
+    setContextMenu(null);
+    cyRef.current?.elements().removeClass(CLS_HIGHLIGHTED_DIMMED);
+  }, []);
 
-    return { detailMap, echelonMap, rawEdges, allCyNodes };
-  }, [graph, customTitlesByTier]);
-
-  // Filter visible nodes & bundle edges
+  // Filter visible nodes, synthesize custom & category group nodes, and bundle edges
   const { visibleNodes, visibleEdges, edgeDetailMap, effectiveRawEdges, effectiveDetailMap } = useMemo(() => {
-    const candidateNodeIds = new Set<string>();
-    for (const [id, detail] of parsedGraph.detailMap.entries()) {
-      if (hiddenNodeIds.has(id)) continue;
-      if (hiddenTypes.has(detail.kind)) continue;
-      const effTier = effectiveOrbitTier(orbitConfig, detail.kind, detail.tier ?? 2);
-      if (hiddenOrbitTiers.has(effTier)) continue;
-      candidateNodeIds.add(id);
-    }
-
-    const activeRawEdges = parsedGraph.rawEdges.filter(
-      (e) => candidateNodeIds.has(e.source) && candidateNodeIds.has(e.target) && e.source !== e.target
-    );
-
-    if (hideIsolatedNodes) {
-      const connected = new Set<string>();
-      for (const e of activeRawEdges) {
-        connected.add(e.source);
-        connected.add(e.target);
-      }
-      for (const id of Array.from(candidateNodeIds)) {
-        if (!connected.has(id)) {
-          candidateNodeIds.delete(id);
-        }
-      }
-    }
-
-    const unhiddenRawNodes = Array.from(candidateNodeIds)
-      .map((id) => parsedGraph.detailMap.get(id)!)
-      .filter(Boolean);
-
-    const groupedResult = computeGroupedGraph({
-      rawNodes: unhiddenRawNodes,
-      rawEdges: activeRawEdges,
+    const res = computeUniversalVisibleGraph({
+      parsedGraph,
+      hiddenNodeIds,
+      hiddenTypes,
+      hiddenOrbitTiers,
+      hideIsolatedNodes,
       groupedTypes,
       customGroups,
-      hiddenNodeIds,
+      orbitConfig,
+      customTitlesByTier,
+      baseIconSize,
+      nodeSizingMode,
+      nodeContentMode,
     });
-
-    const vNodes: cytoscape.ElementDefinition[] = [];
-    for (const detail of groupedResult.visibleNodes) {
-      const id = detail.id;
-      const badgeMeta = getEntityBadgeMeta(detail.kind);
-      const effTier = effectiveOrbitTier(orbitConfig, detail.kind, detail.tier ?? 2);
-
-      if (detail.isGroup) {
-        const groupSize = Math.round(baseIconSize * 1.15);
-        const badgeSvg = getNodeBadgeSvgDataUri(detail.kind, {
-          isGroup: true,
-          count: detail.memberNodes?.length || 0,
-        });
-
-        vNodes.push({
-          group: 'nodes',
-          classes: 'group-node',
-          data: {
-            id,
-            displayLabel: detail.displayName,
-            name: detail.name,
-            kind: detail.kind,
-            isGroup: 'true',
-            groupType: detail.groupType,
-            echelonTier: effTier,
-            shape: badgeMeta.shape,
-            size: groupSize,
-            bgColor: detail.bgColor,
-            borderColor: detail.borderColor,
-            badgeSvg,
-          },
-        });
-      } else {
-        const totalConnections =
-          detail.inboundCallsCount + detail.outboundCallsCount + detail.dbCount + detail.messagingCount;
-        const weightVal = Math.max(1, detail.fileCount || totalConnections || 1);
-
-        let computedSize = baseIconSize;
-        if (nodeSizingMode === 'sqrt-weight') {
-          const base = Math.round(baseIconSize * (34 / 52));
-          const factor = (baseIconSize / 52) * 8.5;
-          const minSize = Math.round(baseIconSize * (36 / 52));
-          const maxSize = Math.round(baseIconSize * (88 / 52));
-          computedSize = Math.round(Math.max(minSize, Math.min(maxSize, base + factor * Math.sqrt(weightVal))));
-        } else if (nodeSizingMode === 'degree') {
-          const base = Math.round(baseIconSize * (36 / 52));
-          const factor = (baseIconSize / 52) * 6.5;
-          const minSize = Math.round(baseIconSize * (38 / 52));
-          const maxSize = Math.round(baseIconSize * (88 / 52));
-          computedSize = Math.round(
-            Math.max(minSize, Math.min(maxSize, base + factor * Math.sqrt(Math.max(1, totalConnections))))
-          );
-        }
-
-        const metricText = detail.fileCount && detail.fileCount > 1 ? `${detail.fileCount}f` : `${totalConnections}`;
-        const badgeSvg = getNodeBadgeSvgDataUri(detail.kind, {
-          isGroup: false,
-          count: 0,
-          contentMode: nodeContentMode,
-          metricText,
-        });
-
-        vNodes.push({
-          group: 'nodes',
-          data: {
-            id,
-            displayLabel: detail.displayName,
-            name: detail.name,
-            kind: detail.kind,
-            echelonTier: effTier,
-            shape: badgeMeta.shape,
-            size: computedSize,
-            bgColor: detail.bgColor,
-            borderColor: detail.borderColor,
-            badgeSvg,
-          },
-        });
-      }
-    }
-
-    // Bundle parallel edges per visible pair {u, v}
-    const pairMap = new Map<string, Array<RawEdgeInfo & { originalSource?: string; originalTarget?: string }>>();
-    const visibleIdsSet = new Set(groupedResult.visibleNodes.map((n) => n.id));
-
-    for (const e of activeRawEdges) {
-      const effU = groupedResult.nodeToGroupId.get(e.source) ?? e.source;
-      const effV = groupedResult.nodeToGroupId.get(e.target) ?? e.target;
-      if (effU === effV || !visibleIdsSet.has(effU) || !visibleIdsSet.has(effV)) continue;
-
-      const key = effU < effV ? `${effU}--${effV}` : `${effV}--${effU}`;
-      let list = pairMap.get(key);
-      if (!list) {
-        list = [];
-        pairMap.set(key, list);
-      }
-      list.push({ ...e, source: effU, target: effV, originalSource: e.source, originalTarget: e.target });
-    }
-
-    const vEdges: cytoscape.ElementDefinition[] = [];
-    const eDetailMap = new Map<string, SelectedEdgeDetail>();
-
-    for (const [pairKey, items] of pairMap.entries()) {
-      const [nodeU, nodeV] = pairKey.split('--');
-      const hasUtoV = items.some((i) => i.source === nodeU && i.target === nodeV);
-      const hasVtoU = items.some((i) => i.source === nodeV && i.target === nodeU);
-      const isBidirectional = hasUtoV && hasVtoU;
-
-      const edgeSource = hasUtoV ? nodeU : nodeV;
-      const edgeTarget = hasUtoV ? nodeV : nodeU;
-      const primaryCategory = items[0].category === 'library' || items[0].category === 'test' ? 'service_call' : items[0].category;
-      const totalCount = items.reduce((sum, i) => sum + i.count, 0);
-
-      const edgeLabel = isBidirectional
-        ? `⇄ ${totalCount}`
-        : primaryCategory === 'database'
-        ? 'USES_DB'
-        : totalCount > 1
-        ? `${totalCount} calls`
-        : items[0].label || 'CALLS';
-
-      const edgeId = `edge:${pairKey}`;
-      vEdges.push({
-        group: 'edges',
-        data: {
-          id: edgeId,
-          source: edgeSource,
-          target: edgeTarget,
-          category: items[0].category,
-          label: edgeLabel,
-          count: totalCount,
-          isBidirectional: isBidirectional ? 'true' : 'false',
-        },
-      });
-
-      const sDetail = groupedResult.effectiveDetailMap.get(edgeSource);
-      const tDetail = groupedResult.effectiveDetailMap.get(edgeTarget);
-      const detailItems: ConnectionDetailItem[] = items.map((it) => ({
-        id: it.id,
-        sourceId: it.originalSource || it.source,
-        sourceName: parsedGraph.detailMap.get(it.originalSource || it.source)?.displayName || it.originalSource || it.source,
-        targetId: it.originalTarget || it.target,
-        targetName: parsedGraph.detailMap.get(it.originalTarget || it.target)?.displayName || it.originalTarget || it.target,
-        category: it.category,
-        kind: it.kind || it.label,
-        label: it.label,
-        count: it.count,
-        isTransitive: false,
-      }));
-
-      eDetailMap.set(edgeId, {
-        id: edgeId,
-        sourceId: edgeSource,
-        sourceName: sDetail?.displayName || edgeSource,
-        sourceKind: sDetail?.kind || 'Type',
-        sourceTag: sDetail?.displayTag || 'TYP',
-        sourceBgColor: sDetail?.bgColor || '#3b82f6',
-        targetId: edgeTarget,
-        targetName: tDetail?.displayName || edgeTarget,
-        targetKind: tDetail?.kind || 'Type',
-        targetTag: tDetail?.displayTag || 'TYP',
-        targetBgColor: tDetail?.bgColor || '#3b82f6',
-        isBidirectional,
-        hasForward: hasUtoV,
-        hasReverse: hasVtoU,
-        totalInteractions: totalCount,
-        directCallsCount: items.filter((i) => i.category === 'service_call' || i.category === 'library').reduce((s, i) => s + i.count, 0),
-        messagingCount: items.filter((i) => i.category === 'messaging').reduce((s, i) => s + i.count, 0),
-        transitiveCount: 0,
-        dbCount: items.filter((i) => i.category === 'database').reduce((s, i) => s + i.count, 0),
-        primaryCategory,
-        items: detailItems,
-      });
-    }
-
-    return {
-      visibleNodes: vNodes,
-      visibleEdges: vEdges,
-      edgeDetailMap: eDetailMap,
-      effectiveRawEdges: activeRawEdges,
-      effectiveDetailMap: groupedResult.effectiveDetailMap,
-    };
+    effectiveDetailMapRef.current = res.effectiveDetailMap;
+    return res;
   }, [
     parsedGraph,
     hiddenNodeIds,
     hiddenTypes,
     hiddenOrbitTiers,
     hideIsolatedNodes,
+    groupedTypes,
+    customGroups,
     orbitConfig,
+    customTitlesByTier,
     baseIconSize,
     nodeSizingMode,
     nodeContentMode,
-    groupedTypes,
-    customGroups,
   ]);
 
   const selectedNode = useMemo(
@@ -1004,71 +1800,6 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     }
     return count;
   }, [parsedGraph.detailMap, orbitConfig, hiddenNodeIds, hiddenTypes, hiddenOrbitTiers]);
-
-  const hideNode = useCallback((nodeId: string) => {
-    setHiddenNodeIds((prev) => new Set(prev).add(nodeId));
-    setSelectedNodeId((curr) => (curr === nodeId ? null : curr));
-    setContextMenu(null);
-    if (cyRef.current) {
-      cyRef.current.elements().removeClass('highlighted dimmed');
-    }
-  }, []);
-
-  const getDownstreamNodeIds = useCallback((rootNodeId: string): string[] => {
-    const downstreamIds: string[] = [];
-    const queue = [rootNodeId];
-    const visited = new Set<string>([rootNodeId]);
-
-    const outEdgesMap = new Map<string, string[]>();
-    for (const e of parsedGraph.rawEdges) {
-      const arr = outEdgesMap.get(e.source) || [];
-      arr.push(e.target);
-      outEdgesMap.set(e.source, arr);
-    }
-
-    while (queue.length > 0) {
-      const curr = queue.shift()!;
-      const outgoing = outEdgesMap.get(curr) || [];
-      for (const target of outgoing) {
-        if (!visited.has(target)) {
-          visited.add(target);
-          downstreamIds.push(target);
-          queue.push(target);
-        }
-      }
-    }
-    return downstreamIds;
-  }, [parsedGraph.rawEdges]);
-
-  const hideDownstreamNodes = useCallback((rootNodeId: string) => {
-    const downstreamIds = getDownstreamNodeIds(rootNodeId);
-    if (downstreamIds.length > 0) {
-      setHiddenNodeIds((prev) => {
-        const next = new Set(prev);
-        for (const id of downstreamIds) next.add(id);
-        return next;
-      });
-      const downstreamSet = new Set(downstreamIds);
-      setSelectedNodeId((curr) => (curr && downstreamSet.has(curr) ? null : curr));
-    }
-    setContextMenu(null);
-    if (cyRef.current) {
-      cyRef.current.elements().removeClass('highlighted dimmed');
-    }
-  }, [getDownstreamNodeIds]);
-
-  const hideAllOfKind = useCallback((kind: EntityKind) => {
-    setHiddenTypes((prev) => new Set(prev).add(kind));
-    setSelectedNodeId((curr) => {
-      if (!curr) return null;
-      const detail = effectiveDetailMap.get(curr);
-      return detail?.kind === kind ? null : curr;
-    });
-    setContextMenu(null);
-    if (cyRef.current) {
-      cyRef.current.elements().removeClass('highlighted dimmed');
-    }
-  }, [effectiveDetailMap]);
 
   // Handlers for settings and layout
   const handleLayoutChange = useCallback(
@@ -1239,11 +1970,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
       hideSingleConnectionDbs: false,
       hideIsolatedNodes,
       showTransitiveEdges: false,
-      counts: {
-        singleConnDbs: 0,
-        sharedDbs: 0,
-        transitiveCalls: 0,
-      },
+      counts: {},
       groupedTypes: Array.from(groupedTypes),
       customGroups,
       nodeContentMode,
@@ -1265,8 +1992,8 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     hiddenCount,
     selectedNode,
     selectedEdge,
-    parsedGraph,
     effectiveDetailMap,
+    parsedGraph,
     effectiveRawEdges,
     isInspectorCollapsed,
     isEdgeInspectorCollapsed,
@@ -1280,9 +2007,9 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     hiddenOrbitTiers,
     hiddenNodeIds,
     hiddenTypes,
+    hideIsolatedNodes,
     groupedTypes,
     customGroups,
-    hideIsolatedNodes,
     nodeContentMode,
     nodeSizingMode,
     edgeCurveMode,
@@ -1331,13 +2058,6 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     toggleCustomGroupCollapse,
     deleteCustomGroup,
     removeNodeFromCustomGroup,
-    toggleMultiSelectedNode,
-    clearMultiSelection,
-    addNodesToCustomGroup,
-    setContextMenu,
-    hideNode,
-    hideDownstreamNodes,
-    hideAllOfKind,
     writeStored,
   });
   actionContextRef.current = {
@@ -1365,13 +2085,6 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     toggleCustomGroupCollapse,
     deleteCustomGroup,
     removeNodeFromCustomGroup,
-    toggleMultiSelectedNode,
-    clearMultiSelection,
-    addNodesToCustomGroup,
-    setContextMenu,
-    hideNode,
-    hideDownstreamNodes,
-    hideAllOfKind,
     writeStored,
   };
 
@@ -1474,34 +2187,49 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
           setHideIsolatedNodes((prev) => !prev);
           break;
         case 'TOGGLE_TYPE_GROUPING':
-          if (act.kind) ctx.toggleTypeGrouping(act.kind);
+          if (act.kind) {
+            ctx.toggleTypeGrouping(act.kind);
+          }
           break;
         case 'CREATE_CUSTOM_GROUP':
-          if (act.name && Array.isArray(act.nodeIds)) ctx.createCustomGroup(act.name, act.nodeIds);
+          if (Array.isArray(act.nodeIds)) {
+            ctx.createCustomGroup(act.name || '', act.nodeIds);
+          }
           break;
         case 'TOGGLE_CUSTOM_GROUP_COLLAPSE':
-          if (act.groupId) ctx.toggleCustomGroupCollapse(act.groupId);
+          if (act.groupId) {
+            ctx.toggleCustomGroupCollapse(act.groupId);
+          }
           break;
         case 'DELETE_CUSTOM_GROUP':
-          if (act.groupId) ctx.deleteCustomGroup(act.groupId);
+          if (act.groupId) {
+            ctx.deleteCustomGroup(act.groupId);
+            if (selectedNodeId === `group:custom:${act.groupId}`) {
+              setSelectedNodeId(null);
+            }
+          }
           break;
         case 'UNGROUP_NODE': {
           const node = act.node;
-          if (!node) break;
-          if (node.id.startsWith('group:custom:')) {
+          if (node?.id?.startsWith('group:custom:')) {
             const cId = node.customGroupId || node.id.replace('group:custom:', '');
             ctx.deleteCustomGroup(cId);
-          } else if (node.id.startsWith('group:kind:') || node.groupKind) {
+          } else if (node?.id?.startsWith('group:kind:') || node?.groupKind) {
             const kind = (node.groupKind || node.id.replace('group:kind:', '')) as EntityKind;
             ctx.toggleTypeGrouping(kind);
           }
+          setSelectedNodeId(null);
           break;
         }
-        case 'REMOVE_FROM_GROUP':
+        case 'REMOVE_FROM_GROUP': {
           if (act.groupId && act.memberId) {
-            ctx.removeNodeFromCustomGroup(act.groupId, act.memberId);
+            const cId = act.groupId.startsWith('group:custom:')
+              ? act.groupId.replace('group:custom:', '')
+              : act.groupId;
+            ctx.removeNodeFromCustomGroup(cId, act.memberId);
           }
           break;
+        }
         case 'APPLY_ORBIT_CONFIG':
           if (act.resetHidden) {
             setOrbitConfig(ctx.defaultOrbitConfig);
@@ -1637,12 +2365,10 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
 
     const updateTransform = () => {
       setCyTransform({ pan: { ...cy.pan() }, zoom: cy.zoom() });
+      setContextMenu(null);
     };
 
-    cy.on('pan zoom', () => {
-      updateTransform();
-      actionContextRef.current.setContextMenu(null);
-    });
+    cy.on('pan zoom', updateTransform);
 
     cy.on('mouseover', 'node', (evt: EventObject) => {
       evt.target.addClass('hovered');
@@ -1658,19 +2384,19 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     });
 
     cy.on('tap', 'node', (evt: EventObject) => {
-      actionContextRef.current.setContextMenu(null);
-      const originalEvent = evt.originalEvent as MouseEvent | TouchEvent | undefined;
-      const isShift = Boolean(originalEvent && 'shiftKey' in originalEvent && originalEvent.shiftKey);
+      setContextMenu(null);
       const node = evt.target;
       const nid = node.id();
+      const origEvent = evt.originalEvent as MouseEvent | undefined;
+      const isMultiKey = Boolean(origEvent && (origEvent.shiftKey || origEvent.ctrlKey || origEvent.metaKey));
 
-      if (isShift) {
-        actionContextRef.current.toggleMultiSelectedNode(nid);
+      if (isMultiKey && !nid.startsWith('group:')) {
+        toggleMultiSelectedNode(nid);
         return;
       }
 
       if (multiSelectedNodeIdsRef.current.size > 0) {
-        actionContextRef.current.clearMultiSelection();
+        clearMultiSelection();
       }
 
       setSelectedNodeId(nid);
@@ -1687,7 +2413,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     });
 
     cy.on('tap', 'edge', (evt: EventObject) => {
-      actionContextRef.current.setContextMenu(null);
+      setContextMenu(null);
       const edge = evt.target;
       const eid = edge.id();
       setSelectedEdgeId(eid);
@@ -1702,44 +2428,48 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     });
 
     cy.on('tap', (evt: EventObject) => {
+      setContextMenu(null);
       if (evt.target === cy) {
-        actionContextRef.current.setContextMenu(null);
+        if (multiSelectedNodeIdsRef.current.size > 0) {
+          clearMultiSelection();
+        }
         cy.elements().removeClass('highlighted dimmed');
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
-        actionContextRef.current.clearMultiSelection();
         onSelectNode?.(null);
       }
     });
 
-    // Right-click / Context-tap -> Open context menu
-    cy.on('cxttap', 'node', (evt: EventObject) => {
+    cy.on(EVT_CXTTAP, SEL_NODE, (evt: EventObject) => {
       const node = evt.target;
-      const nid = node.id();
+      const nodeId = node.id();
       const detail =
-        actionContextRef.current.effectiveDetailMap?.get(nid) ||
-        actionContextRef.current.parsedGraph.detailMap.get(nid);
+        effectiveDetailMapRef.current.get(nodeId) ??
+        actionContextRef.current.parsedGraph.detailMap.get(nodeId);
       if (!detail) return;
 
       const renderedPos = evt.renderedPosition;
-      actionContextRef.current.setContextMenu({
+      setContextMenu({
         x: renderedPos.x,
         y: renderedPos.y,
         nodeId: detail.id,
-        nodeName: detail.displayName,
+        nodeName: detail.displayName || detail.name,
         nodeKind: detail.kind,
       });
     });
 
-    cy.on('cxttap', (evt: EventObject) => {
-      if (evt.target === cy) {
-        actionContextRef.current.setContextMenu(null);
-      }
-    });
-
     cy.on('dbltap', 'node', (evt: EventObject) => {
+      setContextMenu(null);
       const nid = evt.target.id();
-      const detail = actionContextRef.current.effectiveDetailMap?.get(nid) || actionContextRef.current.parsedGraph.detailMap.get(nid);
+      if (nid.startsWith('group:custom:')) {
+        actionContextRef.current.toggleCustomGroupCollapse(nid.replace('group:custom:', ''));
+        return;
+      }
+      if (nid.startsWith('group:kind:')) {
+        actionContextRef.current.toggleTypeGrouping(nid.replace('group:kind:', '') as EntityKind);
+        return;
+      }
+      const detail = actionContextRef.current.parsedGraph.detailMap.get(nid);
       if (detail?.primaryFilePath) {
         actionContextRef.current.onOpenFile?.(detail.primaryFilePath, detail.primaryLineStart);
         getVsCodeApi()?.postMessage({
@@ -1964,7 +2694,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     let count = 0;
     for (const n of visibleNodes) {
       const id = n.data.id as string;
-      const detail = parsedGraph.detailMap.get(id);
+      const detail = effectiveDetailMap.get(id);
       if (
         matchesSearchTokens(
           [detail?.displayName, detail?.name, id, detail?.kind, detail?.primaryFilePath],
@@ -1975,7 +2705,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
       }
     }
     return count;
-  }, [searchQuery, visibleNodes, parsedGraph.detailMap]);
+  }, [searchQuery, visibleNodes, effectiveDetailMap]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -1991,7 +2721,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
       cy.elements().removeClass('search-match').addClass('dimmed');
       cy.nodes().forEach((n) => {
         const id = n.id();
-        const detail = parsedGraph.detailMap.get(id);
+        const detail = effectiveDetailMap.get(id);
         if (
           matchesSearchTokens(
             [detail?.displayName, detail?.name, id, detail?.kind, detail?.primaryFilePath],
@@ -2003,7 +2733,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
         }
       });
     });
-  }, [searchQuery, parsedGraph.detailMap]);
+  }, [searchQuery, effectiveDetailMap, visibleNodes]);
 
   const handleZoomIn = () => {
     const cy = cyRef.current;
@@ -2290,7 +3020,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
                             x={0}
                             y={badgeY + badgeHeight / 2}
                             fill="#38bdf8"
-                            fontSize={`${guideFontSize.toFixed(1)}px`}
+                            fontSize={`${guideFontSize}px`}
                             fontWeight="700"
                             textAnchor="middle"
                             dominantBaseline="central"
@@ -2303,78 +3033,9 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
                         </g>
                       );
                     })}
-
-                  {layoutName === 'swimlanes' &&
-                    swimlaneGuides.map((g) => {
-                      const strokeW = Math.max(1, Math.min(3, 1.5 / cyTransform.zoom));
-                      const dashPattern = `${Math.round(6 / cyTransform.zoom)} ${Math.round(4 / cyTransform.zoom)}`;
-                      const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / cyTransform.zoom));
-                      const headerHeight = Math.max(24, Math.min(36, 28 * zoomFactor));
-                      const hPad = Math.max(6, Math.min(12, 8 * zoomFactor));
-                      const boxWidth = Math.max(40, g.width - hPad * 2);
-                      const maxTextWidth = Math.max(20, boxWidth - 14);
-
-                      const fullLabel = `${g.icon ? g.icon + ' ' : ''}${g.title} (${g.count})`;
-                      const estCharWidth = 0.56;
-                      const preferredFontSize = 11.5 * zoomFactor;
-                      const maxFittingFontSize = maxTextWidth / (fullLabel.length * estCharWidth);
-                      const finalFontSize = Math.min(preferredFontSize, Math.max(8, maxFittingFontSize));
-
-                      let displayLabel = fullLabel;
-                      if (fullLabel.length * 8 * estCharWidth > maxTextWidth) {
-                        const iconPart = g.icon ? g.icon + ' ' : '';
-                        const countPart = ` (${g.count})`;
-                        const fixedLen = iconPart.length + countPart.length + 3;
-                        const availableTitleChars = Math.max(3, Math.floor(maxTextWidth / (8 * estCharWidth) - fixedLen));
-                        const truncatedTitle =
-                          g.title.length > availableTitleChars
-                            ? g.title.substring(0, availableTitleChars).trim() + '...'
-                            : g.title;
-                        displayLabel = `${iconPart}${truncatedTitle}${countPart}`;
-                      }
-
-                      const isSqueezed = fullLabel.length * finalFontSize * estCharWidth > maxTextWidth;
-
-                      return (
-                        <g key={g.id}>
-                          <rect
-                            x={g.x}
-                            y={g.y}
-                            width={g.width}
-                            height={g.height}
-                            rx={Math.min(12, 8 * zoomFactor)}
-                            fill="rgba(15, 23, 42, 0.45)"
-                            stroke={`${g.color}35`}
-                            strokeWidth={strokeW}
-                            strokeDasharray={dashPattern}
-                          />
-                          <rect
-                            x={g.x + hPad}
-                            y={g.y + hPad}
-                            width={boxWidth}
-                            height={headerHeight}
-                            rx={Math.min(6, 4 * zoomFactor)}
-                            fill="rgba(15, 23, 42, 0.92)"
-                            stroke={`${g.color}70`}
-                            strokeWidth={strokeW}
-                          />
-                          <text
-                            x={g.x + g.width / 2}
-                            y={g.y + hPad + headerHeight / 2}
-                            fill={g.color}
-                            fontSize={`${finalFontSize.toFixed(1)}px`}
-                            fontWeight="700"
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            textLength={isSqueezed ? maxTextWidth : undefined}
-                            lengthAdjust={isSqueezed ? 'spacingAndGlyphs' : undefined}
-                          >
-                            <title>{fullLabel}</title>
-                            {displayLabel}
-                          </text>
-                        </g>
-                      );
-                    })}
+                  {layoutName === 'swimlanes' && (
+                    <UniversalGraphSwimlaneGuides swimlaneGuides={swimlaneGuides} zoom={cyTransform.zoom} />
+                  )}
                 </g>
               </svg>
             )}
@@ -2385,252 +3046,26 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
           className="domain-cytoscape-container"
           style={{ display: layoutName === 'mermaid' ? 'none' : 'block' }}
         />
-
-        {/* Floating Multi-Select Grouping Bar */}
-        {multiSelectedNodeIds.size > 1 && (
-          <div
-            className="floating-multi-select-bar"
-            style={{
-              position: 'absolute',
-              bottom: 24,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(15, 23, 42, 0.95)',
-              border: '1px solid #0284c7',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-              borderRadius: 8,
-              padding: '8px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              zIndex: 1000,
-              backdropFilter: 'blur(8px)',
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#38bdf8' }}>
-              {multiSelectedNodeIds.size} Selected
-            </span>
-            <input
-              type="text"
-              placeholder={`Group (${multiSelectedNodeIds.size})`}
-              value={floatingGroupName}
-              onChange={(e) => setFloatingGroupName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  createCustomGroup(
-                    floatingGroupName.trim() || `Group (${multiSelectedNodeIds.size})`,
-                    Array.from(multiSelectedNodeIds)
-                  );
-                  setFloatingGroupName('');
-                }
-              }}
-              style={{
-                height: 24,
-                background: '#1e293b',
-                border: '1px solid #334155',
-                borderRadius: 4,
-                padding: '0 8px',
-                fontSize: 11,
-                color: '#f8fafc',
-                width: 140,
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                createCustomGroup(
-                  floatingGroupName.trim() || `Group (${multiSelectedNodeIds.size})`,
-                  Array.from(multiSelectedNodeIds)
-                );
-                setFloatingGroupName('');
-              }}
-              style={{
-                background: '#0284c7',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 4,
-                padding: '4px 10px',
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Group
-            </button>
-            <button
-              type="button"
-              onClick={clearMultiSelection}
-              style={{
-                background: 'transparent',
-                color: '#94a3b8',
-                border: '1px solid #334155',
-                borderRadius: 4,
-                padding: '4px 8px',
-                fontSize: 11,
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* Context Menu for Nodes */}
-        {contextMenu && (() => {
-          const isGroupNode = contextMenu.nodeId.startsWith('group:');
-          const targetNodeIds =
-            multiSelectedNodeIds.has(contextMenu.nodeId) && multiSelectedNodeIds.size > 1
-              ? Array.from(multiSelectedNodeIds)
-              : [contextMenu.nodeId];
-          const downstreamNodeIds = isGroupNode ? [] : getDownstreamNodeIds(contextMenu.nodeId);
-          const isSubmenuLeft = typeof window !== 'undefined' && contextMenu.x + 360 > window.innerWidth;
-
-          return (
-            <div
-              className="domain-node-context-menu"
-              style={{
-                position: 'absolute',
-                left: `${contextMenu.x}px`,
-                top: `${contextMenu.y}px`,
-                zIndex: 1000,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="context-menu-header">
-                <span className="context-menu-title" title={contextMenu.nodeName}>
-                  {contextMenu.nodeName}
-                </span>
-                <span className="context-menu-kind">{contextMenu.nodeKind}</span>
-              </div>
-              <div className="context-menu-divider" />
-              {multiSelectedNodeIds.size > 1 && (
-                <button
-                  type="button"
-                  className="context-menu-item"
-                  onClick={() => {
-                    createCustomGroup(`Group (${multiSelectedNodeIds.size})`, Array.from(multiSelectedNodeIds));
-                    setContextMenu(null);
-                  }}
-                >
-                  <span>Group {multiSelectedNodeIds.size} Selected</span>
-                </button>
-              )}
-              {!isGroupNode && (
-                <>
-                  <div
-                    className="context-menu-submenu-container"
-                    onMouseEnter={() => setIsAddGroupSubmenuOpen(true)}
-                    onMouseLeave={() => setIsAddGroupSubmenuOpen(false)}
-                  >
-                    <button
-                      type="button"
-                      className="context-menu-item context-menu-submenu-trigger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsAddGroupSubmenuOpen((prev) => !prev);
-                      }}
-                    >
-                      <span>Add to group</span>
-                      <span className="submenu-arrow">▶</span>
-                    </button>
-                    {isAddGroupSubmenuOpen && (
-                      <div className={`context-menu-submenu ${isSubmenuLeft ? 'submenu-left' : ''}`}>
-                        {customGroups.map((group) => {
-                          const isMember = targetNodeIds.every((id) => group.nodeIds.includes(id));
-                          return (
-                            <button
-                              key={group.id}
-                              type="button"
-                              className="context-menu-item"
-                              onClick={() => {
-                                addNodesToCustomGroup(group.id, targetNodeIds);
-                                setContextMenu(null);
-                              }}
-                            >
-                              <span className="context-menu-submenu-item-name" title={group.name}>
-                                {isMember ? '✓ ' : ''}{group.name}
-                              </span>
-                              <span className="context-menu-badge">{group.nodeIds.length}</span>
-                            </button>
-                          );
-                        })}
-                        {customGroups.length > 0 && <div className="context-menu-divider" />}
-                        <button
-                          type="button"
-                          className="context-menu-item"
-                          onClick={() => {
-                            const defaultName =
-                              targetNodeIds.length > 1
-                                ? `Group (${targetNodeIds.length})`
-                                : `Group of ${contextMenu.nodeName}`;
-                            createCustomGroup(defaultName, targetNodeIds);
-                            setContextMenu(null);
-                          }}
-                        >
-                          <span>+ New Group...</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="context-menu-item"
-                    disabled={downstreamNodeIds.length === 0}
-                    onClick={() => {
-                      createCustomGroup(`Downstream of ${contextMenu.nodeName}`, downstreamNodeIds);
-                      setContextMenu(null);
-                    }}
-                  >
-                    <span>
-                      Group all downstream {downstreamNodeIds.length > 0 ? `(${downstreamNodeIds.length})` : ''}
-                    </span>
-                  </button>
-                </>
-              )}
-              {isGroupNode && (
-                <button
-                  type="button"
-                  className="context-menu-item"
-                  onClick={() => {
-                    const gId = contextMenu.nodeId;
-                    if (gId.startsWith('group:custom:')) {
-                      deleteCustomGroup(gId.replace('group:custom:', ''));
-                    } else if (gId.startsWith('group:kind:')) {
-                      toggleTypeGrouping(gId.replace('group:kind:', '') as EntityKind);
-                    }
-                    setContextMenu(null);
-                    setSelectedNodeId(null);
-                  }}
-                >
-                  <span>Ungroup / Expand</span>
-                </button>
-              )}
-              <div className="context-menu-divider" />
-              <button
-                type="button"
-                className="context-menu-item"
-                onClick={() => hideNode(contextMenu.nodeId)}
-              >
-                <span>Hide Node</span>
-              </button>
-              <button
-                type="button"
-                className="context-menu-item"
-                disabled={downstreamNodeIds.length === 0}
-                onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
-              >
-                <span>Hide Downstream</span>
-              </button>
-              <button
-                type="button"
-                className="context-menu-item"
-                onClick={() => hideAllOfKind(contextMenu.nodeKind)}
-              >
-                <span>Hide all {contextMenu.nodeKind}s</span>
-              </button>
-            </div>
-          );
-        })()}
+        <UniversalGraphGroupingOverlays
+          multiSelectedNodeIds={multiSelectedNodeIds}
+          floatingGroupName={floatingGroupName}
+          setFloatingGroupName={setFloatingGroupName}
+          createCustomGroup={createCustomGroup}
+          clearMultiSelection={clearMultiSelection}
+          contextMenu={contextMenu}
+          setContextMenu={setContextMenu}
+          isAddGroupSubmenuOpen={isAddGroupSubmenuOpen}
+          setIsAddGroupSubmenuOpen={setIsAddGroupSubmenuOpen}
+          customGroups={customGroups}
+          addNodesToCustomGroup={addNodesToCustomGroup}
+          deleteCustomGroup={deleteCustomGroup}
+          toggleTypeGrouping={toggleTypeGrouping}
+          setSelectedNodeId={setSelectedNodeId}
+          getDownstreamNodeIds={getDownstreamNodeIds}
+          hideNode={hideNode}
+          hideDownstreamNodes={hideDownstreamNodes}
+          hideAllOfKind={hideAllOfKind}
+        />
       </div>
 
       {/* Error Banner */}
