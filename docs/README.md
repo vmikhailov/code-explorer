@@ -31,6 +31,7 @@ docs/                                         # Technical Architecture & Referen
 │   └── vscode-extension.md                   # Interactive VS Code & Antigravity Extension Architecture
 │
 ├── proposals/                                # Active Technical Proposals & Design Specs
+│   ├── layered-ontology-and-flow-visualization-proposal.md # Layer 5 ArchLayers, Layered Project Flow & Diagnostic Lenses
 │   ├── entrypoint-vs-endpoint-ontology-proposal.md # Separating Binary EntryPoint (L2) from Endpoint Contracts (L4)
 │   ├── project-map-proposal.md               # Project Map (C3 Internal Architecture View)
 │   ├── universal-parser-proposal.md          # Universal AST Visitor & ILanguageHooks
@@ -70,6 +71,7 @@ docs/                                         # Technical Architecture & Referen
 | [**`architecture/fractal-orthogonal-invariant-matrix.md`**](architecture/fractal-orthogonal-invariant-matrix.md) | Architecture | **Active Standard** | Architects / QA / AI Agents | Formal FOIM 5x4 matrix taxonomy governing semantic invariant rules across all scopes and dimensions. |
 | [**`architecture/vscode-extension.md`**](architecture/vscode-extension.md) | Architecture | **Active Standard** | Extension Developers | Architecture for interactive Cytoscape.js webview extension, host messaging RPC, and native binaries. |
 | [**`proposals/entrypoint-vs-endpoint-ontology-proposal.md`**](proposals/entrypoint-vs-endpoint-ontology-proposal.md) | Proposals | **Active Proposal** | Engine Developers / Architects | Separating binary/process `EntryPoint` (Layer 2) from external `Endpoint` API/MSG contracts (Layer 4). |
+| [**`proposals/layered-ontology-and-flow-visualization-proposal.md`**](proposals/layered-ontology-and-flow-visualization-proposal.md) | Proposals | **Active Proposal** | Engine / Extension Developers | Layer 5 `ArchLayer` & `Component` nodes, unified internal Layered `Project Flow`, diagnostic lenses, and declarative telemetry overlays. |
 | [**`proposals/project-map-proposal.md`**](proposals/project-map-proposal.md) | Proposals | **Active Proposal** | Engine / Extension Developers | Project Map (C3 internal module view), symbol-edge lifting, and Tarjan SCC cycle detection. |
 | [**`proposals/universal-parser-proposal.md`**](proposals/universal-parser-proposal.md) | Proposals | **Active Proposal** | Core Developers | Universal AST Visitor & `ILanguageHooks` reducing per-language parser footprint by ~80%. |
 | [**`roadmap/README.md`**](roadmap/README.md) | Roadmap | **Active Master** | All Contributors / AI Agents | Unified roadmap: delivered milestones, active MCP & CLI semantic architecture spec, and backlog. |
