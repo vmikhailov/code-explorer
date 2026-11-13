@@ -10,6 +10,7 @@
     <Using Include="CodeExplorer.Core.Gates" />
     <Using Include="CodeExplorer.Server" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\..\Core\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />

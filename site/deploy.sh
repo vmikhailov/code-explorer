@@ -9,6 +9,9 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/hermes_mikhailov}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+echo "🔨 Building CodeExplorer SPA (syncing ontology + Vite build)..."
+npm run build
+
 echo "🚀 Deploying CodeExplorer site to ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
 
 tar -czf - \

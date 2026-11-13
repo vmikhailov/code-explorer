@@ -186,6 +186,7 @@ jobs:
             cli/src/UI/CodeExplorer/CodeExplorer.csproj \
             cli/src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj \
             cli/src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj \
+            cli/src/Core/CodeExplorer.Storage/CodeExplorer.Storage.csproj \
             cli/src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj \
             cli/src/Core/CodeExplorer.Indexing/CodeExplorer.Indexing.csproj \
             cli/src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj; do

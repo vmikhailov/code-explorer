@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -21,6 +24,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
       - name: Setup .NET 11
         uses: actions/setup-dotnet@v4
@@ -41,14 +49,50 @@ jobs:
         run: |
           dotnet run --project cli/src/UI/CodeExplorer/CodeExplorer.csproj -c Release --no-build -- gate check -g SIG-P-B-005,SIG-C-B-002 --auto-init --scan --clear
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
       - name: Test VS Code Extension
         working-directory: ./vscode-extension
         run: |
           npm ci
           npm run typecheck
           npm run test
+
+      - name: Build Website SPA
+        working-directory: ./site
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish Website Bundle (site-dist branch)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        working-directory: ./site
+        run: |
+          OUT_DIR="$(mktemp -d)"
+          tar -czf "${OUT_DIR}/site-dist.tar.gz" \
+            .well-known \
+            assets \
+            index.html \
+            fonts \
+            presentation.html \
+            llms.txt \
+            install.sh \
+            install.ps1 \
+            favicon.svg \
+            logo.svg \
+            icon-512.png \
+            og-image.png \
+            all_services.png \
+            selected_services.png \
+            all_services_clean.png \
+            selected_services_clean.png \
+            project_flow.png \
+            robots.txt \
+            sitemap.xml \
+            CNAME
+          echo "${GITHUB_SHA}" > "${OUT_DIR}/commit.txt"
+          cd "${OUT_DIR}"
+          git init -b site-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site-dist.tar.gz commit.txt
+          git commit -m "chore(site): publish site-dist for ${GITHUB_SHA}"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/site-dist

@@ -64,6 +64,9 @@ public static partial class BuiltInGateCatalog
                 OR (p.name IN ['CodeExplorer.Core', 'CodeExplorer.Cypher', 'CodeExplorer.Parser.Shared']
                   AND (d.name STARTS WITH 'CodeExplorer.Parser.' OR d.name = 'CodeExplorer'))
                 OR (p.name = 'CodeExplorer.Cypher' AND d.name STARTS WITH 'CodeExplorer')
+                OR (p.name = 'CodeExplorer.Core' AND d.name IN ['CodeExplorer.Storage', 'CodeExplorer.Indexing', 'CodeExplorer.Analysis', 'CodeExplorer.Gates', 'CodeExplorer.Server'])
+                OR (p.name IN ['CodeExplorer.Storage', 'CodeExplorer.Indexing', 'CodeExplorer.Gates'] AND d.name IN ['CodeExplorer.Analysis', 'CodeExplorer.Server', 'CodeExplorer'])
+                OR (p.name = 'CodeExplorer.Indexing' AND d.name = 'CodeExplorer.Storage')
               )
             RETURN p, r, d
             """,
@@ -89,8 +92,8 @@ public static partial class BuiltInGateCatalog
         Message = "Query-side service {src.name} depends on indexing-pipeline code {tgt.name} ({tgt.path})",
         Query = $"""
             MATCH (src:Function)-[r:CALLS]->(tgt:Function)
-            WHERE src.path CONTAINS 'CodeExplorer.Core/Analysis/Services/'
-              AND (tgt.path CONTAINS 'CodeExplorer.Core/Analysis/Layers/' OR tgt.path CONTAINS 'CodeExplorer.Core/Analysis/Pipeline/')
+            WHERE src.path CONTAINS 'Analysis/Services/'
+              AND (tgt.path CONTAINS 'Analysis/Layers/' OR tgt.path CONTAINS 'Analysis/Pipeline/')
               AND NOT tgt.name IN {AmbiguousCalleeNames}
               AND NOT coalesce(src.is_test, false)
             RETURN src, r, tgt

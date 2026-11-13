@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\..\src\Core\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />

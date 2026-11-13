@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.86.0] - 2026-11-13
+
+### Added & Improved
+- **Dedicated `CodeExplorer.Storage` Assembly & SQLite Driver Isolation (`CodeExplorer.Storage`, `CodeExplorer.Core`, `CodeExplorer.Analysis`)**:
+  - Extracted SQLite graph persistence (`SqliteGraphClient` and all partial files, `SqliteCypherFunctions`) into a dedicated `CodeExplorer.Storage` assembly and NuGet package.
+  - Moved SQLite FTS5 / vector search (`IdentifierSearchEngine` and `IdentifierVectorEncoder`) from `CodeExplorer.Core` to `CodeExplorer.Analysis`.
+  - Removed `Microsoft.Data.Sqlite`, `Dapper`, and `SQLitePCLRaw.bundle_e_sqlite3` from `CodeExplorer.Core` so `CodeExplorer.Core` and `CodeExplorer.Indexing` remain 100% storage-driver-agnostic.
+  - Extended `SIG-P-B-007` (`Parser Plug-in Project Isolation`) to enforce strict assembly boundaries across `CodeExplorer.Core`, `CodeExplorer.Storage`, `CodeExplorer.Indexing`, `CodeExplorer.Gates`, and `CodeExplorer.Analysis`.
+
+---
+
 ## [1.85.0] - 2026-11-13
 
 ### Added & Improved

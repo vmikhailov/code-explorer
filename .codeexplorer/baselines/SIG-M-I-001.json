@@ -7753,6 +7753,126 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
+      "fingerprint": "b3e3ed6afea67d384e7fc01f8f4882304d82d1aef3033bcdd36bbaf547b0928e",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 191,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "49befe87991dee73c3f795fd56a8d119d79870ce8955010a1358c50f0322d3fb",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 192,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "8d14ecbd4c17948e0fc24113fe269ec7812e7a26899c54bf400d8ab067b900d5",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 193,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7066ba04bc2576d4c6fb20d3c1f93838e1feb7af928227e3fce4540c23d2e8a6",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 194,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "c5602a6d484856281258f47ac6efa551483768d911c375b037b0c4bea5eb335c",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 195,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "3b03128e1009cb838070eaf25a839ed3fff220a434fa9728dc4714a1c8140df4",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 196,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e39e3c9f1cba1cc138f6040878672bbfc2bd79f28e6fa74294c7713d05876df6",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 197,
+      "column": 48,
+      "symbol": "RebuildIndexAsync",
+      "target": "insertCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "3b6acd7227e13dbe383ffefcf45a2c4508416ad65683ce09b83a438ae67aa8a2",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 258,
+      "column": 42,
+      "symbol": "SearchAsync",
+      "target": "exactCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7eb32b8edac80add90bdfd3669b55b5a27c212ac6f50b448dd484a036d96443a",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 259,
+      "column": 42,
+      "symbol": "SearchAsync",
+      "target": "exactCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "c061222c0ab04f659cba1e626b68170aa97a160569225747e655f40ea04532c1",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 304,
+      "column": 44,
+      "symbol": "SearchAsync",
+      "target": "ftsCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "56d91f6c28bb95ad2c1bca04df801b7a19d1ee9f350514e372848cd77b173ddc",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 305,
+      "column": 44,
+      "symbol": "SearchAsync",
+      "target": "ftsCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "3da36f2954ca571a5847c0d2251da69fac70836ff24d3123db5011300aed13b2",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/IdentifierSearchEngine.cs",
+      "line": 342,
+      "column": 42,
+      "symbol": "SearchAsync",
+      "target": "scoreCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
       "fingerprint": "65ce7a366f15e928528a0bba6d731a45a30bb4ddc9af6468793f76302fc4beb9",
       "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.cs",
       "line": 140,
@@ -9713,126 +9833,6 @@
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
-      "fingerprint": "8d37c42510ebb1af98e48e3fb4be745723924684d148f8c6ffe6a654bd9d9b16",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 182,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "2001a65d84325148b7313d0194d70cd653a1c6735022284db5d93d7a8932885b",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 183,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "92ca0a3e816e9520e16d5bcf42b329f1f3aba9e5067835bb9dfcf85e314aece4",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 184,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "dc2d4216ef09636d791ad50bcc79c672515857d8547fd2f7b5186427c4c95572",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 185,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "487e07f5f85d777951a6f7c9dc3e2c6cda338c65aaa4a2dfe6cc3bed04079c60",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 186,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "bfd9666e31b5a3c78d97f4e9c680db2b9bf93b5df8e4a4535c28fec3a0b52c77",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 187,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "0e71449fb05956dc83b6d4f7086fd10968ae3906186bd97fabd267f5349e6348",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 188,
-      "column": 48,
-      "symbol": "RebuildIndexAsync",
-      "target": "insertCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "e45c70e4d01ab574a0a6b669bd698cb5c6cdcd17e4cd7893076821aa4ce91c75",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 224,
-      "column": 42,
-      "symbol": "SearchAsync",
-      "target": "exactCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "f1556f19ae3bde5ab7a676d9e738e270d6d4269e31f3b8013de5c4410fe019e4",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 225,
-      "column": 42,
-      "symbol": "SearchAsync",
-      "target": "exactCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "6696e5483e23f42137d54442107fc81b77217c90421eb5e844fc6e89712fc28e",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 270,
-      "column": 44,
-      "symbol": "SearchAsync",
-      "target": "ftsCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "054e896a2841af72cc0f3d27c5dbf60c934020b25569f9c7df2a5577461bd9c5",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 271,
-      "column": 44,
-      "symbol": "SearchAsync",
-      "target": "ftsCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "458d379c1bf2bedb5883f7c73d6ae0d175e8c51ba1034fc6920020bc9dbc0d8e",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/IdentifierSearchEngine.cs",
-      "line": 304,
-      "column": 42,
-      "symbol": "SearchAsync",
-      "target": "scoreCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
       "fingerprint": "75242b6ecc7a68d01c1d79a5ce52c5d8eecae3987dcae1896fc7f2db47bfd235",
       "file": "cli/src/Core/CodeExplorer.Core/Analysis/EvidenceProvenanceHelper.cs",
       "line": 152,
@@ -10349,976 +10349,6 @@
       "column": 67,
       "symbol": "CreateConverter",
       "target": "Expression.Property",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "ab3740686fe58246b22a84d1457b197dcaf2fe6ed9bd1be1a7ed878a8476647f",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 20,
-      "column": 29,
-      "symbol": "RegisterMathFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "43fa684c9e6f999aece33968318a8dbc82dc6245285346c33a8b72df875ff0ac",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 21,
-      "column": 29,
-      "symbol": "RegisterMathFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "45dbfde36eca79c09588b881b127fa84431527a04d91830cd326926000509b05",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 26,
-      "column": 29,
-      "symbol": "RegisterRegexFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "a77a2c38a68018077553e58579cfae1c363111f68d614e3fa1f8c80547398846",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 42,
-      "column": 29,
-      "symbol": "RegisterStringFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "327498074cd964d56813adf778e171668e20b78f7f6471540250224d7bc54c83",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 50,
-      "column": 29,
-      "symbol": "RegisterStringFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "ae625190de8497c69dd9e58e5ff96aad54246d0ccbf003337fb73f33345e2bfb",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 61,
-      "column": 29,
-      "symbol": "RegisterObjectFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "5e0166493ed7ad4e7f91dbd0dc17796142bd790defb99c091b09a1467242e101",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 62,
-      "column": 29,
-      "symbol": "RegisterObjectFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "3428fff2abd6df3ed6a9088646ea1608a73731967962ca3779d995b96a45660a",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 82,
-      "column": 29,
-      "symbol": "RegisterListFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-11T14:42:43.0684331+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-11 14:42:43"
-    },
-    {
-      "fingerprint": "f784b57052df8500f5dffb7f954b28554040d9a55dc8e6406747884b7c6f92b4",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 83,
-      "column": 29,
-      "symbol": "RegisterListFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "3fc1c67612a0295b23f73cdf532d55efcd1d37f1a7e5afd70e67cc7a56f4cb09",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 84,
-      "column": 29,
-      "symbol": "RegisterListFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "e59f27efb196781711e121d8adecdaed7be4ff306e53d003f4213001d8dd1de5",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
-      "line": 85,
-      "column": 29,
-      "symbol": "RegisterListFunctions",
-      "target": "conn.CreateFunction",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "4f3f2f9e19b01d344efc37b034cd6aff4c12383da867a5d8ec04e92c95683037",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 133,
-      "column": 42,
-      "symbol": "UploadNodesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "31e36391acac829fe018908c46e5863436c31904084890a3995502cdfccc8127",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 134,
-      "column": 44,
-      "symbol": "UploadNodesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "155f939e87fa71aadb3e7407d234f00f3152eab487249ca5d9784fa521535123",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 135,
-      "column": 45,
-      "symbol": "UploadNodesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "e2da5196026c6be4878afa898d0ceaa1c53c8fe624884cad97a50098975511ed",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 186,
-      "column": 44,
-      "symbol": "UploadRelationshipsAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "8d3eda92de891e3190e4b3fabac011bb92a8e7e01611ebe17410b3f5a320cf84",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 187,
-      "column": 42,
-      "symbol": "UploadRelationshipsAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "9e98effe303c67b940143c4303fac169ac6f68c47e0f805cb2aa5fa8ceab6fbb",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 188,
-      "column": 44,
-      "symbol": "UploadRelationshipsAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "61efc959994a2fdb2bba48854c1c60884e5510732c60e9fd68da5cc5edc41a46",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.cs",
-      "line": 189,
-      "column": 45,
-      "symbol": "UploadRelationshipsAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "202cb51d9f04743c04151849902a8ca947840b947f3f79eb1e81c5bc70b5d4dd",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 35,
-      "column": 45,
-      "symbol": "LoadIntentCandidatesAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "eb2b0f37356a2dcd12f45629cdde1f69a2283eaa037e19b82f7810481d98c268",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 156,
-      "column": 49,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "8de287db76750be924ed4042321a95a11f1d495b67e2237580a5a5b0086eba5a",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 157,
-      "column": 53,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "2ba6ed0ede0c843305c34177c79829823c873392bbacd25d95e438e94cd5fcca",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 158,
-      "column": 52,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "2dccf15186fa74b37828c6cc133e00957184b6e11d9917eaf8a36e159b91066c",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 159,
-      "column": 54,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "c2987afdadc2192a552f2c7edf39f0f75f9eb98e59da7e1e51b9443db0bbbf6b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 160,
-      "column": 49,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "41eea40a8ec908ea677c1fc8a91dcd64d6011e4e35175eafcf93710e8cff5607",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 161,
-      "column": 50,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "c53526552634896b59bd32a1feb35fbc79bcd4fffb1880800bf485cd0b7982b5",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 162,
-      "column": 54,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "b758a4d56822560c18d8e269061fd8894bdc1b54fce4ea0d3a9dd5b7b3540a75",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 163,
-      "column": 51,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "106814d75139fbaa3e9368689a98e12160197da9028277249268cddb469a6810",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 164,
-      "column": 55,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "1b97a4069403eb221f2696b1bf7c7fdb1323c39e4f2c92140ce42635283223e5",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 165,
-      "column": 53,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "092155a0adf39d4a469a0b5477b78edcce969061af96b81ae3d7a6d521805c1d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 200,
-      "column": 52,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "domCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "712051b0f2dc8e74ce505c080ee3e67aa778c2bdbcbc3387bb8471290b791b4b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 201,
-      "column": 55,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "domCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "145618af229daf455f70ca017aa6fa1a9a186f94009b007b9913479b08070923",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 226,
-      "column": 54,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "edgeCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "f3bc006c63a3c0626f0f974b4ea0da8134e046bddd7c7ac6be2c877d76cd797f",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 227,
-      "column": 52,
-      "symbol": "SaveIntentPredictionsAsync",
-      "target": "edgeCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "4acde94a1c05e6516e2b64dda689c1b381d698d7d4783a6e945c292a8eb11ee8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 268,
-      "column": 41,
-      "symbol": "LoadExistingIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "e24e61764d1ab9001c508a8b7c85b0327e3134b4d1d90950b83232ffca8888e8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 356,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "c5d149225fb18661de5a0696c0a697d17a2cc0e076162221dcfb38802e68960d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 357,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "f305fa086a5ef1365c8b1a09b20f5603f1265a7a9e3f0bba7dfe330bbbb41109",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 358,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "944fd97794041af7a04dd5cee42e1c7c80ca952727b8815b921e11b17ba32316",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 359,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "e86b986ed4da676f17928582ae07e743f3faea52b311765e90e2b22d0d021c8b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 360,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "28ba8d1e4420cdf29b57ff6a3b6a92c345a6d3ba336c9686494da36ca17b8251",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 361,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "82ae2c469888e3809e20f90fe258b587d90e5716da08b95659a947cbe96212e8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 362,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "d7d6d70a0fb86f99b2241e216a3d1c359e0196e05bce46272c8f97db67f79aa6",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 363,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "9159e26e1d88cd4b57047bac6499c04fd174deaabacb164d8948974937a6d461",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 364,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "46db800432ff25dc2ca6b5addc26378080e962f043ba9388ec1e4bece840516b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 365,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "6bab5277eebcb3a290950a3631e155af1f796246fc73d10f6979f3e2c9584884",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 366,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "9ba95b51736f53c115182bea936e08106c6b3f4fe4aeb943f96c5cc880febdcf",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 367,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "ab41b3d1f33d7ca24eda3e238a0cccd219dc4f27dd192ac16617c2e45e2cd0ba",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 368,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "2a711b10f4df360814cc4e4b7c03561d4635b1e5f86379b6846a5acd0bb6720e",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 370,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "65009dae425e82182f8609897a520e5188c21b9e6fa08b12063d9d3149eae770",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 373,
-      "column": 41,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "38542367d13a6f01eedd26806e0c1be0a2e75b53d4fee7d44c058c7984094e49",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 374,
-      "column": 48,
-      "symbol": "SaveIntentRecordAsync",
-      "target": "",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "cece48de96226d10b6a138ea011219f762cf29fe0994424e6cd8aaba18d27d1e",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 521,
-      "column": 48,
-      "symbol": "ApplyCachedIntentsToGraphAsync",
-      "target": "domCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "615a37d9bb7c5458a4340e94f3b37e3d546088d8c7642a2542b22096283d7476",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 544,
-      "column": 49,
-      "symbol": "ApplyCachedIntentsToGraphAsync",
-      "target": "edgeCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "d4fd179caa9d835eff4d4a7968e12e91801e910732efe4cb979026239a5b4e87",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 570,
-      "column": 52,
-      "symbol": "ApplyCachedIntentsToGraphAsync",
-      "target": "projDomCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "faee8ab8e4ba9359a38e94ad92594ef31495da922d7f28381336f7947fe70fd1",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.IntentQueries.cs",
-      "line": 658,
-      "column": 50,
-      "symbol": "ApplyCachedIntentsToGraphAsync",
-      "target": "purgeCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "083c9d975af869ae1fa62ceb3bc2efc538ebd28923ccc4b470e7dbbe2a3011e4",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 438,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "c62bea54422673cce64d80871353911dba2c8cf74fd1852cfc65fe6eeeec102b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 439,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "0c2742e68bf2cc171b063c12556503000212d7b3a60fad39c09766012017eb24",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 440,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "105dfdfd3354f95a2de0a3fd02c7d3941cacdba35fcdc79cc2665a4c4fc1cbd6",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 441,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "589b400804047062d52656dd59a3d8390e11f05bd0ebbf0d6989195322b6f578",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 458,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "458d1108a01b542fa2271dabfa1f643ba6613a5519529efa71eca23c08ca60e3",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 459,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "db2b372ba858f74c916dd601c435ce39bd477a40ae876fd4fe8b65addc89121b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 484,
-      "column": 56,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "delCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "78a6a8b1e122f4faf9425ad0937d39bbdaac46ca92d3333ed4921041bbfd1aa8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 507,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "282ca529ad6e6a0f87c5d05fef93975977528408c2233ba280f805b6c47f73c2",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 508,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "41a1dca8397a7d4756fe2d74c0561a1e19ca8dfc9e4c2feeed24d30c1a7d8003",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 537,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "58bb26e4daf6104fb30dd138c3e93f667f447cef9552e0da2ec413b26601ea55",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 538,
-      "column": 53,
-      "symbol": "SaveProjectIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "0a131b39a31ae5385a7e998c93809ce8d4e42ea6533c15426ae203a1fc5ebe4d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 602,
-      "column": 41,
-      "symbol": "IncrementIntentErrorAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "d54afbb06073923d6f9dd711bc9a8ca0c6d05a8c1fa5bdcfee644a7737977dc7",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 603,
-      "column": 41,
-      "symbol": "IncrementIntentErrorAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "f73e582cc801da7ef850f13f9c47809783f55933349ea0f8bab946ffe3e1f6da",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 604,
-      "column": 41,
-      "symbol": "IncrementIntentErrorAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "540af4dff531746d2a182e5302658de4e53f7612966e919df0613704c263046d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 605,
-      "column": 41,
-      "symbol": "IncrementIntentErrorAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "13dae28de03403bd85a6d77ab6127dd0337bc710d113bb7a6de592ac1c639396",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 606,
-      "column": 41,
-      "symbol": "IncrementIntentErrorAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "82d7f13fdab576842e97fd79f0b06fa993f81869ef1fe22148dc94584d3be6a8",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 607,
-      "column": 41,
-      "symbol": "IncrementIntentErrorAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "e0ed752f94980b7577bec033635cfb6b9edcc1fb26eaab4e8a035ea81b45d65d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 630,
-      "column": 41,
-      "symbol": "ResetIntentErrorsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "d63221320815108c1e60f0ce058a62e3bb8208617402ba9ae209382c1fefa300",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.Intents.cs",
-      "line": 656,
-      "column": 41,
-      "symbol": "ClearIntentsAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "be9007bbf09ea4a55e28a3fda3b5d401c653b280b84e5481c66285a81dcf2fbb",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 40,
-      "column": 45,
-      "symbol": "LoadSymbolsByNamesAsync",
-      "target": "cmdInit.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "4bf097bb920da9b3d3f66bd6d1f651e3a6e5f6deaa22b4885073d1847fe29050",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 49,
-      "column": 41,
-      "symbol": "LoadSymbolsByNamesAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "4e2afc0447924e388c00a0162eb2accd58329c611221427145881344f2afd18a",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 89,
-      "column": 47,
-      "symbol": "LoadSymbolsByNamesAsync",
-      "target": "fnCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-21T01:04:51.3208493+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "a52c4bbc3c7d6616f69279cf246f22de2833589753bf8e2a4fa771bacd205821",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 125,
-      "column": 45,
-      "symbol": "LoadImplementationsForTypesAsync",
-      "target": "cmdInit.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "7f5ec4ae541a2058e8422b62a32a6d2b858a94ea8dfba437c99048fedd9d105e",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 134,
-      "column": 41,
-      "symbol": "LoadImplementationsForTypesAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "cbdcb4a1602561a8c714e5ddbcb25991980c357ff76484ebdf34fa51d4fa7561",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 210,
-      "column": 41,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "08995b28d1cd1bc36cce45ad316b9633db74f325e616784246f40e5f888d46e3",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 211,
-      "column": 41,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "f02d2c0bd38e0ed386a6c7b02f13b3b771da089a7c8a57cc0c7d2798b09824fd",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 212,
-      "column": 41,
-      "symbol": "LoadLateBindingCandidatesAsync",
-      "target": "cmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "84368144a14ee4ed750195dfb795eb26b2f408a1eab1a813298ce06d736e3eaa",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 496,
-      "column": 48,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "delCmd.Parameters.AddWithValue",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "88e1303090c2726e7c12b0679f60b4bd682764ea7584f690e3a91e454d270c6a",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 513,
-      "column": 51,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "insCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "cdb91b42f9c27f947549b5204dc82fc7ccfae4ac4fac4b153304831f77e1be66",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 514,
-      "column": 49,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "insCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "d4e3641028713dc8bdbccf757bf72e157521a75cd8fe93fe4d1d3df734749192",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 515,
-      "column": 52,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "insCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "d112fe7d421a86f779fa91f85183d25b4eb1bceccc9d0f9fac1f84560f8ad74d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 535,
-      "column": 51,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "insCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "36e92655b4887c544a968daf828fda62624fbb0bec213bac3f83878987b7669d",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 536,
-      "column": 49,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "insCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "fa556e5fb37f12e547bdcd9806ace320101f8f32fb0b5fc0696ce6ff407d879f",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 537,
-      "column": 52,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "insCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "7c6dc886bd9268f3023631bf7faf13bc651e4a617b8a998e5245d12b1b912352",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 562,
-      "column": 54,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "ec8002aff96e643ad3f5074e62263bb3c6ca9f3e297b1aed207dc6c35913b34b",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 563,
-      "column": 49,
-      "symbol": "SavePostIndexResultsAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "1317cc433e637b4c339fc1694b3040cdecfd5e2b43ca539510d5de0f9e477c7e",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 611,
-      "column": 50,
-      "symbol": "UpdateProjectExternalApisAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "853c79a1603d316d3d3d2ef076703e11ddc30186c6adbdbe993b0ffd77d08d72",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 612,
-      "column": 45,
-      "symbol": "UpdateProjectExternalApisAsync",
-      "target": "updCmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-20T12:38:41.4890816+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-20 12:38:41"
-    },
-    {
-      "fingerprint": "24353d28091fe6cec4e82303354936a94ac2b9fccbaae17987997d9aa8b6e1ce",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 736,
-      "column": 43,
-      "symbol": "SaveFileRegistryEntriesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "e09c820271160ac3c00ea4565698ec99949c854a1964c6fa1dbd696616d66fd1",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 737,
-      "column": 44,
-      "symbol": "SaveFileRegistryEntriesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "14bd79c8220d766fde1a2978c371292baa2b82323adabe0261fe4a2a9bb3b7bb",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 738,
-      "column": 43,
-      "symbol": "SaveFileRegistryEntriesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "e2b0d13ad09028111c2e96d55a512ff81eac8795667603c176a11ff73ecb1052",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 739,
-      "column": 44,
-      "symbol": "SaveFileRegistryEntriesAsync",
-      "target": "cmd.Parameters.Add",
-      "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "2deb2439e3ee7138bd6ec138b3e36b4dd10578310965f230a7f0ada761626742",
-      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteGraphClient.PostIndex.cs",
-      "line": 740,
-      "column": 44,
-      "symbol": "SaveFileRegistryEntriesAsync",
-      "target": "cmd.Parameters.Add",
       "acknowledgedAt": "2026-10-30T00:37:45.88168+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
@@ -14731,6 +13761,976 @@
       "target": "ctx.ReportProgress",
       "acknowledgedAt": "2026-11-13T18:55:26.2328407+00:00",
       "reason": "Baseline snapshot captured at 2026-11-13 18:55:26"
+    },
+    {
+      "fingerprint": "47fe3c73ed9e6ed25381c83cda4ec4b9c17ef3eeef9f8a07c5b91e4ab319bc96",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 66,
+      "column": 29,
+      "symbol": "RegisterMathFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7b2189020cff06c8a5657d025219eeca011e40d0f2e7d706d10db90add3e347f",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 67,
+      "column": 29,
+      "symbol": "RegisterMathFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "48dd8a866b9da2c87eb32b867e35c357b9ac5d0f1302da169e94cb83ac623ee6",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 72,
+      "column": 29,
+      "symbol": "RegisterRegexFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "5304e465ba6fd13fb6e07ea39fff02ecef4d7284c9a4ee1b6e577464003cf38d",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 88,
+      "column": 29,
+      "symbol": "RegisterStringFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "9343c7820f3cbb01d3144fc8d418a8775655aaf148c6697c580eec8044bdff8c",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 96,
+      "column": 29,
+      "symbol": "RegisterStringFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "550be1569014511d83ed71ce15394b05a26c774c79bc40924f78b9becca749c0",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 107,
+      "column": 29,
+      "symbol": "RegisterObjectFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "21ef4359542e771709c912d4d2af7269deeab2620d69c173a3f946c243c48e93",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 108,
+      "column": 29,
+      "symbol": "RegisterObjectFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "98898a3b4f6d8eeffb5b519e5e86fa52b6d1eebe5971749ae622eca4cd3c9734",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 123,
+      "column": 29,
+      "symbol": "RegisterListFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e75aecd9b3dd21ce8616bc7c3c46d9a2e2029d8b50204a84bc01ec14858b635b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 124,
+      "column": 29,
+      "symbol": "RegisterListFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "da04a456c235f1354c43b6cb6ceb3fa4ef3d7a4d5828b219b675d63eaf34734f",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 125,
+      "column": 29,
+      "symbol": "RegisterListFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "9bcc21903c6b9394535ae72d39e8156eaf81f89bd59c245c34ac90b359ae7ae0",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteCypherFunctions.cs",
+      "line": 126,
+      "column": 29,
+      "symbol": "RegisterListFunctions",
+      "target": "conn.CreateFunction",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "b126d011078d87ab517717d16c2d2b1988f0629e124f1693394ab9d61754b60c",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 493,
+      "column": 42,
+      "symbol": "UploadNodesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "3737d409743dc3ce6c0c8986ca80371a9b3c92b1e1ff09910dcdb5539c8e369b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 494,
+      "column": 44,
+      "symbol": "UploadNodesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7777b9960335ac37a38b0207bea1e0d6918f25e097f7738c656bab4cf8101515",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 495,
+      "column": 45,
+      "symbol": "UploadNodesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "9e5f0bd4e98268a570f54c8aa0cd241b305e82b0a7ff86bc9d34fc6a415efbcb",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 573,
+      "column": 44,
+      "symbol": "UploadRelationshipsAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "096d9e54841e2873c06b988a41276df251aa8f99189c598f0746ee7e9f372d31",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 574,
+      "column": 42,
+      "symbol": "UploadRelationshipsAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e3a1f5f584f60c25d72406b4f800f24b0a391057fce34148b35ed2cd9958c480",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 575,
+      "column": 44,
+      "symbol": "UploadRelationshipsAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0e0d2dc47049ba54c44b00f1c62545e6a166f67c0af951fd600ef1766d17f2fb",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.cs",
+      "line": 576,
+      "column": 45,
+      "symbol": "UploadRelationshipsAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "51841634ca8380bf2cba494d655ba03da2d7ab04c9cf9f3cc340a3d46f456717",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 34,
+      "column": 45,
+      "symbol": "LoadIntentCandidatesAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "fecb8d69978229ba648583e4d9cbd53fccea403ca3de18e408f7b577f7e30c8e",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 155,
+      "column": 49,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "45c9d1ad4801dd8214b2ad70d3ea129d536fa5d4a74687bf4376ad3ed2668efd",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 156,
+      "column": 53,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "188fec13bcf77fc39b7b412837a901e3be72033055e6382f096ca4d3bed1a259",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 157,
+      "column": 52,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "de0467837e690450e156ab8af69e39925a821043280aefb8181acb499bdcb708",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 158,
+      "column": 54,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "d8572e93f3d6ab2f1b9311fc618126a9272c5c7cfd0dfb9105d3ab7905ae45b3",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 159,
+      "column": 49,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "42f6c3671951e1a5ae0c46813ed99b8a2b0546d0dd9f522128005b39f3d2f47b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 160,
+      "column": 50,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "434f88fe88e1a713b1641abc454221aa4a5f604e20bcee96dd0825e21d82c6d7",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 161,
+      "column": 54,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "8c10cec2365ad7d795a08a5da578ff5bb9f40414b61fbad23cd9858e448cb46a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 162,
+      "column": 51,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7a778bd89e49e3fa9640222553986a9c79f593e3026dda4ecca484682c64ca4f",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 163,
+      "column": 55,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "d59f3094bb0a91794ad6bc101497cf22d3fe232bf60303542ec0a2fd88bd7557",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 164,
+      "column": 53,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "a46f0d70557861873b98fc352f9df95b475db185668f047b2f562fde05385814",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 199,
+      "column": 52,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "domCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "4befd72fabfe0de9e19c501e25b1c7a077ada478bcc5ea09ff9e463fb65300a0",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 200,
+      "column": 55,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "domCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "f8b63a6d2614e391d113b3bdb89eb1bf34d6635a932b29d98200c08b82eb546f",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 224,
+      "column": 54,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "edgeCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "af7febf33d65df171ab6b88a8f1026a3df0aef0905a4ce939dce5405c6a6449b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 225,
+      "column": 52,
+      "symbol": "SaveIntentPredictionsAsync",
+      "target": "edgeCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "6bb03d548e4ce92f50e330babc27084687decc9383a9360e8ad56d2fd2f45928",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 267,
+      "column": 41,
+      "symbol": "LoadExistingIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7547705a5407545d8f82ef54ef4c5e476c608ffa1c9c1cd8c46d490b8a9a01af",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 355,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "a475aa299e1fa85b227b16ace8666769d8d567dfba28973af114b09042a3e3b6",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 356,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "41f68acb704f3ed8108e8f3e012d82c0174858a74ad7ff6dcb223e94b1de12d0",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 357,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "f7cc370c830c7531ab58d7d116b55fe8ed42cc24e6f7815ebf1af04eba6b2f99",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 358,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "386e59f1a9ab6a45f527e273176908e03f25c6b3c83ee6c73eae0659288b5801",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 359,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "931abafec48c7b179732590184c4d5ab368d8e6e8841b43b4894061573f984ac",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 360,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "ebba41310586a55bf86229c0665c8ce1b8e140686f9387602b41a9b35bad4365",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 361,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e8c98a0461b914e2a727364be131f4c9bfe323fc4a969109c177be3912398566",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 362,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0e1693dd23b37484ea4ff02627c7cefcd08ff9b0f545a93e7d8d795ebc64de51",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 363,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "28dbff672abb4c9509229a8dc5ff8bfe0c4ee5afad7612ef9dc95fea26771163",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 364,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "06cbe0b7a6c18e24fe24b0cd32d285b3b1e560f23915c80be3f7adf4f5b25380",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 365,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "341ce5aa73abb4d26555f721d2267b5e1b2e084ff658cac294b921fc42a31c69",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 366,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "d7f4342629d8f4488eb8f19ea7353dc16eeac90c8d6bfc12e6601a19fe761c6a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 367,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e42f9b2a3cc07aa590078c0c4800b2300edde0a12215a71a95f4e4b69fa1b5f5",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 369,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "9dfcd53f03de44d266a3d631cd87339ade8f13f47fc380ac5c91cad7cb35b55b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 372,
+      "column": 41,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "92c01ba11f65832db25be54db1b47d9e91f5ddef7cd99c0b53d952fe6c33af3a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 373,
+      "column": 48,
+      "symbol": "SaveIntentRecordAsync",
+      "target": "",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0a79dc190ef24ad14d04dee0e7e866ee3f4482b8f3c2f3563c54559170de483b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 529,
+      "column": 48,
+      "symbol": "ApplyCachedIntentsToGraphAsync",
+      "target": "domCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "9bc22c452eaac67fdd600981c4248a2b8a3c39737a36dbdfbbe8a433cd65d90b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 553,
+      "column": 49,
+      "symbol": "ApplyCachedIntentsToGraphAsync",
+      "target": "edgeCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "5353f786fa898e13d1d7a2c78731773f589824853172066ea02f9f4f926662f6",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 580,
+      "column": 52,
+      "symbol": "ApplyCachedIntentsToGraphAsync",
+      "target": "projDomCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "088bb8091be66c45afdd2c4ddcb31d2a55e5aa0b2c3e3c95f7a47bd0d995373a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.IntentQueries.cs",
+      "line": 704,
+      "column": 50,
+      "symbol": "ApplyCachedIntentsToGraphAsync",
+      "target": "purgeCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "5ec30272c221002fbca9458d9d51e854592696e7eaee8dead26274bdd915e205",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 435,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "aef6337c15aac91ec26467437b358baca8f582442bff4da198b5c909e5a174b6",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 436,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e36866af40d31d4342d8489f5ef7b7732ee5ee9ca0a21481cf6e5695662cc07a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 437,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "6a1cee4b8cdd95eeb6005d8c2154406fc35f78ae7a0c7dd87c8716b46d2f3f2d",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 438,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "f62d73ccaa1b055b4d56ffdbdc4222e2adea9d15fb36bebb483630e8d7b30bdf",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 455,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "1f8e6c0efd6a3a1484cc3d4d604a9889251a96e232564030353176a7c21c58e8",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 456,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0788c56e2180ba0a5a732d625f1091076cb0811ae657ddfa267aa72ae8d5d874",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 481,
+      "column": 56,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "delCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "4194e36c9dfbaf33f50262f5429f4bd60fecc73ba958e7eddc37d5d72561e54f",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 504,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0109b4d215e83917f98bedd49d2b262079529a677a54a9260dec2796bf27e528",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 505,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "1aaa0626b9c9c2ad5f245a23796c98c81f0146f9182126309167d32ab6c48631",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 534,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "40b82b3d60dfc59b0c71c7c36780d2e493cd4455d06a1d8308cbfdd780eef924",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 535,
+      "column": 53,
+      "symbol": "SaveProjectIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "640c91af23787f4bd83d7ee74365d35710100e508061869542bc7c3898d9245a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 611,
+      "column": 41,
+      "symbol": "IncrementIntentErrorAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "da8abb008584411d55e70895b4843fcbcf30dde8efd6ff1f3731b4c7c99432a8",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 612,
+      "column": 41,
+      "symbol": "IncrementIntentErrorAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "04c332c8b13ab270857ba4ec96a0cf6a6c3e0b9fb32239749d3f384040ccb980",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 613,
+      "column": 41,
+      "symbol": "IncrementIntentErrorAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "905ddb4a243e8dbf008a16b212187ce86f92c72092a787adaf829e56e12e818e",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 614,
+      "column": 41,
+      "symbol": "IncrementIntentErrorAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "f1d2278ef2834cbd0ae935b93782bcdeb2a8555faa2ba12c97814a13a3133a25",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 615,
+      "column": 41,
+      "symbol": "IncrementIntentErrorAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "793b0f1592ab5da932ef9860a2e0e848fc455870155fec9fe7f7f4babb0cf676",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 616,
+      "column": 41,
+      "symbol": "IncrementIntentErrorAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "5df6d9ecb5f3d1eadeb2c70b06cd8815ac0e8d31755b568100e8dad99293ae95",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 639,
+      "column": 41,
+      "symbol": "ResetIntentErrorsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "570e24b2ada80ae927d1e357765528971db97009d8e255d926a445fa2dad5d31",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Intents.cs",
+      "line": 665,
+      "column": 41,
+      "symbol": "ClearIntentsAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "648703d24b3a1fba033d83d566a5f18424a1de1e40dc1b9eb57c494633a2054a",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 36,
+      "column": 45,
+      "symbol": "LoadSymbolsByNamesAsync",
+      "target": "cmdInit.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "b9c7c9d9c407477d66e03dd815a0259ab95222d9fd8b1920363488368a42c8e7",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 46,
+      "column": 41,
+      "symbol": "LoadSymbolsByNamesAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "38fc949fdff89811b18e3060e3145691e3a4349dcd456cf98908125cb17b2c7b",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 98,
+      "column": 47,
+      "symbol": "LoadSymbolsByNamesAsync",
+      "target": "fnCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "75d9bcb0d5b0a82e91676a6b5bb9c4b142728e5f6c94141cb2381ee5145c1b91",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 160,
+      "column": 45,
+      "symbol": "LoadImplementationsForTypesAsync",
+      "target": "cmdInit.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "23422904039dcd3d23d7a3b6a314a7eff5c9a9dbbe171f3682e0fb08e7b84e80",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 170,
+      "column": 41,
+      "symbol": "LoadImplementationsForTypesAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "821e1dd6d53634e6edcaccf599a0c76a37a9a01aceb4bf3bea7c5cc475ad0bb3",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 251,
+      "column": 41,
+      "symbol": "LoadLateBindingCandidatesAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "ddc87f14208aae476a91221b64c1a94fbbd76daef4e222948f7818d23b59c8ef",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 252,
+      "column": 41,
+      "symbol": "LoadLateBindingCandidatesAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "7294c0ca6fc607730371bdb4f9f032c53c6e68b65321724b42f8a6f1fba57fd5",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 253,
+      "column": 41,
+      "symbol": "LoadLateBindingCandidatesAsync",
+      "target": "cmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "4f76b677631807e16a39feac67bad019464060270ebd54583e53bd15032d9575",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 584,
+      "column": 48,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "delCmd.Parameters.AddWithValue",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "01dba92268cf34a33806209316da0fa7caee4fa99a01b34da75754c0c8bda1c3",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 602,
+      "column": 51,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "insCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "b199293aaa06fd36b951153e72300e098c78a2d68fcc0ec2e3630cff28073424",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 603,
+      "column": 49,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "insCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "e610e268c183233405394a27021880ef2c04cdf79f3ac922ff3e48a15ee832cb",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 604,
+      "column": 52,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "insCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "027b44c1bd7ed26cb3f33ce424f376de7eaf7e8351fe8c5aee4d11555e83ce16",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 630,
+      "column": 51,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "insCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "d1c29d94e84cb48c03cf58a7029162d9c1163417c0575c314e93de5d9b1aba58",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 631,
+      "column": 49,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "insCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "4dcc1e89d62594433ca3df52444037f2f9557e300a6a2e294420183daad99f13",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 632,
+      "column": 52,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "insCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0cffec531c8d7639d9c4724381e8405cdc2d216ad569a79209629fa7755d3a17",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 655,
+      "column": 54,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "92ae0886a63b8819f9e5ed53d99e9d48dd3107f60af458be430d3a0d94020849",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 656,
+      "column": 49,
+      "symbol": "SavePostIndexResultsAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "2acf7f4f6ece2dd074b0296c479fd545edd99295d8a38e30f2a10a162eb00ba4",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 718,
+      "column": 50,
+      "symbol": "UpdateProjectExternalApisAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0624b64d391daeead0ec7f68a5d4386a11a8c8d562aa20040ca9cadc2548d85e",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 719,
+      "column": 45,
+      "symbol": "UpdateProjectExternalApisAsync",
+      "target": "updCmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "8c51af86235923d8495a6dfbac200d478cfa5b617d699da6f3226a066f0ef385",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 808,
+      "column": 43,
+      "symbol": "SaveFileRegistryEntriesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "72a5c443202b32002aca67910a626df7d76501e9b449ec68787b95cdf36e5229",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 809,
+      "column": 44,
+      "symbol": "SaveFileRegistryEntriesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "660d361b8c94295e8bf53938a03916ce3b5e3b131b17e314bd23f3072d8986d7",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 810,
+      "column": 43,
+      "symbol": "SaveFileRegistryEntriesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "0bd7e37a65a005d3cdce65cc48bc946fa885b19dfc6f3b676c8eac885be8aaae",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 811,
+      "column": 44,
+      "symbol": "SaveFileRegistryEntriesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
+    },
+    {
+      "fingerprint": "ee35a8c46ec9f050473540eb14a3728179d1ed3e01ead0b18f8480e6bb4e22c7",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.PostIndex.cs",
+      "line": 812,
+      "column": 44,
+      "symbol": "SaveFileRegistryEntriesAsync",
+      "target": "cmd.Parameters.Add",
+      "acknowledgedAt": "2026-11-13T19:45:10.8882625+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-13 19:45:10"
     },
     {
       "fingerprint": "97ff1f858fa37697be23ae0b30f720fe8e0941172d7d379caf7879f33caa1159",

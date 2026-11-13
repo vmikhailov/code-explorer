@@ -1,6 +1,7 @@
 <linker>
   <assembly fullname="ce" preserve="all" />
   <assembly fullname="CodeExplorer.Core" preserve="all" />
+  <assembly fullname="CodeExplorer.Storage" preserve="all" />
   <assembly fullname="CodeExplorer.Cypher" preserve="all" />
   <assembly fullname="CodeExplorer.Server" preserve="all" />
   <assembly fullname="CodeExplorer.Gates" preserve="all" />

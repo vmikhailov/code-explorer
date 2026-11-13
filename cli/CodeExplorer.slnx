@@ -6,6 +6,7 @@
   </Configurations>
   <Folder Name="/Core/">
     <Project Path="src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
+    <Project Path="src/Core/CodeExplorer.Storage/CodeExplorer.Storage.csproj" />
     <Project Path="src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj" />
     <Project Path="src/Core/CodeExplorer.Indexing/CodeExplorer.Indexing.csproj" />
     <Project Path="src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj" />

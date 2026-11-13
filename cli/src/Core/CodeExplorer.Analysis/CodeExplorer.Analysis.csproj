@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
     <ProjectReference Include="..\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
     <ProjectReference Include="..\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
   </ItemGroup>

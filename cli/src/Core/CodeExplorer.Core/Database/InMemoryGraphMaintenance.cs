@@ -13,7 +13,7 @@ namespace CodeExplorer.Core.Database;
 
 /// <summary>
 /// Pure in-memory graph maintenance operations shared by <see cref="InMemoryGraphRepository"/>
-/// and <see cref="SqliteGraphClient"/> bulk loading so that Layer 1..5 indexing executes
+/// and <see cref="IGraphClient"/> bulk loading so that Layer 1..5 indexing executes
 /// 100% in memory without mid-pipeline SQLite flushes.
 /// </summary>
 public static class InMemoryGraphMaintenance

@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const siteDir = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(siteDir, '..');
 
 function escapeAttr(str) {
   return String(str || '')
@@ -18,6 +19,9 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
+
+console.log('0. Syncing Ontology SPA data from proto/ontology-schema.json...');
+execSync('node scripts/sync-ontology-site.mjs', { cwd: repoRoot, stdio: 'inherit' });
 
 console.log('1. Building Vite client bundle...');
 execSync('npx vite build', { cwd: siteDir, stdio: 'inherit' });
