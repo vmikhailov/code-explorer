@@ -12,6 +12,7 @@ public class ProjectParserPrecedenceTests
         "coldfusion", "csharp", "go", "java", "kotlin", "python", "rust",
         "typescript", "javascript",
         "sql",
+        "terraform",
         "script"
     ];
 
