@@ -37,6 +37,7 @@ public interface IOrderService
 
 public class OrderGodObject : IOrderService
 {{
+    public string DefaultRegion {{ get; set; }} = ""eu-west-1"";
     public void ProcessOrder() {{ }}
 {sbMethods}
 }}
@@ -180,5 +181,36 @@ export class OrdersController {
 
         var resNull = await _client.ExecuteCypherAsync(query, new { tableName = (string?)null });
         resNull.Rows.Should().NotBeNull();
+    }
+
+    [Test]
+    public async Task Test_Repository_SymbolSearchAndDirectoryOutline()
+    {
+        var repo = new CodeExplorerRepository(_client, defaultWorkspacePath: _tempWorkspace);
+
+        var classYaml = await repo.FindSymbolAsync("OrdersController");
+        classYaml.Should().Contain("ProjectB/OrdersController.ts");
+        classYaml.Should().NotContain(_tempWorkspace);
+
+        var memberYaml = await repo.FindSymbolAsync("DefaultRegion", symbolType: "Variable");
+        memberYaml.Should().Contain("DefaultRegion");
+        memberYaml.Should().Contain("ProjectA/OrderGodObject.cs");
+        memberYaml.Should().NotContain(":sym:");
+
+        var missingYaml = await repo.FindSymbolAsync("TerraformNonExistentProvisioner");
+        missingYaml.Trim().Should().Be("[]");
+
+        var absFilePath = Path.Combine(_tempWorkspace, "ProjectA", "OrderGodObject.cs");
+        var absFileOutline = await repo.GetFileOutlineAsync(absFilePath);
+        absFileOutline.Should().Contain("OrderGodObject");
+        absFileOutline.Should().Contain("IOrderService");
+
+        var dirOutline = await repo.GetFileOutlineAsync("ProjectA");
+        dirOutline.Should().Contain("ProjectA/OrderGodObject.cs");
+        dirOutline.Should().Contain("OrderGodObject");
+
+        var rootOutline = await repo.GetFileOutlineAsync(".");
+        rootOutline.Should().Contain("ProjectA");
+        rootOutline.Should().Contain("ProjectB");
     }
 }

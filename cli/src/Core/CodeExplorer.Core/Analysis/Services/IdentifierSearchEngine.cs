@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ public record IdentifierMatch(
     string NodeId,
     string Name,
     string FullName,
-    CodeExplorer.Cypher.Common.NodeKind Kind,
+    NodeKind Kind,
     string? Path,
     int StartLine,
     float Score)
@@ -22,13 +23,18 @@ public record IdentifierMatch(
         string? Path,
         int StartLine,
         float Score)
-        : this(NodeId, Name, FullName, CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(Kind), Path, StartLine, Score)
+        : this(NodeId, Name, FullName, EnumExtensions.ParseNodeKind(Kind), Path, StartLine, Score)
     {
     }
 }
 
 public class IdentifierSearchEngine
 {
+    private const float DefaultMinScore = 0.35f;
+    private const float FallbackUntrigrammedMinScore = 0.68f;
+    private const float SubstringBoostScore = 0.85f;
+    private const float ResolveMinScore = 0.65f;
+    private const string SymIdMarker = ":sym:";
     private readonly ILogger _logger;
 
     public IdentifierSearchEngine(ILogger? logger = null)
@@ -75,7 +81,7 @@ public class IdentifierSearchEngine
 
     public async Task RebuildIndexAsync(SqliteConnection conn, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         await using var initCmd = conn.CreateCommand();
         initCmd.CommandText = """
@@ -128,7 +134,7 @@ public class IdentifierSearchEngine
             ? $"""
                SELECT n.id, n.kind,
                       COALESCE(NULLIF(n.name, ''), json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
-                      COALESCE(NULLIF(n.path, ''), json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                      COALESCE(NULLIF(json_extract(n.properties, '$.file_path'), ''), NULLIF(n.path, ''), json_extract(n.properties, '$.path')) AS path,
                       COALESCE(NULLIF(n.start_line, 0), CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
                       (SELECT COALESCE(NULLIF(o.name, ''), json_extract(o.properties, '$.name')) FROM nodes o WHERE o.rowid = e.from_id AND o.kind = {typeKindId}) as owner_name
                FROM nodes n
@@ -138,7 +144,7 @@ public class IdentifierSearchEngine
             : $"""
                SELECT n.id, n.kind,
                       COALESCE(json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
-                      COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                      COALESCE(NULLIF(json_extract(n.properties, '$.file_path'), ''), json_extract(n.properties, '$.path')) AS path,
                       COALESCE(CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
                       (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.rowid = e.from_id AND o.kind = {typeKindId}) as owner_name
                FROM nodes n
@@ -159,7 +165,7 @@ public class IdentifierSearchEngine
                 ? GraphKindCodec.DecodeNodeKind((int)reader.GetInt64(1))
                 : reader.GetString(1);
             var name = reader.IsDBNull(2) ? id : reader.GetString(2);
-            var path = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var path = NormalizeSymbolPath(reader.IsDBNull(3) ? null : reader.GetString(3));
             var startLine = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
             var ownerName = reader.IsDBNull(5) ? null : reader.GetString(5);
             var fullName = !string.IsNullOrEmpty(ownerName) && !name.Contains('.') ? $"{ownerName}.{name}" : name;
@@ -262,7 +268,7 @@ public class IdentifierSearchEngine
                     r.GetString(1),
                     r.GetString(2),
                     r.GetString(3),
-                    r.IsDBNull(4) ? null : r.GetString(4),
+                    NormalizeSymbolPath(r.IsDBNull(4) ? null : r.GetString(4)),
                     r.GetInt32(5),
                     1.0f));
             }
@@ -312,7 +318,11 @@ public class IdentifierSearchEngine
             }
         }
 
-        // 3. Fetch candidates (or all if candidate set is small) and compute CosineSimilarity
+        // 3. Fetch candidates (or high-threshold typo fallback when FTS found 0 trigram hits)
+        var effectiveMinScore = trigrams.Count > 0 && candidateNodeIds.Count == 0
+            ? Math.Max(minScore, FallbackUntrigrammedMinScore)
+            : minScore;
+
         var matches = new List<IdentifierMatch>(exactMatches);
         var selectSql = candidateNodeIds.Count > 0 && candidateNodeIds.Count < 200
             ? $"""
@@ -340,7 +350,7 @@ public class IdentifierSearchEngine
             var name = scoreReader.GetString(1);
             var fullName = scoreReader.GetString(2);
             var kind = scoreReader.GetString(3);
-            var path = scoreReader.IsDBNull(4) ? null : scoreReader.GetString(4);
+            var path = NormalizeSymbolPath(scoreReader.IsDBNull(4) ? null : scoreReader.GetString(4));
             var startLine = scoreReader.GetInt32(5);
 
             var blobLength = (int)scoreReader.GetBytes(6, 0, null, 0, 0);
@@ -354,10 +364,10 @@ public class IdentifierSearchEngine
             if (name.Contains(queryTrim, StringComparison.OrdinalIgnoreCase) ||
                 fullName.Contains(queryTrim, StringComparison.OrdinalIgnoreCase))
             {
-                score = Math.Max(score, 0.85f);
+                score = Math.Max(score, SubstringBoostScore);
             }
 
-            if (score >= minScore)
+            if (score >= effectiveMinScore)
             {
                 matches.Add(new IdentifierMatch(id, name, fullName, kind, path, startLine, score));
             }
@@ -375,8 +385,48 @@ public class IdentifierSearchEngine
         string? kindFilter = null,
         CancellationToken ct = default)
     {
-        var results = await SearchAsync(conn, target, kindFilter, limit: 1, minScore: 0.65f, ct);
+        var results = await SearchAsync(conn, target, kindFilter, limit: 1, minScore: ResolveMinScore, ct);
         return results.Count > 0 ? results[0] : null;
+    }
+
+    public static string? NormalizeSymbolPath(string? rawPath, string? workspaceRoot = null)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return rawPath;
+
+        var trimmed = rawPath.Trim();
+        var symIdx = trimmed.IndexOf(SymIdMarker, StringComparison.OrdinalIgnoreCase);
+        if (symIdx >= 0)
+        {
+            var start = symIdx + SymIdMarker.Length;
+            var searchColonFrom = start + 2 < trimmed.Length && char.IsAsciiLetter(trimmed[start]) && trimmed[start + 1] == ':'
+                ? start + 2
+                : start;
+            var end = trimmed.IndexOf(':', searchColonFrom);
+            trimmed = end > start ? trimmed[start..end] : trimmed[start..];
+        }
+
+        var wasRootedUnix = trimmed.StartsWith('/');
+        var normalized = trimmed.Replace('\\', '/');
+        if (!string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            var normRoot = workspaceRoot.Trim().Replace('\\', '/').TrimEnd('/');
+            if (normRoot.Length > 0)
+            {
+                if (string.Equals(normalized.TrimEnd('/'), normRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Empty;
+                }
+
+                if (normalized.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase) &&
+                    normalized.Length > normRoot.Length &&
+                    normalized[normRoot.Length] == '/')
+                {
+                    return normalized[(normRoot.Length + 1)..];
+                }
+            }
+        }
+
+        return wasRootedUnix ? normalized : normalized.TrimStart('/');
     }
 
     private static string EscapeSql(string value) => value.Replace("'", "''");

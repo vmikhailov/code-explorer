@@ -23,7 +23,7 @@ public partial class McpGraphHandler(
     private const string RootListSeparator = ", ";
     private const string RootsListFailedLogMessage = "[MCP] Client roots/list request failed or timed out; falling back to standby.";
     private static readonly TimeSpan ClientRootsRequestTimeout = TimeSpan.FromSeconds(2);
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, CachedClientRoots> SessionRootsCache = new();
+    private static readonly ConditionalWeakTable<object, CachedClientRoots> SessionRootsCache = new();
 
     private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
     internal Func<CancellationToken, Task<IReadOnlyList<string>>>? CustomRootsProvider { get; set; }
@@ -33,14 +33,57 @@ public partial class McpGraphHandler(
         public bool HandlerRegistered;
         public volatile bool IsPopulated;
         public IReadOnlyList<string> RawUris = [];
+        public volatile string? StickyWorkspacePath;
+    }
+
+    private CachedClientRoots GetSessionState() => SessionRootsCache.GetOrCreateValue((object?)mcpServer ?? this);
+
+    private void RememberStickyWorkspaceIfIndexed(string? candidatePath)
+    {
+        if (string.IsNullOrWhiteSpace(candidatePath) || !Directory.Exists(candidatePath))
+        {
+            return;
+        }
+
+        var found = WorkspaceLocator.Find(candidatePath);
+        if (found != null && File.Exists(found.DbPath))
+        {
+            GetSessionState().StickyWorkspacePath = found.RootDirectory;
+        }
+    }
+
+    private string? TryGetValidStickyWorkspacePath()
+    {
+        var sticky = GetSessionState().StickyWorkspacePath;
+        if (string.IsNullOrWhiteSpace(sticky) || !Directory.Exists(sticky))
+        {
+            return null;
+        }
+
+        var found = WorkspaceLocator.Find(sticky);
+        return found != null && File.Exists(found.DbPath) ? found.RootDirectory : null;
     }
 
     internal async Task<string?> ResolveWorkspacePathAsync(string? explicitWorkspace = null, CancellationToken cancellationToken = default)
     {
-        var ws = TryResolveImmediateWorkspacePath(explicitWorkspace);
-        if (string.IsNullOrEmpty(ws))
+        var explicitWs = TryResolveExplicitWorkspacePath(explicitWorkspace);
+        string? ws;
+        if (!string.IsNullOrEmpty(explicitWs))
         {
-            ws = await TryResolveWorkspaceFromClientRootsAsync(cancellationToken);
+            RememberStickyWorkspaceIfIndexed(explicitWs);
+            ws = explicitWs;
+        }
+        else
+        {
+            ws = repository.DefaultWorkspacePath;
+            if (string.IsNullOrEmpty(ws))
+            {
+                ws = await TryResolveWorkspaceFromClientRootsAsync(cancellationToken);
+            }
+            if (string.IsNullOrEmpty(ws))
+            {
+                ws = TryGetValidStickyWorkspacePath();
+            }
         }
 
         if (!string.IsNullOrEmpty(ws))
@@ -50,7 +93,7 @@ public partial class McpGraphHandler(
         return ws;
     }
 
-    private string? TryResolveImmediateWorkspacePath(string? explicitWorkspace)
+    private string? TryResolveExplicitWorkspacePath(string? explicitWorkspace)
     {
         if (!string.IsNullOrWhiteSpace(explicitWorkspace))
         {
@@ -71,7 +114,7 @@ public partial class McpGraphHandler(
             }
         }
 
-        return repository.DefaultWorkspacePath;
+        return null;
     }
 
     private async Task<string?> TryResolveWorkspaceFromClientRootsAsync(CancellationToken cancellationToken)
@@ -218,7 +261,12 @@ public partial class McpGraphHandler(
         return ExecuteAsync(async () =>
         {
             var resolvedWs = await ResolveWorkspacePathAsync(explicitWorkspace, cancellationToken);
-            return await action(resolvedWs);
+            var output = await action(resolvedWs);
+            if (!string.IsNullOrWhiteSpace(explicitWorkspace) && !string.IsNullOrWhiteSpace(resolvedWs))
+            {
+                RememberStickyWorkspaceIfIndexed(resolvedWs);
+            }
+            return output;
         }, toolName);
     }
 
@@ -300,7 +348,7 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'project-map', 'tiers').")]
+    [Description("Detailed graph topology projection for a specific zoom level: 'c1' (system context: services, DBs, topics, external APIs), 'c2' (service communication flow), 'c3' / 'project-map' (internal modules, lifted calls & cycles inside one project), or 'tiers' (architectural layers).")]
     public async Task<CallToolResult> GetArchitectureViewAsync(
         [Description("View level: 'c1', 'c2', 'c3', 'project-map' (internal modules, lifted calls & cycles of one project), or 'tiers'. Default: 'c1'.")] string level = "c1",
         [Description("Optional project/service name filter. For 'project-map': project name, id, or path (defaults to the largest project).")] string? scope = null,
@@ -320,10 +368,8 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool]
-    [Description("High-level architecture overview grouped by semantic layers (Core, Services, UI, Infra, Tests).")]
     public async Task<CallToolResult> GetArchitectureOverviewAsync(
-        [Description("Optional workspace root path.")] string? workspacePath = null,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetArchitectureOverviewAsync(ws, cancellationToken), cancellationToken);
@@ -331,7 +377,7 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Infrastructure map: workspace folders, projects, internal folders, and databases.")]
+    [Description("Primary workspace & solution architecture overview (call first): lists all projects, languages, project dependencies, databases, ingress endpoints, egress external services, and saved project queries.")]
     public async Task<CallToolResult> GetArchitectureMapAsync(
         [Description("Optional project filter.")] string? projectName = null,
         [Description("Optional workspace root path.")] string? workspacePath = null,
@@ -388,9 +434,9 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Extract file structural outline without reading source text.")]
+    [Description("Extract structural outline of a file (declared types, functions, members with line ranges) or a directory (immediate subfolders, files, line counts, and top-level symbols) without reading source text.")]
     public async Task<CallToolResult> GetFileOutlineAsync(
-        [Description("File path relative to workspace or absolute.")] string filePath,
+        [Description("File or directory path (workspace-relative or absolute, or '.' for workspace root).")] string filePath,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -403,10 +449,10 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Search graph for code symbols (Class, Interface, Function, Variable).")]
+    [Description("Search graph for code symbols (Class, Interface, Function, Variable/Member).")]
     public async Task<CallToolResult> FindSymbolAsync(
         [Description("Symbol name or partial name.")] string name,
-        [Description("Optional type: 'Class', 'Interface', 'Function', 'Variable'.")] string? symbolType = null,
+        [Description("Optional type: 'Class', 'Interface', 'Function', 'Variable' (or 'Member').")] string? symbolType = null,
         [Description("Max results (default: 50).")] int limit = 50,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)

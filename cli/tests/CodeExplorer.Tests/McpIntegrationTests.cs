@@ -227,7 +227,7 @@ public class McpIntegrationTests
         throw new Exception("SSE stream closed before reading response.");
     }
 
-    private async Task CallToolAndAssertSuccessAsync(string toolName, string argumentsJson, int responseId)
+    private async Task<string> CallToolAndAssertSuccessAsync(string toolName, string argumentsJson, int responseId)
     {
         var payload = $$"""
         {
@@ -277,7 +277,14 @@ public class McpIntegrationTests
             }
         }
 
-        // Console.WriteLine($"Tool {toolName} executed successfully.");
+        if (resultElement.TryGetProperty("content", out var okContentElement) &&
+            okContentElement.Kind == CypherValueKind.Array &&
+            okContentElement.AsArray().Count > 0)
+        {
+            return okContentElement.AsArray()[0].GetStringProp("text") ?? string.Empty;
+        }
+
+        return string.Empty;
     }
 
     [Test]
@@ -330,15 +337,18 @@ public class McpIntegrationTests
     }
 
     [Test]
-    public async Task Test_GetArchitectureOverview()
+    public async Task Test_GetArchitectureView()
     {
-        await CallToolAndAssertSuccessAsync("get_architecture_overview", "{}", 9);
+        await CallToolAndAssertSuccessAsync("get_architecture_view", "{\"level\": \"c1\"}", 9);
     }
 
     [Test]
     public async Task Test_GetFileOutline()
     {
         await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\"}", 10);
+        var dirOutline = await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer\"}", 26);
+        dirOutline.Should().Contain("CodeExplorer/server.ts");
+        dirOutline.Should().Contain("OrdersController");
     }
 
     [Test]
@@ -406,6 +416,7 @@ public class McpIntegrationTests
 
         toolNames.Should().Contain("get_architecture_map");
         toolNames.Should().Contain("get_architecture_view");
+        toolNames.Should().NotContain("get_architecture_overview");
         toolNames.Should().NotContain("get_bounded_contexts");
         toolNames.Should().NotContain("manage_domain");
         toolNames.Should().NotContain("assign_service_domain");

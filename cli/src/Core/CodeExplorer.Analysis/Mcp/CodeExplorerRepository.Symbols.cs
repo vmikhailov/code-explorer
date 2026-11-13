@@ -1,10 +1,31 @@
 using System.Text.Json;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Analysis.Testing;
 
 namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
+    private const string SymTypeFunction = "Function";
+    private const string SymTypeClass = "Class";
+    private const string SymTypeInterface = "Interface";
+    private const string SymTypeVariable = "Variable";
+    private const string SymTypeMember = "Member";
+    private const string KindType = "Type";
+    private const string ColFullName = "fullName";
+    private const string ColFilePathCamel = "filePath";
+    private const string ColStartLineCamel = "startLine";
+    private const string ColEndLineCamel = "endLine";
+    private const string LimitTenClause = "LIMIT 10";
+    private const string FindMemberQueryTemplate =
+        "MATCH (n:Member) WHERE n.name IS NOT NULL AND n.name CONTAINS $name " +
+        "OPTIONAL MATCH (owner:Type)-[:HAS_MEMBER]->(n) " +
+        "OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File) " +
+        "RETURN 'Member' AS type, n.name AS name, " +
+        "CASE WHEN owner IS NOT NULL AND owner.name IS NOT NULL THEN (owner.name + '.' + n.name) ELSE n.name END AS fullName, " +
+        "coalesce(f.path, n.file_path, n.path) AS filePath, " +
+        "coalesce(n.start_line, 0) AS startLine, coalesce(n.end_line, 0) AS endLine LIMIT 10";
+
     public async Task<string> FindSymbolAsync(string name, string? symbolType = null, int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
@@ -13,40 +34,32 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
+        var effectiveWsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
         var parameters = new Dictionary<string, string>
         {
-            ["name"] = name
+            [ColName] = name
         };
 
-        string query;
-        if (symbolType == "Function")
+        var query = symbolType switch
         {
-            query = Queries.Get("find_symbol_function");
-        }
-        else if (symbolType == "Class")
-        {
-            query = Queries.Get("find_symbol_class");
-        }
-        else if (symbolType == "Interface")
-        {
-            query = Queries.Get("find_symbol_interface");
-        }
-        else
-        {
-            query = Queries.Get("find_symbol_all");
-        }
+            SymTypeFunction => Queries.Get("find_symbol_function"),
+            SymTypeClass => Queries.Get("find_symbol_class"),
+            SymTypeInterface => Queries.Get("find_symbol_interface"),
+            SymTypeVariable or SymTypeMember => FindMemberQueryTemplate,
+            _ => Queries.Get("find_symbol_all")
+        };
 
         var effectiveLimit = Math.Clamp(limit, 1, 500);
-        query = query.Replace("LIMIT 10", $"LIMIT {effectiveLimit}");
+        query = query.Replace(LimitTenClause, $"LIMIT {effectiveLimit}", StringComparison.Ordinal);
         var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
-        if (res.Count == 0 && (string.IsNullOrEmpty(symbolType) || symbolType == "Function"))
+        if (res.Count == 0 && (string.IsNullOrEmpty(symbolType) || symbolType == SymTypeFunction))
         {
             var gqlQuery =
                 "MATCH (n:Function) WHERE n.graphql_field CONTAINS $name OR n.graphql_operation CONTAINS $name " +
-                "OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File) OPTIONAL MATCH (w:Workspace) " +
+                "OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File) " +
                 "RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName, " +
-                "CASE WHEN f IS NOT NULL AND w IS NOT NULL THEN w.path + '/' + f.path ELSE coalesce(n.file_path, f.path) END AS filePath, " +
+                "coalesce(f.path, n.file_path, n.path) AS filePath, " +
                 $"coalesce(n.start_line, 0) AS startLine, coalesce(n.end_line, 0) AS endLine LIMIT {effectiveLimit}";
             res = await client.ExecuteCypherAsync(gqlQuery, parameters, cancellationToken);
         }
@@ -55,24 +68,25 @@ public partial class CodeExplorerRepository
         {
             try
             {
-                var engine = new Analysis.IdentifierSearchEngine();
+                var engine = new IdentifierSearchEngine();
                 var kindFilter = symbolType switch
                 {
-                    "Function" => "Function",
-                    "Class" => "Type",
-                    "Interface" => "Type",
+                    SymTypeFunction => SymTypeFunction,
+                    SymTypeClass or SymTypeInterface => KindType,
+                    SymTypeVariable or SymTypeMember => SymTypeMember,
                     _ => null
                 };
                 var matches = await engine.SearchAsync(sqliteClient.Connection, name, kindFilter, effectiveLimit, ct: cancellationToken);
-                if (matches.Count > 0)
+                var filtered = matches.Where(m => IsDeterministicSymbolMatch(m, name)).ToList();
+                if (filtered.Count > 0)
                 {
-                    string[] cols = ["type", "name", "fullName", "filePath", "startLine", "endLine"];
-                    var rows = matches.Select(m => new CypherRow(cols,
+                    string[] cols = [ColType, ColName, ColFullName, ColFilePathCamel, ColStartLineCamel, ColEndLineCamel];
+                    var rows = filtered.Select(m => new CypherRow(cols,
                     [
                         CypherValue.FromString(m.Kind.ToString()),
                         CypherValue.FromString(m.Name),
                         CypherValue.FromString(m.FullName),
-                        CypherValue.FromString(m.Path ?? ""),
+                        CypherValue.FromString(IdentifierSearchEngine.NormalizeSymbolPath(m.Path, effectiveWsRoot) ?? string.Empty),
                         CypherValue.FromInt64(m.StartLine),
                         CypherValue.FromInt64(0)
                     ])).ToList();
@@ -81,11 +95,55 @@ public partial class CodeExplorerRepository
             }
             catch
             {
-                // Fallback gracefully on search error
+                // Fallback gracefully on identifier index error
             }
+        }
+        else if (res.Count > 0)
+        {
+            res = NormalizeSymbolQueryFilePaths(res, effectiveWsRoot);
         }
 
         return ToonYamlSerializer.SerializeYaml(res);
+    }
+
+    private static bool IsDeterministicSymbolMatch(IdentifierMatch match, string rawQuery)
+    {
+        var q = rawQuery.Trim();
+        if (q.Length == 0) return false;
+
+        if (match.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            match.FullName.Contains(q, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var tokens = IdentifierVectorEncoder.Tokenize(q);
+        return tokens.Count >= 2 && tokens.All(t => match.FullName.Contains(t, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static CypherQueryResult NormalizeSymbolQueryFilePaths(CypherQueryResult result, string? workspaceRoot)
+    {
+        var cols = result.Columns as string[] ?? result.Columns.ToArray();
+        var fileColIdx = Array.IndexOf(cols, ColFilePathCamel);
+        if (fileColIdx < 0 || result.Rows.Count == 0) return result;
+
+        var normalizedRows = new List<CypherRow>(result.Rows.Count);
+        foreach (var row in result.Rows)
+        {
+            var values = new CypherValue[cols.Length];
+            for (var i = 0; i < cols.Length; i++)
+            {
+                var val = row[cols[i]];
+                if (i == fileColIdx && val.Kind == CypherValueKind.String)
+                {
+                    val = CypherValue.FromString(IdentifierSearchEngine.NormalizeSymbolPath(val.AsString(), workspaceRoot) ?? string.Empty);
+                }
+                values[i] = val;
+            }
+            normalizedRows.Add(new CypherRow(cols, values));
+        }
+
+        return new CypherQueryResult(cols, normalizedRows);
     }
 
     public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -213,7 +271,7 @@ public partial class CodeExplorerRepository
         {
             try
             {
-                var engine = new Analysis.IdentifierSearchEngine();
+                var engine = new IdentifierSearchEngine();
                 var resolved = await engine.ResolveIdentifierAsync(sqliteClient.Connection, symbolName, ct: cancellationToken);
                 if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != symbolName && resolved.Name != symbolName)
                 {
@@ -252,7 +310,7 @@ public partial class CodeExplorerRepository
             return "Search is only supported on SQLite workspaces.";
         }
 
-        var engine = new Analysis.IdentifierSearchEngine();
+        var engine = new IdentifierSearchEngine();
         var results = await engine.SearchAsync(sqliteClient.Connection, query, kind, limit, ct: cancellationToken);
         return ToonYamlSerializer.SerializeObject(results);
     }

@@ -30,7 +30,7 @@ public sealed class WorkspaceSettings
     {
         ".git", ".github", ".vscode", ".idea", ".vs",
         "scratch", "demo", "third_party", "thirdparty", "3rdparty",
-        ".codeexplorer", ".packages", ".agents", ".gemini", ".claude", ".cursor"
+        ".codeexplorer", ".packages", ".agents", ".gemini", ".claude", ".cursor", ".worktrees"
     };
 
     /// <summary>

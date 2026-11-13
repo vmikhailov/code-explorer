@@ -61,7 +61,7 @@ public class IdentifierSearchTests
                   ('t1', {{GraphKindCodec.EncodeNodeKind("Type")}}, jsonb('{"name":"GateCommandHandler","path":"cli/Commands/GateCommandHandler.cs","start_line":10}')),
                   ('f1', {{GraphKindCodec.EncodeNodeKind("Function")}}, jsonb('{"name":"HandleAsync","path":"cli/Commands/GateCommandHandler.cs","start_line":17}')),
                   ('ep1', {{GraphKindCodec.EncodeNodeKind("Endpoint")}}, jsonb('{"name":"POST:/api/gates/check","route_template":"/api/gates/check","path":"Server.cs","start_line":330}')),
-                  ('m1', {{GraphKindCodec.EncodeNodeKind("Member")}}, jsonb('{"name":"GetGatesRequest","path":"Protocol.cs","start_line":26}'));
+                  ('m1', {{GraphKindCodec.EncodeNodeKind("Member")}}, jsonb('{"name":"GetGatesRequest","path":"ws:sym:cli/Protocol.cs:Member:GetGatesRequest","file_path":"cli/Protocol.cs","start_line":26}'));
 
                 INSERT INTO edges VALUES
                   ((SELECT rowid FROM nodes WHERE id = 't1'), (SELECT rowid FROM nodes WHERE id = 'f1'), {{GraphKindCodec.EncodeRelKind("HAS_METHOD")}}, jsonb('{}')),
@@ -87,5 +87,14 @@ public class IdentifierSearchTests
         var resolved = await engine.ResolveIdentifierAsync(conn, "GateCommandHandler.HandleAsync");
         resolved.Should().NotBeNull();
         resolved!.NodeId.Should().Be("f1");
+
+        // 4. Member node returns clean file_path instead of symbol ID path
+        var memberMatches = await engine.SearchAsync(conn, "GetGatesRequest", kindFilter: "Member");
+        memberMatches.Should().ContainSingle();
+        memberMatches[0].Path.Should().Be("cli/Protocol.cs");
+
+        // 5. Non-existent identifier without trigram overlap does not return hash-collision noise
+        var bogusMatches = await engine.SearchAsync(conn, "Terraform");
+        bogusMatches.Should().BeEmpty();
     }
 }

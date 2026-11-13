@@ -1,9 +1,12 @@
 using System.Text.Json;
+using CodeExplorer.Core.Analysis;
 
 namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository
 {
+    private const int MaxDirectoryDirectFiles = 100;
+    private const int MaxTopSymbolsPerFile = 8;
     private const string ColType = "type";
     private const string ColName = "name";
     private const string ColFromLabel = "fromLabel";
@@ -11,6 +14,39 @@ public partial class CodeExplorerRepository
     private const string ColToLabel = "toLabel";
     private const string ColLabel = "label";
     private const string ColKey = "key";
+    private const string ColPath = "path";
+    private const string ColLanguage = "language";
+    private const string ColLines = "lines";
+    private const string ColSymbolName = "symbolName";
+    private const string ParamFilePath = "filePath";
+    private const string ParamDirPrefix = "dirPrefix";
+    private const string ParamNormalizedDir = "normalizedDir";
+    private const string QueryGetFileOutline = "get_file_outline";
+    private const string WorkspaceRootPathQuery = "MATCH (w:Workspace) RETURN w.path LIMIT 1";
+    private const string FastFileOutlineQuery =
+        "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path = $filePath " +
+        "OPTIONAL MATCH (child)-[:DECLARED_IN]->(f) " +
+        "WHERE child:Type OR child:Function OR child:Member OR child:Query " +
+        "WITH child WHERE child IS NOT NULL " +
+        "RETURN child.name AS name, " +
+        "CASE WHEN child:Type THEN (CASE WHEN child.kind = 'class' THEN 'Class' WHEN child.kind = 'interface' THEN 'Interface' ELSE child.kind END) ELSE labels(child)[0] END AS type, " +
+        "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol " +
+        "ORDER BY child.start_line";
+    private const string RootDirectoryFilesQuery =
+        "MATCH (f:File) WHERE f.path IS NOT NULL " +
+        "RETURN f.path AS path, coalesce(f.language, '') AS language, coalesce(f.line_count, f.loc, f.lines, 0) AS lines";
+    private const string SubDirectoryFilesQuery =
+        "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path STARTS WITH $dirPrefix " +
+        "RETURN f.path AS path, coalesce(f.language, '') AS language, coalesce(f.line_count, f.loc, f.lines, 0) AS lines";
+    private const string RootDirectFileSymbolsQuery =
+        "MATCH (f:File) WHERE f.path IS NOT NULL AND NOT (f.path CONTAINS '/') " +
+        "MATCH (s)-[:DECLARED_IN]->(f) WHERE s:Type OR s:Function " +
+        "RETURN f.path AS path, s.name AS symbolName ORDER BY coalesce(s.start_line, 0)";
+    private const string SubDirectFileSymbolsQuery =
+        "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path STARTS WITH $dirPrefix " +
+        "AND (f.name IS NULL OR f.path = ($normalizedDir + '/' + f.name)) " +
+        "MATCH (s)-[:DECLARED_IN]->(f) WHERE s:Type OR s:Function " +
+        "RETURN f.path AS path, s.name AS symbolName ORDER BY coalesce(s.start_line, 0)";
     private const string PropTaxonomy = "taxonomy";
     private const string PropProperties = "properties";
     private const string PropOutgoing = "outgoing";
@@ -51,27 +87,162 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
-        var normalizedPath = filePath.Trim().Replace('\\', '/').TrimStart('/');
-        var parameters = new Dictionary<string, string>
+        var effectiveWsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+        if (string.IsNullOrWhiteSpace(effectiveWsRoot) && Path.IsPathRooted(filePath))
         {
-            ["filePath"] = normalizedPath
-        };
-        const string fastOutlineQuery =
-            "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path = $filePath " +
-            "OPTIONAL MATCH (child)-[:DECLARED_IN]->(f) " +
-            "WHERE child:Type OR child:Function OR child:Member OR child:Query " +
-            "WITH child WHERE child IS NOT NULL " +
-            "RETURN child.name AS name, " +
-            "CASE WHEN child:Type THEN (CASE WHEN child.kind = 'class' THEN 'Class' WHEN child.kind = 'interface' THEN 'Interface' ELSE child.kind END) ELSE labels(child)[0] END AS type, " +
-            "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol " +
-            "ORDER BY child.start_line";
-        var res = await client.ExecuteCypherAsync(fastOutlineQuery, parameters, cancellationToken);
-        if (res.Count == 0)
-        {
-            var query = Queries.Get("get_file_outline");
-            res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+            effectiveWsRoot = await client.QueryFirstOrDefaultAsync<string>(WorkspaceRootPathQuery, null, cancellationToken);
         }
-        return ToonYamlSerializer.SerializeYaml(res);
+
+        var normalizedPath = NormalizeOutlineTargetPath(filePath, effectiveWsRoot);
+        if (!string.IsNullOrEmpty(normalizedPath))
+        {
+            var parameters = new Dictionary<string, string>
+            {
+                [ParamFilePath] = normalizedPath
+            };
+            var res = await client.ExecuteCypherAsync(FastFileOutlineQuery, parameters, cancellationToken);
+            if (res.Count == 0)
+            {
+                res = await client.ExecuteCypherAsync(Queries.Get(QueryGetFileOutline), parameters, cancellationToken);
+            }
+            if (res.Count > 0)
+            {
+                return ToonYamlSerializer.SerializeYaml(res);
+            }
+        }
+
+        var directoryOutline = await TryBuildDirectoryOutlineYamlAsync(client, normalizedPath, cancellationToken);
+        if (directoryOutline != null)
+        {
+            return directoryOutline;
+        }
+
+        var empty = await client.ExecuteCypherAsync(FastFileOutlineQuery, new Dictionary<string, string> { [ParamFilePath] = normalizedPath }, cancellationToken);
+        return ToonYamlSerializer.SerializeYaml(empty);
+    }
+
+    private static string NormalizeOutlineTargetPath(string rawPath, string? workspaceRoot)
+    {
+        var trimmed = rawPath.Trim();
+        if (trimmed is "." or "/" or "\\")
+        {
+            return string.Empty;
+        }
+
+        var normalized = (IdentifierSearchEngine.NormalizeSymbolPath(trimmed, workspaceRoot) ?? string.Empty).Trim('/');
+        return normalized == "." ? string.Empty : normalized;
+    }
+
+    private static async Task<string?> TryBuildDirectoryOutlineYamlAsync(
+        IGraphClient client,
+        string normalizedDir,
+        CancellationToken cancellationToken)
+    {
+        var isRoot = string.IsNullOrEmpty(normalizedDir);
+        var dirPrefix = isRoot ? string.Empty : $"{normalizedDir}/";
+        var dirParams = isRoot
+            ? null
+            : new Dictionary<string, string>
+            {
+                [ParamDirPrefix] = dirPrefix,
+                [ParamNormalizedDir] = normalizedDir
+            };
+
+        var fileRows = await client.ExecuteCypherAsync(
+            isRoot ? RootDirectoryFilesQuery : SubDirectoryFilesQuery,
+            dirParams,
+            cancellationToken);
+        if (fileRows.Count == 0)
+        {
+            return null;
+        }
+
+        var subfolders = new Dictionary<string, (int FileCount, long TotalLines)>(StringComparer.OrdinalIgnoreCase);
+        var directFiles = new List<(string Path, string Language, long Lines)>();
+        foreach (var row in fileRows.Rows)
+        {
+            var path = row.GetStringProp(ColPath);
+            if (string.IsNullOrEmpty(path)) continue;
+            var rel = isRoot ? path : (path.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase) ? path[dirPrefix.Length..] : path);
+            var lines = row.GetLongProp(ColLines);
+            var slashIdx = rel.IndexOf('/');
+            if (slashIdx >= 0)
+            {
+                var subName = rel[..slashIdx];
+                if (!string.IsNullOrEmpty(subName))
+                {
+                    var prev = subfolders.GetValueOrDefault(subName);
+                    subfolders[subName] = (prev.FileCount + 1, prev.TotalLines + lines);
+                }
+            }
+            else
+            {
+                directFiles.Add((path, row.GetStringProp(ColLanguage) ?? string.Empty, lines));
+            }
+        }
+
+        var symbolsByFile = await FetchDirectFileSymbolsAsync(client, isRoot, dirParams, directFiles, cancellationToken);
+        var summary = new
+        {
+            directory = isRoot ? "." : normalizedDir,
+            totalFiles = fileRows.Count,
+            subdirectories = subfolders
+                .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(kv => new { name = kv.Key, fileCount = kv.Value.FileCount, totalLines = kv.Value.TotalLines })
+                .ToList(),
+            files = directFiles
+                .OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
+                .Take(MaxDirectoryDirectFiles)
+                .Select(f => new
+                {
+                    path = f.Path,
+                    language = f.Language,
+                    lines = f.Lines,
+                    symbols = symbolsByFile.GetValueOrDefault(f.Path) ?? []
+                })
+                .ToList()
+        };
+        return ToonYamlSerializer.SerializeObject(summary);
+    }
+
+    private static async Task<Dictionary<string, List<string>>> FetchDirectFileSymbolsAsync(
+        IGraphClient client,
+        bool isRoot,
+        Dictionary<string, string>? dirParams,
+        List<(string Path, string Language, long Lines)> directFiles,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (directFiles.Count == 0)
+        {
+            return result;
+        }
+
+        var directSet = new HashSet<string>(directFiles.Select(f => f.Path), StringComparer.OrdinalIgnoreCase);
+        var symRows = await client.ExecuteCypherAsync(
+            isRoot ? RootDirectFileSymbolsQuery : SubDirectFileSymbolsQuery,
+            dirParams,
+            cancellationToken);
+        foreach (var row in symRows.Rows)
+        {
+            var path = row.GetStringProp(ColPath);
+            var sym = row.GetStringProp(ColSymbolName);
+            if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(sym) || !directSet.Contains(path))
+            {
+                continue;
+            }
+
+            if (!result.TryGetValue(path, out var list))
+            {
+                list = [];
+                result[path] = list;
+            }
+            if (list.Count < MaxTopSymbolsPerFile && !list.Contains(sym, StringComparer.Ordinal))
+            {
+                list.Add(sym);
+            }
+        }
+        return result;
     }
 
 

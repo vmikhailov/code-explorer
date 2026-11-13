@@ -148,6 +148,54 @@ public class McpMultiWorkspaceResolutionTests
         ExtractText(unindexedRes).Should().Contain("No indexed CodeExplorer workspace");
     }
 
+    [Test]
+    public async Task McpGraphHandler_StandbyMode_RemembersStickyWorkspaceAcrossCalls()
+    {
+        var wsAlpha = await CreateSeededWorkspaceAsync("ws-sticky-alpha", "AlphaController");
+        var wsBeta = await CreateSeededWorkspaceAsync("ws-sticky-beta", "BetaService");
+        var unindexedDir = Path.Combine(_tempRoot, "unindexed-sticky-ws");
+        Directory.CreateDirectory(unindexedDir);
+
+        var standbyDbPath = Path.Combine(_tempRoot, "standby-sticky.db");
+        await using var standbyClient = new SqliteGraphClient(standbyDbPath);
+
+        var repo = new CodeExplorerRepository(standbyClient, defaultWorkspacePath: null);
+        var handler = new McpGraphHandler(repo, new HttpContextAccessor())
+        {
+            CustomRootsProvider = _ => Task.FromResult<IReadOnlyList<string>>([])
+        };
+
+        // 1. Before any workspacePath is provided, empty client roots stay in standby
+        var initialStandby = await handler.FindSymbolAsync("AlphaController");
+        ExtractText(initialStandby).Should().Contain("status: standby");
+
+        // 2. Passing workspacePath once binds it for subsequent calls in the same session
+        var explicitAlpha = await handler.FindSymbolAsync("AlphaController", workspacePath: wsAlpha);
+        explicitAlpha.IsError.Should().NotBeTrue();
+        ExtractText(explicitAlpha).Should().Contain("AlphaController");
+
+        var stickyAlpha = await handler.FindSymbolAsync("AlphaController");
+        stickyAlpha.IsError.Should().NotBeTrue();
+        ExtractText(stickyAlpha).Should().Contain("AlphaController");
+
+        // 3. Invalid/unindexed workspacePath fails cleanly without overwriting sticky workspace
+        var unindexedAttempt = await handler.FindSymbolAsync("AlphaController", workspacePath: unindexedDir);
+        unindexedAttempt.IsError.Should().BeTrue();
+
+        var stillAlpha = await handler.FindSymbolAsync("AlphaController");
+        stillAlpha.IsError.Should().NotBeTrue();
+        ExtractText(stillAlpha).Should().Contain("AlphaController");
+
+        // 4. Passing another indexed workspacePath switches sticky binding to the new workspace
+        var explicitBeta = await handler.FindSymbolAsync("BetaService", workspacePath: wsBeta);
+        explicitBeta.IsError.Should().NotBeTrue();
+        ExtractText(explicitBeta).Should().Contain("BetaService");
+
+        var stickyBeta = await handler.FindSymbolAsync("BetaService");
+        stickyBeta.IsError.Should().NotBeTrue();
+        ExtractText(stickyBeta).Should().Contain("BetaService");
+    }
+
     private string CreateIndexedWorkspaceDirectory(string folderName)
     {
         var dir = Path.Combine(_tempRoot, folderName);
