@@ -9,8 +9,6 @@ namespace CodeExplorer.Parser.Kotlin;
 [ProjectParser(Tier = ParserTier.Primary)]
 public class KotlinProjectParser : IProjectParser
 {
-    public string LanguageName => "kotlin";
-
     public string ProjectType => "kotlin";
 
     public IReadOnlyCollection<string> ExcludedFolders =>
@@ -35,35 +33,7 @@ public class KotlinProjectParser : IProjectParser
         new SpringFrameworkConfigurationDescriptor()
     ];
 
-    public IReadOnlyList<PackageDescriptor> Packages { get; }
-
-    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
-    [
-        new Libraries.KtorServerLibraryParser(),
-        new Libraries.KtorClientLibraryParser(),
-        new Libraries.MicronautKotlinLibraryParser(),
-        new Libraries.GraphQlKotlinLibraryParser(),
-        new Libraries.SpringCloudStreamKotlinLibraryParser(),
-        new Libraries.ExposedLibraryParser(),
-        new Libraries.KtormLibraryParser(),
-        new Libraries.KoinLibraryParser(),
-        new Libraries.ArrowKotlinLibraryParser(),
-        new Libraries.KotlinxSerializationLibraryParser(),
-        new Libraries.CoroutinesFlowChannelLibraryParser(),
-        new Libraries.Http4kLibraryParser(),
-        new Libraries.GrpcKotlinLibraryParser(),
-        new Libraries.ApolloKotlinLibraryParser(),
-        new Libraries.SqlDelightLibraryParser(),
-        new Libraries.SupabaseFirebaseKotlinLibraryParser(),
-        new Libraries.DaggerHiltKodeinLibraryParser(),
-        new Libraries.KotestMockkLibraryParser(),
-        new Libraries.ComposeNavigationKotlinLibraryParser()
-    ];
-
-    public KotlinProjectParser()
-    {
-        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
-    }
+    public IReadOnlyList<PackageDescriptor> Packages => KotlinFileParser.DefaultPackages;
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {

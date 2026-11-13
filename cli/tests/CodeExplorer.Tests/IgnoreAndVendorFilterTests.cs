@@ -275,9 +275,9 @@ packages/
     [Test]
     public void Test_WorkspaceFileFilter_DynamicExclusions_FromConnectedParsers_WithDeduplication()
     {
-        var csParser = new Parser.CSharp.CSharpParser();
-        var tsParser = new Parser.TypeScript.TypeScriptParser();
-        var pyParser = new Parser.Python.PythonParser();
+        var csParser = new Parser.CSharp.CSharpProjectParser();
+        var tsParser = new Parser.TypeScript.TypeScriptProjectParser();
+        var pyParser = new Parser.Python.PythonProjectParser();
 
         // 1. C# only filter
         var csOnlyFilter = new WorkspaceFileFilter([csParser], []);

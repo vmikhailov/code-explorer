@@ -160,32 +160,6 @@ public interface IProjectParser
     bool IsExcludedDirectory(string dirName, string? fullPath = null) => CheckDirectoryExclusion(dirName, fullPath) ?? false;
 
     /// <summary>
-    /// Default rule for skipping synthetic stubs, mocks, and scratch files.
-    /// </summary>
-    public static bool DefaultShouldSkipFileName(string fileName)
-    {
-        var fn = fileName.ToLowerInvariant();
-        if (fn.Contains("mock")) return true;
-        if (fn.StartWithIC("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
-            fn.StartWithIC("temp_") || fn.StartWithIC("tmp_") ||
-            fn.StartWithIC("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
-        {
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Checks whether a file with the given name should be skipped by this dialect (e.g. ambient declaration .d.ts, minified bundles).
-    /// </summary>
-    bool ShouldSkipFileName(string fileName) => DefaultShouldSkipFileName(fileName);
-
-    /// <summary>
-    /// Checks whether a file should be skipped by this dialect (e.g. minified content, generated bundles).
-    /// </summary>
-    bool ShouldSkipFile(FileInfo fileInfo) => false;
-
-    /// <summary>
     /// Callback during directory scanning allowing dialect-specific configuration registration (e.g. LibMan).
     /// </summary>
     void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null) { }
@@ -290,9 +264,8 @@ public interface IProjectParser
 
     /// <summary>
     /// Declarative package descriptors (frameworks, test runners, drivers) registered for this language dialect.
-    /// Derived dynamically from all registered SemanticExtensions by default.
     /// </summary>
-    IReadOnlyList<PackageDescriptor> Packages => [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
+    IReadOnlyList<PackageDescriptor> Packages => [];
 
     /// <summary>
     /// Checks whether any of the provided dependency names matches a registered <see cref="PackageDescriptor"/>
@@ -306,11 +279,6 @@ public interface IProjectParser
     /// </summary>
     bool HasTestFrameworkDependency(IEnumerable<string> dependencies) =>
         HasPackageWithRole(dependencies, LibraryRole.TestFramework);
-
-    /// <summary>
-    /// Semantic AST extensions (e.g. Tree-sitter visitors) registered for this language dialect.
-    /// </summary>
-    IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
     /// <summary>
     /// Checks if the specified file name is a configuration file for this dialect (e.g. appsettings.json, application.properties).

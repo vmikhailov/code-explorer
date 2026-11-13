@@ -13,7 +13,7 @@ public partial class ResourceSemanticAnalyzer
 {
     private const string OpCall = "CALL";
 
-    private static readonly ConcurrentDictionary<IProjectParser, (IReadOnlyList<ISemanticExtension> Extensions, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
+    private static readonly ConcurrentDictionary<IFileParser, (IReadOnlyList<ISemanticExtension> Extensions, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
     private static readonly ConcurrentDictionary<string, string?> _projectFrameworkCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static void ResetCache()
@@ -63,22 +63,20 @@ public partial class ResourceSemanticAnalyzer
     public static Task EnrichAsync(
         SyntaxTree syntaxTree,
         ProjectNode projectNode,
-        IProjectParser parser,
+        IFileParser parser,
         ParsingContext ctx,
         IOntologyNode? workloadNode = null)
     {
-        var (extensions, registry) = _parserRegistryCache.GetOrAdd(parser, p =>
+        var (extensions, registry) = _parserRegistryCache.GetOrAdd(parser, static p =>
         {
             var allExtensions = new List<ISemanticExtension>(p.SemanticExtensions);
-            if (p.Packages != null)
+            var packages = p.SemanticExtensions.SelectMany(e => e.GetPackageDescriptors());
+            var existingIds = p.SemanticExtensions.Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var pkg in packages)
             {
-                var existingIds = p.SemanticExtensions.Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                foreach (var pkg in p.Packages)
+                if (!existingIds.Contains(pkg.Id))
                 {
-                    if (!existingIds.Contains(pkg.Id))
-                    {
-                        allExtensions.Add(new PackageSemanticExtensionAdapter(pkg));
-                    }
+                    allExtensions.Add(new PackageSemanticExtensionAdapter(pkg));
                 }
             }
             var reg = new SemanticExtensionRegistry(allExtensions);

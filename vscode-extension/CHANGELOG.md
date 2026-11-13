@@ -5,8 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.83.0] - 2026-11-12
+## [1.84.0] - 2026-11-13
 
+### Added & Improved
+- **Dedicated `IFileParser` and `IProjectParser` Pipeline Separation (`CodeExplorer.Core`, `CodeExplorer.Parser.*`)**:
+  - Decoupled syntactic AST file parsing (`IFileParser` — `*FileParser.cs`) from Layer 2 project manifest and dependency discovery (`IProjectParser` — `*ProjectParser.cs`) across C#, Go, Java, Kotlin, Python, Rust, SQL, and TypeScript/JavaScript.
+  - Eliminated monolithic dual-purpose parser classes and ratcheted `SIG-C-R-001` (God Class Prohibition), `SIG-M-I-001`, and `SIG-M-I-005` baselines down (`SIG-C-R-001` reduced to `0` violations).
+- **MCP Symbol Search Precision, Path Normalization, Sticky Standby Workspace, and Directory Outlines (`b0f801cd`)**:
+  - Improved `find_symbol` ranking and precision, normalized cross-platform file paths in MCP queries, added sticky standby workspace retention across MCP tool invocations, and supported directory paths in `get_file_outline`.
+- **SPA Routing & Clean Sitemap URLs (`39ddd48a`, `01acc4c4`)**:
+  - Switched non-root SPA routes on `code-explorer.app` to `createRoot` on direct refresh and unified clean extensionless URLs across sitemap and navigation.
+
+## [1.83.0] - 2026-11-12
 ### Added
 - **Ontology v2.0 Polymorphic Inheritance, `:Cloud`, `:DbSchema`, and `EXTENDS` Visualization**:
   - Introduced multi-level ontology inheritance (`:Module` -> `:Workload` / `:Library` / `:TestSuite` and `:Workload` -> `:Service` / `:App` / `:Worker` / `:CliTool`) with polymorphic OpenCypher label matching (`MATCH (m:Module)`, `MATCH (w:Workload)`, `WHERE n:Workload`, `labels(n)`).

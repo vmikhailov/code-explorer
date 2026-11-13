@@ -8,7 +8,7 @@ namespace CodeExplorer.Tests;
 [TestFixture]
 public class NodeSelectorTests
 {
-    private readonly TypeScriptParser _parser = new();
+    private readonly TypeScriptFileParser _parser = new();
 
     [Test]
     [ParserFileSource("SingleFiles/TypeScript", "node_selector_decorator.ts.test")]

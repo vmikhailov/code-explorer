@@ -74,7 +74,7 @@ public class MessagingParsersTests
     [Test]
     public async Task Test_MassTransitLibraryParser_ConsumerAndPublish()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_masstransit_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "OrderConsumer.cs");
@@ -142,7 +142,7 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
     [Test]
     public async Task Test_MediatRLibraryParser_RequestHandlerAndNotificationHandler()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_mediatr_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "CreateUserHandler.cs");
@@ -228,7 +228,7 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
     [Test]
     public async Task Test_KafkaFlowLibraryParser_ConsumerAndProduce()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_kafkaflow_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "OrderDirectiveHandler.cs");
@@ -290,7 +290,7 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
     [Test]
     public async Task Test_GoRabbitMqParser_PublishAndConsume()
     {
-        var parser = new GoParser();
+        var parser = new GoFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_gorabbit_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "rabbit_service.go");
@@ -353,7 +353,7 @@ func consumeRabbit(ctx context.Context, ch *amqp.Channel, q string, h any) {}
     [Test]
     public async Task Test_GoPubSubParser_PublishAndSubscribe()
     {
-        var parser = new GoParser();
+        var parser = new GoFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_gopubsub_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "pubsub_service.go");
@@ -426,7 +426,7 @@ func RunPubSub(ctx context.Context, client *pubsub.Client) {
     [Test]
     public async Task Test_GoPubSubParser_EnsureSubscription_DoesNotPublish()
     {
-        var parser = new GoParser();
+        var parser = new GoFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_gopubsub_nopub_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "subscriber.go");
@@ -485,7 +485,7 @@ func EnsureSubscription(ctx context.Context, client *pubsub.Client) {
     [Test]
     public async Task Test_TypeScriptRabbitMq_WrapperAndSendListen()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsrabbit_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "rabbit-controller.ts");
@@ -545,7 +545,7 @@ export async function sendPartner() {
     [Test]
     public async Task Test_TypeScriptGcpPubSub_PublishAndSubscribe()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsgcp_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "pubsub-service.ts");
@@ -612,7 +612,7 @@ export class AppService {
     [Test]
     public async Task Test_TypeScriptGcpPubSub_ConstructorConfigAndFieldResolution()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsgcp_config_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "rule-tree.service.ts");
@@ -685,7 +685,7 @@ export class RuleTreeService {
     [Test]
     public async Task Test_TypeScriptRabbitMq_IgnoresTypeAnnotationsAndUrls()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsrabbit_bogus_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "legacy-queue.ts");
@@ -748,7 +748,7 @@ export class LegacyQueueService {
     [Test]
     public async Task Test_TypeScriptMessaging_NeverCreatesTopicsFromMethodParameters()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_param_reject_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "helper.service.ts");
@@ -797,7 +797,7 @@ export class HelperService {
     public async Task Test_TypeScriptMessaging_ResolvesExportedConstantFromSharedFile()
     {
         using var _ = await TestRegistryLock.AcquireAsync();
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_crossfile_const_" + Guid.NewGuid().ToString("N"));
         var sharedDir = Path.Combine(tempDir, "shared");
         Directory.CreateDirectory(sharedDir);
@@ -856,7 +856,7 @@ export class OrderPublisher {
     [Test]
     public async Task Test_EventBusLibraryParser_ConsumerAndPublish()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_eventbus_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "OrderEvents.cs");
@@ -947,7 +947,7 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
     [Test]
     public async Task Test_EventBusLibraryParser_AddSubscriptionAndTernaryPublish()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_eventbus_ternary_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "OrderProcessor.cs");

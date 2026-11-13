@@ -36,7 +36,7 @@ public class TypeScriptTestingFrameworkTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
@@ -248,7 +248,7 @@ test.describe("Admin Portal", () => {
     [Test]
     public void Test_TypeScriptParser_Packages_Include_TestFrameworks()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptProjectParser();
         var packages = parser.Packages;
 
         var jestPkg = packages.FirstOrDefault(p => p.Id == "jest");

@@ -116,8 +116,14 @@ public class WorkspaceIndexer
 
     public static IFileParser? GetParserByLanguage(string languageName)
     {
+        if (string.IsNullOrEmpty(languageName)) return null;
         if (_fileParsers.Count == 0) AutoRegisterParsers();
-        return _fileParsers.FirstOrDefault(p => string.Equals(p.LanguageName, languageName, StringComparison.OrdinalIgnoreCase));
+        var normalized = languageName.Equals("csharp", StringComparison.OrdinalIgnoreCase)
+            ? "c-sharp"
+            : languageName;
+        return _fileParsers.FirstOrDefault(p =>
+            string.Equals(p.LanguageName, normalized, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.LanguageName, languageName, StringComparison.OrdinalIgnoreCase));
     }
 
     public static IProjectParser? GetProjectParser(string projectType)

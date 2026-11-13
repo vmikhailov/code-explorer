@@ -42,7 +42,7 @@ public class GrpcCommunicationDetectionTests
     [Test]
     public async Task Test_CSharp_Grpc_Server_Detects_Endpoint_And_Ignores_Extensions()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
 
         // 1. Grpc Server Service
         var serverCode = """
@@ -112,7 +112,7 @@ public class GrpcCommunicationDetectionTests
     [Test]
     public async Task Test_CSharp_Grpc_Client_Detects_Invocations()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
 
         // 1. Direct client injection (WebApp style: basketClient.GetBasketAsync)
         var webAppClientCode = """
@@ -193,7 +193,7 @@ public class GrpcCommunicationDetectionTests
     [Test]
     public async Task Test_CSharp_Grpc_LateBinding_Resolves_CallsEndpoint_And_ServiceCall()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
 
         // 1. Parse Server Service in Basket.API
         var serverCode = """
@@ -283,7 +283,7 @@ public class GrpcCommunicationDetectionTests
             var csprojPath = Path.Combine(tempDir, "ClientApp.csproj");
             await File.WriteAllTextAsync(csprojPath, csprojContent);
 
-            var parser = new CSharpParser();
+            var parser = new CSharpProjectParser();
             var props = parser.ExtractManifestProperties(tempDir, [csprojPath]);
 
             props["manifest_type"].Should().Be("application");

@@ -5,7 +5,7 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.CSharp;
 
-public partial class CSharpParser
+public partial class CSharpProjectParser
 {
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
     {
@@ -332,6 +332,7 @@ public partial class CSharpParser
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                // ignored: skip unreadable source files during heuristic capability inspection
             }
 
             // Apply Strict Dominance Order
@@ -405,6 +406,7 @@ public partial class CSharpParser
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // ignored: unreadable csproj falls back to empty manifest properties
         }
 
         return props;

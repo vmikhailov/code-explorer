@@ -12,7 +12,7 @@ public class PluggableConfigurationParserTests
     public void Setup()
     {
         // Ensure JavaParser is registered/loaded
-        _ = new JavaParser();
+        _ = new JavaFileParser();
     }
 
     [Test]

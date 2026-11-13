@@ -96,7 +96,7 @@ public class Wave2LibraryExpansionTests
                 }
             }
             """;
-        var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "OrderPlacedHandler.cs");
+        var (_, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "OrderPlacedHandler.cs");
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName.Contains("OrderPlaced")), Is.True);
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("orders.confirmed")), Is.True);
 
@@ -111,7 +111,7 @@ public class Wave2LibraryExpansionTests
                 }
             }
             """;
-        var (_, javaRefs) = await ParseFileAsync(new JavaParser(), javaCode, "OrderVerticle.java");
+        var (_, javaRefs) = await ParseFileAsync(new JavaFileParser(), javaCode, "OrderVerticle.java");
         Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName.Contains("/api/vertx/orders")), Is.True);
         Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("orders.created")), Is.True);
 
@@ -122,7 +122,7 @@ public class Wave2LibraryExpansionTests
             async def handle_payment(msg):
                 await broker.publish(msg, "payments.out")
             """;
-        var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "stream_app.py");
+        var (_, pyRefs) = await ParseFileAsync(new PythonFileParser(), pyCode, "stream_app.py");
         Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "payments.in"), Is.True);
         Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "payments.out"), Is.True);
 
@@ -135,7 +135,7 @@ public class Wave2LibraryExpansionTests
                 c.SaveState(ctx, "statestore", "key", data, nil)
             }
             """;
-        var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "dapr_app.go");
+        var (_, goRefs) = await ParseFileAsync(new GoFileParser(), goCode, "dapr_app.go");
         Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "orders.shipped"), Is.True);
         Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "dapr_state_store"), Is.True);
     }
@@ -159,7 +159,7 @@ public class Wave2LibraryExpansionTests
                 }
             }
             """;
-        var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "CreateInvoiceEndpoint.cs");
+        var (_, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "CreateInvoiceEndpoint.cs");
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "POST:/api/invoices/create"), Is.True);
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "GET:/api/invoices/list"), Is.True);
 
@@ -192,7 +192,7 @@ public class Wave2LibraryExpansionTests
                 return useSWR('/api/v1/profile');
             }
             """;
-        var (_, tsRefs) = await ParseFileAsync(new TypeScriptParser(), tsCode, "worker.ts");
+        var (_, tsRefs) = await ParseFileAsync(new TypeScriptFileParser(), tsCode, "worker.ts");
         Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "cloudflare_d1"), Is.True);
         Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "cloudflare-worker-queue"), Is.True);
         Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "/api/v1/profile"), Is.True);
@@ -205,7 +205,7 @@ public class Wave2LibraryExpansionTests
                 r.HandleFunc("/api/v2/customers", handleCustomers)
             }
             """;
-        var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "router.go");
+        var (_, goRefs) = await ParseFileAsync(new GoFileParser(), goCode, "router.go");
         Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "ALL:/api/v2/customers"), Is.True);
     }
 
@@ -225,7 +225,7 @@ public class Wave2LibraryExpansionTests
                 }
             }
             """;
-        var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "CosmosRepo.cs");
+        var (_, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "CosmosRepo.cs");
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName.Contains("billing-events")), Is.True);
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "Invoices"), Is.True);
 
@@ -240,7 +240,7 @@ public class Wave2LibraryExpansionTests
                 }
             }
             """;
-        var (_, javaRefs) = await ParseFileAsync(new JavaParser(), javaCode, "LedgerDao.java");
+        var (_, javaRefs) = await ParseFileAsync(new JavaFileParser(), javaCode, "LedgerDao.java");
         Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "ledger_entries"), Is.True);
         Assert.That(javaRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "session_cache"), Is.True);
 
@@ -251,7 +251,7 @@ public class Wave2LibraryExpansionTests
                 return await supabase.from('subscriptions').select('*');
             }
             """;
-        var (_, tsRefs) = await ParseFileAsync(new TypeScriptParser(), tsCode, "supabaseRepo.ts");
+        var (_, tsRefs) = await ParseFileAsync(new TypeScriptFileParser(), tsCode, "supabaseRepo.ts");
         Assert.That(tsRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "subscriptions"), Is.True);
 
         const string pyCode = """
@@ -260,7 +260,7 @@ public class Wave2LibraryExpansionTests
             def search_embeddings(client: QdrantClient):
                 client.search("document_embeddings", [0.1, 0.2])
             """;
-        var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "vector_repo.py");
+        var (_, pyRefs) = await ParseFileAsync(new PythonFileParser(), pyCode, "vector_repo.py");
         Assert.That(pyRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "document_embeddings"), Is.True);
     }
 
@@ -278,7 +278,7 @@ public class Wave2LibraryExpansionTests
                 }
             }
             """;
-        var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "OrderAgent.cs");
+        var (_, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "OrderAgent.cs");
         Assert.That(csRefs.Any(r => r.Kind == RelationshipKind.Calls && r.TargetName == "llm:semantic-kernel"), Is.True);
 
         const string ktCode = """
@@ -310,7 +310,7 @@ public class Wave2LibraryExpansionTests
                 promhttp.Handler()
             }
             """;
-        var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "boot.go");
+        var (_, goRefs) = await ParseFileAsync(new GoFileParser(), goCode, "boot.go");
         Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.DependsOn && r.TargetName == "NewOrderService"), Is.True);
         Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.UsesDb && r.TargetName == "casbin_rule"), Is.True);
         Assert.That(goRefs.Any(r => r.Kind == RelationshipKind.Exposes && r.TargetName == "GET:/metrics"), Is.True);
@@ -369,7 +369,7 @@ public class Wave2LibraryExpansionTests
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new CSharpParser();
+            var parser = new CSharpFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var allNodes = syntaxTree.RootNode!.Descendants().ToList();

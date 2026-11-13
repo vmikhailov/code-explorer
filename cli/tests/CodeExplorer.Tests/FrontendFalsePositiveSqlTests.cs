@@ -79,7 +79,7 @@ public class FrontendFalsePositiveSqlTests
             }
             """);
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptProjectParser();
             var isProj = parser.IsProjectDirectory(buttonDir, Directory.GetFiles(buttonDir));
             isProj.Should().BeFalse("Secondary entry points without package name must not be standalone projects");
 

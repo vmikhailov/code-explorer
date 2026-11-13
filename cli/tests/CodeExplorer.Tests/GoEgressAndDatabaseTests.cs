@@ -89,7 +89,7 @@ func queryDatabase(ctx context.Context, pool *pgxpool.Pool) {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -141,7 +141,7 @@ func makeCalls(client *resty.Client) {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -191,7 +191,7 @@ func sendRequests() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -247,7 +247,7 @@ func (r *Repo) Init(ctx context.Context) error {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -311,7 +311,7 @@ func (r *BqRepo) QueryData(ctx context.Context) error {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -385,7 +385,7 @@ func StartIngest(ctx context.Context) {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -444,7 +444,7 @@ func Run(ctx context.Context, client dapr.Client) error {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -489,7 +489,7 @@ func getTrainerHours(ctx context.Context, client *firestore.Client) {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -551,7 +551,7 @@ func (g GrpcServer) ScheduleTraining(ctx context.Context, req *UpdateHourRequest
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

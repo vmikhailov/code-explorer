@@ -51,7 +51,7 @@ public class CrossLanguageCommunicationDetectionTests
     [Test]
     public async Task Test_TypeScript_Communication_Detection_Http_And_Orm()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
 
         // 1a. HTTP Client Call (Axios)
         var tsHttpCode = """
@@ -108,7 +108,7 @@ public class CrossLanguageCommunicationDetectionTests
     [Test]
     public async Task Test_CSharp_Communication_Detection_Http_And_EfCore()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
 
         // 2a. HTTP Client Call
         var csHttpCode = """
@@ -172,7 +172,7 @@ public class CrossLanguageCommunicationDetectionTests
     [Test]
     public async Task Test_Go_Communication_Detection_Http_And_Gorm()
     {
-        var parser = new GoParser();
+        var parser = new GoFileParser();
 
         // 3a. HTTP Client Call
         var goHttpCode = """
@@ -228,7 +228,7 @@ public class CrossLanguageCommunicationDetectionTests
     [Test]
     public async Task Test_Python_Communication_Detection_Http_And_SqlAlchemy()
     {
-        var parser = new PythonParser();
+        var parser = new PythonFileParser();
 
         // 4a. HTTP Client Call (Requests)
         var pyHttpCode = """
@@ -285,7 +285,7 @@ public class CrossLanguageCommunicationDetectionTests
     [Test]
     public async Task Test_Java_Communication_Detection_Http_And_Jpa()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         // 5a. HTTP Client Call (RestTemplate)
         var javaHttpCode = """
@@ -350,7 +350,7 @@ public class CrossLanguageCommunicationDetectionTests
     [Test]
     public async Task Test_Sql_Table_Declaration_And_Resolution()
     {
-        var parser = new SqlParser();
+        var parser = new SqlFileParser();
         var sqlCode = """
         CREATE TABLE dbo.orders (
             order_id INT PRIMARY KEY,

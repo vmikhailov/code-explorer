@@ -8,18 +8,16 @@ public partial class GoFileVisitor : BaseParserVisitor
     private const char BackslashChar = '\\';
     private const char SlashChar = '/';
     private static readonly char[] QuoteSeparators = ['"', '`'];
-    private readonly GoParser _parser;
+
     public GoFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,
-        GoParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
         SemanticExtensionRegistry extensionRegistry)
         : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
-        _parser = parser;
     }
 
     protected override string? MapNodeType(Node node)

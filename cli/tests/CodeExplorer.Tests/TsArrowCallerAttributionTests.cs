@@ -27,7 +27,7 @@ public class TsArrowCallerAttributionTests
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
-            using var syntaxTree = await new TypeScriptParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree = await new TypeScriptFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var result = new List<ExternalServiceNode>();
             Collect(syntaxTree.FileNode.Children, result);

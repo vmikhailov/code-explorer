@@ -58,7 +58,7 @@ func setupRouter() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -122,7 +122,7 @@ func setupApp() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -186,7 +186,7 @@ func setupEcho() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -230,7 +230,7 @@ func setupEcho() {
         dir.Should().NotBeNull("SampleProjects root must be resolvable");
         var sampleProjectsRoot = Path.Combine(dir!.FullName, "cli", "tests", "SampleProjects");
 
-        var parser = new GoParser();
+        var parser = new GoFileParser();
 
         // 1. Gin service
         var ginPath = Path.Combine(sampleProjectsRoot, "go", "gin-service", "main.go");
@@ -292,7 +292,7 @@ func setupRouter() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -360,7 +360,7 @@ var (
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -431,7 +431,7 @@ func (s *Service) GetDetails(ctx context.Context, q *Query) (*AppResponse, error
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -481,7 +481,7 @@ func setupRouter() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -542,7 +542,7 @@ func (a *api) Endpoints() []endpoints.Endpoint {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -591,7 +591,7 @@ func (s *Server) CallLocal(ctx context.Context, in *internalv1pb.InternalInvokeR
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -628,7 +628,7 @@ func (ctrl *ApplicationController) Stop() {}
         await File.WriteAllTextAsync(filePath, code);
         try
         {
-            var parser = new GoParser();
+            var parser = new GoFileParser();
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", "ws-id", tempDir);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, "ws-id", tempDir);
             syntaxTree.Should().NotBeNull();

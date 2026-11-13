@@ -70,7 +70,7 @@ public class RustParserTests
     [Test]
     public async Task Test_RustParser_ProjectDetection_And_Dependencies()
     {
-        var parser = new RustParser();
+        var parser = new RustProjectParser();
 
         var rootDir = GetFixturePath("microservices-workspace");
         var rootFiles = Directory.GetFiles(rootDir);
@@ -131,7 +131,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustProjectParser();
             var projects = parser.GetAdditionalProjects(projectDir, Directory.GetFiles(projectDir));
 
             projects.Select(project => project.Name).Should().BeEquivalentTo(["iris-mpc-hawk", "wal-sidecar", "migrator"]);
@@ -195,7 +195,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustProjectParser();
             var projects = parser.GetAdditionalProjects(binsDir, Directory.GetFiles(binsDir));
             var coreDir = Path.GetFullPath(Path.Combine(tempDir, "core-lib"));
             var utilsDir = Path.GetFullPath(Path.Combine(tempDir, "utils-lib"));
@@ -248,7 +248,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustProjectParser();
             var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
 
             properties["manifest_type"].Should().Be("library");
@@ -278,7 +278,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustProjectParser();
             var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
 
             properties["architectural_subsystem"].Should().Be("true");
@@ -310,7 +310,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustProjectParser();
             var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
 
             properties.GetValueOrDefault("architectural_subsystem").Should().NotBe("true");
@@ -342,7 +342,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustProjectParser();
             var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
 
             properties.GetValueOrDefault("architectural_subsystem").Should().NotBe("true");
@@ -373,7 +373,7 @@ public class RustParserTests
     [Test]
     public async Task Test_RustParser_DomainModels_SyntacticAndSemantic()
     {
-        var parser = new RustParser();
+        var parser = new RustFileParser();
         var domainFile = GetFixturePath("microservices-workspace/crates/domain-models/src/lib.rs");
         File.Exists(domainFile).Should().BeTrue();
 
@@ -409,7 +409,7 @@ public class RustParserTests
     [Test]
     public async Task Test_RustParser_AuthService_EmbeddedSql()
     {
-        var parser = new RustParser();
+        var parser = new RustFileParser();
         var authMain = GetFixturePath("microservices-workspace/crates/auth-service/src/main.rs");
         File.Exists(authMain).Should().BeTrue();
 
@@ -488,7 +488,7 @@ public class RustParserTests
 
         try
         {
-            var parser = new RustParser();
+            var parser = new RustFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);

@@ -11,11 +11,11 @@ namespace CodeExplorer.Tests;
 [TestFixture]
 public class FileBasedParserTests
 {
-    private readonly TypeScriptParser _tsParser = new();
-    private readonly CSharpParser _csParser = new();
-    private readonly PythonParser _pyParser = new();
-    private readonly GoParser _goParser = new();
-    private readonly SqlParser _sqlParser = new();
+    private readonly TypeScriptFileParser _tsParser = new();
+    private readonly CSharpFileParser _csParser = new();
+    private readonly PythonFileParser _pyParser = new();
+    private readonly GoFileParser _goParser = new();
+    private readonly SqlFileParser _sqlParser = new();
 
     [Test]
     [ParserFileSource("SingleFiles/TypeScript", "*.ts.test")]

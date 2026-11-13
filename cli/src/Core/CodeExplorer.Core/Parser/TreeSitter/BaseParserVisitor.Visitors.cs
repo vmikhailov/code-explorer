@@ -229,9 +229,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected override void VisitStringLiteral(Node node, int depth)
     {
         var currentScope = SymbolStack.Peek();
+        var cleanedLiteral = CleanStringLiteral(ExtractFullStringText(node));
         if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query)
         {
-            var cleanedLiteral = CleanStringLiteral(node.Text);
             if ((string.IsNullOrEmpty(currentScope.Text) || !NestedSqlParser.TryParseSql(currentScope.Text, out _, out _)) &&
                 NestedSqlParser.TryParseSql(cleanedLiteral, out _, out _))
             {
@@ -256,23 +256,31 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             return;
         }
 
-        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) && NestedSqlParser.TryParseSql(node.Text, out _, out _))
+        if (!IsInsideInterpolatedString(node) &&
+            !WorkspaceConventions.IsFrontendFilePath(RelativePath) &&
+            NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
+            NestedSqlParser.TryParseSql(cleanedLiteral, out var firstWord, out var tableName))
         {
-            var name = "Query";
-
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                name = $"{firstWord} Query";
-            }
+            var name = $"{firstWord} Query";
 
             VisitSymbolNode(node, OntologyConstants.NodeLabels.Query, name, depth,
                 () => base.VisitStringLiteral(node, depth));
+
+            if (!string.IsNullOrEmpty(tableName))
+            {
+                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
+                if (enclosingFunc != null &&
+                    !enclosingFunc.References.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.QueriesDb && r.TargetName == tableName))
+                {
+                    enclosingFunc.References.Add(new Reference("", tableName, OntologyConstants.Relationships.QueriesDb));
+                }
+            }
         }
         else
         {
             if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
-                NestedSqlParser.TryDetectSqlDependencies(node.Text, "", currentScope.References);
+                NestedSqlParser.TryDetectSqlDependencies(cleanedLiteral, "", currentScope.References);
             }
 
             base.VisitStringLiteral(node, depth);

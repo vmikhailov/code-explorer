@@ -95,7 +95,7 @@ public class Phase3To5LibraryExpansionTests
                 await db.users.find_one({"id": 1})
             """;
 
-        var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "models.py");
+        var (_, pyRefs) = await ParseFileAsync(new PythonFileParser(), pyCode, "models.py");
 
         const string goCode = """
             package repo
@@ -111,7 +111,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "repo.go");
+        var (_, goRefs) = await ParseFileAsync(new GoFileParser(), goCode, "repo.go");
 
         const string csCode = """
             using Marten;
@@ -126,7 +126,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "OrderRepo.cs");
+        var (_, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "OrderRepo.cs");
 
         const string tsCode = """
             import { Kysely } from "kysely";
@@ -138,7 +138,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, tsRefs) = await ParseFileAsync(new TypeScriptParser(), tsCode, "repo.ts");
+        var (_, tsRefs) = await ParseFileAsync(new TypeScriptFileParser(), tsCode, "repo.ts");
 
         Assert.Multiple(() =>
         {
@@ -172,7 +172,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "CloudWorker.cs");
+        var (_, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "CloudWorker.cs");
 
         const string pyCode = """
             import boto3
@@ -182,7 +182,7 @@ public class Phase3To5LibraryExpansionTests
                 sqs_client.send_message(QueueUrl="q", MessageBody="hi")
             """;
 
-        var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "cloud.py");
+        var (_, pyRefs) = await ParseFileAsync(new PythonFileParser(), pyCode, "cloud.py");
 
         const string goCode = """
             package cloud
@@ -194,7 +194,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "cloud.go");
+        var (_, goRefs) = await ParseFileAsync(new GoFileParser(), goCode, "cloud.go");
 
         Assert.Multiple(() =>
         {
@@ -221,7 +221,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, tsRefs) = await ParseFileAsync(new TypeScriptParser(), tsCode, "workflow.ts");
+        var (_, tsRefs) = await ParseFileAsync(new TypeScriptFileParser(), tsCode, "workflow.ts");
 
         const string pyCode = """
             from temporalio import activity, workflow
@@ -236,7 +236,7 @@ public class Phase3To5LibraryExpansionTests
                 await client.chat.completions.create(model="gpt-4o")
             """;
 
-        var (_, pyRefs) = await ParseFileAsync(new PythonParser(), pyCode, "workflow.py");
+        var (_, pyRefs) = await ParseFileAsync(new PythonFileParser(), pyCode, "workflow.py");
 
         const string goCode = """
             package wf
@@ -249,7 +249,7 @@ public class Phase3To5LibraryExpansionTests
             }
             """;
 
-        var (_, goRefs) = await ParseFileAsync(new GoParser(), goCode, "workflow.go");
+        var (_, goRefs) = await ParseFileAsync(new GoFileParser(), goCode, "workflow.go");
 
         Assert.Multiple(() =>
         {

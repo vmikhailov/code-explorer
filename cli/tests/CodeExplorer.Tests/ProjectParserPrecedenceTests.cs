@@ -42,8 +42,8 @@ public class ProjectParserPrecedenceTests
     [Test]
     public void Order_PutsSupersedingParserFirstEvenWhenRegisteredLater()
     {
-        IProjectParser js = new JavaScriptParser();
-        IProjectParser ts = new TypeScriptParser();
+        IProjectParser js = new JavaScriptProjectParser();
+        IProjectParser ts = new TypeScriptProjectParser();
 
         ProjectParserPrecedence.Order([js, ts]).Should().Equal(ts, js);
     }
@@ -51,9 +51,9 @@ public class ProjectParserPrecedenceTests
     [Test]
     public void RemoveSuperseded_DropsJavaScriptWhenTypeScriptAlsoMatches()
     {
-        IProjectParser cs = new CSharpParser();
-        IProjectParser ts = new TypeScriptParser();
-        IProjectParser js = new JavaScriptParser();
+        IProjectParser cs = new CSharpProjectParser();
+        IProjectParser ts = new TypeScriptProjectParser();
+        IProjectParser js = new JavaScriptProjectParser();
         var matching = new List<IProjectParser> { cs, ts, js };
 
         ProjectParserPrecedence.RemoveSuperseded(matching);
@@ -64,7 +64,7 @@ public class ProjectParserPrecedenceTests
     [Test]
     public void RemoveSuperseded_KeepsJavaScriptWhenItMatchesAlone()
     {
-        IProjectParser js = new JavaScriptParser();
+        IProjectParser js = new JavaScriptProjectParser();
         var matching = new List<IProjectParser> { js };
 
         ProjectParserPrecedence.RemoveSuperseded(matching);
@@ -142,7 +142,7 @@ public class ProjectParserPrecedenceTests
             File.WriteAllText(Path.Combine(workersSiteDir, "package.json"), """{ "name": "workers-site" }""");
             File.WriteAllText(Path.Combine(workersSiteDir, "index.js"), "export default {};");
 
-            var tsParser = new TypeScriptParser();
+            var tsParser = new TypeScriptProjectParser();
 
             // 1. Root cf-worker is detected as a build orchestrator wrapping nested workers
             var rootCtx = new ProjectParseContext(rootDir, Directory.GetFiles(rootDir), rootDir);
@@ -177,7 +177,7 @@ public class ProjectParserPrecedenceTests
             File.WriteAllText(Path.Combine(dir, "Billing.Api.csproj"), """<Project Sdk="Microsoft.NET.Sdk.Web"></Project>""");
             File.WriteAllText(Path.Combine(dir, "Billing.Worker.csproj"), """<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>""");
 
-            var csParser = new CSharpParser();
+            var csParser = new CSharpProjectParser();
             var ctx = new ProjectParseContext(dir, Directory.GetFiles(dir), dir);
             csParser.TryParse(ctx, out var res).Should().BeTrue();
 

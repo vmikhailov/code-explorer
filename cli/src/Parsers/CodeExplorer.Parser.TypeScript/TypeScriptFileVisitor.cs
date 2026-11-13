@@ -5,31 +5,22 @@ namespace CodeExplorer.Parser.TypeScript;
 
 public class TypeScriptFileVisitor : BaseParserVisitor
 {
-    private readonly TypeScriptParser _parser;
-
     public TypeScriptFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,
-        TypeScriptParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
         SemanticExtensionRegistry extensionRegistry) :
         base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
-        _parser = parser;
     }
 
     protected override string? MapNodeType(Node node)
     {
-        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) &&
-            (SymbolStack.Count == 0 || SymbolStack.Peek().Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query) &&
-            node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
+        if (TryMapSqlQueryNodeType(node) is { } sqlKind)
         {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
-            {
-                return OntologyConstants.NodeLabels.Query;
-            }
+            return sqlKind;
         }
 
         return node switch
@@ -47,14 +38,9 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
-        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) &&
-            (SymbolStack.Count == 0 || SymbolStack.Peek().Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query) &&
-            node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
+        if (TryExtractSqlQueryIdentifier(node) is { } sqlId)
         {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
+            return sqlId;
         }
 
         return ExtractTsIdentifier(node);

@@ -7,7 +7,6 @@ public class JavaFileVisitor : BaseParserVisitor
     public JavaFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,
-        JavaParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
@@ -15,7 +14,7 @@ public class JavaFileVisitor : BaseParserVisitor
         : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
         // Ensure core route and HTTP client extensions are active even for snippet tests without explicit import statements
-        foreach (var ext in parser.SemanticExtensions)
+        foreach (var ext in fileParser.SemanticExtensions)
         {
             if (ext.Id is "spring-web" or "java-http" or "quarkus-jaxrs" or "quarkus-panache" or "quarkus-messaging" or "micronaut" or "dubbo")
             {

@@ -17,7 +17,7 @@ public class JavaParserTests
     [Test]
     public async Task Test_JavaParser_ProjectDetection_Maven()
     {
-        var parser = new JavaParser();
+        var parser = new JavaProjectParser();
 
         using var workspace = ParserTestData.PrepareTempWorkspace("Workspaces/JavaMavenProject");
 
@@ -43,7 +43,7 @@ public class JavaParserTests
     [Test]
     public async Task Test_JavaParser_ProjectDetection_Gradle()
     {
-        var parser = new JavaParser();
+        var parser = new JavaProjectParser();
 
         using var workspace = ParserTestData.PrepareTempWorkspace("Workspaces/JavaGradleProject");
 
@@ -69,7 +69,7 @@ public class JavaParserTests
     [Test]
     public async Task Test_JavaParser_UserController_SyntacticAndSemantic()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Java/UserController.java.test");
 
@@ -112,7 +112,7 @@ public class JavaParserTests
     [Test]
     public async Task Test_JavaParser_UserRepository_EmbeddedSql()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Java/UserRepository.java.test");
 
@@ -152,7 +152,7 @@ public class JavaParserTests
     [Test]
     public async Task Test_JavaParser_OrderService_KafkaAndHttp()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Java/OrderService.java.test");
 

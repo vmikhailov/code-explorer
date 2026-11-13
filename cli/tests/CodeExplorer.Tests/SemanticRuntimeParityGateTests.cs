@@ -36,7 +36,7 @@ public class SemanticRuntimeParityGateTests
     [Test]
     public void CSharpParser_ExtractManifestProperties_ClassifiesClientAppUnitTestsAsTestSuite()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var projDir = Path.Combine(_tempDir, "ClientApp.UnitTests");
         Directory.CreateDirectory(projDir);
         var csproj = Path.Combine(projDir, "ClientApp.UnitTests.csproj");
@@ -69,7 +69,7 @@ public class SemanticRuntimeParityGateTests
     [Test]
     public void CSharpParser_ExtractManifestProperties_ClassifiesBasketFunctionalTestsAsTestSuite()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var projDir = Path.Combine(_tempDir, "Basket.FunctionalTests");
         Directory.CreateDirectory(projDir);
         var csproj = Path.Combine(projDir, "Basket.FunctionalTests.csproj");
@@ -105,7 +105,7 @@ public class SemanticRuntimeParityGateTests
     [Test]
     public void CSharpParser_ExtractManifestProperties_ClassifiesWebAppComponentsAsLibrary()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var projDir = Path.Combine(_tempDir, "WebAppComponents");
         Directory.CreateDirectory(projDir);
         var csproj = Path.Combine(projDir, "WebAppComponents.csproj");
@@ -140,7 +140,7 @@ public class SemanticRuntimeParityGateTests
     [Test]
     public void CSharpParser_ExtractManifestProperties_ClassifiesAspireAppHostAsOrchestratorLibrary()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var projDir = Path.Combine(_tempDir, "eShop.AppHost");
         Directory.CreateDirectory(projDir);
         var csproj = Path.Combine(projDir, "eShop.AppHost.csproj");
@@ -254,7 +254,7 @@ public class SemanticRuntimeParityGateTests
     [Test]
     public void CSharpParser_ClassifyProject_WebAppHasAppPrimaryRoleAndServiceSecondaryRole()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var projDir = Path.Combine(_tempDir, "WebApp");
         Directory.CreateDirectory(projDir);
         var csproj = Path.Combine(projDir, "WebApp.csproj");
@@ -283,7 +283,7 @@ public class SemanticRuntimeParityGateTests
     [Test]
     public void CSharpParser_ClassifyProject_OrderingApiHasServicePrimaryRoleAndWorkerSecondaryRole()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var projDir = Path.Combine(_tempDir, "Ordering.API");
         Directory.CreateDirectory(projDir);
         var csproj = Path.Combine(projDir, "Ordering.API.csproj");
@@ -439,7 +439,7 @@ public class SemanticRuntimeParityGateTests
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.SemanticStructure = new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode("ws:semantic_structure", "root", tempWorkspace);
 
-            var csharpParser = new CSharpParser();
+            var csharpParser = new CSharpFileParser();
             using var syntaxTree = await csharpParser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 

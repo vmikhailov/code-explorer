@@ -1,43 +1,21 @@
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Parser.TypeScript;
 
 [ProjectParser(Tier = ParserTier.Secondary)]
-public class JavaScriptParser : IProjectParser, IFileParser
+public class JavaScriptProjectParser : IProjectParser
 {
-    public string LanguageName => "javascript";
+    private readonly TypeScriptProjectParser _tsParser = new();
 
     public string ProjectType => "javascript";
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
-    public IReadOnlyList<PackageDescriptor> Packages => _tsParser.Packages;
-    public IReadOnlyList<ISemanticExtension> SemanticExtensions => _tsParser.SemanticExtensions;
-
-    public bool UsesTreeSitter => true;
-
-    public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
-        TypeScriptSyntaxConverter.Instance.Parse(sourceText, LanguageName, filePath, relativePath);
-
-    public LanguageSyntaxProfile SyntaxProfile => TypeScriptSyntaxProfile.Instance;
-
-    public bool CanParse(string fileExtension)
-    {
-        return fileExtension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-               fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase) ||
-               fileExtension.Equals(".mjs", StringComparison.OrdinalIgnoreCase) ||
-               fileExtension.Equals(".cjs", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public void ExtractDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, Action<string, CodeExplorer.Core.Parser.Syntax.SyntaxNode?, string?> registerDeclaration)
-    {
-        TypeScriptDeclarationExtractor.Extract(rootNode, registerDeclaration);
-    }
+    public IReadOnlyList<PackageDescriptor> Packages => TypeScriptFileParser.DefaultPackages;
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
-        if (TypeScriptParser.HasWranglerManifest(filesInDirectory))
+        if (TypeScriptProjectParser.HasWranglerManifest(filesInDirectory))
         {
             return true;
         }
@@ -45,8 +23,8 @@ public class JavaScriptParser : IProjectParser, IFileParser
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (TypeScriptParser.IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
-                TypeScriptParser.IsAbsorbedWorkersSiteDirectory(directoryPath))
+            if (TypeScriptProjectParser.IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
+                TypeScriptProjectParser.IsAbsorbedWorkersSiteDirectory(directoryPath))
             {
                 return false;
             }
@@ -97,25 +75,10 @@ public class JavaScriptParser : IProjectParser, IFileParser
     public bool IsDistOutputDirectory(string dirName) => _tsParser.IsDistOutputDirectory(dirName);
     public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) =>
         _tsParser.InspectDirectoryFiles(directoryPath, files, workspace);
-    public bool ShouldSkipFileName(string fileName) => _tsParser.ShouldSkipFileName(fileName);
-    public bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes) => _tsParser.ShouldSkipFileBytes(fileName, contentBytes);
-    public bool ShouldSkipFile(FileInfo fileInfo) => _tsParser.ShouldSkipFile(fileInfo);
-    public string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>
-        _tsParser.ClassifyArtifactRole(relativePath, fileName, contentBytes);
-    public void EnrichFileSignals(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
-        SyntaxTree syntaxTree,
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
-        string sourceText,
-        ParsingContext? ctx) =>
-        _tsParser.EnrichFileSignals(fileNode, syntaxTree, project, sourceText, ctx);
+    public bool IsConfigurationFile(string fileName) => _tsParser.IsConfigurationFile(fileName);
 
-    public string GetProjectName(string directoryPath, string[] filesInDirectory)
-    {
-        return _tsParser.GetProjectName(directoryPath, filesInDirectory);
-    }
-
-
+    public string GetProjectName(string directoryPath, string[] filesInDirectory) =>
+        _tsParser.GetProjectName(directoryPath, filesInDirectory);
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
@@ -224,36 +187,5 @@ public class JavaScriptParser : IProjectParser, IFileParser
         }
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
-    }
-
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
-    {
-        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
-    }
-
-    private readonly TypeScriptParser _tsParser = new();
-
-    public BaseParserVisitor CreateVisitor(
-        CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode,
-        List<ISemanticExtension> activeExtensions,
-        string relativePath,
-        string absoluteWorkspacePath,
-        IFileParser fileParser,
-        SemanticExtensionRegistry extensionRegistry)
-    {
-        return _tsParser.CreateVisitor(
-            rootNode,
-            activeExtensions,
-            relativePath,
-            absoluteWorkspacePath,
-            fileParser,
-            extensionRegistry
-        );
-    }
-
-    public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
-    {
-        return _tsParser.ResolveImportType(importPath, filePath, absoluteWorkspacePath);
     }
 }

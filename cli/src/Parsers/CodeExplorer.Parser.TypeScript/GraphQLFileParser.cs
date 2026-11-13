@@ -118,7 +118,7 @@ public class GraphQLFileParser : IFileParser
                 ? op.OperationName
                 : $"Anonymous{opTypeStr}_{op.StartLine}";
 
-            var pascalOp = ToPascalCase(opName);
+            var pascalOp = GraphQLDocumentExtractor.ToPascalCase(opName);
             var primaryHookName = !string.IsNullOrEmpty(op.OperationName)
                 ? $"use{pascalOp}{opTypeStr}"
                 : opName;
@@ -145,7 +145,7 @@ public class GraphQLFileParser : IFileParser
 
             if (!string.IsNullOrEmpty(op.OperationName))
             {
-                var aliases = BuildCodegenAliases(op.OperationName, opTypeStr);
+                var aliases = GraphQLDocumentExtractor.BuildCodegenAliases(op.OperationName, opTypeStr);
                 funcNode.Signals().GraphqlAliases = string.Join(",", aliases);
             }
 
@@ -200,51 +200,6 @@ public class GraphQLFileParser : IFileParser
 
         return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
     }
-
-    internal static List<string> BuildCodegenAliases(string opName, string opType)
-    {
-        var pascal = ToPascalCase(opName);
-        var aliases = new List<string>
-        {
-            opName,
-            pascal,
-            $"{pascal}Document",
-            $"{opName}Document",
-            $"use{pascal}{opType}",
-            $"{pascal}{opType}"
-        };
-
-        if (opType == "Query")
-        {
-            aliases.Add($"use{pascal}LazyQuery");
-            aliases.Add($"use{pascal}SuspenseQuery");
-        }
-
-        return [.. aliases.Distinct(StringComparer.Ordinal)];
-    }
-
-    internal static string ToPascalCase(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return name;
-        if (char.IsUpper(name[0]) && !name.Contains('_') && !name.Contains('-'))
-        {
-            return name;
-        }
-
-        var parts = name.Split(['_', '-'], StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1)
-        {
-            return char.ToUpperInvariant(name[0]) + name[1..];
-        }
-
-        var sb = new StringBuilder(name.Length);
-        foreach (var part in parts)
-        {
-            sb.Append(char.ToUpperInvariant(part[0]));
-            if (part.Length > 1) sb.Append(part[1..]);
-        }
-        return sb.ToString();
-    }
 }
 
 public enum GqlTokenKind
@@ -273,6 +228,50 @@ public enum GqlTokenKind
 /// </summary>
 public static class GraphQLDocumentExtractor
 {
+    public static List<string> BuildCodegenAliases(string opName, string opType)
+    {
+        var pascal = ToPascalCase(opName);
+        var aliases = new List<string>
+        {
+            opName,
+            pascal,
+            $"{pascal}Document",
+            $"{opName}Document",
+            $"use{pascal}{opType}",
+            $"{pascal}{opType}"
+        };
+
+        if (opType == "Query")
+        {
+            aliases.Add($"use{pascal}LazyQuery");
+            aliases.Add($"use{pascal}SuspenseQuery");
+        }
+
+        return [.. aliases.Distinct(StringComparer.Ordinal)];
+    }
+
+    public static string ToPascalCase(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        if (char.IsUpper(name[0]) && !name.Contains('_') && !name.Contains('-'))
+        {
+            return name;
+        }
+
+        var parts = name.Split(['_', '-'], StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+        {
+            return char.ToUpperInvariant(name[0]) + name[1..];
+        }
+
+        var sb = new StringBuilder(name.Length);
+        foreach (var part in parts)
+        {
+            sb.Append(char.ToUpperInvariant(part[0]));
+            if (part.Length > 1) sb.Append(part[1..]);
+        }
+        return sb.ToString();
+    }
     private const char CommaChar = ',';
     private const string SpreadText = "...";
     private const string TemplateInterpolationPattern = @"\$\{[^{}]*\}";

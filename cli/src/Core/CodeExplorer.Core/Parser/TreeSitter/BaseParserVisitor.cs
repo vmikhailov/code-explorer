@@ -119,18 +119,95 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected virtual string? FindCallName(Node callNode) => ExtractProfileCallName(callNode);
 
-    protected string? MapProfileNodeType(Node node)
+    public static bool IsInterpolatedStringExpression(Node node) =>
+        node is InterpolatedStringExprSyntax;
+
+    public static bool IsInsideInterpolatedString(Node node) =>
+        node.Parent.IsValid() && IsInterpolatedStringExpression(node.Parent);
+
+    public static string ExtractFullStringText(Node node)
     {
-        if ((node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
-             node is InterpolatedStringExprSyntax ||
-             Profile.StringLiterals.Contains(node.Type)) &&
-            !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+        if (IsInterpolatedStringExpression(node))
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var child in node.Children)
+            {
+                if (child is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString })
+                {
+                    sb.Append(child.Text);
+                }
+                else if (child is ParenthesizedExprSyntax { IsInterpolation: true })
+                {
+                    var expr = child.Children.FirstOrDefault(c => c.Text != "{" && c.Text != "}");
+                    if (expr.IsValid())
+                    {
+                        var exprText = expr.Text;
+                        if (exprText.Contains('.'))
+                        {
+                            exprText = exprText[(exprText.LastIndexOf('.') + 1)..];
+                        }
+                        sb.Append(exprText.Trim('"'));
+                    }
+                }
+            }
+            return sb.ToString();
+        }
+        return node.Text;
+    }
+
+    protected string? TryMapSqlQueryNodeType(Node node)
+    {
+        if (IsInsideInterpolatedString(node) ||
+            WorkspaceConventions.IsFrontendFilePath(RelativePath) ||
+            (SymbolStack.Count > 0 && SymbolStack.Peek().Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query))
+        {
+            return null;
+        }
+
+        if (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
+            node is InterpolatedStringExprSyntax ||
+            Profile.StringLiterals.Contains(node.Type) ||
+            node.Type.Contains("string", StringComparison.Ordinal))
         {
             if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
-                NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out _, out _))
+                NestedSqlParser.TryParseSql(CleanStringLiteral(ExtractFullStringText(node)), out _, out _))
             {
                 return OntologyConstants.NodeLabels.Query;
             }
+        }
+
+        return null;
+    }
+
+    protected string? TryExtractSqlQueryIdentifier(Node node)
+    {
+        if (IsInsideInterpolatedString(node) ||
+            WorkspaceConventions.IsFrontendFilePath(RelativePath) ||
+            (SymbolStack.Count > 0 && SymbolStack.Peek().Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query))
+        {
+            return null;
+        }
+
+        if (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
+            node is InterpolatedStringExprSyntax ||
+            Profile.StringLiterals.Contains(node.Type) ||
+            node.Type.Contains("string", StringComparison.Ordinal))
+        {
+            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
+                NestedSqlParser.TryParseSql(CleanStringLiteral(ExtractFullStringText(node)), out var firstWord, out _))
+            {
+                return $"{firstWord} Query";
+            }
+        }
+
+        return null;
+    }
+
+    protected string? MapProfileNodeType(Node node)
+    {
+        if (TryMapSqlQueryNodeType(node) is { } sqlKind)
+        {
+            return sqlKind;
         }
 
         if (node is TypeDeclSyntax td)
@@ -166,16 +243,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected string? ExtractProfileIdentifier(Node node)
     {
-        if ((node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
-             node is InterpolatedStringExprSyntax ||
-             Profile.StringLiterals.Contains(node.Type)) &&
-            !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+        if (TryExtractSqlQueryIdentifier(node) is { } sqlId)
         {
-            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
-                NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
+            return sqlId;
         }
 
         foreach (var fieldName in Profile.IdentifierFieldNames)

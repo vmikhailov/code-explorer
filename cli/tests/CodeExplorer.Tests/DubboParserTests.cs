@@ -44,7 +44,7 @@ public class DubboParserTests
     [Test]
     public async Task Test_Dubbo_Provider_Generates_Rpc_Endpoints()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         var serverCode = """
         package com.example.dubbo;
@@ -87,7 +87,7 @@ public class DubboParserTests
     [Test]
     public async Task Test_Dubbo_Consumer_Generates_ExternalService_And_Calls()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         var clientCode = """
         package com.example.dubbo;
@@ -128,7 +128,7 @@ public class DubboParserTests
     [Test]
     public async Task Test_Dubbo_Triple_Protocol_Detection()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         var tripleServerCode = """
         package com.example.dubbo;
@@ -167,7 +167,7 @@ public class DubboParserTests
     [Test]
     public async Task Test_Dubbo_LateBinding_Matches_Consumer_To_Provider()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
 
         var serverCode = """
         package com.example.dubbo;

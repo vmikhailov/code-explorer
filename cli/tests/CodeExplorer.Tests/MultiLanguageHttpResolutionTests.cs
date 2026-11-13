@@ -90,7 +90,7 @@ public class MultiLanguageHttpResolutionTests
             return resp.json()
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "client.py");
+        var services = await ParseAndGetExternalServicesAsync(new PythonFileParser(), code, "client.py");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -112,7 +112,7 @@ public class MultiLanguageHttpResolutionTests
             return resp.json()
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "client.py");
+        var services = await ParseAndGetExternalServicesAsync(new PythonFileParser(), code, "client.py");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -132,7 +132,7 @@ public class MultiLanguageHttpResolutionTests
             return resp.json()
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "client.py");
+        var services = await ParseAndGetExternalServicesAsync(new PythonFileParser(), code, "client.py");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -156,7 +156,7 @@ public class MultiLanguageHttpResolutionTests
             await bot.send_voice(chat_id=123, voice=b"")
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "telegram_service.py");
+        var services = await ParseAndGetExternalServicesAsync(new PythonFileParser(), code, "telegram_service.py");
         foreach (var s in services)
         {
             TestContext.Progress.WriteLine($"SERVICE: {s.DomainOrService} | {s.Id} | {s.Path}");
@@ -186,7 +186,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new GoParser(), code, "client.go");
+        var services = await ParseAndGetExternalServicesAsync(new GoFileParser(), code, "client.go");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -213,7 +213,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new GoParser(), code, "client.go");
+        var services = await ParseAndGetExternalServicesAsync(new GoFileParser(), code, "client.go");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -246,7 +246,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new CSharpParser(), code, "BundleClient.cs");
+        var services = await ParseAndGetExternalServicesAsync(new CSharpFileParser(), code, "BundleClient.cs");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -272,7 +272,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new CSharpParser(), code, "OrderClient.cs");
+        var services = await ParseAndGetExternalServicesAsync(new CSharpFileParser(), code, "OrderClient.cs");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -297,7 +297,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new JavaParser(), code, "BundleClient.java");
+        var services = await ParseAndGetExternalServicesAsync(new JavaFileParser(), code, "BundleClient.java");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -326,7 +326,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new JavaParser(), code, "AuthServiceClient.java");
+        var services = await ParseAndGetExternalServicesAsync(new JavaFileParser(), code, "AuthServiceClient.java");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -351,7 +351,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new JavaParser(), code, "OrderClient.java");
+        var services = await ParseAndGetExternalServicesAsync(new JavaFileParser(), code, "OrderClient.java");
 
         services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
@@ -376,7 +376,7 @@ public class MultiLanguageHttpResolutionTests
             return requests.get(url)
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new PythonParser(), pythonCode, "client.py");
+        var services = await ParseAndGetExternalServicesAsync(new PythonFileParser(), pythonCode, "client.py");
         services.Should().HaveCountGreaterThan(0);
         var pythonSvc = services.First();
 
@@ -414,7 +414,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new JavaParser(), javaCode, "OrderClient.java");
+        var services = await ParseAndGetExternalServicesAsync(new JavaFileParser(), javaCode, "OrderClient.java");
         services.Should().HaveCountGreaterThan(0);
         var javaSvc = services.First();
 
@@ -452,7 +452,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new GoParser(), goCode, "client.go");
+        var services = await ParseAndGetExternalServicesAsync(new GoFileParser(), goCode, "client.go");
         services.Should().HaveCountGreaterThan(0);
         var goSvc = services.First();
 
@@ -505,7 +505,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var services = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), angularCode, "games.component.ts");
+        var services = await ParseAndGetExternalServicesAsync(new TypeScriptFileParser(), angularCode, "games.component.ts");
         services.Should().HaveCountGreaterThan(0);
         var angularSvc = services.First();
 
@@ -574,7 +574,7 @@ public class MultiLanguageHttpResolutionTests
             }
         }
         """;
-        var identityServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), accountsCode, "accounts.component.ts");
+        var identityServices = await ParseAndGetExternalServicesAsync(new TypeScriptFileParser(), accountsCode, "accounts.component.ts");
         identityServices.Should().HaveCount(1);
         var identitySvc = identityServices.First();
 
@@ -592,7 +592,7 @@ public class MultiLanguageHttpResolutionTests
             }
         }
         """;
-        var playerServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), playersCode, "players.component.ts");
+        var playerServices = await ParseAndGetExternalServicesAsync(new TypeScriptFileParser(), playersCode, "players.component.ts");
         playerServices.Should().HaveCount(1);
         var playerSvc = playerServices.First();
 
@@ -611,7 +611,7 @@ public class MultiLanguageHttpResolutionTests
             }
         }
         """;
-        var gameServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), gamesCode, "games.component.ts");
+        var gameServices = await ParseAndGetExternalServicesAsync(new TypeScriptFileParser(), gamesCode, "games.component.ts");
         gameServices.Should().HaveCount(1);
         var gameSvc = gameServices.First();
 
@@ -738,7 +738,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
 
-        var act = async () => await ParseAndGetExternalServicesAsync(new CSharpParser(), code, "CircularUriClient.cs");
+        var act = async () => await ParseAndGetExternalServicesAsync(new CSharpFileParser(), code, "CircularUriClient.cs");
         await act.Should().NotThrowAsync();
     }
 }

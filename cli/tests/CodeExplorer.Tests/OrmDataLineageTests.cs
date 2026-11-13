@@ -306,7 +306,7 @@ export class Product {
         Directory.CreateDirectory(tempDir);
         try
         {
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptProjectParser();
             File.WriteAllText(Path.Combine(tempDir, "package.json"), "{\"name\": \"@ats/sample-service\"}");
             var name = parser.GetProjectName(tempDir, ["package.json"]);
             name.Should().Be("sample-service");
@@ -536,7 +536,7 @@ public class MyEntity { public int Id { get; set; } }
             var l2Result = await new Core.Parser.Layers.Layer2ProjectParser().ParseAsync(l1Result, ctx);
             var projectNode = l2Result.Projects.First(p => p.Name.Equals("MyApp", StringComparison.OrdinalIgnoreCase));
 
-            var csharpParser = new CSharpParser();
+            var csharpParser = new CSharpFileParser();
 
             using var syntaxTree = await csharpParser.ParseAsync(entityFile, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -564,11 +564,11 @@ public class MyEntity { public int Id { get; set; } }
     {
         var parserAssemblies = new[]
         {
-            typeof(CSharpParser).Assembly,
-            typeof(Parser.Go.GoParser).Assembly,
-            typeof(Parser.Python.PythonParser).Assembly,
-            typeof(JavaParser).Assembly,
-            typeof(TypeScriptParser).Assembly
+            typeof(CSharpFileParser).Assembly,
+            typeof(Parser.Go.GoFileParser).Assembly,
+            typeof(Parser.Python.PythonFileParser).Assembly,
+            typeof(JavaFileParser).Assembly,
+            typeof(TypeScriptFileParser).Assembly
         };
 
         var allExtensions = parserAssemblies

@@ -52,7 +52,7 @@ public class TypeScriptLibraryValidationTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
@@ -810,7 +810,7 @@ export class SmartCpaController {
             // Pre-register constants from config.ts with project name
             AstConstantExtractor.ExtractAndRegister(configFile, configCode, "integration-service-helper-nest");
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
@@ -912,7 +912,7 @@ export class SmartCpaController {
             var projectName = "integration-service-helper-nest";
             AstConstantExtractor.ExtractAndRegister(configFile, configCode, projectName);
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
@@ -1408,7 +1408,7 @@ export class IdHelperService {
 
             WorkspaceIndexer.AutoRegisterParsers();
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);

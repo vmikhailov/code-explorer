@@ -5,20 +5,15 @@ namespace CodeExplorer.Parser.CSharp;
 
 public class CSharpFileVisitor : BaseParserVisitor
 {
-    private readonly CSharpParser _parser;
-
     public CSharpFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,
-        CSharpParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
         SemanticExtensionRegistry extensionRegistry)
         : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
-        _parser = parser;
-
         if (rootNode.IsValid() && !WorkspaceConventions.IsTestFilePath(relativePath))
         {
             var firstGlobal = rootNode.Children.FirstOrDefault(c =>
@@ -78,16 +73,9 @@ public class CSharpFileVisitor : BaseParserVisitor
             return null;
         }
 
-        if (node.Type.Contains("string", StringComparison.Ordinal) || IsInterpolatedStringExpression(node))
+        if (TryMapSqlQueryNodeType(node) is { } sqlKind)
         {
-            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()))
-            {
-                var sqlCandidate = ExtractFullStringText(node);
-                if (NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
-                {
-                    return OntologyConstants.NodeLabels.Query;
-                }
-            }
+            return sqlKind;
         }
 
         if (node.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
@@ -135,16 +123,9 @@ public class CSharpFileVisitor : BaseParserVisitor
             return null;
         }
 
-        if (node.Type.Contains("string", StringComparison.Ordinal) || IsInterpolatedStringExpression(node))
+        if (TryExtractSqlQueryIdentifier(node) is { } sqlId)
         {
-            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()))
-            {
-                var sqlCandidate = ExtractFullStringText(node);
-                if (NestedSqlParser.TryParseSql(sqlCandidate, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query";
-                }
-            }
+            return sqlId;
         }
 
         return ExtractCsIdentifier(node);
@@ -218,42 +199,6 @@ public class CSharpFileVisitor : BaseParserVisitor
                 }
             }
         }
-    }
-
-    private static bool IsInterpolatedStringExpression(Node node) =>
-        node.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression);
-
-    private static bool IsInsideInterpolatedString(Node node) =>
-        node.Parent.IsValid() && IsInterpolatedStringExpression(node.Parent);
-
-    public static string ExtractFullStringText(Node node)
-    {
-        if (IsInterpolatedStringExpression(node))
-        {
-            var sb = new System.Text.StringBuilder();
-            foreach (var child in node.Children)
-            {
-                if (child.Is(TreeSitterSyntax.CSharp.StringContent))
-                {
-                    sb.Append(child.Text);
-                }
-                else if (child.Is(TreeSitterSyntax.CSharp.Interpolation))
-                {
-                    var expr = child.Children.FirstOrDefault(c => c.Text != "{" && c.Text != "}");
-                    if (expr.IsValid())
-                    {
-                        var exprText = expr.Text;
-                        if (exprText.Contains('.'))
-                        {
-                            exprText = exprText[(exprText.LastIndexOf('.') + 1)..];
-                        }
-                        sb.Append(exprText.Trim('"'));
-                    }
-                }
-            }
-            return sb.ToString();
-        }
-        return node.Text;
     }
 
     private string? ExtractCsIdentifier(Node node)

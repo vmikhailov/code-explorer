@@ -22,7 +22,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_TypeScriptParser_WithExamples()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
         var filesToTest = new[]
         {
             "SingleFiles/TypeScript/cron.service.ts.test",
@@ -54,7 +54,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_TypeScriptParser_EmbeddedSql()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/embedded_sql.ts.test");
 
@@ -92,7 +92,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_CSharpParser_EmbeddedSql()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/CSharp/embedded_sql.cs.test");
 
@@ -125,7 +125,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_PythonParser_EmbeddedSql()
     {
-        var parser = new PythonParser();
+        var parser = new PythonFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Python/embedded_sql.py.test");
 
@@ -158,7 +158,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_GoParser_EmbeddedSql()
     {
-        var parser = new GoParser();
+        var parser = new GoFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Go/embedded_sql.go.test");
 
@@ -268,7 +268,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_SqlParser_CreateTable_IfNotExists_And_Templated_Identifiers()
     {
-        var sqlParser = new Parser.SQL.SqlParser();
+        var sqlParser = new Parser.SQL.SqlFileParser();
         var tempFile = Path.Combine(Path.GetTempPath(), $"test_sql_{Guid.NewGuid():N}.sql");
         var sql = """
             BEGIN
@@ -366,7 +366,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_TypeScriptParser_EmbeddedSql_ComplexTemplate()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/complex_template.ts.test");
 
@@ -463,7 +463,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_CSharpParser_ApiIngressEgress()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/CSharp/api_ingress_egress.cs.test");
 
@@ -497,7 +497,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_TypeScriptParser_ApiIngressEgress()
     {
-        var parser = new TypeScriptParser();
+        var parser = new TypeScriptFileParser();
 
         using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/api_ingress_egress.ts.test");
 
@@ -692,7 +692,7 @@ public class ParserValidationTests
         ctx.WorkspaceId = "1";
 
         // 1. Python Parser - Flask & HTTP calls
-        var pythonParser = new PythonParser();
+        var pythonParser = new PythonFileParser();
         var pyFile = ws.GetFilePath("app.py");
 
         using var pySyntax =
@@ -716,7 +716,7 @@ public class ParserValidationTests
         (pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == RelationshipKind.Implements)).Should().BeTrue();
 
         // 2. Go Parser - Gin & HTTP Get calls
-        var goParser = new GoParser();
+        var goParser = new GoFileParser();
         var goFile = ws.GetFilePath("main.go");
 
         using var goSyntax =
@@ -739,7 +739,7 @@ public class ParserValidationTests
                 r.ScopeSymbolId == "GetUsers")).Should().BeTrue();
 
         // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
-        var sqlParser = new Parser.SQL.SqlParser();
+        var sqlParser = new Parser.SQL.SqlFileParser();
         var sqlFile = ws.GetFilePath("sp.sql");
 
         using var sqlSyntax = await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId,
@@ -801,7 +801,7 @@ public class ParserValidationTests
             var csProj = new ProjectNode("cs_project", "cs_project", csProjDir, "csharp");
             csProj.Children.Add(new PackageNode("pkg:npgsql", "Npgsql.EntityFrameworkCore.PostgreSQL", "8.0", false, "nuget"));
             csProj.Children.Add(csFile);
-            var csParser = new CSharpParser();
+            var csParser = new CSharpFileParser();
             using var parsedTree = await csParser.ParseAsync(csFile.FullPath, csProj.Id, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var csSyntaxTree = new SyntaxTree(csFile.FullPath, csFile.Path, parsedTree.Document, csFile, csParser,
@@ -851,7 +851,7 @@ public class ParserValidationTests
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
             var tsFile = new FileNode("ts_file", "index.ts", "index.ts", tempWorkspace + "/index.ts");
             tsProj.Children.Add(tsFile);
-            var tsParser = new TypeScriptParser();
+            var tsParser = new TypeScriptFileParser();
 
             var tsSyntaxTree = new SyntaxTree(tsFile.FullPath, tsFile.Path, null, null, null, tsFile, tsParser,
                 [new RawImport("mongoose", "index.ts") { Type = ImportType.External }], [], []);
@@ -873,7 +873,7 @@ public class ParserValidationTests
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
             var pyFile = new FileNode("py_file", "main.py", "main.py", tempWorkspace + "/main.py");
             pyProj.Children.Add(pyFile);
-            var pyParser = new PythonParser();
+            var pyParser = new PythonFileParser();
 
             var pySyntaxTree = new SyntaxTree(pyFile.FullPath, pyFile.Path, null, null, null, pyFile, pyParser,
                 [new RawImport("redis", "main.py") { Type = ImportType.External }], [], []);
@@ -916,7 +916,7 @@ public class ParserValidationTests
 
         // 1. C# file parsing test (Dapper and Flurl)
         var csFilePath = ws.GetFilePath("Service.cs");
-        var csFileParser = new CSharpParser();
+        var csFileParser = new CSharpFileParser();
 
         using var csSyntaxTree = await SyntaxTree.ParseAsync(csFilePath, "Service.cs", "1", csFileParser,
             ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -938,7 +938,7 @@ public class ParserValidationTests
 
         // 2. TS file parsing test (Mongoose and Redis)
         var tsFilePath = ws.GetFilePath("app.ts");
-        var tsFileParser = new TypeScriptParser();
+        var tsFileParser = new TypeScriptFileParser();
 
         using var tsSyntaxTree = await SyntaxTree.ParseAsync(tsFilePath, "app.ts", "1", tsFileParser,
             ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1029,8 +1029,8 @@ public class ParserValidationTests
     [Test]
     public async Task Test_CrossServiceInteractionDetection()
     {
-        var tsParser = new TypeScriptParser();
-        var csParser = new CSharpParser();
+        var tsParser = new TypeScriptFileParser();
+        var csParser = new CSharpFileParser();
 
         using var ws = ParserTestData.PrepareTempWorkspace("Workspaces/CrossServiceInteraction");
 
@@ -1145,7 +1145,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_CSharpParser_ClassLevelRouteAndSignalR()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "ControllerTest.cs");
@@ -1213,7 +1213,7 @@ public class MyHub {}
     [Test]
     public async Task Test_CSharpParser_HttpClientCancellationAndUriResolution()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "HttpClientTest.cs");
@@ -1283,7 +1283,7 @@ public class DicomClient {
     [Test]
     public async Task Test_CSharpParser_HttpClientClassFieldAndHelperMethodResolution()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "OrderingAndCatalogServices.cs");
@@ -1377,7 +1377,7 @@ public static class StartupExtensions
     [Test]
     public async Task Test_CSharpParser_RestSharp()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "RestSharpTest.cs");
@@ -1461,7 +1461,7 @@ func registerRoutes() {
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
-            var parser = new GoParser();
+            var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -1500,7 +1500,7 @@ func registerRoutes() {
     [Test]
     public async Task Test_CSharpParser_Refit()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_refit_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, "IUsersApi.cs");
@@ -1576,7 +1576,7 @@ public interface IUsersApi
 </Project>";
             await File.WriteAllTextAsync(Path.Combine(tempDir, "MyLib.csproj"), csproj);
 
-            var parser = new CSharpParser();
+            var parser = new CSharpProjectParser();
             var prod = await parser.GetProducedPackageAsync(tempDir);
 
             prod.Should().NotBeNull();
@@ -1597,7 +1597,7 @@ public interface IUsersApi
         scriptParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
         scriptParser.IsFallback.Should().BeTrue();
 
-        IProjectParser csParser = new CSharpParser();
+        IProjectParser csParser = new CSharpProjectParser();
         csParser.ParserRole.Should().Be(ProjectParserRole.Standard);
         csParser.IsFallback.Should().BeFalse();
 

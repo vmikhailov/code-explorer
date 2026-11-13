@@ -33,7 +33,7 @@ public class WorkspaceFileFilter
         IEnumerable<string>? excludedDirectories = null)
     {
         var projList = (projectParsers ?? []).ToList();
-        var fileList = (fileParsers ?? []).Concat(projList.OfType<IFileParser>()).Distinct().ToList();
+        var fileList = (fileParsers ?? []).Distinct().ToList();
 
         _projectParsers = projList;
         _fileParsers = fileList;
@@ -208,12 +208,12 @@ public class WorkspaceFileFilter
                 {
                     return true;
                 }
-                return IProjectParser.DefaultShouldSkipFileName(fileName);
+                return IFileParser.DefaultShouldSkipFileName(fileName);
             }
             return fileParser.ShouldSkipFileName(fileName);
         }
 
-        return IProjectParser.DefaultShouldSkipFileName(fileName);
+        return IFileParser.DefaultShouldSkipFileName(fileName);
     }
 
     public bool ShouldSkipFileMetadata(FileInfo fileInfo)

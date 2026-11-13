@@ -35,7 +35,7 @@ public class TypeScriptOlapDatabaseTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
 
-            var parser = new TypeScriptParser();
+            var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);

@@ -35,7 +35,7 @@ public class SpecFileCallLiteralExclusionTests
             await File.WriteAllTextAsync(filePath, code ?? Code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
-            using var syntaxTree = await new TypeScriptParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree = await new TypeScriptFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var isTest = WorkspaceConventions.IsTestFilePath(filePath) || new JavaScriptTestRunnerComponentParser().IsTestSource(syntaxTree);
             syntaxTree.FileNode!.IsTest = isTest;
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: isTest);

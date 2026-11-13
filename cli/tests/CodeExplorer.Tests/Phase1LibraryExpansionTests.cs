@@ -99,7 +99,7 @@ public class Phase1LibraryExpansionTests
                 process_refund.send("ref_1")
             """;
 
-        var refs = await ParseAndCollectReferencesAsync(new PythonParser(), code, "tasks.py");
+        var refs = await ParseAndCollectReferencesAsync(new PythonFileParser(), code, "tasks.py");
         Assert.Multiple(() =>
         {
             Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "celery:send_invoice_email"), Is.True);
@@ -121,7 +121,7 @@ public class Phase1LibraryExpansionTests
                 redis_client.xread({"orders-stream": "0-0"})
             """;
 
-        var refs = await ParseAndCollectReferencesAsync(new PythonParser(), code, "streams.py");
+        var refs = await ParseAndCollectReferencesAsync(new PythonFileParser(), code, "streams.py");
         Assert.Multiple(() =>
         {
             Assert.That(refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "rq:sync_inventory"), Is.True);
@@ -169,7 +169,7 @@ public class Phase1LibraryExpansionTests
             }
             """;
 
-        var refs = await ParseAndCollectReferencesAsync(new CSharpParser(), code, "Messaging.cs");
+        var refs = await ParseAndCollectReferencesAsync(new CSharpFileParser(), code, "Messaging.cs");
         Assert.Multiple(() =>
         {
             Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "hangfire:billing"), Is.True);
@@ -201,7 +201,7 @@ public class Phase1LibraryExpansionTests
             emailQueue.process("welcome-email", async (job) => {});
             """;
 
-        var refs = await ParseAndCollectReferencesAsync(new TypeScriptParser(), code, "jobs.ts");
+        var refs = await ParseAndCollectReferencesAsync(new TypeScriptFileParser(), code, "jobs.ts");
         Assert.Multiple(() =>
         {
             Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "inngest:app/user.created"), Is.True);
@@ -228,7 +228,7 @@ public class Phase1LibraryExpansionTests
             }
             """;
 
-        var refs = await ParseAndCollectReferencesAsync(new GoParser(), code, "worker.go");
+        var refs = await ParseAndCollectReferencesAsync(new GoFileParser(), code, "worker.go");
         Assert.Multiple(() =>
         {
             Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "watermill:orders.incoming"), Is.True);
@@ -266,7 +266,7 @@ public class Phase1LibraryExpansionTests
             }
             """;
 
-        var refs = await ParseAndCollectReferencesAsync(new JavaParser(), code, "MessagingRoutes.java");
+        var refs = await ParseAndCollectReferencesAsync(new JavaFileParser(), code, "MessagingRoutes.java");
         Assert.Multiple(() =>
         {
             Assert.That(refs.Any(r => r.Kind == RelationshipKind.SubscribesTo && r.TargetName == "camel:jms:queue:orders"), Is.True);

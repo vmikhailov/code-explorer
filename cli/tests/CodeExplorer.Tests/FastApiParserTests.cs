@@ -13,7 +13,7 @@ namespace CodeExplorer.Tests;
 [NonParallelizable]
 public class FastApiParserTests
 {
-    private readonly PythonParser _parser = new();
+    private readonly PythonFileParser _parser = new();
     private IDisposable? _lock;
 
     [SetUp]
@@ -31,7 +31,7 @@ public class FastApiParserTests
         _lock = null;
     }
 
-    private static async Task<(List<EndpointNode> Endpoints, List<IOntologyNode> AllNodes)> ParsePythonFileAsync(PythonParser parser, string code, string fileName = "main.py")
+    private static async Task<(List<EndpointNode> Endpoints, List<IOntologyNode> AllNodes)> ParsePythonFileAsync(PythonFileParser parser, string code, string fileName = "main.py")
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_fastapi_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);

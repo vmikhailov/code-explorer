@@ -103,7 +103,7 @@ paths:
     [Test]
     public async Task Test_Quarkus_JaxRs_And_WebSocket_Endpoints()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         try
@@ -135,7 +135,7 @@ paths:
     [Test]
     public async Task Test_Quarkus_Panache_And_Messaging()
     {
-        var parser = new JavaParser();
+        var parser = new JavaFileParser();
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         try

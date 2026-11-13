@@ -1,6 +1,6 @@
 {
   "name": "code-explorer",
-  "version": "1.83.0",
+  "version": "1.84.0",
   "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius impact analysis, and OpenCypher Semantic Invariant Gates for C#, TypeScript/JS, Go, Python, Java, Kotlin, Rust, and SQL.",
   "contextFileName": "plugins/code-explorer/rules/AGENTS.md",
   "mcpServers": {

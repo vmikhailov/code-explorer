@@ -33,7 +33,7 @@ public partial class KotlinFileParser : IFileParser
 
     public bool UsesTreeSitter => false;
 
-    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
+    internal static readonly IReadOnlyList<ISemanticExtension> DefaultExtensions =
     [
         new Libraries.KtorServerLibraryParser(),
         new Libraries.KtorClientLibraryParser(),
@@ -55,6 +55,11 @@ public partial class KotlinFileParser : IFileParser
         new Libraries.KotestMockkLibraryParser(),
         new Libraries.ComposeNavigationKotlinLibraryParser()
     ];
+
+    internal static readonly IReadOnlyList<PackageDescriptor> DefaultPackages =
+        [.. DefaultExtensions.SelectMany(e => e.GetPackageDescriptors())];
+
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions => DefaultExtensions;
 
     public bool CanParse(string fileExtension)
     {

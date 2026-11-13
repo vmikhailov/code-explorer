@@ -66,7 +66,7 @@ public class OrderConsumer {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new JavaParser();
+            var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -119,7 +119,7 @@ public class OrderRabbitConsumer {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new JavaParser();
+            var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -171,7 +171,7 @@ public class OrderStreamProcessor {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new JavaParser();
+            var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

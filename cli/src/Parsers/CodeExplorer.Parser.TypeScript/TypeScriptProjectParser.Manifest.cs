@@ -5,7 +5,7 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.TypeScript;
 
-public partial class TypeScriptParser
+public partial class TypeScriptProjectParser
 {
     private const string PropIsLibrary = "is_library";
     private const string PropManifestType = "manifest_type";

@@ -7,20 +7,12 @@ using CodeExplorer.Core.Parser.Sql.Ast;
 using CodeExplorer.Core.Parser.Sql.Dialects;
 using CodeExplorer.Core.Parser.Syntax;
 
-[assembly: ParserAssembly]
-
 namespace CodeExplorer.Parser.SQL;
 
-[ProjectParser(Tier = ParserTier.Data)]
-public class SqlParser : IProjectParser, IFileParser
+public class SqlFileParser : IFileParser
 {
     public string LanguageName => "sql";
 
-    public string ProjectType => "sql";
-
-    public IReadOnlyCollection<string> ExcludedFolders => [];
-
-    public IReadOnlyList<PackageDescriptor> Packages => [];
     public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
     private const string RelationalEngine = "relational";
@@ -28,11 +20,6 @@ public class SqlParser : IProjectParser, IFileParser
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".sql", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
-    {
-        return false;
     }
 
     public BaseParserVisitor CreateVisitor(
@@ -49,16 +36,6 @@ public class SqlParser : IProjectParser, IFileParser
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
         return ImportType.External;
-    }
-
-    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
-    {
-        return Task.FromResult<ProducedPackageInfo?>(null);
-    }
-
-    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
-    {
-        return Task.FromResult(new ProjectDependencyInfo(new List<string>(), new List<ProducedPackageInfo>()));
     }
 
     public bool UsesTreeSitter => false;
@@ -306,7 +283,7 @@ public class SqlParser : IProjectParser, IFileParser
 
     public static (string schemaName, string tableName) ParseTableIdentifier(string rawTableName)
     {
-        var (db, schema, table) = BaseSqlParser.ParseTableIdentifier(rawTableName);
+        var (_, schema, table) = BaseSqlParser.ParseTableIdentifier(rawTableName);
         return (schema ?? "dbo", table);
     }
 

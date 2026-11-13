@@ -78,4 +78,21 @@ public class ParserAssemblyDiscoveryTests
             .Should().BeEquivalentTo(ExpectedParserAssemblies);
         registered.Should().OnlyHaveUniqueItems();
     }
+
+    [Test]
+    public void ParserTypes_StrictSeparationOfProjectAndFileParsers()
+    {
+        var assemblies = ParserAssemblyDiscovery.Discover();
+        var allParserTypes = assemblies.SelectMany(ParserAssemblyDiscovery.GetParserTypes).ToList();
+
+        allParserTypes.Should().NotBeEmpty();
+        foreach (var parserType in allParserTypes)
+        {
+            var isProjectParser = typeof(IProjectParser).IsAssignableFrom(parserType);
+            var isFileParser = typeof(IFileParser).IsAssignableFrom(parserType);
+
+            (isProjectParser && isFileParser).Should().BeFalse(
+                $"{parserType.FullName} must not implement both IProjectParser (Layer 2) and IFileParser (Layer 3)");
+        }
+    }
 }

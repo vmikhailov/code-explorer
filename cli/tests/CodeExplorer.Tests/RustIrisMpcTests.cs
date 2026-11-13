@@ -53,7 +53,7 @@ public class RustIrisMpcTests
     [Test]
     public void IrisMpc_ProjectRoleClassification_ClassifiesCratesCorrectly()
     {
-        var parser = new RustParser();
+        var parser = new RustProjectParser();
 
         // 1. iris-mpc-bins contains [[bin]] targets and depends on axum, tonic, clap
         var binsDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins");
@@ -85,7 +85,7 @@ public class RustIrisMpcTests
     [Test]
     public async Task IrisMpc_DependencyResolution_ResolvesLocalAndExternalPackages()
     {
-        var parser = new RustParser();
+        var parser = new RustProjectParser();
         var binsDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins");
 
         var deps = await parser.ParseDependenciesAsync(binsDir);
@@ -112,7 +112,7 @@ public class RustIrisMpcTests
         var libFile = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-common", "src", "lib.rs");
         File.Exists(libFile).Should().BeTrue();
 
-        var parser = new RustParser();
+        var parser = new RustFileParser();
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
@@ -128,7 +128,7 @@ public class RustIrisMpcTests
     [Test]
     public async Task IrisMpc_WorkspaceDependencies_ResolvesLocalPathInheritance()
     {
-        var parser = new RustParser();
+        var parser = new RustProjectParser();
         var mpcDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc");
 
         var deps = await parser.ParseDependenciesAsync(mpcDir);
@@ -142,7 +142,7 @@ public class RustIrisMpcTests
     [Test]
     public async Task IrisMpc_DevDependencies_ExcludedFromLocalProjectPathsForNonTestCrates()
     {
-        var parser = new RustParser();
+        var parser = new RustProjectParser();
         var mpcDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc");
 
         var deps = await parser.ParseDependenciesAsync(mpcDir);
@@ -161,7 +161,7 @@ public class RustIrisMpcTests
     [Test]
     public async Task IrisMpc_StandaloneBinarySubfolders_DetectedAndClassified()
     {
-        var parser = new RustParser();
+        var parser = new RustProjectParser();
         var reaperDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins", "bin", "retention-reaper");
         var reaperFiles = Directory.GetFiles(reaperDir, "*", SearchOption.AllDirectories);
 
@@ -187,7 +187,7 @@ public class RustIrisMpcTests
     [Test]
     public async Task IrisMpc_DatabaseSchemaDetection_DetectsConcreteSchemas()
     {
-        var parser = new RustParser();
+        var parser = new RustFileParser();
         ConstantRegistry.Clear();
 
         // 1. Load node config toml and parse common/config/mod.rs to register constants

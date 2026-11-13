@@ -8,14 +8,12 @@ namespace CodeExplorer.Parser.Rust;
 /// </summary>
 public class RustFileVisitor : BaseParserVisitor
 {
-    private readonly RustParser _parser;
     private readonly CargoManifest? _currentManifest;
     private readonly Dictionary<string, SyntacticSymbol> _typesByName = new(StringComparer.Ordinal);
 
     public RustFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,
-        RustParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
@@ -23,7 +21,6 @@ public class RustFileVisitor : BaseParserVisitor
         CargoManifest? currentManifest = null)
         : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
-        _parser = parser;
         _currentManifest = currentManifest;
 
         if (_currentManifest != null)
@@ -395,32 +392,6 @@ public class RustFileVisitor : BaseParserVisitor
         return current;
     }
 
-    protected override void VisitStringLiteral(Node node, int depth)
-    {
-        var cleanText = CleanRustString(node.Text);
-        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) && NestedSqlParser.TryParseSql(cleanText, out var firstWord, out var tableName))
-        {
-            var name = $"{firstWord} Query";
-            VisitSymbolNode(node, OntologyConstants.NodeLabels.Query, name, depth, () =>
-            {
-                base.VisitStringLiteral(node, depth);
-            });
-
-            if (!string.IsNullOrEmpty(tableName))
-            {
-                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
-                if (enclosingFunc != null)
-                {
-                    enclosingFunc.References.Add(new Reference("", tableName, OntologyConstants.Relationships.QueriesDb));
-                }
-            }
-        }
-        else
-        {
-            base.VisitStringLiteral(node, depth);
-        }
-    }
-
     protected override void VisitImportStatement(Node node, int depth)
     {
         var text = node.Text.Trim();
@@ -465,24 +436,5 @@ public class RustFileVisitor : BaseParserVisitor
         }
 
         VisitChildren(node, depth);
-    }
-
-    private static string CleanRustString(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return text;
-        var trimmed = text.Trim();
-        if (trimmed.StartsWith("r#\"", StringComparison.Ordinal) && trimmed.EndsWith("\"#", StringComparison.Ordinal) && trimmed.Length >= 5)
-        {
-            return trimmed[3..^2];
-        }
-        if (trimmed.StartsWith("r##\"", StringComparison.Ordinal) && trimmed.EndsWith("\"##", StringComparison.Ordinal) && trimmed.Length >= 7)
-        {
-            return trimmed[4..^3];
-        }
-        if (trimmed.StartsWith('"') && trimmed.EndsWith('"') && trimmed.Length >= 2)
-        {
-            return trimmed[1..^1];
-        }
-        return trimmed;
     }
 }

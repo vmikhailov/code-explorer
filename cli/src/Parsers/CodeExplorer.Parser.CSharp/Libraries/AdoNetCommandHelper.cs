@@ -105,7 +105,7 @@ public static class AdoNetCommandHelper
 
         if (valNode.Type.Contains("string") || valNode.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression))
         {
-            var rawText = CSharpFileVisitor.ExtractFullStringText(valNode).Trim('"');
+            var rawText = BaseParserVisitor.ExtractFullStringText(valNode).Trim('"');
             if (!string.IsNullOrWhiteSpace(rawText))
             {
                 return rawText;

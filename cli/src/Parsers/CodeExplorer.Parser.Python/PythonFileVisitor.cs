@@ -5,19 +5,15 @@ namespace CodeExplorer.Parser.Python;
 
 public class PythonFileVisitor : BaseParserVisitor
 {
-    private readonly PythonParser _parser;
-
     public PythonFileVisitor(
         Node rootNode,
         List<ISemanticExtension> activeExtensions,
-        PythonParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
         SemanticExtensionRegistry extensionRegistry)
         : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
-        _parser = parser;
     }
 
     protected override string? MapNodeType(Node node)
@@ -42,12 +38,9 @@ public class PythonFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.ExternalService;
         }
 
-        if (node.Is(TreeSitterSyntax.Python.String))
+        if (TryMapSqlQueryNodeType(node) is { } sqlKind)
         {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
-            {
-                return OntologyConstants.NodeLabels.Query;
-            }
+            return sqlKind;
         }
         return node switch
         {
@@ -80,12 +73,9 @@ public class PythonFileVisitor : BaseParserVisitor
             return ExtractPythonHttpClientTarget(node);
         }
 
-        if (node.Is(TreeSitterSyntax.Python.String))
+        if (TryExtractSqlQueryIdentifier(node) is { } sqlId)
         {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
+            return sqlId;
         }
 
         return ExtractPythonIdentifier(node);

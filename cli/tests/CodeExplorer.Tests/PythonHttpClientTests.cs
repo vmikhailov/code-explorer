@@ -51,7 +51,7 @@ def fetch_data():
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new PythonParser();
+            var parser = new PythonFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -98,7 +98,7 @@ async def async_httpx():
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new PythonParser();
+            var parser = new PythonFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -142,7 +142,7 @@ async def run_aio():
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            var parser = new PythonParser();
+            var parser = new PythonFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

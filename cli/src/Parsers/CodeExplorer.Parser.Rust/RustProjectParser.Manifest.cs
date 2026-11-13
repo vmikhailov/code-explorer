@@ -3,7 +3,7 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Rust;
 
-public partial class RustParser
+public partial class RustProjectParser
 {
     public ProjectClassification? ClassifyProject(ProjectContext context)
     {
@@ -163,7 +163,10 @@ public partial class RustParser
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // ignored: inaccessible sibling directory skipped during companion binary discovery
+            }
         }
 
         var hasCompanionBin = companionBinFiles.Count > 0;

@@ -149,7 +149,7 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
                 if (!string.IsNullOrEmpty(op.OperationName))
                 {
                     symbol.Properties.TryAdd(GraphQlOperationPropKey, op.OperationName);
-                    aliases.AddRange(GraphQLFileParser.BuildCodegenAliases(op.OperationName, op.OperationType.ToCanonicalString()));
+                    aliases.AddRange(GraphQLDocumentExtractor.BuildCodegenAliases(op.OperationName, op.OperationType.ToCanonicalString()));
                 }
                 symbol.OperationType = op.OperationType;
                 symbol.Properties.TryAdd(OperationTypePropKey, op.OperationType.ToCanonicalString());

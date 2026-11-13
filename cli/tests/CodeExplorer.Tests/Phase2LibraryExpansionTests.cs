@@ -117,7 +117,7 @@ public class Phase2LibraryExpansionTests
             const yoga = createYoga({});
             """;
 
-        var (fileNode, refs) = await ParseFileAsync(new TypeScriptParser(), code, "routes.ts");
+        var (fileNode, refs) = await ParseFileAsync(new TypeScriptFileParser(), code, "routes.ts");
         var endpoints = FindNodes<EndpointNode>(fileNode.Children);
 
         Assert.Multiple(() =>
@@ -148,7 +148,7 @@ public class Phase2LibraryExpansionTests
                     return "alice"
             """;
 
-        var (fileNode, refs) = await ParseFileAsync(new PythonParser(), code, "api.py");
+        var (fileNode, refs) = await ParseFileAsync(new PythonFileParser(), code, "api.py");
         var endpoints = FindNodes<EndpointNode>(fileNode.Children);
 
         Assert.Multiple(() =>
@@ -178,7 +178,7 @@ public class Phase2LibraryExpansionTests
             }
             """;
 
-        var (fileNode, refs) = await ParseFileAsync(new GoParser(), code, "main.go");
+        var (fileNode, refs) = await ParseFileAsync(new GoFileParser(), code, "main.go");
         var endpoints = FindNodes<EndpointNode>(fileNode.Children);
 
         Assert.Multiple(() =>
@@ -204,7 +204,7 @@ public class Phase2LibraryExpansionTests
             }
             """;
 
-        var (csFile, csRefs) = await ParseFileAsync(new CSharpParser(), csCode, "OrderFunctions.cs");
+        var (csFile, csRefs) = await ParseFileAsync(new CSharpFileParser(), csCode, "OrderFunctions.cs");
         var csEntryPoints = FindNodes<EndpointNode>(csFile.Children);
 
         const string javaCode = """
@@ -216,10 +216,10 @@ public class Phase2LibraryExpansionTests
             }
             """;
 
-        var (javaFile, _) = await ParseFileAsync(new JavaParser(), javaCode, "BillingClient.java");
+        var (javaFile, _) = await ParseFileAsync(new JavaFileParser(), javaCode, "BillingClient.java");
         var extServices = FindNodes<ExternalServiceNode>(javaFile.Children);
 
-        var ktParser = new KotlinProjectParser();
+        var ktParser = new KotlinFileParser();
 
         Assert.Multiple(() =>
         {

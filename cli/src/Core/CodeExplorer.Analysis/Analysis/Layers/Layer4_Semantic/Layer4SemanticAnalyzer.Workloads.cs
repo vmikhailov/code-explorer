@@ -330,18 +330,13 @@ public partial class Layer4SemanticParser
                 ctx.CancellationToken.ThrowIfCancellationRequested();
                 EndpointSemanticAnalyzer.Enrich(syntaxTree, project, ctx, semanticRelationships);
 
-                var targetParser = projectParser;
-                if (syntaxTree.FileNode != null)
+                var targetFileParser = syntaxTree.FileParser;
+                if (targetFileParser.SemanticExtensions.Count == 0)
                 {
-                    var ext = Path.GetExtension(syntaxTree.FileNode.Name);
-                    var fileMatchedParser = matchingParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext))
-                                            ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext));
-                    if (fileMatchedParser != null)
-                    {
-                        targetParser = fileMatchedParser;
-                    }
+                    targetFileParser = WorkspaceIndexer.GetParserByLanguage(project.ProjectType.ToCanonicalString())
+                                       ?? targetFileParser;
                 }
-                await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetParser, ctx, workloadNode);
+                await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetFileParser, ctx, workloadNode);
             }
 
             // Collect semantic nodes parsed from files

@@ -41,7 +41,7 @@ public class CSharpParserTests
     [Test]
     public async Task CSharp_LegacyFrameworkLib_ParsesPackagesConfigAndProducesPackage()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var absPath = Path.Combine(_sampleProjectsRoot, "csharp", "legacy-framework-lib");
         var deps = await parser.ParseDependenciesAsync(absPath);
         deps.ExternalPackages.Should().ContainSingle(p => p.Name == "Newtonsoft.Json" && p.Version == "13.0.3");
@@ -54,7 +54,7 @@ public class CSharpParserTests
     [Test]
     public async Task CSharp_LegacyFrameworkWeb_ParsesPackagesConfigDependencies()
     {
-        var parser = new CSharpParser();
+        var parser = new CSharpProjectParser();
         var absPath = Path.Combine(_sampleProjectsRoot, "csharp", "legacy-framework-web");
         var deps = await parser.ParseDependenciesAsync(absPath);
         deps.ExternalPackages.Should().Contain(p => p.Name == "Microsoft.AspNet.WebApi.Core" && p.Version == "5.2.9");
@@ -89,7 +89,7 @@ public class CSharpParserTests
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
-            using var syntaxTree = await new CSharpParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree = await new CSharpFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: false);
 
             var typeNode = syntaxTree.FileNode!.Children.OfType<TypeNode>().Single(t => t.Name == "UsersController");
@@ -148,7 +148,7 @@ public class CSharpParserTests
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
-            using var syntaxTree = await new CSharpParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree = await new CSharpFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: false);
 
             var extType = syntaxTree.FileNode!.Children.OfType<TypeNode>().Single(t => t.Name == "AuthorizationExtensions");

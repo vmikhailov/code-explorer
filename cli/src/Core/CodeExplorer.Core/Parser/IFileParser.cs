@@ -22,9 +22,25 @@ public interface IFileParser
     bool CanParseFile(string filePath) => CanParse(Path.GetExtension(filePath));
 
     /// <summary>
+    /// Default rule for skipping synthetic stubs, mocks, and scratch files.
+    /// </summary>
+    public static bool DefaultShouldSkipFileName(string fileName)
+    {
+        var fn = fileName.ToLowerInvariant();
+        if (fn.Contains("mock")) return true;
+        if (fn.StartWithIC("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
+            fn.StartWithIC("temp_") || fn.StartWithIC("tmp_") ||
+            fn.StartWithIC("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Checks whether a file with the given name should be skipped by this file parser.
     /// </summary>
-    bool ShouldSkipFileName(string fileName) => false;
+    bool ShouldSkipFileName(string fileName) => DefaultShouldSkipFileName(fileName);
 
     /// <summary>
     /// Checks whether a file should be skipped by this file parser (e.g. minified content, generated bundles).
