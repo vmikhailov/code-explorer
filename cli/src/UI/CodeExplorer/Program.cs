@@ -29,7 +29,6 @@ public class Program
             return 0;
         }
 
-        AnalysisPipelineInitializer.EnsureRegistered();
         WorkspaceIndexer.AutoRegisterParsers();
 
         using var parser = new CommandLineParser(settings =>

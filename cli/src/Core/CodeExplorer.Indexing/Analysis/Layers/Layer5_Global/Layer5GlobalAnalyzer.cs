@@ -80,9 +80,6 @@ public partial class Layer5AnalysisParser
         // 6. Materialize Layer 5 Logical Structure (LogicalStructure, Domain, BoundedContext)
         await MaterializeLogicalStructureAsync(l4Result, ctx);
 
-        // 7. Run CodeIntentAnalyzer (if model / code-intent-distill is available)
-        await CodeIntentAnalyzer.EnrichAsync(ctx);
-
         ctx.Layer5Log.ScanCompleted();
         return new Layer5Result(l4Result, lateBoundRels);
     }

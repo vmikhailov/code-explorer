@@ -597,7 +597,7 @@ public partial class SqliteGraphClient
             CreateIndices();
             SchemaVersion = CurrentSchemaVersion;
             ResetTaxonomyInMemory();
-            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            ParserRegistry.OnIndexCompletedHook?.Invoke();
             return;
         }
 
@@ -619,7 +619,7 @@ public partial class SqliteGraphClient
             throw;
         }
 
-        WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+        ParserRegistry.OnIndexCompletedHook?.Invoke();
     }
 
     private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath, string? wsId = null)
@@ -790,7 +790,7 @@ public partial class SqliteGraphClient
             }
 
             tx.Commit();
-            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            ParserRegistry.OnIndexCompletedHook?.Invoke();
             return true;
         }
         catch
@@ -860,7 +860,7 @@ public partial class SqliteGraphClient
         }
 
         await _conn.ExecuteAsync("DELETE FROM file_registry;");
-        WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+        ParserRegistry.OnIndexCompletedHook?.Invoke();
     }
 
     public async Task RunIncrementalVacuumAsync(int pages = 500, CancellationToken cancellationToken = default)

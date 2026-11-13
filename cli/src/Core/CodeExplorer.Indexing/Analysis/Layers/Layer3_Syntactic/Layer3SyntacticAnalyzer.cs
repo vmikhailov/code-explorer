@@ -480,7 +480,8 @@ public partial class Layer3SyntacticParser
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ISemanticExtension> Active, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
 
-    public static Action<SyntaxTree, ParsingContext?>? SemanticPostProcessor { get; set; }
+    public static Action<SyntaxTree, ParsingContext?>? SemanticPostProcessor { get; set; } = static (tree, ctx) =>
+        CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers.EndpointSemanticAnalyzer.Enrich(tree, null, ctx);
 
     public static void ProcessVisitor(
         SyntaxTree syntaxTree,

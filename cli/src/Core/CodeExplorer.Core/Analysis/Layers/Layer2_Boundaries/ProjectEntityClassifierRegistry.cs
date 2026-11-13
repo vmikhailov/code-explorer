@@ -226,8 +226,8 @@ public static class ProjectEntityClassifierRegistry
         }
 
         // 2. Inversion of Control: query the pluggable dialect parser for this language
-        var dialectParser = Parser.WorkspaceIndexer.GetProjectParser(normType) ??
-                            (!string.IsNullOrEmpty(projectType) ? Parser.WorkspaceIndexer.GetProjectParser(projectType) : null);
+        var dialectParser = Parser.ParserRegistry.GetProjectParser(normType) ??
+                            (!string.IsNullOrEmpty(projectType) ? Parser.ParserRegistry.GetProjectParser(projectType) : null);
         if (dialectParser != null)
         {
             var dialectClassification = dialectParser.ClassifyProject(projectContext);

@@ -374,6 +374,20 @@ public class ParsingContext
         }
 
         var copy = new List<Node>(nodes);
+        if (SharedChannel == null)
+        {
+            if (Repository != null)
+            {
+                await Repository.UpsertNodesAsync(copy, CancellationToken);
+            }
+            else if (DbClient != null)
+            {
+                await DbClient.UploadNodesAsync(copy);
+            }
+            RecordNodesPersisted(copy.Count);
+            return;
+        }
+
         await SharedChannel.Writer.WriteAsync(async () =>
         {
             if (Repository != null)
@@ -397,6 +411,20 @@ public class ParsingContext
             return;
         }
         var copy = new List<Relationship>(rels);
+        if (SharedChannel == null)
+        {
+            if (Repository != null)
+            {
+                await Repository.UpsertRelationshipsAsync(copy, CancellationToken);
+            }
+            else if (DbClient != null)
+            {
+                await DbClient.UploadRelationshipsAsync(copy);
+            }
+            RecordRelationshipsPersisted(copy.Count);
+            return;
+        }
+
         await SharedChannel.Writer.WriteAsync(async () =>
         {
             if (Repository != null)
@@ -413,7 +441,7 @@ public class ParsingContext
 
     public async Task WaitForQueueDrainedAsync()
     {
-        if (!PersistToGraphDb) return;
+        if (!PersistToGraphDb || SharedChannel == null) return;
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await SharedChannel.Writer.WriteAsync(() =>
         {

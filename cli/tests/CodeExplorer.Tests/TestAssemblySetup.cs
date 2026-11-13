@@ -24,7 +24,7 @@ public class TestAssemblySetup
         }
 
         WorkspaceIndexer.AutoRegisterParsers();
-        CodeExplorer.Core.Analysis.AnalysisPipelineInitializer.EnsureRegistered();
+        CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
     [OneTimeTearDown]

@@ -100,6 +100,23 @@ public sealed record AdditionalProjectDescriptor(
     IReadOnlyDictionary<string, string> Properties,
     IReadOnlyCollection<string>? LocalDependencyPaths = null);
 
+public sealed record ProjectEnrichmentContext(
+    string WorkspaceId,
+    string AbsoluteWorkspacePath,
+    CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode Project,
+    IReadOnlyList<SyntaxTree> ProjectTrees,
+    IReadOnlyList<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode> AllProjects,
+    IReadOnlyDictionary<string, List<SyntaxTree>> TreesByProjectId,
+    IReadOnlyList<CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode> AllFiles);
+
+public sealed record ProjectEnrichmentResult(
+    IReadOnlyList<CodeExplorer.Core.Common.Nodes.IOntologyNode> SemanticNodes,
+    IReadOnlyList<CodeExplorer.Core.Database.Relationship> SemanticRelationships,
+    IReadOnlyList<CodeExplorer.Core.Database.Relationship> GlobalRelationships)
+{
+    public static readonly ProjectEnrichmentResult Empty = new([], [], []);
+}
+
 public interface IProjectParser
 {
     /// <summary>
@@ -289,6 +306,12 @@ public interface IProjectParser
     /// Configuration descriptors for framework-specific or dialect-specific configuration keys.
     /// </summary>
     IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors => [];
+
+    /// <summary>
+    /// Performs stateless project-level semantic enrichment in Layer 4 over in-memory syntax trees.
+    /// </summary>
+    Task<ProjectEnrichmentResult> EnrichProjectAsync(ProjectEnrichmentContext context) =>
+        Task.FromResult(ProjectEnrichmentResult.Empty);
 
     /// <summary>
     /// Categorizes the project into a universal semantic classification (Kind and SubKind)

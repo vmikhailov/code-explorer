@@ -7,6 +7,7 @@
   <Folder Name="/Core/">
     <Project Path="src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
     <Project Path="src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj" />
+    <Project Path="src/Core/CodeExplorer.Indexing/CodeExplorer.Indexing.csproj" />
     <Project Path="src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj" />
   </Folder>
   <Folder Name="/Server/">
@@ -23,6 +24,7 @@
     <Project Path="src/Parsers/CodeExplorer.Parser.Rust/CodeExplorer.Parser.Rust.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.Shared/CodeExplorer.Parser.Shared.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.Terraform/CodeExplorer.Parser.Terraform.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.Script/CodeExplorer.Parser.Script.csproj" />
   </Folder>

@@ -101,6 +101,7 @@ public partial class Layer4SemanticParser
 
         await EnrichProjectsSemanticsAsync(
             allProjects,
+            allFiles,
             filesByProjectId,
             treesByProjectId,
             workloadNodeByProjectId,
@@ -178,7 +179,7 @@ public partial class Layer4SemanticParser
     {
         foreach (var child in node.Children)
         {
-            if (child is ModuleNode or DatabaseNode or DbSchemaNode or EndpointNode or QueryNode or ExternalServiceNode or TopicNode or CloudNode or CloudServiceNode or PeerMeshNode or ApiInUseNode or TableNode or DataSetNode)
+            if (child is ModuleNode or DatabaseNode or DbSchemaNode or EndpointNode or QueryNode or ExternalServiceNode or TopicNode or CloudNode or CloudResourceNode or CloudServiceNode or PeerMeshNode or ApiInUseNode or TableNode or DataSetNode)
             {
                 semanticNodes.Add(child);
             }

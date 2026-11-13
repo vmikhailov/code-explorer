@@ -29,6 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
+    <ProjectReference Include="..\..\src\Core\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
 
     <ProjectReference Include="..\..\src\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
@@ -40,6 +41,7 @@
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Terraform\CodeExplorer.Parser.Terraform.csproj" />
   </ItemGroup>
 
   <!-- Link OntologyGen source files so tests can use the extractor/renderer directly -->

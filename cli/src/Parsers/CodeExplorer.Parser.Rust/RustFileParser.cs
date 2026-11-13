@@ -53,8 +53,7 @@ public class RustFileParser : IFileParser
         CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
         CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
-        string sourceText,
-        ParsingContext? ctx)
+        string sourceText)
     {
         if (WorkspaceConventions.IsTestFilePath(fileNode.Path))
         {

@@ -32,6 +32,11 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GraphDataDto> SystemContextCache = new();
 
+    static ArchitectureViewEngine()
+    {
+        CodeExplorer.Core.Parser.ParserRegistry.OnIndexCompletedHook = () => InvalidateCache();
+    }
+
     private void RecordEvidenceWarning(List<string>? warnings, string context, Exception ex)
     {
         logger?.LogWarning(ex, "[Evidence] {Context}: {Message}", context, ex.Message);
@@ -172,8 +177,9 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _ = ex.Message;
         }
 
         string? primaryRelationalEngine = null;

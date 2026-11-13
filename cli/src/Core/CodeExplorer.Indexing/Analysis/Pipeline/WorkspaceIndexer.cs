@@ -16,120 +16,38 @@ namespace CodeExplorer.Core.Parser;
 public class WorkspaceIndexer
 {
     private const string SemanticFootprintName = "<semantic>";
+    private const string Layer5GlobalProgressTitle = "Layer 5: Global";
+    private const string Layer5GlobalProgressMessage = "Semantic enrichment complete. Resolving global references...";
 
-    static WorkspaceIndexer()
+    public static Func<Layer3Result, ParsingContext, Task>? PostSyntacticPipelineHook { get; set; } = static async (l3, ctx) =>
     {
-        Layer3SyntacticParser.SemanticPostProcessor ??= (_, _) => { };
+        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        ctx.ReportProgress(68, Layer5GlobalProgressTitle, Layer5GlobalProgressMessage, l3.SyntaxTrees.Count, l3.Prev.Prev.Files.Count);
+        await new Layer5AnalysisParser().ParseAsync(l4, ctx);
+    };
+
+    public static Action? OnIndexCompletedHook
+    {
+        get => ParserRegistry.OnIndexCompletedHook;
+        set => ParserRegistry.OnIndexCompletedHook = value;
     }
 
-    public static Func<Layer3Result, ParsingContext, Task>? PostSyntacticPipelineHook { get; set; }
-    public static Action? OnIndexCompletedHook { get; set; }
+    internal static List<IProjectParser> _projectParsers => ParserRegistry.ProjectParsers;
+    internal static List<IFileParser> _fileParsers => ParserRegistry.FileParsers;
 
-    internal static readonly List<IProjectParser> _projectParsers = [];
-    internal static readonly List<IFileParser> _fileParsers = [];
-    private static readonly object _registrationLock = new();
-
-    public static void Register(object parser)
-    {
-        lock (_registrationLock)
-        {
-            if (parser is IProjectParser projectParser)
-            {
-                if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
-                {
-                    var ordered = ProjectParserPrecedence.Order([.. _projectParsers, projectParser]);
-                    _projectParsers.Clear();
-                    _projectParsers.AddRange(ordered);
-                }
-
-                foreach (var desc in projectParser.ConfigurationDescriptors)
-                {
-                    LibraryConfigurationRegistry.Register(desc);
-                }
-            }
-
-            if (parser is IFileParser fileParser)
-            {
-                if (_fileParsers.All(p => p.GetType() != fileParser.GetType()))
-                    _fileParsers.Add(fileParser);
-            }
-
-            if (parser is ISharedFileParser sharedParser)
-            {
-                SharedFileParserRegistry.Register(sharedParser);
-            }
-
-            if (parser is ILibraryConfigurationDescriptor configDesc)
-            {
-                LibraryConfigurationRegistry.Register(configDesc);
-            }
-
-            if (parser is Components.IComponentLibraryParser componentParser)
-            {
-                Components.ComponentLibraryParserRegistry.Register(componentParser);
-            }
-
-            WorkspaceFileFilter.ResetDefault();
-        }
-    }
+    public static void Register(object parser) => ParserRegistry.Register(parser);
 
     /// <summary>
     /// Discovers parser assemblies (or scans the given ones) and registers every parser type they export.
     /// </summary>
-    public static IReadOnlyList<Type> AutoRegisterParsers(IEnumerable<Assembly>? assemblies = null)
-    {
-        var parserTypes = (assemblies ?? ParserAssemblyDiscovery.Discover())
-            .SelectMany(ParserAssemblyDiscovery.GetParserTypes)
-            .ToList();
+    public static IReadOnlyList<Type> AutoRegisterParsers(IEnumerable<Assembly>? assemblies = null) =>
+        ParserRegistry.AutoRegisterParsers(assemblies);
 
-        foreach (var type in parserTypes)
-        {
-            Register(CreateParser(type));
-        }
-
-        return parserTypes;
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Parser types are confirmed to have public parameterless constructor in IsParserType")]
-    private static object CreateParser(Type type)
-    {
-        try
-        {
-            return Activator.CreateInstance(type) ?? throw new InvalidOperationException($"Failed to instantiate parser '{type.FullName}'");
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException(
-                $"[AutoRegisterParsers] Failed to instantiate parser '{type.FullName}' from assembly '{type.Assembly.GetName().Name}': {ex.Message}",
-                ex);
-        }
-    }
-
-    public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => _projectParsers;
-    public static IReadOnlyList<IFileParser> GetAllFileParsers() => _fileParsers;
-
-    public static IFileParser? GetParserForFile(string filePath)
-    {
-        if (_fileParsers.Count == 0) AutoRegisterParsers();
-        return _fileParsers.FirstOrDefault(p => p.CanParseFile(filePath));
-    }
-
-    public static IFileParser? GetParserByLanguage(string languageName)
-    {
-        if (string.IsNullOrEmpty(languageName)) return null;
-        if (_fileParsers.Count == 0) AutoRegisterParsers();
-        var normalized = languageName.Equals("csharp", StringComparison.OrdinalIgnoreCase)
-            ? "c-sharp"
-            : languageName;
-        return _fileParsers.FirstOrDefault(p =>
-            string.Equals(p.LanguageName, normalized, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.LanguageName, languageName, StringComparison.OrdinalIgnoreCase));
-    }
-
-    public static IProjectParser? GetProjectParser(string projectType)
-    {
-        return _projectParsers.FirstOrDefault(p => string.Equals(p.ProjectType, projectType, StringComparison.OrdinalIgnoreCase));
-    }
+    public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => ParserRegistry.GetAllProjectParsers();
+    public static IReadOnlyList<IFileParser> GetAllFileParsers() => ParserRegistry.GetAllFileParsers();
+    public static IFileParser? GetParserForFile(string filePath) => ParserRegistry.GetParserForFile(filePath);
+    public static IFileParser? GetParserByLanguage(string languageName) => ParserRegistry.GetParserByLanguage(languageName);
+    public static IProjectParser? GetProjectParser(string projectType) => ParserRegistry.GetProjectParser(projectType);
 
     private readonly IGraphClient _dbClient;
     private readonly ILogger<WorkspaceIndexer> _logger;
@@ -298,6 +216,8 @@ public class WorkspaceIndexer
         {
             await _dbClient.CommitBulkLoadAsync(CancellationToken.None);
         }
+
+        await CodeIntentAnalyzer.EnrichAsync(ctx, ctx.CancellationToken);
 
         LogPersistenceSummary(ctx);
         ctx.ReportProgress(88, "Finalizing", $"Synchronizing file registry for {indexedFiles.Count} files...", syntaxTrees.Count, indexedFiles.Count);
@@ -887,17 +807,23 @@ public class WorkspaceIndexer
             IncludeDistAndMinifiedArtifacts = options.IncludeDistAndMinifiedArtifacts
         };
 
+        var buildInMemoryGraph = options.PersistToGraphDb || options.MaxLayer >= AnalysisLayer.Layer4_Semantic;
+        var inMemoryGraph = buildInMemoryGraph ? new InMemoryGraphRepository() : null;
+        var sharedChannel = buildInMemoryGraph
+            ? Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false })
+            : null!;
+
         var ctx = new ParsingContext(
             absoluteWorkspacePath: fullDir,
             hostWorkspacePath: fullDir,
-            dbClient: null!,
-            sharedChannel: null!,
+            dbClient: inMemoryGraph!,
+            sharedChannel: sharedChannel,
             clear: true,
             cancellationToken: cancellationToken,
             progress: progress,
             logger: logger)
         {
-            PersistToGraphDb = false,
+            PersistToGraphDb = buildInMemoryGraph,
             LightweightAstScanMode = options.LightweightAstMode,
             CustomFileExclusionPredicate = options.FileExclusionPredicate,
             CustomProjectFileFilter = options.ProjectFileFilter,
@@ -916,10 +842,14 @@ public class WorkspaceIndexer
         Layer1Result l1Result;
         Layer2Result? l2Result = null;
         Layer3Result? l3Result = null;
-        long l1Ms = 0, l2Ms = 0, l3Ms = 0;
+        Layer4Result? l4Result = null;
+        Layer5Result? l5Result = null;
+        long l1Ms = 0, l2Ms = 0, l3Ms = 0, l4Ms = 0, l5Ms = 0;
 
         try
         {
+            await using var writer = buildInMemoryGraph ? new DatabasePersistenceWriter(ctx) : null;
+
             l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
             l1Ms = sw.ElapsedMilliseconds;
 
@@ -936,6 +866,20 @@ public class WorkspaceIndexer
                 l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
                 l3Ms = sw.ElapsedMilliseconds;
             }
+
+            if (options.MaxLayer >= AnalysisLayer.Layer4_Semantic && l3Result != null)
+            {
+                sw.Restart();
+                l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
+                l4Ms = sw.ElapsedMilliseconds;
+            }
+
+            if (options.MaxLayer >= AnalysisLayer.Layer5_Global && l4Result != null)
+            {
+                sw.Restart();
+                l5Result = await new Layer5AnalysisParser().ParseAsync(l4Result, ctx);
+                l5Ms = sw.ElapsedMilliseconds;
+            }
         }
         finally
         {
@@ -943,20 +887,27 @@ public class WorkspaceIndexer
         }
 
         totalSw.Stop();
+        var (finalNodesCount, finalRelsCount) = inMemoryGraph != null
+            ? await inMemoryGraph.GetGraphCountsAsync(cancellationToken)
+            : (ctx.TotalNodesCount, ctx.TotalRelsCount);
+
         return new WorkspaceScanResult
         {
             Layer1 = l1Result,
             Layer2 = l2Result,
             Layer3 = l3Result,
+            Layer4 = l4Result,
+            Layer5 = l5Result,
+            Graph = inMemoryGraph,
             Timings = new LayerScanTimings(
                 L1Ms: l1Ms,
                 L2Ms: l2Ms,
                 L3Ms: l3Ms,
-                L4Ms: 0,
-                L5Ms: 0,
+                L4Ms: l4Ms,
+                L5Ms: l5Ms,
                 TotalMs: totalSw.ElapsedMilliseconds,
-                NodeCount: ctx.TotalNodesCount,
-                RelationshipCount: ctx.TotalRelsCount)
+                NodeCount: finalNodesCount,
+                RelationshipCount: finalRelsCount)
         };
     }
 

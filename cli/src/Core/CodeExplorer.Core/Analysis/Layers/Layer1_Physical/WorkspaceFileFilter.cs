@@ -596,8 +596,8 @@ public class WorkspaceFileFilter
                 lock (s_lock)
                 {
                     s_default ??= new WorkspaceFileFilter(
-                        WorkspaceIndexer.GetAllProjectParsers(),
-                        WorkspaceIndexer.GetAllFileParsers());
+                        ParserRegistry.GetAllProjectParsers(),
+                        ParserRegistry.GetAllFileParsers());
                 }
             }
             return s_default;

@@ -12,14 +12,14 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 
     Task BeginBulkLoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     Task CommitBulkLoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-    Task CreateIndicesAsync();
+    Task CreateIndicesAsync() => Task.CompletedTask;
     Task ClearDatabaseAsync();
-    Task<bool> ClearWorkspaceAsync(string workspacePath);
+    Task<bool> ClearWorkspaceAsync(string workspacePath) => Task.FromResult(true);
     Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath);
     Task SaveEmptyWorkspaceNodeAsync(string id, string path);
     Task UploadNodesAsync(List<Node> nodes);
     Task UploadRelationshipsAsync(List<Relationship> rels);
-    Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
+    Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
     Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
 
     async Task<List<T>> QueryAsync<T>(string query, object? parameters = null, CancellationToken cancellationToken = default)
@@ -205,6 +205,11 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 
     Task SavePostIndexResultsAsync(string widPrefix, PostIndexAnalysisResult result)
     {
+        if (this is InMemoryGraphRepository inMem)
+        {
+            return inMem.SavePostIndexResultsAsync(result);
+        }
+
         var tcRels = result.TransitivelyCalls.Select(tc => new Relationship(
             tc.From,
             tc.To,
@@ -234,22 +239,34 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         Task.CompletedTask;
 
     Task<EdgeNormalizationSnapshot> LoadEdgeNormalizationSnapshotAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new EdgeNormalizationSnapshot(new Dictionary<string, (NodeKind Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase), []));
+        this is InMemoryGraphRepository inMem
+            ? inMem.LoadEdgeNormalizationSnapshotAsync()
+            : Task.FromResult(new EdgeNormalizationSnapshot(new Dictionary<string, (NodeKind Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase), []));
 
     Task<int> ApplyEdgeNormalizationUpdatesAsync(IReadOnlyList<EdgeNormalizationUpdate> updates, CancellationToken cancellationToken = default) =>
-        Task.FromResult(0);
+        this is InMemoryGraphRepository inMem
+            ? inMem.ApplyEdgeNormalizationUpdatesAsync(updates)
+            : Task.FromResult(0);
 
     Task<ExternalServicePurgeSnapshot> LoadExternalServicePurgeSnapshotAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new ExternalServicePurgeSnapshot([], [], new HashSet<string>(StringComparer.OrdinalIgnoreCase), []));
+        this is InMemoryGraphRepository inMem
+            ? inMem.LoadExternalServicePurgeSnapshotAsync()
+            : Task.FromResult(new ExternalServicePurgeSnapshot([], [], new HashSet<string>(StringComparer.OrdinalIgnoreCase), []));
 
     Task<List<(string Id, string Name)>> LoadTopicsForPurgeAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new List<(string Id, string Name)>());
+        this is InMemoryGraphRepository inMem
+            ? inMem.LoadTopicsForPurgeAsync()
+            : Task.FromResult(new List<(string Id, string Name)>());
 
     Task DeleteNodesAndConnectedEdgesAsync(IReadOnlyList<string> nodeIds, CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        this is InMemoryGraphRepository inMem
+            ? inMem.DeleteNodesAndConnectedEdgesAsync(nodeIds)
+            : Task.CompletedTask;
 
     Task DeduplicateLegacyProjectNodesAsync(string widPrefix = "", CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        this is InMemoryGraphRepository inMem
+            ? inMem.DeduplicateLegacyProjectNodesAsync()
+            : Task.CompletedTask;
 
     Task<List<DbProjectSnapshot>> LoadProjectsForDbCanonicalizationAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new List<DbProjectSnapshot>());
@@ -267,20 +284,28 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         IReadOnlyList<Relationship> relationshipsToUpload,
         IReadOnlyList<DomainEdgeTargetRemap> domainRemaps,
         CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        this is InMemoryGraphRepository inMem
+            ? inMem.ReplaceProjectDatabaseRelationshipsAndRemapAsync(relationshipsToUpload, domainRemaps)
+            : Task.CompletedTask;
 
     Task CleanupAndPropagateDatabaseEntitiesAsync(
         IReadOnlyDictionary<string, string> rawToCanonical,
         IReadOnlyList<CanonicalDatabasePropagationInfo> canonicalDatabases,
         bool propagateChildSchemaProperties,
         CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        this is InMemoryGraphRepository inMem
+            ? inMem.CleanupAndPropagateDatabaseEntitiesAsync(rawToCanonical, canonicalDatabases, propagateChildSchemaProperties)
+            : Task.CompletedTask;
 
     Task<Dictionary<string, int>> GetNodesBreakdownAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new Dictionary<string, int>());
+        this is InMemoryGraphRepository inMem
+            ? inMem.GetNodesBreakdownAsync(cancellationToken)
+            : Task.FromResult(new Dictionary<string, int>());
 
     Task<(int NodesCount, int RelationshipsCount)> GetGraphCountsAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult((0, 0));
+        this is InMemoryGraphRepository inMem
+            ? inMem.GetGraphCountsAsync(cancellationToken)
+            : Task.FromResult((0, 0));
 
     Task<string?> GetTaxonomyJsonAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);

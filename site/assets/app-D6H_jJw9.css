@@ -2244,6 +2244,25 @@ button {
   background: transparent;
 }
 
+#graph-fullscreen {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+#graph-fullscreen:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+#graph-fullscreen[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
 .ont-air-control {
   display: inline-flex;
   align-items: center;

@@ -16,15 +16,12 @@
 
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
-    <PackageReference Include="LLamaSharp" Version="0.27.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" PrivateAssets="contentfiles;analyzers;build" />
-    <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.27.0" PrivateAssets="contentfiles;analyzers;build" />
-    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" />
     <ProjectReference Include="..\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
+    <ProjectReference Include="..\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,11 +29,6 @@
     <EmbeddedResource Include="Resources\**\*.json" />
     <EmbeddedResource Include="..\..\..\..\proto\ontology-schema.json" LogicalName="ontology-schema.json" />
   </ItemGroup>
-  <Target Name="ExcludeLLamaNativeFromPack" BeforeTargets="_GetPackageFiles">
-    <ItemGroup>
-      <Content Remove="@(Content)" Condition="$([System.String]::Copy('%(Identity)').Contains('LLamaSharpRuntimes'))" />
-    </ItemGroup>
-  </Target>
   <ItemGroup>
   </ItemGroup>
 

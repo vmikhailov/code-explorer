@@ -68,6 +68,22 @@ public partial class SqliteGraphClient
 
     public async Task<EdgeNormalizationSnapshot> LoadEdgeNormalizationSnapshotAsync(CancellationToken cancellationToken = default)
     {
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    return InMemoryGraphMaintenance.LoadEdgeNormalizationSnapshot(_bulkNodes, _bulkRelationships);
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         var nodeMap = new Dictionary<string, (NodeKind Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
         const string nodesQuery =
             "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role";
@@ -133,6 +149,22 @@ public partial class SqliteGraphClient
     {
         if (updates.Count == 0) return 0;
 
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    return InMemoryGraphMaintenance.ApplyEdgeNormalizationUpdates(_bulkRelationships, updates);
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         var updatedCount = 0;
         const int updateBatchSize = 100;
         for (var i = 0; i < updates.Count; i += updateBatchSize)
@@ -160,6 +192,22 @@ public partial class SqliteGraphClient
 
     public async Task<ExternalServicePurgeSnapshot> LoadExternalServicePurgeSnapshotAsync(CancellationToken cancellationToken = default)
     {
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    return InMemoryGraphMaintenance.LoadExternalServicePurgeSnapshot(_bulkNodes, _bulkRelationships);
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         const string projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
         var projsRows = await QueryAsync<(string Id, string Name, string? Path)>(projQuery, null, cancellationToken);
 
@@ -196,6 +244,22 @@ public partial class SqliteGraphClient
 
     public async Task<List<(string Id, string Name)>> LoadTopicsForPurgeAsync(CancellationToken cancellationToken = default)
     {
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    return InMemoryGraphMaintenance.LoadTopicsForPurge(_bulkNodes);
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         const string topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name";
         return await QueryAsync<(string Id, string Name)>(topicQuery, null, cancellationToken);
     }
@@ -205,6 +269,23 @@ public partial class SqliteGraphClient
         CancellationToken cancellationToken = default)
     {
         if (nodeIds.Count == 0) return;
+
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    InMemoryGraphMaintenance.DeleteNodesAndConnectedEdges(_bulkNodes, _bulkRelationships, nodeIds);
+                    return;
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
 
         const int deleteBatchSize = 100;
         for (var i = 0; i < nodeIds.Count; i += deleteBatchSize)
@@ -228,6 +309,23 @@ public partial class SqliteGraphClient
         string widPrefix = "",
         CancellationToken cancellationToken = default)
     {
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    InMemoryGraphMaintenance.DeduplicateLegacyProjectNodes(_bulkNodes, _bulkRelationships);
+                    return;
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         var projKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Project);
         var projSemSynKindsSql = GraphKindCodec.NodeKindsInSql(NodeKind.ProjectSemantic, NodeKind.ProjectSyntax);
         var allProjKindsSql = GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.ProjectSemantic, NodeKind.ProjectSyntax);
@@ -377,6 +475,30 @@ public partial class SqliteGraphClient
         IReadOnlyList<DomainEdgeTargetRemap> domainRemaps,
         CancellationToken cancellationToken = default)
     {
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    InMemoryGraphMaintenance.ReplaceProjectDatabaseRelationshipsAndRemap(
+                        _bulkRelationships,
+                        relationshipsToUpload,
+                        domainRemaps);
+                    if (relationshipsToUpload.Count > 0)
+                    {
+                        RecordRelationshipsInTaxonomy(relationshipsToUpload);
+                    }
+                    return;
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         await ExecuteWriteAsync(
             $"DELETE FROM edges WHERE kind = {GraphKindCodec.EncodeRelKind(RelationshipKind.UsesDb)} AND from_id IN (SELECT rowid FROM nodes WHERE id LIKE '%:p:%' OR id LIKE '%:project:%' OR id LIKE '%:svc:%' OR id LIKE '%:app:%' OR id LIKE '%:wrk:%' OR id LIKE '%:lib:%');",
             null, cancellationToken);
@@ -401,6 +523,28 @@ public partial class SqliteGraphClient
         bool propagateChildSchemaProperties,
         CancellationToken cancellationToken = default)
     {
+        if (_isBulkLoading)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isBulkLoading)
+                {
+                    InMemoryGraphMaintenance.CleanupAndPropagateDatabaseEntities(
+                        _bulkNodes,
+                        _bulkRelationships,
+                        rawToCanonical,
+                        canonicalDatabases,
+                        propagateChildSchemaProperties);
+                    return;
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         var dbKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Database);
         var dbSchemaKindId = GraphKindCodec.EncodeNodeKind(NodeKind.DbSchema);
         var containsRelId = GraphKindCodec.EncodeRelKind(RelationshipKind.Contains);

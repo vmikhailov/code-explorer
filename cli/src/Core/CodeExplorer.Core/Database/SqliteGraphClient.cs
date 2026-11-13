@@ -24,7 +24,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private bool _isBulkLoading;
     private bool _bulkIsFreshDb;
     private bool _bulkDropIdentifierIndex;
-    private readonly Dictionary<string, (NodeKind Kind, string PropsJson)> _bulkNodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Node> _bulkNodes = new(StringComparer.Ordinal);
     private readonly Dictionary<(string From, string To, RelationshipKind Kind), Relationship> _bulkRelationships = new();
     private readonly Dictionary<string, List<string>> _bulkProjectExternalApis = new(StringComparer.Ordinal);
 
@@ -111,7 +111,23 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 var wsRows = await _conn.QueryAsync<(string Id, string PropsJson)>(selectWsSql);
                 foreach (var ws in wsRows)
                 {
-                    _bulkNodes[ws.Id] = (NodeKind.Workspace, ws.PropsJson);
+                    var propsDict = new Dictionary<string, object>(StringComparer.Ordinal);
+                    if (!string.IsNullOrWhiteSpace(ws.PropsJson))
+                    {
+                        using var doc = JsonDocument.Parse(ws.PropsJson);
+                        foreach (var p in doc.RootElement.EnumerateObject())
+                        {
+                            if (p.Value.ValueKind == JsonValueKind.String)
+                            {
+                                propsDict[p.Name] = p.Value.GetString() ?? string.Empty;
+                            }
+                            else
+                            {
+                                propsDict[p.Name] = p.Value.Clone();
+                            }
+                        }
+                    }
+                    _bulkNodes[ws.Id] = new Node(ws.Id, NodeKind.Workspace, propsDict);
                 }
                 ResetTaxonomyInMemory();
                 DropGraphSecondaryIndices();
@@ -228,8 +244,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                     var pProps = nodeCmd.Parameters.Add(paramP, SqliteType.Text);
                     nodeCmd.Prepare();
 
+                    var nodeBufferWriter = new ArrayBufferWriter<byte>(1024);
+                    using var nodeJsonWriter = new Utf8JsonWriter(nodeBufferWriter);
                     long nextRowId = 1;
-                    foreach (var (id, (kind, propsJson)) in _bulkNodes)
+                    foreach (var (id, node) in _bulkNodes)
                     {
                         if (pRowId != null)
                         {
@@ -237,9 +255,14 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                             pRowId.Value = rowId;
                             nodeRowIds?[id] = rowId;
                         }
+                        nodeBufferWriter.Clear();
+                        nodeJsonWriter.Reset(nodeBufferWriter);
+                        NodeFactory.WriteJsonProperties(node, nodeJsonWriter);
+                        nodeJsonWriter.Flush();
+
                         pId.Value = id;
-                        pKind.Value = (int)kind;
-                        pProps.Value = propsJson;
+                        pKind.Value = (int)node.NodeKind;
+                        pProps.Value = Encoding.UTF8.GetString(nodeBufferWriter.WrittenSpan);
                         nodeCmd.ExecuteNonQuery();
                     }
                 }
@@ -359,7 +382,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             _logger.LogInformation("[Database   ] Bulk-flushed {Nodes:N0} nodes and {Rels:N0} relationships (with index build) in {ElapsedMs:N0}ms.",
                 nodesCount, relsCount, sw.Elapsed.TotalMilliseconds);
-            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            ParserRegistry.OnIndexCompletedHook?.Invoke();
         }
     }
 
@@ -370,9 +393,9 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             if (_isBulkLoading)
             {
-                foreach (var (id, (kind, _)) in _bulkNodes)
+                foreach (var (id, node) in _bulkNodes)
                 {
-                    if (kind == NodeKind.Workspace) return id;
+                    if (node.NodeKind == NodeKind.Workspace) return id;
                 }
             }
             var existing = await _conn.ExecuteScalarAsync<string>($"SELECT id FROM nodes WHERE kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Workspace)} LIMIT 1;");
@@ -396,14 +419,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             {
                 if (_bulkNodes.TryGetValue(id, out var existingWs))
                 {
-                    using var doc = JsonDocument.Parse(existingWs.PropsJson);
-                    var dict = new Dictionary<string, object?>(StringComparer.Ordinal);
-                    foreach (var p in doc.RootElement.EnumerateObject())
-                    {
-                        dict[p.Name] = p.Value.Clone();
-                    }
-                    dict["path"] = normalized;
-                    _bulkNodes[id] = (existingWs.Kind, JsonSerializer.Serialize(dict));
+                    existingWs.Properties["path"] = normalized;
                 }
                 else
                 {
@@ -415,9 +431,16 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                             new { id });
                     }
 
-                    _bulkNodes[id] = (NodeKind.Workspace, !string.IsNullOrWhiteSpace(existingName)
-                        ? JsonSerializer.Serialize(new { id, name = existingName, path = normalized })
-                        : propsJson);
+                    var wsProps = new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["id"] = id,
+                        ["path"] = normalized
+                    };
+                    if (!string.IsNullOrWhiteSpace(existingName))
+                    {
+                        wsProps["name"] = existingName;
+                    }
+                    _bulkNodes[id] = new Node(id, NodeKind.Workspace, wsProps);
                 }
                 RecordWorkspaceNodeInTaxonomy(id);
                 return;
@@ -446,24 +469,20 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
 
-            var bufferWriter = new ArrayBufferWriter<byte>(1024);
-            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
-
             if (_isBulkLoading)
             {
                 for (var i = 0; i < distinctNodes.Count; i++)
                 {
                     var node = distinctNodes[i];
-                    bufferWriter.Clear();
-                    jsonWriter.Reset(bufferWriter);
-                    NodeFactory.WriteJsonProperties(node, jsonWriter);
-                    jsonWriter.Flush();
-                    _bulkNodes[node.Id] = (node.Kind, Encoding.UTF8.GetString(bufferWriter.WrittenSpan));
+                    _bulkNodes[node.Id] = node;
                 }
 
                 RecordNodesInTaxonomy(distinctNodes);
                 return;
             }
+
+            var bufferWriter = new ArrayBufferWriter<byte>(1024);
+            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
 
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
@@ -504,7 +523,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Uploaded {Count} nodes in {ElapsedMs:F0}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
-            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            ParserRegistry.OnIndexCompletedHook?.Invoke();
         }
         finally
         {
@@ -582,7 +601,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Uploaded {Count} relationships in {ElapsedMs:F0}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
-            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
+            ParserRegistry.OnIndexCompletedHook?.Invoke();
         }
         finally
         {

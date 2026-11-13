@@ -15,7 +15,9 @@ public enum MemberKind : byte
     EnumMember = 7,
     Indexer = 8,
     Method = 9,
-    Constructor = 10
+    Constructor = 10,
+    Output = 11,
+    Local = 12
 }
 
 [JsonConverter(typeof(TypeKindJsonConverter))]
@@ -36,7 +38,8 @@ public enum TypeKind : byte
     Annotation = 12,
     Protocol = 13,
     Component = 14,
-    Namespace = 15
+    Namespace = 15,
+    Dependency = 16
 }
 
 [JsonConverter(typeof(BrokerTypeJsonConverter))]

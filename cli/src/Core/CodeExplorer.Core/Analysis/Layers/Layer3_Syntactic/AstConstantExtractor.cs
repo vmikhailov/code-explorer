@@ -40,7 +40,7 @@ public static class AstConstantExtractor
     {
         if (string.IsNullOrWhiteSpace(content)) return;
 
-        var fileParser = WorkspaceIndexer.GetParserForFile(filePath);
+        var fileParser = ParserRegistry.GetParserForFile(filePath);
         if (fileParser == null) return;
 
         try

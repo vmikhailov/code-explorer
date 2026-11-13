@@ -187,19 +187,8 @@ jobs:
             cli/src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj \
             cli/src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj \
             cli/src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj \
-            cli/src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Shared/CodeExplorer.Parser.Shared.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Rust/CodeExplorer.Parser.Rust.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Java/CodeExplorer.Parser.Java.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Kotlin/CodeExplorer.Parser.Kotlin.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Script/CodeExplorer.Parser.Script.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.Android/CodeExplorer.Parser.Android.csproj \
-            cli/src/Parsers/CodeExplorer.Parser.ColdFusion/CodeExplorer.Parser.ColdFusion.csproj; do
+            cli/src/Core/CodeExplorer.Indexing/CodeExplorer.Indexing.csproj \
+            cli/src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj; do
             dotnet pack "$proj" -c Release --no-build \
               -p:Version="$VERSION" \
               -p:PackageVersion="$VERSION" \

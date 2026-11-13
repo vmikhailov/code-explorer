@@ -35,6 +35,8 @@ public static class TaxonomyEnumExtensions
         MemberKind.Indexer => "indexer",
         MemberKind.Method => "method",
         MemberKind.Constructor => "constructor",
+        MemberKind.Output => "output",
+        MemberKind.Local => "local",
         _ => "field"
     };
 
@@ -46,7 +48,9 @@ public static class TaxonomyEnumExtensions
             "field" => MemberKind.Field,
             "property" or "prop" => MemberKind.Property,
             "parameter" or "param" => MemberKind.Parameter,
-            "variable" or "var" or "local" => MemberKind.Variable,
+            "variable" or "var" => MemberKind.Variable,
+            "local" => MemberKind.Local,
+            "output" => MemberKind.Output,
             "constant" or "const" => MemberKind.Constant,
             "event" => MemberKind.Event,
             "enum_member" or "enummember" => MemberKind.EnumMember,
@@ -75,6 +79,7 @@ public static class TaxonomyEnumExtensions
         TypeKind.Protocol => "protocol",
         TypeKind.Component => "component",
         TypeKind.Namespace => "namespace",
+        TypeKind.Dependency => "dependency",
         _ => "class"
     };
 
@@ -98,6 +103,7 @@ public static class TaxonomyEnumExtensions
             "protocol" => TypeKind.Protocol,
             "component" => TypeKind.Component,
             "namespace" => TypeKind.Namespace,
+            "dependency" => TypeKind.Dependency,
             _ => TypeKind.Class
         };
     }

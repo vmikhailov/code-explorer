@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
 
 namespace CodeExplorer.Core.Parser;
@@ -74,12 +75,16 @@ public sealed class WorkspaceScanResult : IDisposable
     public Layer3Result? Layer3 { get; init; }
     public Layer4Result? Layer4 { get; init; }
     public Layer5Result? Layer5 { get; init; }
+    public InMemoryGraphRepository? Graph { get; init; }
     public required LayerScanTimings Timings { get; init; }
 
     public IReadOnlyList<FileNode> Files => Layer1.Files;
     public IReadOnlyList<ProjectNode> Projects => Layer2?.Projects ?? [];
     public IReadOnlyList<PackageNode> Packages => Layer2?.Packages ?? [];
     public IReadOnlyList<SyntaxTree> SyntaxTrees => Layer3?.SyntaxTrees ?? [];
+
+    public Task SaveToAsync(IGraphClient targetClient, CancellationToken cancellationToken = default) =>
+        Graph != null ? Graph.SaveToAsync(targetClient, cancellationToken) : Task.CompletedTask;
 
     public void Dispose()
     {

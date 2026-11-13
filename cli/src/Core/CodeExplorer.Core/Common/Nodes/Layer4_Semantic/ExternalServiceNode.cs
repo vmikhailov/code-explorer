@@ -16,6 +16,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     pluralLabel: "External Services & Resources"
 )]
 [OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
+[OntologyEdge<CloudResourceNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.CallsEndpoint)]

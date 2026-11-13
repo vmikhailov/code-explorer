@@ -56,7 +56,8 @@ public enum NodeKind : byte
     Cloud = 46,
     DbSchema = 47,
     Module = 48,
-    Workload = 49
+    Workload = 49,
+    CloudResource = 50
 }
 
 [JsonConverter(typeof(RelationshipKindJsonConverter))]
@@ -191,6 +192,8 @@ public static class OntologyEnumMaps
         nodeByName["dbschema"] = NodeKind.DbSchema;
         nodeByName["database_schema"] = NodeKind.DbSchema;
         nodeByName["databaseschema"] = NodeKind.DbSchema;
+        nodeByName["cloud_resource"] = NodeKind.CloudResource;
+        nodeByName["cloudresource"] = NodeKind.CloudResource;
 
         NodeKindByName = nodeByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByNodeKind = nameByNode.ToFrozenDictionary();

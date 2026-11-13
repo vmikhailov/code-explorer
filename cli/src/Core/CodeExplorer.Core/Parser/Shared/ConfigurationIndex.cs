@@ -196,7 +196,7 @@ public static class ConfigurationIndex
         if (string.IsNullOrWhiteSpace(fileName)) return false;
         if (SharedFileParserRegistry.CanParse(fileName)) return true;
 
-        var parsers = WorkspaceIndexer.GetAllProjectParsers();
+        var parsers = ParserRegistry.GetAllProjectParsers();
         for (int i = 0; i < parsers.Count; i++)
         {
             if (parsers[i].IsConfigurationFile(fileName)) return true;

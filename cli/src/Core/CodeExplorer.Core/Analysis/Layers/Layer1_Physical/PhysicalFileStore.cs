@@ -6,7 +6,7 @@ using System.Text;
 namespace CodeExplorer.Core.Parser;
 
 /// <summary>
-/// Thread-safe in-memory store populated by Layer 1 (<see cref="Layers.Layer1PhysicalParser"/>)
+/// Thread-safe in-memory store populated by Layer 1 (<c>Layer1PhysicalParser</c>)
 /// during the single physical directory and file scan. Ensures that once a file or directory listing
 /// is read in Layer 1, downstream layers (Layer 2 and Layer 3) consume the in-memory content
 /// without returning to disk.

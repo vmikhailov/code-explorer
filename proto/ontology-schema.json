@@ -416,9 +416,22 @@
           "toKind": "Cloud",
           "category": "type_dependency",
           "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
         }
       ],
-      "inEdges": [],
+      "inEdges": [
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
+        }
+      ],
       "inheritedOutEdges": [
         {
           "rel": "DEPENDS_ON",
@@ -565,6 +578,13 @@
         },
         {
           "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
@@ -572,6 +592,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
@@ -720,6 +747,13 @@
         },
         {
           "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
@@ -727,6 +761,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
@@ -856,6 +897,13 @@
         },
         {
           "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
@@ -863,6 +911,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
@@ -985,6 +1040,13 @@
         },
         {
           "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Workload"
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
@@ -992,6 +1054,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "TESTS",
           "fromKind": "TestSuite",
@@ -1493,6 +1562,18 @@
           "sourceName": "MessageType",
           "type": "string",
           "description": "Payload or event contract type published/consumed on this topic."
+        },
+        {
+          "name": "resource_type",
+          "sourceName": "ResourceType",
+          "type": "string",
+          "description": "IaC resource type when provisioned by Terraform or cloud templates."
+        },
+        {
+          "name": "provisioned_by",
+          "sourceName": "ProvisionedBy",
+          "type": "string",
+          "description": "IaC tool or engine provisioning this topic (e.g. terraform)."
         }
       ],
       "outEdges": [
@@ -1521,6 +1602,12 @@
           "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
           "rel": "DECLARED_IN",
           "toKind": "File",
           "category": "structural",
@@ -1545,6 +1632,12 @@
           "fromKind": "Worker",
           "category": "data_flow",
           "description": "Links a service or handler function to a message queue or topic it listens to or consumes events from."
+        },
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
         },
         {
           "rel": "CONTAINS",
@@ -1700,6 +1793,12 @@
           "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
         },
         {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
           "rel": "DECLARED_IN",
           "toKind": "File",
           "category": "structural",
@@ -1724,6 +1823,12 @@
           "fromKind": "Endpoint",
           "category": "data_flow",
           "description": "Links an ingress endpoint or binary entry point to a downstream database, query, cloud resource, or external service reached along its call chain."
+        },
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
         }
       ],
       "sampleCypher": "MATCH (n:ExternalService)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.protocol, n.domain_or_service, t.name\nLIMIT 25"
@@ -1780,6 +1885,12 @@
       "inEdges": [
         {
           "rel": "HOSTED_IN",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
+        },
+        {
+          "rel": "HOSTED_IN",
           "fromKind": "Database",
           "category": "type_dependency",
           "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
@@ -1804,6 +1915,149 @@
         }
       ],
       "sampleCypher": "MATCH (n:Cloud)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.provider, n.region, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "CloudResource",
+      "pluralLabel": "Cloud Resources",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "cloud-upload",
+      "order": 14,
+      "idScheme": "{workspaceId}:p:{relativeProjectDir}:cr:{resourceAddress}",
+      "purpose": "Represents a provisioned or referenced cloud infrastructure resource (e.g. RDS instance, SQS queue, S3 bucket, VPC, IAM role, KMS key, Kubernetes workload) hosted in a Cloud platform.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The canonical resource address or name (e.g. aws_s3_bucket.assets)."
+        },
+        {
+          "name": "resource_type",
+          "sourceName": "ResourceType",
+          "type": "string",
+          "description": "The provider resource type identifier (e.g. aws_s3_bucket, aws_db_instance, google_sql_database_instance)."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The path of the folder or file relative to its parent container."
+        },
+        {
+          "name": "provider",
+          "sourceName": "Provider",
+          "type": "string",
+          "description": "Cloud or infrastructure provider (e.g. aws, gcp, azure, kubernetes, digitalocean, cloudflare)."
+        },
+        {
+          "name": "resource_role",
+          "sourceName": "ResourceRole",
+          "type": "string",
+          "description": "Operational role of the cloud resource (database, messaging, storage, compute, network, security, secrets, cdn, dns, container, monitoring)."
+        },
+        {
+          "name": "mode",
+          "sourceName": "Mode",
+          "type": "string",
+          "description": "Declaration mode of the resource (managed or data)."
+        },
+        {
+          "name": "file_path",
+          "sourceName": "FilePath",
+          "type": "string",
+          "description": "Workspace-relative source file declaring the cloud resource."
+        },
+        {
+          "name": "line",
+          "sourceName": "Line",
+          "type": "integer",
+          "description": "1-indexed starting line number of the resource declaration."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Member",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPLOYS",
+          "toKind": "Database",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
+        },
+        {
+          "rel": "DEPLOYS",
+          "toKind": "ExternalService",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
+        },
+        {
+          "rel": "DEPLOYS",
+          "toKind": "Topic",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
+        },
+        {
+          "rel": "DEPLOYS",
+          "toKind": "Workload",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
+        },
+        {
+          "rel": "HOSTED_IN",
+          "toKind": "Cloud",
+          "category": "type_dependency",
+          "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "Database",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "ExternalService",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "Topic",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "Workload",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        }
+      ],
+      "sampleCypher": "MATCH (n:CloudResource)-[:DEPENDS_ON]->(t:CloudResource)\nRETURN n.name, n.resource_type, n.provider, t.name\nLIMIT 25"
     },
     {
       "kind": "PeerMesh",
@@ -1938,6 +2192,18 @@
           "sourceName": "IsOrm",
           "type": "boolean",
           "description": "Indicates whether access was inferred via an ORM entity/DbContext mapping."
+        },
+        {
+          "name": "resource_type",
+          "sourceName": "ResourceType",
+          "type": "string",
+          "description": "IaC resource type when provisioned by Terraform or cloud templates."
+        },
+        {
+          "name": "provisioned_by",
+          "sourceName": "ProvisionedBy",
+          "type": "string",
+          "description": "IaC tool or engine provisioning this database (e.g. terraform)."
         }
       ],
       "outEdges": [
@@ -1952,6 +2218,12 @@
           "toKind": "Cloud",
           "category": "type_dependency",
           "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
         },
         {
           "rel": "CONTAINS",
@@ -1978,6 +2250,12 @@
           "fromKind": "Workload",
           "category": "data_flow",
           "description": "Links a project to a database catalog or instance it utilizes."
+        },
+        {
+          "rel": "DEPLOYS",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys."
         },
         {
           "rel": "CONTAINS",
@@ -3015,6 +3293,12 @@
         }
       ],
       "inEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "CloudResource",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
         {
           "rel": "DECLARES",
           "fromKind": "Function",
@@ -4082,6 +4366,12 @@
         },
         {
           "rel": "DECLARED_IN",
+          "fromKind": "CloudResource",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
           "fromKind": "Database",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -5067,6 +5357,14 @@
           "toKind": "BoundedContext"
         },
         {
+          "fromKind": "CloudResource",
+          "toKind": "CloudResource"
+        },
+        {
+          "fromKind": "CloudResource",
+          "toKind": "Member"
+        },
+        {
           "fromKind": "Domain",
           "toKind": "Domain"
         },
@@ -5093,6 +5391,36 @@
       ]
     },
     {
+      "rel": "DEPLOYS",
+      "category": "type_dependency",
+      "description": "Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "CloudResource",
+          "toKind": "Database"
+        },
+        {
+          "fromKind": "CloudResource",
+          "toKind": "ExternalService"
+        },
+        {
+          "fromKind": "CloudResource",
+          "toKind": "Topic"
+        },
+        {
+          "fromKind": "CloudResource",
+          "toKind": "Workload"
+        }
+      ]
+    },
+    {
       "rel": "HOSTED_IN",
       "category": "type_dependency",
       "description": "Links an external service, database, messaging broker, or runtime workload to the cloud platform or vendor hosting it.",
@@ -5104,6 +5432,10 @@
         }
       ],
       "pairs": [
+        {
+          "fromKind": "CloudResource",
+          "toKind": "Cloud"
+        },
         {
           "fromKind": "Database",
           "toKind": "Cloud"
@@ -5135,12 +5467,28 @@
       ],
       "pairs": [
         {
+          "fromKind": "Database",
+          "toKind": "CloudResource"
+        },
+        {
+          "fromKind": "ExternalService",
+          "toKind": "CloudResource"
+        },
+        {
           "fromKind": "Module",
           "toKind": "Project"
         },
         {
           "fromKind": "Package",
           "toKind": "Project"
+        },
+        {
+          "fromKind": "Topic",
+          "toKind": "CloudResource"
+        },
+        {
+          "fromKind": "Workload",
+          "toKind": "CloudResource"
         }
       ]
     },
@@ -5392,6 +5740,10 @@
         },
         {
           "fromKind": "Cloud",
+          "toKind": "File"
+        },
+        {
+          "fromKind": "CloudResource",
           "toKind": "File"
         },
         {

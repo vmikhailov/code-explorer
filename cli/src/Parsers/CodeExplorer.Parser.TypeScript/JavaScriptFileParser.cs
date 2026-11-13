@@ -39,9 +39,8 @@ public class JavaScriptFileParser : IFileParser
         CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
         CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
-        string sourceText,
-        ParsingContext? ctx) =>
-        _tsParser.EnrichFileSignals(fileNode, syntaxTree, project, sourceText, ctx);
+        string sourceText) =>
+        _tsParser.EnrichFileSignals(fileNode, syntaxTree, project, sourceText);
 
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {

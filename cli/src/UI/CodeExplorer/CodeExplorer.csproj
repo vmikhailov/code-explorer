@@ -11,6 +11,7 @@
     <Using Include="CodeExplorer.Server" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
+    <ProjectReference Include="..\..\Core\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
     <ProjectReference Include="..\..\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
 
@@ -24,6 +25,7 @@
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.SQL\CodeExplorer.Parser.SQL.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Terraform\CodeExplorer.Parser.Terraform.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.ColdFusion\CodeExplorer.Parser.ColdFusion.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
   </ItemGroup>

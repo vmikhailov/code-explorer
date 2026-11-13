@@ -136,7 +136,8 @@ public static class OntologyUploader
             NodeKind.Table or
             NodeKind.EntryPoint or
             NodeKind.Endpoint or
-            NodeKind.ExternalService)
+            NodeKind.ExternalService or
+            NodeKind.CloudResource)
         {
             var nameStr = node.GetName();
             if (!string.IsNullOrEmpty(nameStr))
@@ -437,7 +438,7 @@ public static class OntologyUploader
             }
             return new UsesApiRelationship(parentId, child.Id);
         }
-        if (child.Kind == NodeKind.CloudService)
+        if (child.Kind is NodeKind.CloudService or NodeKind.CloudResource)
         {
             if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
             {

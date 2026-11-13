@@ -15,6 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     pluralLabel: "Message Topics & Queues"
 )]
 [OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
+[OntologyEdge<CloudResourceNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]
@@ -52,6 +53,12 @@ public record TopicNode(
 
     [JsonPropertyName("message_type"), OntologyProperty("Payload or event contract type published/consumed on this topic.")]
     public string? MessageType { get; set; }
+
+    [JsonPropertyName("resource_type"), OntologyProperty("IaC resource type when provisioned by Terraform or cloud templates.")]
+    public string? ResourceType { get; init; }
+
+    [JsonPropertyName("provisioned_by"), OntologyProperty("IaC tool or engine provisioning this topic (e.g. terraform).")]
+    public string? ProvisionedBy { get; init; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Topic;

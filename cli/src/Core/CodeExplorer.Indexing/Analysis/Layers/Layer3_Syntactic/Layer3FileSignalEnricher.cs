@@ -12,13 +12,6 @@ namespace CodeExplorer.Core.Parser.Layers;
 /// </summary>
 public static class Layer3FileSignalEnricher
 {
-    private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex SchemaConstRegex = new(@"(?:Schema_?Name|Default_?Schema_?Name|Default_?Schema)\s*(?::\s*[^=]+)?=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[^,]+\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DataSourceSchemaRegex = new(@"\b(?:schema|defaultSchema)\s*:\s*[""']([A-Za-z0-9_-]+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex EntityOrTableDeclRegex = new(@"(?::\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b|\bI?DbSet\s*<|\b__tablename__\b|@(?:Entity|Table|ViewEntity)\b|\[\s*Table\s*\(|\bdeclarative_base\b|\bmodelBuilder\.Entity\b)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     public const string ExtHasEntityOrTable = "has_entity_or_table";
     public const string ExtDbContextBaseConn = "dbcontext_base_conn";
     public const string ExtDbContextClasses = "dbcontext_classes";
@@ -38,68 +31,7 @@ public static class Layer3FileSignalEnricher
     private const string SigConnStr = "connstr";
 
     public static void EnrichFileDatabaseSignals(FileNode? fileNode, string? sourceText, string filePath)
-    {
-        if (fileNode == null || string.IsNullOrEmpty(sourceText)) return;
-
-        var signals = fileNode.Signals();
-        if (EntityOrTableDeclRegex.IsMatch(sourceText))
-        {
-            signals.HasEntityOrTable = true;
-            fileNode.Flags |= SymbolFlags.HasEntityOrTable;
-        }
-
-        var rawSchema = ExtractRawSchemaToken(sourceText, filePath);
-        if (!string.IsNullOrEmpty(rawSchema))
-        {
-            signals.DeclaredSchemaRaw = rawSchema;
-        }
-    }
-
-    private static string? ExtractRawSchemaToken(string text, string filePath)
-    {
-        if (!text.Contains("schema", StringComparison.OrdinalIgnoreCase) &&
-            !text.Contains("ToTable", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var m1 = SchemaCallRegex.Match(text);
-        if (m1.Success)
-        {
-            return m1.Groups[1].Value.Trim().Trim('\'', '"');
-        }
-
-        var m2 = SchemaConstRegex.Match(text);
-        if (m2.Success)
-        {
-            return m2.Groups[1].Value.Trim().Trim('\'', '"');
-        }
-
-        var m3 = TypeOrmSchemaRegex.Match(text);
-        if (m3.Success)
-        {
-            return m3.Groups[1].Value.Trim().Trim('\'', '"');
-        }
-
-        var m4 = ToTableSchemaRegex.Match(text);
-        if (m4.Success)
-        {
-            return m4.Groups[1].Value.Trim().Trim('\'', '"');
-        }
-
-        var m5 = DataSourceSchemaRegex.Match(text);
-        if (m5.Success)
-        {
-            var val = m5.Groups[1].Value.Trim().Trim('\'', '"');
-            if (!val.Equals("true", StringComparison.OrdinalIgnoreCase) &&
-                !val.Equals("false", StringComparison.OrdinalIgnoreCase))
-            {
-                return val;
-            }
-        }
-
-        return null;
-    }
+        => SyntaxTree.EnrichFileDatabaseSignals(fileNode, sourceText, filePath);
 
     public static void EnrichFileSemanticSignalsAndRouteConstants(
         FileNode l1File,
@@ -157,6 +89,6 @@ public static class Layer3FileSignalEnricher
 
         // 3. Language-specific file signal enrichment delegated to the file parser
         var fileParser = syntaxTree.FileParser ?? WorkspaceIndexer.GetParserForFile(l1File.FullPath);
-        fileParser?.EnrichFileSignals(l1File, syntaxTree, project, sourceText, ctx);
+        fileParser?.EnrichFileSignals(l1File, syntaxTree, project, sourceText);
     }
 }

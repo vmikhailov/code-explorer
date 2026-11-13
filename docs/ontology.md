@@ -46,6 +46,7 @@ graph TD
         App["App"]
         CliTool["CliTool"]
         Cloud["Cloud"]
+        CloudResource["CloudResource"]
         CloudService["CloudService"]
         Database["Database"]
         DataSet["DataSet"]
@@ -85,11 +86,20 @@ graph TD
     CallLiteral -->|DECLARED_IN| File
     CatchClause -->|DECLARED_IN| File
     Cloud -->|DECLARED_IN| File
+    CloudResource -->|HOSTED_IN| Cloud
+    CloudResource -->|DECLARED_IN| File
+    CloudResource -->|DEPENDS_ON| CloudResource
+    CloudResource -->|DEPENDS_ON| Member
+    CloudResource -->|DEPLOYS| Database
+    CloudResource -->|DEPLOYS| Topic
+    CloudResource -->|DEPLOYS| ExternalService
+    CloudResource -->|DEPLOYS| Workload
     CloudService -->|DECLARED_IN| File
     CloudService -->|ACCESSED_BY| Function
     CloudService -->|ACCESSED_BY| Type
     CloudService -->|TRANSITIVELY_CALLS| Function
     Database -->|HOSTED_IN| Cloud
+    Database -->|IMPLEMENTED_BY| CloudResource
     Database -->|CONTAINS| DbSchema
     Database -->|DECLARED_IN| File
     Database -->|TARGETED_BY| CallArgument
@@ -116,6 +126,7 @@ graph TD
     EntryPoint -->|TRIGGERS| File
     EntryPoint -->|BELONGS_TO| Project
     ExternalService -->|HOSTED_IN| Cloud
+    ExternalService -->|IMPLEMENTED_BY| CloudResource
     ExternalService -->|DECLARED_IN| File
     ExternalService -->|DECLARED_IN| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
@@ -210,6 +221,7 @@ graph TD
     Table -->|TARGETED_BY| CallArgument
     TestSuite -->|TESTS| Module
     Topic -->|HOSTED_IN| Cloud
+    Topic -->|IMPLEMENTED_BY| CloudResource
     Topic -->|DECLARED_IN| File
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
@@ -226,6 +238,7 @@ graph TD
     Type -->|DECLARES| Type
     Worker -->|SUBSCRIBES_TO| Topic
     Workload -->|HOSTED_IN| Cloud
+    Workload -->|IMPLEMENTED_BY| CloudResource
     Workload -->|SERVICE_CALL| Service
     Workload -->|SERVICE_CALL| ExternalService
     Workload -->|USES_DB| Database
@@ -310,6 +323,7 @@ graph TD
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
 | `Cloud` | `DECLARED_IN` |
+| `CloudResource` | `DECLARED_IN` |
 | `CloudService` | `DECLARED_IN` |
 | `Database` | `DECLARED_IN` |
 | `DbSchema` | `DECLARED_IN` |
@@ -838,6 +852,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `CloudResource` | `DEPENDS_ON` |
 | `Function` | `DECLARES` |
 | `Type` | `HAS_MEMBER` |
 
@@ -1101,6 +1116,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `CloudResource` | `HOSTED_IN` |
 | `Database` | `HOSTED_IN` |
 | `ExternalService` | `HOSTED_IN` |
 | `Topic` | `HOSTED_IN` |
@@ -1115,6 +1131,48 @@ graph TD
 | `Provider` | `string?` | Normalized cloud or vendor identifier (aws, gcp, azure, cloudflare, stripe, auth0, supabase, firebase). |
 | `Region` | `string?` | Configured cloud region when declared (e.g. us-east-1, europe-west1). |
 | `Category` | `string?` | Vendor category (hyperscaler, saas, edge, managed_data). |
+
+---
+
+#### `CloudResource`
+
+> Represents a provisioned or referenced cloud infrastructure resource (e.g. RDS instance, SQS queue, S3 bucket, VPC, IAM role, KMS key, Kubernetes workload) hosted in a Cloud platform.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `HOSTED_IN` | `Cloud` |
+| `DECLARED_IN` | `File` |
+| `DEPENDS_ON` | `CloudResource` |
+| `DEPENDS_ON` | `Member` |
+| `DEPLOYS` | `Database` |
+| `DEPLOYS` | `Topic` |
+| `DEPLOYS` | `ExternalService` |
+| `DEPLOYS` | `Workload` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `CloudResource` | `DEPENDS_ON` |
+| `Database` | `IMPLEMENTED_BY` |
+| `ExternalService` | `IMPLEMENTED_BY` |
+| `Topic` | `IMPLEMENTED_BY` |
+| `Workload` | `IMPLEMENTED_BY` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The canonical resource address or name (e.g. aws_s3_bucket.assets). |
+| `ResourceType` | `string` | The provider resource type identifier (e.g. aws_s3_bucket, aws_db_instance, google_sql_database_instance). |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `Provider` | `string?` | Cloud or infrastructure provider (e.g. aws, gcp, azure, kubernetes, digitalocean, cloudflare). |
+| `ResourceRole` | `string?` | Operational role of the cloud resource (database, messaging, storage, compute, network, security, secrets, cdn, dns, container, monitoring). |
+| `Mode` | `string?` | Declaration mode of the resource (managed or data). |
+| `FilePath` | `string?` | Workspace-relative source file declaring the cloud resource. |
+| `Line` | `int?` | 1-indexed starting line number of the resource declaration. |
 
 ---
 
@@ -1158,6 +1216,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `HOSTED_IN` | `Cloud` |
+| `IMPLEMENTED_BY` | `CloudResource` |
 | `CONTAINS` | `DbSchema` |
 | `DECLARED_IN` | `File` |
 | `TARGETED_BY` | `CallArgument` |
@@ -1167,6 +1226,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `BoundedContext` | `CONTAINS` |
+| `CloudResource` | `DEPLOYS` |
 | `Endpoint` | `ATTRIBUTED_TO` |
 | `SemanticStructure` | `CONTAINS` |
 | `Workload` | `USES_DB` |
@@ -1188,6 +1248,8 @@ graph TD
 | `FromConfig` | `bool?` | Indicates whether the database connection was discovered from configuration files. |
 | `IsTest` | `bool?` | Indicates whether this database instance is used exclusively in tests. |
 | `IsOrm` | `bool?` | Indicates whether access was inferred via an ORM entity/DbContext mapping. |
+| `ResourceType` | `string?` | IaC resource type when provisioned by Terraform or cloud templates. |
+| `ProvisionedBy` | `string?` | IaC tool or engine provisioning this database (e.g. terraform). |
 
 ---
 
@@ -1299,6 +1361,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `HOSTED_IN` | `Cloud` |
+| `IMPLEMENTED_BY` | `CloudResource` |
 | `DECLARED_IN` | `File` |
 | `DECLARED_IN` | `Project` |
 | `CALLS_ENDPOINT` | `Endpoint` |
@@ -1312,6 +1375,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `CloudResource` | `DEPLOYS` |
 | `Endpoint` | `ATTRIBUTED_TO` |
 | `SemanticStructure` | `CONTAINS` |
 | `Workload` | `SERVICE_CALL` |
@@ -1620,6 +1684,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `HOSTED_IN` | `Cloud` |
+| `IMPLEMENTED_BY` | `CloudResource` |
 | `DECLARED_IN` | `File` |
 | `PUBLISHED_BY` | `Function` |
 | `SUBSCRIBED_BY` | `Function` |
@@ -1630,6 +1695,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `BoundedContext` | `CONTAINS` |
+| `CloudResource` | `DEPLOYS` |
 | `Endpoint` | `SUBSCRIBES_TO` |
 | `SemanticStructure` | `CONTAINS` |
 | `Worker` | `SUBSCRIBES_TO` |
@@ -1647,6 +1713,8 @@ graph TD
 | `MessagingDirection` | `string?` | Direction of broker interaction (publish, subscribe, both). |
 | `Scope` | `string?` | Broker scope or virtual host / namespace. |
 | `MessageType` | `string?` | Payload or event contract type published/consumed on this topic. |
+| `ResourceType` | `string?` | IaC resource type when provisioned by Terraform or cloud templates. |
+| `ProvisionedBy` | `string?` | IaC tool or engine provisioning this topic (e.g. terraform). |
 
 ---
 
@@ -1687,10 +1755,17 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `HOSTED_IN` | `Cloud` |
+| `IMPLEMENTED_BY` | `CloudResource` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `CloudResource` | `DEPLOYS` |
 
 **Properties:**
 
@@ -1815,6 +1890,7 @@ graph TD
 | `DECLARES_TYPE` | Indicates that a project declares a specific type. |
 | `DEFINES` | Indicates that an entity defines a particular property or configuration. |
 | `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
+| `DEPLOYS` | Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys. |
 | `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
 | `EXPOSES` | Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes. |
 | `FLOWS_TO` | Traces semantic dataflow between call arguments and parameters across intra- and inter-procedural hops. |
@@ -1886,6 +1962,7 @@ graph TD
 | Layer 4: Semantic Structure | `App` | `{workspaceId}:app:{appName}` |
 | Layer 4: Semantic Structure | `CliTool` | `{workspaceId}:cli:{toolName}` |
 | Layer 4: Semantic Structure | `Cloud` | `{workspaceId}:cloud:{provider}` |
+| Layer 4: Semantic Structure | `CloudResource` | `{workspaceId}:p:{relativeProjectDir}:cr:{resourceAddress}` |
 | Layer 4: Semantic Structure | `CloudService` | `{workspaceId}:p:{relativeProjectDir}:cloud:{serviceName}` |
 | Layer 4: Semantic Structure | `Database` | `{workspaceId}:db:{dbType}:{dbName}` |
 | Layer 4: Semantic Structure | `DataSet` | `{workspaceId}:ds:{datasetName}` |

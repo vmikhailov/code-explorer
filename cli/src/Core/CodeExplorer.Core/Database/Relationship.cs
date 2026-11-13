@@ -58,6 +58,9 @@ public record Relationship
     private const string PropDbType = "db_type";
     private const string PropIsImplicitSchema = "is_implicit_schema";
     private const string PropProtocols = "protocols";
+    private const string PropRef = "ref";
+    private const string PropOut = "out";
+    private const string PropInferred = "inferred";
     private const string BoolTrueStr = "true";
     private const string BoolFalseStr = "false";
 
@@ -197,6 +200,15 @@ public record Relationship
     public string? Protocols { get; set; }
 
     [JsonIgnore]
+    public string? ReferenceExpression { get; set; }
+
+    [JsonIgnore]
+    public string? OutputName { get; set; }
+
+    [JsonIgnore]
+    public bool IsInferred { get; set; }
+
+    [JsonIgnore]
     public Dictionary<string, string>? CustomProperties { get; set; }
 
     [JsonIgnore]
@@ -241,6 +253,9 @@ public record Relationship
         !string.IsNullOrEmpty(DbType) ||
         IsImplicitSchema ||
         !string.IsNullOrEmpty(Protocols) ||
+        !string.IsNullOrEmpty(ReferenceExpression) ||
+        !string.IsNullOrEmpty(OutputName) ||
+        IsInferred ||
         (CustomProperties is { Count: > 0 }) ||
         (_properties is { Count: > 0 });
 
@@ -343,6 +358,9 @@ public record Relationship
         if (props.TryGetValue(PropDbType, out var dbt) && dbt != null) DbType = dbt.ToString();
         if (props.TryGetValue(PropIsImplicitSchema, out var imp) && bool.TryParse(imp?.ToString(), out var pImp)) IsImplicitSchema = pImp;
         if (props.TryGetValue(PropProtocols, out var prt) && prt != null) Protocols = prt.ToString();
+        if (props.TryGetValue(PropRef, out var rf) && rf != null) ReferenceExpression = rf.ToString();
+        if (props.TryGetValue(PropOut, out var ot) && ot != null) OutputName = ot.ToString();
+        if (props.TryGetValue(PropInferred, out var inf) && bool.TryParse(inf?.ToString(), out var pInf)) IsInferred = pInf;
         HydrateCallContext(props);
     }
 
@@ -427,6 +445,9 @@ public record Relationship
             dbRel.Schema = typed.Schema;
             dbRel.IsImplicitSchema = typed.IsImplicitSchema;
             dbRel.Protocols = typed.Protocols;
+            dbRel.ReferenceExpression = typed.ReferenceExpression;
+            dbRel.OutputName = typed.OutputName;
+            dbRel.IsInferred = typed.IsInferred;
         }
         if (rel.CustomProperties is { Count: > 0 })
         {
@@ -508,6 +529,9 @@ public record Relationship
         if (!string.IsNullOrEmpty(DbType)) dict[PropDbType] = DbType;
         if (IsImplicitSchema) dict[PropIsImplicitSchema] = BoolTrueStr;
         if (!string.IsNullOrEmpty(Protocols)) dict[PropProtocols] = Protocols;
+        if (!string.IsNullOrEmpty(ReferenceExpression)) dict[PropRef] = ReferenceExpression;
+        if (!string.IsNullOrEmpty(OutputName)) dict[PropOut] = OutputName;
+        if (IsInferred) dict[PropInferred] = BoolTrueStr;
 
         if (EvidenceIds is { Count: > 0 })
         {
@@ -624,6 +648,9 @@ public record Relationship
         if (!string.IsNullOrEmpty(DbType)) writer.WriteString(PropDbType, DbType);
         if (IsImplicitSchema) writer.WriteString(PropIsImplicitSchema, BoolTrueStr);
         if (!string.IsNullOrEmpty(Protocols)) writer.WriteString(PropProtocols, Protocols);
+        if (!string.IsNullOrEmpty(ReferenceExpression)) writer.WriteString(PropRef, ReferenceExpression);
+        if (!string.IsNullOrEmpty(OutputName)) writer.WriteString(PropOut, OutputName);
+        if (IsInferred) writer.WriteString(PropInferred, BoolTrueStr);
 
         if (EvidenceIds is { Count: > 0 })
         {

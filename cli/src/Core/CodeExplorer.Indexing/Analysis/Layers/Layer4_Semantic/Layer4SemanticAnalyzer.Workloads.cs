@@ -238,6 +238,7 @@ public partial class Layer4SemanticParser
 
     private async Task EnrichProjectsSemanticsAsync(
         List<ProjectNode> allProjects,
+        List<FileNode> allFiles,
         Dictionary<string, List<FileNode>> filesByProjectId,
         Dictionary<string, List<SyntaxTree>> treesByProjectId,
         Dictionary<string, IOntologyNode> workloadNodeByProjectId,
@@ -339,6 +340,37 @@ public partial class Layer4SemanticParser
                 await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetFileParser, ctx, workloadNode);
             }
 
+            var enrichResult = await projectParser.EnrichProjectAsync(new ProjectEnrichmentContext(
+                ctx.WorkspaceId,
+                ctx.AbsoluteWorkspacePath,
+                project,
+                projectTrees,
+                allProjects,
+                treesByProjectId,
+                allFiles));
+
+            foreach (var semNode in enrichResult.SemanticNodes)
+            {
+                if (semanticStructureChildIds.Add(semNode.Id))
+                {
+                    semanticStructureNode.Children.Add(semNode);
+                    semanticNodes.Add(semNode);
+                }
+            }
+
+            foreach (var rel in enrichResult.SemanticRelationships)
+            {
+                if (existingRelKeys.Add((rel.From, rel.To, rel.Kind.ToCypherType())))
+                {
+                    semanticRelationships.Add(rel);
+                }
+            }
+
+            foreach (var globalRel in enrichResult.GlobalRelationships)
+            {
+                ctx.AddGlobalProjectDependency(globalRel);
+            }
+
             // Collect semantic nodes parsed from files
             var projectSemanticNodes = new List<IOntologyNode>();
             foreach (var syntaxTree in projectTrees)
@@ -347,7 +379,7 @@ public partial class Layer4SemanticParser
                 {
                     CollectSemanticNodes(syntaxTree.FileNode, projectSemanticNodes);
                 }
-                if (!ctx.LightweightAstScanMode)
+                if (!ctx.LightweightAstScanMode && syntaxTree.FileParser.UsesTreeSitter)
                 {
                     syntaxTree.Dispose();
                 }
@@ -475,7 +507,10 @@ public partial class Layer4SemanticParser
                     {
                         secRolesList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(project.SecondaryRoles) ?? [];
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _ = ex.Message;
+                    }
                 }
                 if (!secRolesList.Contains("Service"))
                 {

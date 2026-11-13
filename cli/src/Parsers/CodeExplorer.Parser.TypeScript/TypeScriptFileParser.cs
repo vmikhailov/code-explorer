@@ -64,8 +64,7 @@ public class TypeScriptFileParser : IFileParser
         CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
         CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
-        string sourceText,
-        ParsingContext? ctx)
+        string sourceText)
     {
         if (project == null ||
             (!fileNode.Name.Contains("config", StringComparison.OrdinalIgnoreCase) &&

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -14,13 +15,35 @@ namespace CodeExplorer.Core.Database;
 /// </summary>
 public class InMemoryGraphRepository : IGraphRepository, IGraphClient
 {
-    protected readonly ConcurrentDictionary<string, Node> NodesById = new(StringComparer.Ordinal);
-    protected readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Node>> NodesByKind = new(StringComparer.OrdinalIgnoreCase);
-    protected readonly ConcurrentDictionary<NodeKind, ConcurrentDictionary<string, Node>> NodesByKindEnum = new();
-    protected readonly ConcurrentDictionary<string, List<Relationship>> OutgoingEdges = new(StringComparer.Ordinal);
-    protected readonly ConcurrentDictionary<string, List<Relationship>> IncomingEdges = new(StringComparer.Ordinal);
-    protected readonly List<Relationship> AllRelationships = [];
-    protected readonly object SyncLock = new();
+    private const string PropId = "id";
+    private const string PropPath = "path";
+    private const string PropExternalApis = "external_apis";
+    private const string PropName = "name";
+    private const string PropFilePath = "file_path";
+    private const string PropHttpMethod = "http_method";
+    private const string PropRouteTemplate = "route_template";
+    private const string PropRoute = "route";
+    private const string PropEntryType = "entry_type";
+    private const string PropType = "type";
+    private const string PropProtocol = "protocol";
+    private const string PropServiceType = "service_type";
+    private const string PropDomainOrService = "domain_or_service";
+    private const string PropDomain = "domain";
+    private const string PropService = "service";
+    private const string PropTargetPath = "target_path";
+    private const string PropRole = "role";
+    private const string PropLanguage = "language";
+    private const string WorkspaceIdPrefix = "wid:";
+
+    protected internal readonly ConcurrentDictionary<string, Node> NodesById = new(StringComparer.Ordinal);
+    protected internal readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Node>> NodesByKind = new(StringComparer.OrdinalIgnoreCase);
+    protected internal readonly ConcurrentDictionary<NodeKind, ConcurrentDictionary<string, Node>> NodesByKindEnum = new();
+    protected internal readonly ConcurrentDictionary<string, List<Relationship>> OutgoingEdges = new(StringComparer.Ordinal);
+    protected internal readonly ConcurrentDictionary<string, List<Relationship>> IncomingEdges = new(StringComparer.Ordinal);
+    protected internal readonly Dictionary<(string From, string To, RelationshipKind Kind), Relationship> RelationshipsByKey = new();
+    protected internal readonly List<Relationship> AllRelationships = [];
+    protected internal readonly Dictionary<string, List<string>> ProjectExternalApis = new(StringComparer.Ordinal);
+    protected internal readonly object SyncLock = new();
 
     public List<Node> UploadedNodes
     {
@@ -105,43 +128,16 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
 
     public ValueTask<IReadOnlyList<Relationship>> GetOutgoingRelationshipsAsync(
         string fromNodeId,
-        CancellationToken ct = default)
-    {
-        return GetOutgoingRelationshipsInternalAsync(fromNodeId, null, ct);
-    }
+        CancellationToken ct = default) =>
+        GetOutgoingRelationshipsAsync(fromNodeId, RelationshipKind.Unspecified, ct);
 
     public ValueTask<IReadOnlyList<Relationship>> GetOutgoingRelationshipsAsync(
         string fromNodeId,
         string relationshipKind,
-        CancellationToken ct = default)
-    {
-        return GetOutgoingRelationshipsInternalAsync(fromNodeId, relationshipKind, ct);
-    }
-
-    private ValueTask<IReadOnlyList<Relationship>> GetOutgoingRelationshipsInternalAsync(
-        string fromNodeId,
-        string? relationshipKind,
-        CancellationToken ct = default)
-    {
-        if (string.IsNullOrEmpty(fromNodeId)) return ValueTask.FromResult<IReadOnlyList<Relationship>>([]);
-
-        lock (SyncLock)
-        {
-            if (!OutgoingEdges.TryGetValue(fromNodeId, out var rels))
-            {
-                return ValueTask.FromResult<IReadOnlyList<Relationship>>([]);
-            }
-
-            if (string.IsNullOrEmpty(relationshipKind))
-            {
-                return ValueTask.FromResult<IReadOnlyList<Relationship>>([.. rels]);
-            }
-
-            var parsedKind = EnumExtensions.ParseRelationshipKind(relationshipKind);
-            var filtered = rels.Where(r => r.Kind == parsedKind).ToList();
-            return ValueTask.FromResult<IReadOnlyList<Relationship>>(filtered);
-        }
-    }
+        CancellationToken ct = default) =>
+        string.IsNullOrEmpty(relationshipKind)
+            ? GetOutgoingRelationshipsAsync(fromNodeId, RelationshipKind.Unspecified, ct)
+            : GetOutgoingRelationshipsAsync(fromNodeId, EnumExtensions.ParseRelationshipKind(relationshipKind), ct);
 
     public ValueTask<IReadOnlyList<Relationship>> GetOutgoingRelationshipsAsync(
         string fromNodeId,
@@ -169,43 +165,16 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
 
     public ValueTask<IReadOnlyList<Relationship>> GetIncomingRelationshipsAsync(
         string toNodeId,
-        CancellationToken ct = default)
-    {
-        return GetIncomingRelationshipsInternalAsync(toNodeId, null, ct);
-    }
+        CancellationToken ct = default) =>
+        GetIncomingRelationshipsAsync(toNodeId, RelationshipKind.Unspecified, ct);
 
     public ValueTask<IReadOnlyList<Relationship>> GetIncomingRelationshipsAsync(
         string toNodeId,
         string relationshipKind,
-        CancellationToken ct = default)
-    {
-        return GetIncomingRelationshipsInternalAsync(toNodeId, relationshipKind, ct);
-    }
-
-    private ValueTask<IReadOnlyList<Relationship>> GetIncomingRelationshipsInternalAsync(
-        string toNodeId,
-        string? relationshipKind,
-        CancellationToken ct = default)
-    {
-        if (string.IsNullOrEmpty(toNodeId)) return ValueTask.FromResult<IReadOnlyList<Relationship>>([]);
-
-        lock (SyncLock)
-        {
-            if (!IncomingEdges.TryGetValue(toNodeId, out var rels))
-            {
-                return ValueTask.FromResult<IReadOnlyList<Relationship>>([]);
-            }
-
-            if (string.IsNullOrEmpty(relationshipKind))
-            {
-                return ValueTask.FromResult<IReadOnlyList<Relationship>>([.. rels]);
-            }
-
-            var parsedKind = EnumExtensions.ParseRelationshipKind(relationshipKind);
-            var filtered = rels.Where(r => r.Kind == parsedKind).ToList();
-            return ValueTask.FromResult<IReadOnlyList<Relationship>>(filtered);
-        }
-    }
+        CancellationToken ct = default) =>
+        string.IsNullOrEmpty(relationshipKind)
+            ? GetIncomingRelationshipsAsync(toNodeId, RelationshipKind.Unspecified, ct)
+            : GetIncomingRelationshipsAsync(toNodeId, EnumExtensions.ParseRelationshipKind(relationshipKind), ct);
 
     public ValueTask<IReadOnlyList<Relationship>> GetIncomingRelationshipsAsync(
         string toNodeId,
@@ -237,19 +206,36 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
         {
             foreach (var node in nodes)
             {
-                NodesById[node.Id] = node;
-                var kindMap = NodesByKind.GetOrAdd(node.Kind.ToCypherLabel(), _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
-                kindMap[node.Id] = node;
-
-                var kindEnum = node.Kind;
-                if (kindEnum != NodeKind.Unspecified)
-                {
-                    var kindEnumMap = NodesByKindEnum.GetOrAdd(kindEnum, _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
-                    kindEnumMap[node.Id] = node;
-                }
+                UpsertNodeUnlocked(node);
             }
         }
         return Task.CompletedTask;
+    }
+
+    internal void UpsertNodeUnlocked(Node node)
+    {
+        if (NodesById.TryGetValue(node.Id, out var prevNode) && prevNode.NodeKind != node.NodeKind)
+        {
+            if (NodesByKind.TryGetValue(prevNode.NodeKind.ToCypherLabel(), out var prevKindMap))
+            {
+                prevKindMap.TryRemove(node.Id, out _);
+            }
+            if (prevNode.NodeKind != NodeKind.Unspecified && NodesByKindEnum.TryGetValue(prevNode.NodeKind, out var prevEnumMap))
+            {
+                prevEnumMap.TryRemove(node.Id, out _);
+            }
+        }
+
+        NodesById[node.Id] = node;
+        var kindEnum = node.NodeKind;
+        var kindMap = NodesByKind.GetOrAdd(kindEnum.ToCypherLabel(), _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
+        kindMap[node.Id] = node;
+
+        if (kindEnum != NodeKind.Unspecified)
+        {
+            var kindEnumMap = NodesByKindEnum.GetOrAdd(kindEnum, _ => new ConcurrentDictionary<string, Node>(StringComparer.Ordinal));
+            kindEnumMap[node.Id] = node;
+        }
     }
 
     public Task UpsertRelationshipsAsync(IEnumerable<Relationship> relationships, CancellationToken ct = default)
@@ -258,24 +244,40 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
         {
             foreach (var rel in relationships)
             {
-                AllRelationships.Add(rel);
-
-                if (!OutgoingEdges.TryGetValue(rel.From, out var outList))
-                {
-                    outList = [];
-                    OutgoingEdges[rel.From] = outList;
-                }
-                outList.Add(rel);
-
-                if (!IncomingEdges.TryGetValue(rel.To, out var inList))
-                {
-                    inList = [];
-                    IncomingEdges[rel.To] = inList;
-                }
-                inList.Add(rel);
+                UpsertRelationshipUnlocked(rel);
             }
         }
         return Task.CompletedTask;
+    }
+
+    internal void UpsertRelationshipUnlocked(Relationship rel)
+    {
+        var key = (rel.From, rel.To, rel.Kind);
+        if (RelationshipsByKey.TryGetValue(key, out var existing))
+        {
+            if (rel.HasTelemetry)
+            {
+                EvidenceProvenanceHelper.MergeRelationships(existing, rel);
+            }
+            return;
+        }
+
+        RelationshipsByKey[key] = rel;
+        AllRelationships.Add(rel);
+
+        if (!OutgoingEdges.TryGetValue(rel.From, out var outList))
+        {
+            outList = [];
+            OutgoingEdges[rel.From] = outList;
+        }
+        outList.Add(rel);
+
+        if (!IncomingEdges.TryGetValue(rel.To, out var inList))
+        {
+            inList = [];
+            IncomingEdges[rel.To] = inList;
+        }
+        inList.Add(rel);
     }
 
     public Task ClearAsync(CancellationToken ct = default)
@@ -287,7 +289,9 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
             NodesByKindEnum.Clear();
             OutgoingEdges.Clear();
             IncomingEdges.Clear();
+            RelationshipsByKey.Clear();
             AllRelationships.Clear();
+            ProjectExternalApis.Clear();
         }
         return Task.CompletedTask;
     }
@@ -403,81 +407,63 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
 
                 if (node.NodeKind == NodeKind.Endpoint && needEndpoints)
                 {
-                    var name = GetProp(node, "name");
-                    var filePath = GetProp(node, "path", GetProp(node, "file_path"));
-                    var httpMethod = GetProp(node, "http_method");
-                    var route = GetProp(node, "route_template", GetProp(node, "route"));
+                    var name = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropName);
+                    var filePath = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropPath, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropFilePath));
+                    var httpMethod = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropHttpMethod);
+                    var route = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropRouteTemplate, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropRoute));
                     endpoints.Add(new EndpointNode(node.Id, name, filePath, httpMethod, route));
                 }
                 else if (node.NodeKind == NodeKind.EntryPoint && needEndpoints)
                 {
-                    var name = GetProp(node, "name");
-                    var path = GetProp(node, "path", GetProp(node, "file_path"));
-                    var type = GetProp(node, "entry_type", GetProp(node, "type"));
+                    var name = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropName);
+                    var path = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropPath, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropFilePath));
+                    var type = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropEntryType, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropType));
                     entryPoints.Add(new EntryPointNode(node.Id, name, path, type));
                 }
                 else if (node.NodeKind == NodeKind.ExternalService && needExternalServices)
                 {
-                    var name = GetProp(node, "name");
-                    var protocol = GetProp(node, "protocol", GetProp(node, "service_type"));
-                    var domain = GetProp(node, "domain_or_service", GetProp(node, "domain", GetProp(node, "service")));
-                    var path = GetProp(node, "path", GetProp(node, "target_path"));
+                    var name = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropName);
+                    var protocol = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropProtocol, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropServiceType));
+                    var domain = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropDomainOrService, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropDomain, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropService)));
+                    var path = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropPath, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropTargetPath));
                     externalServices.Add(new ExternalServiceNode(node.Id, name, protocol, domain, path));
                 }
                 else if (node.NodeKind == NodeKind.Project)
                 {
-                    var name = GetProp(node, "name");
-                    var role = GetProp(node, "role");
-                    var lang = GetProp(node, "language");
-                    var path = GetProp(node, "path", GetProp(node, "file_path"));
+                    var name = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropName);
+                    var role = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropRole);
+                    var lang = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropLanguage);
+                    var path = InMemoryGraphMaintenance.GetNodeStringProperty(node, PropPath, InMemoryGraphMaintenance.GetNodeStringProperty(node, PropFilePath));
                     projects.Add(new ProjectNode(node.Id, name, role, lang, path));
                 }
             }
         }
 
         return Task.FromResult((endpoints, entryPoints, externalServices, projects));
-
-        static string GetProp(Node node, string key, string fallback = "")
-        {
-            if (node.Properties.TryGetValue(key, out var val) && val is not null)
-            {
-                return val.ToString() ?? fallback;
-            }
-            return fallback;
-        }
     }
 
     #endregion
 
-    #region IGraphClient Compatibility Layer
+    #region IGraphClient Compatibility Implementation
 
-    public Task CreateIndicesAsync() => Task.CompletedTask;
+    public virtual Task ClearDatabaseAsync() => ClearAsync();
 
-    public Task ClearDatabaseAsync() => ClearAsync();
+    public virtual Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath) =>
+        Task.FromResult($"{WorkspaceIdPrefix}{WorkspaceCounter++}");
 
-    public Task<bool> ClearWorkspaceAsync(string workspacePath) => Task.FromResult(true);
+    public virtual Task SaveEmptyWorkspaceNodeAsync(string id, string path) =>
+        UpsertNodesAsync([new Node(id, NodeKind.Workspace, new Dictionary<string, object> { [PropId] = id, [PropPath] = path })]);
 
-    public Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath) =>
-        Task.FromResult(WorkspaceCounter.ToString());
+    public virtual Task UploadNodesAsync(List<Node> nodes) =>
+        UpsertNodesAsync(nodes);
 
-    public Task SaveEmptyWorkspaceNodeAsync(string id, string path) => Task.CompletedTask;
+    public virtual Task UploadRelationshipsAsync(List<Relationship> rels) =>
+        UpsertRelationshipsAsync(rels);
 
-    public Task UploadNodesAsync(List<Node> nodes) => UpsertNodesAsync(nodes);
+    public virtual Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new CypherQueryResult([], []));
 
-    public Task UploadRelationshipsAsync(List<Relationship> rels) => UpsertRelationshipsAsync(rels);
-
-    public Task<CypherQueryResult> ExecuteCypherAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
-    {
-        lock (SyncLock)
-        {
-            return Task.FromResult(CypherQueryResult.FromJson(JsonSerializer.Serialize(NodesById.Values)));
-        }
-    }
-
-    public Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
-
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public virtual ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     #endregion
 }

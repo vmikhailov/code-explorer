@@ -15,6 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     pluralLabel: "Databases & Storage"
 )]
 [OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
+[OntologyEdge<CloudResourceNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<DbSchemaNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
@@ -84,6 +85,12 @@ public record DatabaseNode(
 
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the database node was synthesized from an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }
+
+    [JsonPropertyName("resource_type"), OntologyProperty("IaC resource type when provisioned by Terraform or cloud templates.")]
+    public string? ResourceType { get; init; }
+
+    [JsonPropertyName("provisioned_by"), OntologyProperty("IaC tool or engine provisioning this database (e.g. terraform).")]
+    public string? ProvisionedBy { get; init; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Database;

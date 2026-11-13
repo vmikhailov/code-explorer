@@ -113,4 +113,13 @@ public abstract record OntologyRelationship(
 
     [JsonIgnore]
     public string? Protocols { get; init; }
+
+    [JsonIgnore]
+    public string? ReferenceExpression { get; init; }
+
+    [JsonIgnore]
+    public string? OutputName { get; init; }
+
+    [JsonIgnore]
+    public bool IsInferred { get; init; }
 }

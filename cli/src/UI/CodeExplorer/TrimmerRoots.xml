@@ -4,6 +4,7 @@
   <assembly fullname="CodeExplorer.Cypher" preserve="all" />
   <assembly fullname="CodeExplorer.Server" preserve="all" />
   <assembly fullname="CodeExplorer.Gates" preserve="all" />
+  <assembly fullname="CodeExplorer.Indexing" preserve="all" />
   <assembly fullname="CodeExplorer.Analysis" preserve="all" />
   <assembly fullname="CodeExplorer.Parser.Android" preserve="all" />
   <assembly fullname="CodeExplorer.Parser.CSharp" preserve="all" />
@@ -16,6 +17,7 @@
   <assembly fullname="CodeExplorer.Parser.Script" preserve="all" />
   <assembly fullname="CodeExplorer.Parser.Shared" preserve="all" />
   <assembly fullname="CodeExplorer.Parser.SQL" preserve="all" />
+  <assembly fullname="CodeExplorer.Parser.Terraform" preserve="all" />
   <assembly fullname="CodeExplorer.Parser.TypeScript" preserve="all" />
   <assembly fullname="CommandLine" preserve="all" />
   <assembly fullname="Dapper" preserve="all" />

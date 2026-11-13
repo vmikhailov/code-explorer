@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.85.0] - 2026-11-13
+
+### Added & Improved
+- **Unified `CodeExplorer.Indexing` Assembly & Bundled Parser Package (`CodeExplorer.Indexing`, `CodeExplorer.Core`, `CodeExplorer.Analysis`)**:
+  - Extracted the 5-layer indexing pipeline (`Layer 1` Physical through `Layer 5` Global, `WorkspaceIndexer`, `PostIndexAnalyzer`, and `Incremental`) into a dedicated `CodeExplorer.Indexing` assembly and NuGet package.
+  - Bundled all `CodeExplorer.Parser.*` assemblies directly inside `CodeExplorer.Indexing` (`<IsPackable>false</IsPackable>` on individual parser projects) and removed circular/upward couplings from `CodeExplorer.Core` and `CodeExplorer.Indexing` to `CodeExplorer.Analysis`.
+- **100% In-Memory Graph Pipeline & Single-Transaction SQLite Commit (`InMemoryGraphMaintenance`, `InMemoryGraphRepository`, `SqliteGraphClient`)**:
+  - Refactored `Layer 5`, `PostIndexAnalyzer`, and `MaterializeLogicalStructureAsync` (`Domain` / `BoundedContext` synthesis, database consolidation, edge normalization, and project deduplication) to execute 100% in memory prior to the single final `CommitBulkLoadUnlockedAsync` SQLite flush.
+  - Added `InMemoryGraphRepository.SaveToAsync(IGraphClient)` so graphs indexed purely in memory can be persisted to SQLite on demand.
+  - Preserved zero-allocation `OntologyNode` and `Relationship` fast paths during in-memory post-processing (`WritePropertiesUtf8`), reducing `Layer 5 + PostIndex + DB Flush` latency by ~27%.
+- **Terraform IaC Parser & `:CloudResource` / `DEPLOYS` Ontology (`CodeExplorer.Parser.Terraform`)**:
+  - Added `TerraformProjectParser` and `TerraformFileParser` (`.tf`, `.tfvars`, `.hcl`) with `:CloudResource` node and `DEPLOYS` relationship extraction.
+
+---
+
 ## [1.84.1] - 2026-11-13
 
 ### Fixed

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="CodeExplorer.Gates" />
+    <InternalsVisibleTo Include="CodeExplorer.Indexing" />
     <InternalsVisibleTo Include="CodeExplorer.Analysis" />
     <InternalsVisibleTo Include="CodeExplorer.Server" />
     <InternalsVisibleTo Include="CodeExplorer" />

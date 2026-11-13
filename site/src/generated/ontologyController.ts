@@ -271,6 +271,7 @@ export function initOntologyController(): () => void {
       var simBodies = [];
       var simByKind = {};
       var simSprings = [];
+      var AIR_BASE_SCALE = 0.25;
       var spacingFactor = 1.0;
       var hubFactor = 1.0;
       var simAlpha = 0;
@@ -279,8 +280,12 @@ export function initOntologyController(): () => void {
       var simRafId = null;
       var lastSimSig = "";
 
+      function getEffectiveSpacingFactor() {
+        return spacingFactor * AIR_BASE_SCALE;
+      }
+
       try {
-        var savedAir = localStorage.getItem("ce_ontology_air");
+        var savedAir = localStorage.getItem("ce_ontology_air_v2");
         if (savedAir !== null) {
           var parsedAir = parseFloat(savedAir);
           if (!isNaN(parsedAir) && parsedAir >= 0.1 && parsedAir <= 2.4) {
@@ -546,8 +551,9 @@ export function initOntologyController(): () => void {
             nextByKind[dto.kind] = existing;
             continue;
           }
-          var sax = WORLD_CX + (seed.ax - WORLD_CX) * spacingFactor;
-          var say = WORLD_CY + (seed.ay - WORLD_CY) * spacingFactor;
+          var effSp = getEffectiveSpacingFactor();
+          var sax = WORLD_CX + (seed.ax - WORLD_CX) * effSp;
+          var say = WORLD_CY + (seed.ay - WORLD_CY) * effSp;
           var sx = sax;
           var sy = say;
           if (!isInitial && dto.extends) {
@@ -586,9 +592,10 @@ export function initOntologyController(): () => void {
 
         if (isInitial) {
           var warmA = 1.0;
+          var effWarmSp = getEffectiveSpacingFactor();
           for (var step = 0; step < 220; step++) {
             warmA += (0 - warmA) * ALPHA_DECAY;
-            stepSimBodies(simBodies, simSprings, warmA, spacingFactor, hubFactor);
+            stepSimBodies(simBodies, simSprings, warmA, effWarmSp, hubFactor);
           }
           for (var z = 0; z < simBodies.length; z++) {
             simBodies[z].vx = 0;
@@ -603,10 +610,11 @@ export function initOntologyController(): () => void {
       }
 
       function resetSimLayout() {
+        var effResetSp = getEffectiveSpacingFactor();
         for (var i = 0; i < simBodies.length; i++) {
           var b = simBodies[i];
-          b.x = WORLD_CX + (b.ax - WORLD_CX) * spacingFactor;
-          b.y = WORLD_CY + (b.ay - WORLD_CY) * spacingFactor;
+          b.x = WORLD_CX + (b.ax - WORLD_CX) * effResetSp;
+          b.y = WORLD_CY + (b.ay - WORLD_CY) * effResetSp;
           b.vx = 0;
           b.vy = 0;
           b.fx = null;
@@ -615,7 +623,7 @@ export function initOntologyController(): () => void {
         var warmA = 1.0;
         for (var step = 0; step < 220; step++) {
           warmA += (0 - warmA) * ALPHA_DECAY;
-          stepSimBodies(simBodies, simSprings, warmA, spacingFactor, hubFactor);
+          stepSimBodies(simBodies, simSprings, warmA, effResetSp, hubFactor);
         }
         for (var z = 0; z < simBodies.length; z++) {
           simBodies[z].vx = 0;
@@ -911,8 +919,9 @@ export function initOntologyController(): () => void {
           var n = graphNodes[i];
           var rx1 = n.x, ry1 = n.y;
           if (simAlpha > 0.05 && typeof n.ax === "number") {
-            var tax = WORLD_CX + (n.ax - WORLD_CX) * spacingFactor;
-            var tay = WORLD_CY + (n.ay - WORLD_CY) * spacingFactor;
+            var effFitSp = getEffectiveSpacingFactor();
+            var tax = WORLD_CX + (n.ax - WORLD_CX) * effFitSp;
+            var tay = WORLD_CY + (n.ay - WORLD_CY) * effFitSp;
             if (tax - 68 < minX) minX = tax - 68;
             if (tay - 74 < minY) minY = tay - 74;
             if (tax + 68 > maxX) maxX = tax + 68;
@@ -1465,7 +1474,7 @@ export function initOntologyController(): () => void {
             simAlpha = 0;
             return;
           }
-          stepSimBodies(simBodies, simSprings, simAlpha, spacingFactor, hubFactor);
+          stepSimBodies(simBodies, simSprings, simAlpha, getEffectiveSpacingFactor(), hubFactor);
           syncGraphNodesFromBodies(lastCollapsedCounts);
           drawGraph();
           simRafId = requestAnimationFrame(tickLoop);
@@ -1928,7 +1937,7 @@ export function initOntologyController(): () => void {
           var nextSp = parseFloat(zAir.value) || 1.0;
           spacingFactor = Math.max(0.1, Math.min(2.4, nextSp));
           if (zAirVal) zAirVal.textContent = spacingFactor.toFixed(1) + "x";
-          try { localStorage.setItem("ce_ontology_air", String(spacingFactor)); } catch (_e) {}
+          try { localStorage.setItem("ce_ontology_air_v2", String(spacingFactor)); } catch (_e) {}
           if (!simFrozen) {
             simAlpha = Math.max(simAlpha, 0.38);
             ensureSimLoop();

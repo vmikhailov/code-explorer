@@ -20,6 +20,7 @@ public class ParserAssemblyDiscoveryTests
         "CodeExplorer.Parser.Script",
         "CodeExplorer.Parser.Shared",
         "CodeExplorer.Parser.SQL",
+        "CodeExplorer.Parser.Terraform",
         "CodeExplorer.Parser.TypeScript"
     ];
 
@@ -93,6 +94,60 @@ public class ParserAssemblyDiscoveryTests
 
             (isProjectParser && isFileParser).Should().BeFalse(
                 $"{parserType.FullName} must not implement both IProjectParser (Layer 2) and IFileParser (Layer 3)");
+        }
+    }
+
+    [Test]
+    public void AssemblyBoundaries_IndexingPipelineIsInIndexingAssembly_AndAnalysisIsDecoupled()
+    {
+        var indexingAsm = typeof(WorkspaceIndexer).Assembly;
+        indexingAsm.GetName().Name.Should().Be("CodeExplorer.Indexing");
+
+        typeof(CodeExplorer.Core.Parser.Layers.Layer1PhysicalParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(CodeExplorer.Core.Parser.Layers.Layer2ProjectParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(CodeExplorer.Core.Parser.Layers.Layer3SyntacticParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(CodeExplorer.Core.Parser.Layers.Layer4SemanticParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(CodeExplorer.Core.Parser.Layers.Layer5AnalysisParser).Assembly.Should().BeSameAs(indexingAsm);
+
+        var coreRefs = typeof(ParserRegistry).Assembly.GetReferencedAssemblies().Select(r => r.Name).ToList();
+        coreRefs.Should().NotContain("CodeExplorer.Indexing");
+        coreRefs.Should().NotContain("CodeExplorer.Analysis");
+
+        var indexingRefs = indexingAsm.GetReferencedAssemblies().Select(r => r.Name).ToList();
+        indexingRefs.Should().NotContain("CodeExplorer.Analysis");
+    }
+
+    [Test]
+    public async Task ScanInMemoryAsync_Layer5Global_BuildsGraphInMemory_AndSavesToSqlite()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ce-inmem-scan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "Demo.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "Greeter.cs"), "namespace Demo; public class Greeter { public string Greet(string name) => name; }");
+
+            using var scanResult = await WorkspaceIndexer.ScanInMemoryAsync(
+                tempDir,
+                new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer5_Global });
+            scanResult.Graph.Should().NotBeNull();
+            scanResult.Graph!.UploadedNodes.Should().NotBeEmpty();
+            scanResult.Graph.UploadedRelationships.Should().NotBeEmpty();
+
+            var dbPath = Path.Combine(tempDir, "graph.db");
+            using var sqlite = new SqliteGraphClient(dbPath);
+            await scanResult.SaveToAsync(sqlite);
+
+            var (savedNodes, savedRels) = await sqlite.GetGraphCountsAsync();
+            savedNodes.Should().Be(scanResult.Graph.UploadedNodes.Count);
+            savedRels.Should().Be(scanResult.Graph.UploadedRelationships.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
         }
     }
 }

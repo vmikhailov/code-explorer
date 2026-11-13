@@ -152,7 +152,10 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
             var mem = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
             if (mem > 0) return (ulong)mem;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _ = ex.Message;
+        }
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
@@ -173,7 +176,10 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                     if (ulong.TryParse(str, out var bytes) && bytes > 0) return bytes;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _ = ex.Message;
+            }
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.FreeBSD))
         {
@@ -191,7 +197,10 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _ = ex.Message;
+            }
         }
 
         return (ulong)Math.Max(1, Environment.ProcessorCount) * 2UL * 1024 * 1024 * 1024;

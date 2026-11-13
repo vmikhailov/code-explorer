@@ -50,6 +50,7 @@ public static class OntologyConstants
         public const string DbSchema = "DbSchema";
         public const string Module = "Module";
         public const string Workload = "Workload";
+        public const string CloudResource = "CloudResource";
     }
 
     public static class IdPrefixes
@@ -93,6 +94,7 @@ public static class OntologyConstants
         public const string CallArgument = "arg";
         public const string Cloud = "cloud";
         public const string DbSchema = "schema";
+        public const string CloudResource = "cr";
     }
 
     public static class Layers
