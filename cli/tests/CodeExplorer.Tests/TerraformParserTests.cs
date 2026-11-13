@@ -51,18 +51,18 @@ public class TerraformParserTests
                 SemanticStructure = semantic
             };
 
-            var parser = new TerraformParser();
+            var fileParser = new TerraformFileParser();
 
             foreach (var (name, content) in files)
             {
                 var filePath = Path.Combine(tempDir, projectDir, name);
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                 await File.WriteAllTextAsync(filePath, content);
-                trees.Add(await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath));
+                trees.Add(await fileParser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath));
             }
 
             var projectNode = new ProjectNode($"{ctx.WorkspaceId}:p:{projectDir}:", "proj", projectDir, "hcl", null);
-            await parser.EnrichProjectAsync(projectNode, trees, ctx);
+            await new TerraformProjectParser().EnrichProjectAsync(projectNode, trees, ctx);
 
             // Flush enqueued relationship uploads into the in-memory client.
             channel.Writer.Complete();
@@ -548,7 +548,7 @@ public class TerraformParserTests
                 }
                 """);
 
-            var info = await new TerraformParser().ParseDependenciesAsync(unit);
+            var info = await new TerraformProjectParser().ParseDependenciesAsync(unit);
 
             var rootDir = Path.GetFullPath(root).Replace('\\', '/');
             info.LocalProjectPaths.Should().BeEquivalentTo(
@@ -666,7 +666,7 @@ public class TerraformParserTests
                 resource "aws_s3_bucket" "b" {}
                 """);
 
-            using var tree = await new TerraformParser().ParseAsync(path, "parent", "ws", dir);
+            using var tree = await new TerraformFileParser().ParseAsync(path, "parent", "ws", dir);
 
             tree.Document.Should().NotBeNull();
             var diagnostic = tree.Document!.Diagnostics.Should().ContainSingle().Subject;

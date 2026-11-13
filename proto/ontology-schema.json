@@ -1515,6 +1515,18 @@
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
         },
         {
+          "rel": "DEPLOYED_BY",
+          "toKind": "Project",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
+        },
+        {
           "rel": "HOSTED_IN",
           "toKind": "Cloud",
           "category": "type_dependency",
@@ -1946,6 +1958,18 @@
           "toKind": "CallArgument",
           "category": "data_flow",
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "toKind": "Project",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
         },
         {
           "rel": "HOSTED_IN",
@@ -2440,6 +2464,18 @@
           "description": "Links a calling function or scope to a literal argument passed directly into an invocation."
         },
         {
+          "rel": "DEPENDS_ON",
+          "toKind": "Member",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
           "rel": "INHERITS_FROM",
           "toKind": "Type",
           "category": "type_dependency",
@@ -2524,6 +2560,30 @@
           "fromKind": "Table",
           "category": "data_flow",
           "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "Member",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "Type",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "fromKind": "Database",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "fromKind": "Topic",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
         },
         {
           "rel": "INHERITS_FROM",
@@ -3002,6 +3062,18 @@
           "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
+          "rel": "DEPENDS_ON",
+          "toKind": "Member",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
           "rel": "OF_TYPE",
           "toKind": "Type",
           "category": "type_dependency",
@@ -3015,6 +3087,18 @@
         }
       ],
       "inEdges": [
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "Member",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPENDS_ON",
+          "fromKind": "Type",
+          "category": "type_dependency",
+          "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
         {
           "rel": "DECLARES",
           "fromKind": "Function",
@@ -3729,6 +3813,18 @@
           "fromKind": "Project",
           "category": "type_dependency",
           "description": "Represents a dependency relationship between projects, packages, or other entities."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "fromKind": "Database",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
+        },
+        {
+          "rel": "DEPLOYED_BY",
+          "fromKind": "Topic",
+          "category": "type_dependency",
+          "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it."
         },
         {
           "rel": "IMPLEMENTED_BY",
@@ -5071,6 +5167,14 @@
           "toKind": "Domain"
         },
         {
+          "fromKind": "Member",
+          "toKind": "Member"
+        },
+        {
+          "fromKind": "Member",
+          "toKind": "Type"
+        },
+        {
           "fromKind": "Module",
           "toKind": "Library"
         },
@@ -5089,6 +5193,44 @@
         {
           "fromKind": "Query",
           "toKind": "Table"
+        },
+        {
+          "fromKind": "Type",
+          "toKind": "Member"
+        },
+        {
+          "fromKind": "Type",
+          "toKind": "Type"
+        }
+      ]
+    },
+    {
+      "rel": "DEPLOYED_BY",
+      "category": "type_dependency",
+      "description": "Links a provisioned database, topic, or cloud service to the infrastructure-as-code resource and project that deploy it.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Database",
+          "toKind": "Project"
+        },
+        {
+          "fromKind": "Database",
+          "toKind": "Type"
+        },
+        {
+          "fromKind": "Topic",
+          "toKind": "Project"
+        },
+        {
+          "fromKind": "Topic",
+          "toKind": "Type"
         }
       ]
     },
