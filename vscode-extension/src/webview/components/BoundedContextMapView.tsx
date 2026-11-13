@@ -182,6 +182,9 @@ export interface BundledEdgeDetail {
   details: string[];
 }
 
+const selEdgeBezier = 'edge.edge-bezier';
+const propStepSize = 'control-point-step-size';
+
 export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   graph,
   focusTarget,
@@ -536,8 +539,8 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
     });
 
     cy.style()
-      .selector('edge.edge-bezier')
-      .style('control-point-step-size', bezierCurvature)
+      .selector(selEdgeBezier)
+      .style(propStepSize, bezierCurvature)
       .update();
 
     cyRef.current = cy;
@@ -557,8 +560,8 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   useEffect(() => {
     if (!cyRef.current) return;
     cyRef.current.style()
-      .selector('edge.edge-bezier')
-      .style('control-point-step-size', bezierCurvature)
+      .selector(selEdgeBezier)
+      .style(propStepSize, bezierCurvature)
       .update();
   }, [bezierCurvature]);
 

@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.71.1] - 2026-11-06
+
+### Fixed
+- **Project Map & `UniversalGraphMap` Node Grouping**:
+  - Implemented full **Category Grouping** (`group:kind:<Kind>`) and **Custom Node Grouping** (`group:custom:<id>`) in `UniversalGraphMap.tsx` so grouping on the Project Map works identically to the Architecture Map.
+  - Added intra-group `internalConnections` tracking and external edge rebundling (preserving `originalSourceId` and `originalTargetId` for the Connection Inspector).
+  - Connected all `InspectorSidebarView` grouping actions (`TOGGLE_TYPE_GROUPING`, `CREATE_CUSTOM_GROUP`, `TOGGLE_CUSTOM_GROUP_COLLAPSE`, `DELETE_CUSTOM_GROUP`, `UNGROUP_NODE`, `REMOVE_FROM_GROUP`) along with canvas `Shift/Ctrl/Cmd+Click` multi-selection, floating group action bar, double-click group expand, and right-click node context menu.
+
+---
+
 ## [1.71.0] - 2026-11-06
 
 ### Added

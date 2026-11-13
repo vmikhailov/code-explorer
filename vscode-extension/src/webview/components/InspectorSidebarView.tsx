@@ -193,6 +193,30 @@ function applyOptimisticInspectorAction(
       return { ...prev, curveFactor: action.curveFactor };
     case 'SET_WHEEL_SENSITIVITY':
       return { ...prev, wheelSensitivity: action.wheelSensitivity };
+    case 'TOGGLE_TYPE_GROUPING': {
+      const current = new Set(prev.groupedTypes || []);
+      if (current.has(action.kind)) current.delete(action.kind);
+      else current.add(action.kind);
+      return { ...prev, groupedTypes: Array.from(current) };
+    }
+    case 'TOGGLE_TYPE_VISIBILITY': {
+      const current = new Set(prev.hiddenTypes || []);
+      if (current.has(action.kind)) current.delete(action.kind);
+      else current.add(action.kind);
+      return { ...prev, hiddenTypes: Array.from(current) };
+    }
+    case 'TOGGLE_CUSTOM_GROUP_COLLAPSE':
+      return {
+        ...prev,
+        customGroups: (prev.customGroups || []).map((g) =>
+          g.id === action.groupId ? { ...g, collapsed: !g.collapsed } : g
+        ),
+      };
+    case 'DELETE_CUSTOM_GROUP':
+      return {
+        ...prev,
+        customGroups: (prev.customGroups || []).filter((g) => g.id !== action.groupId),
+      };
     default:
       return prev;
   }
