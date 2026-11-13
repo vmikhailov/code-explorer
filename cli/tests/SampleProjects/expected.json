@@ -283,5 +283,10 @@
     "projectType": "rust",
     "entityKind": "Test",
     "isLibrary": true
+  },
+  "terraform/aws-infra": {
+    "projectType": "terraform",
+    "entityKind": "Service",
+    "isLibrary": false
   }
 }

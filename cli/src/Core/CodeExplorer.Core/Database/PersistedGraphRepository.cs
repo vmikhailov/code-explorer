@@ -12,11 +12,17 @@ namespace CodeExplorer.Core.Database;
 public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
 {
     private readonly IGraphClient _client = client ?? throw new ArgumentNullException(nameof(client));
+    private readonly IGraphRepository? _directRepo = client as IGraphRepository;
 
     public IGraphClient Client => _client;
 
     public async ValueTask<WorkspaceNode?> GetWorkspaceAsync(CancellationToken ct = default)
     {
+        if (_directRepo is not null)
+        {
+            return await _directRepo.GetWorkspaceAsync(ct);
+        }
+
         try
         {
             var wsEntity = await _client.Graph.Workspaces.FirstOrDefaultAsync(ct);
@@ -45,6 +51,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     public async ValueTask<Node?> GetNodeByIdAsync(string id, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(id)) return null;
+        if (_directRepo is not null) return await _directRepo.GetNodeByIdAsync(id, ct);
 
         return await _client.QueryFirstOrDefaultAsync<Node>(
             QueryNodeById,
@@ -55,6 +62,7 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     public async ValueTask<IReadOnlyList<Node>> GetNodesByKindAsync(string kind, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(kind)) return [];
+        if (_directRepo is not null) return await _directRepo.GetNodesByKindAsync(kind, ct);
 
         return await _client.QueryAsync<Node>(
             QueryNodesByKind,
@@ -65,11 +73,14 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     public ValueTask<IReadOnlyList<Node>> GetNodesByKindAsync(NodeKind kind, CancellationToken ct = default)
     {
         if (kind == NodeKind.Unspecified) return ValueTask.FromResult<IReadOnlyList<Node>>([]);
+        if (_directRepo is not null) return _directRepo.GetNodesByKindAsync(kind, ct);
         return GetNodesByKindAsync(kind.ToCypherLabel(), ct);
     }
 
     public async ValueTask<IReadOnlyList<Node>> GetAllNodesAsync(CancellationToken ct = default)
     {
+        if (_directRepo is not null) return await _directRepo.GetAllNodesAsync(ct);
+
         return await _client.QueryAsync<Node>(
             QueryAllNodes,
             null,
@@ -78,6 +89,8 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
 
     public async ValueTask<IReadOnlyList<Relationship>> GetAllRelationshipsAsync(CancellationToken ct = default)
     {
+        if (_directRepo is not null) return await _directRepo.GetAllRelationshipsAsync(ct);
+
         return await _client.QueryAsync<Relationship>(
             QueryAllRelationships,
             null,
@@ -117,6 +130,12 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(fromNodeId)) return [];
+        if (_directRepo is not null)
+        {
+            return string.IsNullOrEmpty(relationshipKind)
+                ? await _directRepo.GetOutgoingRelationshipsAsync(fromNodeId, ct)
+                : await _directRepo.GetOutgoingRelationshipsAsync(fromNodeId, relationshipKind, ct);
+        }
 
         string query;
         object parameters;
@@ -168,6 +187,12 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(toNodeId)) return [];
+        if (_directRepo is not null)
+        {
+            return string.IsNullOrEmpty(relationshipKind)
+                ? await _directRepo.GetIncomingRelationshipsAsync(toNodeId, ct)
+                : await _directRepo.GetIncomingRelationshipsAsync(toNodeId, relationshipKind, ct);
+        }
 
         string query;
         object parameters;
