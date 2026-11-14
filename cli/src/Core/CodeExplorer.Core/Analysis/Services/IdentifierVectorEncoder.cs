@@ -1,8 +1,31 @@
 using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
+
+public record IdentifierMatch(
+    string NodeId,
+    string Name,
+    string FullName,
+    NodeKind Kind,
+    string? Path,
+    int StartLine,
+    float Score)
+{
+    public IdentifierMatch(
+        string NodeId,
+        string Name,
+        string FullName,
+        string Kind,
+        string? Path,
+        int StartLine,
+        float Score)
+        : this(NodeId, Name, FullName, EnumExtensions.ParseNodeKind(Kind), Path, StartLine, Score)
+    {
+    }
+}
 
 /// <summary>
 /// High-performance, zero-dependency subword and n-gram feature hashing vector encoder for code identifiers.
@@ -174,6 +197,48 @@ public static partial class IdentifierVectorEncoder
             hash *= 16777619;
         }
         return hash;
+    }
+
+    private const string SymIdMarker = ":sym:";
+
+    public static string? NormalizeSymbolPath(string? rawPath, string? workspaceRoot = null)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return rawPath;
+
+        var trimmed = rawPath.Trim();
+        var symIdx = trimmed.IndexOf(SymIdMarker, StringComparison.OrdinalIgnoreCase);
+        if (symIdx >= 0)
+        {
+            var start = symIdx + SymIdMarker.Length;
+            var searchColonFrom = start + 2 < trimmed.Length && char.IsAsciiLetter(trimmed[start]) && trimmed[start + 1] == ':'
+                ? start + 2
+                : start;
+            var end = trimmed.IndexOf(':', searchColonFrom);
+            trimmed = end > start ? trimmed[start..end] : trimmed[start..];
+        }
+
+        var wasRootedUnix = trimmed.StartsWith('/');
+        var normalized = trimmed.Replace('\\', '/');
+        if (!string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            var normRoot = workspaceRoot.Trim().Replace('\\', '/').TrimEnd('/');
+            if (normRoot.Length > 0)
+            {
+                if (string.Equals(normalized.TrimEnd('/'), normRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Empty;
+                }
+
+                if (normalized.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase) &&
+                    normalized.Length > normRoot.Length &&
+                    normalized[normRoot.Length] == '/')
+                {
+                    return normalized[(normRoot.Length + 1)..];
+                }
+            }
+        }
+
+        return wasRootedUnix ? normalized : normalized.TrimStart('/');
     }
 
     private static void Normalize(float[] vec)

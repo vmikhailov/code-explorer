@@ -1,6 +1,7 @@
 import type * as vscodeTypes from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as cp from 'child_process';
 import {
   InstalledEngineCandidate,
   TargetInfo,
@@ -15,12 +16,20 @@ import {
 } from './semver';
 import { ensureExecutablePermissions, extractArchive, resolveTargetAsset } from './platform';
 import { GITHUB_REPO, downloadFileWithRedirects, probeEngineVersion } from './downloader';
-import { probeCommandVersion, probeDotnetTool } from './discovery';
-import { getBestInstalledEngine } from './selector';
+import {
+  clearEngineDiscoveryCache,
+  probeCommandVersion,
+  probeCommandVersionAsync,
+  probeDotnetToolAsync,
+} from './discovery';
+import { getBestInstalledEngine, getBestInstalledEngineAsync } from './selector';
 
-function getVsCode(): typeof import('vscode') | undefined {
+const MOD_VSCODE = 'vscode';
+const CMD_DOTNET = 'dotnet';
+
+function getVsCode(): typeof vscodeTypes | undefined {
   try {
-    return require('vscode');
+    return require(MOD_VSCODE);
   } catch {
     return undefined;
   }
@@ -170,8 +179,45 @@ export class BinaryManager {
     return candidate;
   }
 
+  /**
+   * Non-blocking async probe of all installed engine candidates across the system.
+   */
+  async getBestInstalledEngineAsync(
+    workspaceRoot?: string,
+    forceRefresh = false
+  ): Promise<InstalledEngineCandidate | null> {
+    const now = Date.now();
+    if (
+      !forceRefresh &&
+      this.cachedBestEngine &&
+      this.cachedBestEngine.workspaceRoot === workspaceRoot &&
+      now - this.cachedBestEngine.timestamp < BinaryManager.ENGINE_CACHE_TTL_MS
+    ) {
+      return this.cachedBestEngine.candidate;
+    }
+
+    if (forceRefresh) {
+      clearEngineDiscoveryCache();
+    }
+
+    const binDir = this.getBinDir();
+    const extensionRoot = this.context?.extensionPath;
+    const candidate = await getBestInstalledEngineAsync({
+      workspaceRoot,
+      globalStorageBinDir: binDir || undefined,
+      extensionRoot,
+    });
+    this.cachedBestEngine = {
+      workspaceRoot,
+      candidate,
+      timestamp: now,
+    };
+    return candidate;
+  }
+
   invalidateEngineCache(): void {
     this.cachedBestEngine = null;
+    clearEngineDiscoveryCache();
   }
 
   /**
@@ -250,7 +296,7 @@ export class BinaryManager {
     if (options.forceRemoteProbe || options.forceReinstall) {
       this.invalidateEngineCache();
     }
-    const bestInstalled = this.getBestInstalledEngine(options.workspaceRoot);
+    const bestInstalled = await this.getBestInstalledEngineAsync(options.workspaceRoot);
     const currentVersion = bestInstalled?.version || this.getCachedVersion() || null;
 
     // Fast-path: If local binary exists and satisfies required pattern (or >= extVersion), use it immediately
@@ -336,7 +382,7 @@ export class BinaryManager {
     }
 
     // 5. Fallback: dotnet tool installation for universal / non-native architectures or download failures
-    const dotnetVersion = probeCommandVersion('dotnet');
+    const dotnetVersion = await probeCommandVersionAsync(CMD_DOTNET);
     if (dotnetVersion) {
       const tool = await this.installOrUpdateDotnetTool(targetVersion, options.workspaceRoot);
       if (tool) {
@@ -369,7 +415,7 @@ export class BinaryManager {
     }
 
     throw new Error(
-      `CodeExplorer engine is not available for ${target.platform}-${target.arch}. Please install .NET 10 or later from https://dotnet.microsoft.com/download.`
+      `CodeExplorer engine is not available for ${target.platform}-${target.arch}. Please install .NET 11 or later from https://dotnet.microsoft.com/download/dotnet/11.0.`
     );
   }
 
@@ -380,31 +426,38 @@ export class BinaryManager {
     targetVersion: string,
     workspaceRoot?: string
   ): Promise<{ command: string; args: string[]; version: string } | null> {
-    const cp = require('child_process');
     this.outputChannel.appendLine(
       `[BinaryManager] Attempting to install/update global dotnet tool codeexplorer.cli v${targetVersion}...`
     );
 
-    const runCmd = (args: string[]) => {
-      try {
-        return cp.spawnSync('dotnet', args, {
-          encoding: 'utf8',
-          windowsHide: true,
-          timeout: 60000,
-        });
-      } catch (e: any) {
-        return { status: 1, stderr: e?.message || String(e) };
-      }
-    };
+    const runCmdAsync = (args: string[]): Promise<{ status: number; stdout: string; stderr: string }> =>
+      new Promise((resolve) => {
+        cp.execFile(
+          CMD_DOTNET,
+          args,
+          { encoding: 'utf8', windowsHide: true, timeout: 60000 },
+          (err, stdout, stderr) => {
+            if (!err) {
+              resolve({ status: 0, stdout: stdout || '', stderr: stderr || '' });
+            } else {
+              resolve({
+                status: typeof (err as any).code === 'number' ? (err as any).code : 1,
+                stdout: stdout || '',
+                stderr: stderr || err.message,
+              });
+            }
+          }
+        );
+      });
 
     // 1. Try install first
-    let res = runCmd(['tool', 'install', '-g', 'codeexplorer.cli', '--version', targetVersion]);
+    let res = await runCmdAsync(['tool', 'install', '-g', 'codeexplorer.cli', '--version', targetVersion]);
     if (res.status !== 0) {
       // 2. If install failed (e.g. already installed), try update
       this.outputChannel.appendLine(
         `[BinaryManager] dotnet tool install exited with ${res.status}. Attempting dotnet tool update...`
       );
-      res = runCmd(['tool', 'update', '-g', 'codeexplorer.cli', '--version', targetVersion]);
+      res = await runCmdAsync(['tool', 'update', '-g', 'codeexplorer.cli', '--version', targetVersion]);
     }
 
     if (res.status === 0) {
@@ -413,8 +466,8 @@ export class BinaryManager {
       this.outputChannel.appendLine(`[BinaryManager] dotnet tool install/update warning: ${res.stderr || res.stdout}`);
     }
 
-    // Probe to see if the tool is now available
-    const probed = probeDotnetTool(workspaceRoot);
+    clearEngineDiscoveryCache();
+    const probed = await probeDotnetToolAsync(workspaceRoot);
     if (probed) {
       return probed;
     }
@@ -426,11 +479,11 @@ export class BinaryManager {
    */
   private notifyDotnetRequired(target: TargetInfo): void {
     const vscode = getVsCode();
-    const msg = `CodeExplorer requires the .NET SDK/Runtime on ${target.platform} (${target.arch}). Please install .NET 10 or later to run the engine.`;
+    const msg = `CodeExplorer requires the .NET 11 SDK/Runtime on ${target.platform} (${target.arch}). Please install .NET 11 or later to run the engine.`;
     if (vscode?.window?.showErrorMessage) {
-      vscode.window.showErrorMessage(msg, 'Download .NET').then((choice: any) => {
-        if (choice === 'Download .NET') {
-          vscode.env?.openExternal?.(vscode.Uri.parse('https://dotnet.microsoft.com/download'));
+      vscode.window.showErrorMessage(msg, 'Download .NET 11').then((choice: any) => {
+        if (choice === 'Download .NET 11') {
+          vscode.env?.openExternal?.(vscode.Uri.parse('https://dotnet.microsoft.com/download/dotnet/11.0'));
         }
       });
     }

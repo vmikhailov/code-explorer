@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.87.0] - 2026-11-14
+
+### Added & Improved
+- **Terraform / OpenTofu / Terragrunt HCL2 Parser & Cloud Ontology Refinements (`CodeExplorer.Parser.Terraform`, `CodeExplorer.Indexing`)**:
+  - Extended `HclTokenizer`, `HclParser`, and `HclReferenceCollector` to support single-character comparison/unary/division operators (`>`, `<`, `!`, `/`), `%{ if ... }` / `%{ for ... in ... }` template directives, multi-segment provider functions (`provider::aws::arn_parse(...)`), `for`-comprehension bound variables containing underscores, and per-block syntax error recovery with `SyntaxError` diagnostics.
+  - Added `.tfvars` variable assignment nodes (`DEPENDS_ON { via = "tfvars" }`) and Terragrunt configuration block reference extraction (`terraform`, `inputs`, `generate`, `remote_state`, `include`).
+  - Added literal vs. module-qualified database and topic naming so literal resource names reconcile with application databases/topics on `Layer 5` while parameterized module resources across subdirectories remain distinct.
+  - Enabled nested Terraform/Terragrunt module boundary discovery in `SourcelessManifestDetector`, preserved `CONFIGURES` edges in `PostIndexAnalyzer`, and added a 9-repository public GitHub corpus test suite.
+- **VS Code Extension Engine Lifecycle Supervisor & Typed RPC Architecture (`vscode-extension`)**:
+  - Introduced `EngineSupervisor`, `EngineLifecycleFsm`, `HostRpcBroker`, `WebviewRpcClient`, and `StatusBarController` for deterministic engine process lifecycle management and typed host-webview RPC communication.
+- **Complete SQLite Decoupling in `CodeExplorer.Analysis` (`CodeExplorer.Analysis`, `CodeExplorer.Storage`, `CodeExplorer.Core`)**:
+  - Moved `IdentifierSearchEngine` and `TestIntelligenceService` into `CodeExplorer.Storage` behind `IGraphClient` abstractions and relocated shared test/vector models into `CodeExplorer.Core`.
+
+---
+
 ## [1.86.0] - 2026-11-13
 
 ### Added & Improved

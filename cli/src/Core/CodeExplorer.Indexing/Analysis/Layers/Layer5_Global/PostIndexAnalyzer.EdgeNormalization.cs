@@ -132,6 +132,10 @@ public partial class PostIndexAnalyzer
         {
             normalizedKind = OntologyConstants.Relationships.DependsOn;
         }
+        else if (kind is "CONFIGURES" or "Configures")
+        {
+            normalizedKind = OntologyConstants.Relationships.Configures;
+        }
         else if (category == DependencyCategory.ServiceCall)
         {
             normalizedKind = kind == OntologyConstants.Relationships.CallsEndpoint ? OntologyConstants.Relationships.CallsEndpoint : OntologyConstants.Relationships.ServiceCall;

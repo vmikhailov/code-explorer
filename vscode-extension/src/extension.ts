@@ -12,10 +12,15 @@ import { GateStateManager } from './gateStateManager';
 import { GraphPanel } from './graphPanel';
 import { GraphInspectorViewProvider } from './graphInspectorViewProvider';
 import { ServerTransport } from './serverTransport';
+import { EngineSupervisor } from './engine/engineSupervisor';
+import { HostRpcBroker } from './rpc/hostRpcBroker';
+import { StatusBarController } from './ui/statusBarController';
 import { initializeMcpAutoRegistration } from './mcpRegistration';
 
 let processManager: ProcessManager | null = null;
 let serverTransport: ServerTransport | null = null;
+let engineSupervisor: EngineSupervisor | null = null;
+let hostRpcBroker: HostRpcBroker | null = null;
 
 const VIEW_ID_CODE_EXPLORER = 'codeExplorerView';
 const CMD_FOCUS_INSPECTOR = 'codeExplorer.focusInspector';
@@ -32,6 +37,9 @@ const ACTION_LATER = 'Later';
 const ACTION_WHATS_NEW = "What's New";
 const ACTION_DISMISS = 'Dismiss';
 const FILE_CHANGELOG = 'CHANGELOG.md';
+const TOPIC_SERVER_READY = 'server:ready';
+const CFG_EXECUTABLE_PATH = 'codeExplorer.executablePath';
+const CFG_ENGINE_VERSION = 'codeExplorer.engineVersion';
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_MAIN);
@@ -50,11 +58,23 @@ export function activate(context: vscode.ExtensionContext) {
   serverTransport = ServerTransport.initialize(processManager, getWorkspaceRoot, protocolChannel);
   context.subscriptions.push(serverTransport);
 
+  // Deterministic EngineSupervisor & Single-Broker Host RPC
+  engineSupervisor = EngineSupervisor.initialize(
+    processManager,
+    serverTransport,
+    getWorkspaceRoot,
+    outputChannel,
+    protocolChannel
+  );
+  hostRpcBroker = HostRpcBroker.initialize(engineSupervisor, protocolChannel);
+  context.subscriptions.push(engineSupervisor, { dispose: () => hostRpcBroker?.dispose() });
+
   // Automatically update all active WebviewPanels whenever server starts or restarts on a port
   serverTransport.onDidServerStart((info) => {
     outputChannel.appendLine(`[CodeExplorer] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
     protocolChannel.appendLine(`[Protocol] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
     GraphPanel.updateAllWsUrls(info.wsUrl);
+    hostRpcBroker?.broadcastEvent(TOPIC_SERVER_READY, info);
   });
 
   // Central Gate State Manager (single source of truth for all gates evaluation)
@@ -131,14 +151,14 @@ export function activate(context: vscode.ExtensionContext) {
               protocolChannel,
               mode
             );
-            if (wsRoot && currentTransport.hasWorkspace(wsRoot)) {
-              currentTransport
-                .ensureConnected(wsRoot)
+            if (wsRoot && currentTransport.hasWorkspace(wsRoot) && engineSupervisor) {
+              engineSupervisor
+                .ensureReady(wsRoot)
                 .then((info) => {
                   GraphPanel.updateAllWsUrls(info.wsUrl);
                 })
                 .catch((err) => {
-                  outputChannel.appendLine(`[CodeExplorer] Revived panel server connect error: ${err}`);
+                  outputChannel.appendLine(`[CodeExplorer] Revived panel server connect notice: ${err.message || err}`);
                 });
             }
           },
@@ -147,41 +167,27 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  // Status Bar Item
-  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = 'codeExplorer.showGraph';
-  statusBarItem.text = '$(type-hierarchy-sub) Code Graph';
-  statusBarItem.tooltip = 'Show CodeExplorer Architecture Graph';
-  context.subscriptions.push(statusBarItem);
-
-  const updateStatusBarVisibility = () => {
-    if (getWorkspaceRoot()) {
-      statusBarItem.show();
-    } else {
-      statusBarItem.hide();
-    }
-  };
-  updateStatusBarVisibility();
-
-  serverTransport.onDidChangeState((event) => {
-    if (event.state === 'connected' && event.serverInfo) {
-      statusBarItem.text = '$(check) Code Graph';
-      statusBarItem.tooltip = `CodeExplorer server running at ${event.serverInfo.wsUrl} (HTTP ${event.serverInfo.httpUrl})`;
-    } else if (event.state === 'reconnecting' || event.state === 'starting') {
-      statusBarItem.text = '$(sync~spin) Code Graph';
-      statusBarItem.tooltip = `CodeExplorer server ${event.state} (port ${event.endpoints?.port ?? 'allocating'})...`;
-    } else if (event.state === 'error') {
-      statusBarItem.text = '$(warning) Code Graph';
-      statusBarItem.tooltip = `CodeExplorer server error: ${event.error || 'Unknown error'}. Click to reopen or restart.`;
-    } else {
-      statusBarItem.text = '$(type-hierarchy-sub) Code Graph';
-      statusBarItem.tooltip = 'Show CodeExplorer Architecture Graph';
-    }
-  });
+  // Status Bar Controller (Idle, Starting…, Ready, Scanning…, Failed + Quick Actions)
+  const statusBarController = new StatusBarController(
+    engineSupervisor,
+    serverTransport,
+    getWorkspaceRoot
+  );
+  context.subscriptions.push(
+    statusBarController,
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (
+        e.affectsConfiguration(CFG_EXECUTABLE_PATH) ||
+        e.affectsConfiguration(CFG_ENGINE_VERSION)
+      ) {
+        void engineSupervisor?.onExecutableSettingChanged(getWorkspaceRoot());
+      }
+    })
+  );
 
   // Check workspace on load or workspace folder changes
   const checkAndInitWorkspace = (workspaceRoot: string) => {
-    if (!workspaceRoot || !serverTransport) return;
+    if (!workspaceRoot || !serverTransport || !engineSupervisor) return;
     const hasCe = serverTransport.hasWorkspace(workspaceRoot);
     if (!hasCe) {
       outputChannel.appendLine(`[CodeExplorer] No .codeexplorer directory found in: ${workspaceRoot}`);
@@ -203,8 +209,8 @@ export function activate(context: vscode.ExtensionContext) {
         });
     } else {
       outputChannel.appendLine(`[CodeExplorer] Auto-starting graph server on load for: ${workspaceRoot}`);
-      serverTransport
-        .ensureConnected(workspaceRoot)
+      engineSupervisor
+        .ensureReady(workspaceRoot)
         .then(async (info) => {
           outputChannel.appendLine(`[CodeExplorer] Server ready at ${info.wsUrl}`);
           try {
@@ -249,7 +255,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      updateStatusBarVisibility();
+      statusBarController.updateVisibility();
       const root = getWorkspaceRoot();
       if (root) {
         checkAndInitWorkspace(root);
@@ -297,6 +303,12 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+  if (hostRpcBroker) {
+    hostRpcBroker.dispose();
+  }
+  if (engineSupervisor) {
+    engineSupervisor.dispose();
+  }
   if (serverTransport) {
     serverTransport.dispose();
   }

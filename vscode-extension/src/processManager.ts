@@ -11,11 +11,13 @@ import {
   cleanSemver,
   compareSemver,
   probeDotnetTool,
+  probeDotnetToolAsync,
   selectEngineExecutable,
   DotnetToolInfo,
   getExecutableName,
   ensureExecutablePermissions,
 } from './binaryManager';
+import { isFatalEngineExit } from './engine/engineLifecycleFsm';
 
 export interface ServerInfo {
   status: string;
@@ -182,7 +184,7 @@ export class ProcessManager implements vscode.Disposable {
     if (this.serverInfo && this.serverProcess && !this.serverProcess.killed) {
       if (this.serverInfo.version) {
         // Check if a higher preferred engine (e.g. local dotnet tool) is available
-        const bestInstalled = this.binaryManager?.getBestInstalledEngine(workspaceRoot);
+        const bestInstalled = (await this.binaryManager?.getBestInstalledEngineAsync(workspaceRoot)) ?? null;
         if (bestInstalled && compareSemver(bestInstalled.version, this.serverInfo.version) > 0) {
           this.outputChannel.appendLine(
             `[ProcessManager] Active server version (v${this.serverInfo.version}) is lower than available engine (v${bestInstalled.version}, ${bestInstalled.source}). Restarting server with higher engine...`
@@ -318,6 +320,9 @@ export class ProcessManager implements vscode.Disposable {
             `${report.title}\n${report.summary}\n\nSuggested Action:\n${report.suggestion}\n\n${report.fullReport}`
           );
           (detailedError as any).diagnosticReport = report;
+          (detailedError as any).exitCode = null;
+          (detailedError as any).stderr = err.message;
+          (detailedError as any).isFatal = report.isFatal;
           reject(detailedError);
         }
       });
@@ -339,6 +344,10 @@ export class ProcessManager implements vscode.Disposable {
             `${report.title}\n${report.summary}\n\nSuggested Action:\n${report.suggestion}\n\n${report.fullReport}`
           );
           (detailedError as any).diagnosticReport = report;
+          (detailedError as any).exitCode = code;
+          (detailedError as any).signal = signal;
+          (detailedError as any).stderr = rawStderr;
+          (detailedError as any).isFatal = report.isFatal;
           reject(detailedError);
         } else if (!wasIntentional) {
           this._onDidUnexpectedExit.fire({ code, signal });
@@ -432,7 +441,7 @@ export class ProcessManager implements vscode.Disposable {
     }
 
     // 2. ALWAYS PROBE INSTALLED ENGINES FIRST BEFORE DOWNLOADING
-    const bestInstalled = this.binaryManager?.getBestInstalledEngine(workspaceRoot) || null;
+    const bestInstalled = (await this.binaryManager?.getBestInstalledEngineAsync(workspaceRoot)) || null;
     if (bestInstalled?.source === 'dotnet-tool') {
       this.cachedDotnetTool = {
         command: bestInstalled.command,
@@ -440,7 +449,7 @@ export class ProcessManager implements vscode.Disposable {
         version: bestInstalled.version,
       };
     } else if (!bestInstalled) {
-      this.cachedDotnetTool = probeDotnetTool(workspaceRoot);
+      this.cachedDotnetTool = await probeDotnetToolAsync(workspaceRoot);
     }
 
     if (bestInstalled) {
@@ -503,28 +512,77 @@ export class ProcessManager implements vscode.Disposable {
     this.isStoppingIntentionally = true;
     if (this.serverProcess && !this.serverProcess.killed) {
       this.outputChannel.appendLine('[Server] Stopping CodeExplorer server process...');
-      const pid = this.serverProcess.pid;
+      const proc = this.serverProcess;
+      const pid = proc.pid;
+      this.serverProcess = null;
+      this.serverInfo = null;
       if (process.platform === 'win32' && pid) {
+        // Non-blocking tree termination on Windows (never block Extension Host with spawnSync)
+        cp.execFile(
+          ProcessManager.TASKKILL_CMD,
+          ['/F', '/T', '/PID', pid.toString()],
+          { windowsHide: true },
+          () => {
+            try {
+              proc.kill();
+            } catch {
+              // Best effort
+            }
+          }
+        );
+      } else {
         try {
-          // On Windows, terminate the entire process tree to prevent orphaned dotnet/ce processes
-          cp.spawnSync(ProcessManager.TASKKILL_CMD, ['/F', '/T', '/PID', pid.toString()], {
-            windowsHide: true,
-            stdio: 'ignore',
-          });
+          proc.kill();
         } catch {
           // Best effort
         }
       }
-      try {
-        this.serverProcess.kill();
-      } catch {
-        // Best effort
-      }
-      this.serverProcess = null;
-      this.serverInfo = null;
       this._onDidServerStop.fire();
     }
     this.cachedExecutable = null;
+  }
+
+  async stopServerAsync(): Promise<void> {
+    this.isStoppingIntentionally = true;
+    const proc = this.serverProcess;
+    if (!proc || proc.killed) {
+      this.serverProcess = null;
+      this.serverInfo = null;
+      this.cachedExecutable = null;
+      return;
+    }
+
+    this.outputChannel.appendLine('[Server] Stopping CodeExplorer server process...');
+    const pid = proc.pid;
+    this.serverProcess = null;
+    this.serverInfo = null;
+    this.cachedExecutable = null;
+
+    await new Promise<void>((resolve) => {
+      if (process.platform === 'win32' && pid) {
+        cp.execFile(
+          ProcessManager.TASKKILL_CMD,
+          ['/F', '/T', '/PID', pid.toString()],
+          { windowsHide: true },
+          () => {
+            try {
+              proc.kill();
+            } catch {
+              // ignored: process already terminated by taskkill
+            }
+            resolve();
+          }
+        );
+      } else {
+        try {
+          proc.kill();
+        } catch {
+          // ignored: process already terminated
+        }
+        resolve();
+      }
+    });
+    this._onDidServerStop.fire();
   }
 
   dispose() {
@@ -541,6 +599,7 @@ export interface ProcessDiagnosticReport {
   summary: string;
   suggestion: string;
   fullReport: string;
+  isFatal: boolean;
 }
 
 export function diagnoseProcessExit(
@@ -554,6 +613,7 @@ export function diagnoseProcessExit(
   const isNetHostFailure =
     code === 2147516566 ||
     code === -2147450730 ||
+    code === 150 ||
     stderr.includes('FrameworkMissingFailure') ||
     stderr.includes('No frameworks were found') ||
     stderr.includes('app-launch-failed') ||
@@ -569,6 +629,7 @@ export function diagnoseProcessExit(
     (stderr.includes('graph.db') && stderr.includes('not found'));
 
   const isOom = code === 137 || signal === 'SIGKILL';
+  const isFatal = isFatalEngineExit(code, stderr);
 
   let title = 'CodeExplorer Server Process Failed';
   let category = 'Process Exit';
@@ -576,16 +637,16 @@ export function diagnoseProcessExit(
   let suggestion = 'Check Output Channel (CodeExplorer) for complete server logs.';
 
   if (isNetHostFailure) {
-    title = '.NET 10 Runtime Missing (0x80008096)';
+    title = '.NET 11 Runtime Missing (0x80008096)';
     category = '.NET Host Runtime Failure';
-    summary = 'The .NET runtime host could not find Microsoft.NETCore.App 10.0 runtime.';
+    summary = 'The .NET runtime host could not find Microsoft.NETCore.App 11.0 runtime.';
     suggestion =
-      'Install the .NET 10 Runtime or SDK (x64) from https://dotnet.microsoft.com/download/dotnet/10.0 ' +
+      'Install the .NET 11 Runtime or SDK (x64/arm64) from https://dotnet.microsoft.com/download/dotnet/11.0 ' +
       'or check installed runtimes via `dotnet --list-runtimes`.';
   } else if (isPortConflict) {
     title = 'Server Port Already In Use';
     category = 'Network / Port Conflict';
-    summary = 'The configured listening port is already occupied by another application or instance.';
+    summary = 'The listening port is already occupied by another application or instance.';
     suggestion = 'Set `codeExplorer.serverPort` to 0 in VS Code Settings to allocate an automatic free ephemeral port.';
   } else if (isDbMissing) {
     title = 'Graph Database Not Initialized';
@@ -621,6 +682,7 @@ export function diagnoseProcessExit(
     summary,
     suggestion,
     fullReport: lines.join('\n'),
+    isFatal,
   };
 }
 

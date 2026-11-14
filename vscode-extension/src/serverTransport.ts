@@ -215,6 +215,7 @@ export class ServerTransport implements vscode.Disposable {
   private _isHealthChecking = false;
 
   private _restartTimestamps: number[] = [];
+  private _circuitOpen = false;
   private _lastError: string | null = null;
   private _isDisposed = false;
 
@@ -489,9 +490,14 @@ export class ServerTransport implements vscode.Disposable {
     }
   }
 
+  public isCircuitOpen(): boolean {
+    return this._circuitOpen;
+  }
+
   /**
    * Ensures the server is started and responsive on the pinned lifetime port.
    * Deduplicates concurrent calls via a single-flight promise.
+   * Note: Only explicit user-initiated restarts (`resetCircuitBreaker: true`) reset the circuit breaker.
    */
   public async ensureConnected(
     workspaceRoot?: string,
@@ -502,9 +508,16 @@ export class ServerTransport implements vscode.Disposable {
       throw new Error('No workspace folder is currently open.');
     }
 
-    if (options?.resetCircuitBreaker !== false) {
-      // Explicit demand resets the crash circuit breaker
+    if (options?.resetCircuitBreaker === true) {
+      // ONLY explicit user-initiated restart resets the crash circuit breaker
       this._restartTimestamps = [];
+      this._circuitOpen = false;
+      this._reconnectAttempt = 0;
+    } else if (this._circuitOpen || this._state === 'error') {
+      // Circuit is open or server is in Failed state; do not respawn or spam logs
+      this.stopWatchdog();
+      this.clearReconnectTimer();
+      throw new Error(this._lastError || 'CodeExplorer server startup failed. Click Retry Start to try again.');
     }
 
     if (options?.forceRestart) {
@@ -539,11 +552,17 @@ export class ServerTransport implements vscode.Disposable {
         this._allocatedPort = info.port;
         this._reconnectAttempt = 0;
         this._consecutiveHealthFailures = 0;
+        this._circuitOpen = false;
         this.setState('connected', null);
         this.startWatchdog();
         return info;
       } catch (err: any) {
         const msg = err?.message || String(err);
+        this.stopWatchdog();
+        this.clearReconnectTimer();
+        if (err?.isFatal || this._reconnectAttempt >= 1) {
+          this._circuitOpen = true;
+        }
         this.setState('error', msg);
         throw err;
       } finally {
@@ -555,10 +574,17 @@ export class ServerTransport implements vscode.Disposable {
   }
 
   /**
-   * Verifies that the server is both running and responding to HTTP health probes;
-   * if not, immediately restarts/connects on the sticky port.
+   * Verifies that the server is both running and responding to HTTP health probes.
+   * Background health checks NEVER reset `_restartTimestamps` (`resetCircuitBreaker: false`).
+   * When circuit breaker is open or startup has failed, rejects immediately without respawning.
    */
   public async verifyHealthyConnection(workspaceRoot?: string): Promise<ServerInfo> {
+    if (this._circuitOpen || this._state === 'error') {
+      this.stopWatchdog();
+      this.clearReconnectTimer();
+      throw new Error(this._lastError || 'CodeExplorer server is in failed state.');
+    }
+
     const currentInfo = this.processManager.getServerInfo();
     if (currentInfo) {
       const healthy = await this.checkServerHealth();
@@ -570,17 +596,18 @@ export class ServerTransport implements vscode.Disposable {
       );
       return this.ensureConnected(workspaceRoot, {
         forceRestart: true,
-        resetCircuitBreaker: true,
+        resetCircuitBreaker: false,
       });
     }
     return this.ensureConnected(workspaceRoot, {
       forceRestart: false,
-      resetCircuitBreaker: true,
+      resetCircuitBreaker: false,
     });
   }
 
   /**
-   * Explicitly restarts the server on the same sticky port.
+   * Explicitly restarts the server on the same sticky port (user-initiated action).
+   * Resets the circuit breaker and retry counters.
    */
   public async restart(workspaceRoot?: string): Promise<ServerInfo> {
     this.outputChannel.appendLine('[Transport] Restarting server on sticky port...');
@@ -702,6 +729,9 @@ export class ServerTransport implements vscode.Disposable {
     );
 
     if (this._restartTimestamps.length >= ServerTransport.CIRCUIT_BREAKER_MAX_RESTARTS) {
+      this._circuitOpen = true;
+      this.stopWatchdog();
+      this.clearReconnectTimer();
       const msg = `Server crashed ${this._restartTimestamps.length} times within 60s. Auto-restart paused by circuit breaker.`;
       this.outputChannel.appendLine(`[Transport] ERROR: ${msg}`);
       this.setState('error', msg);
@@ -729,6 +759,14 @@ export class ServerTransport implements vscode.Disposable {
         this.outputChannel.appendLine(
           `[Transport] Auto-restart attempt #${this._reconnectAttempt} failed: ${err?.message || err}`
         );
+        if (err?.isFatal || this._circuitOpen) {
+          this._circuitOpen = true;
+          this.stopWatchdog();
+          this.clearReconnectTimer();
+          const fatalState: TransportState = 'error';
+          this.setState(fatalState, err?.message || 'Fatal server error');
+          return;
+        }
         this.handleUnexpectedDisconnect(err?.message || 'Restart failed');
       }
     }, delayMs);

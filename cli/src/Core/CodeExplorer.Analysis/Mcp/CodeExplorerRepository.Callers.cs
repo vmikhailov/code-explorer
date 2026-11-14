@@ -130,15 +130,14 @@ public partial class CodeExplorerRepository
     {
         var query = Queries.Get(QueryGetCallers);
         var res = await client.ExecuteCypherAsync(query, parameters, ct);
-        if (res.Count > 0 || client is not SqliteGraphClient sqliteClient)
+        if (res.Count > 0 || !client.SupportsIdentifierSearch)
         {
             return res;
         }
 
         try
         {
-            var engine = new Analysis.IdentifierSearchEngine();
-            var resolved = await engine.ResolveIdentifierAsync(sqliteClient.Connection, target, ct: ct);
+            var resolved = await client.ResolveIdentifierAsync(target, cancellationToken: ct);
             if (resolved is { Score: >= 0.70f } && resolved.NodeId != target && resolved.Name != target)
             {
                 parameters[ParamTarget] = resolved.NodeId;

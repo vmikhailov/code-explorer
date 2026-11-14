@@ -252,11 +252,35 @@ public static class CloudResourceCatalog
         return RoleInfrastructure;
     }
 
+    private const string EnginePostgres = "postgres";
+    private const string EngineMySql = "mysql";
+    private const string EngineMariaDb = "mariadb";
+    private const string EngineSqlServer = "sqlserver";
+    private const string EngineMsSql = "mssql";
+    private const string EngineSqlServerUnderscore = "sql_server";
+    private const string EngineDynamoDb = "dynamodb";
+    private const string EngineRedis = "redis";
+    private const string EngineElastiCache = "elasticache";
+    private const string EngineMemoryStore = "memorystore";
+    private const string EngineMongoDb = "mongodb";
+    private const string EngineMongo = "mongo";
+    private const string EngineDocDb = "docdb";
+    private const string EngineElasticsearch = "elasticsearch";
+    private const string EngineOpenSearch = "opensearch";
+    private const string EngineRedshift = "redshift";
+    private const string EngineBigQuery = "bigquery";
+    private const string EngineSpanner = "spanner";
+    private const string EngineFirestore = "firestore";
+    private const string EngineBigtable = "bigtable";
+    private const string EngineCosmosDb = "cosmosdb";
+    private const string EngineNeptune = "neptune";
+    private const string EngineOracle = "oracle";
+
     public static string? InferDatabaseEngine(string resourceType, string? explicitEngine)
     {
         if (!string.IsNullOrWhiteSpace(explicitEngine))
         {
-            return explicitEngine.Trim().ToLowerInvariant();
+            return NormalizeEngineToken(explicitEngine.Trim().ToLowerInvariant());
         }
 
         if (string.IsNullOrWhiteSpace(resourceType))
@@ -265,20 +289,35 @@ public static class CloudResourceCatalog
         }
 
         var lower = resourceType.ToLowerInvariant();
-        if (lower.Contains("postgres", StringComparison.Ordinal)) return "postgres";
-        if (lower.Contains("mysql", StringComparison.Ordinal) || lower.Contains("mariadb", StringComparison.Ordinal)) return "mysql";
-        if (lower.Contains("mssql", StringComparison.Ordinal) || lower.Contains("sql_server", StringComparison.Ordinal)) return "sqlserver";
-        if (lower.Contains("dynamodb", StringComparison.Ordinal)) return "dynamodb";
-        if (lower.Contains("redis", StringComparison.Ordinal) || lower.Contains("elasticache", StringComparison.Ordinal) || lower.Contains("memorystore", StringComparison.Ordinal)) return "redis";
-        if (lower.Contains("docdb", StringComparison.Ordinal) || lower.Contains("mongo", StringComparison.Ordinal)) return "mongodb";
-        if (lower.Contains("opensearch", StringComparison.Ordinal) || lower.Contains("elasticsearch", StringComparison.Ordinal)) return "elasticsearch";
-        if (lower.Contains("redshift", StringComparison.Ordinal)) return "redshift";
-        if (lower.Contains("bigquery", StringComparison.Ordinal)) return "bigquery";
-        if (lower.Contains("spanner", StringComparison.Ordinal)) return "spanner";
-        if (lower.Contains("firestore", StringComparison.Ordinal)) return "firestore";
-        if (lower.Contains("bigtable", StringComparison.Ordinal)) return "bigtable";
-        if (lower.Contains("cosmosdb", StringComparison.Ordinal)) return "cosmosdb";
-        if (lower.Contains("neptune", StringComparison.Ordinal)) return "neptune";
+        var inferred = InferEngineFromText(lower);
+        if (inferred != null)
+        {
+            return inferred;
+        }
+
+        return ExactDatabases.TryGetValue(resourceType, out var db) ? db.DbKind : null;
+    }
+
+    private static string NormalizeEngineToken(string lower) =>
+        InferEngineFromText(lower) ?? lower;
+
+    private static string? InferEngineFromText(string lower)
+    {
+        if (lower.Contains(EnginePostgres, StringComparison.Ordinal)) return EnginePostgres;
+        if (lower.Contains(EngineMySql, StringComparison.Ordinal) || lower.Contains(EngineMariaDb, StringComparison.Ordinal)) return EngineMySql;
+        if (lower.Contains(EngineMsSql, StringComparison.Ordinal) || lower.Contains(EngineSqlServer, StringComparison.Ordinal) || lower.Contains(EngineSqlServerUnderscore, StringComparison.Ordinal)) return EngineSqlServer;
+        if (lower.Contains(EngineOracle, StringComparison.Ordinal)) return EngineOracle;
+        if (lower.Contains(EngineDynamoDb, StringComparison.Ordinal)) return EngineDynamoDb;
+        if (lower.Contains(EngineRedis, StringComparison.Ordinal) || lower.Contains(EngineElastiCache, StringComparison.Ordinal) || lower.Contains(EngineMemoryStore, StringComparison.Ordinal)) return EngineRedis;
+        if (lower.Contains(EngineDocDb, StringComparison.Ordinal) || lower.Contains(EngineMongo, StringComparison.Ordinal)) return EngineMongoDb;
+        if (lower.Contains(EngineOpenSearch, StringComparison.Ordinal) || lower.Contains(EngineElasticsearch, StringComparison.Ordinal)) return EngineElasticsearch;
+        if (lower.Contains(EngineRedshift, StringComparison.Ordinal)) return EngineRedshift;
+        if (lower.Contains(EngineBigQuery, StringComparison.Ordinal)) return EngineBigQuery;
+        if (lower.Contains(EngineSpanner, StringComparison.Ordinal)) return EngineSpanner;
+        if (lower.Contains(EngineFirestore, StringComparison.Ordinal)) return EngineFirestore;
+        if (lower.Contains(EngineBigtable, StringComparison.Ordinal)) return EngineBigtable;
+        if (lower.Contains(EngineCosmosDb, StringComparison.Ordinal)) return EngineCosmosDb;
+        if (lower.Contains(EngineNeptune, StringComparison.Ordinal)) return EngineNeptune;
         return null;
     }
 }

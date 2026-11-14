@@ -69,7 +69,7 @@ public partial class PostIndexAnalyzer
             var tgt = rel.To;
             var kind = rel.Kind;
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-            if (kind is RelationshipKind.ImplementedBy or RelationshipKind.Deploys)
+            if (kind is RelationshipKind.ImplementedBy or RelationshipKind.Deploys or RelationshipKind.HostedIn)
             {
                 continue;
             }

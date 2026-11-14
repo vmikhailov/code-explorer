@@ -1,3 +1,5 @@
+using CodeExplorer.Core.Parser.Syntax;
+using CodeExplorer.Cypher.Common;
 using Superpower;
 using Superpower.Model;
 using Superpower.Parsers;
@@ -15,6 +17,9 @@ public static class HclParser
     private const string ForKeyword = "for";
     private const string InKeyword = "in";
     private const string IfKeyword = "if";
+    private const string DoubleColon = "::";
+    private const string SyntaxErrorPrefix = "HCL syntax error near token ";
+    private const string TokenizeErrorPrefix = "HCL lexical error: ";
     private const char DotSeparator = '.';
 
     private static readonly TokenListParser<HclToken, Token<HclToken>> IdentOrStringKey =
@@ -30,7 +35,21 @@ public static class HclParser
         var tokenized = HclTokenizer.Instance.TryTokenize(source);
         if (!tokenized.HasValue)
         {
-            return new HclFile(filePath, [], []);
+            var errPos = tokenized.ErrorPosition;
+            var errLine = Math.Max(0, errPos.Line - 1);
+            var errCol = Math.Max(0, errPos.Column - 1);
+            var span = new CodeExplorer.Core.Parser.Syntax.TextSpan(
+                errPos.Absolute,
+                errPos.Absolute + 1,
+                errLine,
+                errCol,
+                errLine,
+                errCol + 1);
+            var diag = new SyntaxDiagnostic(
+                SyntaxDiagnosticKind.SyntaxError,
+                $"{TokenizeErrorPrefix}{tokenized.FormatErrorMessageFragment()}",
+                span);
+            return new HclFile(filePath, [], [], [diag]);
         }
 
         return ParseTokenList(tokenized.Value, filePath);
@@ -41,25 +60,39 @@ public static class HclParser
         var tokenized = HclTokenizer.Instance.TryTokenize(source);
         if (!tokenized.HasValue)
         {
-            file = new HclFile(filePath, [], []);
+            file = Parse(source, filePath);
             return false;
         }
 
         file = ParseTokenList(tokenized.Value, filePath);
-        return true;
+        return file.Diagnostics is not { Count: > 0 };
     }
 
     private static HclFile ParseTokenList(TokenList<HclToken> tokens, string filePath)
     {
         var blocks = new List<HclBlock>();
         var attributes = new List<HclAttribute>();
+        var diagnostics = new List<SyntaxDiagnostic>();
         var remainder = tokens;
+
+        foreach (var tok in tokens)
+        {
+            if (tok.Kind == HclToken.Unknown)
+            {
+                RecordTokenDiagnostic(tok, diagnostics);
+            }
+        }
 
         while (!remainder.IsAtEnd)
         {
-            var bodyItem = ParseBodyItem(remainder);
+            var bodyItem = ParseBodyItem(remainder, diagnostics);
             if (!bodyItem.HasValue)
             {
+                var badTok = remainder.ConsumeToken();
+                if (badTok.HasValue && badTok.Value.Kind != HclToken.Unknown)
+                {
+                    RecordTokenDiagnostic(badTok.Value, diagnostics);
+                }
                 remainder = SkipSingleTokenOrBalancedBraces(remainder);
                 continue;
             }
@@ -75,12 +108,38 @@ public static class HclParser
             remainder = bodyItem.Remainder;
         }
 
-        return new HclFile(filePath, blocks, attributes);
+        return new HclFile(filePath, blocks, attributes, diagnostics);
+    }
+
+    private static void RecordTokenDiagnostic(Token<HclToken> tok, List<SyntaxDiagnostic> diagnostics)
+    {
+        var line0 = Math.Max(0, tok.Position.Line - 1);
+        var col0 = Math.Max(0, tok.Position.Column - 1);
+        if (diagnostics.Any(d => d.Span.StartLine == line0))
+        {
+            return;
+        }
+
+        var startByte = tok.Position.Absolute;
+        var endByte = startByte + Math.Max(1, tok.Span.Length);
+        var span = new CodeExplorer.Core.Parser.Syntax.TextSpan(
+            startByte,
+            endByte,
+            line0,
+            col0,
+            line0,
+            col0 + Math.Max(1, tok.Span.Length));
+        diagnostics.Add(new SyntaxDiagnostic(
+            SyntaxDiagnosticKind.SyntaxError,
+            $"{SyntaxErrorPrefix}'{tok.ToStringValue()}'",
+            span));
     }
 
     private readonly record struct BodyItemResult(HclBlock? Block, HclAttribute? Attribute);
 
-    private static TokenListParserResult<HclToken, BodyItemResult> ParseBodyItem(TokenList<HclToken> input)
+    private static TokenListParserResult<HclToken, BodyItemResult> ParseBodyItem(
+        TokenList<HclToken> input,
+        List<SyntaxDiagnostic>? diagnostics = null)
     {
         var first = input.ConsumeToken();
         if (!first.HasValue)
@@ -112,7 +171,7 @@ public static class HclParser
 
             if (first.Value.Kind == HclToken.Identifier)
             {
-                var blockRes = ParseBlockFromHeader(first.Value, afterKey, input);
+                var blockRes = ParseBlockFromHeader(first.Value, afterKey, input, diagnostics);
                 if (blockRes.HasValue)
                 {
                     return TokenListParserResult.Value(new BodyItemResult(blockRes.Value, null), input, blockRes.Remainder);
@@ -126,7 +185,8 @@ public static class HclParser
     private static TokenListParserResult<HclToken, HclBlock> ParseBlockFromHeader(
         Token<HclToken> typeToken,
         TokenList<HclToken> remainder,
-        TokenList<HclToken> originalInput)
+        TokenList<HclToken> originalInput,
+        List<SyntaxDiagnostic>? diagnostics = null)
     {
         var labels = new List<string>();
         var cur = remainder;
@@ -134,7 +194,7 @@ public static class HclParser
         while (!cur.IsAtEnd)
         {
             var next = cur.ConsumeToken();
-            if (!next.HasValue)
+            if (!next.HasValue || next.Value.Position.Line != typeToken.Position.Line)
             {
                 return TokenListParserResult.Empty<HclToken, HclBlock>(originalInput);
             }
@@ -170,7 +230,7 @@ public static class HclParser
                 break;
             }
 
-            var item = ParseBodyItem(cur);
+            var item = ParseBodyItem(cur, diagnostics);
             if (item.HasValue)
             {
                 if (item.Value.Block != null)
@@ -185,6 +245,10 @@ public static class HclParser
             }
             else
             {
+                if (diagnostics != null && peek.HasValue && peek.Value.Kind != HclToken.Unknown)
+                {
+                    RecordTokenDiagnostic(peek.Value, diagnostics);
+                }
                 cur = SkipSingleTokenOrBalancedBraces(cur);
             }
         }
@@ -349,21 +413,33 @@ public static class HclParser
 
         if (next.HasValue && next.Value.Kind == HclToken.Colon)
         {
-            var secondColon = next.Remainder.ConsumeToken();
-            if (secondColon.HasValue && secondColon.Value.Kind == HclToken.Colon)
+            var qualifiedName = text;
+            var curColon = remainder;
+            var hasSegments = false;
+
+            while (!curColon.IsAtEnd)
             {
-                var fnNameTok = secondColon.Remainder.ConsumeToken();
-                if (fnNameTok.HasValue && fnNameTok.Value.Kind == HclToken.Identifier)
+                var c1 = curColon.ConsumeToken();
+                if (!c1.HasValue || c1.Value.Kind != HclToken.Colon) break;
+                var c2 = c1.Remainder.ConsumeToken();
+                if (!c2.HasValue || c2.Value.Kind != HclToken.Colon) break;
+                var segTok = c2.Remainder.ConsumeToken();
+                if (!segTok.HasValue || segTok.Value.Kind != HclToken.Identifier) break;
+
+                qualifiedName = $"{qualifiedName}{DoubleColon}{segTok.Value.ToStringValue()}";
+                curColon = segTok.Remainder;
+                hasSegments = true;
+            }
+
+            if (hasSegments)
+            {
+                var lparenTok = curColon.ConsumeToken();
+                if (lparenTok.HasValue && lparenTok.Value.Kind == HclToken.LParen)
                 {
-                    var lparenTok = fnNameTok.Remainder.ConsumeToken();
-                    if (lparenTok.HasValue && lparenTok.Value.Kind == HclToken.LParen)
+                    var callRes = ParseCallExpr(qualifiedName, line, lparenTok.Remainder, originalInput);
+                    if (callRes.HasValue)
                     {
-                        var qualifiedName = $"{text}::{fnNameTok.Value.ToStringValue()}";
-                        var callRes = ParseCallExpr(qualifiedName, line, lparenTok.Remainder, originalInput);
-                        if (callRes.HasValue)
-                        {
-                            return ParsePostfixContinuations(callRes.Value, callRes.Remainder, originalInput);
-                        }
+                        return ParsePostfixContinuations(callRes.Value, callRes.Remainder, originalInput);
                     }
                 }
             }
@@ -723,6 +799,7 @@ public static class HclParser
         TokenList<HclToken> originalInput)
     {
         var subExprs = new List<HclExpr>();
+        var boundNames = new HashSet<string>(StringComparer.Ordinal);
         var cur = afterOpen;
         var depth = 1;
         var seenIn = false;
@@ -749,10 +826,17 @@ public static class HclParser
 
             if (!seenIn)
             {
-                if (step.Value.Kind == HclToken.Identifier &&
-                    string.Equals(step.Value.ToStringValue(), InKeyword, StringComparison.Ordinal))
+                if (step.Value.Kind == HclToken.Identifier)
                 {
-                    seenIn = true;
+                    var identText = step.Value.ToStringValue();
+                    if (string.Equals(identText, InKeyword, StringComparison.Ordinal))
+                    {
+                        seenIn = true;
+                    }
+                    else if (!string.Equals(identText, ForKeyword, StringComparison.Ordinal))
+                    {
+                        boundNames.Add(identText);
+                    }
                 }
                 cur = step.Remainder;
                 continue;
@@ -781,6 +865,10 @@ public static class HclParser
         foreach (var sub in subExprs)
         {
             HclReferenceCollector.CollectExprReferences(sub, HclReferenceCollector.DefaultVia, refs);
+        }
+        if (boundNames.Count > 0)
+        {
+            refs.RemoveAll(r => r.Kind == HclRefKind.Resource && boundNames.Contains(r.TargetScope));
         }
 
         return TokenListParserResult.Value<HclToken, HclExpr>(

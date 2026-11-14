@@ -64,11 +64,10 @@ public partial class CodeExplorerRepository
             res = await client.ExecuteCypherAsync(gqlQuery, parameters, cancellationToken);
         }
 
-        if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
+        if (res.Count == 0 && client.SupportsIdentifierSearch)
         {
             try
             {
-                var engine = new IdentifierSearchEngine();
                 var kindFilter = symbolType switch
                 {
                     SymTypeFunction => SymTypeFunction,
@@ -76,7 +75,7 @@ public partial class CodeExplorerRepository
                     SymTypeVariable or SymTypeMember => SymTypeMember,
                     _ => null
                 };
-                var matches = await engine.SearchAsync(sqliteClient.Connection, name, kindFilter, effectiveLimit, ct: cancellationToken);
+                var matches = await client.SearchIdentifiersAsync(name, kindFilter, effectiveLimit, cancellationToken);
                 var filtered = matches.Where(m => IsDeterministicSymbolMatch(m, name)).ToList();
                 if (filtered.Count > 0)
                 {
@@ -86,7 +85,7 @@ public partial class CodeExplorerRepository
                         CypherValue.FromString(m.Kind.ToString()),
                         CypherValue.FromString(m.Name),
                         CypherValue.FromString(m.FullName),
-                        CypherValue.FromString(IdentifierSearchEngine.NormalizeSymbolPath(m.Path, effectiveWsRoot) ?? string.Empty),
+                        CypherValue.FromString(IdentifierVectorEncoder.NormalizeSymbolPath(m.Path, effectiveWsRoot) ?? string.Empty),
                         CypherValue.FromInt64(m.StartLine),
                         CypherValue.FromInt64(0)
                     ])).ToList();
@@ -136,7 +135,7 @@ public partial class CodeExplorerRepository
                 var val = row[cols[i]];
                 if (i == fileColIdx && val.Kind == CypherValueKind.String)
                 {
-                    val = CypherValue.FromString(IdentifierSearchEngine.NormalizeSymbolPath(val.AsString(), workspaceRoot) ?? string.Empty);
+                    val = CypherValue.FromString(IdentifierVectorEncoder.NormalizeSymbolPath(val.AsString(), workspaceRoot) ?? string.Empty);
                 }
                 values[i] = val;
             }
@@ -267,12 +266,11 @@ public partial class CodeExplorerRepository
         };
         var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
-        if (res.Count == 0 && client is SqliteGraphClient sqliteClient)
+        if (res.Count == 0 && client.SupportsIdentifierSearch)
         {
             try
             {
-                var engine = new IdentifierSearchEngine();
-                var resolved = await engine.ResolveIdentifierAsync(sqliteClient.Connection, symbolName, ct: cancellationToken);
+                var resolved = await client.ResolveIdentifierAsync(symbolName, cancellationToken: cancellationToken);
                 if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != symbolName && resolved.Name != symbolName)
                 {
                     parameters["symbolName"] = resolved.NodeId;
@@ -305,13 +303,12 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
-        if (client is not SqliteGraphClient sqliteClient)
+        if (!client.SupportsIdentifierSearch)
         {
             return "Search is only supported on SQLite workspaces.";
         }
 
-        var engine = new IdentifierSearchEngine();
-        var results = await engine.SearchAsync(sqliteClient.Connection, query, kind, limit, ct: cancellationToken);
+        var results = await client.SearchIdentifiersAsync(query, kind, limit, cancellationToken);
         return ToonYamlSerializer.SerializeObject(results);
     }
 
@@ -324,24 +321,23 @@ public partial class CodeExplorerRepository
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
-        if (client is SqliteGraphClient sqliteClient)
+        var changedFilesList = new List<string>();
+        if (!string.IsNullOrWhiteSpace(filePath)) changedFilesList.Add(filePath);
+        if (filePaths != null) changedFilesList.AddRange(filePaths);
+
+        var symList = !string.IsNullOrWhiteSpace(symbolName) ? new[] { symbolName } : null;
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+
+        var req = new TestImpactRequest(
+            ChangedFiles: changedFilesList.Count > 0 ? changedFilesList : null,
+            GitDiff: gitDiff,
+            SymbolNames: symList,
+            WorkspaceRoot: wsRoot
+        );
+
+        var report = await client.AnalyzeTestImpactAsync(req, cancellationToken);
+        if (report != null)
         {
-            var changedFilesList = new List<string>();
-            if (!string.IsNullOrWhiteSpace(filePath)) changedFilesList.Add(filePath);
-            if (filePaths != null) changedFilesList.AddRange(filePaths);
-
-            var symList = !string.IsNullOrWhiteSpace(symbolName) ? new[] { symbolName } : null;
-            var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
-
-            var service = new TestIntelligenceService(sqliteClient);
-            var req = new TestImpactRequest(
-                ChangedFiles: changedFilesList.Count > 0 ? changedFilesList : null,
-                GitDiff: gitDiff,
-                SymbolNames: symList,
-                WorkspaceRoot: wsRoot
-            );
-
-            var report = await service.AnalyzeImpactAsync(req, cancellationToken);
             return ToonYamlSerializer.SerializeObject(report);
         }
 
@@ -363,10 +359,9 @@ public partial class CodeExplorerRepository
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
-        if (client is SqliteGraphClient sqliteClient)
+        var report = await client.AnalyzeTestCoverageAsync(new TestCoverageFilter(projectName, pathPrefix, status, limit), cancellationToken);
+        if (report != null)
         {
-            var service = new TestIntelligenceService(sqliteClient);
-            var report = await service.AnalyzeCoverageAsync(new TestCoverageFilter(projectName, pathPrefix, status, limit), cancellationToken);
             return ToonYamlSerializer.SerializeObject(report);
         }
 

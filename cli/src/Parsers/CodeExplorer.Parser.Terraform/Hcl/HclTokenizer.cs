@@ -1,3 +1,4 @@
+using System.Text;
 using Superpower;
 using Superpower.Model;
 using Superpower.Parsers;
@@ -7,7 +8,7 @@ namespace CodeExplorer.Parser.Terraform.Hcl;
 
 /// <summary>
 /// Superpower-based HCL2 tokenizer supporting line/block comments, heredocs (&lt;&lt;EOF / &lt;&lt;-EOF),
-/// quoted strings with nested "${...}" interpolations, numbers, identifiers, and operators.
+/// quoted strings with nested "${...}" and "%{...}" interpolations, numbers, identifiers, and operators.
 /// </summary>
 public static class HclTokenizer
 {
@@ -24,14 +25,11 @@ public static class HclTokenizer
     private const string OpGteText = ">=";
     private const string OpAndText = "&&";
     private const string OpOrText = "||";
-    private const string EscapedQuote = "\\\"";
-    private const string QuoteStr = "\"";
-    private const string EscapedBackslash = "\\\\";
-    private const string BackslashStr = "\\";
 
     private const char HashChar = '#';
     private const char CrChar = '\r';
     private const char LfChar = '\n';
+    private const char TabChar = '\t';
     private const char DotChar = '.';
     private const char ExpLowerChar = 'e';
     private const char ExpUpperChar = 'E';
@@ -41,6 +39,7 @@ public static class HclTokenizer
     private const char StarChar = '*';
     private const char SlashChar = '/';
     private const char PercentChar = '%';
+    private const char DollarChar = '$';
     private const char BangChar = '!';
     private const char LtChar = '<';
     private const char GtChar = '>';
@@ -54,6 +53,8 @@ public static class HclTokenizer
     private const char CommaChar = ',';
     private const char ColonChar = ':';
     private const char QuestionChar = '?';
+    private const char QuoteChar = '"';
+    private const char BackslashChar = '\\';
 
     private static readonly TextParser<TextSpan> HashLineComment =
         from hash in Character.EqualTo(HashChar)
@@ -61,17 +62,35 @@ public static class HclTokenizer
         select TextSpan.Empty;
 
     private static readonly TextParser<TextSpan> SlashLineComment =
-        from slashes in Span.EqualTo(LineCommentSlash)
-        from rest in Character.ExceptIn(CrChar, LfChar).Many()
-        select TextSpan.Empty;
+        (from slashes in Span.EqualTo(LineCommentSlash)
+         from rest in Character.ExceptIn(CrChar, LfChar).Many()
+         select TextSpan.Empty).Try();
 
-    private static readonly TextParser<TextSpan> CBlockComment =
-        Comment.CStyle;
+    private static readonly TextParser<TextSpan> CBlockComment = input =>
+    {
+        var source = input.Source;
+        if (source == null || input.Length < 2)
+        {
+            return Result.Empty<TextSpan>(input);
+        }
+
+        var startOffset = input.Position.Absolute;
+        if (source[startOffset] != SlashChar || source[startOffset + 1] != StarChar)
+        {
+            return Result.Empty<TextSpan>(input);
+        }
+
+        var endIdx = source.IndexOf(BlockCommentEnd, startOffset + 2, StringComparison.Ordinal);
+        var consumed = endIdx >= 0
+            ? (endIdx + 2 - startOffset)
+            : input.Length;
+        return Result.Value(TextSpan.Empty, input, input.Skip(consumed));
+    };
 
     private static readonly TextParser<Unit> QuotedStringToken = input =>
     {
         var next = input.ConsumeChar();
-        if (!next.HasValue || next.Value != '"')
+        if (!next.HasValue || next.Value != QuoteChar)
         {
             return Result.Empty<Unit>(input);
         }
@@ -85,7 +104,7 @@ public static class HclTokenizer
             var ch = step.Value;
             remainder = step.Remainder;
 
-            if (ch == '\\')
+            if (ch == BackslashChar)
             {
                 if (!remainder.IsAtEnd)
                 {
@@ -94,10 +113,15 @@ public static class HclTokenizer
                 continue;
             }
 
-            if (ch == '$' && !remainder.IsAtEnd)
+            if ((ch == DollarChar || ch == PercentChar) && !remainder.IsAtEnd)
             {
                 var peek = remainder.ConsumeChar();
-                if (peek.Value == '{')
+                if (peek.Value == ch)
+                {
+                    remainder = peek.Remainder;
+                    continue;
+                }
+                if (peek.Value == LBraceChar)
                 {
                     interpBraceDepth++;
                     remainder = peek.Remainder;
@@ -107,22 +131,22 @@ public static class HclTokenizer
 
             if (interpBraceDepth > 0)
             {
-                if (ch == '{')
+                if (ch == LBraceChar)
                 {
                     interpBraceDepth++;
                 }
-                else if (ch == '}')
+                else if (ch == RBraceChar)
                 {
                     interpBraceDepth--;
                 }
-                else if (ch == '"')
+                else if (ch == QuoteChar)
                 {
                     remainder = ConsumeInnerQuotedString(remainder);
                 }
                 continue;
             }
 
-            if (ch == '"')
+            if (ch == QuoteChar)
             {
                 return Result.Value(Unit.Value, input, remainder);
             }
@@ -236,12 +260,12 @@ public static class HclTokenizer
         select Unit.Value;
 
     private static readonly TextParser<Unit> MultiCharOperatorToken =
-        Span.EqualTo(OpEqText).Value(Unit.Value)
-            .Or(Span.EqualTo(OpNeqText).Value(Unit.Value))
-            .Or(Span.EqualTo(OpLteText).Value(Unit.Value))
-            .Or(Span.EqualTo(OpGteText).Value(Unit.Value))
-            .Or(Span.EqualTo(OpAndText).Value(Unit.Value))
-            .Or(Span.EqualTo(OpOrText).Value(Unit.Value))
+        Span.EqualTo(OpEqText).Try().Value(Unit.Value)
+            .Or(Span.EqualTo(OpNeqText).Try().Value(Unit.Value))
+            .Or(Span.EqualTo(OpLteText).Try().Value(Unit.Value))
+            .Or(Span.EqualTo(OpGteText).Try().Value(Unit.Value))
+            .Or(Span.EqualTo(OpAndText).Try().Value(Unit.Value))
+            .Or(Span.EqualTo(OpOrText).Try().Value(Unit.Value))
             .Or(Character.In(PlusChar, MinusChar, StarChar, SlashChar, PercentChar, BangChar, LtChar, GtChar).Value(Unit.Value));
 
     public static readonly Tokenizer<HclToken> Instance = new TokenizerBuilder<HclToken>()
@@ -251,8 +275,8 @@ public static class HclTokenizer
         .Ignore(CBlockComment)
         .Match(HeredocToken, HclToken.HeredocLiteral)
         .Match(QuotedStringToken, HclToken.StringLiteral)
-        .Match(Span.EqualTo(FatArrowText), HclToken.FatArrow)
-        .Match(Span.EqualTo(EllipsisText), HclToken.Ellipsis)
+        .Match(Span.EqualTo(FatArrowText).Try(), HclToken.FatArrow)
+        .Match(Span.EqualTo(EllipsisText).Try(), HclToken.Ellipsis)
         .Match(MultiCharOperatorToken, HclToken.Operator)
         .Match(Character.EqualTo(LBraceChar), HclToken.LBrace)
         .Match(Character.EqualTo(RBraceChar), HclToken.RBrace)
@@ -267,15 +291,65 @@ public static class HclTokenizer
         .Match(Character.EqualTo(QuestionChar), HclToken.Question)
         .Match(HclNumberToken, HclToken.Number)
         .Match(HclIdentifierToken, HclToken.Identifier)
+        .Match(Character.AnyChar, HclToken.Unknown)
         .Build();
 
     public static string UnquoteString(string rawToken)
     {
-        if (rawToken.Length >= 2 && rawToken[0] == '"' && rawToken[^1] == '"')
+        if (rawToken.Length < 2 || rawToken[0] != QuoteChar)
         {
-            return rawToken[1..^1].Replace(EscapedQuote, QuoteStr).Replace(EscapedBackslash, BackslashStr);
+            return rawToken;
         }
-        return rawToken;
+
+        var inner = rawToken[^1] == QuoteChar
+            ? rawToken.AsSpan(1, rawToken.Length - 2)
+            : rawToken.AsSpan(1);
+
+        if (!inner.Contains(BackslashChar))
+        {
+            return inner.ToString();
+        }
+
+        var sb = new StringBuilder(inner.Length);
+        var i = 0;
+        while (i < inner.Length)
+        {
+            var ch = inner[i++];
+            if (ch != BackslashChar || i >= inner.Length)
+            {
+                sb.Append(ch);
+                continue;
+            }
+
+            var esc = inner[i++];
+            switch (esc)
+            {
+                case QuoteChar:
+                    sb.Append(QuoteChar);
+                    break;
+                case BackslashChar:
+                    sb.Append(BackslashChar);
+                    break;
+                case 'n':
+                    sb.Append(LfChar);
+                    break;
+                case 'r':
+                    sb.Append(CrChar);
+                    break;
+                case 't':
+                    sb.Append(TabChar);
+                    break;
+                case 'u' when i + 4 <= inner.Length &&
+                              ushort.TryParse(inner.Slice(i, 4), System.Globalization.NumberStyles.HexNumber, null, out var codeUnit):
+                    sb.Append((char)codeUnit);
+                    i += 4;
+                    break;
+                default:
+                    sb.Append(esc);
+                    break;
+            }
+        }
+        return sb.ToString();
     }
 
     public static string ExtractHeredocBody(string rawToken)

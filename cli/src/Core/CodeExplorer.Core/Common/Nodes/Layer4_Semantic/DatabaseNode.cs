@@ -87,10 +87,10 @@ public record DatabaseNode(
     public bool? IsImplicitSchema { get; set; }
 
     [JsonPropertyName("resource_type"), OntologyProperty("IaC resource type when provisioned by Terraform or cloud templates.")]
-    public string? ResourceType { get; init; }
+    public string? ResourceType { get; set; }
 
     [JsonPropertyName("provisioned_by"), OntologyProperty("IaC tool or engine provisioning this database (e.g. terraform).")]
-    public string? ProvisionedBy { get; init; }
+    public string? ProvisionedBy { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Database;

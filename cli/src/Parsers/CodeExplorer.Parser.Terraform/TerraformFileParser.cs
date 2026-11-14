@@ -88,6 +88,10 @@ public sealed class TerraformFileParser : IFileParser
         var endLine = hclFile.Blocks.Count > 0 ? hclFile.Blocks[^1].EndLine : 1;
         var hclDocNode = new HclDocumentSyntaxNode(hclFile, declarations, endLine);
         var doc = SyntaxDocument.Create(sourceText, LanguageName, filePath, relativePath, [hclDocNode]);
+        if (hclFile.Diagnostics is { Count: > 0 })
+        {
+            doc.Diagnostics = hclFile.Diagnostics;
+        }
 
         return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
     }

@@ -12,7 +12,8 @@ internal static class SourcelessManifestDetector
     {
         ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte",
         ".cs", ".fs", ".vb", ".py", ".go", ".java", ".kt", ".kts", ".scala", ".rs", ".rb", ".php",
-        ".swift", ".dart", ".sql", ".cfc", ".cfm", ".graphql", ".gql", ".proto"
+        ".swift", ".dart", ".sql", ".cfc", ".cfm", ".graphql", ".gql", ".proto",
+        ".tf", ".tofu", ".tfvars", ".hcl"
     };
 
     private static readonly HashSet<string> NonSourceDirectoryNames = new(StringComparer.OrdinalIgnoreCase)

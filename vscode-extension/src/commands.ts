@@ -10,6 +10,7 @@ import { LlmBridgeService } from './services/llmBridgeService';
 import { isProjectKind } from '../../proto/types';
 import { compareSemver } from './binaryManager';
 import { GateStateManager } from './gateStateManager';
+import { EngineSupervisor } from './engine/engineSupervisor';
 
 const EMPTY_WS_URL = '';
 const VIEW_MODE_ONTOLOGY = 'ontology' as const;
@@ -461,7 +462,12 @@ export function registerWorkspaceLifecycleCommands(
 
       vscode.window.showInformationMessage('CodeExplorer: Restarting graph server...');
       try {
-        await transport.restart(workspaceRoot);
+        const sup = EngineSupervisor.getInstance();
+        if (sup) {
+          await sup.retry(workspaceRoot);
+        } else {
+          await transport.restart(workspaceRoot);
+        }
         treeDataProvider.refresh();
         vscode.window.showInformationMessage('CodeExplorer: Server restarted successfully.');
       } catch (err: any) {

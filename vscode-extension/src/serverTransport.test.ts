@@ -251,6 +251,62 @@ async function runTests() {
     }
   }
 
+  // 4. Test verifyHealthyConnection NEVER resets _restartTimestamps and halts in error state until explicit restartServer()
+  {
+    const startEmitter = createMockEmitter<ServerInfo>();
+    const stopEmitter = createMockEmitter<void>();
+    const unexpectedExitEmitter = createMockEmitter<{ code: number | null; signal: string | null }>();
+    let spawnCount = 0;
+    let shouldFail = true;
+
+    const mockPm: any = {
+      onDidServerStart: startEmitter.event,
+      onDidServerStop: stopEmitter.event,
+      onDidUnexpectedExit: unexpectedExitEmitter.event,
+      hasWorkspace: () => true,
+      getServerInfo: () => null,
+      isStarting: () => false,
+      stopServer: () => {},
+      ensureServerStarted: async (wsRoot: string, opts?: { port?: number }) => {
+        spawnCount++;
+        if (shouldFail) {
+          const err: any = new Error('Missing .NET 11 runtime');
+          err.isFatal = true;
+          throw err;
+        }
+        const info: ServerInfo = {
+          status: 'ready',
+          port: opts?.port || 52100,
+          wsUrl: `ws://127.0.0.1:${opts?.port || 52100}/ws`,
+          httpUrl: `http://127.0.0.1:${opts?.port || 52100}`,
+          workspace: wsRoot,
+        };
+        startEmitter.fire(info);
+        return info;
+      },
+    };
+
+    const transport = new ServerTransport(mockPm, () => 'C:/mock/workspace', { appendLine: () => {} } as any);
+    try {
+      await assert.rejects(() => transport.ensureConnected('C:/mock/workspace'));
+      assert.strictEqual(spawnCount, 1);
+      assert.strictEqual(transport.isCircuitOpen(), true, 'Fatal startup failure must open circuit breaker');
+
+      // Calling verifyHealthyConnection in error/circuit-open state must NOT reset circuit breaker or spawn again
+      await assert.rejects(() => transport.verifyHealthyConnection('C:/mock/workspace'));
+      assert.strictEqual(spawnCount, 1, 'verifyHealthyConnection must not respawn when circuit breaker is open');
+
+      // Explicit user-initiated restart() resets circuit breaker and recovers
+      shouldFail = false;
+      const recovered = await transport.restart('C:/mock/workspace');
+      assert.strictEqual(recovered.status, 'ready');
+      assert.strictEqual(spawnCount, 2);
+      assert.strictEqual(transport.isCircuitOpen(), false);
+    } finally {
+      transport.dispose();
+    }
+  }
+
   console.log('All ServerTransport tests passed!');
 }
 

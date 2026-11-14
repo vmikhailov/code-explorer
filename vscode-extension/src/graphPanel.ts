@@ -5,6 +5,8 @@ import { LlmBridgeService } from './services/llmBridgeService';
 import { GateStateManager } from './gateStateManager';
 import { ServerTransport } from './serverTransport';
 import { GraphInspectorViewProvider } from './graphInspectorViewProvider';
+import { HostRpcBroker } from './rpc/hostRpcBroker';
+import { EngineSupervisor } from './engine/engineSupervisor';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -269,6 +271,12 @@ export class GraphPanel {
     // Set webview HTML
     this.updateHtml();
 
+    // Attach to HostRpcBroker for typed RPC_REQUEST / RPC_RESPONSE and RPC_EVENT broadcast
+    const rpcBroker = HostRpcBroker.getInstance();
+    if (rpcBroker) {
+      this.disposables.push(rpcBroker.attachWebview(this.panel.webview));
+    }
+
     // Listen for webview disposal
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 
@@ -293,7 +301,27 @@ export class GraphPanel {
               workspaceRoot: this.workspaceRoot,
               initialViewMode: this.initialViewMode,
             });
-            if (this.transport && this.workspaceRoot) {
+            const supervisor = EngineSupervisor.getInstance();
+            if (this.workspaceRoot && supervisor && supervisor.getState() !== 'Failed') {
+              supervisor
+                .ensureReady(this.workspaceRoot)
+                .then((info) => {
+                  if (info?.wsUrl && info.wsUrl !== this.wsUrl) {
+                    this.wsUrl = info.wsUrl;
+                    this.panel.webview.postMessage({
+                      type: 'UPDATE_WS_URL',
+                      wsUrl: this.wsUrl,
+                    });
+                    this.panel.webview.postMessage({
+                      type: 'SERVER_CONFIG',
+                      wsUrl: this.wsUrl,
+                      workspaceRoot: this.workspaceRoot,
+                      initialViewMode: this.initialViewMode,
+                    });
+                  }
+                })
+                .catch(() => {});
+            } else if (this.transport && this.workspaceRoot && !this.transport.isCircuitOpen() && this.transport.getState() !== 'error') {
               this.transport
                 .verifyHealthyConnection(this.workspaceRoot)
                 .then((info) => {
@@ -336,9 +364,20 @@ export class GraphPanel {
           case 'REQUEST_RECONNECT':
           case 'REQUEST_WS_URL':
           case 'REQUEST_SERVER_RECONNECT': {
+            const supervisor = EngineSupervisor.getInstance();
+            if (
+              supervisor?.getState() === 'Failed' ||
+              this.transport.isCircuitOpen() ||
+              this.transport.getState() === 'error'
+            ) {
+              // Silent in Failed state: zero log spam and zero automatic respawn loops
+              break;
+            }
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview requested server reconnect handshake (${message.type}).`);
             try {
-              const info = await this.transport.verifyHealthyConnection(this.workspaceRoot);
+              const info = supervisor
+                ? await supervisor.ensureReady(this.workspaceRoot)
+                : await this.transport.verifyHealthyConnection(this.workspaceRoot);
               this.wsUrl = info.wsUrl;
               this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Responding with UPDATE_WS_URL: ${this.wsUrl}`);
               this.panel.webview.postMessage({

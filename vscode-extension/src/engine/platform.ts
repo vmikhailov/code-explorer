@@ -297,29 +297,6 @@ export function findInPath(
     }
   }
 
-  // Fallback to system command (where.exe / which) if direct PATH search found nothing
-  if (results.length === 0) {
-    try {
-      const tool = platform === 'win32' ? 'where.exe' : 'which';
-      const res = cp.spawnSync(tool, [commandName], {
-        encoding: 'utf8',
-        timeout: 4000,
-        windowsHide: true,
-      });
-      if (res.status === 0 && res.stdout?.trim()) {
-        const lines = res.stdout.trim().split(/\r?\n/);
-        for (const line of lines) {
-          const p = line.trim();
-          if (p && fs.existsSync(p)) {
-            results.push(p);
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  // Return unique results
+  // Return unique results without blocking main thread via spawnSync
   return Array.from(new Set(results));
 }

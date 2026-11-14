@@ -262,6 +262,9 @@ public partial class PostIndexAnalyzer
                     Engine = engineToUse,
                     Technology = engineToUse,
                     Schema = schemaToUse,
+                    Provider = db.Provider,
+                    ResourceType = db.ResourceType,
+                    ProvisionedBy = db.ProvisionedBy,
                     IsCanonical = true,
                     IsSemanticEntity = true,
                     Layer = StandardLayers.Foundation.LayerId,
@@ -283,6 +286,9 @@ public partial class PostIndexAnalyzer
             }
 
             var targetCanonical = canonicalDbNodes[canonicalId];
+            targetCanonical.Provider ??= db.Provider;
+            targetCanonical.ResourceType ??= db.ResourceType;
+            targetCanonical.ProvisionedBy ??= db.ProvisionedBy;
             if (!isRawImplicit || isRawExplicit)
             {
                 targetCanonical.IsImplicitSchema = null;

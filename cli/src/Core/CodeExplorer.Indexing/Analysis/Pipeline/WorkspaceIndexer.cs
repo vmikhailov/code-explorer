@@ -270,11 +270,19 @@ public class WorkspaceIndexer
             }
             else
             {
-                var fi = new FileInfo(file.FullPath);
-                if (!fi.Exists) return;
-                lastMod = fi.LastWriteTimeUtc;
-                sizeBytes = fi.Length;
-                hash = await Incremental.HashUtility.ComputeSha256FromFileAsync(file.FullPath, ct);
+                try
+                {
+                    var fi = new FileInfo(file.FullPath);
+                    if (!fi.Exists) return;
+                    lastMod = fi.LastWriteTimeUtc;
+                    sizeBytes = fi.Length;
+                    hash = await Incremental.HashUtility.ComputeSha256FromFileAsync(file.FullPath, ct);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Skip dangling symlinks or unreadable files during registry sync
+                    return;
+                }
             }
             seen.TryAdd(file.Path, 0);
 

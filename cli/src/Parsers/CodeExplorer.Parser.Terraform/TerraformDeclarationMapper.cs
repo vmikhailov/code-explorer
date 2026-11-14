@@ -44,6 +44,12 @@ public static class TerraformDeclarationMapper
     private const string AnyType = "any";
     private const string SymKindType = "Type";
     private const string SymKindMember = "Member";
+    private const string TfvarsExtension = ".tfvars";
+    private const string TfvarsJsonExtension = ".tfvars.json";
+    private const string TfvarsPrefix = "tfvars";
+    private const string VarScope = "var";
+    private const string ViaTfvars = "tfvars";
+    private const char DotChar = '.';
 
     private static readonly HashSet<string> MetaModuleAttributes = new(StringComparer.Ordinal)
     {
@@ -59,6 +65,7 @@ public static class TerraformDeclarationMapper
         List<IOntologyNode> nodeSink)
     {
         var symbols = new List<TerraformSymbol>();
+        var emittedSymbolNodeIds = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var block in hclFile.Blocks)
         {
@@ -95,7 +102,16 @@ public static class TerraformDeclarationMapper
                 case BlockOutput when block.Labels.Count >= 1:
                     MapOutputBlock(block, workspaceId, fileNodeId, relativeFilePath, moduleDir, symbols, nodeSink);
                     break;
+
+                default:
+                    MapConfigBlock(block, workspaceId, fileNodeId, relativeFilePath, moduleDir, emittedSymbolNodeIds, symbols, nodeSink);
+                    break;
             }
+        }
+
+        if (hclFile.Attributes.Count > 0)
+        {
+            MapTopLevelAttributes(hclFile, workspaceId, fileNodeId, relativeFilePath, moduleDir, emittedSymbolNodeIds, symbols, nodeSink);
         }
 
         return symbols;
@@ -455,6 +471,135 @@ public static class TerraformDeclarationMapper
             block.StartLine,
             block.EndLine,
             block.CollectReferences()));
+    }
+
+    private static void MapConfigBlock(
+        HclBlock block,
+        string workspaceId,
+        string fileNodeId,
+        string relativeFilePath,
+        string moduleDir,
+        HashSet<string> emittedSymbolNodeIds,
+        List<TerraformSymbol> symbols,
+        List<IOntologyNode> nodeSink)
+    {
+        var refs = block.CollectReferences();
+        if (refs.Count == 0)
+        {
+            return;
+        }
+
+        var baseCanonical = block.Labels.Count > 0
+            ? $"{block.BlockHeader}.{string.Join(DotChar, block.Labels)}"
+            : block.BlockHeader;
+        var canonical = baseCanonical;
+        var nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, canonical);
+        if (!emittedSymbolNodeIds.Add(nodeId))
+        {
+            canonical = $"{baseCanonical}.L{block.StartLine}";
+            nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, canonical);
+            emittedSymbolNodeIds.Add(nodeId);
+        }
+
+        nodeSink.Add(new MemberNode(
+            nodeId,
+            canonical,
+            canonical,
+            relativeFilePath,
+            relativeFilePath,
+            block.StartLine,
+            block.EndLine,
+            0,
+            0,
+            MemberKind.Property,
+            AnyType));
+
+        symbols.Add(new TerraformSymbol(
+            TerraformSymbolKind.Local,
+            canonical,
+            block.BlockHeader,
+            canonical,
+            nodeId,
+            fileNodeId,
+            relativeFilePath,
+            moduleDir,
+            block.StartLine,
+            block.EndLine,
+            refs));
+    }
+
+    private static void MapTopLevelAttributes(
+        HclFile hclFile,
+        string workspaceId,
+        string fileNodeId,
+        string relativeFilePath,
+        string moduleDir,
+        HashSet<string> emittedSymbolNodeIds,
+        List<TerraformSymbol> symbols,
+        List<IOntologyNode> nodeSink)
+    {
+        var isTfvars = relativeFilePath.EndsWith(TfvarsExtension, StringComparison.OrdinalIgnoreCase) ||
+                       relativeFilePath.EndsWith(TfvarsJsonExtension, StringComparison.OrdinalIgnoreCase);
+
+        foreach (var attr in hclFile.Attributes)
+        {
+            var collected = attr.Value.CollectReferences(attr.Name);
+            List<HclReference>? refs = null;
+            if (isTfvars)
+            {
+                refs = new List<HclReference>(collected.Count + 1);
+                refs.AddRange(collected);
+                refs.Add(new HclReference(HclRefKind.Var, VarScope, attr.Name, null, attr.Line, ViaTfvars));
+            }
+            else if (collected.Count > 0)
+            {
+                refs = collected.ToList();
+            }
+
+            if (refs == null || refs.Count == 0)
+            {
+                continue;
+            }
+
+            var canonical = isTfvars ? $"{TfvarsPrefix}.{attr.Name}" : attr.Name;
+            var nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, canonical);
+            if (!emittedSymbolNodeIds.Add(nodeId))
+            {
+                canonical = $"{canonical}.L{attr.Line}";
+                nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, canonical);
+                emittedSymbolNodeIds.Add(nodeId);
+            }
+
+            var memberNode = new MemberNode(
+                nodeId,
+                canonical,
+                canonical,
+                relativeFilePath,
+                relativeFilePath,
+                attr.Line,
+                attr.Line,
+                0,
+                0,
+                MemberKind.Property,
+                AnyType)
+            {
+                InitializerExpression = attr.Value.TryGetStringLiteral()
+            };
+            nodeSink.Add(memberNode);
+
+            symbols.Add(new TerraformSymbol(
+                TerraformSymbolKind.Local,
+                canonical,
+                null,
+                attr.Name,
+                nodeId,
+                fileNodeId,
+                relativeFilePath,
+                moduleDir,
+                attr.Line,
+                attr.Line,
+                refs));
+        }
     }
 
     public static string BuildCloudResourceId(string workspaceId, string moduleDir, string canonicalAddress)

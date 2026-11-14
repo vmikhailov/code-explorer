@@ -61,5 +61,8 @@ public enum HclToken
     Question,
 
     [Token(Description = "operator")]
-    Operator
+    Operator,
+
+    [Token(Description = "unknown character")]
+    Unknown
 }

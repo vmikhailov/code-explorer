@@ -91,6 +91,7 @@ public partial class PostIndexAnalyzer
         var trimmed = name.Trim();
         var lower = trimmed.ToLowerInvariant();
         if (lower.Length <= 1) return false;
+        if (lower.Contains(":db:tf:", StringComparison.Ordinal)) return true;
         if (char.IsDigit(lower[0])) return false;
 
         // Reject SQL keywords, stopwords, functions, and PostgreSQL system catalogs
@@ -184,9 +185,12 @@ public partial class PostIndexAnalyzer
         var type = string.IsNullOrWhiteSpace(rawDbType) ? "relational" : rawDbType.Trim().ToLowerInvariant();
 
         // If rawEngine is generic/default and fallbackEngine is provided, use fallbackEngine
-        var effectiveRawEngine = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) && !rawEngine.Equals("default", StringComparison.OrdinalIgnoreCase)
+        var effectiveRawEngine = !string.IsNullOrWhiteSpace(rawEngine) &&
+                                 !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                                 !rawEngine.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                                 !rawEngine.Equals("relational", StringComparison.OrdinalIgnoreCase)
             ? rawEngine
-            : fallbackEngine;
+            : (fallbackEngine ?? rawEngine);
 
         // 1. If rawName contains '.', it is already in <Technology>.<Schema> format (e.g. PostgreSQL.tournament or Database.tree_rules)
         if (trimmed.Contains('.'))
@@ -267,10 +271,11 @@ public partial class PostIndexAnalyzer
         }
 
         // 4. Config-created DB node: rawName is a catalog/schema (e.g. "customers") and explicit rawEngine is a known engine (e.g. "PostgreSQL", "MongoDB")
-        var explicitEngine = !string.IsNullOrWhiteSpace(rawEngine) &&
-                             !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
-                             !rawEngine.Equals("default", StringComparison.OrdinalIgnoreCase)
-            ? rawEngine
+        var explicitEngine = !string.IsNullOrWhiteSpace(effectiveRawEngine) &&
+                             !effectiveRawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                             !effectiveRawEngine.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                             !effectiveRawEngine.Equals("relational", StringComparison.OrdinalIgnoreCase)
+            ? effectiveRawEngine
             : null;
 
         if (!string.IsNullOrWhiteSpace(explicitEngine) &&

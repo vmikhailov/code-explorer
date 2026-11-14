@@ -112,11 +112,15 @@ public partial class PostIndexAnalyzer
 
         var genericOrLibraryDbsToPurge = canonicalDbNodes.Values
             .Where(n => {
+                if (!string.IsNullOrEmpty(n.ProvisionedBy) || !string.IsNullOrEmpty(n.ResourceType))
+                {
+                    return false;
+                }
                 var eng = n.Engine ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name);
                 var s = n.Schema ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
                 var isImplicit = implicitSchemaIds.Contains(n.Id);
                 var isMultiDomainLib = multiDomainSharedLibDbIds.Contains(n.Id);
-                var isEngineOnly = string.IsNullOrWhiteSpace(s) ||
+                var isEngineOnly = (string.IsNullOrWhiteSpace(s) && (n.Name.Equals(eng, StringComparison.OrdinalIgnoreCase) || AbstractEngineNames.Contains(n.Name))) ||
                                    s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
                                    n.Name.Equals(eng, StringComparison.OrdinalIgnoreCase);
 
@@ -135,7 +139,9 @@ public partial class PostIndexAnalyzer
 
         // Remove any abstract engine-only database nodes
         var abstractDbsToPurge = canonicalDbNodes.Values
-            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Schema, n.DbType.ToCanonicalString(), n.Id))
+            .Where(n => string.IsNullOrEmpty(n.ProvisionedBy) &&
+                        string.IsNullOrEmpty(n.ResourceType) &&
+                        IsAbstractEngineOnlyDatabase(n.Name, n.Schema, n.DbType.ToCanonicalString(), n.Id))
             .ToList();
 
         foreach (var purgeNode in abstractDbsToPurge)

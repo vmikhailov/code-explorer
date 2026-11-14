@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ServerTransport } from './serverTransport';
 import { GraphPanel } from './graphPanel';
+import { HostRpcBroker } from './rpc/hostRpcBroker';
 
 export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'codeExplorerInspectorView';
@@ -105,7 +106,10 @@ export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
 
+    const rpcAttach = HostRpcBroker.getInstance()?.attachWebview(webviewView.webview);
+
     webviewView.onDidDispose(() => {
+      rpcAttach?.dispose();
       if (this.view === webviewView) {
         this.view = undefined;
         this.isWebviewReady = false;

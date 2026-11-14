@@ -814,9 +814,9 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     }
 
     /// <summary>
-    /// Executes a custom operation directly against the underlying SQLite connection under the client lock.
+    /// Executes an internal storage operation against the underlying SQLite connection under the client lock.
     /// </summary>
-    public async Task<T> ExecuteRawAsync<T>(
+    internal async Task<T> WithSqliteConnectionAsync<T>(
         Func<SqliteConnection, Task<T>> action,
         CancellationToken cancellationToken = default)
     {

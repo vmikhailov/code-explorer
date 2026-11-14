@@ -484,4 +484,130 @@ public partial class SqliteGraphClient
 
         return JsonSerializer.Serialize(new { taxonomy }, CompactTaxonomyJsonOptions);
     }
+
+    public async Task<(Dictionary<string, long> NodeCounts, Dictionary<string, long> RelationshipCounts)?> TryGetRawEntityKindCountsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (IsSchemaOutdated) return null;
+
+        return await WithSqliteConnectionAsync(async conn =>
+        {
+            var nodes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            await using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = $"SELECT ce_node_kind(kind), count(*) FROM nodes WHERE (kind != {GraphKindCodec.EncodeNodeKind(NodeKind.Topic)} OR (coalesce(json_extract(properties, '$.is_internal'), 'false') != 'true' AND coalesce(json_extract(properties, '$.broker_type'), '') NOT IN ('mediatr', 'in-memory'))) GROUP BY kind";
+                await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var kind = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                    var cnt = reader.IsDBNull(1) ? 0L : reader.GetInt64(1);
+                    if (!string.IsNullOrEmpty(kind))
+                    {
+                        nodes[kind] = nodes.GetValueOrDefault(kind, 0) + cnt;
+                    }
+                }
+            }
+
+            var rels = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            await using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT ce_rel_kind(kind), count(*) FROM edges GROUP BY kind";
+                await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var kind = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                    var cnt = reader.IsDBNull(1) ? 0L : reader.GetInt64(1);
+                    if (!string.IsNullOrEmpty(kind))
+                    {
+                        rels[kind] = cnt;
+                    }
+                }
+            }
+
+            return ((Dictionary<string, long> NodeCounts, Dictionary<string, long> RelationshipCounts)?)(nodes, rels);
+        }, cancellationToken);
+    }
+
+    public async Task<List<(string FromKind, string Rel, string ToKind, long Count)>> QueryRawObservedTriplesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (IsSchemaOutdated) return [];
+
+        const string observedTriplesSql =
+            "SELECT ce_node_kind(n1.kind), ce_rel_kind(e.kind), ce_node_kind(n2.kind), count(*) " +
+            "FROM edges e JOIN nodes n1 ON n1.rowid = e.from_id JOIN nodes n2 ON n2.rowid = e.to_id " +
+            "GROUP BY n1.kind, e.kind, n2.kind";
+
+        return await WithSqliteConnectionAsync(async conn =>
+        {
+            var list = new List<(string FromKind, string Rel, string ToKind, long Count)>();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = observedTriplesSql;
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var fromKind = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                var rel = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                var toKind = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+                var cnt = reader.IsDBNull(3) ? 0L : reader.GetInt64(3);
+                if (!string.IsNullOrEmpty(fromKind) && !string.IsNullOrEmpty(rel) && !string.IsNullOrEmpty(toKind))
+                {
+                    list.Add((fromKind, rel, toKind, cnt));
+                }
+            }
+            return list;
+        }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<(string SName, string SId, int EpCount)>> GetWorkloadEndpointCountsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var fastEpQuery = $"""
+            SELECT coalesce(json_extract(s.properties, '$.name'), s.id) AS sName, s.id AS sId, COUNT(ep.rowid) AS epCount
+            FROM nodes ep
+            JOIN edges _r0 ON _r0.to_id = ep.rowid AND _r0.kind = {GraphKindCodec.EncodeRelKind(RelationshipKind.Contains)}
+            JOIN nodes s ON s.rowid = _r0.from_id
+            WHERE ep.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Endpoint)}
+              AND (s.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.CliTool, NodeKind.TestSuite)}))
+            GROUP BY sName, sId;
+            """;
+        return await QueryAsync<(string SName, string SId, int EpCount)>(fastEpQuery, null, cancellationToken);
+    }
+
+    public bool SupportsIdentifierSearch => true;
+
+    public Task<IReadOnlyList<Analysis.IdentifierMatch>> SearchIdentifiersAsync(
+        string query,
+        string? kindFilter = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var engine = new Analysis.IdentifierSearchEngine(_logger);
+        return WithSqliteConnectionAsync(conn => engine.SearchAsync(conn, query, kindFilter, limit, ct: cancellationToken), cancellationToken);
+    }
+
+    public Task<Analysis.IdentifierMatch?> ResolveIdentifierAsync(
+        string query,
+        string? kindFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var engine = new Analysis.IdentifierSearchEngine(_logger);
+        return WithSqliteConnectionAsync(conn => engine.ResolveIdentifierAsync(conn, query, kindFilter, ct: cancellationToken), cancellationToken);
+    }
+
+    public async Task<Analysis.Testing.TestImpactReport?> AnalyzeTestImpactAsync(
+        Analysis.Testing.TestImpactRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var service = new Analysis.Testing.TestIntelligenceService(this);
+        return await service.AnalyzeImpactAsync(request, cancellationToken);
+    }
+
+    public async Task<Analysis.Testing.TestCoverageReport?> AnalyzeTestCoverageAsync(
+        Analysis.Testing.TestCoverageFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var service = new Analysis.Testing.TestIntelligenceService(this);
+        return await service.AnalyzeCoverageAsync(filter, cancellationToken);
+    }
 }

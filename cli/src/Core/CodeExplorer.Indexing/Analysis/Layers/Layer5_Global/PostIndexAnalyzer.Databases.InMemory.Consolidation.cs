@@ -396,7 +396,7 @@ public partial class PostIndexAnalyzer
 
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == RelationshipKind.Contains) continue;
+            if (rel.Kind is RelationshipKind.Contains or RelationshipKind.ImplementedBy or RelationshipKind.Deploys or RelationshipKind.HostedIn) continue;
             var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
                                  rel.Kind == RelationshipKind.QueriedBy ||
                                  rel.Kind == RelationshipKind.DeclaredIn;
@@ -618,6 +618,9 @@ public partial class PostIndexAnalyzer
                 if (canonicalDbNodes.TryGetValue(loserId, out var loserNode) &&
                     canonicalDbNodes.TryGetValue(winnerId, out var winnerNode))
                 {
+                    winnerNode.Provider ??= loserNode.Provider;
+                    winnerNode.ResourceType ??= loserNode.ResourceType;
+                    winnerNode.ProvisionedBy ??= loserNode.ProvisionedBy;
                     foreach (var child in loserNode.Children)
                     {
                         var existingChild = winnerNode.Children.FirstOrDefault(c => c.Id == child.Id);

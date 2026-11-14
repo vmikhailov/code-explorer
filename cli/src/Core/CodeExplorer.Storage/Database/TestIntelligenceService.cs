@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
@@ -10,6 +11,24 @@ namespace CodeExplorer.Core.Analysis.Testing;
 /// </summary>
 public class TestIntelligenceService
 {
+    private const string PropName = "name";
+    private const string PropSymbol = "symbol";
+    private const string PropStartLine = "start_line";
+    private const string PropEndLine = "end_line";
+    private const string PropProject = "project";
+    private const string PropIsTest = "is_test";
+    private const string PropTestFramework = "test_framework";
+    private const string PropKind = "kind";
+    private const string PropPath = "path";
+    private const string PropFilePath = "file_path";
+    private const string DefaultTypeKindClass = "class";
+    private const string TempTestIdsTable = "temp_test_ids";
+    private const string TempFrontierTable = "temp_frontier";
+    private const string DirectlyModifiedReason = "Directly modified test code";
+    private const string PrefixTestSnake = "test_";
+    private const string PrefixTestPascal = "Test";
+    private const string ParamIdDollar = "$id";
+
     private readonly SqliteGraphClient? _client;
     private readonly SqliteConnection? _connection;
 
@@ -32,7 +51,7 @@ public class TestIntelligenceService
 
         if (_client != null)
         {
-            return await _client.ExecuteRawAsync(action, ct);
+            return await _client.WithSqliteConnectionAsync(action, ct);
         }
 
         throw new InvalidOperationException("TestIntelligenceService has no valid database client or connection.");
@@ -272,12 +291,12 @@ public class TestIntelligenceService
                 var root = CypherValue.TryParseJsonText(propsJson);
 
                 var filePath = ResolveBestFilePath(root);
-                var name = root.TryGetProperty("name", out var nProp) ? nProp.AsString() : "";
-                var symbol = root.TryGetProperty("symbol", out var sProp) && !sProp.IsNull ? sProp.AsString(name) : name;
-                var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.AsInt32() : 0;
-                var eLine = root.TryGetProperty("end_line", out var elProp) ? elProp.AsInt32(sLine) : sLine;
-                var project = root.TryGetProperty("project", out var prProp) ? prProp.AsNullableString() : null;
-                var isTestProp = root.TryGetProperty("is_test", out var itProp) && itProp.AsBool();
+                var name = root.TryGetProperty(PropName, out var nProp) ? nProp.AsString() : "";
+                var symbol = root.TryGetProperty(PropSymbol, out var sProp) && !sProp.IsNull ? sProp.AsString(name) : name;
+                var sLine = root.TryGetProperty(PropStartLine, out var slProp) ? slProp.AsInt32() : 0;
+                var eLine = root.TryGetProperty(PropEndLine, out var elProp) ? elProp.AsInt32(sLine) : sLine;
+                var project = root.TryGetProperty(PropProject, out var prProp) ? prProp.AsNullableString() : null;
+                var isTestProp = root.TryGetProperty(PropIsTest, out var itProp) && itProp.AsBool();
 
                 var normPath = filePath.Replace('\\', '/').ToLowerInvariant();
                 var isTestPath = normPath.Contains("/test/") || normPath.Contains("/tests/") ||
@@ -292,7 +311,7 @@ public class TestIntelligenceService
                 {
                     if (isTest)
                     {
-                        var fw = root.TryGetProperty("test_framework", out var fwProp) ? fwProp.AsNullableString() : null;
+                        var fw = root.TryGetProperty(PropTestFramework, out var fwProp) ? fwProp.AsNullableString() : null;
                         testMethods.Add(new RawTestFunction(id, name, symbol, filePath, fw));
                     }
                     else
@@ -314,7 +333,7 @@ public class TestIntelligenceService
                 }
                 else if (kind == "Type")
                 {
-                    var typeKind = root.TryGetProperty("kind", out var tkProp) ? tkProp.AsString("class") : "class";
+                    var typeKind = root.TryGetProperty(PropKind, out var tkProp) ? tkProp.AsString(DefaultTypeKindClass) : DefaultTypeKindClass;
                     if (!isTest && !string.Equals(typeKind, "interface", StringComparison.OrdinalIgnoreCase))
                     {
                         types.Add(new RawTypeSymbol(id, name, symbol, filePath, sLine, eLine, project));
@@ -343,7 +362,7 @@ public class TestIntelligenceService
 
         await using (var tx = conn.BeginTransaction())
         {
-            await BulkInsertTempIdsAsync(conn, tx, "temp_test_ids", testMethodIds, ct);
+            await BulkInsertTempIdsAsync(conn, tx, TempTestIdsTable, testMethodIds, ct);
             tx.Commit();
         }
 
@@ -475,7 +494,7 @@ public class TestIntelligenceService
                             sym.FilePath,
                             sym.StartLine,
                             DetectFramework(sym.FilePath),
-                            "Directly modified test code",
+                            DirectlyModifiedReason,
                             0, [sym.Name],
                             sym.Symbol,
                             sym.FilePath
@@ -547,10 +566,10 @@ public class TestIntelligenceService
             var root = CypherValue.TryParseJsonText(propsJson);
 
             var filePath = ResolveBestFilePath(root);
-            var name = root.TryGetProperty("name", out var nProp) ? nProp.AsString() : "";
-            var symbol = root.TryGetProperty("symbol", out var sProp) && !sProp.IsNull ? sProp.AsString(name) : name;
-            var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.AsInt32() : 0;
-            var eLine = root.TryGetProperty("end_line", out var elProp) ? elProp.AsInt32(sLine) : sLine;
+            var name = root.TryGetProperty(PropName, out var nProp) ? nProp.AsString() : "";
+            var symbol = root.TryGetProperty(PropSymbol, out var sProp) && !sProp.IsNull ? sProp.AsString(name) : name;
+            var sLine = root.TryGetProperty(PropStartLine, out var slProp) ? slProp.AsInt32() : 0;
+            var eLine = root.TryGetProperty(PropEndLine, out var elProp) ? elProp.AsInt32(sLine) : sLine;
 
             var normPath = filePath.Replace('\\', '/').TrimStart('/');
 
@@ -622,7 +641,7 @@ public class TestIntelligenceService
 
         await using (var tx = conn.BeginTransaction())
         {
-            await BulkInsertTempIdsAsync(conn, tx, "temp_frontier", changedIds, ct);
+            await BulkInsertTempIdsAsync(conn, tx, TempFrontierTable, changedIds, ct);
             tx.Commit();
         }
 
@@ -657,7 +676,7 @@ public class TestIntelligenceService
 
             await using (var tx = conn.BeginTransaction())
             {
-                await BulkInsertTempIdsAsync(conn, tx, "temp_frontier", currentFrontier, ct);
+                await BulkInsertTempIdsAsync(conn, tx, TempFrontierTable, currentFrontier, ct);
                 tx.Commit();
             }
 
@@ -697,11 +716,11 @@ public class TestIntelligenceService
 
                     var root = CypherValue.TryParseJsonText(propsJson);
 
-                    var name = root.TryGetProperty("name", out var np) && !np.IsNull ? np.AsString(callerName) : callerName;
-                    var symbol = root.TryGetProperty("symbol", out var sp) && !sp.IsNull ? sp.AsString(name) : name;
+                    var name = root.TryGetProperty(PropName, out var np) && !np.IsNull ? np.AsString(callerName) : callerName;
+                    var symbol = root.TryGetProperty(PropSymbol, out var sp) && !sp.IsNull ? sp.AsString(name) : name;
                     var filePath = ResolveBestFilePath(root);
-                    var sLine = root.TryGetProperty("start_line", out var slp) ? slp.AsInt32() : 0;
-                    var framework = root.TryGetProperty("test_framework", out var tfp) && !tfp.IsNull ? tfp.AsString() : DetectFramework(filePath);
+                    var sLine = root.TryGetProperty(PropStartLine, out var slp) ? slp.AsInt32() : 0;
+                    var framework = root.TryGetProperty(PropTestFramework, out var tfp) && !tfp.IsNull ? tfp.AsString() : DetectFramework(filePath);
 
                     var isTest = IsTestFunction(root, name, filePath);
 
@@ -782,7 +801,7 @@ public class TestIntelligenceService
     {
         if (IsLifecycleOrHelperName(name)) return false;
 
-        if (root.TryGetProperty("is_test", out var itp) && itp.AsBool())
+        if (root.TryGetProperty(PropIsTest, out var itp) && itp.AsBool())
         {
             return true;
         }
@@ -795,7 +814,7 @@ public class TestIntelligenceService
         {
             if (normPath.EndsWith(".go") && name.StartsWith("Test", StringComparison.Ordinal) && name.Length > 4 && char.IsUpper(name[4]))
                 return true;
-            if (normPath.EndsWith(".py") && (name.StartWithIC("test_") || name.EndsWith("_test", StringComparison.OrdinalIgnoreCase)))
+            if (normPath.EndsWith(".py") && (name.StartWithIC(PrefixTestSnake) || name.EndsWith("_test", StringComparison.OrdinalIgnoreCase)))
                 return true;
         }
 
@@ -825,8 +844,8 @@ public class TestIntelligenceService
 
     private static string ResolveBestFilePath(CypherValue root)
     {
-        var path = root.TryGetProperty("path", out var pp) ? pp.AsString() : "";
-        var filePath = root.TryGetProperty("file_path", out var fp) ? fp.AsString() : "";
+        var path = root.TryGetProperty(PropPath, out var pp) ? pp.AsString() : "";
+        var filePath = root.TryGetProperty(PropFilePath, out var fp) ? fp.AsString() : "";
 
         if (path.Contains('/') || path.Contains('\\'))
         {
@@ -848,7 +867,7 @@ public class TestIntelligenceService
         var fileName = Path.GetFileNameWithoutExtension(norm);
         if (fileName.EndsWith("Test", StringComparison.OrdinalIgnoreCase) ||
             fileName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
-            fileName.StartWithIC("Test"))
+            fileName.StartWithIC(PrefixTestPascal))
         {
             return fileName;
         }
@@ -1336,7 +1355,7 @@ public class TestIntelligenceService
         await using var ins = conn.CreateCommand();
         ins.Transaction = tx;
         ins.CommandText = $"INSERT OR IGNORE INTO {tableName} VALUES ($id);";
-        var param = ins.Parameters.Add("$id", SqliteType.Text);
+        var param = ins.Parameters.Add(ParamIdDollar, SqliteType.Text);
 
         foreach (var id in ids)
         {

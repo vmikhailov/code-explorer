@@ -6,28 +6,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeExplorer.Core.Analysis;
 
-public record IdentifierMatch(
-    string NodeId,
-    string Name,
-    string FullName,
-    NodeKind Kind,
-    string? Path,
-    int StartLine,
-    float Score)
-{
-    public IdentifierMatch(
-        string NodeId,
-        string Name,
-        string FullName,
-        string Kind,
-        string? Path,
-        int StartLine,
-        float Score)
-        : this(NodeId, Name, FullName, EnumExtensions.ParseNodeKind(Kind), Path, StartLine, Score)
-    {
-    }
-}
-
 public class IdentifierSearchEngine
 {
     private const float DefaultMinScore = 0.35f;
@@ -35,6 +13,16 @@ public class IdentifierSearchEngine
     private const float SubstringBoostScore = 0.85f;
     private const float ResolveMinScore = 0.65f;
     private const string SymIdMarker = ":sym:";
+    private const string ParamId = "@id";
+    private const string ParamName = "@nm";
+    private const string ParamFullName = "@fn";
+    private const string ParamKind = "@kd";
+    private const string ParamPath = "@pt";
+    private const string ParamStartLine = "@sl";
+    private const string ParamEmbedding = "@eb";
+    private const string ParamQuery = "@q";
+    private const string ParamFilterKind = "@kind";
+    private const string ParamMatch = "@match";
     private readonly ILogger _logger;
 
     public IdentifierSearchEngine(ILogger? logger = null)
@@ -188,13 +176,13 @@ public class IdentifierSearchEngine
             insertCmd.Transaction = tx;
             insertCmd.CommandText =
                 "INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES (@id, @nm, @fn, @kd, @pt, @sl, @eb);";
-            var pId = insertCmd.Parameters.Add("@id", SqliteType.Text);
-            var pNm = insertCmd.Parameters.Add("@nm", SqliteType.Text);
-            var pFn = insertCmd.Parameters.Add("@fn", SqliteType.Text);
-            var pKd = insertCmd.Parameters.Add("@kd", SqliteType.Text);
-            var pPt = insertCmd.Parameters.Add("@pt", SqliteType.Text);
-            var pSl = insertCmd.Parameters.Add("@sl", SqliteType.Integer);
-            var pEb = insertCmd.Parameters.Add("@eb", SqliteType.Blob);
+            var pId = insertCmd.Parameters.Add(ParamId, SqliteType.Text);
+            var pNm = insertCmd.Parameters.Add(ParamName, SqliteType.Text);
+            var pFn = insertCmd.Parameters.Add(ParamFullName, SqliteType.Text);
+            var pKd = insertCmd.Parameters.Add(ParamKind, SqliteType.Text);
+            var pPt = insertCmd.Parameters.Add(ParamPath, SqliteType.Text);
+            var pSl = insertCmd.Parameters.Add(ParamStartLine, SqliteType.Integer);
+            var pEb = insertCmd.Parameters.Add(ParamEmbedding, SqliteType.Blob);
             insertCmd.Prepare();
 
             foreach (var item in entries)
@@ -255,8 +243,8 @@ public class IdentifierSearchEngine
               AND (@kind IS NULL OR kind = @kind)
             LIMIT 5;
             """;
-        exactCmd.Parameters.AddWithValue("@q", queryTrim);
-        exactCmd.Parameters.AddWithValue("@kind", (object?)kindFilter ?? DBNull.Value);
+        exactCmd.Parameters.AddWithValue(ParamQuery, queryTrim);
+        exactCmd.Parameters.AddWithValue(ParamFilterKind, (object?)kindFilter ?? DBNull.Value);
 
         var exactMatches = new List<IdentifierMatch>();
         await using (var r = await exactCmd.ExecuteReaderAsync(ct))
@@ -301,8 +289,8 @@ public class IdentifierSearchEngine
                   AND (@kind IS NULL OR kind = @kind)
                 LIMIT 100;
                 """;
-            ftsCmd.Parameters.AddWithValue("@match", ftsExpr);
-            ftsCmd.Parameters.AddWithValue("@kind", (object?)kindFilter ?? DBNull.Value);
+            ftsCmd.Parameters.AddWithValue(ParamMatch, ftsExpr);
+            ftsCmd.Parameters.AddWithValue(ParamFilterKind, (object?)kindFilter ?? DBNull.Value);
 
             try
             {
@@ -339,7 +327,7 @@ public class IdentifierSearchEngine
 
         await using var scoreCmd = conn.CreateCommand();
         scoreCmd.CommandText = selectSql;
-        scoreCmd.Parameters.AddWithValue("@kind", (object?)kindFilter ?? DBNull.Value);
+        scoreCmd.Parameters.AddWithValue(ParamFilterKind, (object?)kindFilter ?? DBNull.Value);
 
         await using var scoreReader = await scoreCmd.ExecuteReaderAsync(ct);
         while (await scoreReader.ReadAsync(ct))

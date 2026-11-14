@@ -5,3 +5,5 @@ export * from './downloader';
 export * from './discovery';
 export * from './selector';
 export * from './binaryManager';
+export * from './engineLifecycleFsm';
+export * from './engineSupervisor';

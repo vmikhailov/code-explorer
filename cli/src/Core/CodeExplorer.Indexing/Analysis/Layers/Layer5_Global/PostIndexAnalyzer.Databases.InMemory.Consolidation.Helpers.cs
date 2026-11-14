@@ -160,7 +160,7 @@ public partial class PostIndexAnalyzer
         var dbOwners = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == RelationshipKind.Contains) continue;
+            if (rel.Kind is RelationshipKind.Contains or RelationshipKind.ImplementedBy or RelationshipKind.Deploys or RelationshipKind.HostedIn) continue;
             var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
                                  rel.Kind == RelationshipKind.QueriedBy ||
                                  rel.Kind == RelationshipKind.DeclaredIn;
@@ -230,7 +230,7 @@ public partial class PostIndexAnalyzer
 
         foreach (var rel in allRelationships)
         {
-            if (rel.Kind == RelationshipKind.Contains) continue;
+            if (rel.Kind is RelationshipKind.Contains or RelationshipKind.ImplementedBy or RelationshipKind.Deploys or RelationshipKind.HostedIn) continue;
             var isReverseDbRel = rel.Kind == RelationshipKind.AccessedBy ||
                                  rel.Kind == RelationshipKind.QueriedBy ||
                                  rel.Kind == RelationshipKind.DeclaredIn;
@@ -291,7 +291,8 @@ public partial class PostIndexAnalyzer
         {
             foreach (var r in l4Result.SemanticRelationships)
             {
-                if (r.Kind == RelationshipKind.Deploys)
+                if (r.Kind == RelationshipKind.Deploys &&
+                    (r.From.Contains(":p:") || r.From.Contains(":project:")))
                 {
                     projectToWorkloadMap[r.From] = r.To;
                     projectToWorkloadMap[r.From.TrimEnd(':')] = r.To;

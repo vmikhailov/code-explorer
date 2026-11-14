@@ -20,6 +20,13 @@ public static class HclReferenceCollector
     private const string PathPrefix = "path";
     private const string TerraformPrefix = "terraform";
     private const string InterpOpen = "${";
+    private const string DirectiveOpen = "%{";
+    private const string ForKeyword = "for";
+    private const string InKeyword = "in";
+    private const string IfKeyword = "if";
+    private const string ElseKeyword = "else";
+    private const string EndifKeyword = "endif";
+    private const string EndforKeyword = "endfor";
     private const char DotSeparator = '.';
     private const char UnderscoreChar = '_';
 
@@ -54,16 +61,21 @@ public static class HclReferenceCollector
     {
         var unquoted = HclTokenizer.UnquoteString(token.ToStringValue());
         var line = token.Position.Line;
-        if (!unquoted.Contains(InterpOpen, StringComparison.Ordinal))
+        if (!unquoted.Contains(InterpOpen, StringComparison.Ordinal) &&
+            !unquoted.Contains(DirectiveOpen, StringComparison.Ordinal))
         {
             return new HclExpr.Literal(HclLiteralKind.String, unquoted, line);
         }
 
-        var interpolations = ExtractInterpolatedExpressions(unquoted, line);
+        var (interpolations, boundVars) = ExtractInterpolatedExpressions(unquoted, line);
         var refs = new List<HclReference>();
         foreach (var expr in interpolations)
         {
             CollectExprReferences(expr, DefaultVia, refs);
+        }
+        if (boundVars.Count > 0)
+        {
+            refs.RemoveAll(r => r.Kind == HclRefKind.Resource && boundVars.Contains(r.TargetScope));
         }
         return new HclExpr.Template(unquoted, interpolations, refs, line);
     }
@@ -72,30 +84,38 @@ public static class HclReferenceCollector
     {
         var body = HclTokenizer.ExtractHeredocBody(token.ToStringValue());
         var line = token.Position.Line;
-        if (!body.Contains(InterpOpen, StringComparison.Ordinal))
+        if (!body.Contains(InterpOpen, StringComparison.Ordinal) &&
+            !body.Contains(DirectiveOpen, StringComparison.Ordinal))
         {
             return new HclExpr.Literal(HclLiteralKind.Heredoc, body, line);
         }
 
-        var interpolations = ExtractInterpolatedExpressions(body, line);
+        var (interpolations, boundVars) = ExtractInterpolatedExpressions(body, line);
         var refs = new List<HclReference>();
         foreach (var expr in interpolations)
         {
             CollectExprReferences(expr, DefaultVia, refs);
         }
+        if (boundVars.Count > 0)
+        {
+            refs.RemoveAll(r => r.Kind == HclRefKind.Resource && boundVars.Contains(r.TargetScope));
+        }
         return new HclExpr.Template(body, interpolations, refs, line);
     }
 
-    private static List<HclExpr> ExtractInterpolatedExpressions(string text, int baseLine)
+    private static (List<HclExpr> Expressions, HashSet<string> BoundVariables) ExtractInterpolatedExpressions(string text, int baseLine)
     {
         var results = new List<HclExpr>();
+        var boundVars = new HashSet<string>(StringComparer.Ordinal);
         var i = 0;
 
         while (i < text.Length - 1)
         {
-            if (text[i] == '$' && text[i + 1] == '{')
+            var isInterp = text[i] == '$' && text[i + 1] == '{';
+            var isDirective = text[i] == '%' && text[i + 1] == '{';
+            if (isInterp || isDirective)
             {
-                if (i > 0 && text[i - 1] == '$')
+                if (i > 0 && text[i - 1] == text[i])
                 {
                     i += 2;
                     continue;
@@ -130,11 +150,20 @@ public static class HclReferenceCollector
 
                 if (cursor > start)
                 {
-                    var snippet = text[start..cursor];
+                    var snippet = text[start..cursor].Trim();
+                    if (snippet.StartsWith('~'))
+                    {
+                        snippet = snippet[1..].TrimStart();
+                    }
+                    if (snippet.EndsWith('~'))
+                    {
+                        snippet = snippet[..^1].TrimEnd();
+                    }
+                    var lineOffset = CountNewlines(text, 0, start);
                     var tokenized = HclTokenizer.Instance.TryTokenize(snippet);
                     if (tokenized.HasValue)
                     {
-                        ParseAllExpressionsInSnippet(tokenized.Value, baseLine, results);
+                        ParseAllExpressionsInSnippet(tokenized.Value, baseLine + lineOffset, isDirective, results, boundVars);
                     }
                 }
 
@@ -144,12 +173,66 @@ public static class HclReferenceCollector
             i++;
         }
 
-        return results;
+        return (results, boundVars);
     }
 
-    private static void ParseAllExpressionsInSnippet(TokenList<HclToken> tokens, int baseLine, List<HclExpr> sink)
+    private static int CountNewlines(string text, int start, int length)
+    {
+        var count = 0;
+        var end = Math.Min(text.Length, start + length);
+        for (var i = start; i < end; i++)
+        {
+            if (text[i] == '\n') count++;
+        }
+        return count;
+    }
+
+    private static void ParseAllExpressionsInSnippet(
+        TokenList<HclToken> tokens,
+        int baseLine,
+        bool isDirective,
+        List<HclExpr> sink,
+        HashSet<string> boundVars)
     {
         var cur = tokens;
+        if (isDirective && !cur.IsAtEnd)
+        {
+            var first = cur.ConsumeToken();
+            if (first.HasValue && first.Value.Kind == HclToken.Identifier)
+            {
+                var kw = first.Value.ToStringValue();
+                if (string.Equals(kw, ElseKeyword, StringComparison.Ordinal) ||
+                    string.Equals(kw, EndifKeyword, StringComparison.Ordinal) ||
+                    string.Equals(kw, EndforKeyword, StringComparison.Ordinal))
+                {
+                    return;
+                }
+                if (string.Equals(kw, IfKeyword, StringComparison.Ordinal))
+                {
+                    cur = first.Remainder;
+                }
+                else if (string.Equals(kw, ForKeyword, StringComparison.Ordinal))
+                {
+                    cur = first.Remainder;
+                    while (!cur.IsAtEnd)
+                    {
+                        var step = cur.ConsumeToken();
+                        if (!step.HasValue) break;
+                        cur = step.Remainder;
+                        if (step.Value.Kind == HclToken.Identifier)
+                        {
+                            var ident = step.Value.ToStringValue();
+                            if (string.Equals(ident, InKeyword, StringComparison.Ordinal))
+                            {
+                                break;
+                            }
+                            boundVars.Add(ident);
+                        }
+                    }
+                }
+            }
+        }
+
         while (!cur.IsAtEnd)
         {
             var expr = HclParser.ParseExpression(cur);
@@ -238,9 +321,9 @@ public static class HclReferenceCollector
                 break;
 
             case HclExpr.Complex cx:
-                foreach (var sub in cx.SubExpressions)
+                foreach (var r in cx.ExtractedReferences)
                 {
-                    CollectExprReferences(sub, via, sink);
+                    sink.Add(r with { Via = via });
                 }
                 break;
         }

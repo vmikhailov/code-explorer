@@ -148,6 +148,19 @@ export class WebviewServerTransport {
       const msg = event.data;
       if (!msg || typeof msg !== 'object') return;
 
+      const connStateError: WebviewConnectionState = 'error';
+      if (msg.type === 'RPC_EVENT' && msg.topic === 'engine:status' && msg.payload?.state === 'Failed') {
+        this.clearReconnectTimer();
+        this.setConnectionState(connStateError);
+        return;
+      }
+
+      if (msg.type === 'SHOW_ERROR') {
+        this.clearReconnectTimer();
+        this.setConnectionState(connStateError);
+        return;
+      }
+
       if (msg.type === 'UPDATE_WS_URL' || msg.type === 'SERVER_CONFIG') {
         if (msg.workspaceRoot) {
           this._workspaceRoot = msg.workspaceRoot;
@@ -259,15 +272,8 @@ export class WebviewServerTransport {
         const attempt = this._reconnectAttempt + 1;
         this._reconnectAttempt = attempt;
         if (this._reconnectAttempt >= WebviewServerTransport.MAX_RECONNECT_ATTEMPTS) {
+          this.clearReconnectTimer();
           this.setConnectionState('error');
-          this.requestReconnectFromHost();
-          this._reconnectTimer = setTimeout(() => {
-            this.requestReconnectFromHost();
-            if (this._wsUrl) {
-              this.connect(this._wsUrl);
-            }
-          }, 10000);
-          (this._reconnectTimer as any)?.unref?.();
           return;
         }
 
@@ -420,7 +426,6 @@ export class WebviewServerTransport {
     if (api) {
       try {
         api.postMessage({ type: 'REQUEST_RECONNECT' });
-        api.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
       } catch {}
     }
   }

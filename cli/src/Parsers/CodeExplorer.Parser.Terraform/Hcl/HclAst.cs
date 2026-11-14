@@ -1,3 +1,5 @@
+using CodeExplorer.Core.Parser.Syntax;
+
 namespace CodeExplorer.Parser.Terraform.Hcl;
 
 public enum HclRefKind : byte
@@ -25,12 +27,13 @@ public enum HclLiteralKind : byte
 }
 
 /// <summary>
-/// Parsed HCL file containing top-level blocks and attributes.
+/// Parsed HCL file containing top-level blocks, attributes, and syntax diagnostics.
 /// </summary>
 public sealed record HclFile(
     string FilePath,
     IReadOnlyList<HclBlock> Blocks,
-    IReadOnlyList<HclAttribute> Attributes)
+    IReadOnlyList<HclAttribute> Attributes,
+    IReadOnlyList<SyntaxDiagnostic>? Diagnostics = null)
 {
     public HclAttribute? FindAttribute(string name) =>
         Attributes.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.Ordinal));
@@ -89,10 +92,17 @@ public abstract record HclExpr(int Line)
         IReadOnlyList<HclReference> ExtractedReferences,
         int Line) : HclExpr(Line);
 
+    private const string InterpOpen = "${";
+    private const string DirectiveOpen = "%{";
+
     public string? TryGetStringLiteral() => this switch
     {
-        Literal { Kind: HclLiteralKind.String or HclLiteralKind.Heredoc } lit => lit.Value,
-        Template { Interpolations.Count: 0 } tpl => tpl.RawValue,
+        Literal { Kind: HclLiteralKind.String or HclLiteralKind.Heredoc } lit
+            when !lit.Value.Contains(InterpOpen, StringComparison.Ordinal) &&
+                 !lit.Value.Contains(DirectiveOpen, StringComparison.Ordinal) => lit.Value,
+        Template { Interpolations.Count: 0, ExtractedReferences.Count: 0 } tpl
+            when !tpl.RawValue.Contains(InterpOpen, StringComparison.Ordinal) &&
+                 !tpl.RawValue.Contains(DirectiveOpen, StringComparison.Ordinal) => tpl.RawValue,
         _ => null
     };
 

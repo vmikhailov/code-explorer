@@ -129,10 +129,6 @@ public partial class ArchitectureViewEngine
 
     private const string EmbeddedOntologySchemaResource = "ontology-schema.json";
     private const string FallbackEmptySchemaJson = "{\"schemaVersion\":\"1.0\",\"layers\":[],\"edgeCategories\":[],\"commonProperties\":[],\"nodes\":[],\"relationships\":[]}";
-    private const string ObservedTriplesSql =
-        "SELECT ce_node_kind(n1.kind), ce_rel_kind(e.kind), ce_node_kind(n2.kind), count(*) " +
-        "FROM edges e JOIN nodes n1 ON n1.rowid = e.from_id JOIN nodes n2 ON n2.rowid = e.to_id " +
-        "GROUP BY n1.kind, e.kind, n2.kind";
 
     private static readonly HashSet<string> HiddenOntologyLabels = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -210,45 +206,37 @@ public partial class ArchitectureViewEngine
 
     private async Task<List<OntologyObservedTripleDto>> QueryObservedOntologyTriplesAsync(CancellationToken ct)
     {
-        if (db is not SqliteGraphClient sqliteClient || sqliteClient.IsSchemaOutdated)
+        if (db.IsSchemaOutdated)
         {
             return [];
         }
 
         try
         {
-            return await sqliteClient.ExecuteRawAsync(async conn =>
+            var rawTriples = await db.QueryRawObservedTriplesAsync(ct);
+            if (rawTriples.Count == 0)
             {
-                var list = new List<OntologyObservedTripleDto>();
-                await using var cmd = conn.CreateCommand();
-                cmd.CommandText = ObservedTriplesSql;
-                await using var reader = await cmd.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
+                return [];
+            }
+
+            var list = new List<OntologyObservedTripleDto>(rawTriples.Count);
+            foreach (var (fromKind, rel, toKind, cnt) in rawTriples)
+            {
+                if (Mcp.OntologyRegistry.IsSystemNode(fromKind) || Mcp.OntologyRegistry.IsSystemNode(toKind) ||
+                    HiddenOntologyLabels.Contains(fromKind) || HiddenOntologyLabels.Contains(toKind) ||
+                    HiddenOntologyLabels.Contains(rel))
                 {
-                    var fromKind = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
-                    var rel = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-                    var toKind = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
-                    var cnt = reader.IsDBNull(3) ? 0L : reader.GetInt64(3);
-                    if (string.IsNullOrEmpty(fromKind) || string.IsNullOrEmpty(rel) || string.IsNullOrEmpty(toKind))
-                    {
-                        continue;
-                    }
-                    if (Mcp.OntologyRegistry.IsSystemNode(fromKind) || Mcp.OntologyRegistry.IsSystemNode(toKind) ||
-                        HiddenOntologyLabels.Contains(fromKind) || HiddenOntologyLabels.Contains(toKind) ||
-                        HiddenOntologyLabels.Contains(rel))
-                    {
-                        continue;
-                    }
-                    list.Add(new OntologyObservedTripleDto
-                    {
-                        FromLabel = NormalizeSemanticWorkloadKind(fromKind),
-                        Rel = rel,
-                        ToLabel = NormalizeSemanticWorkloadKind(toKind),
-                        Count = cnt
-                    });
+                    continue;
                 }
-                return MergeDuplicateTriples(list);
-            }, ct);
+                list.Add(new OntologyObservedTripleDto
+                {
+                    FromLabel = NormalizeSemanticWorkloadKind(fromKind),
+                    Rel = rel,
+                    ToLabel = NormalizeSemanticWorkloadKind(toKind),
+                    Count = cnt
+                });
+            }
+            return MergeDuplicateTriples(list);
         }
         catch (Exception ex)
         {
@@ -384,26 +372,7 @@ public partial class ArchitectureViewEngine
             // Tally endpoints directly from graph
             try
             {
-                IReadOnlyList<(string SName, string SId, int EpCount)> epRows;
-                if (db is SqliteGraphClient)
-                {
-                    var fastEpQuery = $"""
-                        SELECT coalesce(json_extract(s.properties, '$.name'), s.id) AS sName, s.id AS sId, COUNT(ep.rowid) AS epCount
-                        FROM nodes ep
-                        JOIN edges _r0 ON _r0.to_id = ep.rowid AND _r0.kind = {GraphKindCodec.EncodeRelKind(RelationshipKind.Contains)}
-                        JOIN nodes s ON s.rowid = _r0.from_id
-                        WHERE ep.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Endpoint)}
-                          AND (s.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Project, NodeKind.Service, NodeKind.App, NodeKind.Worker, NodeKind.CliTool, NodeKind.TestSuite)}))
-                        GROUP BY sName, sId;
-                        """;
-                    epRows = await db.QueryAsync<(string SName, string SId, int EpCount)>(fastEpQuery, null, ct);
-                }
-                else
-                {
-                    var epCountQuery =
-                        "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:TestSuite) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
-                    epRows = await db.QueryAsync<(string SName, string SId, int EpCount)>(epCountQuery, null, ct);
-                }
+                var epRows = await db.GetWorkloadEndpointCountsAsync(ct);
 
                 foreach (var (sName, sId, epCount) in epRows)
                 {

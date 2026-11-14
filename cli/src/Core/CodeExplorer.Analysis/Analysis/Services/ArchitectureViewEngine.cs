@@ -67,11 +67,10 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
 
     private string ResolveDbCachePrefix()
     {
-        if (db is SqliteGraphClient sqliteClient &&
-            !string.IsNullOrWhiteSpace(sqliteClient.DbPath) &&
-            !string.Equals(sqliteClient.DbPath, ":memory:", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(db.DbPath) &&
+            !string.Equals(db.DbPath, ":memory:", StringComparison.OrdinalIgnoreCase))
         {
-            var dbPath = sqliteClient.DbPath;
+            var dbPath = db.DbPath;
             long dbLastWriteTicks = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath).Ticks : 0;
             long walLastWriteTicks = File.Exists(dbPath + "-wal") ? File.GetLastWriteTimeUtc(dbPath + "-wal").Ticks : 0;
             return $"{dbPath}:{dbLastWriteTicks}:{walLastWriteTicks}";

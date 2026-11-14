@@ -5,7 +5,7 @@ import {
   ProbeInstalledOptions,
 } from './types';
 import { compareSemver } from './semver';
-import { probeAllInstalledEngines } from './discovery';
+import { probeAllInstalledEngines, probeAllInstalledEnginesAsync } from './discovery';
 
 /**
  * Returns the best installed engine candidate across all probed sources.
@@ -20,6 +20,22 @@ export function getBestInstalledEngine(
     ? input
     : probeAllInstalledEngines(input);
 
+  return selectBestCandidateFromList(candidates);
+}
+
+/**
+ * Asynchronously probes all engine candidates and selects the highest SemVer candidate.
+ */
+export async function getBestInstalledEngineAsync(
+  options?: ProbeInstalledOptions
+): Promise<InstalledEngineCandidate | null> {
+  const candidates = await probeAllInstalledEnginesAsync(options);
+  return selectBestCandidateFromList(candidates);
+}
+
+function selectBestCandidateFromList(
+  candidates: InstalledEngineCandidate[] | null | undefined
+): InstalledEngineCandidate | null {
   if (!candidates || candidates.length === 0) return null;
 
   const custom = candidates.find((c) => c.source === 'custom');

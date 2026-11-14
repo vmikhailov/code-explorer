@@ -32,15 +32,29 @@ public static class TerraformSemanticEnricher
     private const string VarPrefix = "var.";
     private const string OutputPrefix = "output.";
     private const string OutputsPrefix = "outputs.";
+    private const string TfSegment = "tf";
+    private const char SlashChar = '/';
+    private const char BackslashChar = '\\';
+
+    private static readonly string[] DatabaseNameAttributes =
+    [
+        "db_name", "database_name", "identifier", "cluster_identifier", "name", "cluster_id", "cluster_name"
+    ];
+
+    private static readonly string[] TopicNameAttributes =
+    [
+        "name", "cluster_id", "cluster_name"
+    ];
+
+    private static readonly HashSet<string> GenericResourceLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "this", "main", "default", "db", "database", "cluster", "instance", "primary", "secondary", "replica"
+    };
 
     public static ProjectEnrichmentResult Enrich(ProjectEnrichmentContext context)
     {
         var moduleStates = BuildInMemoryWorkspaceModules(context);
-        var projectModuleDir = NormalizeRelativeDir(context.Project.Path);
-        if (!moduleStates.TryGetValue(projectModuleDir, out var currentModule))
-        {
-            return ProjectEnrichmentResult.Empty;
-        }
+        var projectModuleDirs = CollectProjectModuleDirs(context);
 
         var fileSet = BuildInMemoryFileSet(context);
         var dirSet = BuildInMemoryDirSet(context, moduleStates.Keys);
@@ -70,12 +84,45 @@ public static class TerraformSemanticEnricher
             }
         }
 
-        EnrichIntraModuleDependencies(currentModule, AddRel);
-        EnrichModuleInputsAndOutputs(currentModule, moduleStates, context.AbsoluteWorkspacePath, fileSet, dirSet, AddRel);
-        EnrichTerragruntInputs(currentModule, moduleStates, context.AbsoluteWorkspacePath, fileSet, dirSet, AddRel);
-        EnrichCloudInfrastructure(context.WorkspaceId, currentModule, AddSemanticNode, AddRel);
+        foreach (var modDir in projectModuleDirs)
+        {
+            if (!moduleStates.TryGetValue(modDir, out var currentModule))
+            {
+                continue;
+            }
+
+            EnrichIntraModuleDependencies(currentModule, AddRel);
+            EnrichModuleInputsAndOutputs(currentModule, moduleStates, context.AbsoluteWorkspacePath, fileSet, dirSet, AddRel);
+            EnrichTerragruntInputs(currentModule, moduleStates, context.AbsoluteWorkspacePath, fileSet, dirSet, AddRel);
+            EnrichCloudInfrastructure(context.WorkspaceId, currentModule, moduleStates, AddSemanticNode, AddRel);
+        }
 
         return new ProjectEnrichmentResult(semanticNodes, semanticRels, globalRels);
+    }
+
+    private static List<string> CollectProjectModuleDirs(ProjectEnrichmentContext context)
+    {
+        var dirs = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tree in context.ProjectTrees)
+        {
+            if (tree.FileNode == null) continue;
+            var relPath = tree.FileNode.Path.Replace(BackslashChar, SlashChar);
+            var modDir = TerraformDeclarationMapper.GetModuleDir(relPath);
+            if (seen.Add(modDir))
+            {
+                dirs.Add(modDir);
+            }
+        }
+
+        var fallbackDir = NormalizeRelativeDir(context.Project.Path);
+        if (seen.Add(fallbackDir))
+        {
+            dirs.Add(fallbackDir);
+        }
+
+        return dirs;
     }
 
     private sealed class ModuleMemoryState
@@ -340,6 +387,10 @@ public static class TerraformSemanticEnricher
             {
                 if (module.SymbolsByCanonical.TryGetValue(r.CanonicalTarget, out var tgSym))
                 {
+                    var outAttr = r.Kind == HclRefKind.Dependency && r.Attribute != null && r.Attribute.StartsWith(OutputsPrefix, StringComparison.Ordinal)
+                        ? r.Attribute[OutputsPrefix.Length..]
+                        : null;
+
                     addRel(new ConfiguresRelationship(tgSym.NodeId, targetVar.NodeId)
                     {
                         Via = ViaTerragruntInputs,
@@ -350,19 +401,6 @@ public static class TerraformSemanticEnricher
                     {
                         Via = ViaTerragruntInputs,
                         ReferenceExpression = r.CanonicalTarget,
-                        Line = r.Line
-                    });
-                    linkedAnySymbol = true;
-                }
-                else if (r.Kind == HclRefKind.Dependency &&
-                         module.SymbolsByCanonical.TryGetValue($"dependency.{r.TargetName}", out var depSym))
-                {
-                    var outAttr = r.Attribute != null && r.Attribute.StartsWith(OutputsPrefix, StringComparison.Ordinal)
-                        ? r.Attribute[OutputsPrefix.Length..]
-                        : r.Attribute;
-                    addRel(new DependsOnRelationship(targetVar.NodeId, depSym.NodeId)
-                    {
-                        Via = ViaTerragruntInputs,
                         OutputName = outAttr,
                         Line = r.Line
                     });
@@ -433,11 +471,10 @@ public static class TerraformSemanticEnricher
     private static void EnrichCloudInfrastructure(
         string workspaceId,
         ModuleMemoryState module,
+        Dictionary<string, ModuleMemoryState> allModules,
         Action<IOntologyNode> addSemanticNode,
         Action<OntologyRelationship> addRel)
     {
-        var semanticTargetByResourceCanonical = new Dictionary<string, (string SemanticId, InfraClassification Classification)>(StringComparer.Ordinal);
-
         foreach (var sym in module.AllSymbols)
         {
             if (sym.Kind is not (TerraformSymbolKind.Resource or TerraformSymbolKind.DataSource) ||
@@ -470,9 +507,11 @@ public static class TerraformSemanticEnricher
 
             if (classification.Category == InfraCategory.Database && classification.DbSystem != null)
             {
-                var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:tf:{sym.ModuleDir}:{sym.ShortName}";
+                var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:{TfSegment}:{sym.ModuleDir}:{sym.CanonicalName}";
                 var explicitEngine = FindResourceAttributeString(module, sym, AttrEngine);
-                var dbNode = new DatabaseNode(dbId, sym.ShortName, sym.RelativeFilePath, classification.DbSystem)
+                var literalDbName = FindResourceFirstAttributeString(module, sym, DatabaseNameAttributes);
+                var dbNodeName = literalDbName ?? BuildQualifiedResourceName(module, allModules, sym);
+                var dbNode = new DatabaseNode(dbId, dbNodeName, sym.RelativeFilePath, classification.DbSystem)
                 {
                     Engine = CloudResourceCatalog.InferDatabaseEngine(sym.BlockClass, explicitEngine),
                     Provider = providerMatch.ProviderId,
@@ -499,13 +538,15 @@ public static class TerraformSemanticEnricher
                     FilePath = sym.RelativeFilePath,
                     Line = sym.StartLine
                 });
-
-                semanticTargetByResourceCanonical[sym.CanonicalName] = (dbId, classification);
             }
             else if (classification.Category == InfraCategory.Topic && classification.BrokerEngine != null)
             {
-                var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:tf:{sym.ModuleDir}:{sym.ShortName}";
-                var topicNode = new TopicNode(topicId, sym.ShortName, sym.RelativeFilePath, classification.BrokerEngine)
+                var literalTopicName = FindResourceFirstAttributeString(module, sym, TopicNameAttributes);
+                var topicName = literalTopicName ?? BuildQualifiedResourceName(module, allModules, sym);
+                var topicId = literalTopicName != null
+                    ? $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{classification.BrokerEngine}:{literalTopicName}"
+                    : $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{TfSegment}:{sym.ModuleDir}:{sym.CanonicalName}";
+                var topicNode = new TopicNode(topicId, topicName, sym.RelativeFilePath, classification.BrokerEngine)
                 {
                     FilePath = sym.RelativeFilePath,
                     Line = sym.StartLine,
@@ -533,47 +574,72 @@ public static class TerraformSemanticEnricher
                     FilePath = sym.RelativeFilePath,
                     Line = sym.StartLine
                 });
-
-                semanticTargetByResourceCanonical[sym.CanonicalName] = (topicId, classification);
-            }
-            else
-            {
-                semanticTargetByResourceCanonical[sym.CanonicalName] = (sym.NodeId, classification);
             }
         }
+    }
 
-        foreach (var sym in module.AllSymbols)
+    private static string BuildQualifiedResourceName(
+        ModuleMemoryState module,
+        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformSymbol sym)
+    {
+        var duplicateInSameModule = false;
+        foreach (var other in module.AllSymbols)
         {
-            foreach (var r in sym.References)
+            if (other.Kind == TerraformSymbolKind.Resource &&
+                !ReferenceEquals(other, sym) &&
+                string.Equals(other.ShortName, sym.ShortName, StringComparison.Ordinal))
             {
-                if (r.Kind != HclRefKind.Resource) continue;
-                if (!semanticTargetByResourceCanonical.TryGetValue(r.CanonicalTarget, out var target) ||
-                    target.SemanticId == sym.NodeId)
-                {
-                    continue;
-                }
-
-                OntologyRelationship usageRel = target.Classification.Category switch
-                {
-                    InfraCategory.Database => new UsesDbRelationship(sym.NodeId, target.SemanticId)
-                    {
-                        Line = r.Line,
-                        IsInferred = true
-                    },
-                    InfraCategory.Topic => new PublishesToRelationship(sym.NodeId, target.SemanticId)
-                    {
-                        Line = r.Line,
-                        IsInferred = true
-                    },
-                    _ => new UsesCloudRelationship(sym.NodeId, target.SemanticId)
-                    {
-                        Line = r.Line,
-                        IsInferred = true
-                    }
-                };
-                addRel(usageRel);
+                duplicateInSameModule = true;
+                break;
             }
         }
+
+        var duplicateAcrossModules = false;
+        foreach (var (_, modState) in allModules)
+        {
+            foreach (var other in modState.AllSymbols)
+            {
+                if (other.Kind == TerraformSymbolKind.Resource &&
+                    !ReferenceEquals(other, sym) &&
+                    string.Equals(other.ShortName, sym.ShortName, StringComparison.Ordinal))
+                {
+                    duplicateAcrossModules = true;
+                    break;
+                }
+            }
+            if (duplicateAcrossModules) break;
+        }
+
+        if (!GenericResourceLabels.Contains(sym.ShortName) && !duplicateAcrossModules && !duplicateInSameModule)
+        {
+            return sym.ShortName;
+        }
+
+        if (string.IsNullOrEmpty(sym.ModuleDir))
+        {
+            return $"{sym.BlockClass}{SlashChar}{sym.ShortName}";
+        }
+
+        return duplicateInSameModule
+            ? $"{sym.ModuleDir}{SlashChar}{sym.BlockClass}{SlashChar}{sym.ShortName}"
+            : $"{sym.ModuleDir}{SlashChar}{sym.ShortName}";
+    }
+
+    private static string? FindResourceFirstAttributeString(
+        ModuleMemoryState module,
+        TerraformSymbol sym,
+        IReadOnlyList<string> attrNames)
+    {
+        foreach (var attrName in attrNames)
+        {
+            var val = FindResourceAttributeString(module, sym, attrName);
+            if (!string.IsNullOrWhiteSpace(val))
+            {
+                return val;
+            }
+        }
+        return null;
     }
 
     private static string? FindResourceAttributeString(ModuleMemoryState module, TerraformSymbol sym, string attrName)

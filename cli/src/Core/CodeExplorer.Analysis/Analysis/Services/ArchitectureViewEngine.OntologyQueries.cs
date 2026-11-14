@@ -80,90 +80,64 @@ public partial class ArchitectureViewEngine
             IsSchemaOutdated = db.IsSchemaOutdated
         };
 
-        if (db is SqliteGraphClient sqliteClient)
+        if (db.IsSchemaOutdated)
         {
-            if (sqliteClient.IsSchemaOutdated)
-            {
-                try
-                {
-                    var (totalNodes, totalEdges) = await sqliteClient.GetGraphCountsAsync(ct);
-                    result.TotalNodes = totalNodes;
-                    result.TotalEdges = totalEdges;
-                }
-                catch
-                {
-                    // Ignore if outdated schema tables are inaccessible
-                }
-
-                return result;
-            }
-
             try
             {
-                var (nodeCounts, relCounts, totalNodes, totalEdges) = await sqliteClient.ExecuteRawAsync(async conn =>
-                {
-                    var nodes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-                    long totalN = 0;
-                    await using (var cmd = conn.CreateCommand())
-                    {
-                        cmd.CommandText = $"SELECT ce_node_kind(kind), count(*) FROM nodes WHERE (kind != {GraphKindCodec.EncodeNodeKind(NodeKind.Topic)} OR (coalesce(json_extract(properties, '$.is_internal'), 'false') != 'true' AND coalesce(json_extract(properties, '$.broker_type'), '') NOT IN ('mediatr', 'in-memory'))) GROUP BY kind";
-                        await using var reader = await cmd.ExecuteReaderAsync(ct);
-                        while (await reader.ReadAsync(ct))
-                        {
-                            var kind = reader.IsDBNull(0) ? "" : reader.GetString(0);
-                            var cnt = reader.IsDBNull(1) ? 0L : reader.GetInt64(1);
-                            if (!string.IsNullOrEmpty(kind))
-                            {
-                                if (!Mcp.OntologyRegistry.IsSystemNode(kind))
-                                {
-                                    totalN += cnt;
-                                    nodes[kind] = nodes.GetValueOrDefault(kind, 0) + cnt;
-                                    if (kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        nodes["App"] = nodes.GetValueOrDefault("App", 0) + cnt;
-                                    }
-                                    else if (kind.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        nodes["Library"] = nodes.GetValueOrDefault("Library", 0) + cnt;
-                                    }
-                                    else if (kind.Equals("Test", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        nodes["TestSuite"] = nodes.GetValueOrDefault("TestSuite", 0) + cnt;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                totalN += cnt;
-                            }
-                        }
-                    }
-
-                    var rels = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-                    long totalR = 0;
-                    await using (var cmd = conn.CreateCommand())
-                    {
-                        cmd.CommandText = "SELECT ce_rel_kind(kind), count(*) FROM edges GROUP BY kind";
-                        await using var reader = await cmd.ExecuteReaderAsync(ct);
-                        while (await reader.ReadAsync(ct))
-                        {
-                            var kind = reader.IsDBNull(0) ? "" : reader.GetString(0);
-                            var cnt = reader.IsDBNull(1) ? 0L : reader.GetInt64(1);
-                            if (!string.IsNullOrEmpty(kind))
-                            {
-                                rels[kind] = cnt;
-                                totalR += cnt;
-                            }
-                        }
-                    }
-
-                    return (nodes, rels, totalN, totalR);
-                }, ct);
-
-                result.NodeCounts = nodeCounts;
-                result.RelationshipCounts = relCounts;
+                var (totalNodes, totalEdges) = await db.GetGraphCountsAsync(ct);
                 result.TotalNodes = totalNodes;
                 result.TotalEdges = totalEdges;
+            }
+            catch
+            {
+                // Ignore if outdated schema tables are inaccessible
+            }
+
+            return result;
+        }
+
+        try
+        {
+            var rawCounts = await db.TryGetRawEntityKindCountsAsync(ct);
+            if (rawCounts is var (rawNodeCounts, rawRelCounts))
+            {
+                const string kindFrontendApp = "FrontendApp";
+                const string kindSharedLibrary = "SharedLibrary";
+                const string kindTest = "Test";
+                const string kindApp = "App";
+                const string kindLibrary = "Library";
+                const string kindTestSuite = "TestSuite";
+
+                var nodes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                long totalN = 0;
+                foreach (var (kind, cnt) in rawNodeCounts)
+                {
+                    if (!Mcp.OntologyRegistry.IsSystemNode(kind))
+                    {
+                        totalN += cnt;
+                        nodes[kind] = nodes.GetValueOrDefault(kind, 0) + cnt;
+                        if (kind.Equals(kindFrontendApp, StringComparison.OrdinalIgnoreCase))
+                        {
+                            nodes[kindApp] = nodes.GetValueOrDefault(kindApp, 0) + cnt;
+                        }
+                        else if (kind.Equals(kindSharedLibrary, StringComparison.OrdinalIgnoreCase))
+                        {
+                            nodes[kindLibrary] = nodes.GetValueOrDefault(kindLibrary, 0) + cnt;
+                        }
+                        else if (kind.Equals(kindTest, StringComparison.OrdinalIgnoreCase))
+                        {
+                            nodes[kindTestSuite] = nodes.GetValueOrDefault(kindTestSuite, 0) + cnt;
+                        }
+                    }
+                }
+
+                var rels = new Dictionary<string, long>(rawRelCounts, StringComparer.OrdinalIgnoreCase);
+                long totalR = rawRelCounts.Values.Sum();
+
+                result.NodeCounts = nodes;
+                result.RelationshipCounts = rels;
+                result.TotalNodes = totalN;
+                result.TotalEdges = totalR;
 
                 if (result.NodeCounts.GetValueOrDefault("Service", 0) == 0 &&
                     result.NodeCounts.GetValueOrDefault("App", 0) == 0 &&
@@ -234,10 +208,10 @@ public partial class ArchitectureViewEngine
 
                 return result;
             }
-            catch
-            {
-                // Fallback to Cypher below if raw execution fails
-            }
+        }
+        catch
+        {
+            // Fallback to Cypher below if raw execution fails
         }
 
         // 1. Node counts by primary label

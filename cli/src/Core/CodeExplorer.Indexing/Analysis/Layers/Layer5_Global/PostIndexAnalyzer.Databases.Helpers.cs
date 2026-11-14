@@ -252,7 +252,7 @@ public partial class PostIndexAnalyzer
                 var s = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
                 var isImplicit = implicitSchemaIds.Contains(id);
                 var isMultiDomainLib = multiDomainSharedLibDbIds.Contains(id);
-                var isEngineOnlyOrLibrary = string.IsNullOrWhiteSpace(s) ||
+                var isEngineOnlyOrLibrary = (string.IsNullOrWhiteSpace(s) && (info.Name.Equals(info.Engine, StringComparison.OrdinalIgnoreCase) || AbstractEngineNames.Contains(info.Name))) ||
                                            s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
                                            isMultiDomainLib ||
                                            info.Name.Equals(info.Engine, StringComparison.OrdinalIgnoreCase);

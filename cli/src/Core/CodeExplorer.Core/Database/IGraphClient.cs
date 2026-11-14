@@ -185,12 +185,54 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         Task.CompletedTask;
 
     const int CurrentSchemaVersion = 6;
+    string? DbPath => null;
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     bool WasMigratedOnOpen => false;
     int? MigratedFromVersion => null;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
     Task<bool> UpgradeSchemaAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+    Task<(Dictionary<string, long> NodeCounts, Dictionary<string, long> RelationshipCounts)?> TryGetRawEntityKindCountsAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<(Dictionary<string, long> NodeCounts, Dictionary<string, long> RelationshipCounts)?>(null);
+
+    Task<List<(string FromKind, string Rel, string ToKind, long Count)>> QueryRawObservedTriplesAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<(string FromKind, string Rel, string ToKind, long Count)>());
+
+    async Task<IReadOnlyList<(string SName, string SId, int EpCount)>> GetWorkloadEndpointCountsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        const string epCountQuery =
+            "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:TestSuite) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
+        return await QueryAsync<(string SName, string SId, int EpCount)>(epCountQuery, null, cancellationToken);
+    }
+
+    bool SupportsIdentifierSearch => false;
+
+    Task<IReadOnlyList<Analysis.IdentifierMatch>> SearchIdentifiersAsync(
+        string query,
+        string? kindFilter = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Analysis.IdentifierMatch>>(Array.Empty<Analysis.IdentifierMatch>());
+
+    Task<Analysis.IdentifierMatch?> ResolveIdentifierAsync(
+        string query,
+        string? kindFilter = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<Analysis.IdentifierMatch?>(null);
+
+    Task<Analysis.Testing.TestImpactReport?> AnalyzeTestImpactAsync(
+        Analysis.Testing.TestImpactRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<Analysis.Testing.TestImpactReport?>(null);
+
+    Task<Analysis.Testing.TestCoverageReport?> AnalyzeTestCoverageAsync(
+        Analysis.Testing.TestCoverageFilter filter,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<Analysis.Testing.TestCoverageReport?>(null);
 
     Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix) =>
         Task.FromResult(new PostIndexGraphData(

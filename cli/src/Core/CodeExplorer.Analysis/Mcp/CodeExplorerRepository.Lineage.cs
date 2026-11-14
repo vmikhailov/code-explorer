@@ -129,7 +129,7 @@ public partial class CodeExplorerRepository
             return string.Empty;
         }
 
-        var normalized = (IdentifierSearchEngine.NormalizeSymbolPath(trimmed, workspaceRoot) ?? string.Empty).Trim('/');
+        var normalized = (IdentifierVectorEncoder.NormalizeSymbolPath(trimmed, workspaceRoot) ?? string.Empty).Trim('/');
         return normalized == "." ? string.Empty : normalized;
     }
 
