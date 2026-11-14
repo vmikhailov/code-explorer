@@ -82,7 +82,9 @@ const html = `<!DOCTYPE html>
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#121417">
   <link rel="canonical" href="${escapeAttr(meta.canonical)}">
-  <link rel="icon" href="icon.png" type="image/png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="apple-touch-icon" href="/icon-512.png">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="CodeExplorer">
