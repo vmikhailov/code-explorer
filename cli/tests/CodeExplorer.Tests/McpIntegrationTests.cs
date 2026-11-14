@@ -426,6 +426,67 @@ public class McpIntegrationTests
 
         var exportDiagramTool = tools.First(t => t.GetStringProp("name") == "export_architecture_diagram");
         exportDiagramTool.ToJsonString().Should().NotContain("'domain'");
+
+        var writeTools = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "init_workspace",
+            "scan_workspace",
+            "clear_workspace_index",
+            "ingest_graph_data",
+            "save_project_query"
+        };
+
+        using var doc = JsonDocument.Parse(responseStr);
+        var jsonTools = doc.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().ToList();
+        jsonTools.Should().NotBeEmpty();
+
+        var archViewJson = jsonTools.First(t => t.GetProperty("name").GetString() == "get_architecture_view");
+        var levelProp = archViewJson.GetProperty("inputSchema").GetProperty("properties").GetProperty("level");
+        levelProp.TryGetProperty("enum", out var levelEnum).Should().BeTrue("constrained parameters should emit JSON Schema enum for TDQS paramsWithEnums");
+        levelEnum.GetArrayLength().Should().Be(5);
+
+        foreach (var tool in jsonTools)
+        {
+            var name = tool.GetProperty("name").GetString()!;
+            var description = tool.GetProperty("description").GetString()!;
+
+            description.Should().NotBeNullOrWhiteSpace($"tool '{name}' must have a non-empty description");
+            description.ToLowerInvariant().Trim().Should().NotBe(name.ToLowerInvariant(), $"tool '{name}' must not have a tautological description");
+            description.Length.Should().BeGreaterThan(150, $"tool '{name}' must provide purpose, usage guidelines, and behavioral transparency");
+            description.Should().ContainEquivalentOf("use ", $"tool '{name}' must include explicit usage guidelines and sibling differentiation");
+
+            tool.TryGetProperty("annotations", out var annotations).Should().BeTrue($"tool '{name}' must declare MCP annotations for TDQS");
+            var title = tool.TryGetProperty("title", out var topTitle) ? topTitle.GetString() : null;
+            if (string.IsNullOrEmpty(title) && annotations.TryGetProperty("title", out var annTitle))
+            {
+                title = annTitle.GetString();
+            }
+            title.Should().NotBeNullOrWhiteSpace($"tool '{name}' must declare a human-readable title");
+            title.Should().NotBe(name, $"tool '{name}' title must differ from its programmatic name");
+            title!.Length.Should().BeGreaterThan(name.Length, $"tool '{name}' title must satisfy TDQS titleIsMeaningful (longer than name)");
+
+            annotations.TryGetProperty("readOnlyHint", out var readOnlyProp).Should().BeTrue($"tool '{name}' must declare readOnlyHint");
+            annotations.TryGetProperty("destructiveHint", out var destructiveProp).Should().BeTrue($"tool '{name}' must declare destructiveHint");
+            annotations.TryGetProperty("idempotentHint", out var idempotentProp).Should().BeTrue($"tool '{name}' must declare idempotentHint");
+            annotations.TryGetProperty("openWorldHint", out var openWorldProp).Should().BeTrue($"tool '{name}' must declare openWorldHint");
+
+            var isWrite = writeTools.Contains(name);
+            readOnlyProp.GetBoolean().Should().Be(!isWrite, $"tool '{name}' readOnlyHint must match its mutation behavior");
+            destructiveProp.GetBoolean().Should().Be(name == "clear_workspace_index", $"tool '{name}' destructiveHint must be true only for clear_workspace_index");
+            idempotentProp.GetBoolean().Should().BeTrue($"tool '{name}' idempotentHint must be true");
+            openWorldProp.GetBoolean().Should().BeFalse($"tool '{name}' openWorldHint must be false (closed local workspace domain)");
+
+            if (tool.TryGetProperty("inputSchema", out var inputSchema) &&
+                inputSchema.TryGetProperty("properties", out var properties) &&
+                properties.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in properties.EnumerateObject())
+                {
+                    prop.Value.TryGetProperty("description", out var paramDescProp).Should().BeTrue($"parameter '{prop.Name}' on tool '{name}' must declare a description");
+                    paramDescProp.GetString().Should().NotBeNullOrWhiteSpace($"parameter '{prop.Name}' on tool '{name}' must have a non-empty schema description (100% coverage)");
+                }
+            }
+        }
     }
 
     [Test]

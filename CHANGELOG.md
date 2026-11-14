@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.87.1] - 2026-11-14
+
+### Improved
+- **MCP Tool Definition Quality Score (TDQS) & Schema Annotations (`CodeExplorer.Server`)**:
+  - Added explicit MCP tool annotations (`Title`, `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld`) across all 32 registered MCP tools in `McpGraphHandler`.
+  - Added `[AllowedValues]` and `[Range]` data annotations on constrained tool parameters so `tools/list` emits native JSON Schema `enum` and numeric range bounds.
+  - Enriched all MCP tool and parameter descriptions with explicit sibling disambiguation, usage boundaries, parameter interaction rules, indexing prerequisites, and return-payload contracts aligned with the Glama TDQS specification.
+
+---
+
 ## [1.87.0] - 2026-11-14
 
 ### Added & Improved
