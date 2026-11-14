@@ -47,7 +47,7 @@ jobs:
 
       - name: Verify Architecture Gates
         run: |
-          dotnet run --project cli/src/UI/CodeExplorer/CodeExplorer.csproj -c Release --no-build -- gate check -g SIG-P-B-005,SIG-C-B-002 --auto-init --scan --clear
+          dotnet cli/.Build/bin_Release_AnyCPU/CodeExplorer/ce.dll gate check -g SIG-P-B-005,SIG-C-B-002 --auto-init --scan --clear
 
       - name: Test VS Code Extension
         working-directory: ./vscode-extension
@@ -72,7 +72,6 @@ jobs:
             assets \
             index.html \
             fonts \
-            presentation.html \
             llms.txt \
             install.sh \
             install.ps1 \

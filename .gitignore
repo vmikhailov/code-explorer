@@ -42,6 +42,7 @@ scratch/
 !/scripts/update-local.ps1
 !/scripts/build-tree-sitter-natives.ps1
 !/scripts/sync-ontology-site.mjs
+!/scripts/ontology-graph-client.mjs
 # --- CodeExplorer local databases & locks ---
 .codeexplorer/*.db
 .codeexplorer/*.db-*
