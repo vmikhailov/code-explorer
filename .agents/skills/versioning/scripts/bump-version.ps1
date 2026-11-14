@@ -108,6 +108,15 @@ foreach ($relManifest in $pluginManifests) {
     }
 }
 
+# 5c. Update Dockerfile (ARG CE_VERSION=X.Y.Z to bust Glama/Docker layer cache)
+$dockerfilePath = Join-Path $repoRoot "Dockerfile"
+if (Test-Path $dockerfilePath) {
+    $dockerContent = Get-Content $dockerfilePath -Raw
+    $updatedDocker = $dockerContent -replace '(ARG CE_VERSION=)\d+\.\d+\.\d+', ('${1}' + $newVersion)
+    Set-Content -Path $dockerfilePath -Value $updatedDocker -NoNewline
+    Write-Host "  [OK] Updated $dockerfilePath" -ForegroundColor Gray
+}
+
 # 6. Check & synchronize CHANGELOG.md -> vscode-extension/CHANGELOG.md
 $rootChangelog = Join-Path $repoRoot "CHANGELOG.md"
 $extChangelog = Join-Path $repoRoot "vscode-extension\CHANGELOG.md"

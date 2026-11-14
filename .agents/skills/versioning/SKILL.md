@@ -70,7 +70,15 @@ When updating the version, all of the following files **must** be updated simult
    - Update `"version"` at the top level.
    - Update `"version"` inside `packages[""]`.
 
-4. **`CHANGELOG.md` AND `vscode-extension/CHANGELOG.md` (Mandatory Dual-Changelog Rule)**:
+4. **Agent Plugin Manifests & `Dockerfile`**:
+   - `"version"` in `gemini-extension.json`
+   - `"version"` in `plugins/code-explorer/plugin.json`
+   - `"version"` in `plugins/code-explorer/.claude-plugin/plugin.json`
+   - `"version"` in `plugins/code-explorer/.cursor-plugin/plugin.json`
+   - `"version"` in `plugins/code-explorer/.codex-plugin/plugin.json`
+   - `ARG CE_VERSION=MAJOR.MINOR.PATCH` in `Dockerfile` (ensures Glama / Docker BuildKit invalidates the binary download layer on every release).
+
+5. **`CHANGELOG.md` AND `vscode-extension/CHANGELOG.md` (Mandatory Dual-Changelog Rule)**:
    - Every release **must** document its changes under `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` in **both** root [`CHANGELOG.md`](../../../CHANGELOG.md) and [`vscode-extension/CHANGELOG.md`](../../../vscode-extension/CHANGELOG.md).
    - Because `vsce package` bundles `vscode-extension/CHANGELOG.md` into the VS Code Marketplace & Open VSX extension page, `vscode-extension/CHANGELOG.md` must never lag behind root `CHANGELOG.md`.
    - When proposals in `docs/proposals/` or plans in `docs/roadmap/` are 100% completed as part of a release, fold their delivered summary into the changelog and remove the completed proposal file.
