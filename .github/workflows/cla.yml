@@ -1,0 +1,273 @@
+name: CLA
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  cla-check:
+    name: Contributor License Agreement
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       (contains(github.event.comment.body, 'I have read the CLA Document and I hereby sign the CLA') ||
+         github.event.comment.body == 'recheck'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify or Record CLA Signature
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const SIGN_PHRASE = 'I have read the CLA Document and I hereby sign the CLA';
+            const SIG_BRANCH = 'cla-signatures';
+            const SIG_PATH = 'signatures/v1/cla.json';
+            const COMMENT_MARKER = '<!-- code-explorer-cla-bot -->';
+            const STATUS_CONTEXT = 'CLA / Contributor License Agreement';
+            const EXEMPT_LOGINS = new Set([
+              context.repo.owner.toLowerCase(),
+              'vmikhailov',
+              'dependabot[bot]',
+              'github-actions[bot]'
+            ]);
+
+            const isExempt = (login) => {
+              if (!login) return true;
+              const lower = login.toLowerCase();
+              return EXEMPT_LOGINS.has(lower) || lower.endsWith('[bot]');
+            };
+
+            const prNumber = context.eventName === 'issue_comment'
+              ? context.payload.issue.number
+              : context.payload.pull_request.number;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100
+            });
+
+            const requiredUsers = new Map();
+            if (pr.user && !isExempt(pr.user.login)) {
+              requiredUsers.set(pr.user.login.toLowerCase(), {
+                login: pr.user.login,
+                id: pr.user.id
+              });
+            }
+            for (const c of commits) {
+              if (c.author && c.author.login && !isExempt(c.author.login)) {
+                requiredUsers.set(c.author.login.toLowerCase(), {
+                  login: c.author.login,
+                  id: c.author.id
+                });
+              }
+            }
+
+            if (requiredUsers.size === 0) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.head.sha,
+                state: 'success',
+                context: STATUS_CONTEXT,
+                description: 'Project owner / bot — CLA not required'
+              });
+              core.info('All contributors are exempt (project owner or bot).');
+              return;
+            }
+
+            // Load existing signatures from cla-signatures branch
+            let sigData = { signedContributors: [] };
+            let existingFileSha = null;
+            let branchExists = true;
+
+            try {
+              await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${SIG_BRANCH}`
+              });
+            } catch (err) {
+              if (err.status === 404) branchExists = false;
+              else throw err;
+            }
+
+            if (branchExists) {
+              try {
+                const { data: fileContent } = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: SIG_PATH,
+                  ref: SIG_BRANCH
+                });
+                existingFileSha = fileContent.sha;
+                const decoded = Buffer.from(fileContent.content, 'base64').toString('utf8');
+                sigData = JSON.parse(decoded);
+                if (!Array.isArray(sigData.signedContributors)) {
+                  sigData.signedContributors = [];
+                }
+              } catch (err) {
+                if (err.status !== 404) throw err;
+              }
+            }
+
+            // If triggered by a signing comment, record the signature
+            if (context.eventName === 'issue_comment') {
+              const commentBody = (context.payload.comment.body || '').trim();
+              const commenter = context.payload.comment.user;
+              if (commentBody.includes(SIGN_PHRASE) && commenter && !isExempt(commenter.login)) {
+                const lowerLogin = commenter.login.toLowerCase();
+                const alreadySigned = sigData.signedContributors.some(
+                  (s) => s.login.toLowerCase() === lowerLogin
+                );
+
+                if (!alreadySigned) {
+                  sigData.signedContributors.push({
+                    login: commenter.login,
+                    id: commenter.id,
+                    pullRequestNo: prNumber,
+                    commitSha: pr.head.sha,
+                    commentId: context.payload.comment.id,
+                    signedAt: new Date().toISOString()
+                  });
+
+                  if (!branchExists) {
+                    const { data: mainRef } = await github.rest.git.getRef({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: `heads/${pr.base.ref}`
+                    });
+                    await github.rest.git.createRef({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: `refs/heads/${SIG_BRANCH}`,
+                      sha: mainRef.object.sha
+                    });
+                    branchExists = true;
+                  }
+
+                  await github.rest.repos.createOrUpdateFileContents({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    path: SIG_PATH,
+                    branch: SIG_BRANCH,
+                    message: `chore(cla): record CLA signature for @${commenter.login} on PR #${prNumber}`,
+                    content: Buffer.from(JSON.stringify(sigData, null, 2) + '\n', 'utf8').toString('base64'),
+                    sha: existingFileSha || undefined
+                  });
+
+                  core.info(`Recorded CLA signature for @${commenter.login}`);
+                }
+              }
+            }
+
+            const signedSet = new Set(
+              sigData.signedContributors.map((s) => s.login.toLowerCase())
+            );
+
+            const unsigned = [];
+            const signed = [];
+            for (const [lower, user] of requiredUsers.entries()) {
+              if (signedSet.has(lower)) signed.push(user.login);
+              else unsigned.push(user.login);
+            }
+
+            const claUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${pr.base.ref}/CLA.md`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100
+            });
+            const botComment = comments.find((c) => c.body && c.body.includes(COMMENT_MARKER));
+
+            if (unsigned.length === 0) {
+              const successBody = [
+                COMMENT_MARKER,
+                '### ✅ CLA Signed',
+                '',
+                `All contributors (${signed.map((u) => `@${u}`).join(', ')}) have signed the [Contributor License Agreement](${claUrl}). Thank you!`
+              ].join('\n');
+
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: successBody
+                });
+              } else if (context.eventName === 'issue_comment') {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: successBody
+                });
+              }
+
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.head.sha,
+                state: 'success',
+                context: STATUS_CONTEXT,
+                description: 'All contributors have signed the CLA'
+              });
+            } else {
+              const promptBody = [
+                COMMENT_MARKER,
+                '### 📝 Contributor License Agreement (CLA) Required',
+                '',
+                `Thank you for your Pull Request! Before we can merge this contribution, the following contributor(s) must read and sign our [Contributor License Agreement (CLA.md)](${claUrl}):`,
+                '',
+                ...unsigned.map((u) => `- [ ] @${u}`),
+                ...signed.map((u) => `- [x] @${u}`),
+                '',
+                'To sign the CLA, please post a comment on this Pull Request with the exact text below:',
+                '',
+                '```text',
+                SIGN_PHRASE,
+                '```'
+              ].join('\n');
+
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: promptBody
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: promptBody
+                });
+              }
+
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.head.sha,
+                state: 'failure',
+                context: STATUS_CONTEXT,
+                description: `Pending CLA signature from: ${unsigned.join(', ')}`
+              });
+
+              core.setFailed(`CLA not signed by: ${unsigned.join(', ')}`);
+            }
