@@ -65,6 +65,8 @@ jobs:
       - name: Publish Website Bundle (site-dist branch)
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         working-directory: ./site
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           OUT_DIR="$(mktemp -d)"
           tar -czf "${OUT_DIR}/site-dist.tar.gz" \
