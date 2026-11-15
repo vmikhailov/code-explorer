@@ -1141,6 +1141,26 @@ function buildBindings(data, rawMilestones01) {
       `5. **LLM Model (Tracks 1 & 2)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
       `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` (Cases 03, 04, 07 & 08), \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
     ].join('\n');
+
+    const c3 = data.cs03;
+    const c4 = data.cs04;
+    const cePctA = Math.round((c3.recall.group_a_ce_matched / c3.recall.group_a_gt) * 100);
+    const cbmPctA = Math.round((c3.recall.group_a_cbm_matched / c3.recall.group_a_gt) * 100);
+    const grPctA = Math.round((c4.recall.group_a_graphify_matched / c4.recall.group_a_gt) * 100);
+    const cePctBExact = ((c3.recall.group_b_ce_matched / c3.recall.group_b_gt) * 100).toFixed(1);
+    const gtTotal34 = c3.recall.group_a_gt + c3.recall.group_b_gt;
+
+    const rg5RecExact = ((c5.recall.rg_matched / c5.recall.gt_total) * 100).toFixed(1);
+
+    b['md.root_summary_table'] = [
+      `| Case Study | Codebase | Baseline | Speed & Tokens | Recall & Governance |`,
+      `| :--- | :--- | :--- | :--- | :--- |`,
+      `| **[Case 08: 4-Task Feature Suite](./benchmarks/08-multi-task-architecture-suite-on-twenty/README.md)** | \`${c8.repo.name}\` (\`${(c8.repo.files / 1000).toFixed(1)}k\` files, TS/NestJS) | \`CBM\` | **\`${sp8}×\` faster** (\`${fmtDurShort(ce8.wall_clock_s)}\` vs \`${fmtDurShort(cbm8.wall_clock_s)}\`) · \`${fmtCompactTokens(ce8.cum_input_tokens, 2)}\` vs \`${fmtCompactTokens(cbm8.cum_input_tokens, 2)}\` tokens | **\`0/4\` vs \`4/4\` violated tasks** (\`14/14\` unit tests pass; gates caught & fixed \`4/4\` copied legacy leaks) |`,
+      `| **[Case 01: Monorepo Deep Audit](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)** | \`${c1.repo.name}\` (\`${(c1.repo.files / 1000).toFixed(1)}k\` files, TS/NestJS) | \`CBM\` | **\`${sp1}×\` faster** (\`${fmtDurShort(ce1.time_to_answer_s)}\` vs \`${fmtDurShort(cbm1.time_to_answer_s)}\`) · **\`${tk1}×\` fewer tokens** (\`${fmtCompactTokens(ce1.cum_input_tokens, 1)}\` vs \`${fmtCompactTokens(cbm1.cum_input_tokens, 2)}\`) | **\`${ce1Rec}%\` vs \`${cbm1Rec}%\` native graph recall** (\`${c1.recall.ce_matched}/${c1.recall.gt_total}\` from \`graph.db\`, \`${c1.effort_details.ce_file_reads}\` file reads) |`,
+      `| **[Case 02: ${c2.repo.services}-Service Audit](./benchmarks/02-enterprise-microservices-deep-audit/README.md)** | Multi-Repo (\`${c2.repo.services}\` services, \`${(c2.repo.files / 1000).toFixed(1)}k\` files) | \`ripgrep\` + Python | **\`${sp2}×\` faster** (\`${fmtDurShort(ce2.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg2.time_to_answer_s, true)}\`) · **\`${tk2}×\` fewer tokens** (\`${fmtCompactTokens(ce2.cum_input_est_tokens, 2)}\` vs \`${fmtCompactTokens(rg2.cum_input_est_tokens, 2)}\`) | **\`${c2.recall.ce_pct}\` vs \`82%\` recall** (\`${ce2.turns}\` vs \`${rg2.turns}\` turns; \`rg\` missed \`${c2.recall.rg_missed_services}\` services) |`,
+      `| **[Case 05: .NET Monolith Audit](./benchmarks/05-polyglot-architecture-and-blast-radius/README.md)** | \`OrchardCore\` (\`${c5.repo.projects}\` projects, \`${(c5.repo.files / 1000).toFixed(1)}k\` files) | \`ripgrep\` | **\`${sp5}×\` faster** (\`${fmtDurShort(ce5.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg5.time_to_answer_s, true)}\`) · **\`${tk5}×\` fewer tokens** (\`${fmtCompactTokens(ce5.cum_input_tokens, 2)}\` vs \`${fmtCompactTokens(rg5.cum_input_tokens, 2)}\`) | **\`${c5.recall.ce_pct}\` vs \`${rg5RecExact}%\` recall** (\`${c5.recall.ce_matched}/${c5.recall.gt_total}\` vs \`${c5.recall.rg_matched}/${c5.recall.gt_total}\`; \`${rd5}×\` fewer file reads) |`,
+      `| **[Cases 03](./benchmarks/03-code-explorer-vs-codebase-memory-mcp/README.md) & [04](./benchmarks/04-code-explorer-vs-graphify/README.md): Graph Engine Recall** | \`immich\` & \`twenty\` (\`${gtTotal34}\` ground-truth items) | \`CBM\` & \`graphify\` | \`${c3.indexing.immich.ce_s.toFixed(1)}s\` (\`immich\`) / \`${c3.indexing.twenty.ce_s.toFixed(1)}s\` (\`twenty\`) cold index · \`${c3.cypher_latency.ce_min_ms}–${c3.cypher_latency.ce_max_ms} ms\` Cypher | **Code (\`L1–L3\`): \`${cePctA}%\`** vs \`${cbmPctA}%\` (\`CBM\`) / \`${grPctA}%\` (\`graphify\`) · **DB & Queues (\`L4–L5\`): \`${cePctBExact}%\`** |`,
+    ].join('\n');
   }
 
   return b;
