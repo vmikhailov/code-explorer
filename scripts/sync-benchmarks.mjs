@@ -1005,7 +1005,7 @@ function buildBindings(data, rawMilestones01) {
     b['catalog.cs07_outcome'] =
       `<strong class="tone-ok">${fmtRoundMult(speedup)} faster end-to-end</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}; ${fmtDurShort(ce.init_impl_s)} vs ${fmtDurShort(cbm.init_impl_s)} draft)<br>` +
       `<strong class="tone-ok">4/4 gates passed vs 1 new violation</strong> (pre-configured gate caught copied legacy debt; 1-turn fix)<br>` +
-      `<strong>Both passed unit tests &amp; oxlint</strong> (<code>4/4</code> vs <code>3/3</code> specs; <code>CBM</code> kept <code>AdminPanelBillingService &rarr; emailingDomain</code>)`;
+      `<strong>Both passed unit tests &amp; oxlint</strong> (<code>4/4</code> vs <code>3/3</code> specs; <code>CBM</code> kept <code>AdminPanelBillingService</code> &rarr; <code>emailingDomain</code>)`;
   }
 
   // --- Case Study 08 (4-Task Brownfield Architecture & Feature Suite on twentyhq/twenty) ---
@@ -1048,9 +1048,9 @@ function buildBindings(data, rawMilestones01) {
     ].join('\n');
 
     b['catalog.cs08_outcome'] =
-      `<strong class="tone-ok">0/4 vs 4/4 violated tasks</strong> (navigation alone copied adjacent <code>[TOL]</code> debt in <code>4/4</code> tasks; <code>ce gate check</code> caught &amp; fixed <code>4/4</code> in 1 iteration with <code>0</code> gate tampering)<br>` +
+      `<strong class="tone-ok">0/4 vs 4/4 violated tasks</strong> (both copied <code>[TOL]</code> debt in <code>4/4</code> tasks; <code>ce gate check</code> fixed <code>4/4</code> in 1 turn, <code>0</code> bypasses)<br>` +
       `<strong class="tone-ok">${fmtRoundMult(speedupCbm)} faster suite total</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)} across 4 tasks; $0.48 vs $0.48)<br>` +
-      `<strong>14/14 unit tests pass for both</strong> (verified via <code>run-acceptance-tests.mjs</code>; <code>CBM</code> shipped 4 cross-module / transport leaks)`;
+      `<strong>14/14 unit tests pass for both</strong> (<code>CBM</code> shipped 4 cross-module / transport leaks)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
