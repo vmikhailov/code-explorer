@@ -1,0 +1,1506 @@
+{
+  "gateId": "SIG-TWENTY-003",
+  "allowedViolations": 150,
+  "entries": [
+    {
+      "fingerprint": "b01c21a2e123595880bcc8b0c4fa9157ab6bc06c57deddd64031aa184c843720",
+      "file": "packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "UsageLimitService",
+      "target": "apiKey",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "907f8d381bb72744f653862935714db5258bec757fc6172d31b68813f0638030",
+      "file": "packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-quota-consumption.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "UsageQuotaConsumptionService",
+      "target": "apiKey",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4d3d52d52e8698d958ff29a3410adbd149b50ad9610d51d3c7dcc4444235fe2c",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-oauth/oauth.service.ts",
+      "line": 31,
+      "column": 8,
+      "symbol": "OAuthService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "28acc6dbaab713aef03aa3adf0fe2474cb38d9d6a8fd8631a9b46c0b654ca47c",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts",
+      "line": 83,
+      "column": 8,
+      "symbol": "AuthService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "496d0834ad1dae00a576ccf18ac2997a2c77301f99d0ec3309c65c4f647a1ac5",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/reset-password.service.ts",
+      "line": 37,
+      "column": 8,
+      "symbol": "ResetPasswordService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8959e880726c4c55dff3899e9297d095b866916a4c8b1d42b1cf8ef71b8bc8a0",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/email-verification-token.service.ts",
+      "line": 24,
+      "column": 8,
+      "symbol": "EmailVerificationTokenService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ac695424d0d1e0cfd468f766f48201231f2568aa0f184bbdd4c0eb8c7574dbbc",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/refresh-token.service.ts",
+      "line": 25,
+      "column": 8,
+      "symbol": "RefreshTokenService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fca977833c3bf28b76cdf78aa446c874eeed3694be5c0ef15e87a598e81a95d6",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/renew-token.service.ts",
+      "line": 21,
+      "column": 8,
+      "symbol": "RenewTokenService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "28ae8733eb2ce27418da4b65e9eff794cee87be7c355193f971f5b7817214aff",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/sso-exchange-token.service.ts",
+      "line": 36,
+      "column": 8,
+      "symbol": "SsoExchangeTokenService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "25b1b2f7262c352b4a13a3dc6ae6e20d737efb1304275aa48bf5026882b60ad3",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts",
+      "line": 164,
+      "column": 8,
+      "symbol": "AuthResolver",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f6ddf7ab5b7bd6b49fb4b933dcb33a9cac1bc26aa393b6f3201e4c5401133881",
+      "file": "packages/twenty-server/src/engine/core-modules/email-verification/services/email-verification.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "EmailVerificationService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "629c76286190605d14ab846d6fafb80e75435ae96d962537090d9ed81c11c85c",
+      "file": "packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "EnterprisePlanService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7aa8fa36c5512fd7199b3622522808cb2ebe87817166baea99140db5b0074253",
+      "file": "packages/twenty-server/src/engine/core-modules/two-factor-authentication/services/two-factor-authentication-recovery.service.ts",
+      "line": 75,
+      "column": 8,
+      "symbol": "TwoFactorAuthenticationRecoveryService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8f0f716280be9ddead62cd6662c15d9a2ac301c824502f90b8278dee208ce5fe",
+      "file": "packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.service.ts",
+      "line": 55,
+      "column": 8,
+      "symbol": "TwoFactorAuthenticationService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "66c1d63dcbff084fb7c38c80c819468678d0f0a30baa812120e992a7a5c11f9d",
+      "file": "packages/twenty-server/src/engine/core-modules/user-session/services/user-session.service.ts",
+      "line": 64,
+      "column": 8,
+      "symbol": "UserSessionService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "03a70148264ce3d4cc833fe614ff2c45a74acd89f497b3616fcb4335fbf9ad28",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace-invitation/services/workspace-invitation.service.ts",
+      "line": 52,
+      "column": 8,
+      "symbol": "WorkspaceInvitationService",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ac93c959facb94d7aba6115794ab5a5dabd80ed4112cf414e811b69a44305508",
+      "file": "packages/twenty-server/src/engine/core-modules/user-session/crons/jobs/user-session-cleanup.cron.job.ts",
+      "line": 21,
+      "column": 8,
+      "symbol": "UserSessionCleanupCronJob",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "83d81b94903bfa314bfd26d1cfc08c50e5e2d2cbf723cae896a73d6746963612",
+      "file": "packages/twenty-server/src/engine/core-modules/sdk-client/sdk-client-archive.service.ts",
+      "line": 27,
+      "column": 8,
+      "symbol": "SdkClientArchiveService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8fdc3cf66115ffba5826167deac5811cc9d52fef2993ee4a57d71929a7665a53",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/application-token.service.ts",
+      "line": 34,
+      "column": 8,
+      "symbol": "ApplicationTokenService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "db6d3123a5b781ac8bff91a4ca7a0f741a0c9fca088052ee8f52225f196e0b6d",
+      "file": "packages/twenty-server/src/engine/core-modules/file/file-upload/services/file-upload.service.ts",
+      "line": 61,
+      "column": 8,
+      "symbol": "FileUploadService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "086e1787aeaff1e84dc38246dd76d3f1e2d358ea2c16603c20bd40ca96fb07b8",
+      "file": "packages/twenty-server/src/engine/core-modules/file/file-upload/services/pending-file-cleanup.service.ts",
+      "line": 27,
+      "column": 8,
+      "symbol": "PendingFileCleanupService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3e6ab6fc17d997fee11a99fed9dbb7910129b63fca5463ec91882ae0fafd0b28",
+      "file": "packages/twenty-server/src/engine/core-modules/file/files-field/services/files-field.service.ts",
+      "line": 29,
+      "column": 8,
+      "symbol": "FilesFieldService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "32a94dd7a600fe39fe632e292544a2dbf59cb20c9ca92175e0224a1cc6834805",
+      "file": "packages/twenty-server/src/engine/core-modules/file/services/file.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "FileService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a9e7fb91d249cd4a741cfa2eaeb4b6e5135520d50a55b943749b8a6be208bf39",
+      "file": "packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts",
+      "line": 60,
+      "column": 8,
+      "symbol": "FileStorageService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "858f7c7dfbe5da0e53c8c4d38fd44007afea8690aa04cb38fb80ca32b675340f",
+      "file": "packages/twenty-server/src/engine/core-modules/getting-started/services/getting-started.service.ts",
+      "line": 59,
+      "column": 8,
+      "symbol": "GettingStartedService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "752064ec67a35f6a14cf00069fe27608c6e70f57761ce593b2d6d0b362c65de9",
+      "file": "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts",
+      "line": 22,
+      "column": 8,
+      "symbol": "PublicDomainService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a3d3acd60e3245b8aad8c702609a2d5b00a5a934d1a93e65ad1acfe40d3d2f6b",
+      "file": "packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "UsageLimitService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "efda8c869142de6173ca4019381d3c26f9f72fc33f04b814f51df3c332c98671",
+      "file": "packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-quota-consumption.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "UsageQuotaConsumptionService",
+      "target": "application",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "bd0f85df47c53bb5b11035b5909efdca69a66c2281995427cc4af27f98034e36",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-customer.service.ts",
+      "line": 22,
+      "column": 8,
+      "symbol": "BillingWebhookCustomerService",
+      "target": "billingCustomer",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b55e155bfac99b67a7b01b9f54a8c504e10172d20f36acbca4609964d6ea1d7d",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-subscription.service.ts",
+      "line": 51,
+      "column": 8,
+      "symbol": "BillingWebhookSubscriptionService",
+      "target": "billingCustomer",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "17a2a08ab49a1ecd3636596675658d0ca89050ffc725a8f9114da0047c3ba0a6",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/commands/billing-sync-entitlements.command.ts",
+      "line": 26,
+      "column": 8,
+      "symbol": "BillingSyncEntitlementsCommand",
+      "target": "billingCustomer",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "62e850edfee9cf440f42643bfce4dc3b4c02b74e2c82b7afb6848e26618398cd",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-entitlement.service.ts",
+      "line": 18,
+      "column": 8,
+      "symbol": "BillingWebhookEntitlementService",
+      "target": "billingCustomer",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b3648c91fac23cc11f3b48cdff74138ae51348dd77d37c8ec6715f99f77da694",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-invoice.service.ts",
+      "line": 36,
+      "column": 8,
+      "symbol": "BillingWebhookInvoiceService",
+      "target": "billingCustomer",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e2d56e3e13c12bacc51cbc0d8157d25736b86854147bab605df52ff27f1907cc",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts",
+      "line": 37,
+      "column": 8,
+      "symbol": "AdminPanelBillingService",
+      "target": "billingCustomer",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "e4b58d6b4a983e8e3a3f2735af5658e0d447f3ee250f89dd573dc77a3af5d084",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-entitlement-sync.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "BillingEntitlementSyncService",
+      "target": "billingEntitlement",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7ffc392eff1bf1a9a91faf6f0beb17d12955dd99d0a905c88f59627d96bd72c9",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-price.service.ts",
+      "line": 20,
+      "column": 8,
+      "symbol": "BillingWebhookPriceService",
+      "target": "billingPrice",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3d42b032118a1e3378a1e151757f118172ebffd2c8583e54ce6101c25a30bd17",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts",
+      "line": 37,
+      "column": 8,
+      "symbol": "AdminPanelBillingService",
+      "target": "billingPrice",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "8b75f38102a9b4e8c4e813f6ce98bf780c52215ddc354df018a9de05ee2e078e",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-product.service.ts",
+      "line": 14,
+      "column": 8,
+      "symbol": "BillingWebhookProductService",
+      "target": "billingProduct",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "95c55ec4578b86eb7c8d7b4a77c9e23214654ded03ecd461617cfbd07f159132",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-price.service.ts",
+      "line": 20,
+      "column": 8,
+      "symbol": "BillingWebhookPriceService",
+      "target": "billingProduct",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2c0eb851ece2617985d5b5a8b1c24ffd45686be5b545d5cdf46be531ca7ac965",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-subscription.service.ts",
+      "line": 51,
+      "column": 8,
+      "symbol": "BillingWebhookSubscriptionService",
+      "target": "billingSubscriptionItem",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "60ec7d0a5c6d769673b5ef8b9df593cd06cf809cca996836ba3c83088122dc28",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-subscription-schedule.service.ts",
+      "line": 15,
+      "column": 8,
+      "symbol": "BillingWebhookSubscriptionScheduleService",
+      "target": "billingSubscription",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e7525dbcb53d803690846aed154e07658f3b86ed8fcba284a4fd5b2aa5d74471",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-subscription.service.ts",
+      "line": 51,
+      "column": 8,
+      "symbol": "BillingWebhookSubscriptionService",
+      "target": "billingSubscription",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "580dceb43948d355c253115706d77fddd4d7613c07b0128a563a1c9053fee23a",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace/services/workspace.service.ts",
+      "line": 141,
+      "column": 8,
+      "symbol": "WorkspaceService",
+      "target": "emailingDomain",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "d1759167613ae30725b04c958de05e155930c0a23dc9c6781bc81a0d2aef8fe4",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-user-lookup.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "AdminPanelUserLookupService",
+      "target": "featureFlag",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "a3b770d39c4128fafbdc4bee0e64a31c81e31319645607da63fba624301b151c",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-registration/application-tarball.service.ts",
+      "line": 72,
+      "column": 8,
+      "symbol": "ApplicationTarballService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3abb418a8b433dbfd8cb1c894ab8dc934f2e0a19c47313111cec643b6e8ffc4d",
+      "file": "packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts",
+      "line": 60,
+      "column": 8,
+      "symbol": "FileStorageService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2a4a3b2a7e1b2c9ea9c28e90d40dd3d81ef85f5cdddb1de257bf66c9db62c3ff",
+      "file": "packages/twenty-server/src/engine/core-modules/file-storage/services/server-file-storage.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "ServerFileStorageService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a3d465470361349c203860e8e81cea99139e1a5fc6b72e6001d7406e86a27b9b",
+      "file": "packages/twenty-server/src/engine/core-modules/record-export/jobs/generate-record-export.job.ts",
+      "line": 40,
+      "column": 8,
+      "symbol": "GenerateRecordExportJob",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3fe313d2a36e839e3ddd0b3964a365f03ff146f77bbae3053ffbf4a9762041cb",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace-data-export/services/workspace-data-export-step.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "WorkspaceDataExportStepService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "bd3007f60a5f2057d0fe8aacb1cc16d236ca97ca4e155b38dbe20a28c2637c60",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-development/application-file-upload.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "ApplicationFileUploadService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3155fa67d7dd147449edf8c2085af8aa984ef8a923397b8fe0664bbde8f70313",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-package/application-package-fetcher.service.ts",
+      "line": 57,
+      "column": 8,
+      "symbol": "ApplicationPackageFetcherService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6b632777eaaea2d58de579d8ba2f513d9f2f09d2a19cefbe3ff50db22632a701",
+      "file": "packages/twenty-server/src/engine/core-modules/record-export/services/record-export.workspace-service.ts",
+      "line": 91,
+      "column": 8,
+      "symbol": "RecordExportWorkspaceService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "61ad17da2dfee90715cdef647068f281342ea218b5b19c52eb6d58d56736c213",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/email-tool/email-composer.service.ts",
+      "line": 53,
+      "column": 8,
+      "symbol": "EmailComposerService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "88768d18c95c21a471720a429f76d15ae28309976b55514af4f3c8b45261046d",
+      "file": "packages/twenty-server/src/engine/core-modules/tool-provider/services/record-files-resolver.service.ts",
+      "line": 27,
+      "column": 8,
+      "symbol": "RecordFilesResolverService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fb6a81d69670a3e86a877aa93f660f5cf045fd0498781d6244a80a072ac53604",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace-data-export/services/workspace-data-export-cleanup.service.ts",
+      "line": 20,
+      "column": 8,
+      "symbol": "WorkspaceDataExportCleanupService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ab61ecc54de7d1492d2a016beef0e4dbd7820881a4bb9258c1604f176cd236cb",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace-data-export/services/workspace-data-export.service.ts",
+      "line": 35,
+      "column": 8,
+      "symbol": "WorkspaceDataExportService",
+      "target": "file",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e7e96c617fcdede0453a9c4db0a12a8f7c1ba5e04d2657155f81e157b7c155f6",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-key-value/services/application-key-value.service.ts",
+      "line": 26,
+      "column": 8,
+      "symbol": "ApplicationKeyValueService",
+      "target": "keyValuePair",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "19e8cbabeb5b4502bbc31d5f433f1392375d7573efc90cdd0b0d4f6a09093a1c",
+      "file": "packages/twenty-server/src/engine/core-modules/twenty-config/storage/config-storage.service.ts",
+      "line": 25,
+      "column": 8,
+      "symbol": "ConfigStorageService",
+      "target": "keyValuePair",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5cda61c1bd602f38c671408c6ddf021aab4d0f8719154e29262098fd86cd3a99",
+      "file": "packages/twenty-server/src/engine/core-modules/domain/custom-domain-manager/services/custom-domain-manager.service.ts",
+      "line": 23,
+      "column": 8,
+      "symbol": "CustomDomainManagerService",
+      "target": "publicDomain",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "45dd65edbc74d27d9c59ceb8f87e58a5a5ad91d5aee46a7d9c8958191bbfae57",
+      "file": "packages/twenty-server/src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service.ts",
+      "line": 18,
+      "column": 8,
+      "symbol": "WorkspaceDomainsService",
+      "target": "publicDomain",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ba1e436b3737b9e7d98706decb2a124cc113d586018979c2787cc34a89202645",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/controllers/sso-auth.controller.ts",
+      "line": 53,
+      "column": 8,
+      "symbol": "SsoAuthController",
+      "target": "workspaceSSOIdentityProvider",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "05fac5a1555f1795ce441f7734a57feaad06b08cc73a2365c6c2450da3898512",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-server-admin.service.ts",
+      "line": 24,
+      "column": 8,
+      "symbol": "AdminPanelServerAdminService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "02a9e5be8f2ac95f310eda3d97413c68212ea8361b7d7cb0ccd6398043e38e3b",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts",
+      "line": 83,
+      "column": 8,
+      "symbol": "AuthService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "36cae8b54682d5e7fd93e6ab924b598f0a4f971ac019a03c43c78f31d20707a4",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/sign-in-up.service.ts",
+      "line": 74,
+      "column": 8,
+      "symbol": "SignInUpService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "05ecbd9605eff1821a7a0189e12236a8716467c0486845b7ba498a85fff06686",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace/services/workspace.service.ts",
+      "line": 141,
+      "column": 8,
+      "symbol": "WorkspaceService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "24440abf92faeed457e13ff34a96ec72ca457dbf3e10cb3c947d618418abdd4d",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-statistics.service.ts",
+      "line": 18,
+      "column": 8,
+      "symbol": "AdminPanelStatisticsService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "5782312372d5497144b5400ca441af8aeef72a50dcb886f89ea1d9cf81db5c9f",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-user-lookup.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "AdminPanelUserLookupService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "229378ab3505657c26f979322f8a41867b6dfe5794eaf6e0aaa43f9820cc4ec9",
+      "file": "packages/twenty-server/src/engine/core-modules/application/connection-provider/connection-provider-connected-account.service.ts",
+      "line": 32,
+      "column": 8,
+      "symbol": "ConnectionProviderConnectedAccountService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "92cfe4451c200fcc52271e54353a052d3efb1334ce220fd881b9fcad93697aac",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/access-token.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "AccessTokenService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fe2544497eee012222cf949545be2c756afe383ec3ce077562ec8cbcc9398567",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/email-verification-token.service.ts",
+      "line": 24,
+      "column": 8,
+      "symbol": "EmailVerificationTokenService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a2e14441eade18b9f2fd6dd3a050f958ed64446a3e8799c2ab39b48bb23ecfe1",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/refresh-token.service.ts",
+      "line": 25,
+      "column": 8,
+      "symbol": "RefreshTokenService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8190dfa995f132e34d11a4bda16cd408236d71525e3c0320076eda2f25fc7bd3",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/workspace-agnostic-token.service.ts",
+      "line": 23,
+      "column": 8,
+      "symbol": "WorkspaceAgnosticTokenService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "d0fd1b6ceef4f6b23cb21511ddf60ee8fb37b9ef9df0c701b58171c96b19f528",
+      "file": "packages/twenty-server/src/engine/core-modules/email-verification/services/email-verification.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "EmailVerificationService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8be7838c65f90ad57e944c401a4a5fcdd433ff7cc70a362d13d5e10d4707f397",
+      "file": "packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "EnterprisePlanService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5aa8c2f1e4e94e7b645c28d2b6f92c8b47734cbc84593603499ae0c75a2fb9a4",
+      "file": "packages/twenty-server/src/engine/core-modules/user-workspace/user-workspace.service.ts",
+      "line": 50,
+      "column": 8,
+      "symbol": "UserWorkspaceService",
+      "target": "user",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6ce300feb0564b0304ba0bbb0d7963ad94d16fd6a94d8b3c9d84635b320e2a59",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-user-lookup.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "AdminPanelUserLookupService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "ec385d5a68b4b1ea2600cf905bd125298a1dba1cbc3fa0c55846a167e2fae224",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-oauth/oauth.service.ts",
+      "line": 31,
+      "column": 8,
+      "symbol": "OAuthService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e3c3636538c0f9e3cade9c77b356ec9075cf2bf41765e9935f502e41e54456fe",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-variable/user-application-variable-value.service.ts",
+      "line": 42,
+      "column": 8,
+      "symbol": "UserApplicationVariableValueService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "aeebad9c05b199550194802ac98343847bf24cea9b044ff6591399f2e3308478",
+      "file": "packages/twenty-server/src/engine/core-modules/application/connection-provider/connection-provider-oauth.controller.ts",
+      "line": 27,
+      "column": 8,
+      "symbol": "ConnectionProviderOAuthController",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2699b4f041f207140dc533ebd2063566b6de5053c2befc3c293c534179c45f91",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/connected-account-oauth.service.ts",
+      "line": 17,
+      "column": 8,
+      "symbol": "ConnectedAccountOAuthService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "743ba890fb3b896e1340e5cf369daa0aa56bec16e45c2394529602637a72d735",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/create-connected-account.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "CreateConnectedAccountService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8273914a96c2a282fc011c051a6a0702ffc02a2fd4f38be055740d2afe736b77",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/create-sso-connected-account.service.ts",
+      "line": 20,
+      "column": 8,
+      "symbol": "CreateSsoConnectedAccountService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e186d06d0641d419db48576baefc33cf8f20615334e77c8570525402bee9ebd5",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 60,
+      "column": 8,
+      "symbol": "GoogleAPIsService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3eb9f88bee1e3c29ca2f9d7fe00fbadada60e4f726f43c0bfc497d0faef9115a",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 58,
+      "column": 8,
+      "symbol": "MicrosoftAPIsService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3245bf8193b2713d29a9bae152c29c6b7fd530c9a3ab63e13eb1ca0944796668",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/strategies/jwt.auth.strategy.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "JwtAuthStrategy",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "45a2be8053a8521f495c557dbe102556f045c4e0f8cd2fcbcac9a561b1f753c0",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/access-token.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "AccessTokenService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ace15a6ca03a6cdb44d89726288019ffe0c70457ea2788594df6014651ff55e6",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts",
+      "line": 164,
+      "column": 8,
+      "symbol": "AuthResolver",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f41757f912741eb0e06260aed346ad931c1558734edceee32766d9bba26b7e93",
+      "file": "packages/twenty-server/src/engine/core-modules/billing/app-billing/app-billing.service.ts",
+      "line": 44,
+      "column": 8,
+      "symbol": "AppBillingService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5792ccb1e5e3fbbd5d823d43862553ce4ee4124c50f04b48b9fd8df8214f145c",
+      "file": "packages/twenty-server/src/engine/core-modules/billing/services/billing-portal.workspace-service.ts",
+      "line": 43,
+      "column": 8,
+      "symbol": "BillingPortalWorkspaceService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "16520f7151d9be56c3f65f553af2cbbbf0074e9a4a1d4d759e4715d8380bc3a7",
+      "file": "packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "EnterprisePlanService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "70012a5b18d970ee60e8170f0c9349bb339d714eceed984c79808d9b810baa0e",
+      "file": "packages/twenty-server/src/engine/core-modules/event-logs/event-logs.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "EventLogsService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "c5c2b8f925c4806842848637f5380ddedb08bcff7098e931de9dd30c6c795604",
+      "file": "packages/twenty-server/src/engine/core-modules/file/file-core-picture/services/file-core-picture.service.ts",
+      "line": 47,
+      "column": 8,
+      "symbol": "FileCorePictureService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "83c580ba4d97db53b1c508b440a1b138d41e2c997a89b22a38f51981ab7cc0ca",
+      "file": "packages/twenty-server/src/engine/core-modules/impersonation/services/impersonation.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "ImpersonationService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7db1253a5e7ba40201e7f5929c422ecd094f75f1524e79f536f86b3912144e31",
+      "file": "packages/twenty-server/src/engine/core-modules/onboarding/onboarding.service.ts",
+      "line": 60,
+      "column": 8,
+      "symbol": "OnboardingService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5efddfb8e75dceb4e2de6dc88eaa3e0410a06aef505e70fe88a7c7da411e6756",
+      "file": "packages/twenty-server/src/engine/core-modules/usage/usage.resolver.ts",
+      "line": 49,
+      "column": 8,
+      "symbol": "UsageResolver",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "74fcef013cc8332a689f0f8e107d4f2dc7c305547a35b5829f4b976735767cda",
+      "file": "packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "UsageLimitService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "46309378a37963261584f3f2a48eaaceb4971f94e7f1c1b7922ca40d57f944b0",
+      "file": "packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-quota-consumption.service.ts",
+      "line": 33,
+      "column": 8,
+      "symbol": "UsageQuotaConsumptionService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "da8067b07eeb53b5fcefe9a4c1c69b06e377fda79fa31261215f480a2620e44e",
+      "file": "packages/twenty-server/src/engine/core-modules/user/user.resolver.ts",
+      "line": 102,
+      "column": 8,
+      "symbol": "UserResolver",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8ee620209ac1737d961c25528bc034d893dc31fd65120215e6afbef1a38e37fb",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace/services/workspace.service.ts",
+      "line": 141,
+      "column": 8,
+      "symbol": "WorkspaceService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "323e87fdb74392a8ea72cfcf082913615827d519a1d7789b0f6bfe64b63f372b",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace-invitation/services/workspace-invitation.service.ts",
+      "line": 52,
+      "column": 8,
+      "symbol": "WorkspaceInvitationService",
+      "target": "userWorkspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "68b2c4e1d60fefd05c95808c7303d388bdba4e02d4587753a460513a69fb5810",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/sign-in-up.service.ts",
+      "line": 74,
+      "column": 8,
+      "symbol": "SignInUpService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b3ab3346925796d5e69f1d4dabd8840a4b7d64558c9b77e2e742564d4a817abe",
+      "file": "packages/twenty-server/src/engine/core-modules/billing/services/billing-subscription.service.ts",
+      "line": 46,
+      "column": 8,
+      "symbol": "BillingSubscriptionService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e71a3ebb77d1d38bc291bb4594d5e0ac19ec0a04bc972e8f2e3ea14ea8a9b246",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-invoice.service.ts",
+      "line": 36,
+      "column": 8,
+      "symbol": "BillingWebhookInvoiceService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5de392fda55326840fc2befa83ca3ee0c43cd5d8435ca7a4a574d5a1e614a466",
+      "file": "packages/twenty-server/src/engine/core-modules/domain/custom-domain-manager/services/custom-domain-manager.service.ts",
+      "line": 23,
+      "column": 8,
+      "symbol": "CustomDomainManagerService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "c595afb18d7ef42e3e6ab8936df9e768079f87bfd6991adab09c869fa52495d7",
+      "file": "packages/twenty-server/src/engine/core-modules/file/file-core-picture/services/file-core-picture.service.ts",
+      "line": 47,
+      "column": 8,
+      "symbol": "FileCorePictureService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5fa0d1df7e2086c48b59fc78f66b732d3f584bafe06c67973f0c674dafa7e3f4",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/indicators/app.health.ts",
+      "line": 14,
+      "column": 8,
+      "symbol": "AppHealthIndicator",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "8f91b6f6d395fef0913cf9b9e9a8232c16863071c7a4817cf86085e262bbae2e",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-chat.service.ts",
+      "line": 18,
+      "column": 8,
+      "symbol": "AdminPanelChatService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "ae2eb241b04563cd8c1d7a59d3b2cb4233661edb9865398c38849bb2d81b24e6",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-statistics.service.ts",
+      "line": 18,
+      "column": 8,
+      "symbol": "AdminPanelStatisticsService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "db66a5c7718d703968e3cee6728a2579419fefe1da36f44436b5127483c0dc2c",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-user-lookup.service.ts",
+      "line": 28,
+      "column": 8,
+      "symbol": "AdminPanelUserLookupService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "11866fae9dafe9817a8a52bb4a036b00e4b7a2e27159e3c2e03c5bf5968fb165",
+      "file": "packages/twenty-server/src/engine/core-modules/api-key/commands/generate-api-key.command.ts",
+      "line": 32,
+      "column": 8,
+      "symbol": "GenerateApiKeyCommand",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "907d5bc5ec3df2b76e6b531d4b68e650e758ae955d0498524b17c7ae38def9a8",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-monitoring/application-monitoring.service.ts",
+      "line": 53,
+      "column": 8,
+      "symbol": "ApplicationMonitoringService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "d8d617e15aa65c3701c67f0952a409362c5540bfc226cf93b01f8901dc3072a6",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration-claim.service.ts",
+      "line": 65,
+      "column": 8,
+      "symbol": "ApplicationRegistrationClaimService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "880eedb23a6eb836f0a300ebe83920067f1077fd43de925594c40f65cd58754d",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration.service.ts",
+      "line": 124,
+      "column": 8,
+      "symbol": "ApplicationRegistrationService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "19792520ffa5e99640fd5895414112620334aeb37bf77daff069198deba63e9e",
+      "file": "packages/twenty-server/src/engine/core-modules/application/connection-provider/connection-provider-flow-redirect.service.ts",
+      "line": 26,
+      "column": 8,
+      "symbol": "ConnectionProviderFlowRedirectService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "086452b66329c37350ee42165cbe36a41e8a5d7ef56208b2dd6364d0b2f4d11e",
+      "file": "packages/twenty-server/src/engine/core-modules/application/connection-provider/connection-provider-oauth.controller.ts",
+      "line": 27,
+      "column": 8,
+      "symbol": "ConnectionProviderOAuthController",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f31d0960eba016839ec741bd7307e5b678132c8906d35d9b8ccac7cd6e6cdf1f",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application.service.ts",
+      "line": 54,
+      "column": 8,
+      "symbol": "ApplicationService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e02cef44cc5d87ed416f0f04ff8ce5c8191d9bb20d9d033164abfc198e31a2ae",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/controllers/google-apis-auth.controller.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "GoogleAPIsAuthController",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b93167275a1aeec5ae53989a4913bdefe8c7254ebaa7b6de1fd9f1d426dac87c",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/controllers/microsoft-apis-auth.controller.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "MicrosoftAPIsAuthController",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "16e390ac21ad29ddbaf6638ed7e5f59295f45275bdcc0b49ed33402b09eb01a8",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/guards/google-apis-oauth-exchange-code-for-token.guard.ts",
+      "line": 19,
+      "column": 8,
+      "symbol": "GoogleAPIsOauthExchangeCodeForTokenGuard",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "88e75972c9dfe002f06c168a16ee225aa069c4ddde9f7947ebc22867a87833b3",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/guards/google-apis-oauth-request-code.guard.ts",
+      "line": 20,
+      "column": 8,
+      "symbol": "GoogleAPIsOauthRequestCodeGuard",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f85c2d725ff25e2ea237dee85287afbb26d0ecedaee3125323288282f62dd96a",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/guards/google-oauth.guard.ts",
+      "line": 17,
+      "column": 8,
+      "symbol": "GoogleOauthGuard",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6587c20937dc4693ca60279f1097bd11c1b33508f80f8ec01862dc7dff2b3145",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/guards/microsoft-apis-oauth-request-code.guard.ts",
+      "line": 21,
+      "column": 8,
+      "symbol": "MicrosoftAPIsOauthRequestCodeGuard",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6a76917caf13de3091f2c606c3e207f74052c37c6bee41e067b7a962057d051f",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/guards/microsoft-oauth.guard.ts",
+      "line": 22,
+      "column": 8,
+      "symbol": "MicrosoftOAuthGuard",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a03142a494ac9d47285e050210cfa0bba9c2ad8765781fd7bf3ad72793b7fa6a",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/auth-sso.service.ts",
+      "line": 11,
+      "column": 8,
+      "symbol": "AuthSsoService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "df5705580bf88a54d7af132235a1cfa6aecff2fbfa910e8c1803af00c5f464b7",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts",
+      "line": 83,
+      "column": 8,
+      "symbol": "AuthService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4b20fc18e3678f7fa7a1435edb8014c4db27287cc9b55312c20c4d45521d649b",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/reset-password.service.ts",
+      "line": 37,
+      "column": 8,
+      "symbol": "ResetPasswordService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "8e3442e739ffc4af75c64fef6cb97c7ddd1a35a04b89a970e952ed34bb4c4f0e",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/strategies/jwt.auth.strategy.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "JwtAuthStrategy",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b3f23cda99c0f0694b255394d1a0160dd971fdbce0f2448126976614d08f18f6",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/access-token.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "AccessTokenService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e65767df8c5da3be75987ac75ef6ce65c5a699747fcd94ba958948f6c29947a5",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/token/services/application-token.service.ts",
+      "line": 34,
+      "column": 8,
+      "symbol": "ApplicationTokenService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fdd16a140179fb76e09907093d14200029c4c93d2ca3196b88c08b36d8d561ee",
+      "file": "packages/twenty-server/src/engine/core-modules/billing/app-billing/crons/jobs/application-recurring-charge.cron.job.ts",
+      "line": 23,
+      "column": 8,
+      "symbol": "ApplicationRecurringChargeCronJob",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a7991c374ac767d3a2059212977a2778c3b2fbdad5faaba5d4ed7c707ea037d3",
+      "file": "packages/twenty-server/src/engine/core-modules/billing/reminders/services/billing-reminder.service.ts",
+      "line": 43,
+      "column": 8,
+      "symbol": "BillingReminderService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "87ed2ffe558d6f2811cfdba87bec8c769a3d08d5a8967936d86715cd0d1768f9",
+      "file": "packages/twenty-server/src/engine/core-modules/billing/billing-gauge.service.ts",
+      "line": 17,
+      "column": 8,
+      "symbol": "BillingGaugeService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "25262cbf66cd76b8c37d30ae0c1403146ccc06e04f5ede54fac85b0f6bfe20e2",
+      "file": "packages/twenty-server/src/engine/core-modules/billing-webhook/services/billing-webhook-subscription.service.ts",
+      "line": 51,
+      "column": 8,
+      "symbol": "BillingWebhookSubscriptionService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f78ef1b381f769e3d65d8457913115be9912e5ebb1fe0e8e2d0e35dd4de6ed53",
+      "file": "packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts",
+      "line": 29,
+      "column": 8,
+      "symbol": "SubdomainManagerService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4b1e4c7afac41c1a4c6cd0175d0eca1a7f3d5246afeb7f0db4fc1c9909822896",
+      "file": "packages/twenty-server/src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service.ts",
+      "line": 18,
+      "column": 8,
+      "symbol": "WorkspaceDomainsService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e645fe3cafdedaf3f6a8191f96679980beeb450e6673743ce0861afd5f66b96d",
+      "file": "packages/twenty-server/src/engine/core-modules/emailing-domain/drivers/log/services/log-emailing-domain-driver.service.ts",
+      "line": 32,
+      "column": 8,
+      "symbol": "LogEmailingDomainDriver",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "0df74641a290b2d56c4fcba7afdb8bc7e2a609032cfb2ec71c2599d04c9ff72b",
+      "file": "packages/twenty-server/src/engine/core-modules/enterprise/services/enterprise-plan.service.ts",
+      "line": 38,
+      "column": 8,
+      "symbol": "EnterprisePlanService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2c7ff22c0e2f76bf4916be858c83d0721e013f4f20fb2a29df4c410b7ac537fc",
+      "file": "packages/twenty-server/src/engine/core-modules/event-logs/cleanup/crons/event-log-cleanup.cron.job.ts",
+      "line": 22,
+      "column": 8,
+      "symbol": "EventLogCleanupCronJob",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "0be6affd3f117bfb9b3ca203916df0c2d46d88a2c02ee073b126311aa7446ecd",
+      "file": "packages/twenty-server/src/engine/core-modules/file/file-upload/services/file-upload.service.ts",
+      "line": 61,
+      "column": 8,
+      "symbol": "FileUploadService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "bef1034fcac40b66c4ee1be9829fb72e5e5c68bd7c047a99917507f3c192a922",
+      "file": "packages/twenty-server/src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts",
+      "line": 116,
+      "column": 8,
+      "symbol": "LogicFunctionExecutorService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b5202e2ddec63ae800a8ae26f59006be1d1898d92bf3409602c105f2d4ec0fd3",
+      "file": "packages/twenty-server/src/engine/core-modules/logic-function/logic-function-trigger/triggers/cron/cron-trigger.cron.job.ts",
+      "line": 34,
+      "column": 8,
+      "symbol": "CronTriggerCronJob",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e737f530f0031ff881f98d0313c2c146774768db45cfd0ff5faa7f6bbeccfbe7",
+      "file": "packages/twenty-server/src/engine/core-modules/onboarding/onboarding.service.ts",
+      "line": 60,
+      "column": 8,
+      "symbol": "OnboardingService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4b2bd4f1a1030a270cae56c24734ed6e816adaa5a966fad2e23b241ea52d28d1",
+      "file": "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts",
+      "line": 22,
+      "column": 8,
+      "symbol": "PublicDomainService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "74e5ea06af5fe220fb978ebf27081b6d1b9c9124523ad30883635f358b88481e",
+      "file": "packages/twenty-server/src/engine/core-modules/sdk-client/sdk-client-generation.service.ts",
+      "line": 45,
+      "column": 8,
+      "symbol": "SdkClientGenerationService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "709f1ab2d7c0d4dda4871469014e0681ed50244608dd032612d2df45cb1b0b9f",
+      "file": "packages/twenty-server/src/engine/core-modules/upgrade/services/upgrade-status.service.ts",
+      "line": 91,
+      "column": 8,
+      "symbol": "UpgradeStatusService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f97f53c154b5b4f59f95389d2941a4ad648d5de66cf81cd2d20b9da9fcec6377",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/controllers/workflow-trigger.controller.ts",
+      "line": 41,
+      "column": 8,
+      "symbol": "WorkflowTriggerController",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "21d155a1c9c1ff1893fa29e843ae7dd338e5fc10eaf5e83ef81bfca0022f3b97",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/workflow-core-sync.service.ts",
+      "line": 27,
+      "column": 8,
+      "symbol": "WorkflowCoreSyncService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "479893b8f8041e03d8bb3c0a29e5798757ecf0137aa930c6d8cc545b4b943e0e",
+      "file": "packages/twenty-server/src/engine/core-modules/workspace-data-export/services/workspace-data-export.service.ts",
+      "line": 35,
+      "column": 8,
+      "symbol": "WorkspaceDataExportService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T10:27:18.4535905+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "03061327d09d53ae9c2b8d2a5997311504ebb78bb78d4949c20bc250b803d094",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts",
+      "line": 37,
+      "column": 8,
+      "symbol": "AdminPanelBillingService",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    },
+    {
+      "fingerprint": "ddc009360aa8d8a19eff3a3743dd0bb18064788f4419b22a6485c965cb142110",
+      "file": "packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts",
+      "line": 148,
+      "column": 8,
+      "symbol": "AdminPanelResolver",
+      "target": "workspace",
+      "acknowledgedAt": "2026-11-15T00:45:44.865112+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 00:45:44"
+    }
+  ]
+}

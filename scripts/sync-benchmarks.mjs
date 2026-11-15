@@ -893,8 +893,8 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs07.meta_desc'] =
       `Autonomous feature implementation benchmark on ${c7.repo.name} (${c7.repo.packages} packages, ${fmtInt(c7.repo.files)} files): ` +
-      `CodeExplorer Agent (${fmtDurShort(ce.wall_clock_s)} wall / ${fmtDurShort(ce.init_impl_s)} initial code + tests, ${ce.turns} turns, caught & self-healed SIG-TWENTY-003 in 1 turn, 4/4 gates PASS) vs ` +
-      `codebase-memory-mcp Agent (${fmtDurShort(cbm.wall_clock_s)} wall / ${fmtDurShort(cbm.init_impl_s)} initial code + tests, ${cbm.turns} turns, shipped broken SIG-TWENTY-003 domain boundary).`;
+      `CodeExplorer Agent (${fmtDurShort(ce.wall_clock_s)} wall / ${fmtDurShort(ce.init_impl_s)} initial code + tests, ${ce.turns} turns, pre-configured gate caught copied legacy debt & agent refactored in 1 turn, 4/4 gates PASS) vs ` +
+      `codebase-memory-mcp Agent (${fmtDurShort(cbm.wall_clock_s)} wall / ${fmtDurShort(cbm.init_impl_s)} initial code + tests, ${cbm.turns} turns, 1 new SIG-TWENTY-003 cross-module table coupling).`;
 
     b['cs07.crumb_scale'] = `${c7.repo.packages} packages, ${fmtInt(c7.repo.files)} files, ${c7.repo.loc} LOC`;
     b['cs07.conv_ce'] = ce.conversation_short;
@@ -902,7 +902,7 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs07.card_speedup'] = fmtRoundMult(speedup);
     b['cs07.card_speed_copy'] =
-      `<code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; self-healing) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code>.`;
+      `<code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; 1-turn refactor) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code>.`;
     b['cs07.card_turns_footer'] = `${ce.turns} turns vs ${cbm.turns} turns (${ce.read_file_calls} vs ${cbm.read_file_calls} file reads)`;
 
     b['cs07.card_init_speed'] = fmtRoundMult(initSpeedup);
@@ -912,12 +912,12 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs07.card_gates'] = `4/4 vs 3/4`;
     b['cs07.card_gates_copy'] =
-      `Both agents passed native <code>oxlint</code> (<code>0</code> errors), but <code>CBM</code> shipped a broken <code>SIG-TWENTY-003</code> ORM boundary while <code>ce</code> delivered <strong>4/4 PASS</strong>.`;
-    b['cs07.card_gates_footer'] = `0 architectural leaks vs 1 broken domain boundary`;
+      `Pre-configured gate <code>SIG-TWENTY-003</code> caught the copied legacy table coupling (<code>[TOL]</code> in <code>WorkspaceService</code>, <code>[NEW]</code> in <code>AdminPanelBillingService</code>); <code>oxlint</code> &amp; <code>CBM</code> did not.`;
+    b['cs07.card_gates_footer'] = `0 new violations vs 1 new cross-module table coupling`;
 
     b['cs07.card_heal'] = `1 Turn vs 0`;
     b['cs07.card_heal_copy'] =
-      `Both agents initially copied legacy debt from <code>workspace.service.ts:989</code>. <code>ce gate check</code> caught it and <code>ce</code> refactored in <strong>1 turn</strong>.`;
+      `Both agents initially copied the legacy shortcut from <code>workspace.service.ts:989</code>. <code>ce gate check</code> flagged the new copy and <code>ce</code> refactored in <strong>1 editing turn (20s)</strong>.`;
     b['cs07.card_heal_footer'] = `CBM index_repository (300.6s) reported 0 issues`;
 
     b['cs07.participants_html'] = [
@@ -944,22 +944,22 @@ function buildBindings(data, rawMilestones01) {
     b['cs07.tbl_calls_ce'] = `${ce.tool_calls} (${ce.ce_cli_calls} <code>ce</code>, ${ce.rg_calls} <code>rg</code>, ${ce.read_file_calls} <code>read_file</code>, ${ce.edit_file_calls + ce.write_file_calls} edits)`;
     b['cs07.tbl_calls_delta'] = `${callsRatio.toFixed(2)}× fewer calls (${readsRatio.toFixed(2)}× fewer file reads)`;
 
-    b['cs07.tbl_payload_cbm'] = `${fmtInt(cbm.raw_tool_chars)} chars (~${fmtInt(cbm.raw_tool_tokens)} tokens)`;
-    b['cs07.tbl_payload_ce'] = `${fmtInt(ce.raw_tool_chars)} chars (~${fmtInt(ce.raw_tool_tokens)} tokens)`;
+    b['cs07.tbl_payload_cbm'] = `${fmtInt(cbm.raw_tool_chars)} chars (~${fmtInt(cbm.raw_tool_tokens)} est. tokens)`;
+    b['cs07.tbl_payload_ce'] = `${fmtInt(ce.raw_tool_chars)} chars (~${fmtInt(ce.raw_tool_tokens)} est. tokens)`;
     b['cs07.tbl_payload_delta'] = `1.00× (31 vs 43 file reads)`;
 
-    b['cs07.tbl_in_cbm'] = `${fmtInt(cbm.cum_input_tokens)} est. tokens (across 54 turns incl. cache)`;
-    b['cs07.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} est. tokens (across 43 turns incl. cache)`;
+    b['cs07.tbl_in_cbm'] = `${fmtInt(cbm.cum_input_tokens)} est. tokens (chars/4 across 54 turns incl. cache)`;
+    b['cs07.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} est. tokens (chars/4 across 43 turns incl. cache)`;
     b['cs07.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens (-843K)`;
 
-    b['cs07.tbl_gates_cbm'] = `3 / 4 passed (1 failed: <code>SIG-TWENTY-003</code>)`;
-    b['cs07.tbl_gates_ce'] = `4 / 4 passed (0 violations)`;
-    b['cs07.tbl_gates_delta'] = `Caught &amp; self-healed <code>SIG-TWENTY-003</code> in 1 turn`;
+    b['cs07.tbl_gates_cbm'] = `3 / 4 passed (1 new in <code>SIG-TWENTY-003</code>; evaluated post-session)`;
+    b['cs07.tbl_gates_ce'] = `4 / 4 passed (0 new violations)`;
+    b['cs07.tbl_gates_delta'] = `Pre-configured gate caught copied debt; refactored in 1 turn`;
 
     b['catalog.cs07_outcome'] =
       `<strong class="tone-ok">${fmtRoundMult(speedup)} faster end-to-end</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}; ${fmtDurShort(ce.init_impl_s)} vs ${fmtDurShort(cbm.init_impl_s)} draft)<br>` +
-      `<strong class="tone-ok">4/4 gates passed vs 1 failed</strong> (caught &amp; self-healed <code>SIG-TWENTY-003</code> in 1 turn)<br>` +
-      `<strong>CBM shipped broken domain boundary</strong> (<code>suspendWorkspace &rarr; emailingDomain</code>)`;
+      `<strong class="tone-ok">4/4 gates passed vs 1 new violation</strong> (pre-configured gate caught copied legacy debt; 1-turn fix)<br>` +
+      `<strong>Both passed unit tests &amp; oxlint</strong> (<code>4/4</code> vs <code>3/3</code> specs; <code>CBM</code> kept <code>AdminPanelBillingService &rarr; emailingDomain</code>)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
@@ -1013,7 +1013,7 @@ function buildBindings(data, rawMilestones01) {
     const tk7 = (cbm7.cum_input_tokens / ce7.cum_input_tokens).toFixed(2);
 
     const cs07Row =
-      `| **[Case Study 07: Real-Life Feature Implementation & Self-Healing](./07-agent-feature-ce-vs-cbm-on-twenty/README.md)**<br>Implement \`suspendWorkspaceAdminPanel\` GraphQL mutation, service orchestration & unit tests on \`twentyhq/twenty\` (4 architectural gates, zero rule hints) | \`${c7.repo.name}\`<br>\`${c7.repo.packages}\` packages, \`${fmtInt(c7.repo.files)}\` files, \`${c7.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp7}×\` faster end-to-end**<br>\`${fmtDurShort(ce7.wall_clock_s)}\` vs \`${fmtDurShort(cbm7.wall_clock_s)}\` (\`${fmtDurShort(ce7.init_impl_s)}\` vs \`${fmtDurShort(cbm7.init_impl_s)}\` initial draft, \`${sp7Init}×\` faster)<br>\`${ce7.turns}\` turns vs \`${cbm7.turns}\` turns | **\`${tk7}×\` fewer tokens**<br>\`${fmtInt(ce7.cum_input_tokens)}\` vs \`${fmtInt(cbm7.cum_input_tokens)}\`<br>(\`${ce7.read_file_calls}\` vs \`${cbm7.read_file_calls}\` file reads) | **\`4/4 PASS\` vs \`1 FAIL\` (\`SIG-TWENTY-003\`)**<br>Both copied legacy ORM leak from \`workspace.service.ts:989\`; \`ce gate check\` caught it & agent self-healed in \`1\` turn; \`CBM\` shipped broken boundary |`;
+      `| **[Case Study 07: Real-Life Feature Implementation & Self-Healing](./07-agent-feature-ce-vs-cbm-on-twenty/README.md)**<br>Implement \`suspendWorkspaceAdminPanel\` GraphQL mutation, service orchestration & unit tests on \`twentyhq/twenty\` (4 repo-wide architectural gates, zero rule hints) | \`${c7.repo.name}\`<br>\`${c7.repo.packages}\` packages, \`${fmtInt(c7.repo.files)}\` files, \`${c7.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp7}×\` faster end-to-end**<br>\`${fmtDurShort(ce7.wall_clock_s)}\` vs \`${fmtDurShort(cbm7.wall_clock_s)}\` (\`${fmtDurShort(ce7.init_impl_s)}\` vs \`${fmtDurShort(cbm7.init_impl_s)}\` initial draft, \`${sp7Init}×\` faster)<br>\`${ce7.turns}\` turns vs \`${cbm7.turns}\` turns | **\`${tk7}×\` fewer est. tokens**<br>\`${fmtInt(ce7.cum_input_tokens)}\` vs \`${fmtInt(cbm7.cum_input_tokens)}\`<br>(\`${ce7.read_file_calls}\` vs \`${cbm7.read_file_calls}\` file reads) | **\`4/4 PASS\` vs \`1 new\` violation (\`SIG-TWENTY-003\`)**<br>Both passed unit tests (\`4/4\` vs \`3/3\`) & \`oxlint\`; pre-configured gate caught copied legacy coupling from \`workspace.service.ts:989\` (\`[TOL]\` -> \`[NEW]\`) & \`ce\` refactored in \`1\` turn |`;
 
     const cs06Row =
       `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>6 invariant gates + 4-phase brownfield SHA-256 ratchet lifecycle (Day 0 audit, line-shift-immune baseline freeze, PR regression block & monotonic debt tightening) | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\` & \`ratchet\`) | **\`${t6.duration_ms} ms\`** Day 0 check<br>**\`183–356 ms\`** ratcheted checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **4-phase deterministic lifecycle**<br>Freezes \`${t6.blocking_errors}\` legacy errors + \`${t6.audited_warnings}\` warnings (\`Exit 0\`), blocks \`1 new\` PR leak (\`Exit 1\`), tightens ceiling |`;

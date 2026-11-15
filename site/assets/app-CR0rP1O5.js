@@ -2079,7 +2079,7 @@ LIMIT 25</pre>
                 <td><strong><a href="/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty">Case Study 07</a></strong><br><span class="tone-muted">twentyhq/twenty</span></td>
                 <td>Implement a new <code>suspendWorkspace</code> GraphQL mutation, service orchestration (cleanup job, billing cancellation, cache flush), and Jest unit tests across 46 TypeScript packages (24,527 files, 2.49M LOC) under 4 architectural gates with zero rule hints.</td>
                 <td><code>CodeExplorer</code><br>vs<br><code>CBM</code></td>
-                <td class="cell-win" data-bind-html="catalog.cs07_outcome"><strong class="tone-ok">~1.6× faster end-to-end</strong> (12m 59s vs 20m 25s; 10m 3s vs 15m 17s draft)<br><strong class="tone-ok">4/4 gates passed vs 1 failed</strong> (caught &amp; self-healed <code>SIG-TWENTY-003</code> in 1 turn)<br><strong>CBM shipped broken domain boundary</strong> (<code>suspendWorkspace &rarr; emailingDomain</code>)</td>
+                <td class="cell-win" data-bind-html="catalog.cs07_outcome"><strong class="tone-ok">~1.6× faster end-to-end</strong> (12m 59s vs 20m 25s; 10m 3s vs 15m 17s draft)<br><strong class="tone-ok">4/4 gates passed vs 1 new violation</strong> (pre-configured gate caught copied legacy debt; 1-turn fix)<br><strong>Both passed unit tests &amp; oxlint</strong> (<code>4/4</code> vs <code>3/3</code> specs; <code>CBM</code> kept <code>AdminPanelBillingService &rarr; emailingDomain</code>)</td>
                 <td><a href="/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty" class="btn btn--primary">Read Case 07</a></td>
               </tr>
               <tr>
@@ -4581,7 +4581,7 @@ Successfully ratcheted down and updated baselines for 6 gate(s).</pre>
         <p>\r
           If you have questions regarding this privacy policy or security practices, you can open an issue on the official GitHub repository at <a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener" style="color: var(--accent);">github.com/vmikhailov/code-explorer/issues</a>.\r
         </p>\r
-      </div>`},"/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty":{routePath:"/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty",pageKind:"benchmark-case",title:"Case Study 07: Real-Life Feature Coding & Architectural Guardrails on twentyhq/twenty (ce vs CBM)",description:"Autonomous feature implementation benchmark on twentyhq/twenty (46 packages, 24,527 files): CodeExplorer Agent (12m 59s wall / 10m 3s initial code + tests, 43 turns, caught & self-healed SIG-TWENTY-003 in 1 turn, 4/4 gates PASS) vs codebase-memory-mcp Agent (20m 25s wall / 15m 17s initial code + tests, 54 turns, shipped broken SIG-TWENTY-003 domain boundary).",descriptionMetaBind:"cs07.meta_desc",canonical:"https://code-explorer.app/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty",ogUrl:"https://code-explorer.app/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty",ogTitle:"Case Study 07: Real-Life Feature Coding & Architectural Guardrails on twentyhq/twenty (ce vs CBM)",ogDescription:"Autonomous feature implementation benchmark on twentyhq/twenty (46 packages, 24,527 files): CodeExplorer Agent (12m 59s wall / 10m 3s initial code + tests, 43 turns, caught & self-healed SIG-TWENTY-003 in 1 turn, 4/4 gates PASS) vs codebase-memory-mcp Agent (20m 25s wall / 15m 17s initial code + tests, 54 turns, shipped broken SIG-TWENTY-003 domain boundary).",mainHtml:`<section class="hero-stage">
+      </div>`},"/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty":{routePath:"/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty",pageKind:"benchmark-case",title:"Case Study 07: Real-Life Feature Coding & Architectural Guardrails on twentyhq/twenty (ce vs CBM)",description:"Autonomous feature implementation benchmark on twentyhq/twenty (46 packages, 24,527 files): CodeExplorer Agent (12m 59s wall / 10m 3s initial code + tests, 43 turns, pre-configured gate caught copied legacy debt & agent refactored in 1 turn, 4/4 gates PASS) vs codebase-memory-mcp Agent (20m 25s wall / 15m 17s initial code + tests, 54 turns, 1 new SIG-TWENTY-003 cross-module table coupling).",descriptionMetaBind:"cs07.meta_desc",canonical:"https://code-explorer.app/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty",ogUrl:"https://code-explorer.app/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty",ogTitle:"Case Study 07: Real-Life Feature Coding & Architectural Guardrails on twentyhq/twenty (ce vs CBM)",ogDescription:"Autonomous feature implementation benchmark on twentyhq/twenty (46 packages, 24,527 files): CodeExplorer Agent (12m 59s wall / 10m 3s initial code + tests, 43 turns, pre-configured gate caught copied legacy debt & agent refactored in 1 turn, 4/4 gates PASS) vs codebase-memory-mcp Agent (20m 25s wall / 15m 17s initial code + tests, 54 turns, 1 new SIG-TWENTY-003 cross-module table coupling).",mainHtml:`<section class="hero-stage">
       <div class="wrap">
         <div class="crumb-bar">
           <div class="crumb-trail">
@@ -4611,7 +4611,7 @@ Successfully ratcheted down and updated baselines for 6 gate(s).</pre>
           <div class="panel panel--sunken">
             <span class="reading tone-ok" data-bind="cs07.card_speedup">~1.6×</span>
             <h2 class="panel-title">Faster End-to-End</h2>
-            <p class="panel-copy" data-bind-html="cs07.card_speed_copy"><code>CodeExplorer</code> finished in <strong>12m 59s</strong> (incl. scan, gate check &amp; self-healing) vs <strong>20m 25s</strong> for <code>CBM</code>.</p>
+            <p class="panel-copy" data-bind-html="cs07.card_speed_copy"><code>CodeExplorer</code> finished in <strong>12m 59s</strong> (incl. scan, gate check &amp; 1-turn refactor) vs <strong>20m 25s</strong> for <code>CBM</code>.</p>
             <code class="panel-code" data-bind="cs07.card_turns_footer">43 turns vs 54 turns (31 vs 43 file reads)</code>
           </div>
           <div class="panel panel--sunken">
@@ -4623,13 +4623,13 @@ Successfully ratcheted down and updated baselines for 6 gate(s).</pre>
           <div class="panel panel--sunken">
             <span class="reading tone-cool" data-bind="cs07.card_gates">4/4 vs 3/4</span>
             <h2 class="panel-title">Architectural Gates</h2>
-            <p class="panel-copy" data-bind-html="cs07.card_gates_copy">Both agents passed native <code>oxlint</code> (<code>0</code> errors), but <code>CBM</code> shipped a broken <code>SIG-TWENTY-003</code> ORM boundary while <code>ce</code> delivered <strong>4/4 PASS</strong>.</p>
-            <code class="panel-code" data-bind="cs07.card_gates_footer">0 architectural leaks vs 1 broken domain boundary</code>
+            <p class="panel-copy" data-bind-html="cs07.card_gates_copy">Pre-configured gate <code>SIG-TWENTY-003</code> caught the copied legacy table coupling (<code>[TOL]</code> in <code>WorkspaceService</code>, <code>[NEW]</code> in <code>AdminPanelBillingService</code>); <code>oxlint</code> &amp; <code>CBM</code> did not.</p>
+            <code class="panel-code" data-bind="cs07.card_gates_footer">0 new violations vs 1 new cross-module table coupling</code>
           </div>
           <div class="panel panel--sunken">
             <span class="reading" data-bind="cs07.card_heal">1 Turn vs 0</span>
             <h2 class="panel-title">Autonomous Self-Heal</h2>
-            <p class="panel-copy" data-bind-html="cs07.card_heal_copy">Both agents initially copied legacy debt from <code>workspace.service.ts:989</code>. <code>ce gate check</code> caught it and <code>ce</code> refactored in <strong>1 turn</strong>.</p>
+            <p class="panel-copy" data-bind-html="cs07.card_heal_copy">Both agents initially copied the legacy shortcut from <code>workspace.service.ts:989</code>. <code>ce gate check</code> flagged the new copy and <code>ce</code> refactored in <strong>1 editing turn (20s)</strong>.</p>
             <code class="panel-code" data-bind="cs07.card_heal_footer">CBM index_repository (300.6s) reported 0 issues</code>
           </div>
         </div>
@@ -4698,14 +4698,14 @@ Successfully ratcheted down and updated baselines for 6 gate(s).</pre>
               </tr>
               <tr>
                 <td>Raw Tool Output Ingested</td>
-                <td class="cell-loss" data-bind="cs07.tbl_payload_cbm">399,803 chars (~99,951 tokens)</td>
-                <td class="cell-win" data-bind="cs07.tbl_payload_ce">399,749 chars (~99,937 tokens)</td>
+                <td class="cell-loss" data-bind="cs07.tbl_payload_cbm">399,803 chars (~99,951 est. tokens)</td>
+                <td class="cell-win" data-bind="cs07.tbl_payload_ce">399,749 chars (~99,937 est. tokens)</td>
                 <td class="cell-win" data-bind="cs07.tbl_payload_delta">1.00× (31 vs 43 file reads)</td>
               </tr>
               <tr>
                 <td>Cumulative Input Tokens (Across All Turns)</td>
-                <td class="cell-loss" data-bind="cs07.tbl_in_cbm">4,230,784 est. tokens (across 54 turns incl. cache)</td>
-                <td class="cell-win" data-bind="cs07.tbl_in_ce">3,387,918 est. tokens (across 43 turns incl. cache)</td>
+                <td class="cell-loss" data-bind="cs07.tbl_in_cbm">4,230,784 est. tokens (chars/4 across 54 turns incl. cache)</td>
+                <td class="cell-win" data-bind="cs07.tbl_in_ce">3,387,918 est. tokens (chars/4 across 43 turns incl. cache)</td>
                 <td class="cell-win" data-bind="cs07.tbl_in_delta">1.25× fewer input tokens (-843K)</td>
               </tr>
               <tr>
@@ -4716,9 +4716,9 @@ Successfully ratcheted down and updated baselines for 6 gate(s).</pre>
               </tr>
               <tr class="row-total">
                 <td>Architectural Invariant Gates (<code>4</code> Rules)</td>
-                <td class="cell-loss" data-bind-html="cs07.tbl_gates_cbm">3 / 4 passed (1 failed: <code>SIG-TWENTY-003</code>)</td>
-                <td class="cell-win" data-bind="cs07.tbl_gates_ce">4 / 4 passed (0 violations)</td>
-                <td class="cell-win" data-bind-html="cs07.tbl_gates_delta">Caught &amp; self-healed <code>SIG-TWENTY-003</code> in 1 turn</td>
+                <td class="cell-loss" data-bind-html="cs07.tbl_gates_cbm">3 / 4 passed (1 new in <code>SIG-TWENTY-003</code>; evaluated post-session)</td>
+                <td class="cell-win" data-bind="cs07.tbl_gates_ce">4 / 4 passed (0 new violations)</td>
+                <td class="cell-win" data-bind-html="cs07.tbl_gates_delta">Pre-configured gate caught copied debt; refactored in 1 turn</td>
               </tr>
             </tbody>
           </table>

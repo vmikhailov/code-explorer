@@ -1,0 +1,23 @@
+id: SIG-TWENTY-001
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Boundaries
+name: "GraphQL Resolver & Controller Transport Purity"
+severity: Error
+description: "GraphQL Resolvers (*.resolver.ts) and HTTP Controllers (*.controller.ts) in twenty-server core-modules must not directly mutate database tables (WRITES_TO). All persistence mutations must be delegated to domain services."
+remediation: "Delegate database mutations from the resolver/controller to the owning domain service."
+target: "{t.name}"
+message: "Transport class function '{fn.name}' directly writes to table '{t.name}' at {location}"
+thresholds:
+  warning: 1
+  error: 1
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-TWENTY-001.json
+query: |
+  MATCH (fn:Function)-[r:WRITES_TO]->(t:Table)
+  WHERE fn.path STARTS WITH 'packages/twenty-server/src/engine/core-modules/'
+    AND (fn.path ENDS WITH '.resolver.ts' OR fn.path ENDS WITH '.controller.ts')
+    AND NOT coalesce(fn.is_test, false)
+  RETURN fn, r, t

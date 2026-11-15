@@ -1,0 +1,56 @@
+{
+  "gateId": "SIG-TWENTY-001",
+  "allowedViolations": 5,
+  "entries": [
+    {
+      "fingerprint": "fcbb79728c19a072c20e2fddaf45a192cb1e977fa1cae5b87946aac5950d75d6",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-oauth/controllers/oauth-registration.controller.ts",
+      "line": 57,
+      "column": 3,
+      "symbol": "register",
+      "target": "applicationRegistration",
+      "acknowledgedAt": "2026-11-15T10:27:18.4395138+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4f0557e57119b8b044c506805508587b6a7520693f4227ffd68de74c06984d94",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts",
+      "line": 331,
+      "column": 3,
+      "symbol": "verifyEmailAndGetLoginToken",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4395138+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "31d814e4cfee3dc26117cab0b357037d8be74091e3cfa41794a2a0379dee56a1",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts",
+      "line": 378,
+      "column": 3,
+      "symbol": "verifyEmailAndGetWorkspaceAgnosticToken",
+      "target": "appToken",
+      "acknowledgedAt": "2026-11-15T10:27:18.4395138+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "67c2bca2cb11880d6544d41d7edd742f1a8f62cad554fcb515204ff089e194a6",
+      "file": "packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.resolver.ts",
+      "line": 213,
+      "column": 3,
+      "symbol": "deleteTwoFactorAuthenticationMethod",
+      "target": "twoFactorAuthenticationMethod",
+      "acknowledgedAt": "2026-11-15T10:27:18.4395138+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "c79d826d7797defb4ab031ae89784a6b553e2f4c7f4826ce5e28282c9845ed40",
+      "file": "packages/twenty-server/src/engine/core-modules/user/user.resolver.ts",
+      "line": 513,
+      "column": 3,
+      "symbol": "updateWorkspaceMemberSettings",
+      "target": "workspaceMember",
+      "acknowledgedAt": "2026-11-15T10:27:18.4395138+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    }
+  ]
+}
