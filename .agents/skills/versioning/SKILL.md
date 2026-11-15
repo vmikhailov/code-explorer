@@ -16,24 +16,34 @@ Both the CLI and VS Code Extension share a **single, unified version number** an
 
 Versions strictly follow the format: `MAJOR.MINOR.PATCH` (e.g. `1.44.0`).
 
+### 1.0. No Version Bump (No Release)
+- **When to use**: the change does not touch shipped code (CLI, MCP server, SDK libraries, VS Code extension):
+  - Website (`site/`), benchmarks (`benchmarks/`), case studies, and their sync scripts.
+  - Docs, proposals, roadmap, READMEs, agent rules and skills.
+  - CI workflow tweaks that do not change the produced artifacts.
+- **Action**: commit to `main` without bumping versions, without changelog release sections, and without a release tag. Website changes are deployed separately via `site/deploy.sh`.
+- **Rule**: website and benchmark work **never** justifies a MINOR bump, even when it is large or user-visible on `code-explorer.app`.
+
 ### 1.1. Patch Version (`MAJOR.MINOR.PATCH` -> `MAJOR.MINOR.(PATCH + 1)`)
-- **When to use**:
+- **When to use** (shipped code changed, but no new capability):
   - Fixing bugs or crashes.
   - Fixing regressions or edge-case parsing anomalies.
   - Improving error handling, diagnostics, or logging.
-  - Internal refactoring that does not change external APIs, CLI commands, or UI behaviors.
+  - Internal refactoring, project/module extraction, or performance work that does not add a new capability (even if it is architecturally large).
+  - Build, packaging, or target framework changes (e.g. multi-targeting).
   - Maintenance, dependency bumps without breaking changes, or test suite additions.
 - **Action**: Increment ONLY the last digit (`PATCH`). `MAJOR` and `MINOR` remain unchanged.
 - **Example**: `1.44.0` -> `1.44.1`.
 
 ### 1.2. Minor Version (`MAJOR.MINOR.PATCH` -> `MAJOR.(MINOR + 1).0`)
-- **When to use**:
-  - Adding new user-facing functionality or features.
-  - Adding new CLI verbs or commands (e.g., `ce test`, `ce coverage`).
-  - Adding new MCP tools or extending tool parameters.
-  - Adding new language parsers or syntax extractors.
-  - Adding new UI views, panels, graph layouts, or filters in the VS Code extension.
-  - Backward-compatible architectural enhancements.
+- **When to use**: **ONLY** when at least one **new user-facing feature** ships in the CLI, MCP server, SDK, or VS Code extension:
+  - New CLI verbs, commands, or flags (e.g., `ce test`, `ce coverage`, `ce gate check --since`).
+  - New MCP tools or new tool parameters.
+  - New language parsers, ecosystem/library extractors, or new graph node/edge kinds users can query.
+  - New built-in gates or gate capabilities (e.g., ratchet, new output formats).
+  - New UI views, panels, graph layouts, or filters in the VS Code extension.
+- **Not a MINOR**: refactors, performance improvements, fixes, packaging, docs, website, or benchmarks (use PATCH or no bump).
+- **Test before bumping**: name the new feature in one sentence from the user's point of view (*"You can now run X"*). If you cannot, it is not a MINOR.
 - **Action**: Increment the middle digit (`MINOR`) and reset `PATCH` to `0`.
 - **Example**: `1.44.0` -> `1.45.0`.
 
@@ -93,7 +103,7 @@ Use the provided PowerShell script in this skill to safely bump all files in one
 # For bug fixes (bumps PATCH):
 pwsh .agents/skills/versioning/scripts/bump-version.ps1 -Type patch
 
-# For new features / functionality (bumps MINOR, resets PATCH to 0):
+# For new user-facing features ONLY (bumps MINOR, resets PATCH to 0):
 pwsh .agents/skills/versioning/scripts/bump-version.ps1 -Type minor
 
 # For fundamental paradigm change (requires user consent, pass -Force):

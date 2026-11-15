@@ -5,12 +5,14 @@ trigger: always_on
 # Versioning & Publishing Instructions (CLI & VS Code Extension)
 
 
-Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
+Whenever fixes or features are made to CodeExplorer's shipped code (CLI, MCP server, SDK libraries, or VS Code Extension):
+
+0. **No bump for non-shipped changes**: Website (`site/`), benchmarks, case studies, docs, proposals, roadmap, agent rules/skills, and CI-only tweaks are committed **without** a version bump, changelog release section, or release tag. They never justify a MINOR bump.
 
 1. **Increment Version via SemVer (Skill: `versioning`)**:
    - Always follow the `versioning` skill ([.agents/skills/versioning/SKILL.md](../../.agents/skills/versioning/SKILL.md)):
-     - **Bug Fixes (PATCH)**: Increment only the last digit (`MAJOR.MINOR.(PATCH + 1)`). Example: `1.44.0` -> `1.44.1`.
-     - **New Features / Functionality (MINOR)**: Increment the second digit (`MAJOR.(MINOR + 1).0`), resetting PATCH to `0`. Example: `1.44.0` -> `1.45.0`.
+     - **Bug Fixes, Refactors, Performance, Packaging (PATCH)**: Increment only the last digit (`MAJOR.MINOR.(PATCH + 1)`). Example: `1.44.0` -> `1.44.1`.
+     - **New User-Facing Features ONLY (MINOR)**: Increment the second digit (`MAJOR.(MINOR + 1).0`), resetting PATCH to `0`, **only** when a new capability ships (new CLI command/flag, MCP tool/parameter, parser/extractor, queryable graph kind, gate capability, or extension view). If you cannot describe it as *"You can now ..."*, use PATCH. Example: `1.44.0` -> `1.45.0`.
      - **Fundamental Paradigm Shift (MAJOR)**: Increment the first digit (`(MAJOR + 1).0.0`), resetting MINOR and PATCH to `0`. **STRICT REQUIREMENT**: Bumping MAJOR is forbidden without explicit prior user consent/approval.
    - Synchronize across all version-bearing and changelog files:
      - `<Version>` in [cli/Directory.Build.props](../../cli/Directory.Build.props).

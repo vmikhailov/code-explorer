@@ -58,7 +58,7 @@ if ($TargetVersion) {
 } else {
     Write-Host "Usage:"
     Write-Host "  .\bump-version.ps1 -Type patch       # 1.44.0 -> 1.44.1 (Bug fixes / maintenance)"
-    Write-Host "  .\bump-version.ps1 -Type minor       # 1.44.0 -> 1.45.0 (New features / functionality)"
+    Write-Host "  .\bump-version.ps1 -Type minor       # 1.44.0 -> 1.45.0 (New user-facing features ONLY; refactors/site/benchmarks are not minor)"
     Write-Host "  .\bump-version.ps1 -Type major -Force # 1.44.0 -> 2.0.0 (Paradigm change, explicit consent required)"
     Write-Host "  .\bump-version.ps1 -TargetVersion 1.44.1"
     exit 0
