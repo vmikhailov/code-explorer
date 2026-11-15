@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/site/og-image.png" alt="CodeExplorer" width="80%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/media/github-social-preview.png" alt="CodeExplorer" width="80%" />
 
 [![Website](https://img.shields.io/badge/Website-code--explorer.app-8b5cf6.svg)](https://code-explorer.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
@@ -19,7 +19,7 @@ CodeExplorer compiles polyglot repositories into a single local SQLite graph (`.
 3. **Guard Architecture in CI (`Invariant Gates + Ratchet`)** — Enforce cross-service and layer rules in YAML/OpenCypher; freeze legacy brownfield debt in a SHA-256 baseline ratchet (`ce gate ratchet --update`) so CI blocks only net-new violations.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/all_services.png" alt="CodeExplorer Service Topology in VS Code" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/media/all_services.png" alt="CodeExplorer Service Topology in VS Code" width="100%" />
 </p>
 
 <p align="center">
@@ -153,7 +153,7 @@ When legacy violations are removed, re-running `ce gate ratchet --update` tighte
 ## VS Code Extension
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/selected_services.png" alt="Focused Sub-Graph and Inspector in VS Code" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/media/selected_services.png" alt="Focused Sub-Graph and Inspector in VS Code" width="100%" />
 </p>
 
 * **Topology Views**: Concentric service orbits, architectural tiers, project upstream/downstream flows, dependency matrices, and bounded context maps.
@@ -170,8 +170,14 @@ Every entity in `.codeexplorer/graph.db` belongs to a 5-layer schema (interactiv
 1. **Layer 1 — Physical**: `Workspace`, `Folder`, `File`, `ConfigurationFile`, `Script`.
 2. **Layer 2 — Project**: `Project`, `Package`, `EntryPoint`, `DEPENDS_ON`.
 3. **Layer 3 — Syntactic & Dataflow**: `Namespace`, `Type`, `Function`, `Field`, `Parameter`, `CALLS`, `IMPLEMENTS`.
-4. **Layer 4 — Semantic Architecture**: `Workload`, `Endpoint` (REST, gRPC, GraphQL, WebSocket), `Database`, `Table`, `Query`, `Topic`, `Queue`.
+4. **Layer 4 — Semantic Architecture**: `Workload` (`Service`, `App`, `Worker`, `CliTool`), `Module` (`Library`, `TestSuite`), `Endpoint`, `Topic`, `CloudResource`, `Database`, `DbSchema`, `Table`, `Query`, `Procedure`.
 5. **Layer 5 — Cross-Service & Domain**: Resolved cross-project `CALLS`, `PUBLISHES_TO`, `SUBSCRIBES_TO`, `READS_FROM`, `WRITES_TO`, plus `Domain` and `BoundedContext` groupings.
+
+<p align="center">
+  <a href="https://code-explorer.app/ontology">
+    <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/media/ontology_l4_l5.jpg" alt="CodeExplorer Layers 4 and 5 Semantic and Domain Ontology" width="100%" />
+  </a>
+</p>
 
 Tree-sitter grammars, SQL/HCL parsers, and framework analyzers extract architectural semantics across 10 ecosystems (see [code-explorer.app/architectures](https://code-explorer.app/architectures)):
 

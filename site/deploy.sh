@@ -25,11 +25,8 @@ tar -czf - \
   favicon.svg \
   logo.svg \
   icon-512.png \
-  og-image.png \
   all_services.png \
   selected_services.png \
-  all_services_clean.png \
-  selected_services_clean.png \
   project_flow.png \
   robots.txt \
   sitemap.xml \

@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 
-# Permit search indexing and AI-powered retrieval; do not permit model training.
-Content-Signal: search=yes, ai-input=yes, ai-train=no
+# Permit search indexing, AI-powered retrieval, and model training.
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 Sitemap: https://code-explorer.app/sitemap.xml
