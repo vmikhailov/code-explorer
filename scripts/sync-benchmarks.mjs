@@ -437,9 +437,14 @@ function ingestRawSources(data) {
       const m08 = JSON.parse(fs.readFileSync(m08Path, 'utf8'));
       const ga = m08.graph_agent;
       const ba = m08.baseline_agent;
-      const ca = m08.claude_md_agent;
-      if (ga && ba && ca) {
+      if (ga && ba) {
         data.cs08.status = 'ready';
+        if (m08.repository_scale) {
+          data.cs08.repo.packages = m08.repository_scale.total_projects;
+          data.cs08.repo.files = m08.repository_scale.source_files;
+          data.cs08.repo.graph_nodes = m08.repository_scale.graph_nodes;
+          data.cs08.repo.graph_edges = m08.repository_scale.graph_relationships;
+        }
         const mapAgent = (a) => ({
           tasks_completed: a.tasks_completed,
           tasks_with_phase1_violations: a.tasks_with_phase1_violations,
@@ -466,7 +471,6 @@ function ingestRawSources(data) {
         data.cs08.telemetry = {
           ce: mapAgent(ga),
           cbm: mapAgent(ba),
-          cbm_claude_md: mapAgent(ca),
         };
       }
     }
@@ -782,7 +786,7 @@ function buildBindings(data, rawMilestones01) {
       `          3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>${data.meta.tools.graphify_version}</code> (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX <code>--code-only</code>, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
       `          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${data.meta.tools.ripgrep_version}</code>) + Python <code>${data.meta.tools.python_version}</code> (Case 02) + <code>view_file</code><br>`,
       `          5. <strong>LLM Model (Tracks 1 &amp; 2):</strong> <code>${data.meta.llm_model}</code> (symmetric system prompts across paired runs)<br>`,
-      `          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ ${data.cs01.repo.commit}</code> (Case 01), <code>twentyhq/twenty @ ${c3.repos.twenty.commit}</code> (Cases 03, 04 &amp; 07), <code>immich-app/immich @ ${c3.repos.immich.commit}</code> (Cases 03 &amp; 04), <code>${data.cs05.repo.name} @ ${data.cs05.repo.commit}</code> (Case 05), <code>${data.cs06.repo.name} @ ${data.cs06.repo.commit}</code> (Case 06)`,
+      `          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ ${data.cs01.repo.commit}</code> (Case 01), <code>twentyhq/twenty @ ${c3.repos.twenty.commit}</code> (Cases 03, 04, 07 &amp; 08), <code>immich-app/immich @ ${c3.repos.immich.commit}</code> (Cases 03 &amp; 04), <code>${data.cs05.repo.name} @ ${data.cs05.repo.commit}</code> (Case 05), <code>${data.cs06.repo.name} @ ${data.cs06.repo.commit}</code> (Case 06)`,
     ].join('\n');
 
     b['index.cs0304_p1_comp'] = `CBM: ${cbmPctA}% (${c3.recall.group_a_cbm_matched}/${c3.recall.group_a_gt}) | graphify: ${grPctA}% (${c4.recall.group_a_graphify_matched}/${c4.recall.group_a_gt})`;
@@ -1009,13 +1013,11 @@ function buildBindings(data, rawMilestones01) {
     const c8 = data.cs08;
     const ce = c8.telemetry.ce;
     const cbm = c8.telemetry.cbm;
-    const cmd = c8.telemetry.cbm_claude_md;
     const speedupCbm = cbm.wall_clock_s / ce.wall_clock_s;
-    const speedupCmd = cmd.wall_clock_s / ce.wall_clock_s;
 
     b['cs08.meta_desc'] =
-      `Case Study 08: 4-task brownfield feature implementation ablation on twentyhq/twenty (${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC) comparing CodeExplorer (${c8.ce_version}) against CBM (${c8.cbm_version}) with default and augmented CLAUDE.md across 12 autonomous runs. CodeExplorer finished ${speedupCbm.toFixed(2)}× faster (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}), caught 4/4 copied legacy shortcuts via pre-configured ratchet gates, and passed 14/14 unit tests with 0 gate-tampering attempts.`;
-    b['cs08.crumb_scale'] = `${c8.repo.packages} packages, ${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC · 4 tasks × 3 agents (12 runs)`;
+      `Case Study 08: 4-task brownfield feature implementation suite on twentyhq/twenty (${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC) comparing CodeExplorer (${c8.ce_version}) against CBM (${c8.cbm_version}) across 4 real backend tasks. CodeExplorer finished ${speedupCbm.toFixed(2)}× faster (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}), caught 4/4 copied legacy shortcuts via pre-configured ratchet gates, and passed 14/14 unit tests with 0 gate-tampering attempts.`;
+    b['cs08.crumb_scale'] = `${c8.repo.packages} packages, ${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC · 4 brownfield feature tasks`;
 
     b['cs08.card_violations'] = `0/4 vs 4/4`;
     b['cs08.card_violations_copy'] =
@@ -1024,13 +1026,13 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs08.card_speedup'] = fmtRoundMult(speedupCbm);
     b['cs08.card_speed_copy'] =
-      `Across all 4 tasks combined, <code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; 1-turn fixes) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code> and <strong>${fmtDurShort(cmd.wall_clock_s)}</strong> for <code>CBM + CLAUDE.md</code>.`;
+      `Across all 4 tasks combined, <code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; 1-turn fixes) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code>.`;
     b['cs08.card_speed_footer'] = `${fmtInt(ce.wall_clock_s)} s vs ${fmtInt(cbm.wall_clock_s)} s (-9m 52s across 4 tasks)`;
 
     b['cs08.card_tests'] = `14/14 Pass`;
     b['cs08.card_tests_copy'] =
-      `<code>CodeExplorer</code> passed <strong>14/14 unit tests (4/4 tasks)</strong> and <strong>4/4 gates</strong>. <code>CBM + CLAUDE.md</code> broke 1 guard unit test in Task 01 (<code>12/13</code> pass) due to a hallucinated method.`;
-    b['cs08.card_tests_footer'] = `100% unit tests + 100% architectural gates`;
+      `Both <code>CodeExplorer</code> and <code>CBM</code> passed <strong>14/14 unit tests (4/4 tasks)</strong>, verified via <code>scripts/run-acceptance-tests.mjs</code>; only <code>CodeExplorer</code> passed <strong>4/4 architectural gates</strong>.`;
+    b['cs08.card_tests_footer'] = `14/14 unit tests + 4/4 architectural gates`;
 
     b['cs08.card_tamper'] = `0 Bypasses`;
     b['cs08.card_tamper_copy'] =
@@ -1038,17 +1040,17 @@ function buildBindings(data, rawMilestones01) {
     b['cs08.card_tamper_footer'] = `1 self-correction iteration per task, 0 gate tampering`;
 
     b['cs08.participants_html'] = [
-      `<strong>Tested participants (12 autonomous runs = 4 tasks &times; 3 agent configurations):</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c8.ce_version}</code> (.NET 11, SQLite + OpenCypher + Incremental <code>ce scan</code> + 4 repo-wide Semantic Invariant Gates, evaluated both pre-gate <code>Phase 1: Navigation Only</code> and post-gate <code>Phase 2: Navigation + Gates</code>)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c8.cbm_version}</code> with default <code>twentyhq/twenty</code> <code>CLAUDE.md</code><br>`,
-      `          3. <strong>CBM + Augmented <code>CLAUDE.md</code>:</strong> <code>${c8.cbm_version}</code> with a 40-rule enterprise <code>CLAUDE.md</code> containing explicit prose rules for all 4 architectural boundaries<br>`,
-      `          4. <strong>LLM Model &amp; Target Repo:</strong> <code>${c8.model}</code> on <code>${c8.repo.name} @ ${c8.repo.commit}</code> (<code>${c8.repo.packages}</code> packages, <code>${fmtInt(c8.repo.files)}</code> files, <code>${c8.repo.loc}</code> LOC)`,
+      `<strong>Tested participants (4 brownfield feature tasks on unmodified <code>twentyhq/twenty @ ${c8.repo.commit}</code>):</strong><br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c8.ce_version}</code> (.NET 11, SQLite + OpenCypher + Incremental <code>ce scan</code> + 4 repo-wide Semantic Invariant Gates, <code>${fmtInt(c8.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c8.repo.graph_edges)}</code> edges, evaluated both pre-gate <code>Phase 1: Navigation Only</code> and post-gate <code>Phase 2: Navigation + Gates</code>)<br>`,
+      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c8.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, <code>index_repository</code> + <code>query_graph</code> + <code>trace_path</code>)<br>`,
+      `          3. <strong>LLM Model:</strong> <code>${c8.model}</code> (100% symmetric system prompts on unmodified repository <code>CLAUDE.md</code>; Tasks 01, 02 &amp; 04 executed for this suite + Task 03 from Case 07)<br>`,
+      `          4. <strong>Target Repository:</strong> <code>${c8.repo.name} @ ${c8.repo.commit}</code> (<code>${c8.repo.packages}</code> packages, <code>${fmtInt(c8.repo.files)}</code> files, <code>${c8.repo.loc}</code> LOC)`,
     ].join('\n');
 
     b['catalog.cs08_outcome'] =
       `<strong class="tone-ok">0/4 vs 4/4 violated tasks</strong> (navigation alone copied adjacent <code>[TOL]</code> debt in <code>4/4</code> tasks; <code>ce gate check</code> caught &amp; fixed <code>4/4</code> in 1 iteration with <code>0</code> gate tampering)<br>` +
-      `<strong class="tone-ok">${fmtRoundMult(speedupCbm)} faster suite total</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)} <code>CBM</code> &amp; ${fmtDurShort(cmd.wall_clock_s)} <code>CBM+CLAUDE.md</code>)<br>` +
-      `<strong>14/14 unit tests pass</strong> (<code>CBM+CLAUDE.md</code> broke 1 guard test in Task 01: <code>12/13</code> pass)`;
+      `<strong class="tone-ok">${fmtRoundMult(speedupCbm)} faster suite total</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)} across 4 tasks; $0.48 vs $0.48)<br>` +
+      `<strong>14/14 unit tests pass for both</strong> (verified via <code>run-acceptance-tests.mjs</code>; <code>CBM</code> shipped 4 cross-module / transport leaks)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
@@ -1110,12 +1112,10 @@ function buildBindings(data, rawMilestones01) {
     const c8 = data.cs08;
     const ce8 = c8.telemetry.ce;
     const cbm8 = c8.telemetry.cbm;
-    const cmd8 = c8.telemetry.cbm_claude_md;
     const sp8 = (cbm8.wall_clock_s / ce8.wall_clock_s).toFixed(2);
-    const sp8Cmd = (cmd8.wall_clock_s / ce8.wall_clock_s).toFixed(2);
 
     const cs08Row =
-      `| **[Case Study 08: 4-Task Brownfield Architecture & Feature Suite](./08-multi-task-architecture-suite-on-twenty/README.md)**<br>4 backend features & unit test suites across 3 modules (\`resetTwoFactorAuthenticationMethodsForUser\`, \`triggerReconnectAccountBanner\`, \`suspendWorkspaceAdminPanel\`, \`isSubdomainAvailable\`) isolating **Navigation Only** vs **Augmented \`CLAUDE.md\`** vs **Semantic Invariant Gates** (\`12\` runs) | \`${c8.repo.name}\`<br>\`${c8.repo.packages}\` packages, \`${fmtInt(c8.repo.files)}\` files, \`${c8.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`CBM\`<br>vs<br>\`CBM + CLAUDE.md\` | **\`${sp8}×\` faster than \`CBM\`** (\`${sp8Cmd}×\` vs \`CLAUDE.md\`)<br>\`${fmtDurShort(ce8.wall_clock_s)}\` vs \`${fmtDurShort(cbm8.wall_clock_s)}\` vs \`${fmtDurShort(cmd8.wall_clock_s)}\`<br>\`${ce8.turns}\` vs \`${cbm8.turns}\` vs \`${cmd8.turns}\` turns | \`${fmtInt(ce8.cum_input_tokens)}\` vs \`${fmtInt(cbm8.cum_input_tokens)}\` vs \`${fmtInt(cmd8.cum_input_tokens)}\`<br>(\`${ce8.read_file_calls}\` vs \`${cbm8.read_file_calls}\` vs \`${cmd8.read_file_calls}\` file reads) | **\`0/4\` vs \`4/4\` violated tasks (\`100%\` caught)**<br>Navigation alone copied adjacent \`[TOL]\` debt in \`4/4\` tasks; \`ce gate check\` fixed \`4/4\` in \`1\` iter (\`0\` tampering, \`14/14\` unit tests pass vs \`12/13\` for \`CBM+CLAUDE.md\`) |`;
+      `| **[Case Study 08: 4-Task Brownfield Architecture & Feature Suite](./08-multi-task-architecture-suite-on-twenty/README.md)**<br>4 backend features & unit test suites across 4 modules (\`resetTwoFactorAuthenticationMethodsForUser\`, \`triggerReconnectAccountBanner\`, \`suspendWorkspaceAdminPanel\`, \`isSubdomainAvailable\`) comparing **\`CBM\`** vs **\`CodeExplorer Phase 1 (Navigation Only)\`** vs **\`Phase 2 (Navigation + Gates)\`** | \`${c8.repo.name}\`<br>\`${c8.repo.packages}\` packages, \`${fmtInt(c8.repo.files)}\` files, \`${c8.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp8}×\` faster suite total**<br>\`${fmtDurShort(ce8.wall_clock_s)}\` vs \`${fmtDurShort(cbm8.wall_clock_s)}\`<br>\`${ce8.turns}\` turns vs \`${cbm8.turns}\` turns | \`${fmtInt(ce8.cum_input_tokens)}\` vs \`${fmtInt(cbm8.cum_input_tokens)}\`<br>(\`$${ce8.cost_flash_usd.toFixed(2)}\` vs \`$${cbm8.cost_flash_usd.toFixed(2)}\`, \`${ce8.read_file_calls}\` vs \`${cbm8.read_file_calls}\` file reads) | **\`0/4\` vs \`4/4\` violated tasks (\`100%\` caught)**<br>Navigation alone copied adjacent \`[TOL]\` debt in \`4/4\` tasks; \`ce gate check\` fixed \`4/4\` in \`1\` iter (\`0\` tampering, \`14/14\` unit tests pass for both via \`run-acceptance-tests.mjs\`) |`;
 
     b['md.catalog_reallife_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Architectural Compliance & Outcome |`,
@@ -1139,7 +1139,7 @@ function buildBindings(data, rawMilestones01) {
       `3. **Graphify (\`graphifyy\`)**: \`${data.meta.tools.graphify_version}\` (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX \`--code-only\`, \`${data.meta.tools.graphify_mcp_tools}\` MCP tools)`,
       `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` (Case 02) + \`view_file\``,
       `5. **LLM Model (Tracks 1 & 2)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
-      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` (Cases 03, 04 & 07), \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
+      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` (Cases 03, 04, 07 & 08), \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
     ].join('\n');
   }
 

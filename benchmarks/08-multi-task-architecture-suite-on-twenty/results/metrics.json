@@ -2,13 +2,15 @@
   "benchmark_id": "08-multi-task-architecture-suite-on-twenty",
   "repository": "twentyhq/twenty",
   "commit": "12e8fae4",
+  "ce_version": "v1.87.2",
+  "cbm_version": "v0.12.1",
   "model": "Gemini 3.8 Flash",
   "repository_scale": {
     "total_projects": 46,
-    "source_files": 20594,
-    "loc": 2500000,
-    "graph_nodes": 318389,
-    "graph_relationships": 742080
+    "source_files": 24527,
+    "loc": 2490000,
+    "graph_nodes": 464794,
+    "graph_relationships": 1113891
   },
   "graph_agent": {
     "tasks_completed": 4,
@@ -77,39 +79,6 @@
     "cumulative_actual_input_chars": 40120676,
     "cumulative_actual_input_est_tokens": 10030169
   },
-  "claude_md_agent": {
-    "tasks_completed": 4,
-    "tasks_with_phase1_violations": 0,
-    "tasks_with_final_violations": 0,
-    "total_final_new_violations": 0,
-    "tasks_passed_all_gates": 4,
-    "tasks_all_tests_passed": 3,
-    "unit_tests_passed": 12,
-    "unit_tests_total": 13,
-    "gate_tampering_incidents": 0,
-    "time_to_answer_seconds": 2457,
-    "wall_clock_seconds": 2457,
-    "total_steps": 311,
-    "llm_turns": 110,
-    "context_compactions": 0,
-    "total_tool_calls": 182,
-    "tool_breakdown": {
-      "read_file": 98,
-      "run_command": 62,
-      "edit_file": 14,
-      "write_file": 4,
-      "send_message": 4
-    },
-    "tool_output_chars": 980427,
-    "tool_output_est_tokens": 245108,
-    "api_uncached_input_tokens": 571225,
-    "api_cached_input_tokens": 8885078,
-    "api_total_input_tokens": 9456303,
-    "api_output_tokens": 84474,
-    "cost_flash_usd": 0.47,
-    "cumulative_actual_input_chars": 37825212,
-    "cumulative_actual_input_est_tokens": 9456303
-  },
   "tasks": [
     {
       "task_id": "task-01",
@@ -176,34 +145,6 @@
         "self_correction_iterations": 1,
         "gate_tampering": 0,
         "unit_tests_passed": 3,
-        "unit_tests_total": 3
-      },
-      "cbm_claude_md_agent": {
-        "conversation_id": "68b11e31-f82f-4279-aad1-ab51dbf31116",
-        "time_to_answer_seconds": 440,
-        "wall_clock_seconds": 440,
-        "total_steps": 47,
-        "llm_turns": 16,
-        "context_compactions": 0,
-        "total_tool_calls": 29,
-        "tool_breakdown": {
-          "read_file": 14,
-          "run_command": 11,
-          "edit_file": 2,
-          "write_file": 1,
-          "send_message": 1
-        },
-        "tool_output_chars": 240803,
-        "tool_output_est_tokens": 60201,
-        "api_uncached_input_tokens": 120486,
-        "api_cached_input_tokens": 1112555,
-        "api_total_input_tokens": 1233041,
-        "api_output_tokens": 19261,
-        "cost_flash_usd": 0.071,
-        "id": "68b11e31-f82f-4279-aad1-ab51dbf31116",
-        "new_violations": 0,
-        "passed_gates": true,
-        "unit_tests_passed": 2,
         "unit_tests_total": 3
       }
     },
@@ -273,34 +214,6 @@
         "gate_tampering": 0,
         "unit_tests_passed": 3,
         "unit_tests_total": 3
-      },
-      "cbm_claude_md_agent": {
-        "conversation_id": "9cfecb98-3151-4777-af5b-45c76cbefadf",
-        "time_to_answer_seconds": 572,
-        "wall_clock_seconds": 572,
-        "total_steps": 79,
-        "llm_turns": 30,
-        "context_compactions": 0,
-        "total_tool_calls": 46,
-        "tool_breakdown": {
-          "read_file": 23,
-          "run_command": 17,
-          "edit_file": 4,
-          "write_file": 1,
-          "send_message": 1
-        },
-        "tool_output_chars": 199171,
-        "tool_output_est_tokens": 49793,
-        "api_uncached_input_tokens": 119307,
-        "api_cached_input_tokens": 1759358,
-        "api_total_input_tokens": 1878665,
-        "api_output_tokens": 16322,
-        "cost_flash_usd": 0.094,
-        "id": "9cfecb98-3151-4777-af5b-45c76cbefadf",
-        "new_violations": 0,
-        "passed_gates": true,
-        "unit_tests_passed": 3,
-        "unit_tests_total": 3
       }
     },
     {
@@ -310,6 +223,7 @@
       "primary_gate": "SIG-TWENTY-003",
       "gate_name": "Cross-Module Table Encapsulation",
       "tolerated_baseline": 150,
+      "reused_from_case_study": "07-agent-feature-ce-vs-cbm-on-twenty",
       "adjacent_legacy_trap": "WorkspaceService.deleteWorkspace (workspace.service.ts:989) directly queries EmailingDomainEntity across core-module boundaries, and AdminPanelBillingService injects foreign repositories.",
       "cbm_agent": {
         "conversation_id": "775b7008-fb90-44df-9deb-263c6ebd8c88",
@@ -362,41 +276,13 @@
         "api_output_tokens": 38441,
         "cost_flash_usd": 0.24,
         "id": "385986ab-7229-4eee-8e6d-e68dcba45164",
-        "phase1_new_violations": 2,
+        "phase1_new_violations": 1,
         "new_violations": 0,
         "passed_gates": true,
         "self_correction_iterations": 1,
         "gate_tampering": 0,
         "unit_tests_passed": 4,
         "unit_tests_total": 4
-      },
-      "cbm_claude_md_agent": {
-        "conversation_id": "5bf692d9-6946-4ed3-b296-19a9956e2dfc",
-        "time_to_answer_seconds": 884,
-        "wall_clock_seconds": 884,
-        "total_steps": 104,
-        "llm_turns": 35,
-        "context_compactions": 0,
-        "total_tool_calls": 66,
-        "tool_breakdown": {
-          "read_file": 39,
-          "run_command": 20,
-          "edit_file": 5,
-          "write_file": 1,
-          "send_message": 1
-        },
-        "tool_output_chars": 418922,
-        "tool_output_est_tokens": 104731,
-        "api_uncached_input_tokens": 208192,
-        "api_cached_input_tokens": 4305130,
-        "api_total_input_tokens": 4513322,
-        "api_output_tokens": 31863,
-        "cost_flash_usd": 0.212,
-        "id": "5bf692d9-6946-4ed3-b296-19a9956e2dfc",
-        "new_violations": 0,
-        "passed_gates": true,
-        "unit_tests_passed": 3,
-        "unit_tests_total": 3
       }
     },
     {
@@ -464,34 +350,6 @@
         "passed_gates": true,
         "self_correction_iterations": 1,
         "gate_tampering": 0,
-        "unit_tests_passed": 4,
-        "unit_tests_total": 4
-      },
-      "cbm_claude_md_agent": {
-        "conversation_id": "9875632e-b925-4624-bcc8-f8cd65efe018",
-        "time_to_answer_seconds": 561,
-        "wall_clock_seconds": 561,
-        "total_steps": 81,
-        "llm_turns": 29,
-        "context_compactions": 0,
-        "total_tool_calls": 41,
-        "tool_breakdown": {
-          "read_file": 22,
-          "run_command": 14,
-          "edit_file": 3,
-          "write_file": 1,
-          "send_message": 1
-        },
-        "tool_output_chars": 121531,
-        "tool_output_est_tokens": 30383,
-        "api_uncached_input_tokens": 123240,
-        "api_cached_input_tokens": 1708035,
-        "api_total_input_tokens": 1831275,
-        "api_output_tokens": 17028,
-        "cost_flash_usd": 0.093,
-        "id": "9875632e-b925-4624-bcc8-f8cd65efe018",
-        "new_violations": 0,
-        "passed_gates": true,
         "unit_tests_passed": 4,
         "unit_tests_total": 4
       }

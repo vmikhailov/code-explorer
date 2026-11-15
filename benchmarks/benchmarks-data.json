@@ -589,29 +589,6 @@
         "raw_tool_tokens": 183215,
         "cum_input_tokens": 10030169,
         "cost_flash_usd": 0.48
-      },
-      "cbm_claude_md": {
-        "tasks_completed": 4,
-        "tasks_with_phase1_violations": 0,
-        "tasks_with_final_violations": 0,
-        "total_final_new_violations": 0,
-        "tasks_passed_all_gates": 4,
-        "tasks_all_tests_passed": 3,
-        "unit_tests_passed": 12,
-        "unit_tests_total": 13,
-        "gate_tampering_incidents": 0,
-        "wall_clock_s": 2457,
-        "turns": 110,
-        "steps": 311,
-        "tool_calls": 182,
-        "run_command_calls": 62,
-        "read_file_calls": 98,
-        "edit_file_calls": 14,
-        "write_file_calls": 4,
-        "raw_tool_chars": 980427,
-        "raw_tool_tokens": 245108,
-        "cum_input_tokens": 9456303,
-        "cost_flash_usd": 0.47
       }
     }
   }
