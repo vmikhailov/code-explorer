@@ -1145,7 +1145,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   gap: var(--gap-columns);
-  align-items: end;
+  align-items: start;
   margin-bottom: var(--space-xl);
 }
 
