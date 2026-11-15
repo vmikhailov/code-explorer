@@ -171,7 +171,7 @@ ce mcp
 Text search (`grep`, `ripgrep`) works well for finding literals, but it cannot reliably trace interface implementations, cross-service HTTP/gRPC calls, message queue publishers/consumers, or SQL table usage across projects. Reading dozens of files to reconstruct call graphs consumes context window budget and degrades agent accuracy.
 
 Running `ce mcp` exposes the indexed SQLite graph over the Model Context Protocol:
-* **Architecture & Entry Points**: Query projects, dependencies, HTTP/gRPC/GraphQL endpoints, and message consumers via `get_architecture_map` and `get_project_entry_points`.
+* **Architecture & Service Contracts**: Query projects, dependencies, C1/C2/C3 topology views, Mermaid/C4 diagrams (`get_architecture_map`), and HTTP/gRPC/GraphQL endpoints or cross-service flows (`get_service_contracts`).
 * **Low-Token File Outlines**: Inspect classes, methods, and line ranges in a file via `get_file_outline` before reading full source text.
 * **Impact & Lineage Analysis**: Trace downstream callers of a symbol (`analyze_code_impact`) or all SQL/ORM readers and writers of a database table (`inspect_data_lineage`).
 * **OpenCypher Queries**: Execute read-only Cypher queries (`execute_custom_read_cypher`) and save reusable project queries in `.codeexplorer/queries/`.
@@ -383,28 +383,25 @@ Parsing, indexing, queries, gates, and the MCP server run locally, and the graph
 
 ## MCP Tools
 
+CodeExplorer exposes a focused **15-tool** MCP surface (14 read-only query tools + `scan_workspace`):
+
 | Tool | Description |
 | :--- | :--- |
-| `get_architecture_map` | High-level workspace architecture: projects, services, databases, ingress endpoints, and egress calls. |
-| `get_project_dependencies` | Direct and transitive project/package dependencies (`projectFilter` optional). |
-| `get_project_entry_points` | HTTP endpoints, gRPC methods, GraphQL resolvers, CLI commands, and message consumers for a project. |
-| `find_symbol` | Locate types, interfaces, methods, or functions by name pattern. |
-| `get_file_outline` | Return classes, methods, fields, and line ranges for a file without reading the full file. |
-| `get_call_chain` | Trace invocation paths between two functions up to `maxDepth`. |
-| `resolve_call_target` | Resolve concrete class implementations of an interface or abstract method. |
-| `analyze_code_impact` | Compute downstream callers and files affected by changing a symbol. |
-| `inspect_data_lineage` | Find all SQL queries, ORM entities, methods, and services reading from or writing to a table. |
-| `find_refactoring_opportunities` | Identify unreferenced symbols, dead code, or high-coupling types. |
-| `execute_custom_read_cypher` | Execute a read-only OpenCypher (`MATCH`) query against the graph. |
-| `list_project_queries` | List saved parameterized queries in `.codeexplorer/queries/`. |
-| `save_project_query` | Validate and save a reusable OpenCypher query to `.codeexplorer/queries/`. |
-| `execute_project_query` | Run a saved or built-in query by name with parameter binding. |
-| `export_architecture_diagram` | Export Mermaid or C4 diagrams for architecture, data lineage, or CQRS flows. |
-| `fetch_code_snippets` | Read source snippets by file and line range from graph node results. |
-| `get_taxonomy` | Return active node labels, relationship types, and counts in the workspace graph. |
-| `get_node_definition` | Return schema documentation for a specific ontology node kind. |
-| `init_workspace` / `scan_workspace` | Initialize or re-index the workspace graph from an MCP client. |
-| `get_workspace_status` | Return index health, schema version, and node/edge counts. |
+| `scan_workspace` | Auto-initialize (if needed) and incrementally index or rebuild (`clear=true`) `.codeexplorer/graph.db`. |
+| `get_taxonomy` | Active graph ontology schema, single node-kind specifications (`kind`), or workspace index status (`statusOnly=true`). |
+| `get_architecture_map` | Workspace overview, zoomed C1/C2/C3/tiers topology views (`view`), and Mermaid/C4 diagram export (`format`). |
+| `get_project_dependencies` | Directed project-to-project and external package dependencies (`all`, `runtime`, `build`). |
+| `get_service_contracts` | Service ingress/egress contracts, internal handler coordinates (`entry_points`), and multi-hop cross-service traces (`flow`). |
+| `find_symbol` | Substring AST lookup (`substring`) and hybrid trigram + vector search (`hybrid`) across code, routes, tables, and topics. |
+| `get_file_outline` | Structural AST outline of a file or directory without reading raw source text. |
+| `fetch_code_snippets` | Batch reader for exact 1-based source line ranges on disk. |
+| `get_callers` | Direct 1-hop inbound callers/consumers, or concrete interface implementations when `methodName` is provided. |
+| `get_call_chain` | Directed function-to-function invocation paths between `startFunction` and `endFunction`. |
+| `analyze_code_impact` | Multi-hop transitive blast radius across upstream callers, endpoints, and downstream projects. |
+| `inspect_data_lineage` | End-to-end SQL queries, ORM entities, functions, and services reading from or writing to a table. |
+| `get_affected_tests` | Test Impact Analysis from changed files/diffs/symbols and static test reachability coverage (`coverageStatus`). |
+| `check_semantic_gates` | Evaluate Semantic Invariant Gates (`SIG-*`), list gate definitions (`listOnly=true`), or scan dead code / god objects (`anomalies`). |
+| `execute_custom_read_cypher` | Execute ad-hoc read-only OpenCypher (`query`), run saved `.codeexplorer/queries/` templates (`savedQuery`), or list saved queries (`listSaved=true`). |
 
 ---
 

@@ -17,6 +17,20 @@ public partial class CodeExplorerRepository
     private const string ColStartLineCamel = "startLine";
     private const string ColEndLineCamel = "endLine";
     private const string LimitTenClause = "LIMIT 10";
+    private const string DepthPlaceholder = "{depth}";
+    private const string QueryFindSymbolFunction = "find_symbol_function";
+    private const string QueryFindSymbolClass = "find_symbol_class";
+    private const string QueryFindSymbolInterface = "find_symbol_interface";
+    private const string QueryFindSymbolAll = "find_symbol_all";
+    private const string QueryGetCallChain = "get_call_chain";
+    private const string QueryResolveCallTarget = "resolve_call_target";
+    private const string QueryAnalyzeCodeImpact = "analyze_code_impact";
+    private const string FindTypeSymbolsQuery =
+        "MATCH (n:Type) WHERE n.name IS NOT NULL AND n.name CONTAINS $name " +
+        "OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File) " +
+        "RETURN CASE WHEN n.kind = 'class' THEN 'Class' WHEN n.kind = 'interface' THEN 'Interface' ELSE coalesce(n.kind, 'Type') END AS type, " +
+        "n.name AS name, n.symbol AS fullName, coalesce(f.path, n.file_path, n.path) AS filePath, " +
+        "coalesce(n.start_line, 0) AS startLine, coalesce(n.end_line, 0) AS endLine LIMIT 10";
     private const string FindMemberQueryTemplate =
         "MATCH (n:Member) WHERE n.name IS NOT NULL AND n.name CONTAINS $name " +
         "OPTIONAL MATCH (owner:Type)-[:HAS_MEMBER]->(n) " +
@@ -42,11 +56,12 @@ public partial class CodeExplorerRepository
 
         var query = symbolType switch
         {
-            SymTypeFunction => Queries.Get("find_symbol_function"),
-            SymTypeClass => Queries.Get("find_symbol_class"),
-            SymTypeInterface => Queries.Get("find_symbol_interface"),
+            SymTypeFunction => Queries.Get(QueryFindSymbolFunction),
+            SymTypeClass => Queries.Get(QueryFindSymbolClass),
+            SymTypeInterface => Queries.Get(QueryFindSymbolInterface),
+            KindType => FindTypeSymbolsQuery,
             SymTypeVariable or SymTypeMember => FindMemberQueryTemplate,
-            _ => Queries.Get("find_symbol_all")
+            _ => Queries.Get(QueryFindSymbolAll)
         };
 
         var effectiveLimit = Math.Clamp(limit, 1, 500);
@@ -157,7 +172,7 @@ public partial class CodeExplorerRepository
         var endResolved = await ResolveFunctionSymbolAsync(client, endFunction, cancellationToken);
 
         var depth = Math.Max(1, Math.Min(10, maxDepth));
-        var query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
+        var query = Queries.Get(QueryGetCallChain).Replace(DepthPlaceholder, depth.ToString());
         var parameters = new Dictionary<string, string>
         {
             ["startFunction"] = startResolved,
@@ -242,7 +257,7 @@ public partial class CodeExplorerRepository
 
     public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
-        var query = Queries.Get("resolve_call_target");
+        var query = Queries.Get(QueryResolveCallTarget);
         var parameters = new Dictionary<string, string>
         {
             ["interfaceName"] = interfaceName,
@@ -259,7 +274,7 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
-        var query = Queries.Get("analyze_code_impact");
+        var query = Queries.Get(QueryAnalyzeCodeImpact);
         var parameters = new Dictionary<string, string>
         {
             ["symbolName"] = symbolName

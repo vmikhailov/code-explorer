@@ -307,6 +307,26 @@ public partial class McpGraphHandler(
     private const string MissingTargetError = "Missing 'target' argument.";
     private const string MissingQueryError = "Missing 'query' argument.";
     private const string MissingSymbolNameError = "Missing 'symbolName' argument.";
+    private const string ViewOverview = "overview";
+    private const string ViewLineage = "lineage";
+    private const string ViewCqrs = "cqrs";
+    private const string FormatYaml = "yaml";
+    private const string FormatMermaid = "mermaid";
+    private const string FormatC4 = "c4";
+    private const string DiagramArchitecture = "architecture";
+    private const string DirectionAll = "all";
+    private const string DirectionEntryPoints = "entry_points";
+    private const string DirectionFlow = "flow";
+    private const string MatchModeHybrid = "hybrid";
+    private const string SymLabelClass = "Class";
+    private const string SymLabelInterface = "Interface";
+    private const string SymLabelType = "Type";
+    private const string SymLabelVariable = "Variable";
+    private const string SymLabelMember = "Member";
+    private const string SymLabelEndpoint = "Endpoint";
+    private const string SymLabelTable = "Table";
+    private const string SymLabelTopic = "Topic";
+    private const string SymLabelProject = "Project";
 
     private async Task<CallToolResult> ExecuteAsync(Func<Task<string>> action, [CallerMemberName] string toolName = "")
     {
@@ -359,14 +379,11 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Get Architecture Topology View", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Project the workspace architecture graph at a selected zoom level: 'c1' (system context: services, databases, topics, external APIs), 'c2' (inter-service communication flows), 'c3' or 'project-map' (internal modules, lifted calls, and circular dependency cycles within one project), or 'tiers' (Clean Architecture layers). Use when inspecting topological layers, inter-service edges, or internal module cycles; for a flat workspace inventory of projects and endpoints use get_architecture_map, and for renderable Mermaid or C4 diagram syntax use export_architecture_diagram. Requires an indexed .codeexplorer/graph.db; scope filters 'c1'/'c2'/'tiers' by service or selects the target project in 'c3'/'project-map' (defaulting to the largest project), while includeLibraries adds shared class libraries to 'c1'/'c2'/'tiers', returning YAML nodes, directed edges, and cycle diagnostics.")]
     public async Task<CallToolResult> GetArchitectureViewAsync(
-        [AllowedValues("c1", "c2", "c3", "project-map", "tiers")]
-        [Description("Abstraction level to project: 'c1' (system context), 'c2' (service communication), 'c3' or 'project-map' (internal modules and cycles of one project), or 'tiers' (architectural layers). Default: 'c1'.")] string level = "c1",
-        [Description("Optional project or service filter (name, node ID, or relative path). For 'c3' / 'project-map', selects the target project (defaults to the largest project when omitted).")] string? scope = null,
-        [Description("Whether to include shared class libraries alongside deployable services in 'c1', 'c2', and 'tiers' views. Default: false.")] bool includeLibraries = false,
-        [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
+        string level = "c1",
+        string? scope = null,
+        bool includeLibraries = false,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetArchitectureViewAsync(level, scope, includeLibraries, ws, cancellationToken), cancellationToken);
@@ -389,19 +406,43 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Get Workspace Architecture Map", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Retrieve a consolidated workspace architecture inventory listing all projects, programming languages, inter-project dependencies, databases, ingress endpoints, egress external services, and saved project queries. Use for initial repository orientation or scoping a single project's boundary summary; for zoomed C1/C2/C3 topology projections and cycle analysis use get_architecture_view, and for filtered runtime vs build package edges use get_project_dependencies. Reads the indexed .codeexplorer/graph.db without scanning source files; when projectName is provided, narrows the inventory to matching projects and their direct neighbors, returning a bounded YAML summary (<1,000 tokens) or a standby notice if unindexed.")]
+    [McpServerTool(Title = "Get Workspace Architecture Map and Diagrams", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("Inspect workspace architecture as structured YAML or renderable Mermaid/C4 diagram syntax across viewpoints: 'overview' (flat <1,000-token inventory of projects, languages, databases, endpoints, external services, and saved queries), 'c1' (system context), 'c2' (inter-service communication), 'c3' or 'project-map' (internal modules and circular dependency cycles of one project), 'tiers' (Clean Architecture layers), 'lineage' (database table read/write graph), or 'cqrs' (command/event pipelines). Use first when orienting on a repository, checking module cycles, or exporting architecture diagrams; for filtered runtime vs build package edges use get_project_dependencies, and for detailed routes/topics or multi-hop distributed flows of one service use get_service_contracts. Reads the indexed .codeexplorer/graph.db in read-only mode (scoping to projectName when provided and adding shared libraries when includeLibraries=true) and returns YAML or diagram markup (or a standby notice if unindexed).")]
     public async Task<CallToolResult> GetArchitectureMapAsync(
-        [Description("Optional case-insensitive project name or substring to scope the inventory to matching projects and their immediate dependencies.")] string? projectName = null,
+        [Description("Optional case-insensitive project or service filter to scope the inventory, topology view, or exported diagram (for 'c3'/'project-map', defaults to the largest project when omitted).")] string? projectName = null,
+        [AllowedValues("overview", "c1", "c2", "c3", "project-map", "tiers", "lineage", "cqrs")]
+        [Description("Architecture viewpoint to project: 'overview' (flat workspace inventory), 'c1' (system context), 'c2' (service communication), 'c3' or 'project-map' (internal modules and cycles), 'tiers' (layers), 'lineage' (DB reads/writes), or 'cqrs' (commands/events). Default: 'overview'.")] string view = "overview",
+        [AllowedValues("yaml", "mermaid", "c4")]
+        [Description("Output representation: 'yaml' (structured YAML for agent analysis), 'mermaid' (Mermaid flowchart/C4 syntax), or 'c4' (PlantUML/C4 syntax). Default: 'yaml'.")] string format = "yaml",
+        [Description("Whether to include shared class libraries alongside deployable services in topology views and exported diagrams. Default: false.")] bool includeLibraries = false,
         [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetArchitectureMapAsync(projectName, ws, cancellationToken), cancellationToken);
+        var normView = string.IsNullOrWhiteSpace(view) ? ViewOverview : view.Trim().ToLowerInvariant();
+        var normFormat = string.IsNullOrWhiteSpace(format) ? FormatYaml : format.Trim().ToLowerInvariant();
+
+        return await ExecuteForWorkspaceAsync(workspacePath, ws =>
+        {
+            if (normFormat is FormatMermaid or FormatC4)
+            {
+                var diagramView = normView is ViewLineage or ViewCqrs ? normView : DiagramArchitecture;
+                return repository.ExportArchitectureDiagramAsync(normFormat, diagramView, projectName, includeLibraries, ws, cancellationToken);
+            }
+
+            if (normView is ViewLineage or ViewCqrs)
+            {
+                return repository.ExportArchitectureDiagramAsync(FormatMermaid, normView, projectName, includeLibraries, ws, cancellationToken);
+            }
+
+            return normView == ViewOverview
+                ? repository.GetArchitectureMapAsync(projectName, ws, cancellationToken)
+                : repository.GetArchitectureViewAsync(normView, projectName, includeLibraries, ws, cancellationToken);
+        }, cancellationToken);
     }
 
     [UsedImplicitly]
     [McpServerTool(Title = "Get Project and Package Dependencies", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("List directed project-to-project references and external package dependencies (NuGet, npm, PyPI, Go, Maven, Cargo, and Terraform modules) from the workspace graph. Use when auditing package versions or project-level coupling; for symbol-level refactoring blast radius use analyze_code_impact, and for a full workspace overview use get_architecture_map. Requires an indexed .codeexplorer/graph.db; combines projectFilter (matching source or target project name) with type ('runtime' vs 'build' vs 'all') and truncates output at limit edges, returning YAML rows with source project, target project/package, version, and dependency scope.")]
+    [Description("List directed project-to-project references and external package dependencies (NuGet, npm, PyPI, Go, Maven, Cargo, and Terraform modules) from the workspace graph. Use when auditing package versions or project-level coupling; for symbol-level refactoring blast radius use analyze_code_impact, and for workspace topology or module cycle projections use get_architecture_map. Requires an indexed .codeexplorer/graph.db; combines projectFilter (matching source or target project name case-insensitively) with type ('runtime' vs 'build' vs 'all') and truncates output at limit edges, returning YAML rows with source project, target project/package, version, and dependency scope (or an empty list if none match).")]
     public async Task<CallToolResult> GetProjectDependenciesAsync(
         [Description("Optional case-insensitive project name substring to filter inbound and outbound dependencies for matching projects.")] string? projectFilter = null,
         [Range(1, 500)]
@@ -415,12 +456,15 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Get Service Ingress and Egress Contracts", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Retrieve external communication contracts for a named service or project, covering HTTP/REST routes, gRPC services, GraphQL resolvers, message queue publishers, and topic subscribers. Use when inspecting both inbound API surface and outbound calls/messages of a service; to list internal entry-point handlers only (without outbound egress contracts) use get_project_entry_points, and to trace multi-hop cross-service paths use trace_cross_service_flow. Queries the indexed .codeexplorer/graph.db where serviceName matches case-insensitively and direction ('ingress', 'egress', or 'all') selects which contract sections are populated, returning YAML lists of endpoints, external calls, and broker topics (or an empty contract list if none exist).")]
+    [McpServerTool(Title = "Get Service Contracts, Entry Points, and Cross-Service Flows", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("Inspect communication boundaries and distributed propagation paths for a named service or project across HTTP/REST routes, gRPC services, GraphQL resolvers, CLI commands, background workers, and message broker topics. Use 'all', 'ingress', or 'egress' for static service contracts, 'entry_points' for internal handler symbols with file and line coordinates, or 'flow' to trace multi-hop cross-service HTTP/gRPC/broker propagation up to maxDepth hops; for intra-process function-to-function call paths between two methods use get_call_chain. Queries the indexed .codeexplorer/graph.db where serviceName matches case-insensitively (anchoring 'flow' traversal to entryPoint when provided and clamping maxDepth to 1..10), returning YAML contracts, handler coordinates, or distributed hop chains (or an empty result if none exist).")]
     public async Task<CallToolResult> GetServiceContractsAsync(
         [Description("Required service or project name (case-insensitive exact or substring match, e.g. 'OrderService' or 'WebApi').")] string serviceName,
-        [AllowedValues("all", "ingress", "egress")]
-        [Description("Contract direction filter: 'ingress' (exposed endpoints and subscribed topics), 'egress' (outbound HTTP/gRPC calls and published topics), or 'all'. Default: 'all'.")] string direction = "all",
+        [AllowedValues("all", "ingress", "egress", "entry_points", "flow")]
+        [Description("Boundary inspection mode: 'all' (ingress and egress contracts), 'ingress' (exposed endpoints and subscribed topics), 'egress' (outbound HTTP/gRPC calls and published topics), 'entry_points' (handler symbols and file coordinates), or 'flow' (multi-hop cross-service propagation trace). Default: 'all'.")] string direction = "all",
+        [Description("Optional URL route substring, topic name, or handler method name within serviceName to anchor traversal when direction='flow' (e.g. '/api/orders' or 'CreateOrder').")] string? entryPoint = null,
+        [Range(1, 10)]
+        [Description("Maximum cross-service hop depth to traverse when direction='flow' (integer 1 to 10, default: 3).")] int maxDepth = 3,
         [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -428,18 +472,22 @@ public partial class McpGraphHandler(
         {
             return WrapError(MissingServiceNameError);
         }
-        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetServiceContractsAsync(serviceName, direction, ws, cancellationToken), cancellationToken);
+
+        var normDirection = string.IsNullOrWhiteSpace(direction) ? DirectionAll : direction.Trim().ToLowerInvariant();
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => normDirection switch
+        {
+            DirectionEntryPoints => repository.GetProjectEntryPointsAsync(serviceName, ws, cancellationToken),
+            DirectionFlow => repository.TraceCrossServiceFlowAsync(serviceName, entryPoint, maxDepth, ws, cancellationToken),
+            _ => repository.GetServiceContractsAsync(serviceName, normDirection, ws, cancellationToken)
+        }, cancellationToken);
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Trace Cross-Service Distributed Flow", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Trace distributed request and event propagation paths across microservices, HTTP clients, gRPC channels, and message broker topics starting from startService up to maxDepth cross-service hops. Use for multi-service flows across process boundaries; for intra-process function-to-function call paths between two methods use get_call_chain, and for a single service's static contracts use get_service_contracts. Requires an indexed .codeexplorer/graph.db; when entryPoint is provided it anchors traversal to matching routes or handlers inside startService, and maxDepth (clamped to 1..10) bounds hop recursion, returning YAML hop chains with source service, protocol, route/topic, and target service (or an empty trace if no outbound cross-service calls exist).")]
     public async Task<CallToolResult> TraceCrossServiceFlowAsync(
-        [Description("Required originating service or project name where the distributed trace begins (e.g. 'ApiGateway').")] string startService,
-        [Description("Optional entry point URL route substring, topic name, or handler method name within startService to anchor the trace (e.g. '/api/orders' or 'CreateOrder').")] string? entryPoint = null,
-        [Range(1, 10)]
-        [Description("Maximum cross-service hop depth to traverse (integer 1 to 10, default: 3).")] int maxDepth = 3,
-        [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
+        string startService,
+        string? entryPoint = null,
+        int maxDepth = 3,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(startService))
@@ -465,14 +513,16 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Find Code Symbols by Name", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Search the indexed workspace graph for declared code symbols ('Class', 'Interface', 'Function', or 'Variable'/'Member') matching an exact or substring identifier name. Use when locating code declarations by known or partial name; for fuzzy trigram and semantic vector search across routes, database tables, topics, and keywords use search_identifiers, and for listing all symbols inside a known file path use get_file_outline. Queries .codeexplorer/graph.db case-insensitively (prioritizing exact matches over substring matches, filtered by symbolType when specified, and truncated at limit rows) and returns YAML records with symbol kind, qualified name, file_path, start_line, and end_line (or an empty list if none match).")]
+    [McpServerTool(Title = "Find Code Symbols and Ontology Identifiers", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("Search the indexed workspace graph for code declarations and architectural entities ('Class', 'Interface', 'Type', 'Function', 'Variable'/'Member', 'Endpoint', 'Table', 'Topic', or 'Project') using deterministic substring matching ('substring') or hybrid trigram and semantic vector similarity ('hybrid'). Use 'substring' when locating symbols by known or partial identifier name, and 'hybrid' for fuzzy or keyword discovery across routes, tables, topics, and code; to list all symbols inside a known file or folder path use get_file_outline, and to read source implementation lines use fetch_code_snippets. Queries .codeexplorer/graph.db case-insensitively (automatically routing 'Endpoint'/'Table'/'Topic'/'Project' filters or matchMode='hybrid' through ranked lexical-vector search and capping output at limit rows), returning YAML matches with kind, qualified name, file_path, and line coordinates (or an empty list if none match).")]
     public async Task<CallToolResult> FindSymbolAsync(
-        [Description("Required symbol name or case-insensitive substring to match (e.g. 'OrderController' or 'ValidateToken').")] string name,
-        [AllowedValues("Class", "Interface", "Function", "Variable", "Member")]
-        [Description("Optional symbol category filter: 'Class', 'Interface', 'Function', 'Variable', or 'Member' ('Variable' and 'Member' are aliases). Omit to search all symbol kinds.")] string? symbolType = null,
+        [Description("Required symbol name, substring, URL route fragment, table name, or domain keyword (e.g. 'OrderController', 'ValidateToken', or '/api/orders').")] string name,
+        [AllowedValues("Class", "Interface", "Type", "Function", "Variable", "Member", "Endpoint", "Table", "Topic", "Project")]
+        [Description("Optional entity filter: 'Class', 'Interface', 'Type', 'Function', 'Variable', 'Member', 'Endpoint', 'Table', 'Topic', or 'Project' ('Variable' and 'Member' are aliases). Omit to search all kinds.")] string? symbolType = null,
+        [AllowedValues("substring", "hybrid")]
+        [Description("Search strategy: 'substring' (exact and substring AST symbol match) or 'hybrid' (fuzzy trigram + semantic vector similarity across code, routes, tables, and topics). Default: 'substring'.")] string matchMode = "substring",
         [Range(1, 500)]
-        [Description("Maximum number of matching symbols to return (1 to 500, default: 50).")] int limit = 50,
+        [Description("Maximum number of matching symbols to return (1 to 500, default: 50; clamped to 200 in 'hybrid' mode).")] int limit = 50,
         [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -480,12 +530,30 @@ public partial class McpGraphHandler(
         {
             return WrapError(MissingNameError);
         }
-        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.FindSymbolAsync(name, symbolType, limit, ws, cancellationToken), cancellationToken);
+
+        var useHybrid = string.Equals(matchMode, MatchModeHybrid, StringComparison.OrdinalIgnoreCase)
+            || symbolType is SymLabelEndpoint or SymLabelTable or SymLabelTopic or SymLabelProject;
+
+        return await ExecuteForWorkspaceAsync(workspacePath, ws =>
+        {
+            if (useHybrid)
+            {
+                var mappedFilter = symbolType switch
+                {
+                    SymLabelClass or SymLabelInterface => SymLabelType,
+                    SymLabelVariable => SymLabelMember,
+                    _ => symbolType
+                };
+                return repository.SearchIdentifiersAsync(name, mappedFilter, Math.Clamp(limit, 1, 200), ws, cancellationToken);
+            }
+
+            return repository.FindSymbolAsync(name, symbolType, limit, ws, cancellationToken);
+        }, cancellationToken);
     }
 
     [UsedImplicitly]
     [McpServerTool(Title = "Trace Function-to-Function Call Chain", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Find directed function-to-function call paths connecting a specific startFunction to a specific endFunction within the indexed code graph up to maxDepth hops. Use only when both the starting caller and destination callee are known; to list all direct 1-hop callers of a single target use get_callers, for multi-hop transitive blast radius of one symbol use analyze_code_impact, and for cross-service HTTP/messaging flows use trace_cross_service_flow. Evaluates bounded shortest-path traversal (clamped to 1..10 hops) in .codeexplorer/graph.db without modifying state and returns all discovered call chains in YAML with ordered function names, file paths, and line numbers (or an empty result if no path connects them within maxDepth).")]
+    [Description("Find directed function-to-function call paths connecting a specific startFunction to a specific endFunction within the indexed code graph up to maxDepth hops. Use only when both the starting caller and destination callee are known; to list all direct 1-hop callers or concrete interface implementations use get_callers, for multi-hop transitive blast radius of one symbol use analyze_code_impact, and for cross-service HTTP/messaging flows use get_service_contracts with direction='flow'. Evaluates bounded shortest-path traversal (clamped to 1..10 hops) in .codeexplorer/graph.db without modifying state and returns all discovered call chains in YAML with ordered function names, file paths, and line numbers (or an empty result if no path connects them within maxDepth).")]
     public async Task<CallToolResult> GetCallChainAsync(
         [Description("Required originating caller function or method name (exact or qualified name, e.g. 'SubmitOrder' or 'OrderController.Post').")] string startFunction,
         [Description("Required destination callee function or method name (exact or qualified name, e.g. 'ChargeCard' or 'PaymentGateway.Execute').")] string endFunction,
@@ -502,12 +570,10 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Resolve Interface Method Implementations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Resolve concrete class implementations and dependency-injection targets for an abstract or interface method identified by interfaceName and methodName. Use when tracing outbound polymorphic dispatch from an interface contract to its concrete classes; to find inbound callers invoking a method use get_callers, and to trace multi-hop paths between two functions use get_call_chain. Queries IMPLEMENTS, INHERITS_FROM, and HAS_METHOD edges in the indexed .codeexplorer/graph.db (matching both interfaceName and methodName as a required pair) and returns a complete YAML list of implementing classes, method signatures, file_path, and 1-based line ranges (or an empty list if no concrete implementation is indexed).")]
     public async Task<CallToolResult> ResolveCallTargetAsync(
-        [Description("Required interface or abstract base type name (e.g. 'IPaymentProcessor').")] string interfaceName,
-        [Description("Required method name declared on the interface or abstract type (e.g. 'ProcessPaymentAsync').")] string methodName,
-        [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
+        string interfaceName,
+        string methodName,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(interfaceName) || string.IsNullOrEmpty(methodName))
@@ -518,11 +584,12 @@ public partial class McpGraphHandler(
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Find Inbound Callers and Consumers", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("List all direct 1-hop inbound callers, references, service consumers, or table/topic accessors targeting a named function, type, service, project, database table, or messaging topic. Use when inspecting immediate 1-hop consumers of a target; for multi-hop transitive blast-radius analysis across downstream dependents use analyze_code_impact, for point-to-point paths between two functions use get_call_chain, and to resolve concrete implementations of an interface method use resolve_call_target. Queries inbound CALLS, ACCESSED_BY, and DEPENDS_ON edges in .codeexplorer/graph.db (filtering out unit/integration test projects when includeTests=false) and returns YAML records with caller symbol, kind, file_path, and line number.")]
+    [McpServerTool(Title = "Find Inbound Callers or Interface Implementations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("List all direct 1-hop inbound callers, references, service consumers, or table/topic accessors targeting a named symbol or resource, or resolve concrete class implementations when methodName is specified for an interface or abstract base type target. Use without methodName to inspect immediate 1-hop consumers of target, or pass methodName to resolve polymorphic DI implementations of target.methodName; for multi-hop transitive blast radius use analyze_code_impact, and for point-to-point paths between two functions use get_call_chain. Queries CALLS, ACCESSED_BY, DEPENDS_ON, IMPLEMENTS, and INHERITS_FROM edges in .codeexplorer/graph.db (excluding test callers when includeTests=false) and returns YAML records with symbol, kind, file_path, and line coordinates (or an empty list if none match).")]
     public async Task<CallToolResult> GetCallersAsync(
-        [Description("Required target name (function, class/interface, service, project, database table, or messaging topic).")] string target,
-        [Description("Whether to include callers located in unit/integration test projects. Default: false (production callers only).")] bool includeTests = false,
+        [Description("Required target name (function, class/interface, service, project, database table, or messaging topic; acts as the interface/abstract type name when methodName is provided).")] string target,
+        [Description("Whether to include callers located in unit/integration test projects when listing inbound callers. Default: false (production callers only).")] bool includeTests = false,
+        [Description("Optional interface or abstract method name declared on target (e.g. 'ProcessPaymentAsync'); when specified, resolves concrete implementing classes and DI targets instead of inbound callers.")] string? methodName = null,
         [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -530,19 +597,19 @@ public partial class McpGraphHandler(
         {
             return WrapError(MissingTargetError);
         }
-        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetCallersAsync(target, includeTests, ws, cancellationToken), cancellationToken);
+
+        return await ExecuteForWorkspaceAsync(workspacePath, ws =>
+            !string.IsNullOrWhiteSpace(methodName)
+                ? repository.ResolveCallTargetAsync(target, methodName, ws, cancellationToken)
+                : repository.GetCallersAsync(target, includeTests, ws, cancellationToken), cancellationToken);
     }
 
     [UsedImplicitly]
-    [McpServerTool(Title = "Hybrid Fuzzy and Vector Identifier Search", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Perform hybrid trigram and semantic vector search across code identifiers, HTTP routes, database tables, messaging topics, and projects using exact, fuzzy, or natural-language keywords. Use for exploratory discovery when the exact symbol name is unknown or when searching across routes, tables, and topics simultaneously; for strict substring lookup on code declarations ('Class', 'Interface', 'Function', 'Variable') use find_symbol, and for outlining a known file use get_file_outline. Scores candidates in the indexed .codeexplorer/graph.db by combined lexical and vector similarity (restricted to kind when provided and capped at limit rows) and returns ranked YAML matches with similarity score, node kind, qualified name, file_path, and line range.")]
     public async Task<CallToolResult> SearchIdentifiersAsync(
-        [Description("Required search query (partial identifier, URL route fragment, table name, or domain keyword).")] string query,
-        [AllowedValues("Type", "Function", "Member", "Endpoint", "Table", "Topic", "Project")]
-        [Description("Optional ontology node kind filter: 'Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', or 'Project'. Omit to search across all kinds.")] string? kind = null,
-        [Range(1, 200)]
-        [Description("Maximum number of ranked matches to return (1 to 200, default: 15).")] int limit = 15,
-        [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
+        string query,
+        string? kind = null,
+        int limit = 15,
+        string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(query))

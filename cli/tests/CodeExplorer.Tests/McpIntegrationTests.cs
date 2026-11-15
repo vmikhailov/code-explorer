@@ -291,18 +291,25 @@ public class McpIntegrationTests
     public async Task Test_GetTaxonomy()
     {
         await CallToolAndAssertSuccessAsync("get_taxonomy", "{}", 1);
+        await CallToolAndAssertSuccessAsync("get_taxonomy", "{\"kind\": \"Workspace\"}", 7);
+        await CallToolAndAssertSuccessAsync("get_taxonomy", "{\"kind\": \"Class\"}", 8);
+        await CallToolAndAssertSuccessAsync("get_taxonomy", "{\"statusOnly\": true}", 18);
     }
 
     [Test]
     public async Task Test_GetArchitectureMap()
     {
         await CallToolAndAssertSuccessAsync("get_architecture_map", "{}", 2);
+        await CallToolAndAssertSuccessAsync("get_architecture_map", "{\"view\": \"c1\"}", 9);
+        var mermaid = await CallToolAndAssertSuccessAsync("get_architecture_map", "{\"format\": \"mermaid\", \"view\": \"c1\"}", 27);
+        mermaid.Should().NotBeNullOrWhiteSpace();
     }
 
     [Test]
     public async Task Test_ExecuteCustomReadCypher()
     {
         await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"query\": \"MATCH (n) RETURN count(n) AS nodeCount\"}", 3);
+        await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"listSaved\": true}", 28);
     }
 
     [Test]
@@ -312,15 +319,11 @@ public class McpIntegrationTests
     }
 
     [Test]
-    public async Task Test_GetProjectEntryPoints()
+    public async Task Test_GetServiceContracts_AllModes()
     {
-        await CallToolAndAssertSuccessAsync("get_project_entry_points", "{\"projectName\": \"CodeExplorer\"}", 4);
-    }
-
-    [Test]
-    public async Task Test_FindRefactoringOpportunities()
-    {
-        await CallToolAndAssertSuccessAsync("find_refactoring_opportunities", "{\"projectName\": \"CodeExplorer\", \"metricType\": \"all\"}", 5);
+        await CallToolAndAssertSuccessAsync("get_service_contracts", "{\"serviceName\": \"CodeExplorer\"}", 4);
+        await CallToolAndAssertSuccessAsync("get_service_contracts", "{\"serviceName\": \"CodeExplorer\", \"direction\": \"entry_points\"}", 29);
+        await CallToolAndAssertSuccessAsync("get_service_contracts", "{\"serviceName\": \"CodeExplorer\", \"direction\": \"flow\"}", 30);
     }
 
     [Test]
@@ -330,16 +333,25 @@ public class McpIntegrationTests
     }
 
     [Test]
-    public async Task Test_GetNodeDefinition()
+    public async Task Test_FindSymbol_SubstringAndHybrid()
     {
-        await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Workspace\"}", 7);
-        await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Class\"}", 8);
+        var subRes = await CallToolAndAssertSuccessAsync("find_symbol", "{\"name\": \"OrdersController\", \"symbolType\": \"Class\"}", 31);
+        subRes.Should().Contain("OrdersController");
+        await CallToolAndAssertSuccessAsync("find_symbol", "{\"name\": \"orders\", \"matchMode\": \"hybrid\"}", 32);
     }
 
     [Test]
-    public async Task Test_GetArchitectureView()
+    public async Task Test_GetCallers_AndResolveImplementations()
     {
-        await CallToolAndAssertSuccessAsync("get_architecture_view", "{\"level\": \"c1\"}", 9);
+        await CallToolAndAssertSuccessAsync("get_callers", "{\"target\": \"OrdersController\"}", 33);
+        await CallToolAndAssertSuccessAsync("get_callers", "{\"target\": \"OrdersController\", \"methodName\": \"chargeOrder\"}", 34);
+    }
+
+    [Test]
+    public async Task Test_GetAffectedTests_ImpactAndCoverage()
+    {
+        await CallToolAndAssertSuccessAsync("get_affected_tests", "{\"filePath\": \"CodeExplorer/server.ts\"}", 35);
+        await CallToolAndAssertSuccessAsync("get_affected_tests", "{\"coverageStatus\": \"all\", \"projectName\": \"CodeExplorer\"}", 36);
     }
 
     [Test]
@@ -358,23 +370,9 @@ public class McpIntegrationTests
     }
 
     [Test]
-    public async Task Test_GetWorkspaceStatus()
-    {
-        await CallToolAndAssertSuccessAsync("get_workspace_status", "{}", 18);
-    }
-
-    [Test]
     public async Task Test_ScanWorkspace()
     {
         await CallToolAndAssertSuccessAsync("scan_workspace", "{\"clear\": false}", 19);
-    }
-
-    [Test]
-    public async Task Test_IngestGraphData()
-    {
-        var nodesYaml = "- id: custom_test_node\n  kind: Service\n  properties:\n    name: TestNode";
-        var relsYaml = "- type: CONTAINS\n  from_id: workspace\n  to_id: custom_test_node";
-        await CallToolAndAssertSuccessAsync("ingest_graph_data", $"{{\"nodes\": {JsonSerializer.Serialize(nodesYaml)}, \"relationships\": {JsonSerializer.Serialize(relsYaml)}}}", 20);
     }
 
     [Test]
@@ -382,12 +380,9 @@ public class McpIntegrationTests
     {
         await CallToolAndAssertSuccessAsync("check_semantic_gates", "{}", 21);
         await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-TEST-001\"}", 22);
-    }
-
-    [Test]
-    public async Task Test_ListSemanticGates()
-    {
-        await CallToolAndAssertSuccessAsync("list_semantic_gates", "{}", 23);
+        var listed = await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"listOnly\": true}", 23);
+        listed.Should().Contain("SIG-TEST-001");
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"anomalies\": \"all\", \"projectName\": \"CodeExplorer\"}", 5);
     }
 
     [Test]
@@ -414,36 +409,68 @@ public class McpIntegrationTests
         var tools = toolsElement.AsArray();
         var toolNames = tools.Select(t => t.GetStringProp("name")).ToList();
 
-        toolNames.Should().Contain("get_architecture_map");
-        toolNames.Should().Contain("get_architecture_view");
-        toolNames.Should().NotContain("get_architecture_overview");
-        toolNames.Should().NotContain("get_bounded_contexts");
-        toolNames.Should().NotContain("manage_domain");
-        toolNames.Should().NotContain("assign_service_domain");
-
-        var archViewTool = tools.First(t => t.GetStringProp("name") == "get_architecture_view");
-        archViewTool.ToJsonString().Should().NotContain("'domain'");
-
-        var exportDiagramTool = tools.First(t => t.GetStringProp("name") == "export_architecture_diagram");
-        exportDiagramTool.ToJsonString().Should().NotContain("'domain'");
-
-        var writeTools = new HashSet<string>(StringComparer.Ordinal)
+        var expectedTools = new[]
         {
-            "init_workspace",
             "scan_workspace",
+            "get_taxonomy",
+            "execute_custom_read_cypher",
+            "get_architecture_map",
+            "get_project_dependencies",
+            "get_service_contracts",
+            "find_symbol",
+            "get_file_outline",
+            "fetch_code_snippets",
+            "get_callers",
+            "get_call_chain",
+            "analyze_code_impact",
+            "inspect_data_lineage",
+            "get_affected_tests",
+            "check_semantic_gates"
+        };
+
+        var removedTools = new[]
+        {
+            "get_architecture_overview",
+            "get_bounded_contexts",
+            "manage_domain",
+            "assign_service_domain",
+            "get_architecture_view",
+            "export_architecture_diagram",
+            "get_project_entry_points",
+            "trace_cross_service_flow",
+            "search_identifiers",
+            "resolve_call_target",
+            "get_test_coverage",
+            "list_semantic_gates",
+            "find_refactoring_opportunities",
+            "get_workspace_status",
+            "get_node_definition",
+            "init_workspace",
             "clear_workspace_index",
             "ingest_graph_data",
+            "list_project_queries",
+            "execute_project_query",
             "save_project_query"
         };
 
+        toolNames.Count.Should().Be(15, "consolidated MCP surface must stay within Glama TDQS 3-15 optimal window");
+        toolNames.Should().BeEquivalentTo(expectedTools);
+        foreach (var removed in removedTools)
+        {
+            toolNames.Should().NotContain(removed);
+        }
+
+        var archMapTool = tools.First(t => t.GetStringProp("name") == "get_architecture_map");
+        archMapTool.ToJsonString().Should().NotContain("'domain'");
+
         using var doc = JsonDocument.Parse(responseStr);
         var jsonTools = doc.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().ToList();
-        jsonTools.Should().NotBeEmpty();
+        jsonTools.Count.Should().Be(15);
 
-        var archViewJson = jsonTools.First(t => t.GetProperty("name").GetString() == "get_architecture_view");
-        var levelProp = archViewJson.GetProperty("inputSchema").GetProperty("properties").GetProperty("level");
-        levelProp.TryGetProperty("enum", out var levelEnum).Should().BeTrue("constrained parameters should emit JSON Schema enum for TDQS paramsWithEnums");
-        levelEnum.GetArrayLength().Should().Be(5);
+        var archMapJson = jsonTools.First(t => t.GetProperty("name").GetString() == "get_architecture_map");
+        var viewProp = archMapJson.GetProperty("inputSchema").GetProperty("properties").GetProperty("view");
+        viewProp.TryGetProperty("enum", out var viewEnum).Should().BeTrue("constrained parameters should emit JSON Schema enum for TDQS paramsWithEnums");
+        viewEnum.GetArrayLength().Should().Be(8);
 
         foreach (var tool in jsonTools)
         {
@@ -454,6 +481,11 @@ public class McpIntegrationTests
             description.ToLowerInvariant().Trim().Should().NotBe(name.ToLowerInvariant(), $"tool '{name}' must not have a tautological description");
             description.Length.Should().BeGreaterThan(150, $"tool '{name}' must provide purpose, usage guidelines, and behavioral transparency");
             description.Should().ContainEquivalentOf("use ", $"tool '{name}' must include explicit usage guidelines and sibling differentiation");
+
+            foreach (var removed in removedTools)
+            {
+                description.Should().NotContain(removed, $"tool '{name}' description must not cross-reference removed tool '{removed}'");
+            }
 
             tool.TryGetProperty("annotations", out var annotations).Should().BeTrue($"tool '{name}' must declare MCP annotations for TDQS");
             var title = tool.TryGetProperty("title", out var topTitle) ? topTitle.GetString() : null;
@@ -470,9 +502,9 @@ public class McpIntegrationTests
             annotations.TryGetProperty("idempotentHint", out var idempotentProp).Should().BeTrue($"tool '{name}' must declare idempotentHint");
             annotations.TryGetProperty("openWorldHint", out var openWorldProp).Should().BeTrue($"tool '{name}' must declare openWorldHint");
 
-            var isWrite = writeTools.Contains(name);
+            var isWrite = name == "scan_workspace";
             readOnlyProp.GetBoolean().Should().Be(!isWrite, $"tool '{name}' readOnlyHint must match its mutation behavior");
-            destructiveProp.GetBoolean().Should().Be(name == "clear_workspace_index", $"tool '{name}' destructiveHint must be true only for clear_workspace_index");
+            destructiveProp.GetBoolean().Should().BeFalse($"tool '{name}' destructiveHint must be false across all 15 non-destructive tools");
             idempotentProp.GetBoolean().Should().BeTrue($"tool '{name}' idempotentHint must be true");
             openWorldProp.GetBoolean().Should().BeFalse($"tool '{name}' openWorldHint must be false (closed local workspace domain)");
 
@@ -484,6 +516,10 @@ public class McpIntegrationTests
                 {
                     prop.Value.TryGetProperty("description", out var paramDescProp).Should().BeTrue($"parameter '{prop.Name}' on tool '{name}' must declare a description");
                     paramDescProp.GetString().Should().NotBeNullOrWhiteSpace($"parameter '{prop.Name}' on tool '{name}' must have a non-empty schema description (100% coverage)");
+                    foreach (var removed in removedTools)
+                    {
+                        paramDescProp.GetString()!.Should().NotContain(removed, $"parameter '{prop.Name}' on tool '{name}' must not reference removed tool '{removed}'");
+                    }
                 }
             }
         }

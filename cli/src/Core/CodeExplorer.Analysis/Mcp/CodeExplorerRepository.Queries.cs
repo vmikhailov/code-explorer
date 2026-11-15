@@ -13,6 +13,16 @@ public partial class CodeExplorerRepository
     private const string PropParamDefaultType = "string";
     private const string PropParamRequired = "required";
     private const string PropParamDescription = "description";
+    private const string QueryGetWorkspaceContent = "get_workspace_content";
+    private const string ParamWorkspaceId = "workspaceId";
+    private const string ParamWorkspaceIdPrefix = "workspaceIdPrefix";
+    private const string CypherFilePattern = "*.cypher";
+    private const string JsonPropId = "id";
+    private const string JsonPropLabel = "kind";
+    private const string JsonPropRelAlias = "type";
+    private const string JsonPropProperties = "properties";
+    private const string JsonPropFromId = "from_id";
+    private const string JsonPropToId = "to_id";
 
     public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
@@ -23,7 +33,7 @@ public partial class CodeExplorerRepository
     public async Task<string> GetWorkspaceContentAsync(string? workspacePath = null, string? type = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
-        var query = Queries.Get("get_workspace_content");
+        var query = Queries.Get(QueryGetWorkspaceContent);
         var res = await client.ExecuteCypherAsync(query, new { type = string.IsNullOrEmpty(type) ? null : type }, cancellationToken);
         return res.ToJson();
     }
@@ -129,7 +139,7 @@ public partial class CodeExplorerRepository
         {
             throw new FileNotFoundException(
                 $"Project query '{name}' not found in '{_queryManager.GetQueriesDirectory(effectiveWsPath)}'. " +
-                "Use 'list_project_queries' to see available queries or 'save_project_query' to register a new one.");
+                "Pass 'listSaved=true' to execute_custom_read_cypher to see available saved queries.");
         }
 
         var paramDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -163,14 +173,14 @@ public partial class CodeExplorerRepository
             }
         }
 
-        if (queryItem.Cypher.Contains("$workspaceId") && !paramDict.ContainsKey("workspaceId"))
+        if (queryItem.Cypher.Contains("$workspaceId") && !paramDict.ContainsKey(ParamWorkspaceId))
         {
-            paramDict["workspaceId"] = OntologyConstants.IdPrefixes.Workspace;
+            paramDict[ParamWorkspaceId] = OntologyConstants.IdPrefixes.Workspace;
         }
 
-        if (queryItem.Cypher.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey("workspaceIdPrefix"))
+        if (queryItem.Cypher.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey(ParamWorkspaceIdPrefix))
         {
-            paramDict["workspaceIdPrefix"] = $"{OntologyConstants.IdPrefixes.Workspace}:";
+            paramDict[ParamWorkspaceIdPrefix] = $"{OntologyConstants.IdPrefixes.Workspace}:";
         }
 
         return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, workspacePath, cancellationToken);
@@ -223,12 +233,15 @@ public partial class CodeExplorerRepository
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        var targetDir = Path.GetFullPath(path ?? workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory());
-        var ws = WorkspaceLocator.Find(targetDir);
+        var baseDir = Path.GetFullPath(workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory());
+        var targetDir = string.IsNullOrWhiteSpace(path)
+            ? baseDir
+            : Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(baseDir, path));
+        var ws = WorkspaceLocator.Find(targetDir) ?? WorkspaceLocator.Find(baseDir);
         if (ws == null)
         {
-            var defaultName = new DirectoryInfo(targetDir).Name;
-            ws = WorkspaceLocator.Initialize(targetDir, defaultName);
+            var defaultName = new DirectoryInfo(baseDir).Name;
+            ws = WorkspaceLocator.Initialize(baseDir, defaultName);
         }
 
         var client = await ResolveClientAsync(ws.RootDirectory);
@@ -267,7 +280,7 @@ public partial class CodeExplorerRepository
             return ToonYamlSerializer.SerializeObject(new
             {
                 status = "not_initialized",
-                message = $"No indexed workspace found for '{targetDir}'. Call scan_workspace or init_workspace first."
+                message = $"No indexed workspace found for '{targetDir}'. Call scan_workspace first."
             });
         }
 
@@ -281,7 +294,7 @@ public partial class CodeExplorerRepository
         var countRes = await client.ExecuteCypherAsync(nodeCountsQuery, null, cancellationToken);
 
         var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
-            ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
+            ? Directory.GetFiles(ws.QueriesDirectory, CypherFilePattern).Length
             : 0;
 
         return ToonYamlSerializer.SerializeObject(
@@ -354,12 +367,12 @@ public partial class CodeExplorerRepository
         {
             foreach (var node in nodesRoot.AsArray())
             {
-                if (node.TryGetProperty("id", out var idProp) && node.TryGetProperty("kind", out var kindProp))
+                if (node.TryGetProperty(JsonPropId, out var idProp) && node.TryGetProperty(JsonPropLabel, out var kindProp))
                 {
                     var id = idProp.AsNullableString();
                     var kind = kindProp.AsNullableString();
                     if (id == null || kind == null) continue;
-                    var props = node.TryGetProperty("properties", out var p) && !p.IsNull ? p.ToJsonString() : "{}";
+                    var props = node.TryGetProperty(JsonPropProperties, out var p) && !p.IsNull ? p.ToJsonString() : "{}";
 
                     await client.ExecuteWriteAsync(
                         "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, jsonb(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = jsonb(@props);",
@@ -378,17 +391,17 @@ public partial class CodeExplorerRepository
             {
                 foreach (var rel in relsRoot.AsArray())
                 {
-                    var kind = rel.TryGetProperty("kind", out var kProp)
+                    var kind = rel.TryGetProperty(JsonPropLabel, out var kProp)
                         ? kProp.AsNullableString()
-                        : (rel.TryGetProperty("type", out var tProp) ? tProp.AsNullableString() : null);
+                        : (rel.TryGetProperty(JsonPropRelAlias, out var tProp) ? tProp.AsNullableString() : null);
 
-                    if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty("from_id", out var fProp) &&
-                        rel.TryGetProperty("to_id", out var toProp))
+                    if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty(JsonPropFromId, out var fProp) &&
+                        rel.TryGetProperty(JsonPropToId, out var toProp))
                     {
                         var fromId = fProp.AsNullableString();
                         var toId = toProp.AsNullableString();
                         if (fromId == null || toId == null) continue;
-                        var props = rel.TryGetProperty("properties", out var p) && !p.IsNull ? p.ToJsonString() : "{}";
+                        var props = rel.TryGetProperty(JsonPropProperties, out var p) && !p.IsNull ? p.ToJsonString() : "{}";
 
                         await client.ExecuteWriteAsync(
                             "INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES (@fromId, 0, jsonb('{}')), (@toId, 0, jsonb('{}')); " +

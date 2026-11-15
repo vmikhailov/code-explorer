@@ -5,6 +5,23 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.88.0] - 2026-11-15
+
+### Added & Changed
+- **Consolidated 15-Tool MCP Surface & Server Coherence Optimization (`CodeExplorer.Server`, `CodeExplorer.Analysis`)**:
+  - Consolidated the MCP server surface from 32 tools down to **15 orthogonal tools** (14 pure `ReadOnly=true` tools plus `scan_workspace`), cutting eager MCP schema prompt overhead by >50% while preserving 100% of underlying `CodeExplorerRepository` and `ce` CLI capabilities:
+    - `get_architecture_map` now supports `view` (`overview`, `c1`, `c2`, `c3`, `project-map`, `tiers`, `lineage`, `cqrs`) and `format` (`yaml`, `mermaid`, `c4`), absorbing `get_architecture_view` and `export_architecture_diagram`.
+    - `get_service_contracts` now supports `direction` modes `entry_points` and `flow` (`entryPoint`, `maxDepth`), absorbing `get_project_entry_points` and `trace_cross_service_flow`.
+    - `find_symbol` now supports `matchMode` (`substring`, `hybrid`) and extended ontology entity filters (`Type`, `Endpoint`, `Table`, `Topic`, `Project`), absorbing `search_identifiers`.
+    - `get_callers` now accepts optional `methodName` to resolve concrete interface/abstract method implementations, absorbing `resolve_call_target`.
+    - `get_affected_tests` now supports static call-graph reachability coverage (`coverageStatus`, `projectName`, `pathPrefix`, `limit`), absorbing `get_test_coverage`.
+    - `check_semantic_gates` now supports `listOnly=true` and structural anomaly scans (`anomalies` + `projectName`), absorbing `list_semantic_gates` and `find_refactoring_opportunities`.
+    - `get_taxonomy` now accepts optional `kind` (single node-kind schema specification) and `statusOnly=true` (workspace index health), absorbing `get_node_definition` and `get_workspace_status`.
+    - `execute_custom_read_cypher` now supports `savedQuery`, `parameters`, and `listSaved=true` for `.codeexplorer/queries/` templates, absorbing `execute_project_query` and `list_project_queries`.
+    - `scan_workspace` auto-initializes `.codeexplorer/graph.db` on first run and rebuilds cleanly with `clear=true`, absorbing `init_workspace` and `clear_workspace_index`, and resolves workspace-relative `path` arguments accurately against `workspacePath`.
+
+---
+
 ## [1.87.3] - 2026-11-15
 
 ### Fixed

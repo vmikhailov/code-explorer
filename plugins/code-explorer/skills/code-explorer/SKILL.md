@@ -9,22 +9,22 @@ CodeExplorer indexes C#, TypeScript/JavaScript, Go, Python, Java, Kotlin, Rust, 
 
 ## First-Step Bootstrap
 
-1. Call `get_workspace_status` first.
-2. If the repository is not indexed yet, call `init_workspace` followed by `scan_workspace` (incremental, typically a few seconds).
+1. Call `get_taxonomy` with `statusOnly: true` first to inspect index health.
+2. If the repository is not indexed yet, call `scan_workspace` (auto-initializes `.codeexplorer/graph.db` and indexes incrementally in a few seconds).
 
 ## Tool Selection Rules (Prefer Graph Over Text Search)
 
 | Task | CodeExplorer MCP Tool | Why |
 | :--- | :--- | :--- |
-| Understand system map, services, DBs, queues, entry points | `get_architecture_map` | Returns full polyglot topology in one compact call instead of scanning dozens of manifests |
+| Understand system map, C1/C2/C3 views, or export diagrams | `get_architecture_map` | Returns polyglot inventory, module cycles (`view: "c3"`), or Mermaid/C4 diagrams (`format: "mermaid"`) |
 | Check project/module blast radius & package dependencies | `get_project_dependencies` | Exact inbound/outbound project links and external packages |
-| Locate a class, interface, function, or endpoint | `find_symbol` | Resolved AST symbol lookup; fall back to grep only for dynamic strings |
-| Find who calls a function, endpoint, table, or topic | `get_callers` / `get_call_chain` | Follows resolved calls, DI interfaces, HTTP clients, and message consumers |
-| Estimate refactoring risk & affected tests | `analyze_code_impact` / `get_affected_tests` | Computes transitive callers and test suites reached by an edit |
-| Trace cross-service API / event flows | `trace_cross_service_flow` | Connects frontend/API callers across HTTP, gRPC, Kafka/RabbitMQ, and DB tables |
+| Locate code symbols, endpoints, tables, or fuzzy keywords | `find_symbol` | Substring AST lookup (`matchMode: "substring"`) or hybrid trigram+vector search (`matchMode: "hybrid"`) |
+| Find inbound callers or concrete interface implementations | `get_callers` / `get_call_chain` | Follows resolved calls, DI implementations (`methodName`), HTTP clients, and message consumers |
+| Estimate refactoring risk, affected tests & test coverage | `analyze_code_impact` / `get_affected_tests` | Computes transitive blast radius, impacted test suites, and static test coverage (`coverageStatus`) |
+| Inspect service contracts, entry points & distributed flows | `get_service_contracts` | Static ingress/egress contracts, handler coordinates (`direction: "entry_points"`), and cross-service traces (`direction: "flow"`) |
 | Inspect SQL / ORM table reads & writes | `inspect_data_lineage` | Links repositories, EF Core/Dapper/Prisma/SQL queries, and database tables |
-| Enforce architectural invariants & zero regressions | `check_semantic_gates` | Evaluates OpenCypher Semantic Invariant Gates (`SIG-*`) with ratchet baselines |
-| Custom graph queries | `execute_custom_read_cypher` | Runs read-only OpenCypher queries directly against the 5-layer code ontology |
+| Enforce architectural invariants & detect anomalies | `check_semantic_gates` | Evaluates Semantic Invariant Gates (`SIG-*`), lists rules (`listOnly: true`), or scans dead code / god objects (`anomalies`) |
+| Ad-hoc or saved OpenCypher queries | `execute_custom_read_cypher` | Runs read-only Cypher (`query`), saved `.codeexplorer/queries/` templates (`savedQuery`), or lists saved queries (`listSaved: true`) |
 
 ## Post-Edit Verification
 
