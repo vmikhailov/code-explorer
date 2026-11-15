@@ -120,6 +120,13 @@ public class Layer1PhysicalParser
         var relativeDir = currentDir.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
         if (relativeDir == ".") relativeDir = string.Empty;
 
+        if (ctx.IncrementalRelevantDirectories != null &&
+            !string.IsNullOrEmpty(relativeDir) &&
+            !ctx.IncrementalRelevantDirectories.Contains(relativeDir))
+        {
+            return;
+        }
+
         if (currentDir != ctx.AbsoluteWorkspacePath && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir, inheritedParsers))
         {
             ctx.Layer1Log.SkippingExcludedDirectory(relativeDir);
@@ -249,7 +256,12 @@ public class Layer1PhysicalParser
 
         var fileName = fileInfo.Name;
         var isManifest = ctx.FileFilter.IsManifestFile(fileName);
-        var isSupportedSourceOrConfig = ctx.FileFilter.IsSupportedSourceOrConfigFile(fileName);
+        var isInIncrementalScope = ctx.IncrementalChangedFiles == null || ctx.IncrementalChangedFiles.Contains(relativeFile);
+        if (!isManifest && !isInIncrementalScope)
+        {
+            return;
+        }
+        var isSupportedSourceOrConfig = isInIncrementalScope && ctx.FileFilter.IsSupportedSourceOrConfigFile(fileName);
 
         if (!isSupportedSourceOrConfig && !isManifest)
         {
@@ -283,7 +295,7 @@ public class Layer1PhysicalParser
                 isSupportedSourceOrConfig,
                 ctx.FileFilter,
                 ctx.CancellationToken,
-                computeHash: isManifest || !ctx.Clear);
+                computeHash: ctx.IncrementalChangedFiles == null ? (isManifest || !ctx.Clear) : isInIncrementalScope);
             skipByContent = streamed.SkipByContent;
             contentHash = streamed.ContentHash;
             lineCount = streamed.LineCount;
@@ -292,6 +304,10 @@ public class Layer1PhysicalParser
             if (isManifest && contentHash != null && lastModifiedUtc.HasValue)
             {
                 ctx.DiscoveredManifestFiles[relativeFile] = (absoluteFilePath, contentHash, lastModifiedUtc.Value, sizeBytes);
+            }
+            if (skipByContent && lastModifiedUtc.HasValue)
+            {
+                ctx.DiscoveredContentSkippedFiles[relativeFile] = (absoluteFilePath, lastModifiedUtc.Value, sizeBytes);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

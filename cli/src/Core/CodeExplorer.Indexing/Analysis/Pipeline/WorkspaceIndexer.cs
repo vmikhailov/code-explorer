@@ -302,59 +302,74 @@ public class WorkspaceIndexer
             entries.Add((file.Path, hash, lastMod, sizeBytes, file.Path, snapshotJson));
         });
 
-        // Register all project manifests across the workspace
-        var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
-        // Register all project manifests discovered in Layer 1 without re-scanning disk
-        var fileByRelPath = files.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        var candidateManifests = ctx.DiscoveredManifestFiles.Count > 0
-            ? ctx.DiscoveredManifestFiles.Keys.Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)))
-            : ctx.FileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
-            .Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)));
+        if (ctx.IncrementalChangedFiles == null)
+        {
+            // Register all project manifests across the workspace
+            var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
+            // Register all project manifests discovered in Layer 1 without re-scanning disk
+            var fileByRelPath = files.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var candidateManifests = ctx.DiscoveredManifestFiles.Count > 0
+                ? ctx.DiscoveredManifestFiles.Keys.Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)))
+                : ctx.FileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
+                .Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)));
 
-        foreach (var relPath in candidateManifests)
+            foreach (var relPath in candidateManifests)
+            {
+                if (seen.ContainsKey(relPath)) continue;
+                seen.TryAdd(relPath, 0);
+
+                if (ctx.DiscoveredManifestFiles.TryGetValue(relPath, out var discManifest))
+                {
+                    _fileRegistry.UpdateEntry(relPath, discManifest.ContentHash, discManifest.LastModifiedUtc, relPath, sizeBytes: discManifest.SizeBytes);
+                    entries.Add((relPath, discManifest.ContentHash, discManifest.LastModifiedUtc, discManifest.SizeBytes, relPath, null));
+                    continue;
+                }
+                if (fileByRelPath.TryGetValue(relPath, out var existingFileNode) &&
+                    !string.IsNullOrEmpty(existingFileNode.ContentHash) &&
+                    existingFileNode.LastModifiedUtc.HasValue)
+                {
+                    var sz = existingFileNode.SizeBytes ?? -1L;
+                    _fileRegistry.UpdateEntry(relPath, existingFileNode.ContentHash, existingFileNode.LastModifiedUtc.Value, relPath, sizeBytes: sz);
+                    entries.Add((relPath, existingFileNode.ContentHash, existingFileNode.LastModifiedUtc.Value, sz, relPath, null));
+                    continue;
+                }
+                var manifestPath = Path.Combine(ctx.AbsoluteWorkspacePath, relPath);
+                var manifestInfo = new FileInfo(manifestPath);
+                if (!manifestInfo.Exists) continue;
+
+                var lastMod = manifestInfo.LastWriteTimeUtc;
+                var manifestSize = manifestInfo.Length;
+                var hash = await Incremental.HashUtility.ComputeSha256FromFileAsync(manifestPath, ctx.CancellationToken);
+                _fileRegistry.UpdateEntry(relPath, hash, lastMod, relPath, sizeBytes: manifestSize);
+                entries.Add((relPath, hash, lastMod, manifestSize, relPath, null));
+            }
+        }
+
+        foreach (var (relPath, skippedInfo) in ctx.DiscoveredContentSkippedFiles)
         {
             if (seen.ContainsKey(relPath)) continue;
             seen.TryAdd(relPath, 0);
-
-            if (ctx.DiscoveredManifestFiles.TryGetValue(relPath, out var discManifest))
-            {
-                _fileRegistry.UpdateEntry(relPath, discManifest.ContentHash, discManifest.LastModifiedUtc, relPath, sizeBytes: discManifest.SizeBytes);
-                entries.Add((relPath, discManifest.ContentHash, discManifest.LastModifiedUtc, discManifest.SizeBytes, relPath, null));
-                continue;
-            }
-            if (fileByRelPath.TryGetValue(relPath, out var existingFileNode) &&
-                !string.IsNullOrEmpty(existingFileNode.ContentHash) &&
-                existingFileNode.LastModifiedUtc.HasValue)
-            {
-                var sz = existingFileNode.SizeBytes ?? -1L;
-                _fileRegistry.UpdateEntry(relPath, existingFileNode.ContentHash, existingFileNode.LastModifiedUtc.Value, relPath, sizeBytes: sz);
-                entries.Add((relPath, existingFileNode.ContentHash, existingFileNode.LastModifiedUtc.Value, sz, relPath, null));
-                continue;
-            }
-            var manifestPath = Path.Combine(ctx.AbsoluteWorkspacePath, relPath);
-            var manifestInfo = new FileInfo(manifestPath);
-            if (!manifestInfo.Exists) continue;
-
-            var lastMod = manifestInfo.LastWriteTimeUtc;
-            var manifestSize = manifestInfo.Length;
-            var hash = await Incremental.HashUtility.ComputeSha256FromFileAsync(manifestPath, ctx.CancellationToken);
-            _fileRegistry.UpdateEntry(relPath, hash, lastMod, relPath, sizeBytes: manifestSize);
-            entries.Add((relPath, hash, lastMod, manifestSize, relPath, null));
+            const string skippedHash = "__SKIPPED_CONTENT__";
+            _fileRegistry.UpdateEntry(relPath, skippedHash, skippedInfo.LastModifiedUtc, relPath, sizeBytes: skippedInfo.SizeBytes);
+            entries.Add((relPath, skippedHash, skippedInfo.LastModifiedUtc, skippedInfo.SizeBytes, relPath, null));
         }
 
         ctx.PipelineLog.PersistingFileRegistry(entries.Count);
         await _dbClient.SaveFileRegistryEntriesAsync(entries, ctx.CancellationToken);
 
-        // Prune stale entries that were deleted or are now ignored/excluded
-        var staleKeys = _fileRegistry.Entries.Select(e => e.Key).Where(k => !seen.ContainsKey(k)).ToList();
-        if (staleKeys.Count > 0)
+        // Prune stale entries that were deleted or are now ignored/excluded (only on full workspace scans)
+        if (!ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null)
         {
-            ctx.PipelineLog.PruningFileRegistry(staleKeys.Count);
-            foreach (var k in staleKeys)
+            var staleKeys = _fileRegistry.Entries.Select(e => e.Key).Where(k => !seen.ContainsKey(k)).ToList();
+            if (staleKeys.Count > 0)
             {
-                _fileRegistry.RemoveEntry(k);
+                ctx.PipelineLog.PruningFileRegistry(staleKeys.Count);
+                foreach (var k in staleKeys)
+                {
+                    _fileRegistry.RemoveEntry(k);
+                }
+                await _dbClient.DeleteFileRegistryEntriesAsync(staleKeys, ctx.CancellationToken);
             }
-            await _dbClient.DeleteFileRegistryEntriesAsync(staleKeys, ctx.CancellationToken);
         }
     }
 
@@ -467,13 +482,31 @@ public class WorkspaceIndexer
         var filesToUpdateRegistry = new List<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)>();
         var structuralReasons = new List<string>();
         var modifiedWithStructuralChanges = new List<string>();
+        var effectiveAdded = new List<string>();
+        const string skippedHash = "__SKIPPED_CONTENT__";
 
-        if (changeset.Added.Count > 0)
+        foreach (var relPath in changeset.Added)
         {
-            var addedDesc = changeset.Added.Count <= 3
-                ? string.Join(", ", changeset.Added)
-                : $"{string.Join(", ", changeset.Added.Take(3))} (+{changeset.Added.Count - 3} more)";
-            var addedReason = $"New file(s) added ({changeset.Added.Count}): [{addedDesc}]";
+            var fileInfo = new FileInfo(Path.Combine(absoluteWorkspacePath, relPath));
+            if (!fileInfo.Exists) continue;
+            var normalizedFullPath = fileInfo.FullName.NormalizeSlashes();
+            try
+            {
+                var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(normalizedFullPath, relPath, fileInfo.Name, fileInfo.Length, false, true, filter, cancellationToken, computeHash: false);
+                if (streamed.SkipByContent)
+                {
+                    _fileRegistry.UpdateEntry(relPath, skippedHash, fileInfo.LastWriteTimeUtc, relPath, sizeBytes: fileInfo.Length);
+                    filesToUpdateRegistry.Add((relPath, skippedHash, fileInfo.LastWriteTimeUtc, fileInfo.Length, relPath, null));
+                }
+                else effectiveAdded.Add(relPath);
+            }
+            finally { PhysicalFileStore.EvictFileText(normalizedFullPath); }
+        }
+
+        if (effectiveAdded.Count > 0)
+        {
+            var addedDesc = effectiveAdded.Count <= 3 ? string.Join(", ", effectiveAdded) : $"{string.Join(", ", effectiveAdded.Take(3))} (+{effectiveAdded.Count - 3} more)";
+            var addedReason = $"New file(s) added ({effectiveAdded.Count}): [{addedDesc}]";
             _logger.LogInformation("[Incremental:Decision] Structural change detected: {Reason}", addedReason);
             structuralReasons.Add(addedReason);
         }
@@ -490,15 +523,13 @@ public class WorkspaceIndexer
 
             try
             {
-                var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
-                    normalizedFullPath,
-                    relPath,
-                    fileInfo.Name,
-                    sizeBytes,
-                    isManifest: false,
-                    isSupportedSourceOrConfig: true,
-                    filter,
-                    cancellationToken);
+                var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(normalizedFullPath, relPath, fileInfo.Name, sizeBytes, isManifest: false, isSupportedSourceOrConfig: true, filter, cancellationToken);
+                if (streamed.SkipByContent)
+                {
+                    _fileRegistry.UpdateEntry(relPath, skippedHash, lastMod, relPath, sizeBytes: sizeBytes);
+                    filesToUpdateRegistry.Add((relPath, skippedHash, lastMod, sizeBytes, relPath, null));
+                    continue;
+                }
 
                 var newHash = streamed.ContentHash ?? await Incremental.HashUtility.ComputeSha256FromFileAsync(fullPath, cancellationToken);
 
@@ -608,13 +639,13 @@ public class WorkspaceIndexer
 
         if (structuralReasons.Count > 0)
         {
-            if (changeset.Modified.Count > 0)
+            if (modifiedWithStructuralChanges.Count > 0)
             {
                 _logger.LogInformation(
                     "[Incremental] Removing stale graph nodes for {Count} updated file(s)...",
-                    changeset.Modified.Count);
+                    modifiedWithStructuralChanges.Count);
 
-                foreach (var mod in changeset.Modified)
+                foreach (var mod in modifiedWithStructuralChanges)
                 {
                     await _dbClient.ClearWorkspaceAsync(mod);
                 }
@@ -627,7 +658,42 @@ public class WorkspaceIndexer
                 "[Incremental:Decision] Structural triggers:\n  * {Reasons}",
                 string.Join("\n  * ", structuralReasons));
 
-            await IndexAsync(targetPath, workspaceRoot, clear: false, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
+            var structuralFiles = new HashSet<string>(
+                effectiveAdded.Concat(modifiedWithStructuralChanges).Select(p => p.NormalizeSlashes()),
+                StringComparer.OrdinalIgnoreCase);
+
+            var relevantDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { string.Empty, "." };
+            void AddAncestorDirs(string relFilePath)
+            {
+                var dir = Path.GetDirectoryName(relFilePath)?.NormalizeSlashes();
+                while (!string.IsNullOrEmpty(dir) && dir != ".")
+                {
+                    if (!relevantDirs.Add(dir)) break;
+                    dir = Path.GetDirectoryName(dir)?.NormalizeSlashes();
+                }
+            }
+
+            foreach (var f in structuralFiles) AddAncestorDirs(f);
+
+            var hasRootTarget = string.IsNullOrWhiteSpace(workspaceRoot) ||
+                                string.Equals(
+                                    Path.GetFullPath(targetPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                                    Path.GetFullPath(workspaceRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                                    StringComparison.OrdinalIgnoreCase);
+            var effectiveWorkspace = string.IsNullOrWhiteSpace(workspaceRoot) ? targetPath : workspaceRoot;
+            var effectiveScanPath = hasRootTarget ? null : targetPath;
+
+            var incCtx = CreateContext(effectiveWorkspace, effectiveScanPath, clear: false, enableIntentAnalysis, cancellationToken, progress);
+            incCtx.IncrementalChangedFiles = structuralFiles;
+            incCtx.IncrementalRelevantDirectories = relevantDirs;
+
+            await RunParsingPipelineAsync(incCtx);
+            incCtx.PipelineLog.IndexingCompleted(incCtx.TotalNodesCount, incCtx.TotalRelsCount);
+        }
+        else if (changeset.Deleted.Count == 0 && filesToUpdateRegistry.Count == 0)
+        {
+            _logger.LogInformation("[Incremental] Workspace is up to date (0 effective changes detected).");
+            return false;
         }
         else
         {
@@ -782,7 +848,7 @@ public class WorkspaceIndexer
             await _dbClient.ClearWorkspaceAsync(clearTarget);
         }
 
-        if (!ctx.IsSubtreeScan && ctx.PersistToGraphDb)
+        if (!ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null && ctx.PersistToGraphDb)
         {
             await _dbClient.BeginBulkLoadAsync(ctx.CancellationToken);
         }

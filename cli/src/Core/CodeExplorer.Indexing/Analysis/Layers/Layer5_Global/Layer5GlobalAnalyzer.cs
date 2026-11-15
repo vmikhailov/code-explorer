@@ -69,16 +69,16 @@ public partial class Layer5AnalysisParser
             ctx.Layer5Log.RunningGlobalPostIndexAnalysis();
             await postAnalyzer.RunAsync(ctx.WorkspaceId, ctx);
         }
-        else
+        else if (ctx.IncrementalChangedFiles == null)
         {
             await ctx.WaitForQueueDrainedAsync();
             ctx.ReportProgress(84, "Layer 5: Global", "Running in-memory post-indexing analysis...");
             ctx.Layer5Log.RunningInMemoryPostIndexAnalysis();
             await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
         }
-
+        else await ctx.WaitForQueueDrainedAsync();
         // 6. Materialize Layer 5 Logical Structure (LogicalStructure, Domain, BoundedContext)
-        await MaterializeLogicalStructureAsync(l4Result, ctx);
+        if (ctx.IncrementalChangedFiles == null) await MaterializeLogicalStructureAsync(l4Result, ctx);
 
         ctx.Layer5Log.ScanCompleted();
         return new Layer5Result(l4Result, lateBoundRels);
@@ -271,7 +271,7 @@ public partial class Layer5AnalysisParser
         var localEndpointIds = new HashSet<string>(endpoints.Select(e => e.Id));
         var localEntryPointIds = new HashSet<string>(entryPoints.Select(e => e.Id));
 
-        if (ctx.IsSubtreeScan)
+        if (ctx.IsSubtreeScan || ctx.IncrementalChangedFiles != null)
         {
             var needEndpoints = externalServices.Count > 0;
             var needExternalServices = endpoints.Count > 0 || entryPoints.Count > 0;

@@ -123,11 +123,19 @@ public static class OntologyUploader
         {
             visitedNodeIds.Add(node.Id);
 
-            // 1. Convert and collect the current node
-            var dbNode = Node.FromNode(node);
-            collectedNodes.Add(dbNode);
-            ctx.IncrementNodeKind(node.Kind.ToCypherLabel());
-            ctx.AddNodesCount(1);
+            // 1. Convert and collect the current node (preserve existing project/workload container properties on incremental file updates)
+            var skipContainerOverwrite = ctx.IncrementalChangedFiles != null &&
+                node.Kind is NodeKind.Workspace or NodeKind.FilesStructure or NodeKind.ProjectsStructure or
+                             NodeKind.Project or NodeKind.Package or NodeKind.SyntaxStructure or
+                             NodeKind.ProjectSyntax or NodeKind.SemanticStructure or
+                             NodeKind.App or NodeKind.Service or NodeKind.Library or NodeKind.CliTool or NodeKind.TestSuite;
+            if (!skipContainerOverwrite)
+            {
+                var dbNode = Node.FromNode(node);
+                collectedNodes.Add(dbNode);
+                ctx.IncrementNodeKind(node.Kind.ToCypherLabel());
+                ctx.AddNodesCount(1);
+            }
 
         // 2. Map global symbols for reference resolution
         if (node.Kind is NodeKind.Type or

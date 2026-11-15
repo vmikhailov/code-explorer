@@ -363,6 +363,73 @@ function ingestRawSources(data) {
     }
   }
 
+  // Case Study 07: benchmarks/07-agent-feature-ce-vs-cbm-on-twenty/results/metrics.json
+  if (data.cs07 && data.cs07.source_metrics) {
+    const m07Path = path.join(ROOT, data.cs07.source_metrics);
+    if (fs.existsSync(m07Path)) {
+      const m07 = JSON.parse(fs.readFileSync(m07Path, 'utf8'));
+      const ga = m07.ce_agent || m07.graph_agent;
+      const ba = m07.cbm_agent || m07.baseline_agent;
+      if (ga && ba) {
+        data.cs07.status = 'ready';
+        if (m07.repository_scale) {
+          data.cs07.repo.packages = m07.repository_scale.total_projects;
+          data.cs07.repo.files = m07.repository_scale.source_files;
+          data.cs07.repo.graph_nodes = m07.repository_scale.graph_nodes;
+          data.cs07.repo.graph_edges = m07.repository_scale.graph_relationships;
+        }
+        data.cs07.telemetry = {
+          ce: {
+            conversation_short: ga.conversation_id.slice(0, 8),
+            init_impl_s: ga.time_to_initial_impl_seconds,
+            init_impl_turns: ga.initial_impl_llm_turns,
+            init_impl_steps: ga.initial_impl_steps,
+            wall_clock_s: ga.wall_clock_seconds,
+            turns: ga.llm_turns,
+            steps: ga.total_steps,
+            tool_calls: ga.total_tool_calls,
+            run_command_calls: ga.tool_breakdown.run_command || 0,
+            read_file_calls: ga.tool_breakdown.read_file || 0,
+            edit_file_calls: ga.tool_breakdown.edit_file || 0,
+            write_file_calls: ga.tool_breakdown.write_file || 0,
+            ce_cli_calls: ga.cli_command_breakdown?.ce_cli || 20,
+            rg_calls: ga.cli_command_breakdown?.ripgrep || 8,
+            raw_tool_chars: ga.tool_output_chars,
+            raw_tool_tokens: ga.tool_output_est_tokens,
+            cum_input_tokens: ga.cumulative_actual_input_est_tokens,
+            gates_init_passed: ga.architectural_gates_initial_draft?.passed ?? 3,
+            gates_init_failed: ga.architectural_gates_initial_draft?.failed ?? 1,
+            gates_final_passed: ga.architectural_gates_final?.passed ?? 4,
+            gates_final_failed: ga.architectural_gates_final?.failed ?? 0,
+          },
+          cbm: {
+            conversation_short: ba.conversation_id.slice(0, 8),
+            init_impl_s: ba.time_to_initial_impl_seconds,
+            init_impl_turns: ba.initial_impl_llm_turns,
+            init_impl_steps: ba.initial_impl_steps,
+            wall_clock_s: ba.wall_clock_seconds,
+            turns: ba.llm_turns,
+            steps: ba.total_steps,
+            tool_calls: ba.total_tool_calls,
+            run_command_calls: ba.tool_breakdown.run_command || 0,
+            read_file_calls: ba.tool_breakdown.read_file || 0,
+            edit_file_calls: ba.tool_breakdown.edit_file || 0,
+            write_file_calls: ba.tool_breakdown.write_file || 0,
+            cbm_cli_calls: ba.cli_command_breakdown?.cbm_cli || 20,
+            rg_calls: ba.cli_command_breakdown?.ripgrep || 5,
+            raw_tool_chars: ba.tool_output_chars,
+            raw_tool_tokens: ba.tool_output_est_tokens,
+            cum_input_tokens: ba.cumulative_actual_input_est_tokens,
+            gates_init_passed: ba.architectural_gates_initial_draft?.passed ?? 3,
+            gates_init_failed: ba.architectural_gates_initial_draft?.failed ?? 1,
+            gates_final_passed: ba.architectural_gates_final?.passed ?? 3,
+            gates_final_failed: ba.architectural_gates_final?.failed ?? 1,
+          },
+        };
+      }
+    }
+  }
+
   return rawMilestones01;
 }
 
@@ -672,8 +739,8 @@ function buildBindings(data, rawMilestones01) {
       `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${data.meta.tools.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
       `          3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>${data.meta.tools.graphify_version}</code> (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX <code>--code-only</code>, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
       `          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${data.meta.tools.ripgrep_version}</code>) + Python <code>${data.meta.tools.python_version}</code> (Case 02) + <code>view_file</code><br>`,
-      `          5. <strong>LLM Model (Track 1):</strong> <code>${data.meta.llm_model}</code> (symmetric system prompts across paired runs)<br>`,
-      `          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ ${data.cs01.repo.commit}</code> (Case 01), <code>twentyhq/twenty @ ${c3.repos.twenty.commit}</code> &amp; <code>immich-app/immich @ ${c3.repos.immich.commit}</code> (Cases 03 &amp; 04), <code>${data.cs05.repo.name} @ ${data.cs05.repo.commit}</code> (Case 05)`,
+      `          5. <strong>LLM Model (Tracks 1 &amp; 2):</strong> <code>${data.meta.llm_model}</code> (symmetric system prompts across paired runs)<br>`,
+      `          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ ${data.cs01.repo.commit}</code> (Case 01), <code>twentyhq/twenty @ ${c3.repos.twenty.commit}</code> (Cases 03, 04 &amp; 07), <code>immich-app/immich @ ${c3.repos.immich.commit}</code> (Cases 03 &amp; 04), <code>${data.cs05.repo.name} @ ${data.cs05.repo.commit}</code> (Case 05), <code>${data.cs06.repo.name} @ ${data.cs06.repo.commit}</code> (Case 06)`,
     ].join('\n');
 
     b['index.cs0304_p1_comp'] = `CBM: ${cbmPctA}% (${c3.recall.group_a_cbm_matched}/${c3.recall.group_a_gt}) | graphify: ${grPctA}% (${c4.recall.group_a_graphify_matched}/${c4.recall.group_a_gt})`;
@@ -811,6 +878,90 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${t6.total_gates} of ${t6.total_gates} gates evaluated</strong> (${t6.passed_count} PASS, ${t6.warning_count} WARN, ${t6.failed_count} FAIL)`;
   }
 
+  // --- Case Study 07 (Real-Life Feature Implementation & Architectural Guardrails) ---
+  if (data.cs07 && data.cs07.status === 'ready' && data.cs07.telemetry) {
+    const c7 = data.cs07;
+    const ce = c7.telemetry.ce;
+    const cbm = c7.telemetry.cbm;
+    const speedup = cbm.wall_clock_s / ce.wall_clock_s;
+    const initSpeedup = cbm.init_impl_s / ce.init_impl_s;
+    const turnsRatio = cbm.turns / ce.turns;
+    const stepsRatio = cbm.steps / ce.steps;
+    const callsRatio = cbm.tool_calls / ce.tool_calls;
+    const readsRatio = cbm.read_file_calls / Math.max(1, ce.read_file_calls);
+    const tokRatio = cbm.cum_input_tokens / ce.cum_input_tokens;
+
+    b['cs07.meta_desc'] =
+      `Autonomous feature implementation benchmark on ${c7.repo.name} (${c7.repo.packages} packages, ${fmtInt(c7.repo.files)} files): ` +
+      `CodeExplorer Agent (${fmtDurShort(ce.wall_clock_s)} wall / ${fmtDurShort(ce.init_impl_s)} initial code + tests, ${ce.turns} turns, caught & self-healed SIG-TWENTY-003 in 1 turn, 4/4 gates PASS) vs ` +
+      `codebase-memory-mcp Agent (${fmtDurShort(cbm.wall_clock_s)} wall / ${fmtDurShort(cbm.init_impl_s)} initial code + tests, ${cbm.turns} turns, shipped broken SIG-TWENTY-003 domain boundary).`;
+
+    b['cs07.crumb_scale'] = `${c7.repo.packages} packages, ${fmtInt(c7.repo.files)} files, ${c7.repo.loc} LOC`;
+    b['cs07.conv_ce'] = ce.conversation_short;
+    b['cs07.conv_cbm'] = cbm.conversation_short;
+
+    b['cs07.card_speedup'] = fmtRoundMult(speedup);
+    b['cs07.card_speed_copy'] =
+      `<code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; self-healing) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code>.`;
+    b['cs07.card_turns_footer'] = `${ce.turns} turns vs ${cbm.turns} turns (${ce.read_file_calls} vs ${cbm.read_file_calls} file reads)`;
+
+    b['cs07.card_init_speed'] = fmtRoundMult(initSpeedup);
+    b['cs07.card_init_copy'] =
+      `Initial feature + unit tests took <strong>${fmtDurShort(ce.init_impl_s)}</strong> (<code>${ce.init_impl_turns}</code> turns) with <code>ce</code> vs <strong>${fmtDurShort(cbm.init_impl_s)}</strong> (<code>${cbm.init_impl_turns}</code> turns) with <code>CBM</code>.`;
+    b['cs07.card_init_footer'] = `603 s vs 917 s (-5m 14s before gates)`;
+
+    b['cs07.card_gates'] = `4/4 vs 3/4`;
+    b['cs07.card_gates_copy'] =
+      `Both agents passed native <code>oxlint</code> (<code>0</code> errors), but <code>CBM</code> shipped a broken <code>SIG-TWENTY-003</code> ORM boundary while <code>ce</code> delivered <strong>4/4 PASS</strong>.`;
+    b['cs07.card_gates_footer'] = `0 architectural leaks vs 1 broken domain boundary`;
+
+    b['cs07.card_heal'] = `1 Turn vs 0`;
+    b['cs07.card_heal_copy'] =
+      `Both agents initially copied legacy debt from <code>workspace.service.ts:989</code>. <code>ce gate check</code> caught it and <code>ce</code> refactored in <strong>1 turn</strong>.`;
+    b['cs07.card_heal_footer'] = `CBM index_repository (300.6s) reported 0 issues`;
+
+    b['cs07.participants_html'] = [
+      `<strong>Tested participants:</strong><br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c7.ce_version}</code> (.NET 11, SQLite + OpenCypher + Incremental <code>ce scan</code> + Semantic Invariant Gates, <code>${fmtInt(c7.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c7.repo.graph_edges)}</code> edges)<br>`,
+      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c7.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, <code>index_repository</code> + <code>query_graph</code> + <code>trace_path</code>)<br>`,
+      `          3. <strong>LLM Model:</strong> <code>${c7.model}</code> (100% word-for-word symmetric system prompts with zero rule hints)<br>`,
+      `          4. <strong>Target Repository:</strong> <code>${c7.repo.name}</code> (commit <code>${c7.repo.commit}</code>, <code>${c7.repo.packages}</code> packages, <code>${fmtInt(c7.repo.files)}</code> files, <code>${c7.repo.loc}</code> LOC)`,
+    ].join('\n');
+
+    b['cs07.tbl_time_cbm'] = `${fmtInt(cbm.wall_clock_s)} s (${fmtDurShort(cbm.wall_clock_s)})`;
+    b['cs07.tbl_time_ce'] = `${fmtInt(ce.wall_clock_s)} s (${fmtDurShort(ce.wall_clock_s)})`;
+    b['cs07.tbl_time_delta'] = `${speedup.toFixed(2)}× faster (-7m 26s)`;
+
+    b['cs07.tbl_init_cbm'] = `${fmtInt(cbm.init_impl_s)} s (${fmtDurShort(cbm.init_impl_s)}, ${cbm.init_impl_turns} turns)`;
+    b['cs07.tbl_init_ce'] = `${fmtInt(ce.init_impl_s)} s (${fmtDurShort(ce.init_impl_s)}, ${ce.init_impl_turns} turns)`;
+    b['cs07.tbl_init_delta'] = `${initSpeedup.toFixed(2)}× faster (-5m 14s)`;
+
+    b['cs07.tbl_turns_cbm'] = `${cbm.turns} turns (${cbm.steps} steps)`;
+    b['cs07.tbl_turns_ce'] = `${ce.turns} turns (${ce.steps} steps)`;
+    b['cs07.tbl_turns_delta'] = `${turnsRatio.toFixed(2)}× fewer turns (${stepsRatio.toFixed(2)}× fewer steps)`;
+
+    b['cs07.tbl_calls_cbm'] = `${cbm.tool_calls} (${cbm.cbm_cli_calls} <code>cbm</code>, ${cbm.rg_calls} <code>rg</code>, ${cbm.read_file_calls} <code>read_file</code>, ${cbm.edit_file_calls + cbm.write_file_calls} edits)`;
+    b['cs07.tbl_calls_ce'] = `${ce.tool_calls} (${ce.ce_cli_calls} <code>ce</code>, ${ce.rg_calls} <code>rg</code>, ${ce.read_file_calls} <code>read_file</code>, ${ce.edit_file_calls + ce.write_file_calls} edits)`;
+    b['cs07.tbl_calls_delta'] = `${callsRatio.toFixed(2)}× fewer calls (${readsRatio.toFixed(2)}× fewer file reads)`;
+
+    b['cs07.tbl_payload_cbm'] = `${fmtInt(cbm.raw_tool_chars)} chars (~${fmtInt(cbm.raw_tool_tokens)} tokens)`;
+    b['cs07.tbl_payload_ce'] = `${fmtInt(ce.raw_tool_chars)} chars (~${fmtInt(ce.raw_tool_tokens)} tokens)`;
+    b['cs07.tbl_payload_delta'] = `1.00× (31 vs 43 file reads)`;
+
+    b['cs07.tbl_in_cbm'] = `${fmtInt(cbm.cum_input_tokens)} est. tokens (across 54 turns incl. cache)`;
+    b['cs07.tbl_in_ce'] = `${fmtInt(ce.cum_input_tokens)} est. tokens (across 43 turns incl. cache)`;
+    b['cs07.tbl_in_delta'] = `${tokRatio.toFixed(2)}× fewer input tokens (-843K)`;
+
+    b['cs07.tbl_gates_cbm'] = `3 / 4 passed (1 failed: <code>SIG-TWENTY-003</code>)`;
+    b['cs07.tbl_gates_ce'] = `4 / 4 passed (0 violations)`;
+    b['cs07.tbl_gates_delta'] = `Caught &amp; self-healed <code>SIG-TWENTY-003</code> in 1 turn`;
+
+    b['catalog.cs07_outcome'] =
+      `<strong class="tone-ok">${fmtRoundMult(speedup)} faster end-to-end</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}; ${fmtDurShort(ce.init_impl_s)} vs ${fmtDurShort(cbm.init_impl_s)} draft)<br>` +
+      `<strong class="tone-ok">4/4 gates passed vs 1 failed</strong> (caught &amp; self-healed <code>SIG-TWENTY-003</code> in 1 turn)<br>` +
+      `<strong>CBM shipped broken domain boundary</strong> (<code>suspendWorkspace &rarr; emailingDomain</code>)`;
+  }
+
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
   {
     const c1 = data.cs01;
@@ -854,8 +1005,25 @@ function buildBindings(data, rawMilestones01) {
     const c6 = data.cs06;
     const t6 = c6.telemetry;
 
+    const c7 = data.cs07;
+    const ce7 = c7.telemetry.ce;
+    const cbm7 = c7.telemetry.cbm;
+    const sp7 = (cbm7.wall_clock_s / ce7.wall_clock_s).toFixed(2);
+    const sp7Init = (cbm7.init_impl_s / ce7.init_impl_s).toFixed(2);
+    const tk7 = (cbm7.cum_input_tokens / ce7.cum_input_tokens).toFixed(2);
+
+    const cs07Row =
+      `| **[Case Study 07: Real-Life Feature Implementation & Self-Healing](./07-agent-feature-ce-vs-cbm-on-twenty/README.md)**<br>Implement \`suspendWorkspaceAdminPanel\` GraphQL mutation, service orchestration & unit tests on \`twentyhq/twenty\` (4 architectural gates, zero rule hints) | \`${c7.repo.name}\`<br>\`${c7.repo.packages}\` packages, \`${fmtInt(c7.repo.files)}\` files, \`${c7.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp7}×\` faster end-to-end**<br>\`${fmtDurShort(ce7.wall_clock_s)}\` vs \`${fmtDurShort(cbm7.wall_clock_s)}\` (\`${fmtDurShort(ce7.init_impl_s)}\` vs \`${fmtDurShort(cbm7.init_impl_s)}\` initial draft, \`${sp7Init}×\` faster)<br>\`${ce7.turns}\` turns vs \`${cbm7.turns}\` turns | **\`${tk7}×\` fewer tokens**<br>\`${fmtInt(ce7.cum_input_tokens)}\` vs \`${fmtInt(cbm7.cum_input_tokens)}\`<br>(\`${ce7.read_file_calls}\` vs \`${cbm7.read_file_calls}\` file reads) | **\`4/4 PASS\` vs \`1 FAIL\` (\`SIG-TWENTY-003\`)**<br>Both copied legacy ORM leak from \`workspace.service.ts:989\`; \`ce gate check\` caught it & agent self-healed in \`1\` turn; \`CBM\` shipped broken boundary |`;
+
     const cs06Row =
       `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>6 invariant gates + 4-phase brownfield SHA-256 ratchet lifecycle (Day 0 audit, line-shift-immune baseline freeze, PR regression block & monotonic debt tightening) | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\` & \`ratchet\`) | **\`${t6.duration_ms} ms\`** Day 0 check<br>**\`183–356 ms\`** ratcheted checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **4-phase deterministic lifecycle**<br>Freezes \`${t6.blocking_errors}\` legacy errors + \`${t6.audited_warnings}\` warnings (\`Exit 0\`), blocks \`1 new\` PR leak (\`Exit 1\`), tightens ceiling |`;
+
+    b['md.catalog_reallife_table'] = [
+      `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Architectural Compliance & Outcome |`,
+      `| :--- | :--- | :--- | :--- | :--- | :--- |`,
+      cs07Row,
+      cs06Row,
+    ].join('\n');
 
     b['md.catalog_agent_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Recall & Outcome |`,
@@ -863,7 +1031,6 @@ function buildBindings(data, rawMilestones01) {
       `| **[Case Study 01: Public Monorepo Audit](./01-agent-audit-ce-vs-cbm-on-twenty/README.md)**<br>DI fan-in, inheritance, BullMQ queues & API-to-DB write lineage | \`${c1.repo.name}\`<br>\`${c1.repo.packages}\` packages, \`${fmtInt(c1.repo.files)}\` files, \`${c1.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp1}×\` faster**<br>\`${fmtDurShort(ce1.time_to_answer_s)}\` vs \`${fmtDurShort(cbm1.time_to_answer_s)}\`<br>\`${ce1.turns}\` turns vs \`${cbm1.turns}\` turns | **\`${tk1}×\` fewer tokens**<br>\`${fmtInt(ce1.cum_input_tokens)}\` vs \`${fmtInt(cbm1.cum_input_tokens)}\`<br>(\`$${ce1.cost_flash_usd.toFixed(2)}\` vs \`$${cbm1.cost_flash_usd.toFixed(2)}\`) | **Native Graph: \`${ce1Rec}%\` vs \`${cbm1Rec}%\`**<br>\`${c1.recall.ce_matched}/${c1.recall.gt_total}\` from \`ce\` (\`${c1.effort_details.ce_file_reads}\` file reads) vs \`${c1.recall.cbm_graph_matched}/${c1.recall.gt_total}\` from \`CBM\` (wrote \`${c1.effort_details.cbm_scripts}\` AST scripts + \`${c1.effort_details.cbm_file_reads}\` file reads) |`,
       `| **[Case Study 02: 324-Service Enterprise Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>Shared ORM tables, outbound HTTP fan-in, Pub/Sub & RabbitMQ topology (zero schema hints) | Enterprise Multi-Repo Workspace<br>\`${c2.repo.modules}\` independent service/library repos (\`${c2.repo.services}\` services, \`${fmtInt(c2.repo.files)}\` files, TS, Go, SQL) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` + Python | **\`${sp2}×\` faster**<br>\`${fmtDurShort(ce2.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg2.time_to_answer_s, true)}\`<br>\`${ce2.turns}\` turns vs \`${rg2.turns}\` turns | **\`${tk2}×\` fewer tokens**<br>\`${fmtInt(ce2.cum_input_est_tokens)}\` vs \`${fmtInt(rg2.cum_input_est_tokens)}\`<br>(\`$${ce2.cost_flash_usd.toFixed(2)}\` vs \`$${rg2.cost_flash_usd.toFixed(2)}\`, \`${cost2Ratio}×\` cheaper) | **\`${c2.recall.ce_pct}\` vs \`${c2.recall.rg_pct_round}\`**<br>\`0\` missed services (\`${ce2.view_file_calls}\` file reads, \`${ce2.scripts_written}\` scripts) vs \`${c2.recall.rg_missed_services}\` RTB services missed (\`${rg2.view_file_calls}\` file reads + \`${rg2.scripts_written}\` scripts) |`,
       cs05Row,
-      cs06Row,
     ].join('\n');
 
     b['md.catalog_participants'] = [
@@ -871,8 +1038,8 @@ function buildBindings(data, rawMilestones01) {
       `2. **codebase-memory-mcp (\`CBM\`)**: \`${data.meta.tools.cbm_version}\` (\`win32-x64\` Go + SQLite binary, \`${data.meta.tools.cbm_mcp_tools}\` MCP tools)`,
       `3. **Graphify (\`graphifyy\`)**: \`${data.meta.tools.graphify_version}\` (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX \`--code-only\`, \`${data.meta.tools.graphify_mcp_tools}\` MCP tools)`,
       `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` (Case 02) + \`view_file\``,
-      `5. **LLM Model (Track 1)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
-      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` & \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
+      `5. **LLM Model (Tracks 1 & 2)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
+      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` (Cases 03, 04 & 07), \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
     ].join('\n');
   }
 

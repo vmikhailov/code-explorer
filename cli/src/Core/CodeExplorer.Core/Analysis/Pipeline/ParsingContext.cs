@@ -113,6 +113,8 @@ public class ParsingContext
     public bool EnableIntentAnalysis { get; set; }
     public bool PersistToGraphDb { get; init; } = true;
     public bool LightweightAstScanMode { get; set; }
+    public IReadOnlySet<string>? IncrementalChangedFiles { get; set; }
+    public IReadOnlySet<string>? IncrementalRelevantDirectories { get; set; }
     public Func<string, string, bool>? CustomFileExclusionPredicate { get; set; }
     public Func<IReadOnlyList<FileNode>, ProjectNode, Layer2Result, IReadOnlyList<FileNode>>? CustomProjectFileFilter { get; set; }
     public CancellationToken CancellationToken { get; }
@@ -129,6 +131,10 @@ public class ParsingContext
 
     /// <summary>Manifest files discovered and hashed during the Layer 1 physical scan.</summary>
     public System.Collections.Concurrent.ConcurrentDictionary<string, (string FullPath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes)> DiscoveredManifestFiles { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Source/config files skipped by content heuristics (e.g., minified/long-line generated files) during Layer 1.</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, (string FullPath, DateTime LastModifiedUtc, long SizeBytes)> DiscoveredContentSkippedFiles { get; } =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>TypeScript path aliases (compilerOptions.paths) extracted in Layer 2.</summary>

@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.87.2] - 2026-11-15
+
+### Fixed & Improved
+- **Incremental Scan Cross-Layer Edge Preservation & TypeScript Constructor DI Resolution (`CodeExplorer.Indexing`, `CodeExplorer.Storage`)**:
+  - Preserved unmodified files' `Type`, `Table`, `Query`, and cross-module Dependency Injection relationships during incremental `ce scan` (`WorkspaceIndexer`, `Layer1PhysicalAnalyzer`, `Layer3SyntacticAnalyzer`, `Layer5GlobalAnalyzer`, `OntologyUploader`, and `SqliteGraphClient.PostIndex`) so dirty-file rescans update modified TypeORM/NestJS services in seconds without resetting unchanged modules' database lineage or DI call edges.
+- **Benchmarks Suite — Case Study 07 (`twentyhq/twenty`: Real-Life Feature Implementation & Architectural Self-Healing)**:
+  - Published **Case Study 07** (`benchmarks/07-agent-feature-ce-vs-cbm-on-twenty/` and `code-explorer.app/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty`) evaluating end-to-end feature coding and architectural guardrails (`CodeExplorer` vs `codebase-memory-mcp`) under 100% symmetric, zero-hint prompts.
+
+---
+
 ## [1.87.1] - 2026-11-14
 
 ### Improved

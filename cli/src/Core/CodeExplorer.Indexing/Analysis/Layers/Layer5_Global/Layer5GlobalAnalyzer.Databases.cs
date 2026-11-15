@@ -44,7 +44,7 @@ public partial class Layer5AnalysisParser
 
     private async Task PreloadTargetedSymbolsAsync(ParsingContext ctx, Dictionary<string, List<string>> interfaceToImplementors)
     {
-        if (!ctx.IsSubtreeScan) return;
+        if (!ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null) return; await ctx.WaitForQueueDrainedAsync();
 
         var neededNames = new HashSet<string>(StringComparer.Ordinal);
         var candidateTypeNames = new HashSet<string>(StringComparer.Ordinal);

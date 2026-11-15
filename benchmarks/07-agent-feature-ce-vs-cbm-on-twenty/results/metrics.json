@@ -1,0 +1,85 @@
+{
+  "benchmark_id": "07-agent-feature-ce-vs-cbm-on-twenty",
+  "repository": "twentyhq/twenty",
+  "commit": "12e8fae4",
+  "model": "Gemini 3.8 Flash",
+  "repository_scale": {
+    "total_projects": 46,
+    "source_files": 24527,
+    "graph_nodes": 464794,
+    "graph_relationships": 1113891
+  },
+  "ce_agent": {
+    "conversation_id": "385986ab-7229-4eee-8e6d-e68dcba45164",
+    "time_to_initial_impl_seconds": 603.0,
+    "initial_impl_steps": 98,
+    "initial_impl_llm_turns": 36,
+    "wall_clock_seconds": 779.0,
+    "total_steps": 118,
+    "llm_turns": 43,
+    "context_compactions": 0,
+    "total_tool_calls": 71,
+    "tool_breakdown": {
+      "run_command": 27,
+      "read_file": 31,
+      "edit_file": 11,
+      "write_file": 1,
+      "send_message": 1
+    },
+    "cli_command_breakdown": {
+      "ce_cli": 20,
+      "ripgrep": 8
+    },
+    "architectural_gates_initial_draft": {
+      "passed": 3,
+      "failed": 1,
+      "failed_gates": ["SIG-TWENTY-003"]
+    },
+    "architectural_gates_final": {
+      "passed": 4,
+      "failed": 0,
+      "failed_gates": []
+    },
+    "tool_output_chars": 399749,
+    "tool_output_est_tokens": 99937,
+    "cumulative_actual_input_chars": 13551673,
+    "cumulative_actual_input_est_tokens": 3387918
+  },
+  "cbm_agent": {
+    "conversation_id": "775b7008-fb90-44df-9deb-263c6ebd8c88",
+    "time_to_initial_impl_seconds": 917.0,
+    "initial_impl_steps": 119,
+    "initial_impl_llm_turns": 48,
+    "wall_clock_seconds": 1225.0,
+    "total_steps": 132,
+    "llm_turns": 54,
+    "context_compactions": 0,
+    "total_tool_calls": 75,
+    "tool_breakdown": {
+      "run_command": 26,
+      "read_file": 43,
+      "edit_file": 4,
+      "write_file": 1,
+      "send_message": 1
+    },
+    "cli_command_breakdown": {
+      "cbm_cli": 20,
+      "ripgrep": 5,
+      "git_log": 1
+    },
+    "architectural_gates_initial_draft": {
+      "passed": 3,
+      "failed": 1,
+      "failed_gates": ["SIG-TWENTY-003"]
+    },
+    "architectural_gates_final": {
+      "passed": 3,
+      "failed": 1,
+      "failed_gates": ["SIG-TWENTY-003"]
+    },
+    "tool_output_chars": 399803,
+    "tool_output_est_tokens": 99951,
+    "cumulative_actual_input_chars": 16923136,
+    "cumulative_actual_input_est_tokens": 4230784
+  }
+}

@@ -49,8 +49,8 @@ public partial class SqliteGraphClient
                                SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name, n.rowid
                                FROM temp_target_names t
                                JOIN nodes n ON json_extract(n.properties, '$.name') = t.val
-                               WHERE n.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Type, NodeKind.Function, NodeKind.Procedure, NodeKind.Table, NodeKind.EntryPoint, NodeKind.Endpoint)})
-                                 AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
+                               WHERE n.kind IN ({GraphKindCodec.NodeKindsInSql(NodeKind.Type, NodeKind.Function, NodeKind.Procedure, NodeKind.Table, NodeKind.EntryPoint, NodeKind.Endpoint)}) AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%')
+                               UNION ALL SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name, n.rowid FROM nodes n WHERE n.kind = {GraphKindCodec.EncodeNodeKind(NodeKind.Table)} AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
                                """;
 
             var functionNodes = new List<(long RowId, string Id, string Name)>();

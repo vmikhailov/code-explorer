@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.80.2",
+      "ce_suite_versions": "v1.75.0 to v1.87.2",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -460,6 +460,71 @@
       "audited_warnings": 4,
       "total_findings": 21,
       "exit_code": 1
+    }
+  },
+  "cs07": {
+    "id": "07-agent-feature-ce-vs-cbm-on-twenty",
+    "status": "ready",
+    "source_metrics": "benchmarks/07-agent-feature-ce-vs-cbm-on-twenty/results/metrics.json",
+    "ce_version": "v1.87.2",
+    "cbm_version": "v0.12.1",
+    "model": "Gemini 3.8 Flash",
+    "repo": {
+      "name": "twentyhq/twenty",
+      "commit": "12e8fae4",
+      "packages": 46,
+      "files": 24527,
+      "loc": "2.49M",
+      "graph_nodes": 464794,
+      "graph_edges": 1113891
+    },
+    "telemetry": {
+      "ce": {
+        "conversation_short": "385986ab",
+        "init_impl_s": 603,
+        "init_impl_turns": 36,
+        "init_impl_steps": 98,
+        "wall_clock_s": 779,
+        "turns": 43,
+        "steps": 118,
+        "tool_calls": 71,
+        "run_command_calls": 27,
+        "read_file_calls": 31,
+        "edit_file_calls": 11,
+        "write_file_calls": 1,
+        "ce_cli_calls": 20,
+        "rg_calls": 8,
+        "raw_tool_chars": 399749,
+        "raw_tool_tokens": 99937,
+        "cum_input_tokens": 3387918,
+        "gates_init_passed": 3,
+        "gates_init_failed": 1,
+        "gates_final_passed": 4,
+        "gates_final_failed": 0
+      },
+      "cbm": {
+        "conversation_short": "775b7008",
+        "init_impl_s": 917,
+        "init_impl_turns": 48,
+        "init_impl_steps": 119,
+        "wall_clock_s": 1225,
+        "turns": 54,
+        "steps": 132,
+        "tool_calls": 75,
+        "run_command_calls": 26,
+        "read_file_calls": 43,
+        "edit_file_calls": 4,
+        "write_file_calls": 1,
+        "cbm_cli_calls": 20,
+        "rg_calls": 5,
+        "raw_tool_chars": 399803,
+        "raw_tool_tokens": 99951,
+        "cum_input_tokens": 4230784,
+        "gates_init_passed": 3,
+        "gates_init_failed": 1,
+        "gates_final_passed": 3,
+        "gates_final_failed": 1
+      }
     }
   }
 }

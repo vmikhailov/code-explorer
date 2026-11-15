@@ -258,7 +258,7 @@ public partial class Layer3SyntacticParser
             ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
         }
 
-        if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan)
+        if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null)
         {
             ctx.HasWorkspaceSymbolFilter = true;
         }
@@ -332,6 +332,11 @@ public partial class Layer3SyntacticParser
             }
 
             var projectFileCount = projectFiles?.Count ?? 0;
+            if (ctx.IncrementalChangedFiles != null && projectFileCount == 0)
+            {
+                continue;
+            }
+
             var pctDone = totalProjects > 0 ? (int)Math.Round(nProject * 100.0 / totalProjects) : 100;
             var progressPct = totalProjects > 0 ? 14 + (int)(38.0 * nProject / totalProjects) : 52;
             const string layer3StageName = "Layer 3: Syntactic";
