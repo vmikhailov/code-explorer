@@ -232,13 +232,23 @@ code, pre, .measured {
   font-variant-numeric: tabular-nums slashed-zero;
 }
 
-p code, li code, td code, th code {
+li code, td code {
   font-size: var(--text-xs);
   color: var(--color-ink-2);
   background: var(--color-paper-3);
   border: 1px solid var(--color-rule);
   border-radius: var(--space-2xs);
   padding: var(--space-3xs) var(--space-xs);
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+p code, th code {
+  font-size: 0.94em;
+  color: var(--color-ink-2);
+  background: transparent;
+  border: none;
+  padding: 0;
   overflow-wrap: break-word;
   word-break: normal;
 }

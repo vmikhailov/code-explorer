@@ -516,25 +516,25 @@ function buildBindings(data, rawMilestones01) {
     b['cs01.crumb_scale'] = `${c1.repo.packages} packages, ${fmtInt(c1.repo.files)} files, ${c1.repo.loc} LOC`;
     b['cs01.card_speedup'] = fmtRoundMult(speedup);
     b['cs01.card_speed_copy'] =
-      `<code>CodeExplorer</code> answered in <strong>${fmtDurShort(ce.time_to_answer_s)}</strong> (<strong>${fmtDurShort(ce.wall_clock_s)}</strong> wall); ` +
-      `<code>CBM</code> took <strong>${fmtDurShort(cbm.time_to_answer_s)}</strong> (<strong>${fmtDurShort(cbm.wall_clock_s)}</strong> wall).`;
+      `CodeExplorer answered in ${fmtDurShort(ce.time_to_answer_s)} (${fmtDurShort(ce.wall_clock_s)} wall); ` +
+      `CBM took ${fmtDurShort(cbm.time_to_answer_s)} (${fmtDurShort(cbm.wall_clock_s)} wall).`;
     b['cs01.card_turns_footer'] = `${ce.turns} turns vs ${cbm.turns} turns`;
 
     b['cs01.card_tokens'] = fmtRoundMult(tokRatio);
     b['cs01.card_tokens_copy'] =
-      `<code>${fmtRoundTokens(ce.cum_input_tokens)}</code> cumulative input tokens vs <code>${fmtRoundTokens(cbm.cum_input_tokens)}</code> tokens across the session.`;
+      `${fmtRoundTokens(ce.cum_input_tokens)} cumulative input tokens vs ${fmtRoundTokens(cbm.cum_input_tokens)} tokens across the session.`;
     b['cs01.card_cost_footer'] =
       `$${ce.cost_flash_usd.toFixed(2)} vs $${cbm.cost_flash_usd.toFixed(2)} (${fmtRoundMult(costRatio)})`;
 
     b['cs01.card_recall'] = `${ceRecPct} vs ${cbmRecDisplay}`;
     b['cs01.card_recall_copy'] =
-      `<code>ce</code> resolved <strong>${c1.recall.ce_matched} / ${c1.recall.gt_total}</strong> items directly from <code>graph.db</code>. ` +
-      `<code>CBM</code> returned <strong>${c1.recall.cbm_graph_matched} / ${c1.recall.gt_total}</strong> (only self-calls).`;
+      `CodeExplorer resolved ${c1.recall.ce_matched} / ${c1.recall.gt_total} items directly from graph.db. ` +
+      `CBM returned ${c1.recall.cbm_graph_matched} / ${c1.recall.gt_total} (only self-calls).`;
     b['cs01.card_recall_footer'] = `${c1.effort_details.ce_file_reads} source files read by ce`;
 
     b['cs01.card_scripts'] = `${c1.effort_details.ce_scripts} vs ${c1.effort_details.cbm_scripts}`;
     b['cs01.card_scripts_copy'] =
-      `After ${c1.effort_details.cbm_queries} <code>CBM</code> queries returned 0 cross-file edges, the <code>CBM</code> agent wrote ${c1.effort_details.cbm_scripts} custom TS AST scripts &amp; read ${c1.effort_details.cbm_file_reads} files.`;
+      `After ${c1.effort_details.cbm_queries} CBM queries returned 0 cross-file edges, the CBM agent wrote ${c1.effort_details.cbm_scripts} custom TS AST scripts &amp; read ${c1.effort_details.cbm_file_reads} files.`;
     b['cs01.card_scripts_footer'] =
       `${c1.effort_details.ce_scripts} scripts vs ${fmtInt(c1.effort_details.cbm_scripts_loc)} LOC of JS`;
 
@@ -542,11 +542,11 @@ function buildBindings(data, rawMilestones01) {
     b['cs01.conv_cbm'] = cbm.conversation_short;
 
     b['cs01.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c1.ce_version}</code> (.NET 10, SQLite + OpenCypher)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c1.cbm_version}</code> (Go + SQLite)<br>`,
-      `          3. <strong>LLM Model:</strong> <code>${c1.model}</code> (100% symmetric system prompts)<br>`,
-      `          4. <strong>Target Repository:</strong> <code>${c1.repo.name}</code> (commit <code>${c1.repo.commit}</code>, ${c1.repo.packages} packages, ${fmtInt(c1.repo.files)} files, ${c1.repo.loc} LOC)`,
+      `Tested participants:<br>`,
+      `          1. CodeExplorer (ce): ${c1.ce_version} (.NET 10, SQLite + OpenCypher)<br>`,
+      `          2. codebase-memory-mcp (CBM): ${c1.cbm_version} (Go + SQLite)<br>`,
+      `          3. LLM Model: ${c1.model} (100% symmetric system prompts)<br>`,
+      `          4. Target Repository: ${c1.repo.name} (commit ${c1.repo.commit}, ${c1.repo.packages} packages, ${fmtInt(c1.repo.files)} files, ${c1.repo.loc} LOC)`,
     ].join('\n');
 
     // Scorecard table cells
@@ -591,7 +591,7 @@ function buildBindings(data, rawMilestones01) {
     b['cs01.tbl_rec_delta'] = `${recMult}× more items from graph`;
 
     b['cs01.sec3_lede'] =
-      `Every LLM turn re-sends the active conversation history. Because the <code>CodeExplorer</code> agent finished in ${ce.turns} turns while the <code>CBM</code> agent iterated through ${cbm.turns} turns of AST script writing and file reading, cumulative billed input tokens differed by <strong>${fmtRoundMult(tokRatio)}</strong> (<code>${fmtRoundTokens(ce.cum_input_tokens)}</code> vs <code>${fmtRoundTokens(cbm.cum_input_tokens)}</code>).`;
+      `Every LLM turn re-sends the active conversation history. Because the CodeExplorer agent finished in ${ce.turns} turns while the CBM agent iterated through ${cbm.turns} turns of AST script writing and file reading, cumulative billed input tokens differed by ${fmtRoundMult(tokRatio)} (${fmtRoundTokens(ce.cum_input_tokens)} vs ${fmtRoundTokens(cbm.cum_input_tokens)}).`;
 
     if (rawMilestones01) {
       const rowsHtml = c1.turn_stages.map((st) => {
@@ -655,19 +655,19 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs02.card_speedup'] = fmtRoundMult(speedup);
     b['cs02.card_speed_copy'] =
-      `<code>${fmtDurShort(ce.time_to_answer_s)}</code> (<code>${Math.round(ce.time_to_answer_s)}s</code>) with CodeExplorer (including <code>ce taxonomy</code> discovery) vs ` +
-      `<code>${fmtDurShort(rg.time_to_answer_s)}</code> (<code>${fmtInt(rg.time_to_answer_s)}s</code>) with <code>ripgrep</code> + Python scripts.`;
+      `${fmtDurShort(ce.time_to_answer_s)} (${Math.round(ce.time_to_answer_s)}s) with CodeExplorer (including ce taxonomy discovery) vs ` +
+      `${fmtDurShort(rg.time_to_answer_s)} (${fmtInt(rg.time_to_answer_s)}s) with ripgrep + Python scripts.`;
     b['cs02.card_turns_footer'] = `${ce.turns} turns vs ${rg.turns} turns (${fmtRoundMult(turnsRatio)})`;
 
     b['cs02.card_tokens'] = fmtRoundMult(tokRatio);
     b['cs02.card_tokens_copy'] =
-      `<code>${fmtRoundTokens(ce.cum_input_est_tokens)}</code> cumulative input tokens (<code>${ce.compactions}</code> compactions) vs ` +
-      `<code>${fmtRoundTokens(rg.cum_input_est_tokens)}</code> post-compaction tokens.`;
+      `${fmtRoundTokens(ce.cum_input_est_tokens)} cumulative input tokens (${ce.compactions} compactions) vs ` +
+      `${fmtRoundTokens(rg.cum_input_est_tokens)} post-compaction tokens.`;
     b['cs02.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${rg.cost_flash_usd.toFixed(2)} (${fmtRoundMult(costRatio)})`;
 
     b['cs02.card_reads'] = `${ce.view_file_calls} vs ${rg.view_file_calls}`;
     b['cs02.card_reads_copy'] =
-      `Without schema hints in the prompt, the <code>ce</code> agent discovered the 5-layer ontology via <code>ce taxonomy</code> and needed <code>${ce.view_file_calls}</code> file reads vs <code>${rg.view_file_calls}</code> file reads and <code>${rg.scripts_written}</code> scripts.`;
+      `Without schema hints in the prompt, the CodeExplorer agent discovered the 5-layer ontology via ce taxonomy and needed ${ce.view_file_calls} file reads vs ${rg.view_file_calls} file reads and ${rg.scripts_written} scripts.`;
     b['cs02.card_reads_footer'] = `${ce.tool_calls} tool calls vs ${rg.tool_calls} tool calls`;
 
     b['cs02.card_recall'] = `${c2.recall.ce_pct} vs ${c2.recall.rg_pct_round}`;
@@ -675,16 +675,16 @@ function buildBindings(data, rawMilestones01) {
     b['cs02.conv_ce'] = ce.conversation_short;
 
     b['cs02.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c2.ce_version}</code> (.NET 10, SQLite + OpenCypher, schema <code>${c2.schema_version}</code>: ${fmtInt(c2.repo.graph_nodes)} nodes, ${fmtInt(c2.repo.graph_edges)} edges)<br>`,
-      `          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${c2.ripgrep_version}</code>) + Python <code>${c2.python_version}</code> + <code>view_file</code><br>`,
-      `          3. <strong>LLM Model:</strong> <code>${c2.model}</code> (symmetric system prompts with zero schema spoilers)<br>`,
-      `          4. <strong>Target Workspace:</strong> Enterprise Multi-Repo Microservices System (${c2.repo.modules} independent service/library repositories, ${c2.repo.services} services, ${fmtInt(c2.repo.files)} files; service names anonymized 1-to-1)`,
+      `Tested participants:<br>`,
+      `          1. CodeExplorer (ce): ${c2.ce_version} (.NET 10, SQLite + OpenCypher, schema ${c2.schema_version}: ${fmtInt(c2.repo.graph_nodes)} nodes, ${fmtInt(c2.repo.graph_edges)} edges)<br>`,
+      `          2. Lexical CLI Baseline: ripgrep (rg ${c2.ripgrep_version}) + Python ${c2.python_version} + view_file<br>`,
+      `          3. LLM Model: ${c2.model} (symmetric system prompts with zero schema spoilers)<br>`,
+      `          4. Target Workspace: Enterprise Multi-Repo Microservices System (${c2.repo.modules} independent service/library repositories, ${c2.repo.services} services, ${fmtInt(c2.repo.files)} files; service names anonymized 1-to-1)`,
     ].join('\n');
 
     // Scorecard table cells
-    b['cs02.th_rg'] = `<code>ripgrep</code> + Python (${rg.run_command_calls} CLI runs + ${rg.view_file_calls} file reads)`;
-    b['cs02.th_ce'] = `<code>CodeExplorer</code> (${ce.run_command_calls} CLI runs + ${ce.view_file_calls} file reads)`;
+    b['cs02.th_rg'] = `ripgrep + Python (${rg.run_command_calls} CLI runs + ${rg.view_file_calls} file reads)`;
+    b['cs02.th_ce'] = `CodeExplorer (${ce.run_command_calls} CLI runs + ${ce.view_file_calls} file reads)`;
 
     b['cs02.tbl_time_rg'] = `${fmtInt(rg.time_to_answer_s)}.0 s (${fmtDurMinSec(rg.time_to_answer_s)})`;
     b['cs02.tbl_time_ce'] = `${fmtInt(ce.time_to_answer_s)}.0 s (${fmtDurMinSec(ce.time_to_answer_s)})`;
@@ -753,40 +753,40 @@ function buildBindings(data, rawMilestones01) {
     b['cs03.card_group_b'] = cePctBRound;
     b['cs03.card_scan'] = `${Math.round(c3.indexing.twenty.cbm_s)}s vs ${Math.round(c3.indexing.twenty.ce_s)}s`;
     b['cs03.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c3.ce_version}</code> (.NET 10, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c3.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
-      `          3. <strong>Target Repositories:</strong> <code>twentyhq/twenty</code> (commit <code>${c3.repos.twenty.commit}</code>, ${fmtInt(c3.repos.twenty.files)} files, ${c3.repos.twenty.loc} LOC) &amp; <code>immich-app/immich</code> (commit <code>${c3.repos.immich.commit}</code>, ${fmtInt(c3.repos.immich.files)} files, ${c3.repos.immich.loc} LOC)`,
+      `Tested participants:<br>`,
+      `          1. CodeExplorer (ce): ${c3.ce_version} (.NET 10, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
+      `          2. codebase-memory-mcp (CBM): ${c3.cbm_version} (win32-x64 Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
+      `          3. Target Repositories: twentyhq/twenty (commit ${c3.repos.twenty.commit}, ${fmtInt(c3.repos.twenty.files)} files, ${c3.repos.twenty.loc} LOC) &amp; immich-app/immich (commit ${c3.repos.immich.commit}, ${fmtInt(c3.repos.immich.files)} files, ${c3.repos.immich.loc} LOC)`,
     ].join('\n');
 
     b['cs04.card_speedup'] = `${fmtRoundMult(grImmichSpeedup)} / &gt;${Math.floor(grTwentyMinSpeedup)}×`;
     b['cs04.card_group_a'] = `${cePctA}% vs ${grPctA}%`;
     b['cs04.card_group_b'] = cePctBRound;
     b['cs04.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c4.ce_version}</code> (.NET 10, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
-      `          2. <strong>Graphify (<code>graphifyy</code>):</strong> <code>${c4.graphify_version}</code> (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX <code>--code-only</code>, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
-      `          3. <strong>Target Repositories:</strong> <code>twentyhq/twenty</code> (commit <code>${c4.repos.twenty.commit}</code>, ${fmtInt(c4.repos.twenty.files)} files, ${c4.repos.twenty.loc} LOC) &amp; <code>immich-app/immich</code> (commit <code>${c4.repos.immich.commit}</code>, ${fmtInt(c4.repos.immich.files)} files, ${c4.repos.immich.loc} LOC)`,
+      `Tested participants:<br>`,
+      `          1. CodeExplorer (ce): ${c4.ce_version} (.NET 10, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
+      `          2. Graphify (graphifyy): ${c4.graphify_version} (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX --code-only, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
+      `          3. Target Repositories: twentyhq/twenty (commit ${c4.repos.twenty.commit}, ${fmtInt(c4.repos.twenty.files)} files, ${c4.repos.twenty.loc} LOC) &amp; immich-app/immich (commit ${c4.repos.immich.commit}, ${fmtInt(c4.repos.immich.files)} files, ${c4.repos.immich.loc} LOC)`,
     ].join('\n');
 
     b['catalog.cs03_outcome'] =
       `<strong class="tone-ok">Basic Code: ${cePctA}%</strong> vs ${cbmPctA}% (${c3.recall.group_a_ce_matched}/${c3.recall.group_a_gt} vs ${c3.recall.group_a_cbm_matched}/${c3.recall.group_a_gt})<br>` +
       `<strong class="tone-ok">DB &amp; Queues: ${cePctBRound}</strong> vs 0% (${c3.recall.group_b_ce_matched}/${c3.recall.group_b_gt})<br>` +
-      `<strong class="tone-accent">Scan:</strong> <code>ce</code> faster on <code>immich</code>; <code>CBM</code> faster on <code>twenty</code>`;
+      `<strong class="tone-accent">Scan:</strong> ce faster on immich; CBM faster on twenty`;
 
     b['catalog.cs04_outcome'] =
-      `<strong>${fmtRoundMult(grImmichSpeedup)} faster scan</strong> on <code>immich</code> (~${Math.round(c4.indexing.immich.ce_s)}s vs ~${Math.round(c4.indexing.immich.graphify_s)}s)<br>` +
-      `<strong>&gt;${Math.floor(grTwentyMinSpeedup)}× faster</strong> on <code>twenty</code> (~${Math.round(c4.indexing.twenty.ce_s)}s vs DNF &gt;45m)<br>` +
+      `<strong>${fmtRoundMult(grImmichSpeedup)} faster scan</strong> on immich (~${Math.round(c4.indexing.immich.ce_s)}s vs ~${Math.round(c4.indexing.immich.graphify_s)}s)<br>` +
+      `<strong>&gt;${Math.floor(grTwentyMinSpeedup)}× faster</strong> on twenty (~${Math.round(c4.indexing.twenty.ce_s)}s vs DNF &gt;45m)<br>` +
       `<strong>Basic Code: ${cePctA}%</strong> vs ${grPctA}% · <strong>DB &amp; Queues: ${cePctBRound}</strong>`;
 
     b['catalog.participants_html'] = [
-      `<strong>Tested participants &amp; versions across the benchmark suite:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${data.meta.tools.ce_suite_versions}</code> (.NET 10 &amp; .NET 11, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${data.meta.tools.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
-      `          3. <strong>Graphify (<code>graphifyy</code>):</strong> <code>${data.meta.tools.graphify_version}</code> (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX <code>--code-only</code>, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
-      `          4. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${data.meta.tools.ripgrep_version}</code>) + Python <code>${data.meta.tools.python_version}</code> (Case 02) + <code>view_file</code><br>`,
-      `          5. <strong>LLM Model (Tracks 1 &amp; 2):</strong> <code>${data.meta.llm_model}</code> (symmetric system prompts across paired runs)<br>`,
-      `          6. <strong>Pinned Target Commits:</strong> <code>twentyhq/twenty @ ${data.cs01.repo.commit}</code> (Case 01), <code>twentyhq/twenty @ ${c3.repos.twenty.commit}</code> (Cases 03, 04, 07 &amp; 08), <code>immich-app/immich @ ${c3.repos.immich.commit}</code> (Cases 03 &amp; 04), <code>${data.cs05.repo.name} @ ${data.cs05.repo.commit}</code> (Case 05), <code>${data.cs06.repo.name} @ ${data.cs06.repo.commit}</code> (Case 06)`,
+      `Tested participants &amp; versions across the benchmark suite:<br>`,
+      `          1. CodeExplorer (ce): ${data.meta.tools.ce_suite_versions} (.NET 10 &amp; .NET 11, SQLite + OpenCypher, ${data.meta.tools.ce_mcp_tools} MCP tools)<br>`,
+      `          2. codebase-memory-mcp (CBM): ${data.meta.tools.cbm_version} (win32-x64 Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
+      `          3. Graphify (graphifyy): ${data.meta.tools.graphify_version} (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX --code-only, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
+      `          4. Lexical CLI Baseline: ripgrep (rg ${data.meta.tools.ripgrep_version}) + Python ${data.meta.tools.python_version} (Case 02) + view_file<br>`,
+      `          5. LLM Model (Tracks 1 &amp; 2): ${data.meta.llm_model} (symmetric system prompts across paired runs)<br>`,
+      `          6. Pinned Target Commits: twentyhq/twenty @ ${data.cs01.repo.commit} (Case 01), twentyhq/twenty @ ${c3.repos.twenty.commit} (Cases 03, 04, 07 &amp; 08), immich-app/immich @ ${c3.repos.immich.commit} (Cases 03 &amp; 04), ${data.cs05.repo.name} @ ${data.cs05.repo.commit} (Case 05), ${data.cs06.repo.name} @ ${data.cs06.repo.commit} (Case 06)`,
     ].join('\n');
 
     b['index.cs0304_p1_comp'] = `CBM: ${cbmPctA}% (${c3.recall.group_a_cbm_matched}/${c3.recall.group_a_gt}) | graphify: ${grPctA}% (${c4.recall.group_a_graphify_matched}/${c4.recall.group_a_gt})`;
@@ -819,32 +819,32 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs05.card_speedup'] = fmtRoundMult(speedup);
     b['cs05.card_speed_copy'] =
-      `<code>${fmtDurShort(ce.time_to_answer_s, true)}</code> with <code>CodeExplorer</code> vs <code>${fmtDurShort(rg.time_to_answer_s, true)}</code> with <code>ripgrep</code> + <code>view_file</code> across <code>${c5.repo.projects}</code> projects.`;
+      `${fmtDurShort(ce.time_to_answer_s, true)} with CodeExplorer vs ${fmtDurShort(rg.time_to_answer_s, true)} with ripgrep + view_file across ${c5.repo.projects} projects.`;
     b['cs05.card_turns_footer'] = `${ce.turns} turns / ${ce.steps} steps vs ${rg.turns} turns / ${rg.steps} steps`;
 
     b['cs05.card_tokens'] = fmtRoundMult(tokRatio);
     b['cs05.card_tokens_copy'] =
-      `<code>${fmtRoundTokens(ce.cum_input_tokens)}</code> cumulative input tokens with <code>CodeExplorer</code> vs <code>${fmtRoundTokens(rg.cum_input_tokens)}</code> with <code>ripgrep</code> (<code>${fmtRoundMult(costRatio)}</code> lower API cost).`;
+      `${fmtRoundTokens(ce.cum_input_tokens)} cumulative input tokens with CodeExplorer vs ${fmtRoundTokens(rg.cum_input_tokens)} with ripgrep (${fmtRoundMult(costRatio)} lower API cost).`;
     b['cs05.card_cost_footer'] = `$${ce.cost_flash_usd.toFixed(2)} vs $${rg.cost_flash_usd.toFixed(2)} (${fmtRoundMult(payloadRatio)} less tool output)`;
 
     b['cs05.card_reads'] = rg.view_file_calls > 0 && ce.view_file_calls === 0
       ? `0 vs ${rg.view_file_calls}`
       : fmtRoundMult(readsRatio);
     b['cs05.card_reads_copy'] =
-      `<code>${ce.view_file_calls}</code> <code>view_file</code> reads (<code>31</code> C# files + <code>5</code> schema/spill reads) vs <code>${rg.view_file_calls}</code> C# reads by <code>ripgrep</code>.`;
+      `${ce.view_file_calls} view_file reads (31 C# files + 5 schema/spill reads) vs ${rg.view_file_calls} C# reads by ripgrep.`;
     b['cs05.card_reads_footer'] = `${Math.round(ce.raw_tool_chars / 1024)} KB vs ${fmtInt(Math.round(rg.raw_tool_chars / 1024))} KB tool output`;
 
     b['cs05.card_recall'] = `${c5.recall.ce_pct} vs ${c5.recall.rg_pct}`;
     b['cs05.card_recall_copy'] =
-      `<code>CodeExplorer</code> matched all <code>331/331</code> items; <code>ripgrep</code> guessed or missed <code>24</code> Task 4a caller methods from raw grep lines.`;
+      `CodeExplorer matched all 331/331 items; ripgrep guessed or missed 24 Task 4a caller methods from raw grep lines.`;
     b['cs05.card_recall_footer'] = `331/331 vs 307/331 verified items`;
 
     b['cs05.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c5.ce_version}</code> (.NET 10, SQLite + OpenCypher MCP server, <code>${fmtInt(c5.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c5.repo.graph_edges)}</code> edges)<br>`,
-      `          2. <strong>Lexical CLI Baseline:</strong> <code>ripgrep</code> (<code>rg ${c5.ripgrep_version}</code>) + <code>view_file</code> (pure lexical search + file reading; custom AST scripts disallowed, complementing Case 02)<br>`,
-      `          3. <strong>LLM Model:</strong> <code>${c5.model}</code> (matched subagent prompts without <code>write_to_file</code>; see methodological note below)<br>`,
-      `          4. <strong>Target Repository:</strong> <code>${c5.repo.name}</code> (commit <code>${c5.repo.commit}</code>, <code>${c5.repo.projects}</code> projects, <code>${fmtInt(c5.repo.files)}</code> files)`,
+      `Tested participants:<br>`,
+      `          1. CodeExplorer (ce): ${c5.ce_version} (.NET 10, SQLite + OpenCypher MCP server, ${fmtInt(c5.repo.graph_nodes)} nodes, ${fmtInt(c5.repo.graph_edges)} edges)<br>`,
+      `          2. Lexical CLI Baseline: ripgrep (rg ${c5.ripgrep_version}) + view_file (pure lexical search + file reading; custom AST scripts disallowed, complementing Case 02)<br>`,
+      `          3. LLM Model: ${c5.model} (matched subagent prompts without write_to_file; see methodological note below)<br>`,
+      `          4. Target Repository: ${c5.repo.name} (commit ${c5.repo.commit}, ${c5.repo.projects} projects, ${fmtInt(c5.repo.files)} files)`,
     ].join('\n');
 
     b['cs05.tbl_time_rg'] = `${fmtInt(rg.time_to_answer_s)} s (${fmtDurMinSec(rg.time_to_answer_s)}) / ${fmtInt(rg.wall_clock_s)} s wall`;
@@ -898,12 +898,12 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs06.card_tokens'] = `0`;
     b['cs06.card_tokens_copy'] =
-      `<strong>0 tokens ($0.00 cost)</strong>. Runs entirely offline as a compiled native binary with zero network calls.`;
+      `0 tokens ($0.00 cost). Runs entirely offline as a compiled native binary with zero network calls.`;
     b['cs06.card_cost_footer'] = `Zero API cost / local pre-commit execution`;
 
     b['cs06.card_cli'] = `Exit 1 / 0`;
     b['cs06.card_cli_copy'] =
-      `Blocks Day 0 debt (<code>Exit 1</code>), freezes SHA-256 baselines (<code>Exit 0</code>), and rejects any single new PR leak.`;
+      `Blocks Day 0 debt (Exit 1), freezes SHA-256 baselines (Exit 0), and rejects any single new PR leak.`;
     b['cs06.card_cli_footer'] = `Line-shift immune SHA-256 ratchet`;
 
     b['cs06.card_recall'] = `${t6.total_gates} of ${t6.total_gates}`;
@@ -912,10 +912,10 @@ function buildBindings(data, rawMilestones01) {
     b['cs06.card_recall_footer'] = `3 layer leaks & 12 god types caught`;
 
     b['cs06.participants_html'] = [
-      `<strong>Evaluated system &amp; configuration:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c6.ce_version}</code> (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates &amp; SHA-256 Baseline Ratchet, <code>${fmtInt(c6.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c6.repo.graph_edges)}</code> edges)<br>`,
-      `          2. <strong>Evaluation Mode:</strong> 4-Phase CLI Lifecycle (<code>ce gate check</code> + <code>ce gate ratchet --update</code> + <code>ce gate details --new</code>): 0 tokens, $0.00<br>`,
-      `          3. <strong>Target Repository:</strong> <code>${c6.repo.name}</code> (commit <code>${c6.repo.commit}</code>, <code>${c6.repo.projects}</code> subsystems, <code>${fmtInt(c6.repo.files)}</code> files)`,
+      `Evaluated system &amp; configuration:<br>`,
+      `          1. CodeExplorer (ce): ${c6.ce_version} (.NET 11, SQLite + OpenCypher, Semantic Invariant Gates &amp; SHA-256 Baseline Ratchet, ${fmtInt(c6.repo.graph_nodes)} nodes, ${fmtInt(c6.repo.graph_edges)} edges)<br>`,
+      `          2. Evaluation Mode: 4-Phase CLI Lifecycle (ce gate check + ce gate ratchet --update + ce gate details --new): 0 tokens, $0.00<br>`,
+      `          3. Target Repository: ${c6.repo.name} (commit ${c6.repo.commit}, ${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files)`,
     ].join('\n');
 
     b['catalog.cs06_outcome'] =
@@ -948,30 +948,30 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs07.card_speedup'] = fmtRoundMult(speedup);
     b['cs07.card_speed_copy'] =
-      `<code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; 1-turn refactor) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code>.`;
+      `CodeExplorer finished in ${fmtDurShort(ce.wall_clock_s)} (incl. scan, gate check &amp; 1-turn refactor) vs ${fmtDurShort(cbm.wall_clock_s)} for CBM.`;
     b['cs07.card_turns_footer'] = `${ce.turns} turns vs ${cbm.turns} turns (${ce.read_file_calls} vs ${cbm.read_file_calls} file reads)`;
 
     b['cs07.card_init_speed'] = fmtRoundMult(initSpeedup);
     b['cs07.card_init_copy'] =
-      `Initial feature + unit tests took <strong>${fmtDurShort(ce.init_impl_s)}</strong> (<code>${ce.init_impl_turns}</code> turns) with <code>ce</code> vs <strong>${fmtDurShort(cbm.init_impl_s)}</strong> (<code>${cbm.init_impl_turns}</code> turns) with <code>CBM</code>.`;
+      `Initial feature + unit tests took ${fmtDurShort(ce.init_impl_s)} (${ce.init_impl_turns} turns) with ce vs ${fmtDurShort(cbm.init_impl_s)} (${cbm.init_impl_turns} turns) with CBM.`;
     b['cs07.card_init_footer'] = `603 s vs 917 s (-5m 14s before gates)`;
 
     b['cs07.card_gates'] = `4/4 vs 3/4`;
     b['cs07.card_gates_copy'] =
-      `Pre-configured gate <code>SIG-TWENTY-003</code> caught the copied legacy table coupling (<code>[TOL]</code> in <code>WorkspaceService</code>, <code>[NEW]</code> in <code>AdminPanelBillingService</code>); <code>oxlint</code> &amp; <code>CBM</code> did not.`;
+      `Pre-configured gate SIG-TWENTY-003 caught the copied legacy table coupling ([TOL] in WorkspaceService, [NEW] in AdminPanelBillingService); oxlint &amp; CBM did not.`;
     b['cs07.card_gates_footer'] = `0 new violations vs 1 new cross-module table coupling`;
 
     b['cs07.card_heal'] = `1 Turn vs 0`;
     b['cs07.card_heal_copy'] =
-      `Both agents initially copied the legacy shortcut from <code>workspace.service.ts:989</code>. <code>ce gate check</code> flagged the new copy and <code>ce</code> refactored in <strong>1 editing turn (20s)</strong>.`;
+      `Both agents initially copied the legacy shortcut from workspace.service.ts:989. ce gate check flagged the new copy and ce refactored in 1 editing turn (20s).`;
     b['cs07.card_heal_footer'] = `CBM index_repository (300.6s) reported 0 issues`;
 
     b['cs07.participants_html'] = [
-      `<strong>Tested participants:</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c7.ce_version}</code> (.NET 11, SQLite + OpenCypher + Incremental <code>ce scan</code> + Semantic Invariant Gates, <code>${fmtInt(c7.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c7.repo.graph_edges)}</code> edges)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c7.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, <code>index_repository</code> + <code>query_graph</code> + <code>trace_path</code>)<br>`,
-      `          3. <strong>LLM Model:</strong> <code>${c7.model}</code> (100% word-for-word symmetric system prompts with zero rule hints)<br>`,
-      `          4. <strong>Target Repository:</strong> <code>${c7.repo.name}</code> (commit <code>${c7.repo.commit}</code>, <code>${c7.repo.packages}</code> packages, <code>${fmtInt(c7.repo.files)}</code> files, <code>${c7.repo.loc}</code> LOC)`,
+      `Tested participants:<br>`,
+      `          1. CodeExplorer (ce): ${c7.ce_version} (.NET 11, SQLite + OpenCypher + Incremental ce scan + Semantic Invariant Gates, ${fmtInt(c7.repo.graph_nodes)} nodes, ${fmtInt(c7.repo.graph_edges)} edges)<br>`,
+      `          2. codebase-memory-mcp (CBM): ${c7.cbm_version} (win32-x64 Go + SQLite binary, index_repository + query_graph + trace_path)<br>`,
+      `          3. LLM Model: ${c7.model} (100% word-for-word symmetric system prompts with zero rule hints)<br>`,
+      `          4. Target Repository: ${c7.repo.name} (commit ${c7.repo.commit}, ${c7.repo.packages} packages, ${fmtInt(c7.repo.files)} files, ${c7.repo.loc} LOC)`,
     ].join('\n');
 
     b['cs07.tbl_time_cbm'] = `${fmtInt(cbm.wall_clock_s)} s (${fmtDurShort(cbm.wall_clock_s)})`;
@@ -1005,7 +1005,7 @@ function buildBindings(data, rawMilestones01) {
     b['catalog.cs07_outcome'] =
       `<strong class="tone-ok">${fmtRoundMult(speedup)} faster end-to-end</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}; ${fmtDurShort(ce.init_impl_s)} vs ${fmtDurShort(cbm.init_impl_s)} draft)<br>` +
       `<strong class="tone-ok">4/4 gates passed vs 1 new violation</strong> (pre-configured gate caught copied legacy debt; 1-turn fix)<br>` +
-      `<strong>Both passed unit tests &amp; oxlint</strong> (<code>4/4</code> vs <code>3/3</code> specs; <code>CBM</code> kept <code>AdminPanelBillingService</code> &rarr; <code>emailingDomain</code>)`;
+      `<strong>Both passed unit tests &amp; oxlint</strong> (4/4 vs 3/3 specs; CBM kept AdminPanelBillingService &rarr; emailingDomain)`;
   }
 
   // --- Case Study 08 (4-Task Brownfield Architecture & Feature Suite on twentyhq/twenty) ---
@@ -1021,36 +1021,36 @@ function buildBindings(data, rawMilestones01) {
 
     b['cs08.card_violations'] = `0/4 vs 4/4`;
     b['cs08.card_violations_copy'] =
-      `Without gates, both <code>CBM</code> and <code>CE Phase 1</code> copied adjacent <code>[TOL]</code> legacy shortcuts in <strong>4/4 tasks (100%)</strong>. With <code>ce gate check</code>, <strong>0/4</strong> shipped.`;
+      `Without gates, both CBM and CE Phase 1 copied adjacent [TOL] legacy shortcuts in 4/4 tasks (100%). With ce gate check, 0/4 shipped.`;
     b['cs08.card_violations_footer'] = `0 final violations vs 4 in CBM (256 tolerated baseline)`;
 
     b['cs08.card_speedup'] = fmtRoundMult(speedupCbm);
     b['cs08.card_speed_copy'] =
-      `Across all 4 tasks combined, <code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; 1-turn fixes) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code>.`;
+      `Across all 4 tasks combined, CodeExplorer finished in ${fmtDurShort(ce.wall_clock_s)} (incl. scan, gate check &amp; 1-turn fixes) vs ${fmtDurShort(cbm.wall_clock_s)} for CBM.`;
     b['cs08.card_speed_footer'] = `${fmtInt(ce.wall_clock_s)} s vs ${fmtInt(cbm.wall_clock_s)} s (-9m 52s across 4 tasks)`;
 
     b['cs08.card_tests'] = `14/14 Pass`;
     b['cs08.card_tests_copy'] =
-      `Both <code>CodeExplorer</code> and <code>CBM</code> passed <strong>14/14 unit tests (4/4 tasks)</strong>, verified via <code>scripts/run-acceptance-tests.mjs</code>; only <code>CodeExplorer</code> passed <strong>4/4 architectural gates</strong>.`;
+      `Both CodeExplorer and CBM passed 14/14 unit tests (4/4 tasks), verified via scripts/run-acceptance-tests.mjs; only CodeExplorer passed 4/4 architectural gates.`;
     b['cs08.card_tests_footer'] = `14/14 unit tests + 4/4 architectural gates`;
 
     b['cs08.card_tamper'] = `0 Bypasses`;
     b['cs08.card_tamper_copy'] =
-      `In <strong>4/4 tasks</strong>, the <code>CodeExplorer</code> agent refactored to the proper NestJS domain service in <strong>1 iteration</strong> with <strong>0 attempts</strong> to run <code>ratchet --update</code> or edit gate files.`;
+      `In 4/4 tasks, the CodeExplorer agent refactored to the proper NestJS domain service in 1 iteration with 0 attempts to run ratchet --update or edit gate files.`;
     b['cs08.card_tamper_footer'] = `1 self-correction iteration per task, 0 gate tampering`;
 
     b['cs08.participants_html'] = [
-      `<strong>Tested participants (4 brownfield feature tasks on unmodified <code>twentyhq/twenty @ ${c8.repo.commit}</code>):</strong><br>`,
-      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c8.ce_version}</code> (.NET 11, SQLite + OpenCypher + Incremental <code>ce scan</code> + 4 repo-wide Semantic Invariant Gates, <code>${fmtInt(c8.repo.graph_nodes)}</code> nodes, <code>${fmtInt(c8.repo.graph_edges)}</code> edges, evaluated both pre-gate <code>Phase 1: Navigation Only</code> and post-gate <code>Phase 2: Navigation + Gates</code>)<br>`,
-      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c8.cbm_version}</code> (<code>win32-x64</code> Go + SQLite binary, <code>index_repository</code> + <code>query_graph</code> + <code>trace_path</code>)<br>`,
-      `          3. <strong>LLM Model:</strong> <code>${c8.model}</code> (100% symmetric system prompts on unmodified repository <code>CLAUDE.md</code>; Tasks 01, 02 &amp; 04 executed for this suite + Task 03 from Case 07)<br>`,
-      `          4. <strong>Target Repository:</strong> <code>${c8.repo.name} @ ${c8.repo.commit}</code> (<code>${c8.repo.packages}</code> packages, <code>${fmtInt(c8.repo.files)}</code> files, <code>${c8.repo.loc}</code> LOC)`,
+      `Tested participants (4 brownfield feature tasks on unmodified twentyhq/twenty @ ${c8.repo.commit}):<br>`,
+      `          1. CodeExplorer (ce): ${c8.ce_version} (.NET 11, SQLite + OpenCypher + Incremental ce scan + 4 repo-wide Semantic Invariant Gates, ${fmtInt(c8.repo.graph_nodes)} nodes, ${fmtInt(c8.repo.graph_edges)} edges, evaluated both pre-gate Phase 1: Navigation Only and post-gate Phase 2: Navigation + Gates)<br>`,
+      `          2. codebase-memory-mcp (CBM): ${c8.cbm_version} (win32-x64 Go + SQLite binary, index_repository + query_graph + trace_path)<br>`,
+      `          3. LLM Model: ${c8.model} (100% symmetric system prompts on unmodified repository CLAUDE.md; Tasks 01, 02 &amp; 04 executed for this suite + Task 03 from Case 07)<br>`,
+      `          4. Target Repository: ${c8.repo.name} @ ${c8.repo.commit} (${c8.repo.packages} packages, ${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC)`,
     ].join('\n');
 
     b['catalog.cs08_outcome'] =
-      `<strong class="tone-ok">0/4 vs 4/4 violated tasks</strong> (both copied <code>[TOL]</code> debt in <code>4/4</code> tasks; <code>ce gate check</code> fixed <code>4/4</code> in 1 turn, <code>0</code> bypasses)<br>` +
+      `<strong class="tone-ok">0/4 vs 4/4 violated tasks</strong> (both copied [TOL] debt in 4/4 tasks; ce gate check fixed 4/4 in 1 turn, 0 bypasses)<br>` +
       `<strong class="tone-ok">${fmtRoundMult(speedupCbm)} faster suite total</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)} across 4 tasks; $0.48 vs $0.48)<br>` +
-      `<strong>14/14 unit tests pass for both</strong> (<code>CBM</code> shipped 4 cross-module / transport leaks)`;
+      `<strong>14/14 unit tests pass for both</strong> (CBM shipped 4 cross-module / transport leaks)`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
