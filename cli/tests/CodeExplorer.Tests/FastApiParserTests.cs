@@ -2,9 +2,9 @@ using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Parser.Python.Components;
+using CodeExplorer.Parsers.Python.Components;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.Python;
+using CodeExplorer.Parsers.Python;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

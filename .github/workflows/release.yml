@@ -186,11 +186,7 @@ jobs:
           for proj in \
             cli/src/UI/CodeExplorer/CodeExplorer.csproj \
             cli/src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj \
-            cli/src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj \
-            cli/src/Core/CodeExplorer.Storage/CodeExplorer.Storage.csproj \
-            cli/src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj \
-            cli/src/Core/CodeExplorer.Indexing/CodeExplorer.Indexing.csproj \
-            cli/src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj; do
+            cli/src/Core/CodeExplorer.Indexing/CodeExplorer.Indexing.csproj; do
             dotnet pack "$proj" -c Release --no-build \
               -p:Version="$VERSION" \
               -p:PackageVersion="$VERSION" \
@@ -271,16 +267,17 @@ jobs:
         run: |
           API_KEY="${OIDC_KEY:-$MANUAL_KEY}"
           if [ -n "$API_KEY" ]; then
-            for i in 1 2 3; do
-              echo "Pushing to NuGet.org (attempt $i)..."
-              if dotnet nuget push ./cli/.Build/dist/*.nupkg --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 180; then
-                echo "Successfully published to NuGet.org"
-                exit 0
-              fi
-              echo "NuGet push attempt $i failed. Retrying in 10s..."
-              sleep 10
+            for pkg in ./cli/.Build/dist/*.nupkg; do
+              echo "Pushing $pkg to NuGet.org..."
+              for i in 1 2 3; do
+                if dotnet nuget push "$pkg" --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 180; then
+                  echo "Successfully published $pkg to NuGet.org"
+                  break
+                fi
+                echo "NuGet push attempt $i for $pkg failed. Retrying in 10s..."
+                sleep 10
+              done
             done
-            echo "::warning::Failed to push to NuGet.org after 3 attempts."
           else
             echo "::warning::No NuGet API key or OIDC token available."
           fi

@@ -19,41 +19,43 @@
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
     <PackageReference Include="LLamaSharp" Version="0.27.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" PrivateAssets="contentfiles;analyzers;build" />
-    <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.27.0" PrivateAssets="contentfiles;analyzers;build" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.18.1" />
     <PackageReference Include="Superpower" Version="3.1.0" />
     <PackageReference Include="Tomlyn" Version="2.10.1" />
-    <PackageReference Include="TreeSitter.DotNet" Version="1.3.0" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.CSharp\CodeExplorer.Parser.CSharp.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Go\CodeExplorer.Parser.Go.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Java\CodeExplorer.Parser.Java.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Python\CodeExplorer.Parser.Python.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.SQL\CodeExplorer.Parser.SQL.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Terraform\CodeExplorer.Parser.Terraform.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.ColdFusion\CodeExplorer.Parser.ColdFusion.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Cypher\CodeExplorer.Cypher\CodeExplorer.Cypher.csproj" />
+    <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\TreeSitter\CodeExplorer.TreeSitter\CodeExplorer.TreeSitter.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Android\CodeExplorer.Parsers.Android.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.CSharp\CodeExplorer.Parsers.CSharp.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Go\CodeExplorer.Parsers.Go.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Java\CodeExplorer.Parsers.Java.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Kotlin\CodeExplorer.Parsers.Kotlin.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Python\CodeExplorer.Parsers.Python.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Rust\CodeExplorer.Parsers.Rust.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Shared\CodeExplorer.Parsers.Shared.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.TypeScript\CodeExplorer.Parsers.TypeScript.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Sql\CodeExplorer.Parsers.Sql.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Terraform\CodeExplorer.Parsers.Terraform.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.ColdFusion\CodeExplorer.Parsers.ColdFusion.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Script\CodeExplorer.Parsers.Script.csproj" PrivateAssets="all" />
   </ItemGroup>
 
   <Target Name="CopyParserAssembliesToPackage">
     <ItemGroup>
-      <BuildOutputInPackage Include="$(OutputPath)CodeExplorer.Parser.*.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)CodeExplorer.Core.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)CodeExplorer.Parsers.*.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)CodeExplorer.TreeSitter.dll" />
     </ItemGroup>
   </Target>
 
-  <Target Name="ExcludeLLamaNativeFromPack" BeforeTargets="_GetPackageFiles">
-    <ItemGroup>
-      <Content Remove="@(Content)" Condition="$([System.String]::Copy('%(Identity)').Contains('LLamaSharpRuntimes'))" />
-    </ItemGroup>
-  </Target>
+  <ItemGroup Condition="Exists('$(SolutionDir).Build\runtimes')">
+    <None Include="$(SolutionDir).Build\runtimes\**" Exclude="$(SolutionDir).Build\runtimes\.stamp;$(SolutionDir).Build\runtimes\**\.*" Pack="true" PackagePath="runtimes" Visible="false" />
+  </ItemGroup>
 
 </Project>

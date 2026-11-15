@@ -5,6 +5,10 @@ namespace CodeExplorer.Commands;
 
 public class CoverageCommandHandler : BaseCommandHandler
 {
+    private const string StatusUncovered = "uncovered";
+    private const string StatusCovered = "covered";
+    private const string StatusAll = "all";
+
     public static async Task<int> HandleAsync(CoverageOptions opts)
     {
         var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
@@ -13,14 +17,15 @@ public class CoverageCommandHandler : BaseCommandHandler
         await using var client = new SqliteGraphClient(ws.DbPath);
         var service = new TestIntelligenceService(client);
 
-        var status = opts.UncoveredOnly
-            ? "uncovered"
-            : (opts.CoveredOnly ? "covered" : "all");
+        var status = !string.IsNullOrWhiteSpace(opts.Status)
+            ? opts.Status.Trim().ToLowerInvariant()
+            : (opts.UncoveredOnly ? StatusUncovered : (opts.CoveredOnly ? StatusCovered : StatusAll));
 
         var filter = new TestCoverageFilter(
             Project: opts.Project,
             PathPrefix: opts.PathPrefix,
-            Status: status
+            Status: status,
+            Limit: opts.Limit
         );
 
         var report = await service.AnalyzeCoverageAsync(filter);

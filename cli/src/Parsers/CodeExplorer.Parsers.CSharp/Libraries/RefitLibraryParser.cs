@@ -1,0 +1,167 @@
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.CSharp.Libraries;
+
+public class RefitLibraryParser : DeclarativeSemanticExtension
+{
+    private static readonly HashSet<string> RefitMethodAttributes =
+    [
+        "Get", "Post", "Put", "Delete", "Patch", "Head", "Options",
+        "GetAttribute", "PostAttribute", "PutAttribute", "DeleteAttribute",
+        "PatchAttribute", "HeadAttribute", "OptionsAttribute"
+    ];
+
+    public RefitLibraryParser()
+    {
+        Id = "refit";
+        Name = "Refit / RestEase";
+        Type = SemanticExtensionType.ApiClient;
+        LibraryRole = LibraryRole.General;
+        SupportedPatterns = ["Refit", "Refit.*", "RestEase", "RestEase.*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.CSharp.Attribute]),
+                MapNodeType = (node, ctx) => IsRefitMethodAttribute(node) ? OntologyConstants.NodeLabels.ExternalService : null,
+                ExtractIdentifier = (node, _, _, _) => IsRefitMethodAttribute(node) ? ExtractRefitTarget(node) : null
+            }
+        ];
+    }
+
+    public static bool IsRefitMethodAttribute(Node node)
+    {
+        if (!node.Is(TreeSitterSyntax.CSharp.Attribute)) return false;
+
+        var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+        if (!nameNode.IsValid()) return false;
+
+        var attrName = nameNode.Text;
+        if (!RefitMethodAttributes.Contains(attrName)) return false;
+
+        var current = node.Parent;
+        while (current.IsValid())
+        {
+            if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration)) return true;
+            if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration)) return false;
+            current = current.Parent;
+        }
+        return false;
+    }
+
+    public static string? ExtractRefitTarget(Node node)
+    {
+        var argList = node.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
+        var routeVal = "/";
+        if (argList.IsValid())
+        {
+            var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
+            if (arg.IsValid())
+            {
+                var extracted = ExtractStringOrExpression(arg);
+                if (!string.IsNullOrEmpty(extracted)) routeVal = extracted;
+            }
+        }
+
+        var current = node.Parent;
+        string interfaceName = "api-client";
+        string? basePath = null;
+
+        while (current.IsValid())
+        {
+            if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
+            {
+                var idNode = current.GetField(TreeSitterSyntax.Fields.Name);
+                if (idNode.IsValid())
+                {
+                    interfaceName = CleanInterfaceName(idNode.Text);
+                }
+
+                // Check for interface-level [BasePath("...")] or [Route("...")]
+                foreach (var attrList in current.FindChildrenOfType(TreeSitterSyntax.CSharp.AttributeList))
+                {
+                    foreach (var attr in attrList.FindChildrenOfType(TreeSitterSyntax.CSharp.Attribute))
+                    {
+                        var aNameNode = attr.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                        if (aNameNode.IsValid() && (aNameNode.Text is "BasePath" or "BasePathAttribute" or "Route" or "RouteAttribute" or "RoutePrefix"))
+                        {
+                            var bpArgList = attr.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
+                            var bpArg = bpArgList?.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
+                            if (bpArg != null && bpArg.IsValid())
+                            {
+                                var bpVal = ExtractStringOrExpression(bpArg);
+                                if (!string.IsNullOrEmpty(bpVal))
+                                {
+                                    basePath = bpVal;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (basePath != null) break;
+                }
+                break;
+            }
+            current = current.Parent;
+        }
+
+        routeVal = routeVal.Trim('/');
+        if (!string.IsNullOrEmpty(basePath))
+        {
+            var cleanBase = basePath.Trim('/');
+            routeVal = string.IsNullOrEmpty(routeVal) ? cleanBase : $"{cleanBase}/{routeVal}";
+        }
+
+        routeVal = "/" + routeVal;
+        var cleanService = interfaceName.ToLowerInvariant();
+        return $"http:{cleanService}{routeVal}";
+    }
+
+    private static string CleanInterfaceName(string name)
+    {
+        var interfaceName = name;
+        if (interfaceName.StartsWith("I") && interfaceName.Length > 1 && char.IsUpper(interfaceName[1]))
+        {
+            interfaceName = interfaceName[1..];
+        }
+        while (true)
+        {
+            if (interfaceName.EndsWith("Client", StringComparison.OrdinalIgnoreCase))
+            {
+                interfaceName = interfaceName[..^"Client".Length];
+            }
+            else if (interfaceName.EndsWith("Api", StringComparison.OrdinalIgnoreCase))
+            {
+                interfaceName = interfaceName[..^"Api".Length];
+            }
+            else if (interfaceName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+            {
+                interfaceName = interfaceName[..^"Service".Length];
+            }
+            else
+            {
+                break;
+            }
+        }
+        return interfaceName;
+    }
+
+    private static string? ExtractStringOrExpression(Node argNode)
+    {
+        var strNode = argNode.Children.FirstOrDefault(c => c.Type.Contains("string"));
+        if (strNode.IsValid()) return strNode.Text.Trim('"');
+
+        if (AstValueResolver.TryResolveExpression(argNode, null, null, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved;
+        }
+
+        var raw = argNode.Text.Trim();
+        if (ConstantRegistry.TryResolve(null, raw, out var constVal) && !string.IsNullOrWhiteSpace(constVal))
+        {
+            return constVal;
+        }
+
+        return null;
+    }
+}

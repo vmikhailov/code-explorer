@@ -29,11 +29,19 @@ public partial class CodeExplorerRepository
 
     private const string FastExactCallersQuery =
         "MATCH (target) WHERE target.name IS NOT NULL AND target.name = $target " +
-        "MATCH (caller)-[r:CALLS|SERVICE_CALL|CALLS_ENDPOINT|USES_TYPE|USES_DB|QUERIES_DB|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|IMPLEMENTS|INHERITS_FROM]->(target) " +
+        "MATCH (caller)-[r:CALLS|SERVICE_CALL|CALLS_ENDPOINT|USES_TYPE|USES_DB|QUERIES_DB|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|IMPLEMENTS|INHERITS_FROM|READS_FROM|WRITES_TO]->(target) " +
         "WHERE $includeTests OR NOT (COALESCE(caller.is_test, false) = true OR COALESCE(caller.project_name, '') CONTAINS '.Test' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/tests/' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/test/' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH 'Tests.cs' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.spec.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.test.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '_test.go') " +
         "OPTIONAL MATCH (callerOwner:Type)-[:HAS_METHOD]->(caller) " +
         "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(f:File) " +
         "RETURN target.name AS targetName, labels(target)[0] AS targetKind, CASE WHEN callerOwner IS NOT NULL THEN callerOwner.name + '.' + caller.name ELSE caller.name END AS callerName, labels(caller)[0] AS callerKind, type(r) AS relKind, COALESCE(caller.project_name, '') AS projectName, CASE WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL AND caller.start_line IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) + ':' + toString(caller.start_line) WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) ELSE '' END AS location ORDER BY targetName, callerName";
+
+    private const string TypeMethodCallersQuery =
+        "MATCH (target:Type) WHERE target.name IS NOT NULL AND target.name = $target " +
+        "MATCH (target)-[:HAS_METHOD]->(fn:Function)<-[:CALLS]-(caller:Function) " +
+        "WHERE NOT (target)-[:HAS_METHOD]->(caller) AND ($includeTests OR NOT (COALESCE(caller.is_test, false) = true OR COALESCE(caller.project_name, '') CONTAINS '.Test' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/tests/' OR COALESCE(caller.path, caller.file_path, '') CONTAINS '/test/' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH 'Tests.cs' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.spec.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '.test.ts' OR COALESCE(caller.path, caller.file_path, '') ENDS WITH '_test.go')) " +
+        "OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(callerOwner:Type) " +
+        "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(f:File) " +
+        "RETURN target.name AS targetName, 'Type' AS targetKind, CASE WHEN callerOwner IS NOT NULL THEN callerOwner.name + '.' + caller.name ELSE caller.name END AS callerName, 'Function' AS callerKind, 'CALLS_METHOD' AS relKind, COALESCE(caller.project_name, '') AS projectName, CASE WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL AND caller.start_line IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) + ':' + toString(caller.start_line) WHEN COALESCE(caller.path, caller.file_path, f.path) IS NOT NULL THEN COALESCE(caller.path, caller.file_path, f.path) ELSE '' END AS location ORDER BY callerName";
 
     private const string ReverseSemanticCallersQuery =
         "MATCH (target) WHERE target.name = $target OR target.id = $target OR target.symbol = $target " +
@@ -72,7 +80,8 @@ public partial class CodeExplorerRepository
         }
 
         var res = await QueryAllCallersAsync(client, target, includeTests, cancellationToken);
-        return ToonYamlSerializer.SerializeYaml(res);
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+        return McpImpactFormatter.FormatCallersResult(res, wsRoot);
     }
 
     private static async Task<CypherQueryResult> QueryAllCallersAsync(
@@ -107,7 +116,11 @@ public partial class CodeExplorerRepository
 
         if (!target.Contains('.'))
         {
-            return await client.ExecuteCypherAsync(FastExactCallersQuery, parameters, ct);
+            var directRes = await client.ExecuteCypherAsync(FastExactCallersQuery, parameters, ct);
+            var methodRes = await client.ExecuteCypherAsync(TypeMethodCallersQuery, parameters, ct);
+            if (methodRes.Count == 0) return directRes;
+            var cols = directRes.Columns.Count > 0 ? directRes.Columns : methodRes.Columns;
+            return new CypherQueryResult(cols, directRes.Rows.Concat(methodRes.Rows).ToList());
         }
 
         var dotIdx = target.LastIndexOf('.');

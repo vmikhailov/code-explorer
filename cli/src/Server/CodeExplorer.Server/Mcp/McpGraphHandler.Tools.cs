@@ -66,7 +66,7 @@ public partial class McpGraphHandler
 
     [UsedImplicitly]
     [McpServerTool(Title = "Inspect Database Table Data Lineage", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Trace end-to-end data lineage for a database table, identifying all ORM entities, SQL queries, repository functions, source files, and services that read, write, or migrate tableName. Use when investigating schema changes, table access patterns, or read/write ownership; for general code symbol callers use get_callers, and for visual lineage diagrams use get_architecture_map with view='lineage' and format='mermaid'. Queries READS_FROM, WRITES_TO, and MAPS_TO_TABLE edges in the indexed .codeexplorer/graph.db (matching tableName case-insensitively) and returns YAML detailing access operations (SELECT, INSERT, UPDATE, DELETE, DDL), calling functions, services, and file coordinates.")]
+    [Description("Trace end-to-end data lineage for a database table, identifying all ORM entities, SQL queries, repository functions, source files, and services that read, write, or migrate tableName. Use when investigating schema changes, table access patterns, or read/write ownership; for general code symbol callers use get_callers, and for visual lineage diagrams use get_architecture_map with view='lineage' and format='mermaid'. Queries READS_FROM, WRITES_TO, and IMPLEMENTED_BY edges in the indexed .codeexplorer/graph.db (matching tableName case-insensitively) and returns YAML detailing access operations (SELECT, INSERT, UPDATE, DELETE, DDL), calling functions, services, and file coordinates.")]
     public async Task<CallToolResult> InspectDataLineageAsync(
         [Description("Required database table or collection name to trace (case-insensitive exact or partial match, e.g. 'orders' or 'users').")] string tableName,
         [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
@@ -436,7 +436,7 @@ public partial class McpGraphHandler
 
         if (listOnly)
         {
-            return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ListSemanticGatesAsync(category, platform, ws, cancellationToken), cancellationToken);
+            return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ListSemanticGatesAsync(category, platform, ws, cancellationToken, scope, dimension), cancellationToken);
         }
 
         return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.CheckSemanticGatesAsync(gateId, category, platform, scope, dimension, includeTolerated, limit, fileFilter, groupBy, ws, cancellationToken), cancellationToken);

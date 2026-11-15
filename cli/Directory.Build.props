@@ -24,7 +24,7 @@
     <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)$(CeTfmSuffix)\$(MSBuildProjectName)\</PublishDir>
 
     <!-- Versioning -->
-    <Version Condition="'$(Version)' == ''">1.88.0</Version>
+    <Version Condition="'$(Version)' == ''">1.89.0</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(Version)</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">$(Version)</FileVersion>
@@ -48,7 +48,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);**/SampleProjects/**;**/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeExplorer.Cypher' and '$(MSBuildProjectName)' != 'CodeExplorer.Cypher.Tests' and '$(MSBuildProjectName)' != 'OntologyGen' and !$(MSBuildProjectName.Contains('Sample'))">
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeExplorer.Cypher' and '$(MSBuildProjectName)' != 'CodeExplorer.Cypher.Tests' and '$(MSBuildProjectName)' != 'CodeExplorer.TreeSitter' and '$(MSBuildProjectName)' != 'OntologyGen' and !$(MSBuildProjectName.Contains('Sample'))">
     <Using Include="CodeExplorer.Common" />
     <Using Include="CodeExplorer.Core.Common" />
     <Using Include="CodeExplorer.Core.Parser" />

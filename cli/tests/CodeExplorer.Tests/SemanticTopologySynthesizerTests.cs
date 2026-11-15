@@ -1,5 +1,5 @@
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.Rust.Libraries;
+using CodeExplorer.Parsers.Rust.Libraries;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

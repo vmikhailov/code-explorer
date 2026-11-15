@@ -4,12 +4,12 @@ using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.Kotlin;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.Go;
+using CodeExplorer.Parsers.Java;
+using CodeExplorer.Parsers.Kotlin;
+using CodeExplorer.Parsers.Python;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -377,16 +377,16 @@ public class Wave2LibraryExpansionTests
 
             var declarative10 = new DeclarativeSemanticExtension[]
             {
-                new CodeExplorer.Parser.CSharp.Libraries.FastEndpointsLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.CarterLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.DaprDotNetLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.RebusLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.NServiceBusLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.YarpReverseProxyLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.AzureSdkDotNetLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.SemanticKernelAiDotNetLibraryParser(),
-                new CodeExplorer.Parser.CSharp.Libraries.Linq2DbNHibernateLibraryParser(),
-                new CodeExplorer.Parser.Java.Libraries.VertxLibraryParser()
+                new CodeExplorer.Parsers.CSharp.Libraries.FastEndpointsLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.CarterLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.DaprDotNetLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.RebusLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.NServiceBusLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.YarpReverseProxyLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.AzureSdkDotNetLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.SemanticKernelAiDotNetLibraryParser(),
+                new CodeExplorer.Parsers.CSharp.Libraries.Linq2DbNHibernateLibraryParser(),
+                new CodeExplorer.Parsers.Java.Libraries.VertxLibraryParser()
             };
 
             var fusedDeclarative = new DeclarativeSemanticExtension

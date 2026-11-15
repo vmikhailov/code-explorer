@@ -223,8 +223,8 @@
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
-      "fingerprint": "6f4d041a301abd6c2b075e6c2f9febad880c998b04d8bf86bf9915303db584bd",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "fingerprint": "12c897dec618396db91ed0d4abb80dcb35c0069996435c4eb86c87b15e891fe2",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinProjectParser.cs",
       "line": 73,
       "column": 0,
       "symbol": "Exception",
@@ -233,8 +233,8 @@
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
-      "fingerprint": "aafce4a72d75b6312422a215e9f7aae3135fb765548bb51fa1cefbd671fd2f65",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "fingerprint": "54d35667e10b3b03ce848cfa5724cfb641d15dd279041e5f49b8ffb33f255714",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinProjectParser.cs",
       "line": 259,
       "column": 0,
       "symbol": "Exception",
@@ -243,8 +243,8 @@
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
-      "fingerprint": "1f558ab0035a589e80cda3c53d9972536e7a60918998f43fc5cf6389a334d20d",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Shared/Android/GradleBuildScriptParser.cs",
+      "fingerprint": "ae7fe2fb24e8588f7b2c6928c640adc8598224f58f39b85c22088f56448ed5d0",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/GradleBuildScriptParser.cs",
       "line": 61,
       "column": 0,
       "symbol": "Exception",
@@ -253,8 +253,8 @@
       "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
     },
     {
-      "fingerprint": "8e8cf6de392a01b1490cd237b0e880a978960c3e888da300d327ef879cb75a8a",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.Shared/Android/GradleBuildScriptParser.cs",
+      "fingerprint": "52a1172ffa4b83aca777e3cdbeee8bbbdb7c6f6606dc8864c5c49f7373a96457",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/GradleBuildScriptParser.cs",
       "line": 197,
       "column": 0,
       "symbol": "Exception",
@@ -263,21 +263,11 @@
       "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
     },
     {
-      "fingerprint": "3ebcd94156cbec13a170d85307f52dd64baff222773125c13212b7d1650fc658",
-      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Libraries/ExpressLibraryParser.cs",
+      "fingerprint": "04c56f8a10c84788c26655578b739f768ad8aab60fc380ad4c268e118b18a6ed",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ExpressLibraryParser.cs",
       "line": 467,
       "column": 0,
       "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "e12f9763936a88900d4c039564c0fb3e72c82bcd0b657aba7cd40a46072a0baf",
-      "file": "cli/src/UI/CodeExplorer/Program.cs",
-      "line": 22,
-      "column": 0,
-      "symbol": "",
       "target": "catch",
       "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
       "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
@@ -1061,6 +1051,16 @@
       "target": "catch",
       "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "e12f9763936a88900d4c039564c0fb3e72c82bcd0b657aba7cd40a46072a0baf",
+      "file": "cli/src/UI/CodeExplorer/Program.cs",
+      "line": 22,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     }
   ]
 }

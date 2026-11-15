@@ -10,13 +10,13 @@ public static class StandardRules
 {HeaderMarker}
 When working in this repository where CodeExplorer is available (CLI `ce` or MCP):
 - **ALWAYS prioritize CodeExplorer CLI & MCP tools** over manual `grep_search`, `find_files`, or reading raw source files when exploring architecture, dependencies, or code structure.
-- **Rules of Tool Selection (CLI First, Universal Across All AI Coding Environments):**
-  1. **Callers & Inbound References**: ALWAYS use `ce callers <target>` (or MCP `get_callers`) to discover callers of functions, microservices, database tables, and messaging topics with exact `file:line` locations. Never regex-grep across dozens of files for callers.
-  2. **Blast Radius & Impact Analysis**: ALWAYS use MCP `analyze_code_impact` before refactoring or modifying a symbol to inspect all dependents.
-  3. **Architecture & Solution Overview**: Use `ce view` or `ce query` (or MCP `get_architecture_map`) to understand component boundaries, project languages, databases, and ingress/egress points.
-  4. **Project Dependencies & Inbound Links**: Use `ce dependencies` (or MCP `get_project_dependencies`) to inspect incoming/outgoing references, NuGet packages, and blast radius before modifying projects.
-  5. **Cross-Service Flow & Tracing**: Use `ce trace flow --from <service>` (or MCP `trace_cross_service_flow` / `get_call_chain`) to follow end-to-end execution across microservices.
-  6. **Ad-Hoc Cypher**: Use `ce query "<cypher>"` (or MCP `execute_cypher`) to query the knowledge graph directly.
+- **Rules of Tool Selection (1-to-1 Equivalent Across CLI & MCP):**
+  1. **Architecture & Solution Overview**: ALWAYS use `ce map` (or MCP `get_architecture_map`) to inspect component boundaries, project languages, databases, endpoints, and C1/C2/C3 topologies.
+  2. **Project Dependencies & Inbound Links**: ALWAYS use `ce deps [project]` (or MCP `get_project_dependencies`) to inspect incoming/outgoing references, packages, and runtime vs build dependencies.
+  3. **Symbol Discovery & File Outlines**: ALWAYS use `ce symbol <name>` / `ce search <query>` (or MCP `find_symbol`) and `ce outline <path>` (or MCP `get_file_outline`) before falling back to text grep; read targeted line ranges via `ce snippets <file:start-end>` (or MCP `fetch_code_snippets`).
+  4. **Callers, DI Implementations & Call Chains**: ALWAYS use `ce callers <target> [-m <method>]` (or MCP `get_callers`), `ce trace <startFn> <endFn>` (or MCP `get_call_chain`), and `ce impact <symbol>` (or MCP `analyze_code_impact`) before refactoring.
+  5. **Service Contracts, Distributed Flows & Data Lineage**: Use `ce contracts <service> [--direction all|ingress|egress|entry_points|flow]` (or MCP `get_service_contracts`) and `ce lineage <table>` (or MCP `inspect_data_lineage`).
+  6. **Affected Tests, Gates & Custom Cypher**: Use `ce test` (or MCP `get_affected_tests`), `ce gate check` (or MCP `check_semantic_gates`), and `ce query "<cypher>"` (or MCP `execute_custom_read_cypher`).
 - **Fallback**: Only use standard filesystem tools (`grep`, `find`, raw reads) if CodeExplorer is unavailable or returns an error.
 """;
     }

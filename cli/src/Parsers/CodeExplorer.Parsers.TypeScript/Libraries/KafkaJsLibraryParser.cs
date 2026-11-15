@@ -1,0 +1,89 @@
+using System.Collections.Frozen;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.TypeScript.Libraries;
+
+public class KafkaJsLibraryParser : DeclarativeSemanticExtension
+{
+    public KafkaJsLibraryParser()
+    {
+        Type = SemanticExtensionType.Cloud;
+        Name = "KafkaJS";
+        Id = "kafkajs";
+        SupportedPatterns = ["kafkajs"];
+        LibraryRole = LibraryRole.MessageBroker;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.TypeScript.CallExpression }.ToFrozenSet(),
+                CollectReferences = CollectKafkaJsReferences
+            }
+        ];
+    }
+
+    private static void CollectKafkaJsReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
+
+        if (AstHelper.TryGetMemberAccess(node, out _, out var propName))
+        {
+            if (string.Equals(propName, "send", StringComparison.OrdinalIgnoreCase))
+            {
+                var topic = ExtractTopicFromConfig(node, scopeSymbolId);
+                if (!string.IsNullOrEmpty(topic) && WorkspaceConventions.IsValidTopicOrQueueName(topic))
+                {
+                    references.Add(new Reference(scopeSymbolId, "kafka:" + topic, OntologyConstants.Relationships.PublishesTo));
+                }
+            }
+            else if (string.Equals(propName, "subscribe", StringComparison.OrdinalIgnoreCase))
+            {
+                var topics = ExtractTopicsFromSubscribeConfig(node, scopeSymbolId);
+                foreach (var topic in topics)
+                {
+                    if (!string.IsNullOrEmpty(topic) && WorkspaceConventions.IsValidTopicOrQueueName(topic))
+                    {
+                        references.Add(new Reference(scopeSymbolId, "kafka:" + topic, OntologyConstants.Relationships.SubscribesTo));
+                    }
+                }
+            }
+        }
+    }
+
+    private static string? ExtractTopicFromConfig(Node callNode, string? scopeSymbolId = null)
+    {
+        var args = AstHelper.GetCallArguments(callNode);
+        if (args.Count == 0) return null;
+
+        if (AstHelper.TryGetObjectProperty(args[0], "topic", out var valNode))
+        {
+            return AstHelper.ResolveTopicOrQueue(valNode, scopeSymbolId);
+        }
+
+        return null;
+    }
+
+    private static List<string> ExtractTopicsFromSubscribeConfig(Node callNode, string? scopeSymbolId = null)
+    {
+        var result = new List<string>();
+        var args = AstHelper.GetCallArguments(callNode);
+        if (args.Count == 0) return result;
+
+        if (AstHelper.TryGetObjectProperty(args[0], "topic", out var topicVal))
+        {
+            var topic = AstHelper.ResolveTopicOrQueue(topicVal, scopeSymbolId);
+            if (!string.IsNullOrEmpty(topic)) result.Add(topic);
+        }
+
+        if (AstHelper.TryGetObjectProperty(args[0], "topics", out var topicsVal) && topicsVal.IsValid())
+        {
+            foreach (var item in topicsVal.Children)
+            {
+                var topic = AstHelper.ResolveTopicOrQueue(item, scopeSymbolId);
+                if (!string.IsNullOrEmpty(topic)) result.Add(topic);
+            }
+        }
+
+        return result;
+    }
+}

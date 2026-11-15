@@ -5,6 +5,26 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.0] - 2026-11-15
+
+### Added, Fixed & Improved
+- **Self-Hosted Tree-sitter Interop (`CodeExplorer.TreeSitter`) & Unified Parser Assemblies (`CodeExplorer.Parsers.*`)**:
+  - Replaced external `TreeSitter.DotNet` NuGet packages with an in-tree `LibraryImport` P/Invoke binding (`CodeExplorer.TreeSitter`) and a reproducible native grammar build pipeline (`scripts/build-tree-sitter-natives.ps1`) targeting `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64`.
+  - Standardized all 13 parser projects under `CodeExplorer.Parsers.*` (`Android`, `CSharp`, `ColdFusion`, `Go`, `Java`, `Kotlin`, `Python`, `Rust`, `Script`, `Shared`, `Sql`, `Terraform`, `TypeScript`).
+- **100% 1-to-1 CLI $\leftrightarrow$ MCP Tool Equivalence (`CodeExplorer`, `CodeExplorer.Analysis`)**:
+  - Extracted shared YAML/Mermaid/C4 formatting from `CodeExplorer.Server` into `CodeExplorer.Analysis.Mcp` (`McpResultFormatter`, `McpGateFormatter`, `McpImpactFormatter`, `McpLineageFormatter`).
+  - Added CLI subcommands `ce map`, `ce outline`, `ce snippets`, `ce lineage`, and `ce gate anomalies`, and upgraded `--json` across all 15 CLI commands (`scan`, `map`, `deps`, `symbol`, `outline`, `snippets`, `call-chain`, `callers`, `impact`, `contracts`, `lineage`, `tests`, `gate check`, `taxonomy`, `query`) to emit the exact same payload as the corresponding 15 MCP tools.
+- **Streamlined 3-Package NuGet SDK Distribution (`CodeExplorer.Cli`, `CodeExplorer.Cypher`, `CodeExplorer.Indexing`)**:
+  - Consolidated published NuGet packages into 3 self-contained packages: `CodeExplorer.Cli` (global tool, reduced from ~300 MB to ~70 MB by stripping unused native `LLamaSharp` backends), `CodeExplorer.Cypher` (standalone OpenCypher engine), and `CodeExplorer.Indexing` (unified polyglot AST + ontology indexing SDK bundling `CodeExplorer.Core`, `CodeExplorer.TreeSitter`, all 13 `CodeExplorer.Parsers.*` assemblies, and cross-platform native Tree-sitter grammars).
+- **LLM Token Optimization & Parameter Parity Across the 15-Tool MCP Surface (`CodeExplorer.Analysis`, `CodeExplorer.Server`)**:
+  - **`check_semantic_gates` Bounded Actionable Summary**: Evaluating a gate suite without `gateId` now returns a compact summary header + 1-line tabular row per gate (`[id, status, severity, newViolations, tolerated, name]`) with `0` tolerated debt items leaked when `includeTolerated=false` (cutting clean-suite responses on large repositories from ~65K tokens to ~150 tokens). When any gate fails, `failedGates` surfaces `remediation` and up to `5` new violations per failed gate without raw SHA-256 `Fingerprint`, internal `NodeId`, or Cypher `Query` payloads; suite, single-gate, and `listOnly=true` modes now honor all filters (`category`, `platform`, `scope`, `dimension`, `includeTolerated`, `fileFilter`, `groupBy`, `limit`).
+  - **`get_project_dependencies` Parameter Parity**: Now enforces `limit` (`1..500`), `type` (`all`, `runtime`, `build`), and case-insensitive substring `projectFilter` matching across inbound and outbound project/package edges.
+  - **`inspect_data_lineage` & `get_service_contracts(direction='entry_points')`**: `inspect_data_lineage` now resolves `READS_FROM`, `WRITES_TO`, and `IMPLEMENTED_BY` edges via primary-key-indexed lookups (surfacing ORM entities, readers, writers, and SQL queries cleanly); `entry_points` resolves handler file paths accurately, deduplicates multi-path rows, strips internal `ws:sym:` IDs, and bounds large service payloads.
+  - **`analyze_code_impact`, `get_callers`, `find_symbol`, & `get_affected_tests`**: Exact-first symbol resolution + DI method-caller and 2-hop transitive traversal in `analyze_code_impact` (cutting 465K-node repository latency from ~11s to <30ms); deduplicated inbound/table/method callers in `get_callers`; compact workspace-relative tabular output without `ws:sym:` / `NodeId` duplication in `find_symbol` (`substring` & `hybrid`) and `get_affected_tests` (impact & coverage modes).
+  - **Cypher `UNION` & `CALL` Parameter Isolation (`CodeExplorer.Cypher`)**: Fixed SQLite parameter index (`@p0..@pN`) and CTE counter propagation across multi-branch `UNION` / `UNION ALL` and `CALL { ... }` subqueries in `SqliteCompiler` so literal parameters in earlier branches are never overwritten by later branches.
+
+---
+
 ## [1.88.0] - 2026-11-15
 
 ### Added & Changed

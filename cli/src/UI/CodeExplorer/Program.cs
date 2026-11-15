@@ -40,10 +40,13 @@ public class Program
         var parseResult = parser.ParseArguments(args, [
             typeof(InitOptions), typeof(ScanOptions), typeof(IndexOptions), typeof(StatusOptions), typeof(InfoOptions),
             typeof(ClearOptions), typeof(QueriesOptions), typeof(QueryOptions), typeof(McpOptions), typeof(IngestOptions),
-            typeof(ExportOptions), typeof(ServeOptions), typeof(DependenciesOptions), typeof(DepsOptions),
-            typeof(ContractsOptions), typeof(TraceOptions),
+            typeof(MapOptions), typeof(ViewOptions), typeof(ExportOptions), typeof(ServeOptions),
+            typeof(DependenciesOptions), typeof(DepsOptions), typeof(ContractsOptions),
+            typeof(OutlineOptions), typeof(SnippetsOptions), typeof(SnippetOptions),
+            typeof(TraceOptions), typeof(CallChainOptions), typeof(LineageOptions),
             typeof(TestOptions), typeof(CoverageOptions), typeof(ConfigureOptions), typeof(GateOptions), typeof(CallersOptions),
-            typeof(ImpactOptions), typeof(SearchOptions), typeof(TaxonomyOptions), typeof(SchemaOptions)
+            typeof(ImpactOptions), typeof(SearchOptions), typeof(SymbolOptions), typeof(FindSymbolAliasOptions),
+            typeof(TaxonomyOptions), typeof(SchemaOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -59,14 +62,18 @@ public class Program
                 McpOptions opts => await McpCommandHandler.HandleAsync(opts),
                 ConfigureOptions opts => await ConfigureCommandHandler.HandleAsync(opts),
                 IngestOptions opts => await IngestCommandHandler.HandleAsync(opts),
+                MapOptions opts => await MapCommandHandler.HandleAsync(opts),
                 ExportOptions opts => await ExportCommandHandler.HandleAsync(opts),
                 ServeOptions opts => await ServeCommandHandler.HandleAsync(opts),
                 DependenciesOptions opts => await DependenciesCommandHandler.HandleAsync(opts),
                 ContractsOptions opts => await ContractsCommandHandler.HandleAsync(opts),
+                OutlineOptions opts => await OutlineCommandHandler.HandleAsync(opts),
+                SnippetsOptions opts => await SnippetsCommandHandler.HandleAsync(opts),
                 TraceOptions opts => await TraceCommandHandler.HandleAsync(opts),
+                LineageOptions opts => await LineageCommandHandler.HandleAsync(opts),
                 TestOptions opts => await TestCommandHandler.HandleAsync(opts),
                 CoverageOptions opts => await CoverageCommandHandler.HandleAsync(opts),
-                GateOptions opts => await GateCommandHandler.HandleAsync(opts),
+                GateOptions opts => await GateAnomaliesCommandHandler.HandleOrDelegateAsync(opts),
                 CallersOptions opts => await CallersCommandHandler.HandleAsync(opts),
                 ImpactOptions opts => await ImpactCommandHandler.HandleAsync(opts),
                 SearchOptions opts => await SearchCommandHandler.HandleAsync(opts),

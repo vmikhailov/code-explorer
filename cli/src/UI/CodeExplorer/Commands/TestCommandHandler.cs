@@ -5,17 +5,35 @@ namespace CodeExplorer.Commands;
 
 public class TestCommandHandler : BaseCommandHandler
 {
+    private const string SubcommandCoverage = "coverage";
+    private const string SubcommandImpact = "impact";
+
     public static async Task<int> HandleAsync(TestOptions opts)
     {
         var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
         if (ws == null) return 1;
 
-        // Check if user requested coverage subcommand via 'ce test coverage'
-        if (IsOneOf(opts.Subcommand, "coverage"))
+        var hasImpactSelector = !string.IsNullOrWhiteSpace(opts.Files)
+            || opts.Git
+            || !string.IsNullOrWhiteSpace(opts.GitBase)
+            || !string.IsNullOrWhiteSpace(opts.Diff)
+            || !string.IsNullOrWhiteSpace(opts.Symbols);
+        var hasCoverageSelector = !string.IsNullOrWhiteSpace(opts.CoverageStatus)
+            || !string.IsNullOrWhiteSpace(opts.Project)
+            || !string.IsNullOrWhiteSpace(opts.PathPrefix)
+            || opts.UncoveredOnly
+            || opts.CoveredOnly
+            || opts.Threshold.HasValue;
+
+        if (IsOneOf(opts.Subcommand, SubcommandCoverage)
+            || (IsOneOf(opts.Subcommand, SubcommandImpact) && !hasImpactSelector && hasCoverageSelector))
         {
             var covOpts = new CoverageOptions
             {
                 Project = opts.Project,
+                PathPrefix = opts.PathPrefix,
+                Status = opts.CoverageStatus,
+                Limit = opts.Limit,
                 UncoveredOnly = opts.UncoveredOnly,
                 CoveredOnly = opts.CoveredOnly,
                 Threshold = opts.Threshold,

@@ -1,0 +1,390 @@
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.TypeScript.Libraries;
+
+public class AxiosLibraryParser : DeclarativeSemanticExtension
+{
+    private const string UrlPropertyName = "url";
+
+    public override SemanticExtensionType Type => SemanticExtensionType.ApiClient;
+
+    public override string Name => "Axios";
+
+    public override string Id => "axios";
+
+    public override IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios", "@nestjs/common"];
+
+    public override bool IsBuiltIn => true;
+
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => (IsHttpCallNode(node) && ExtractIdentifierStatic(node, ctx, null) != null)
+                ? OntologyConstants.NodeLabels.ExternalService
+                : null,
+            ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static bool IsHttpCallNode(Node node)
+    {
+        if (!node.IsValid() || !node.Is(TreeSitterSyntax.TypeScript.CallExpression))
+            return false;
+
+        var func = node.GetFunctionNode();
+        if (!func.IsValid())
+            return false;
+
+        // 1. Direct call: axios(url, ...)
+        if (func.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            return string.Equals(func.Text, "axios", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // 2. Member call: this.http.get(...), this.httpService.post(...), axios.get(...), apiClient.get(...)
+        if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+            if (!prop.IsValid()) return false;
+
+            var verb = prop.Text.ToLowerInvariant();
+            if (verb is not ("get" or "post" or "put" or "delete" or "request" or "patch" or "head" or "options"))
+            {
+                return false;
+            }
+
+            var obj = func.GetField(TreeSitterSyntax.Fields.Object);
+            if (!obj.IsValid()) return false;
+
+            var objPath = obj.GetCanonicalMemberPath().ToLowerInvariant();
+
+            // Exclude common false positives like Map.get, Map.delete, Headers.get, URLSearchParams.get, etc.
+            if (objPath is "map" or "set" or "headers" or "params" or "searchparams" or "cache" or "store")
+            {
+                return false;
+            }
+
+            var cleanObjText = objPath.Trim('(', ')', ' ', '\t');
+            if (cleanObjText.Contains("axios") ||
+                cleanObjText.Contains("http") ||
+                cleanObjText.Contains("apiclient") ||
+                cleanObjText.EndsWith("client") ||
+                cleanObjText.EndsWith(".client") ||
+                cleanObjText.Equals("client") ||
+                cleanObjText.Equals("api") ||
+                (obj.IsSelfOrSuper && IsEnclosingClassApiClient(node)))
+            {
+                var args = AstHelper.GetCallArguments(node);
+                if (args.Count > 0 && args[0].Is(TreeSitterSyntax.TypeScript.Object))
+                {
+                    if (!AstHelper.TryGetObjectProperty(args[0], "url", out _) &&
+                        AstHelper.TryGetObjectProperty(args[0], "path", out _))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsEnclosingClassApiClient(Node node)
+    {
+        var curr = node.Parent;
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
+            {
+                var text = curr.Text;
+                if (text.Contains("extends ApiClient") || text.Contains("extends HttpClient") ||
+                    text.Contains("extends RestClient") || text.Contains("extends BaseApiClient") ||
+                    text.Contains("extends BaseClient") || text.Contains("extends ApiBase"))
+                {
+                    return true;
+                }
+                return false;
+            }
+            curr = curr.Parent;
+        }
+        return false;
+    }
+
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
+    {
+        if (IsHttpCallNode(node))
+        {
+            var args = AstHelper.GetCallArguments(node);
+            if (args.Count > 0 && args[0].IsValid())
+            {
+                var targetArg = args[0];
+                var func = node.GetFunctionNode();
+                string? verb = null;
+                string? objText = null;
+                if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+                {
+                    var objNode = func.GetField(TreeSitterSyntax.Fields.Object);
+                    if (objNode.IsValid())
+                    {
+                        objText = objNode.Text?.ToLowerInvariant();
+                    }
+                    var propNode = func.GetField(TreeSitterSyntax.Fields.Property);
+                    if (propNode.IsValid())
+                    {
+                        verb = propNode.Text.ToLowerInvariant();
+                    }
+                }
+
+                var firstArgText = targetArg.IsValid() && targetArg.Text != null
+                    ? targetArg.Text.Trim('\'', '"', '`')
+                    : "";
+
+                if (args.Count > 1 && (verb == "request" || WorkspaceConventions.HttpMethodVerbs.Contains(firstArgText)))
+                {
+                    targetArg = args[1];
+                }
+                else if (targetArg.Is(TreeSitterSyntax.TypeScript.Object) &&
+                    AstHelper.TryGetObjectProperty(targetArg, UrlPropertyName, out var urlProp) && urlProp.IsValid())
+                {
+                    targetArg = urlProp;
+                }
+
+                if (!targetArg.IsValid() ||
+                    (targetArg.Text != null && WorkspaceConventions.HttpMethodVerbs.Contains(targetArg.Text.Trim('\'', '"', '`'))))
+                {
+                    return null;
+                }
+
+                var projectContext = projectName ?? ctx?.WorkspaceId;
+                var resolved = AstHelper.ResolveStringOrTemplate(targetArg, projectContext);
+                if (!string.IsNullOrWhiteSpace(resolved))
+                {
+                    if (Uri.TryCreate(resolved, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
+                    {
+                        var path = uri.AbsolutePath.TrimStart('/');
+                        return string.IsNullOrEmpty(path) ? uri.Host : $"{uri.Host}/{path}";
+                    }
+                    if (!resolved.Contains('/') && RouteDictionaryRegistry.TryResolve(resolved, out var rPath, out var rSvc))
+                    {
+                        var cleanPath = rPath.Split('?')[0].TrimStart('/');
+                        return !string.IsNullOrEmpty(rSvc) ? $"{rSvc}/{cleanPath}" : cleanPath;
+                    }
+
+                    // Try to resolve client's baseURL from containing class/service
+                    var baseUrl = FindBaseUrl(node, projectContext);
+                    if (!string.IsNullOrEmpty(baseUrl))
+                    {
+                        var cleanBase = baseUrl.TrimEnd('/');
+                        var cleanPath = resolved.TrimStart('/');
+                        return $"{cleanBase}/{cleanPath}";
+                    }
+
+                    if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+                    {
+                        var isGenericClient = (objText is "client" or "this.client" || (objText != null && !objText.Contains("axios") && !objText.Contains("http") && !objText.Contains("api") && !objText.Contains("rest"))) && !IsEnclosingClassApiClient(node);
+                        if (isGenericClient &&
+                            !resolved.Contains("://") &&
+                            !resolved.Contains('.') &&
+                            !resolved.Contains('/') &&
+                            !RouteDictionaryRegistry.TryResolve(resolved, out _, out _))
+                        {
+                            return null;
+                        }
+                    }
+
+                    // If resolved starts with '/', preserve it so CreateExternalServiceNode recognizes relative routes
+                    if (resolved.StartsWith('/'))
+                    {
+                        return resolved;
+                    }
+
+                    return resolved.TrimStart('/');
+                }
+
+                var fallbackBaseUrl = FindBaseUrl(node, projectContext);
+                if (!string.IsNullOrEmpty(fallbackBaseUrl))
+                {
+                    return fallbackBaseUrl;
+                }
+
+                if (objText != null && (objText.Contains("http") || objText.Contains("axios")))
+                {
+                    var fallbackSvc = AstHelper.ExtractEnclosingServiceFallback(node);
+                    if (!string.IsNullOrEmpty(fallbackSvc))
+                    {
+                        return fallbackSvc;
+                    }
+                }
+            }
+            return null;
+        }
+        return null;
+    }
+
+    private static string? FindBaseUrl(Node callNode, string? projectContext)
+    {
+        var curr = callNode.Parent;
+        Node? classNode = null;
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
+            {
+                classNode = curr;
+                break;
+            }
+            curr = curr.Parent;
+        }
+
+        if (classNode == null || !classNode.IsValid()) return null;
+
+        var classText = classNode.Text;
+
+        // 1. Check for axios.create({ baseURL: ... })
+        var createMatch = System.Text.RegularExpressions.Regex.Match(
+            classText,
+            @"axios\.create\s*\(\s*\{[^}]*?base(?:URL|Url)\s*:\s*([^,}]+)");
+        if (createMatch.Success)
+        {
+            var rawExpr = createMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+            var resolved = ResolveBaseUrlExpression(classNode, rawExpr, projectContext);
+            if (!string.IsNullOrEmpty(resolved)) return resolved;
+        }
+
+        // 2. Check for this._baseUrl = ... or this.baseUrl = ... in constructor or field initializers
+        var baseFieldMatch = System.Text.RegularExpressions.Regex.Match(
+            classText,
+            @"(?:this\.)?(?:_baseUrl|baseUrl|baseURL|_apiUrl|apiUrl|apiBaseUrl)\s*[:=]\s*([^;\n]+)");
+        if (baseFieldMatch.Success)
+        {
+            var rawExpr = baseFieldMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+            var resolved = ResolveBaseUrlExpression(classNode, rawExpr, projectContext);
+            if (!string.IsNullOrEmpty(resolved)) return resolved;
+        }
+
+        // 3. Check for super(url) or super(spaBffAddress) in constructor
+        var superMatch = System.Text.RegularExpressions.Regex.Match(
+            classText,
+            @"super\s*\(\s*([^,)\n]+)");
+        if (superMatch.Success)
+        {
+            var rawExpr = superMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+            var resolved = ResolveBaseUrlExpression(classNode, rawExpr, projectContext);
+            if (!string.IsNullOrEmpty(resolved)) return resolved;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveBaseUrlExpression(Node classNode, string rawExpr, string? projectContext)
+    {
+        if (string.IsNullOrWhiteSpace(rawExpr)) return null;
+
+        var clean = rawExpr.StartWithIC("this.") ? rawExpr[5..].Trim() : rawExpr.Trim();
+
+        // If it's a relative path e.g. /gateway/spa-bff/catalogs
+        if (clean.StartsWith('/'))
+        {
+            return clean;
+        }
+
+        // Check if clean was assigned locally in constructor, e.g. let spaBffAddress = '/gateway/spa-bff/catalogs'
+        var classText = classNode.Text;
+        var localAssign = System.Text.RegularExpressions.Regex.Match(
+            classText,
+            $@"(?:let|const|var|this\.)\s+{System.Text.RegularExpressions.Regex.Escape(clean)}\s*=\s*['""]([^'""]+)['""]");
+        if (localAssign.Success)
+        {
+            return localAssign.Groups[1].Value.Trim();
+        }
+
+        // If it's a direct URL
+        if (Uri.TryCreate(clean, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
+        {
+            var p = uri.AbsolutePath.Trim('/');
+            return string.IsNullOrEmpty(p) ? uri.Host : $"{uri.Host}/{p}";
+        }
+
+        // If it's a field name like _baseUrl, check if constructor assigns it: this._baseUrl = config.get('ID_HELPER_NEST')
+        if (clean.StartsWith('_') || clean.Equals("baseUrl", StringComparison.OrdinalIgnoreCase) || clean.Equals("apiUrl", StringComparison.OrdinalIgnoreCase))
+        {
+            var assignMatch = System.Text.RegularExpressions.Regex.Match(
+                classText,
+                $@"(?:this\.)?{System.Text.RegularExpressions.Regex.Escape(clean)}\s*=\s*([^;\n]+)");
+            if (assignMatch.Success)
+            {
+                var assignedVal = assignMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+                if (!string.Equals(assignedVal, clean, StringComparison.OrdinalIgnoreCase))
+                {
+                    var res = ResolveBaseUrlExpression(classNode, assignedVal, projectContext);
+                    if (!string.IsNullOrEmpty(res)) return res;
+                }
+            }
+        }
+
+        // Check for config.get('KEY') or configService.get('KEY')
+        var cfgMatch = System.Text.RegularExpressions.Regex.Match(clean, @"(?:getString|get)\s*\(\s*['""]([^'""]+)['""]\s*\)");
+        if (cfgMatch.Success)
+        {
+            var key = cfgMatch.Groups[1].Value.Trim();
+            if (ConstantRegistry.TryResolve(projectContext, key, out var resKey) && !string.IsNullOrEmpty(resKey))
+            {
+                return resKey;
+            }
+            return WorkspaceConventions.NormalizeServiceName(key);
+        }
+
+        // Check if clean itself is an env/config key in ConstantRegistry
+        if (ConstantRegistry.TryResolve(projectContext, clean, out var regVal) && !string.IsNullOrEmpty(regVal))
+        {
+            return regVal;
+        }
+
+        // Check if clean looks like a config property: config.idHelperUrl -> idHelper
+        if (clean.Contains('.'))
+        {
+            var propPart = clean[(clean.LastIndexOf('.') + 1)..];
+            if (ConstantRegistry.TryResolve(projectContext, propPart, out var propVal) && !string.IsNullOrEmpty(propVal))
+            {
+                return propVal;
+            }
+            var stripped = CleanSuffix(propPart);
+            if (!string.IsNullOrEmpty(stripped) && stripped.Length >= 2)
+            {
+                return WorkspaceConventions.NormalizeServiceName(stripped);
+            }
+        }
+
+        var normalized = WorkspaceConventions.NormalizeServiceName(clean);
+        return !string.IsNullOrEmpty(normalized) ? normalized : clean;
+    }
+
+    private static string CleanSuffix(string ident)
+    {
+        return AstHelper.CleanIdentifierSuffix(ident);
+    }
+
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (!IsHttpCallNode(node)) return;
+        var func = node.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var propNode = func.GetField(TreeSitterSyntax.Fields.Property);
+            if (propNode.IsValid())
+            {
+                var verb = propNode.Text.ToUpperInvariant();
+                if (verb is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "HEAD" or "OPTIONS")
+                {
+                    symbol.Properties["method"] = verb;
+                    symbol.Properties["http_method"] = verb;
+                }
+            }
+        }
+    }
+}

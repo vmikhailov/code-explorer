@@ -1,0 +1,590 @@
+using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.Rust.Libraries;
+
+/// <summary>
+/// Semantic extension for the AWS SDK for Rust (aws-sdk-sqs, aws-sdk-sns, aws-sdk-s3, aws-sdk-kms, aws-sdk-secretsmanager).
+/// Detects SQS message consumption (receive_message), SQS message production (send_message),
+/// and SNS topic publishing (publish).
+/// Emits Topic nodes and PUBLISHES_TO / SUBSCRIBES_TO relationships.
+/// </summary>
+public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
+{
+    public AwsSdkRustLibraryParser()
+    {
+        Id = "aws-sdk-rust";
+        Name = "AWS SDK for Rust";
+        Type = SemanticExtensionType.Cloud;
+        LibraryRole = LibraryRole.MessageBroker;
+        SupportedPatterns = ["aws-sdk-*", "aws_sdk_*", "aws-config*"];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = System.Collections.Frozen.FrozenSet.ToFrozenSet([TreeSitterSyntax.Rust.CallExpression]),
+                MapNodeType = (node, ctx) => IsAwsSdkCall(node, out _, out _, out _) ? OntologyConstants.NodeLabels.Topic : null,
+                ExtractIdentifier = (node, _, _, _) => IsAwsSdkCall(node, out var topic, out _, out _) ? topic : null,
+                CollectReferences = CollectReferencesCore,
+                EnrichSymbol = EnrichSymbolCore
+            }
+        ];
+    }
+
+    public override IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    {
+        yield return new PackageDescriptor("aws-sdk-sqs", "AWS SDK SQS", LibraryRole.MessageBroker, "queue", ["aws-sdk-sqs*", "aws_sdk_sqs*"]);
+        yield return new PackageDescriptor("aws-sdk-sns", "AWS SDK SNS", LibraryRole.MessageBroker, "queue", ["aws-sdk-sns*", "aws_sdk_sns*"]);
+        yield return new PackageDescriptor("aws-sdk-s3", "AWS SDK S3", LibraryRole.CloudSdk, "cloud", ["aws-sdk-s3*", "aws_sdk_s3*"]);
+        yield return new PackageDescriptor("aws-sdk-kms", "AWS SDK KMS", LibraryRole.CloudSdk, "cloud", ["aws-sdk-kms*", "aws_sdk_kms*"]);
+        yield return new PackageDescriptor("aws-sdk-secretsmanager", "AWS SDK Secrets Manager", LibraryRole.CloudSdk, "cloud", ["aws-sdk-secretsmanager*", "aws_sdk_secretsmanager*"]);
+        yield return new PackageDescriptor(Id, Name, LibraryRole, Type, SupportedPatterns);
+    }
+
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (IsAwsSdkCall(node, out var topic, out var brokerType, out var isPublish) && !string.IsNullOrEmpty(topic))
+        {
+            var relKind = isPublish
+                ? OntologyConstants.Relationships.PublishesTo
+                : OntologyConstants.Relationships.SubscribesTo;
+
+            references.Add(new Reference(scopeSymbolId, $"{brokerType}:{topic}", relKind));
+        }
+    }
+
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (IsAwsSdkCall(node, out _, out var brokerType, out var isPublish))
+        {
+            symbol.Properties["broker_type"] = brokerType;
+            symbol.Properties[OntologyConstants.PropertyNames.MessagingDirection] = isPublish
+                ? OntologyConstants.EvidenceKinds.Publish
+                : OntologyConstants.EvidenceKinds.Subscribe;
+        }
+    }
+
+    /// <summary>
+    /// Detects an AWS SDK fluent operation chain such as <c>client.receive_message().queue_url(url).send()</c>.
+    /// SDK operations are zero-argument builder methods invoked on a client receiver, which distinguishes them from
+    /// free helper functions (<c>send_message(arn, msg)</c>) and domain methods (<c>self.publish(event)</c>).
+    /// Returns false when the queue/topic name cannot be resolved statically, so no phantom topic is created.
+    /// </summary>
+    public static bool IsAwsSdkCall(Node node, out string topic, out string brokerType, out bool isPublish)
+    {
+        topic = string.Empty;
+        brokerType = string.Empty;
+        isPublish = false;
+
+        if (!node.Is(TreeSitterSyntax.Rust.CallExpression))
+        {
+            return false;
+        }
+
+        // Avoid matching sub-calls in the same fluent chain (let outer call handle it)
+        if (IsReceiverOfParentCall(node))
+        {
+            return false;
+        }
+
+        bool hasReceiveMessage = false;
+        bool hasSendMessage = false;
+        bool hasPublish = false;
+        Node? queueOrTopicArg = null;
+
+        var current = node;
+        while (current.IsValid())
+        {
+            var unwrapped = RustAstHelper.UnwrapTryAndAwait(current);
+            if (!unwrapped.Is(TreeSitterSyntax.Rust.CallExpression))
+            {
+                break;
+            }
+
+            if (!RustAstHelper.GetMethodCallInfo(unwrapped, out var receiver, out var methodName, out var args))
+            {
+                break;
+            }
+
+            var isSdkOperation = receiver.IsValid() && args.Count == 0;
+            switch (methodName)
+            {
+                case "receive_message" when isSdkOperation:
+                    hasReceiveMessage = true;
+                    break;
+                case "send_message" or "send_message_batch" when isSdkOperation:
+                    hasSendMessage = true;
+                    break;
+                case "publish" or "publish_batch" when isSdkOperation:
+                    hasPublish = true;
+                    break;
+                case "queue_url" or "topic_arn" or "target_arn" when args.Count > 0:
+                    // Walking outer → inner, so the innermost (first in source order) setter wins.
+                    queueOrTopicArg = args[0];
+                    break;
+            }
+
+            if (receiver.IsValid() && receiver.Id != current.Id)
+            {
+                current = receiver;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (!hasReceiveMessage && !hasSendMessage && !hasPublish)
+        {
+            return false;
+        }
+
+        topic = queueOrTopicArg.IsValid() ? ResolveQueueOrTopicName(queueOrTopicArg, 0) : string.Empty;
+        if (topic.Length == 0)
+        {
+            return false;
+        }
+
+        brokerType = hasPublish ? "sns" : "sqs";
+        isPublish = !hasReceiveMessage;
+        return true;
+    }
+
+    private static bool IsReceiverOfParentCall(Node node)
+    {
+        var parent = node.Parent;
+        while (parent.IsValid())
+        {
+            if (parent.IsAny(TreeSitterSyntax.Rust.TryExpression, TreeSitterSyntax.Rust.AwaitExpression))
+            {
+                parent = parent.Parent;
+                continue;
+            }
+            if (parent.Is(TreeSitterSyntax.Rust.FieldExpression))
+            {
+                var grandParent = parent.Parent;
+                if (grandParent.IsValid() && grandParent.Is(TreeSitterSyntax.Rust.CallExpression))
+                {
+                    return true;
+                }
+            }
+            break;
+        }
+        return false;
+    }
+
+    private const int MaxResolutionDepth = 3;
+
+    private static readonly Regex ConversionCallRegex = new(
+        @"\.(clone|to_string|to_owned|as_str|as_ref|as_deref|into|unwrap|borrow|deref)\(\s*\)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex EmptyCallParensRegex = new(@"\(\s*\)", RegexOptions.Compiled);
+    private static readonly Regex RustIdentifierRegex = new(@"^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+    private static readonly Regex ValidTopicNameRegex = new(@"^[a-z0-9][a-z0-9.\-]*$", RegexOptions.Compiled);
+
+    private static readonly HashSet<string> GenericTopicNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "queue", "topic", "url", "arn", "self", "q", "t", "name", "target", "sqs", "sns"
+    };
+
+    /// <summary>
+    /// Resolves a queue/topic argument to a stable name. Bare local identifiers are followed through preceding
+    /// <c>let</c> bindings; field paths ending in a generic field (e.g. <c>self.publish.topic_arn</c>) are resolved
+    /// through struct field initializers in the same file when they agree on a single value.
+    /// </summary>
+    private static string ResolveQueueOrTopicName(Node arg, int depth)
+    {
+        var literal = RustAstHelper.ExtractStringLiteral(arg);
+        var direct = CleanTopicOrQueueName(literal != null ? $"\"{literal}\"" : arg.Text);
+        if (direct.Length > 0 || depth >= MaxResolutionDepth)
+        {
+            return direct;
+        }
+
+        var path = NormalizeExpressionPath(arg.Text);
+        if (path.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var segments = path.Split('.');
+        if (segments.Length == 1)
+        {
+            if (!RustIdentifierRegex.IsMatch(segments[0]))
+            {
+                return string.Empty;
+            }
+
+            var bound = FindLetBindingValue(arg, segments[0]);
+            return bound.IsValid() ? ResolveQueueOrTopicName(bound, depth + 1) : string.Empty;
+        }
+
+        var fieldName = segments[^1];
+        if (!RustIdentifierRegex.IsMatch(fieldName))
+        {
+            return string.Empty;
+        }
+
+        var candidates = FindFieldInitializerValues(arg, fieldName)
+            .Select(v => ResolveQueueOrTopicName(v, depth + 1))
+            .Where(n => n.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return candidates.Count == 1 ? candidates[0] : string.Empty;
+    }
+
+    private static string NormalizeExpressionPath(string text)
+    {
+        var clean = text.Trim().TrimStart('&', '*').Trim();
+        if (clean.StartsWith("mut ", StringComparison.Ordinal))
+        {
+            clean = clean[4..].Trim();
+        }
+
+        clean = ConversionCallRegex.Replace(clean, string.Empty);
+        clean = EmptyCallParensRegex.Replace(clean, string.Empty);
+        return clean;
+    }
+
+    private static Node? FindLetBindingValue(Node usage, string identifier)
+    {
+        var ancestor = usage.Parent;
+        while (ancestor.IsValid())
+        {
+            if (ancestor.Is(TreeSitterSyntax.Rust.Block))
+            {
+                Node? match = null;
+                foreach (var letDecl in ancestor.FindChildrenOfType(TreeSitterSyntax.Rust.LetDeclaration))
+                {
+                    if (!EndsBefore(letDecl, usage))
+                    {
+                        continue;
+                    }
+
+                    var pattern = letDecl.GetField(TreeSitterSyntax.Fields.Pattern);
+                    var value = letDecl.GetField(TreeSitterSyntax.Fields.Value);
+                    if (pattern.IsValid() && value.IsValid() && pattern.Text == identifier)
+                    {
+                        match = value;
+                    }
+                }
+
+                if (match != null)
+                {
+                    return match;
+                }
+            }
+
+            if (ancestor.IsAny(TreeSitterSyntax.Rust.FunctionItem, TreeSitterSyntax.Rust.ClosureExpression))
+            {
+                break;
+            }
+
+            ancestor = ancestor.Parent;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<Node> FindFieldInitializerValues(Node usage, string fieldName)
+    {
+        var root = usage;
+        while (root.Parent.IsValid())
+        {
+            root = root.Parent;
+        }
+
+        foreach (var initializer in root.FindDescendantsOfType(TreeSitterSyntax.Rust.FieldInitializer))
+        {
+            var field = initializer.GetField(TreeSitterSyntax.Fields.Field);
+            var value = initializer.GetField(TreeSitterSyntax.Fields.Value);
+            if (field.IsValid() && value.IsValid() && field.Text == fieldName)
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private static bool EndsBefore(Node candidate, Node usage) =>
+        candidate.EndPosition.Row < usage.StartPosition.Row ||
+        (candidate.EndPosition.Row == usage.StartPosition.Row && candidate.EndPosition.Column <= usage.StartPosition.Column);
+
+    /// <summary>
+    /// Normalizes a queue URL / topic ARN expression into a kebab-case resource name.
+    /// Returns an empty string when the expression carries no specific name (e.g. <c>queue_url</c>, <c>self</c>).
+    /// </summary>
+    public static string CleanTopicOrQueueName(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        var clean = raw.Trim().TrimStart('&', '*').Trim();
+        var isLiteral = false;
+
+        if (clean.StartsWith('"') && clean.EndsWith('"') && clean.Length >= 2)
+        {
+            clean = clean[1..^1];
+            isLiteral = true;
+        }
+
+        // Handle URL: https://sqs.../queue_name
+        if (clean.Contains('/'))
+        {
+            var lastSlash = clean.LastIndexOf('/');
+            if (lastSlash >= 0 && lastSlash + 1 < clean.Length)
+            {
+                clean = clean[(lastSlash + 1)..];
+                isLiteral = true;
+            }
+        }
+
+        // Handle ARN: arn:aws:sns:region:account:topic-name
+        if (clean.StartWithIC("arn:aws:"))
+        {
+            var lastColon = clean.LastIndexOf(':');
+            if (lastColon >= 0 && lastColon + 1 < clean.Length)
+            {
+                clean = clean[(lastColon + 1)..];
+                isLiteral = true;
+            }
+        }
+
+        if (!isLiteral)
+        {
+            // Strip value conversions and getter call parens: self.config().topic_arn().clone() -> self.config.topic_arn
+            clean = NormalizeExpressionPath(clean);
+
+            // Strip field access prefixes: config.requests_queue_url -> requests_queue_url
+            if (clean.Contains('.'))
+            {
+                clean = clean.Split('.').Last();
+            }
+
+            // Broker-qualified field names describe the same resource: sns_request_topic_arn == request_topic_arn
+            foreach (var brokerPrefix in (string[])["sns_", "sqs_"])
+            {
+                if (clean.StartsWith(brokerPrefix, StringComparison.OrdinalIgnoreCase) && clean.Length > brokerPrefix.Length)
+                {
+                    clean = clean[brokerPrefix.Length..];
+                    break;
+                }
+            }
+        }
+
+        foreach (var suffix in (string[])["_url", "_arn", "-url", "-arn"])
+        {
+            if (clean.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[..^suffix.Length];
+                break;
+            }
+        }
+
+        clean = clean.Replace('_', '-').ToLowerInvariant().Trim('-');
+
+        if (GenericTopicNames.Contains(clean) || !ValidTopicNameRegex.IsMatch(clean))
+        {
+            return string.Empty;
+        }
+
+        return clean;
+    }
+
+    private sealed record CloudResourceRule(
+        string IdSuffix,
+        string Name,
+        CodeExplorer.Cypher.Common.CloudResourceType ResourceType,
+        string Role,
+        Regex FieldPattern,
+        Regex ReadPattern,
+        Regex WritePattern,
+        string PackageName);
+
+    private static readonly Regex EncryptedSharesFieldRegex = new(@"\b(?:encrypted_)?shares?_bucket(?:_name)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DbChunksFieldRegex = new(@"\b(?:(?:db|database)_)?(?:chunks?|wal|parquet)_bucket(?:_name)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex GraphCheckpointFieldRegex = new(@"\b(?:graph_)?checkpoint_(?:s3_client|bucket(?:_name)?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KmsFieldRegex = new(@"\b(?:kms_.*key|key_.*kms|kms_key_arns?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex S3ReadRegex = new(@"\b(?:get_object|head_object|list_objects(?:_v2)?|download_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex S3WriteRegex = new(@"\b(?:put_object|upload_part|complete_multipart_upload|upload_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KmsReadRegex = new(@"\b(?:decrypt|describe_key|get_public_key)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KmsWriteRegex = new(@"\b(?:encrypt|generate_data_key|create_key)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly CloudResourceRule[] CloudResourceRules =
+    [
+        new(
+            "aws:s3:encrypted-shares",
+            "AWS S3: Encrypted Shares Bucket",
+            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            "encrypted_shares",
+            EncryptedSharesFieldRegex,
+            S3ReadRegex,
+            S3WriteRegex,
+            "aws-sdk-s3"),
+        new(
+            "aws:s3:database-chunks",
+            "AWS S3: Database Chunks & WAL Bucket",
+            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            "database_chunks",
+            DbChunksFieldRegex,
+            S3ReadRegex,
+            S3WriteRegex,
+            "aws-sdk-s3"),
+        new(
+            "aws:s3:graph-checkpoints",
+            "AWS S3: HNSW Graph Checkpoint Bucket",
+            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            "graph_checkpoints",
+            GraphCheckpointFieldRegex,
+            S3ReadRegex,
+            S3WriteRegex,
+            "aws-sdk-s3"),
+        new(
+            "aws:kms:share-encryption-keys",
+            "AWS KMS: Share Encryption Keys",
+            CodeExplorer.Cypher.Common.CloudResourceType.KmsKeySet,
+            "share_encryption_keys",
+            KmsFieldRegex,
+            KmsReadRegex,
+            KmsWriteRegex,
+            "aws-sdk-kms")
+    ];
+
+    public static IReadOnlyList<string> DetectAwsResourceRoles(
+        string source,
+        IReadOnlySet<string> packageNames) =>
+        CloudResourceRules
+            .Where(resource => packageNames.Contains(resource.PackageName) && resource.FieldPattern.IsMatch(source))
+            .Select(resource => resource.Role)
+            .ToArray();
+
+    public override void SynthesizeCloudResources(
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        string effectiveSource,
+        IReadOnlySet<string> packageNames,
+        string? workloadId,
+        CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
+        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        ParsingContext ctx)
+    {
+        var detectedRoles = DetectAwsResourceRoles(effectiveSource, packageNames).ToList();
+        if (detectedRoles.Count == 0)
+        {
+            return;
+        }
+
+        const string awsProviderId = "aws";
+        const string awsDisplayName = "AWS";
+        const string sdkProtocol = "SDK";
+        const string tierHyperscaler = "hyperscaler";
+
+        var awsCloudId = CloudProviderHelper.BuildCloudNodeId(ctx.WorkspaceId, awsProviderId);
+        if (!semanticStructureNode.Children.Any(child => child.Id.Equals(awsCloudId, StringComparison.OrdinalIgnoreCase)))
+        {
+            semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.CloudNode(
+                awsCloudId,
+                awsDisplayName,
+                project.Path)
+            {
+                Provider = awsProviderId,
+                Category = tierHyperscaler,
+                IsSemanticEntity = true
+            });
+            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Cloud, awsDisplayName, awsCloudId);
+        }
+
+        foreach (var resource in CloudResourceRules.Where(r => detectedRoles.Contains(r.Role, StringComparer.OrdinalIgnoreCase)))
+        {
+            var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:aws:{resource.IdSuffix}";
+            if (!semanticStructureNode.Children.Any(child => child.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)))
+            {
+                semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.ExternalServiceNode(
+                    resourceId,
+                    resource.Name,
+                    sdkProtocol,
+                    resource.Name,
+                    project.Path)
+                {
+                    Provider = awsDisplayName,
+                    ResourceRole = resource.Role,
+                    IsExternal = true,
+                    IsSemanticEntity = true
+                });
+                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, resource.Name, resourceId);
+            }
+
+            AddCloudRelationship(
+                new CodeExplorer.Core.Database.Relationship(resourceId, awsCloudId, OntologyConstants.Relationships.HostedIn)
+                {
+                    Provider = "aws",
+                    ResourceRole = resource.Role,
+                    IsSemantic = true
+                },
+                semanticRelationships,
+                existingRelKeys);
+
+            if (string.IsNullOrEmpty(workloadId))
+            {
+                continue;
+            }
+
+            const string ValExternalResource = "external_resource";
+            const string ValCloudResource = "cloud_resource";
+
+            AddCloudRelationship(
+                new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.ServiceCall)
+                {
+                    Category = ValExternalResource,
+                    DependencyType = ValCloudResource,
+                    ResourceRole = resource.Role,
+                    IsSemantic = true
+                },
+                semanticRelationships,
+                existingRelKeys);
+
+            if (resource.ReadPattern.IsMatch(effectiveSource))
+            {
+                AddCloudRelationship(
+                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.ReadsFrom)
+                    {
+                        Category = ValExternalResource,
+                        DependencyType = ValCloudResource,
+                        ResourceRole = resource.Role,
+                        IsSemantic = true
+                    },
+                    semanticRelationships,
+                    existingRelKeys);
+            }
+
+            if (resource.WritePattern.IsMatch(effectiveSource))
+            {
+                AddCloudRelationship(
+                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.WritesTo)
+                    {
+                        Category = ValExternalResource,
+                        DependencyType = ValCloudResource,
+                        ResourceRole = resource.Role,
+                        IsSemantic = true
+                    },
+                    semanticRelationships,
+                    existingRelKeys);
+            }
+        }
+    }
+
+    private static void AddCloudRelationship(
+        CodeExplorer.Core.Database.Relationship relationship,
+        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys)
+    {
+        if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind.ToCypherType())))
+        {
+            semanticRelationships.Add(relationship);
+        }
+    }
+}

@@ -1,5 +1,5 @@
 using CodeExplorer.Core.Conventions.Services;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

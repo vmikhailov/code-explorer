@@ -13,7 +13,7 @@ public class ProjectLayerClassifierTests
             new() { Id = "p1", Name = "CodeExplorer", FilePath = "cli/src/UI/CodeExplorer/CodeExplorer.csproj", Framework = "net10.0" },
             new() { Id = "p2", Name = "CodeExplorer.Core", FilePath = "cli/src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj", Framework = "net10.0" },
             new() { Id = "p3", Name = "CodeExplorer.Cypher", FilePath = "cli/src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj", Framework = "net10.0" },
-            new() { Id = "p4", Name = "CodeExplorer.Parser.CSharp", FilePath = "cli/src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj", Framework = "net10.0" },
+            new() { Id = "p4", Name = "CodeExplorer.Parsers.CSharp", FilePath = "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CodeExplorer.Parsers.CSharp.csproj", Framework = "net10.0" },
             new() { Id = "p5", Name = "CodeExplorer.Tests", FilePath = "cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj", Framework = "net10.0" }
         };
 

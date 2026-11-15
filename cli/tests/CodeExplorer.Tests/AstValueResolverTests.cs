@@ -240,11 +240,11 @@ func Fetch() {
         var call = tree!.RootNode.FindDescendantOfType("call_expression");
         call.IsValid().Should().BeTrue();
 
-        var args = Parser.Go.Libraries.GoAstHelper.GetCallArguments(call);
+        var args = Parsers.Go.Libraries.GoAstHelper.GetCallArguments(call);
         args.Count.Should().BeGreaterThan(0);
 
         // Must terminate safely without StackOverflowException
-        var res = Parser.Go.Libraries.GoAstHelper.ResolveStringOrVariable(args[0]);
+        var res = Parsers.Go.Libraries.GoAstHelper.ResolveStringOrVariable(args[0]);
         res.Should().Be("/api/v1/orders");
     }
 
@@ -262,11 +262,11 @@ def fetch():
         var call = tree!.RootNode.FindDescendantOfType("call");
         call.IsValid().Should().BeTrue();
 
-        var args = Parser.Python.Libraries.PythonAstHelper.GetCallArguments(call);
+        var args = Parsers.Python.Libraries.PythonAstHelper.GetCallArguments(call);
         args.Count.Should().BeGreaterThan(0);
 
         // Must terminate safely without StackOverflowException
-        var res = Parser.Python.Libraries.PythonAstHelper.ResolveStringOrVariable(args[0]);
+        var res = Parsers.Python.Libraries.PythonAstHelper.ResolveStringOrVariable(args[0]);
         res.Should().Be("/api/v1/items");
     }
 
@@ -285,11 +285,11 @@ function fetch() {
         var call = tree!.RootNode.FindDescendantOfType("call_expression");
         call.IsValid().Should().BeTrue();
 
-        var args = Parser.TypeScript.Libraries.AstHelper.GetCallArguments(call);
+        var args = Parsers.TypeScript.Libraries.AstHelper.GetCallArguments(call);
         args.Count.Should().BeGreaterThan(0);
 
         // Must terminate safely without StackOverflowException
-        var res = Parser.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
+        var res = Parsers.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
         res.Should().Be("/api/v1/users");
     }
 

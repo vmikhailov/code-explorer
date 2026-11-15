@@ -1,5 +1,5 @@
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

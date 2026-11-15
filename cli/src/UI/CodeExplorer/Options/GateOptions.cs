@@ -5,7 +5,7 @@ namespace CodeExplorer.Options;
 [Verb("gate", HelpText = "Manage and evaluate Semantic Invariant Gates (SIG) for architectural governance and technical debt ratchets.")]
 public class GateOptions : ITargetOption
 {
-    [Value(0, MetaName = "action", Required = false, Default = "check", HelpText = "Action: 'check' (default), 'details', 'list', 'init', 'ratchet', 'violations' (or 'show').")]
+    [Value(0, MetaName = "action", Required = false, Default = "check", HelpText = "Action: 'check' (default), 'details', 'list', 'init', 'ratchet', 'violations' (or 'show'), 'anomalies'.")]
     public string Action { get; set; } = "check";
 
     [Value(1, MetaName = "dir", Required = false, HelpText = "Optional path to workspace directory.")]
@@ -91,6 +91,12 @@ public class GateOptions : ITargetOption
 
     [Option("clear", Required = false, Default = false, HelpText = "When used with --scan, perform a clean rescan before evaluating gates.")]
     public bool Clear { get; set; }
+
+    [Option("anomalies", Required = false, HelpText = "Structural anomaly detection mode: 'all', 'dead_code', or 'god_objects' (requires --project).")]
+    public string? Anomalies { get; set; }
+
+    [Option("project", Required = false, HelpText = "Target project name when running structural anomaly detection ('ce gate anomalies --project <name>').")]
+    public string? ProjectName { get; set; }
 
     string ITargetOption.Target => Action;
 }

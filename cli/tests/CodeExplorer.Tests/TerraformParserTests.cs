@@ -6,8 +6,8 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Cypher.Common;
-using CodeExplorer.Parser.Terraform;
-using CodeExplorer.Parser.Terraform.Hcl;
+using CodeExplorer.Parsers.Terraform;
+using CodeExplorer.Parsers.Terraform.Hcl;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

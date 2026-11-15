@@ -75,8 +75,8 @@ public class EvolutionGateTests
     public async Task ParserProjectIsolation_SiblingParserDependency_Fails()
     {
         var res = await RunAsync(BuiltInGateCatalog.ParserProjectIsolationGate,
-            [Proj("CodeExplorer.Parser.Java"), Proj("CodeExplorer.Parser.Android")],
-            [new("ws:p:CodeExplorer.Parser.Java", "ws:p:CodeExplorer.Parser.Android", OntologyConstants.Relationships.DependsOn)]);
+            [Proj("CodeExplorer.Parsers.Java"), Proj("CodeExplorer.Parsers.Android")],
+            [new("ws:p:CodeExplorer.Parsers.Java", "ws:p:CodeExplorer.Parsers.Android", OntologyConstants.Relationships.DependsOn)]);
 
         res.Status.Should().Be(GateCheckStatus.FailedNew);
         res.Violations.Should().ContainSingle();
@@ -86,11 +86,12 @@ public class EvolutionGateTests
     public async Task ParserProjectIsolation_CoreAndSharedDependencies_Pass()
     {
         var res = await RunAsync(BuiltInGateCatalog.ParserProjectIsolationGate,
-            [Proj("CodeExplorer.Parser.Java"), Proj("CodeExplorer.Core"), Proj("CodeExplorer.Parser.Shared")],
+            [Proj("CodeExplorer.Parsers.Java"), Proj("CodeExplorer.Core"), Proj("CodeExplorer.Parsers.Shared"), Proj("CodeExplorer.TreeSitter")],
             [
-                new("ws:p:CodeExplorer.Parser.Java", "ws:p:CodeExplorer.Core", OntologyConstants.Relationships.DependsOn),
-                new("ws:p:CodeExplorer.Parser.Java", "ws:p:CodeExplorer.Parser.Shared", OntologyConstants.Relationships.DependsOn),
-                new("ws:p:CodeExplorer.Parser.Shared", "ws:p:CodeExplorer.Core", OntologyConstants.Relationships.DependsOn)
+                new("ws:p:CodeExplorer.Parsers.Java", "ws:p:CodeExplorer.Core", OntologyConstants.Relationships.DependsOn),
+                new("ws:p:CodeExplorer.Parsers.Java", "ws:p:CodeExplorer.Parsers.Shared", OntologyConstants.Relationships.DependsOn),
+                new("ws:p:CodeExplorer.Parsers.Shared", "ws:p:CodeExplorer.Core", OntologyConstants.Relationships.DependsOn),
+                new("ws:p:CodeExplorer.Parsers.Shared", "ws:p:CodeExplorer.TreeSitter", OntologyConstants.Relationships.DependsOn)
             ]);
 
         res.Status.Should().Be(GateCheckStatus.Passed);
@@ -100,8 +101,8 @@ public class EvolutionGateTests
     public async Task ParserProjectIsolation_CoreDependingOnParser_Fails()
     {
         var res = await RunAsync(BuiltInGateCatalog.ParserProjectIsolationGate,
-            [Proj("CodeExplorer.Core"), Proj("CodeExplorer.Parser.Go")],
-            [new("ws:p:CodeExplorer.Core", "ws:p:CodeExplorer.Parser.Go", OntologyConstants.Relationships.DependsOn)]);
+            [Proj("CodeExplorer.Core"), Proj("CodeExplorer.Parsers.Go")],
+            [new("ws:p:CodeExplorer.Core", "ws:p:CodeExplorer.Parsers.Go", OntologyConstants.Relationships.DependsOn)]);
 
         res.Status.Should().Be(GateCheckStatus.FailedNew);
     }

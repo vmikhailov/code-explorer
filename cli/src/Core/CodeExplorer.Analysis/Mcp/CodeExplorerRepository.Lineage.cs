@@ -31,7 +31,13 @@ public partial class CodeExplorerRepository
         "RETURN child.name AS name, " +
         "CASE WHEN child:Type THEN (CASE WHEN child.kind = 'class' THEN 'Class' WHEN child.kind = 'interface' THEN 'Interface' ELSE child.kind END) ELSE labels(child)[0] END AS type, " +
         "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol " +
-        "ORDER BY child.start_line";
+        "UNION " +
+        "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path = $filePath " +
+        "MATCH (owner:Type)-[:DECLARED_IN]->(f) " +
+        "MATCH (owner)-[:HAS_METHOD|HAS_MEMBER]->(child) " +
+        "WHERE child:Function OR child:Member " +
+        "RETURN child.name AS name, labels(child)[0] AS type, " +
+        "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol";
     private const string RootDirectoryFilesQuery =
         "MATCH (f:File) WHERE f.path IS NOT NULL " +
         "RETURN f.path AS path, coalesce(f.language, '') AS language, coalesce(f.line_count, f.loc, f.lines, 0) AS lines";
@@ -56,6 +62,7 @@ public partial class CodeExplorerRepository
     private const string PropFilePath = "file_path";
     private const string PropStartLineSnake = "start_line";
     private const string PropEndLineSnake = "end_line";
+    private const string SnippetNewline = "\n";
 
     public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, int limit = 50, string type = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
@@ -65,18 +72,7 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
-        if (!string.IsNullOrEmpty(projectFilter))
-        {
-            var query = Queries.Get("get_project_dependencies_filtered");
-            var res = await client.ExecuteCypherAsync(query, new Dictionary<string, string> { ["projectFilter"] = projectFilter }, cancellationToken);
-            return ToonYamlSerializer.SerializeYaml(res);
-        }
-        else
-        {
-            var query = Queries.Get("get_project_dependencies_all");
-            var res = await client.ExecuteCypherAsync(query, null, cancellationToken);
-            return ToonYamlSerializer.SerializeYaml(res);
-        }
+        return await McpLineageFormatter.GetProjectDependenciesYamlAsync(client, projectFilter, limit, type, cancellationToken);
     }
 
     public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -107,7 +103,10 @@ public partial class CodeExplorerRepository
             }
             if (res.Count > 0)
             {
-                return ToonYamlSerializer.SerializeYaml(res);
+                var sortedRows = res.Rows
+                    .OrderBy(r => r.TryGetProperty(ColStartLineCamel, out var sl) ? sl.AsInt64() : 0L)
+                    .ToList();
+                return ToonYamlSerializer.SerializeYaml(new CypherQueryResult(res.Columns, sortedRows));
             }
         }
 
@@ -248,22 +247,30 @@ public partial class CodeExplorerRepository
 
     public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
-        var query = Queries.Get("inspect_data_lineage");
-        var parameters = new Dictionary<string, string>
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
         {
-            ["tableName"] = tableName
-        };
-        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+            return StandbyMessageYaml;
+        }
+
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+        return await McpLineageFormatter.InspectDataLineageYamlAsync(client, tableName, wsRoot, cancellationToken);
     }
 
     public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
-        var query = Queries.Get("get_project_entry_points");
-        var parameters = new Dictionary<string, string>
+        const string queryProjectEntryPoints = "get_project_entry_points";
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
         {
-            ["projectName"] = projectName
-        };
-        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+            return StandbyMessageYaml;
+        }
+
+        var query = Queries.Get(queryProjectEntryPoints);
+        var parameters = new Dictionary<string, string> { ["projectName"] = projectName };
+        var rawRes = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+        return McpLineageFormatter.FormatEntryPointsYaml(rawRes, wsRoot);
     }
 
     private async Task AppendMetricResultsAsync(List<CypherRow> results, string queryKey, Dictionary<string, string> parameters, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -276,20 +283,24 @@ public partial class CodeExplorerRepository
 
     public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        const string queryDeadCode = "find_refactor_dead_code";
+        const string queryGodObjects = "find_refactor_god_objects";
         var results = new List<CypherRow>();
         var parameters = new Dictionary<string, string> { ["projectName"] = projectName };
 
         if (metricType is "dead_code" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters, workspacePath, cancellationToken);
+            await AppendMetricResultsAsync(results, queryDeadCode, parameters, workspacePath, cancellationToken);
 
         if (metricType is "god_objects" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters, workspacePath, cancellationToken);
+            await AppendMetricResultsAsync(results, queryGodObjects, parameters, workspacePath, cancellationToken);
 
         return ToonYamlSerializer.SerializeObject(new { results });
     }
 
     public async Task<string> GetTaxonomyAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        const string queryTaxonomyNodes = "get_taxonomy_nodes";
+        const string queryTaxonomyProperties = "get_taxonomy_properties";
         var cacheKey = $"taxonomy:{workspacePath ?? ""}";
         if (_macroCache.TryGetValue(cacheKey, out var cachedTaxonomy))
         {
@@ -310,8 +321,8 @@ public partial class CodeExplorerRepository
             return fastYaml;
         }
 
-        var query = Queries.Get("get_taxonomy_nodes");
-        var propQuery = Queries.Get("get_taxonomy_properties");
+        var query = Queries.Get(queryTaxonomyNodes);
+        var propQuery = Queries.Get(queryTaxonomyProperties);
 
         var res = await client.ExecuteCypherAsync(query, null, cancellationToken);
         var parsedTriplets = res.Rows.Select(r => new Dictionary<string, string>
@@ -516,9 +527,12 @@ public partial class CodeExplorerRepository
                     : item;
                 if (nodeVal.Kind == CypherValueKind.Object)
                 {
-                    var fp = nodeVal.TryGetProperty(PropFilePath, out var fpVal) ? fpVal.AsNullableString() : null;
-                    var sl = nodeVal.TryGetProperty(PropStartLineSnake, out var slVal) ? (int?)slVal.AsInt64() : null;
-                    var el = nodeVal.TryGetProperty(PropEndLineSnake, out var elVal) ? (int?)elVal.AsInt64() : null;
+                    var fp = nodeVal.TryGetProperty(PropFilePath, out var fpVal) ? fpVal.AsNullableString()
+                        : (nodeVal.TryGetProperty(ColFilePathCamel, out var fpCam) ? fpCam.AsNullableString() : null);
+                    var sl = nodeVal.TryGetProperty(PropStartLineSnake, out var slVal) ? (int?)slVal.AsInt64()
+                        : (nodeVal.TryGetProperty(ColStartLineCamel, out var slCam) ? (int?)slCam.AsInt64() : null);
+                    var el = nodeVal.TryGetProperty(PropEndLineSnake, out var elVal) ? (int?)elVal.AsInt64()
+                        : (nodeVal.TryGetProperty(ColEndLineCamel, out var elCam) ? (int?)elCam.AsInt64() : null);
                     if (!string.IsNullOrEmpty(fp))
                     {
                         result.Add(new McpRAGNode
@@ -547,11 +561,11 @@ public partial class CodeExplorerRepository
 
     private static string FormatCodeSnippet(string[] lines, McpRAGNode node)
     {
-        var startLine = node.start_line ?? 0;
-        var endLine = node.end_line ?? (lines.Length > 0 ? lines.Length - 1 : 0);
-        var sIdx = Math.Min(Math.Max(0, startLine), lines.Length);
-        var eIdx = Math.Max(sIdx, Math.Min(lines.Length, endLine + 1));
-        var snippet = string.Join("\n", lines.Skip(sIdx).Take(eIdx - sIdx));
+        var startLine = Math.Max(1, node.start_line ?? 1);
+        var endLine = Math.Max(startLine, node.end_line ?? Math.Max(1, lines.Length));
+        var sIdx = Math.Min(startLine - 1, lines.Length);
+        var eIdx = Math.Max(sIdx, Math.Min(lines.Length, endLine));
+        var snippet = string.Join( SnippetNewline, lines.Skip(sIdx).Take(eIdx - sIdx));
 
         var filePath = node.file_path ?? string.Empty;
         var ext = Path.GetExtension(filePath).ToLower().TrimStart('.');

@@ -4,7 +4,7 @@ using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Parsers.CSharp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

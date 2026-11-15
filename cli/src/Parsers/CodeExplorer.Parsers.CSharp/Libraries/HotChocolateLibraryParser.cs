@@ -1,0 +1,237 @@
+using System.Collections.Frozen;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.CSharp.Libraries;
+
+public class HotChocolateLibraryParser : DeclarativeSemanticExtension
+{
+    public HotChocolateLibraryParser()
+    {
+        Name = "HotChocolate GraphQL";
+        Id = "hotchocolate";
+        Type = SemanticExtensionType.Framework;
+        SupportedPatterns = ["HotChocolate", "HotChocolate.*", "HotChocolate.Types", "HotChocolate.AspNetCore"];
+        IsBuiltIn = true;
+        LibraryRole = LibraryRole.WebService;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.CSharp.Attribute, TreeSitterSyntax.CSharp.MethodDeclaration }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) => (IsGraphQlAttribute(node) || IsGraphQlMethodDeclaration(node)) ? OntologyConstants.NodeLabels.EntryPoint : null,
+                ExtractIdentifier = static (node, ctx, _, _) => ExtractHotChocolateIdentifier(node, ctx),
+                EnrichSymbol = EnrichHotChocolateSymbol
+            }
+        ];
+    }
+
+    private static readonly HashSet<string> GraphQlAttributes =
+    [
+        "Query", "Mutation", "Subscription", "GraphQLName",
+        "QueryAttribute", "MutationAttribute", "SubscriptionAttribute",
+        "UsePaging", "UseFiltering", "UseSorting", "UseProjection",
+        "UsePagingAttribute", "UseFilteringAttribute", "UseSortingAttribute", "UseProjectionAttribute"
+    ];
+
+    private static string? ExtractHotChocolateIdentifier(Node node, ParsingContext ctx)
+    {
+        if (IsGraphQlAttribute(node))
+        {
+            var attrName = GetAttributeName(node);
+            var opType = attrName switch
+            {
+                "Mutation" or "MutationAttribute" => "MUTATION",
+                "Subscription" or "SubscriptionAttribute" => "SUBSCRIPTION",
+                _ => "QUERY"
+            };
+
+            var parentDecl = node.Parent?.Parent;
+            if (parentDecl.IsValid() && parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
+            {
+                var nameNode = parentDecl.GetField(TreeSitterSyntax.Fields.Name);
+                var methodName = nameNode.IsValid() ? nameNode.Text : "anonymous";
+                return $"{opType}:{methodName}";
+            }
+
+            return $"{opType}:unknown";
+        }
+        if (IsGraphQlMethodDeclaration(node))
+        {
+            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+            var methodName = nameNode.IsValid() ? nameNode.Text : "anonymous";
+            var opType = GetGraphQlOperationTypeFromClass(node);
+            return $"{opType}:{methodName}";
+        }
+        return null;
+    }
+
+    private static void EnrichHotChocolateSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (IsGraphQlAttribute(node))
+        {
+            symbol.Protocol = "GraphQL";
+            var attrName = GetAttributeName(node);
+            symbol.OperationType = attrName switch
+            {
+                "Mutation" or "MutationAttribute" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+                "Subscription" or "SubscriptionAttribute" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+                _ => CodeExplorer.Cypher.Common.OperationType.Query
+            };
+        }
+        else if (IsGraphQlMethodDeclaration(node))
+        {
+            symbol.Protocol = "GraphQL";
+            var op = GetGraphQlOperationTypeFromClass(node);
+            symbol.OperationType = op switch
+            {
+                "MUTATION" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+                "SUBSCRIPTION" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+                _ => CodeExplorer.Cypher.Common.OperationType.Query
+            };
+        }
+        else
+        {
+            return;
+        }
+
+        var parentDecl = node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)
+            ? node
+            : (node.Parent?.Parent ?? default);
+        if (parentDecl.IsValid() && parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
+        {
+            // Response type
+            var typeNode = parentDecl.GetField(TreeSitterSyntax.Fields.Returns)
+                           ?? parentDecl.GetField(TreeSitterSyntax.Fields.Type)
+                           ?? parentDecl.GetField(TreeSitterSyntax.Fields.ReturnType)
+                           ?? parentDecl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
+            if (typeNode.IsValid())
+            {
+                var ret = CleanTypeName(typeNode.Text);
+                if (!string.IsNullOrEmpty(ret) && ret != "void" && ret != "Task" && ret != "ValueTask")
+                {
+                    symbol.ResponseType = ret;
+                }
+            }
+
+            // Request type
+            var paramList = parentDecl.GetField(TreeSitterSyntax.Fields.Parameters)
+                            ?? parentDecl.FindChildOfType(TreeSitterSyntax.CSharp.ParameterList);
+            if (paramList.IsValid())
+            {
+                foreach (var param in paramList.Children)
+                {
+                    if (!param.Is(TreeSitterSyntax.CSharp.Parameter)) continue;
+                    var pType = param.GetField(TreeSitterSyntax.Fields.Type)
+                                ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
+                    if (pType.IsValid())
+                    {
+                        var pTypeName = CleanTypeName(pType.Text);
+                        if (!IsPrimitiveOrSystemType(pTypeName) && symbol.RequestType == null)
+                        {
+                            symbol.RequestType = pTypeName;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool IsGraphQlAttribute(Node node)
+    {
+        if (node.Is(TreeSitterSyntax.CSharp.Attribute))
+        {
+            var parentDecl = node.Parent?.Parent;
+            if (!parentDecl.IsValid() || !parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
+            {
+                return false;
+            }
+            var name = GetAttributeName(node);
+            return GraphQlAttributes.Contains(name);
+        }
+        return false;
+    }
+
+    private static string GetAttributeName(Node node)
+    {
+        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name)
+                       ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+        return nameNode.IsValid() ? nameNode.Text : "";
+    }
+
+    private static string CleanTypeName(string rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType)) return "";
+        var type = rawType.Trim();
+        while (true)
+        {
+            var genericIdx = type.IndexOf('<');
+            if (genericIdx > 0 && type.EndsWith('>'))
+            {
+                var outer = type[..genericIdx].Trim();
+                if (outer is "Task" or "ValueTask" or "IQueryable" or "IEnumerable" or "List" or "IList")
+                {
+                    type = type[(genericIdx + 1)..^1].Trim();
+                    continue;
+                }
+            }
+            break;
+        }
+        return type;
+    }
+
+    private static bool IsPrimitiveOrSystemType(string type)
+    {
+        return type is "int" or "long" or "string" or "bool" or "double" or "float" or "decimal" or "Guid" or "DateTime" or "DateTimeOffset" or "CancellationToken" or "ClaimsPrincipal" or "object";
+    }
+    private static bool IsGraphQlMethodDeclaration(Node node)
+    {
+        if (!node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)) return false;
+
+        // If the method already has explicit GraphQL attributes, let attribute handling take precedence
+        var attrList = node.FindChildOfType(TreeSitterSyntax.CSharp.AttributeList);
+        if (attrList.IsValid())
+        {
+            foreach (var attr in attrList.Children)
+            {
+                if (attr.Is(TreeSitterSyntax.CSharp.Attribute) && IsGraphQlAttribute(attr))
+                {
+                    return false;
+                }
+            }
+        }
+
+        var parentClass = GetParentClassName(node);
+        if (string.IsNullOrEmpty(parentClass)) return false;
+
+        return parentClass.EndsWith("Query", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Queries", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Mutation", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Mutations", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Subscriptions", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetGraphQlOperationTypeFromClass(Node node)
+    {
+        var parentClass = GetParentClassName(node) ?? "";
+        if (parentClass.Contains("Mutation", StringComparison.OrdinalIgnoreCase)) return "MUTATION";
+        if (parentClass.Contains("Subscription", StringComparison.OrdinalIgnoreCase)) return "SUBSCRIPTION";
+        return "QUERY";
+    }
+
+    private static string? GetParentClassName(Node node)
+    {
+        var parent = node.Parent;
+        while (parent.IsValid())
+        {
+            if (parent.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+            {
+                var name = parent.GetField(TreeSitterSyntax.Fields.Name);
+                if (name.IsValid()) return name.Text;
+            }
+            parent = parent.Parent;
+        }
+        return null;
+    }
+}

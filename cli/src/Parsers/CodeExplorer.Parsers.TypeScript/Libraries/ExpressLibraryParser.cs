@@ -1,0 +1,619 @@
+using System.Text.RegularExpressions;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.TypeScript.Libraries;
+
+public class ExpressLibraryParser : DeclarativeSemanticExtension
+{
+    public override string Name => "Express";
+    public override string Id => "express";
+    public override SemanticExtensionType Type => SemanticExtensionType.Framework;
+    public override IReadOnlyList<string> SupportedPatterns => ["express", "@types/express"];
+    public override LibraryRole LibraryRole => LibraryRole.WebService;
+
+    private static readonly NodeSelector _expressRouteSelector = NodeSelector.New()
+        .HasType(TreeSitterSyntax.TypeScript.CallExpression)
+        .FunctionNode
+        .HasType(TreeSitterSyntax.TypeScript.MemberExpression)
+        .HasChild(TreeSitterSyntax.Fields.Object, NodeSelector.New().TextContains("app|router|route|express"))
+        .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("get|post|put|delete|patch|options|head|all"));
+
+    private static readonly NodeSelector _expressRouteMethodSelector = NodeSelector.New()
+        .FunctionNode
+        .GetChildForField(TreeSitterSyntax.Fields.Property);
+
+    public override IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>();
+
+    private static readonly IReadOnlyList<CustomAstRule> Rules =
+    [
+        new CustomAstRule
+        {
+            NodeTypes = [TreeSitterSyntax.TypeScript.CallExpression],
+            MapNodeType = static (node, ctx) => IsExpressRouteCall(node) ? OntologyConstants.NodeLabels.EntryPoint : null,
+            ExtractIdentifier = ExtractIdentifierStatic,
+            CollectReferences = CollectReferencesCore,
+            EnrichSymbol = EnrichSymbolCore
+        }
+    ];
+
+    public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
+
+    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    {
+        if (IsExpressRouteCall(node))
+        {
+            var prop = _expressRouteMethodSelector.Select(node);
+            if (!prop.IsValid()) return null;
+
+            var method = prop.Text.ToUpperInvariant();
+            var routeVal = AstHelper.ExtractFirstStringArgument(node);
+            if (string.IsNullOrEmpty(routeVal)) return null;
+
+            if (!string.IsNullOrEmpty(relativePath) && RouteDictionaryRegistry.TryGetMountPrefix(relativePath, out var mountPrefix))
+            {
+                routeVal = CombineRoutes(mountPrefix, routeVal);
+            }
+
+            if (!routeVal.StartsWith('/'))
+            {
+                routeVal = "/" + routeVal;
+            }
+
+            return $"{method}:{routeVal}";
+        }
+        return null;
+    }
+
+    private static bool IsExpressRouteCall(Node node)
+    {
+        if (!_expressRouteSelector.Matches(node)) return false;
+
+        // Express route registrations require at least 2 arguments: route path and at least one handler/middleware
+        var args = AstHelper.GetCallArguments(node);
+        if (args.Count < 2) return false;
+
+        var arg0 = args[0];
+        // The first argument must be a route string, template string, regex, or an identifier resolving to a route
+        var isRouteLiteral = arg0.Is(TreeSitterSyntax.TypeScript.String) ||
+                             arg0.Type == "string" ||
+                             arg0.Is(TreeSitterSyntax.TypeScript.TemplateString) ||
+                             arg0.Type == "template_string" ||
+                             arg0.Type.Contains("regex") ||
+                             AstHelper.IsStringLiteralNode(arg0);
+
+        if (!isRouteLiteral)
+        {
+            var routeCandidate = AstHelper.ExtractFirstStringArgument(node);
+            if (string.IsNullOrWhiteSpace(routeCandidate) || (!routeCandidate.StartsWith('/') && !routeCandidate.StartsWith('*')))
+            {
+                return false;
+            }
+        }
+
+        // Verify receiver: if receiver is "app" (or *app), ensure it was not created via NestFactory
+        var func = node.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var obj = func.GetChildForField(TreeSitterSyntax.Fields.Object);
+            if (obj.IsValid() && IsNestReceiver(node, obj.Text))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsNestReceiver(Node node, string objText)
+    {
+        var root = node;
+        while (root.Parent.IsValid())
+        {
+            root = root.Parent;
+        }
+
+        foreach (var decl in FindVariableDeclarations(root, objText))
+        {
+            var text = decl.Text;
+            if (text.Contains("NestFactory", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("@nestjs", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        if (FileImportsNestWithoutExpress(root))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<Node> FindVariableDeclarations(Node root, string varName)
+    {
+        var stack = new Stack<Node>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var curr = stack.Pop();
+            if (curr.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
+            {
+                var nameNode = curr.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid() && nameNode.Text == varName)
+                {
+                    yield return curr;
+                }
+            }
+
+            for (int i = curr.Children.Count - 1; i >= 0; i--)
+            {
+                var child = curr.Children[i];
+                if (child.IsValid() && (child.Is(TreeSitterSyntax.TypeScript.Program) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.StatementBlock) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.LexicalDeclaration) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.VariableDeclaration) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.FunctionDeclaration) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.FunctionExpression) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.ArrowFunction) ||
+                                        child.Is("export_statement")))
+                {
+                    stack.Push(child);
+                }
+            }
+        }
+    }
+
+    private static bool FileImportsNestWithoutExpress(Node root)
+    {
+        var hasNest = false;
+        var hasExpress = false;
+
+        foreach (var child in root.Children)
+        {
+            if (child.Is(TreeSitterSyntax.TypeScript.ImportStatement))
+            {
+                var text = child.Text;
+                if (text.Contains("@nestjs", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("NestFactory", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNest = true;
+                }
+                if (text.Contains("'express'", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("\"express\"", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasExpress = true;
+                }
+            }
+            else if (child.Is(TreeSitterSyntax.TypeScript.LexicalDeclaration) ||
+                     child.Is(TreeSitterSyntax.TypeScript.VariableDeclaration))
+            {
+                var text = child.Text;
+                if (text.Contains("require('express')", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("require(\"express\")", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasExpress = true;
+                }
+                if (text.Contains("require('@nestjs", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("require(\"@nestjs", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNest = true;
+                }
+            }
+        }
+
+        return hasNest && !hasExpress;
+    }
+
+    private static string CombineRoutes(string prefix, string route)
+    {
+        prefix = (prefix ?? "").Trim('/');
+        route = (route ?? "").Trim('/');
+        if (string.IsNullOrEmpty(prefix)) return "/" + route;
+        if (string.IsNullOrEmpty(route)) return "/" + prefix;
+        return $"/{prefix}/{route}";
+    }
+
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
+
+        var func = node.GetFunctionNode();
+        if (!func.IsValid() || !func.Is(TreeSitterSyntax.TypeScript.MemberExpression)) return;
+
+        var prop = func.GetChildForField(TreeSitterSyntax.Fields.Property);
+        var obj = func.GetChildForField(TreeSitterSyntax.Fields.Object);
+        if (!prop.IsValid() || !obj.IsValid()) return;
+
+        if (prop.Text != "use") return;
+
+        var objName = obj.Text.ToLowerInvariant();
+        if (!objName.Contains("app") && !objName.Contains("router") && !objName.Contains("route") && !objName.Contains("server") && !objName.Contains("express"))
+        {
+            return;
+        }
+
+        var args = AstHelper.GetCallArguments(node);
+        if (args.Count == 0) return;
+
+        var startIndex = 0;
+        if (args.Count >= 2 && (AstHelper.IsStringLiteralNode(args[0]) || args[0].Type.Contains("string")))
+        {
+            startIndex = 1;
+        }
+
+        for (var i = startIndex; i < args.Count; i++)
+        {
+            ExtractUseHandlerReferences(args[i], references);
+        }
+    }
+
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
+        if (!IsExpressRouteCall(node)) return;
+
+        var args = AstHelper.GetCallArguments(node);
+        if (args.Count < 2) return;
+
+        for (var i = 1; i < args.Count; i++)
+        {
+            var arg = args[i];
+            if (arg.Is(TreeSitterSyntax.TypeScript.Identifier) || arg.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                var name = arg.Text;
+                if (!string.IsNullOrEmpty(name) && !IsNoiseIdentifier(name))
+                {
+                    var line = (int)arg.StartPosition.Row + 1;
+                    var col = (int)arg.StartPosition.Column + 1;
+                    if (!symbol.References.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Triggers))
+                    {
+                        symbol.References.Add(new Reference(symbol.Name, name, OntologyConstants.Relationships.Triggers, line, col));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void ExtractUseHandlerReferences(Node arg, List<Reference> references)
+    {
+        if (!arg.IsValid()) return;
+
+        if (arg.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var name = arg.Text;
+            if (!string.IsNullOrEmpty(name) && !IsNoiseIdentifier(name))
+            {
+                var line = (int)arg.StartPosition.Row + 1;
+                var col = (int)arg.StartPosition.Column + 1;
+                if (!references.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Calls))
+                {
+                    references.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
+                }
+            }
+        }
+        else if (arg.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var name = arg.Text;
+            if (!string.IsNullOrEmpty(name))
+            {
+                var line = (int)arg.StartPosition.Row + 1;
+                var col = (int)arg.StartPosition.Column + 1;
+                if (!references.Any(r => r.TargetName == name && r.Kind == RelationshipKind.Calls))
+                {
+                    references.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
+                }
+            }
+        }
+        else if (arg.Type is "array" or "array_expression")
+        {
+            foreach (var child in arg.Children)
+            {
+                if (child.IsValid() && (char.IsLetter(child.Type[0]) || child.Type[0] == '_'))
+                {
+                    ExtractUseHandlerReferences(child, references);
+                }
+            }
+        }
+    }
+
+    private static bool IsNoiseIdentifier(string name) =>
+        name is "req" or "res" or "next" or "err" or "error" or "undefined" or "null" or "true" or "false";
+
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    {
+        if (string.IsNullOrWhiteSpace(content) || !content.Contains(".use(")) return;
+
+        // 1. Collect imports and requires: varName -> importPath
+        var imports = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        // ES import: import foo from './bar' or import { foo } from './bar'
+        var esMatches = Regex.Matches(content, @"import\s+(?:([A-Za-z0-9_]+)|\{\s*([A-Za-z0-9_]+)\s*\})\s+from\s+['""]([^'""]+)['""]");
+        foreach (Match m in esMatches)
+        {
+            var varName = !string.IsNullOrEmpty(m.Groups[1].Value) ? m.Groups[1].Value : m.Groups[2].Value;
+            var importPath = m.Groups[3].Value;
+            if (!string.IsNullOrEmpty(varName) && !string.IsNullOrEmpty(importPath))
+            {
+                imports[varName] = importPath;
+            }
+        }
+
+        // CommonJS require: const foo = require('./bar') or const { foo } = require('./bar')
+        var cjsMatches = Regex.Matches(content, @"(?:const|let|var)\s+(?:([A-Za-z0-9_]+)|\{\s*([A-Za-z0-9_]+)\s*\})\s*=\s*require\s*\(\s*['""]([^'""]+)['""]\s*\)");
+        foreach (Match m in cjsMatches)
+        {
+            var varName = !string.IsNullOrEmpty(m.Groups[1].Value) ? m.Groups[1].Value : m.Groups[2].Value;
+            var importPath = m.Groups[3].Value;
+            if (!string.IsNullOrEmpty(varName) && !string.IsNullOrEmpty(importPath))
+            {
+                imports[varName] = importPath;
+            }
+        }
+
+        // 2. Discover single-argument mounts: app.use(routerVar) -> default root mount prefix '/'
+        var singleUseMatches = Regex.Matches(content, @"\b(?:app|router|server|[A-Za-z0-9_]*(?:app|router|routes?))\s*\.\s*use\s*\(\s*([A-Za-z0-9_]+)\s*\)", RegexOptions.IgnoreCase);
+        foreach (Match m in singleUseMatches)
+        {
+            var routerVar = m.Groups[1].Value.Trim();
+            if (imports.TryGetValue(routerVar, out var importPath))
+            {
+                RegisterRouterMount(filePath, importPath, "/", ctx);
+            }
+        }
+
+        // 3. Discover app.use('/mountPrefix', routerVar) and router.use('/mountPrefix', routerVar)
+        var useMatches = Regex.Matches(content, @"\b(?:app|router|server|[A-Za-z0-9_]*(?:app|router|routes?))\s*\.\s*use\s*\(\s*(['""`][^'""`]+['""`]|[A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)", RegexOptions.IgnoreCase);
+        foreach (Match m in useMatches)
+        {
+            var rawPrefix = m.Groups[1].Value.Trim();
+            var routerVar = m.Groups[2].Value.Trim();
+
+            var mountPrefix = ResolveMountPrefix(rawPrefix, projectName);
+            if (string.IsNullOrEmpty(mountPrefix)) continue;
+
+            if (imports.TryGetValue(routerVar, out var importPath))
+            {
+                RegisterRouterMount(filePath, importPath, mountPrefix, ctx);
+            }
+        }
+
+        // 4. Inline require: app.use('/mountPrefix', require('./bar'))
+        var inlineMatches = Regex.Matches(content, @"\b(?:app|router|server|[A-Za-z0-9_]*(?:app|router|routes?))\s*\.\s*use\s*\(\s*(['""`][^'""`]+['""`]|[A-Za-z0-9_]+)\s*,\s*require\s*\(\s*['""]([^'""]+)['""]\s*\)", RegexOptions.IgnoreCase);
+        foreach (Match m in inlineMatches)
+        {
+            var rawPrefix = m.Groups[1].Value.Trim();
+            var importPath = m.Groups[2].Value.Trim();
+
+            var mountPrefix = ResolveMountPrefix(rawPrefix, projectName);
+            if (string.IsNullOrEmpty(mountPrefix) || string.IsNullOrEmpty(importPath)) continue;
+
+            RegisterRouterMount(filePath, importPath, mountPrefix, ctx);
+        }
+    }
+
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        if (!rootNode.IsValid()) return;
+        var imports = new Dictionary<string, string>(StringComparer.Ordinal);
+        CollectAstImports(rootNode, imports);
+        TraverseForExpressMounts(rootNode, relativePath, projectName, ctx, imports);
+    }
+
+    private static void CollectAstImports(Node node, Dictionary<string, string> imports)
+    {
+        if (node.Is(TreeSitterSyntax.TypeScript.ImportStatement))
+        {
+            var sourceNode = node.GetField(TreeSitterSyntax.Fields.Source)
+                ?? node.Children.LastOrDefault(c => c.IsValid() && (c.Type.Contains("string") || c.Text.StartsWith('\'') || c.Text.StartsWith('"')));
+            if (sourceNode.IsValid())
+            {
+                var src = sourceNode.Text.Trim('\'', '"', '`');
+                foreach (var child in node.Children)
+                {
+                    if (child.Id == sourceNode.Id) continue;
+                    FindImportIdentifiers(child, src, imports);
+                }
+            }
+        }
+        else if (node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
+        {
+            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+            var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
+            if (nameNode.IsValid() && valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+            {
+                var func = valueNode.GetFunctionNode();
+                if (func.IsValid() && func.Text == "require")
+                {
+                    var arg = AstHelper.ExtractFirstStringArgument(valueNode);
+                    if (!string.IsNullOrEmpty(arg))
+                    {
+                        if (nameNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+                        {
+                            imports[nameNode.Text] = arg;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            CollectAstImports(child, imports);
+        }
+    }
+
+    private static void FindImportIdentifiers(Node node, string sourcePath, Dictionary<string, string> imports)
+    {
+        if (node.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var text = node.Text;
+            if (text != "import" && text != "from" && text != "as" && text != "type" && text != "default")
+            {
+                imports[text] = sourcePath;
+            }
+        }
+        foreach (var child in node.Children)
+        {
+            FindImportIdentifiers(child, sourcePath, imports);
+        }
+    }
+
+    private static void TraverseForExpressMounts(Node node, string relativePath, string? projectName, ParsingContext? ctx, Dictionary<string, string> imports)
+    {
+        if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var func = node.GetFunctionNode();
+            if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                var prop = func.GetChildForField(TreeSitterSyntax.Fields.Property);
+                var obj = func.GetChildForField(TreeSitterSyntax.Fields.Object);
+                if (prop.IsValid() && prop.Text == "use" && obj.IsValid() && (obj.Text.Contains("app", StringComparison.OrdinalIgnoreCase) || obj.Text.Contains("router", StringComparison.OrdinalIgnoreCase) || obj.Text.Contains("route", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var args = AstHelper.GetCallArguments(node);
+                    if (args.Count >= 2)
+                    {
+                        var rawPrefix = AstHelper.ResolveStringOrTemplate(args[0], projectName) ?? args[0].Text;
+                        var mountPrefix = ResolveMountPrefix(rawPrefix, projectName);
+                        if (!string.IsNullOrEmpty(mountPrefix))
+                        {
+                            var arg1 = args[1];
+                            string? importPath = null;
+                            if (arg1.Is(TreeSitterSyntax.TypeScript.Identifier) && imports.TryGetValue(arg1.Text, out var ip))
+                            {
+                                importPath = ip;
+                            }
+                            else if (arg1.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                            {
+                                var subFunc = arg1.GetFunctionNode();
+                                if (subFunc.IsValid() && subFunc.Text == "require")
+                                {
+                                    importPath = AstHelper.ExtractFirstStringArgument(arg1);
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(importPath))
+                            {
+                                RegisterRouterMount(relativePath, importPath, mountPrefix, ctx);
+                            }
+                        }
+                    }
+                    else if (args.Count == 1)
+                    {
+                        var arg0 = args[0];
+                        string? importPath = null;
+                        if (arg0.Is(TreeSitterSyntax.TypeScript.Identifier) && imports.TryGetValue(arg0.Text, out var ip))
+                        {
+                            importPath = ip;
+                        }
+                        else if (arg0.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                        {
+                            var subFunc = arg0.GetFunctionNode();
+                            if (subFunc.IsValid() && subFunc.Text == "require")
+                            {
+                                importPath = AstHelper.ExtractFirstStringArgument(arg0);
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(importPath))
+                        {
+                            RegisterRouterMount(relativePath, importPath, "/", ctx);
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            TraverseForExpressMounts(child, relativePath, projectName, ctx, imports);
+        }
+    }
+
+    private static void RegisterRouterMount(string currentFilePath, string importPath, string mountPrefix, ParsingContext? ctx)
+    {
+        if (string.IsNullOrWhiteSpace(importPath) || string.IsNullOrWhiteSpace(mountPrefix)) return;
+
+        if (RouteDictionaryRegistry.TryGetMountPrefix(currentFilePath, out var existingPrefix))
+        {
+            mountPrefix = CombineRoutes(existingPrefix, mountPrefix);
+        }
+
+        var dir = Path.GetDirectoryName(currentFilePath) ?? "";
+        var combined = NormalizePath(Path.Combine(dir, importPath));
+        var cleanImport = NormalizePath(importPath.TrimStart('.', '/'));
+
+        RouteDictionaryRegistry.RegisterMountPrefix(combined, mountPrefix);
+        RouteDictionaryRegistry.RegisterMountPrefix(combined + ".ts", mountPrefix);
+        RouteDictionaryRegistry.RegisterMountPrefix(combined + ".js", mountPrefix);
+        RouteDictionaryRegistry.RegisterMountPrefix(cleanImport, mountPrefix);
+        RouteDictionaryRegistry.RegisterMountPrefix(cleanImport + ".ts", mountPrefix);
+        RouteDictionaryRegistry.RegisterMountPrefix(cleanImport + ".js", mountPrefix);
+
+        var fileName = Path.GetFileName(importPath);
+        if (!string.IsNullOrEmpty(fileName))
+        {
+            RouteDictionaryRegistry.RegisterMountPrefix(fileName, mountPrefix);
+            RouteDictionaryRegistry.RegisterMountPrefix(fileName + ".ts", mountPrefix);
+            RouteDictionaryRegistry.RegisterMountPrefix(fileName + ".js", mountPrefix);
+        }
+
+        if (ctx != null && !string.IsNullOrEmpty(ctx.AbsoluteWorkspacePath) && Path.IsPathRooted(combined))
+        {
+            try
+            {
+                var relToWs = NormalizePath(Path.GetRelativePath(ctx.AbsoluteWorkspacePath, combined));
+                RouteDictionaryRegistry.RegisterMountPrefix(relToWs, mountPrefix);
+                RouteDictionaryRegistry.RegisterMountPrefix(relToWs + ".ts", mountPrefix);
+                RouteDictionaryRegistry.RegisterMountPrefix(relToWs + ".js", mountPrefix);
+            }
+            catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
+            {
+            }
+        }
+    }
+
+    private static string? ResolveMountPrefix(string rawPrefix, string? projectName)
+    {
+        if (string.IsNullOrWhiteSpace(rawPrefix)) return null;
+        var trimmed = rawPrefix.Trim();
+        if ((trimmed.StartsWith('\'') && trimmed.EndsWith('\'')) ||
+            (trimmed.StartsWith('"') && trimmed.EndsWith('"')) ||
+            (trimmed.StartsWith('`') && trimmed.EndsWith('`')))
+        {
+            return trimmed.Trim('\'', '"', '`').Trim('/');
+        }
+        if (!string.IsNullOrEmpty(projectName) && ConstantRegistry.TryResolve(projectName, trimmed, out var resolvedConst))
+        {
+            return resolvedConst.Trim('\'', '"', '`').Trim('/');
+        }
+        if (ConstantRegistry.TryResolve(null, trimmed, out var globalConst))
+        {
+            return globalConst.Trim('\'', '"', '`').Trim('/');
+        }
+        return trimmed.Trim('\'', '"', '`').Trim('/');
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var clean = path.Replace('\\', '/');
+        var parts = clean.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var stack = new List<string>();
+        foreach (var p in parts)
+        {
+            if (p == ".") continue;
+            if (p == "..")
+            {
+                if (stack.Count > 0 && stack[^1] != "..") stack.RemoveAt(stack.Count - 1);
+                else stack.Add(p);
+            }
+            else
+            {
+                stack.Add(p);
+            }
+        }
+        var prefix = clean.StartsWith('/') ? "/" : "";
+        return prefix + string.Join('/', stack);
+    }
+}

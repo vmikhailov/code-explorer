@@ -6,7 +6,7 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.Java;
+using CodeExplorer.Parsers.Java;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

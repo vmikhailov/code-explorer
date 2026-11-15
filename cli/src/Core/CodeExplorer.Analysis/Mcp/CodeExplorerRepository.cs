@@ -10,10 +10,12 @@ public partial class CodeExplorerRepository
     private readonly IGraphClient _defaultDbClient;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IGraphClient> _clientCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _macroCache = new(StringComparer.OrdinalIgnoreCase);
+    private volatile bool _defaultClientNonEmpty;
 
     public void InvalidateCache()
     {
         _macroCache.Clear();
+        _defaultClientNonEmpty = false;
     }
 
     public string? DefaultWorkspacePath { get; }
@@ -61,12 +63,17 @@ public partial class CodeExplorerRepository
     private async Task<bool> IsEmptyStandbyAsync(IGraphClient client)
     {
         if (client != _defaultDbClient) return false;
-        if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath)) return false;
+        if (_defaultClientNonEmpty || !string.IsNullOrWhiteSpace(DefaultWorkspacePath)) return false;
         try
         {
             const string hasAnyNodeQuery = "MATCH (n) RETURN n.id LIMIT 1";
             var res = await client.ExecuteCypherAsync(hasAnyNodeQuery);
-            return res.Count == 0;
+            if (res.Count > 0)
+            {
+                _defaultClientNonEmpty = true;
+                return false;
+            }
+            return true;
         }
         catch
         {
@@ -131,7 +138,9 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
-        var overviewQuery = Queries.Get("get_architecture_overview");
+        const string queryArchOverview = "get_architecture_overview";
+        const string colProjects = "projects";
+        var overviewQuery = Queries.Get(queryArchOverview);
         var overviewRes = await client.ExecuteCypherAsync(overviewQuery, null, cancellationToken);
 
         long totalNodes = 0;
@@ -149,19 +158,28 @@ public partial class CodeExplorerRepository
         {
             totalNodes = await client.QueryScalarAsync<long>(totalNodesQuery, null, cancellationToken);
         }
-        catch { }
+        catch
+        {
+            // ignored: optional telemetry count on partial/mock graph backends
+        }
 
         try
         {
             totalFiles = await client.QueryScalarAsync<long>(totalFilesQuery, null, cancellationToken);
         }
-        catch { }
+        catch
+        {
+            // ignored: optional telemetry count on partial/mock graph backends
+        }
 
         try
         {
             totalRels = await client.QueryScalarAsync<long>(totalRelsQuery, null, cancellationToken);
         }
-        catch { }
+        catch
+        {
+            // ignored: optional telemetry count on partial/mock graph backends
+        }
 
         if (overviewRes.Count == 0)
         {
@@ -174,13 +192,13 @@ public partial class CodeExplorerRepository
 
         var rawProjects = new List<Dictionary<string, string>>();
 
-        if (row.TryGetProperty("projects", out var projProp) && projProp.Kind == CypherValueKind.Array)
+        if (row.TryGetProperty(colProjects, out var projProp) && projProp.Kind == CypherValueKind.Array)
         {
             foreach (var p in projProp.AsArray())
             {
-                var pName = p.TryGetProperty("name", out var n) ? n.AsString() : "";
-                var pLang = p.TryGetProperty("language", out var l) ? l.AsString() : "";
-                var pPath = p.TryGetProperty("path", out var pt) ? pt.AsString() : "";
+                var pName = p.TryGetProperty(ColName, out var n) ? n.AsString() : "";
+                var pLang = p.TryGetProperty(ColLanguage, out var l) ? l.AsString() : "";
+                var pPath = p.TryGetProperty(colPath, out var pt) ? pt.AsString() : "";
 
                 if (!string.IsNullOrEmpty(pName))
                 {
@@ -259,15 +277,17 @@ public partial class CodeExplorerRepository
             return cachedResult;
         }
 
+        const string queryArchMapProject = "get_architecture_map_project";
+        const string queryArchMapWorkspace = "get_architecture_map_workspace";
         string resultYaml;
         if (!string.IsNullOrEmpty(projectName))
         {
-            var query = Queries.Get("get_architecture_map_project");
+            var query = Queries.Get(queryArchMapProject);
             resultYaml = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, string> { ["projectName"] = projectName }, workspacePath, cancellationToken);
         }
         else
         {
-            resultYaml = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), null, workspacePath, cancellationToken);
+            resultYaml = await ExecuteAndFormatQueryAsync(Queries.Get(queryArchMapWorkspace), null, workspacePath, cancellationToken);
         }
 
         try

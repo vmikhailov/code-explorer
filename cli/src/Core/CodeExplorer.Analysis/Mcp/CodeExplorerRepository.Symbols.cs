@@ -99,8 +99,8 @@ public partial class CodeExplorerRepository
                     [
                         CypherValue.FromString(m.Kind.ToString()),
                         CypherValue.FromString(m.Name),
-                        CypherValue.FromString(m.FullName),
-                        CypherValue.FromString(IdentifierVectorEncoder.NormalizeSymbolPath(m.Path, effectiveWsRoot) ?? string.Empty),
+                        CypherValue.FromString(McpResultFormatter.CleanSymbolDisplay(m.FullName, m.Name)),
+                        CypherValue.FromString(McpResultFormatter.CleanRelativePath(m.Path, effectiveWsRoot)),
                         CypherValue.FromInt64(m.StartLine),
                         CypherValue.FromInt64(0)
                     ])).ToList();
@@ -139,18 +139,24 @@ public partial class CodeExplorerRepository
     {
         var cols = result.Columns as string[] ?? result.Columns.ToArray();
         var fileColIdx = Array.IndexOf(cols, ColFilePathCamel);
-        if (fileColIdx < 0 || result.Rows.Count == 0) return result;
+        var fullNameIdx = Array.IndexOf(cols, ColFullName);
+        if ((fileColIdx < 0 && fullNameIdx < 0) || result.Rows.Count == 0) return result;
 
         var normalizedRows = new List<CypherRow>(result.Rows.Count);
         foreach (var row in result.Rows)
         {
             var values = new CypherValue[cols.Length];
+            var symName = row.GetStringProp(ColName);
             for (var i = 0; i < cols.Length; i++)
             {
                 var val = row[cols[i]];
                 if (i == fileColIdx && val.Kind == CypherValueKind.String)
                 {
-                    val = CypherValue.FromString(IdentifierVectorEncoder.NormalizeSymbolPath(val.AsString(), workspaceRoot) ?? string.Empty);
+                    val = CypherValue.FromString(McpResultFormatter.CleanRelativePath(val.AsString(), workspaceRoot));
+                }
+                else if (i == fullNameIdx && val.Kind == CypherValueKind.String)
+                {
+                    val = CypherValue.FromString(McpResultFormatter.CleanSymbolDisplay(val.AsString(), symName));
                 }
                 values[i] = val;
             }
@@ -274,35 +280,8 @@ public partial class CodeExplorerRepository
             return StandbyMessageYaml;
         }
 
-        var query = Queries.Get(QueryAnalyzeCodeImpact);
-        var parameters = new Dictionary<string, string>
-        {
-            ["symbolName"] = symbolName
-        };
-        var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
-
-        if (res.Count == 0 && client.SupportsIdentifierSearch)
-        {
-            try
-            {
-                var resolved = await client.ResolveIdentifierAsync(symbolName, cancellationToken: cancellationToken);
-                if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != symbolName && resolved.Name != symbolName)
-                {
-                    parameters["symbolName"] = resolved.NodeId;
-                    var retryRes = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
-                    if (retryRes.Count > 0)
-                    {
-                        res = retryRes;
-                    }
-                }
-            }
-            catch
-            {
-                // Fallback gracefully
-            }
-        }
-
-        return ToonYamlSerializer.SerializeYaml(res);
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+        return await McpImpactFormatter.AnalyzeCodeImpactYamlAsync(client, symbolName, wsRoot, cancellationToken);
     }
 
     public async Task<string> SearchIdentifiersAsync(
@@ -323,8 +302,10 @@ public partial class CodeExplorerRepository
             return "Search is only supported on SQLite workspaces.";
         }
 
-        var results = await client.SearchIdentifiersAsync(query, kind, limit, cancellationToken);
-        return ToonYamlSerializer.SerializeObject(results);
+        var fetchCount = Math.Clamp(limit * 2, 1, 300);
+        var results = await client.SearchIdentifiersAsync(query, kind, fetchCount, cancellationToken);
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+        return McpResultFormatter.FormatHybridMatches(results, wsRoot, kind, Math.Clamp(limit, 1, 200));
     }
 
     public async Task<string> GetAffectedTestsAsync(
@@ -353,7 +334,7 @@ public partial class CodeExplorerRepository
         var report = await client.AnalyzeTestImpactAsync(req, cancellationToken);
         if (report != null)
         {
-            return ToonYamlSerializer.SerializeObject(report);
+            return McpResultFormatter.FormatAffectedTests(report, wsRoot);
         }
 
         var query = Queries.Get(Queries.QueryGetAffectedTests);
@@ -374,10 +355,11 @@ public partial class CodeExplorerRepository
         CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
+        var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
         var report = await client.AnalyzeTestCoverageAsync(new TestCoverageFilter(projectName, pathPrefix, status, limit), cancellationToken);
         if (report != null)
         {
-            return ToonYamlSerializer.SerializeObject(report);
+            return McpResultFormatter.FormatTestCoverage(report, wsRoot);
         }
 
         var query = Queries.Get(Queries.QueryGetTestCoverage);
@@ -386,13 +368,5 @@ public partial class CodeExplorerRepository
             ["projectName"] = projectName
         };
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
-    }
-
-
-    private static string ExtractCallee(string? target)
-    {
-        if (string.IsNullOrWhiteSpace(target)) return "(unknown)";
-        var idx = target.IndexOf('(');
-        return idx > 0 ? target[..idx].Trim() : target.Trim();
     }
 }

@@ -7,19 +7,20 @@
   <assembly fullname="CodeExplorer.Gates" preserve="all" />
   <assembly fullname="CodeExplorer.Indexing" preserve="all" />
   <assembly fullname="CodeExplorer.Analysis" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Android" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.CSharp" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.ColdFusion" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Go" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Java" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Kotlin" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Python" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Rust" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Script" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Shared" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.SQL" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.Terraform" preserve="all" />
-  <assembly fullname="CodeExplorer.Parser.TypeScript" preserve="all" />
+  <assembly fullname="CodeExplorer.TreeSitter" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Android" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.CSharp" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.ColdFusion" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Go" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Java" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Kotlin" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Python" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Rust" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Script" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Shared" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Sql" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Terraform" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.TypeScript" preserve="all" />
   <assembly fullname="CommandLine" preserve="all" />
   <assembly fullname="Dapper" preserve="all" />
   <assembly fullname="YamlDotNet" preserve="all" />

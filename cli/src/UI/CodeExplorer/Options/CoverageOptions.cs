@@ -11,6 +11,12 @@ public class CoverageOptions
     [Option("path", Required = false, HelpText = "Filter analysis to files matching path prefix.")]
     public string? PathPrefix { get; set; }
 
+    [Option("status", Required = false, HelpText = "Coverage status filter: 'all', 'covered', or 'uncovered'.")]
+    public string? Status { get; set; }
+
+    [Option('l', "limit", Required = false, HelpText = "Maximum number of symbol coverage entries to return (1 to 500).")]
+    public int? Limit { get; set; }
+
     [Option("uncovered-only", Default = false, HelpText = "Display only uncovered classes and methods.")]
     public bool UncoveredOnly { get; set; }
 

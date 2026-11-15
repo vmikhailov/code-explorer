@@ -329,7 +329,10 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_GetProjectDependencies()
     {
-        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{}", 6);
+        var allDeps = await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"limit\": 5}", 6);
+        allDeps.Should().NotBeNull();
+        var filteredDeps = await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"projectFilter\": \"CodeExplorer\", \"type\": \"runtime\", \"limit\": 5}", 60);
+        filteredDeps.Should().NotBeNull();
     }
 
     [Test]
@@ -337,7 +340,11 @@ public class McpIntegrationTests
     {
         var subRes = await CallToolAndAssertSuccessAsync("find_symbol", "{\"name\": \"OrdersController\", \"symbolType\": \"Class\"}", 31);
         subRes.Should().Contain("OrdersController");
-        await CallToolAndAssertSuccessAsync("find_symbol", "{\"name\": \"orders\", \"matchMode\": \"hybrid\"}", 32);
+        subRes.Should().NotContain("ws:sym:");
+
+        var hybRes = await CallToolAndAssertSuccessAsync("find_symbol", "{\"name\": \"orders\", \"matchMode\": \"hybrid\"}", 32);
+        hybRes.Should().NotContain("NodeId");
+        hybRes.Should().NotContain("ws:sym:");
     }
 
     [Test]
@@ -378,9 +385,21 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_CheckSemanticGates()
     {
-        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{}", 21);
-        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-TEST-001\"}", 22);
-        var listed = await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"listOnly\": true}", 23);
+        var suiteSummary = await CallToolAndAssertSuccessAsync("check_semantic_gates", "{}", 21);
+        suiteSummary.Should().Contain("summary:");
+        suiteSummary.Should().Contain("SIG-TEST-001");
+        suiteSummary.Should().NotContain("Fingerprint");
+        suiteSummary.Should().NotContain("MATCH (ep:Endpoint)");
+
+        var singleGate = await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-TEST-001\"}", 22);
+        singleGate.Should().Contain("SIG-TEST-001");
+        singleGate.Should().NotContain("Fingerprint");
+        singleGate.Should().NotContain("MATCH (ep:Endpoint)");
+
+        var groupedSuite = await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"groupBy\": \"symbol\"}", 220);
+        groupedSuite.Should().Contain("groupBy: symbol");
+
+        var listed = await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"listOnly\": true, \"scope\": \"Module\"}", 23);
         listed.Should().Contain("SIG-TEST-001");
         await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"anomalies\": \"all\", \"projectName\": \"CodeExplorer\"}", 5);
     }

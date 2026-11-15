@@ -52,18 +52,18 @@ public static partial class BuiltInGateCatalog
         Dimension = InvariantDimension.Boundaries,
         Name = "Parser Plug-in Project Isolation",
         Severity = GateSeverity.Error,
-        Description = "Language parsers are independent plug-ins: they may depend on Core and Parser.Shared only. Core, Cypher and Parser.Shared must not depend on any parser or on the host application.",
-        Remediation = "Move the shared code into CodeExplorer.Parser.Shared (or Core) and reference it from both parsers; never reference a sibling parser or the host.",
+        Description = "Language parsers are independent plug-ins: they may depend on Core, TreeSitter, and Parsers.Shared only. Core, Cypher, TreeSitter, and Parsers.Shared must not depend on any parser or on the host application.",
+        Remediation = "Move the shared code into CodeExplorer.Parsers.Shared (or Core) and reference it from both parsers; never reference a sibling parser or the host.",
         Message = "Project dependency {p.name} -> {d.name} breaks the parser plug-in / Core-isolation contract",
         Query = """
             MATCH (p:Project)-[r:DEPENDS_ON]->(d:Project)
             WHERE d.name <> p.name
               AND (
-                (p.name STARTS WITH 'CodeExplorer.Parser.' AND p.name <> 'CodeExplorer.Parser.Shared'
-                  AND d.name STARTS WITH 'CodeExplorer.Parser.' AND d.name <> 'CodeExplorer.Parser.Shared')
-                OR (p.name IN ['CodeExplorer.Core', 'CodeExplorer.Cypher', 'CodeExplorer.Parser.Shared']
-                  AND (d.name STARTS WITH 'CodeExplorer.Parser.' OR d.name = 'CodeExplorer'))
-                OR (p.name = 'CodeExplorer.Cypher' AND d.name STARTS WITH 'CodeExplorer')
+                (p.name STARTS WITH 'CodeExplorer.Parsers.' AND p.name <> 'CodeExplorer.Parsers.Shared'
+                  AND d.name STARTS WITH 'CodeExplorer.Parsers.' AND d.name <> 'CodeExplorer.Parsers.Shared')
+                OR (p.name IN ['CodeExplorer.Core', 'CodeExplorer.Cypher', 'CodeExplorer.TreeSitter', 'CodeExplorer.Parsers.Shared']
+                  AND ((d.name STARTS WITH 'CodeExplorer.Parsers.' AND d.name <> 'CodeExplorer.Parsers.Shared') OR d.name = 'CodeExplorer'))
+                OR (p.name IN ['CodeExplorer.Cypher', 'CodeExplorer.TreeSitter'] AND d.name STARTS WITH 'CodeExplorer')
                 OR (p.name = 'CodeExplorer.Core' AND d.name IN ['CodeExplorer.Storage', 'CodeExplorer.Indexing', 'CodeExplorer.Analysis', 'CodeExplorer.Gates', 'CodeExplorer.Server'])
                 OR (p.name IN ['CodeExplorer.Storage', 'CodeExplorer.Indexing', 'CodeExplorer.Gates'] AND d.name IN ['CodeExplorer.Analysis', 'CodeExplorer.Server', 'CodeExplorer'])
                 OR (p.name = 'CodeExplorer.Indexing' AND d.name = 'CodeExplorer.Storage')

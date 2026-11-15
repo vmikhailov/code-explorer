@@ -16,19 +16,20 @@
     <ProjectReference Include="..\..\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
     <ProjectReference Include="..\..\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
 
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.CSharp\CodeExplorer.Parser.CSharp.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Go\CodeExplorer.Parser.Go.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Java\CodeExplorer.Parser.Java.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Python\CodeExplorer.Parser.Python.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.SQL\CodeExplorer.Parser.SQL.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Terraform\CodeExplorer.Parser.Terraform.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.ColdFusion\CodeExplorer.Parser.ColdFusion.csproj" />
-    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
+    <ProjectReference Include="..\..\TreeSitter\CodeExplorer.TreeSitter\CodeExplorer.TreeSitter.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Android\CodeExplorer.Parsers.Android.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.CSharp\CodeExplorer.Parsers.CSharp.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Go\CodeExplorer.Parsers.Go.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Java\CodeExplorer.Parsers.Java.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Kotlin\CodeExplorer.Parsers.Kotlin.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Python\CodeExplorer.Parsers.Python.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Rust\CodeExplorer.Parsers.Rust.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Shared\CodeExplorer.Parsers.Shared.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.TypeScript\CodeExplorer.Parsers.TypeScript.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Sql\CodeExplorer.Parsers.Sql.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Terraform\CodeExplorer.Parsers.Terraform.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.ColdFusion\CodeExplorer.Parsers.ColdFusion.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Script\CodeExplorer.Parsers.Script.csproj" />
   </ItemGroup>
 
   <ItemGroup>

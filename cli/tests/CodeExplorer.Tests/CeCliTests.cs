@@ -378,4 +378,140 @@ public class CeCliTests
         var (modelExit, _, _) = await RunCliAsync("model");
         modelExit.Should().Be(1);
     }
+
+    [Test]
+    public async Task CeCli_All15McpToolsEquivalence_EndToEnd()
+    {
+        var srcDir = Path.Combine(_tempDir, "src");
+        Directory.CreateDirectory(srcDir);
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "sample.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "schema.sql"),
+            "CREATE TABLE orders (id INT PRIMARY KEY, amount DECIMAL(10,2));");
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "OrderService.cs"), """
+            namespace Sample;
+            public interface IPaymentGateway { void Charge(decimal amount); }
+            public class StripeGateway : IPaymentGateway { public void Charge(decimal amount) {} }
+            public class OrderService
+            {
+                public void SubmitOrder(decimal amount) => PersistOrder(amount);
+                public void PersistOrder(decimal amount)
+                {
+                    var sql = "SELECT id, amount FROM orders WHERE amount > 0";
+                }
+            }
+            """);
+
+        // 1. scan_workspace -> ce scan --init
+        var (scanExit, _, scanErr) = await RunCliAsync("scan", _tempDir, "--init");
+        scanExit.Should().Be(0, scanErr);
+
+        // 2. get_taxonomy -> ce taxonomy, --kind, --status
+        var (taxExit, taxOut, _) = await RunCliAsync("taxonomy", "-d", _tempDir);
+        taxExit.Should().Be(0);
+        taxOut.Should().Contain("Project");
+
+        var (kindExit, kindOut, _) = await RunCliAsync("taxonomy", "--kind", "Endpoint");
+        kindExit.Should().Be(0);
+        kindOut.Should().Contain("Endpoint");
+
+        var (statusExit, statusOut, _) = await RunCliAsync("taxonomy", "--status", "-d", _tempDir);
+        statusExit.Should().Be(0);
+        statusOut.Should().Contain("ready");
+
+        // 3. get_architecture_map -> ce map (overview + mermaid)
+        var (mapExit, mapOut, _) = await RunCliAsync("map", "-d", _tempDir);
+        mapExit.Should().Be(0);
+        mapOut.Should().Contain("sample");
+
+        var (mermaidExit, mermaidOut, _) = await RunCliAsync("map", "--format", "mermaid", "-d", _tempDir);
+        mermaidExit.Should().Be(0);
+        mermaidOut.Should().Contain("graph");
+
+        // 4. get_project_dependencies -> ce deps [project]
+        var (depsExit, depsOut, _) = await RunCliAsync("deps", "sample", "-d", _tempDir);
+        depsExit.Should().Be(0);
+
+        // 5. get_service_contracts -> ce contracts <service> --direction all|entry_points|flow
+        var (contractsExit, _, _) = await RunCliAsync("contracts", "sample", "-d", _tempDir);
+        contractsExit.Should().Be(0);
+        var (epExit, _, _) = await RunCliAsync("contracts", "sample", "--direction", "entry_points", "-d", _tempDir);
+        epExit.Should().Be(0);
+        var (flowExit, _, _) = await RunCliAsync("contracts", "sample", "--direction", "flow", "-d", _tempDir);
+        flowExit.Should().Be(0);
+
+        // 6. get_file_outline -> ce outline (file + directory)
+        var (outlineFileExit, outlineFileOut, _) = await RunCliAsync("outline", "src/OrderService.cs", "-d", _tempDir);
+        outlineFileExit.Should().Be(0);
+        outlineFileOut.Should().Contain("OrderService");
+        outlineFileOut.Should().Contain("SubmitOrder");
+
+        var (outlineDirExit, outlineDirOut, _) = await RunCliAsync("outline", "src", "-d", _tempDir);
+        outlineDirExit.Should().Be(0);
+        outlineDirOut.Should().Contain("OrderService.cs");
+
+        // 7. fetch_code_snippets -> ce snippets <file:start-end> (1-based inclusive!)
+        var (snipExit, snipOut, _) = await RunCliAsync("snippets", "src/OrderService.cs:1-3", "-d", _tempDir);
+        snipExit.Should().Be(0);
+        snipOut.Should().Contain("(Lines 1-3)");
+        snipOut.Should().Contain("namespace Sample;");
+        snipOut.Should().Contain("StripeGateway");
+        snipOut.Should().NotContain("SubmitOrder");
+
+        // 8. find_symbol -> ce symbol (substring default) & ce search (--mode substring)
+        var (symExit, symOut, _) = await RunCliAsync("symbol", "StripeGateway", "--type", "Class", "-d", _tempDir);
+        symExit.Should().Be(0);
+        symOut.Should().Contain("StripeGateway");
+
+        var (searchSubExit, searchSubOut, _) = await RunCliAsync("search", "IPaymentGateway", "--type", "Interface", "--mode", "substring", "-d", _tempDir);
+        searchSubExit.Should().Be(0);
+        searchSubOut.Should().Contain("IPaymentGateway");
+
+        // 9. get_callers -> ce callers <target> & -m <method> (DI/interface resolution)
+        var (callersExit, callersOut, _) = await RunCliAsync("callers", "PersistOrder", "-d", _tempDir);
+        callersExit.Should().Be(0);
+        callersOut.Should().Contain("SubmitOrder");
+
+        var (implExit, implOut, _) = await RunCliAsync("callers", "IPaymentGateway", "-m", "Charge", "-d", _tempDir);
+        implExit.Should().Be(0);
+        implOut.Should().Contain("StripeGateway");
+
+        // 10. get_call_chain -> ce trace <startFn> <endFn> (and backwards-compatible ce trace flow --from)
+        var (chainExit, chainOut, _) = await RunCliAsync("trace", "SubmitOrder", "PersistOrder", "-d", _tempDir);
+        chainExit.Should().Be(0);
+        chainOut.Should().Contain("SubmitOrder");
+        chainOut.Should().Contain("PersistOrder");
+
+        var (legacyFlowExit, _, _) = await RunCliAsync("trace", "flow", "--from", "sample", "-d", _tempDir);
+        legacyFlowExit.Should().Be(0);
+
+        // 11. analyze_code_impact -> ce impact <symbol>
+        var (impactExit, impactOut, _) = await RunCliAsync("impact", "PersistOrder", "-d", _tempDir);
+        impactExit.Should().Be(0);
+        impactOut.Should().Contain("SubmitOrder");
+
+        // 12. inspect_data_lineage -> ce lineage <table>
+        var (linExit, linOut, _) = await RunCliAsync("lineage", "orders", "-d", _tempDir);
+        linExit.Should().Be(0);
+        linOut.Should().Contain("PersistOrder");
+
+        // 13. get_affected_tests -> ce test --status uncovered --path src
+        var (covExit, covOut, _) = await RunCliAsync("test", "--status", "uncovered", "--path", "src", "-d", _tempDir);
+        covExit.Should().Be(0);
+        covOut.Should().Contain("OrderService");
+
+        // 14. check_semantic_gates (anomalies) -> ce gate anomalies <project>
+        var (anomExit, _, _) = await RunCliAsync("gate", "anomalies", "sample", "-d", _tempDir);
+        anomExit.Should().Be(0);
+
+        // 15. Help output exposes all new commands including impact, map, outline, snippets, symbol, lineage
+        var (helpExit, helpOut, _) = await RunCliAsync("--help");
+        helpExit.Should().Be(0);
+        helpOut.Should().Contain("  map ");
+        helpOut.Should().Contain("  outline ");
+        helpOut.Should().Contain("  snippets ");
+        helpOut.Should().Contain("  symbol ");
+        helpOut.Should().Contain("  impact ");
+        helpOut.Should().Contain("  lineage ");
+    }
 }

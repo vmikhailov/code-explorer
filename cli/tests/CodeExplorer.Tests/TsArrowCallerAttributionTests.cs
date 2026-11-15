@@ -3,7 +3,7 @@ using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

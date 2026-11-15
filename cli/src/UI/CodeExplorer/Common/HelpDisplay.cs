@@ -2,33 +2,84 @@ namespace CodeExplorer.Common;
 
 public static class HelpDisplay
 {
+    private const string BannerTitle = "CodeExplorer (ce) - High-performance graph-based code intelligence & MCP server";
+    private const string UsageHeader = "USAGE:";
+    private const string UsageBody = "  ce <command> [options]\n";
+    private const string CurrentWorkspaceHeader = "CURRENT WORKSPACE:";
+    private const string CypherQueryGlob = "*.cypher";
+    private const string OkPrefix = "  [OK] ";
+    private const string WarnPrefix = "  [!]  ";
+    private const string NoWorkspaceLine1 = "No .codeexplorer workspace detected in current directory or any parent.";
+    private const string NoWorkspaceLine2 = "       Run 'ce scan' or 'ce init [name]' to initialize a workspace here.";
+    private const string QuickStartHeader = "QUICK START WORKFLOW:";
+    private const string QuickStartBody = """
+  1. ce scan [path]       Initialize (if needed) and index AST, dependencies, and semantic graph
+  2. ce map               Inspect workspace architecture map, projects, endpoints, and databases
+  3. ce taxonomy          Inspect graph ontology schema (or --kind <Kind>, --status)
+  4. ce symbol <name>     Locate code declarations and ontology entities (or 'ce search <query>')
+  5. ce gate check        Evaluate Semantic Invariant Gates (SIG) against ratchet baselines
+  6. ce mcp               Start MCP server (stdio) for Cursor, Claude Code, Antigravity, etc.
+""";
+    private const string AvailableCommandsHeader = "AVAILABLE COMMANDS:";
+    private const string AvailableCommandsBody = """
+  scan [path]             Initialize (if needed) and index workspace into the code graph (alias: index)
+  taxonomy [--kind|--status] Inspect graph ontology schema, node kind spec, or workspace health
+  map [project]           Inspect architecture map (overview, c1..c3, tiers) or export Mermaid/C4 diagrams
+  dependencies [project]  Inspect project and package dependencies with runtime vs build filtering (alias: deps)
+  contracts <service>     Inspect service contracts, entry_points, and cross-service flows
+  outline [path]          Extract structural AST outline of a file or directory
+  snippets <file:s-e>     Fetch exact source code line ranges by file:start-end or --nodes YAML
+  symbol <name>           Find code declarations and ontology entities (substring default, or --mode hybrid)
+  search <query>          Fuzzy hybrid trigram & vector identifier search (or --mode substring)
+  callers <target>        Find inbound callers or resolve interface/DI implementations (-m <method>)
+  trace <start> <end>     Trace function-to-function call chains (or 'trace flow --from <service>')
+  impact <symbol>         Analyze multi-hop refactoring blast radius for a symbol
+  lineage <table>         Trace database table data lineage (ORM entities, SQL queries, readers & writers)
+  test [impact|coverage]  Select affected tests for code changes or audit static test coverage
+  gate [check|list|...]   Evaluate Semantic Invariant Gates (SIG), baselines, and code anomalies
+  query "<cypher>"        Execute read-only or saved OpenCypher queries (alias: queries for --list)
+  status (alias: info)    Show workspace summary, projects, node kinds, and statistics
+  init / clear / export   Workspace lifecycle and standalone diagram export helpers
+  mcp / serve / configure Start MCP server, WebSocket API server, or configure AI coding tools
+""";
+    private const string ExamplesHeader = "EXAMPLES:";
+    private const string ExamplesBody = """
+  ce map
+  ce outline cli/src
+  ce symbol WorkspaceIndexer --type Class
+  ce callers IComponentLibraryParser -m TryParse
+  ce trace HandleAsync ExecuteCypherAsync
+  ce query "MATCH (p:Project) RETURN p.name, p.language" --no-truncate
+""";
+    private const string HelpFooterPrompt = "For options and arguments on any specific command, run:";
+    private const string HelpFooterCommand = "  ce <command> --help\n";
+
     public static void ShowWelcomeAndHelp()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("CodeExplorer (ce) - High-performance graph-based code intelligence & MCP server");
+        Console.WriteLine(BannerTitle);
         Console.ResetColor();
         Console.WriteLine($"Version: {AppVersionProvider.GetAppVersion()}\n");
 
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("USAGE:");
+        Console.WriteLine(UsageHeader);
         Console.ResetColor();
-        Console.WriteLine("  ce <command> [options]\n");
+        Console.WriteLine(UsageBody);
 
-        // Workspace detection
         var ws = WorkspaceLocator.Find();
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("CURRENT WORKSPACE:");
+        Console.WriteLine(CurrentWorkspaceHeader);
         Console.ResetColor();
         if (ws != null)
         {
             var dbExists = File.Exists(ws.DbPath);
             var dbSize = dbExists ? new FileInfo(ws.DbPath).Length / (1024.0 * 1024.0) : 0.0;
             var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
-                ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
+                ? Directory.GetFiles(ws.QueriesDirectory, CypherQueryGlob).Length
                 : 0;
 
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write("  [OK] ");
+            Console.Write(OkPrefix);
             Console.ResetColor();
             Console.WriteLine($"Found at '{ws.RootDirectory}'");
             Console.WriteLine($"       Database: {ws.DbPath} ({(dbExists ? $"{dbSize:F1} MB" : "not indexed yet")})");
@@ -37,61 +88,34 @@ public static class HelpDisplay
         else
         {
             Console.ForegroundColor = ConsoleColor.DarkYellow;
-            Console.Write("  [!]  ");
+            Console.Write(WarnPrefix);
             Console.ResetColor();
-            Console.WriteLine("No .codeexplorer workspace detected in current directory or any parent.");
-            Console.WriteLine("       Run 'ce init [name]' to initialize a workspace here.");
+            Console.WriteLine(NoWorkspaceLine1);
+            Console.WriteLine(NoWorkspaceLine2);
         }
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("QUICK START WORKFLOW:");
+        Console.WriteLine(QuickStartHeader);
         Console.ResetColor();
-        Console.WriteLine("  1. ce init [name]       Initialize a .codeexplorer workspace in current directory");
-        Console.WriteLine("  2. ce scan [path]       Index code topology, AST, dependencies and semantic graph");
-        Console.WriteLine("  3. ce status            View workspace health, indexed projects, and statistics");
-        Console.WriteLine("  4. ce taxonomy          Inspect active graph schema (actual node labels, properties & edges in DB)");
-        Console.WriteLine("  5. ce query \"<cypher>\"  Execute Cypher query directly against the code graph");
-        Console.WriteLine("  6. ce mcp               Start MCP server (stdio) for Cursor, Claude Desktop, etc.\n");
-
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("AVAILABLE COMMANDS:");
-        Console.ResetColor();
-        Console.WriteLine("  taxonomy (or schema)    Inspect active graph schema (actual node labels, properties, and relationships in DB)");
-        Console.WriteLine("  search <query>          Search identifiers, routes, tables, and topics using fast hybrid vector/trigram ranking");
-        Console.WriteLine("  callers <target>        Find all callers, implementors, subclasses, publishers & subscribers (with path:line)");
-        Console.WriteLine("  trace <start> [end]     Trace call chains and distributed cross-service execution flows");
-        Console.WriteLine("  query \"<cypher>\"        Run a read-only OpenCypher query against the knowledge graph (use --no-truncate)");
-        Console.WriteLine("  queries                 List all available built-in and workspace custom queries");
-        Console.WriteLine("  status (alias: info)    Show workspace summary, projects, node kinds, and statistics");
-        Console.WriteLine("  dependencies (or deps)  Inspect project dependencies with runtime vs build filtering");
-        Console.WriteLine("  contracts               List ingress/egress APIs, gRPC, and messaging contracts");
-        Console.WriteLine("  gate                    Execute Semantic Invariant Gates (SIG) architectural rules");
-        Console.WriteLine("  init                    Initialize a new .codeexplorer workspace");
-        Console.WriteLine("  scan (alias: index)     Scan and index a directory into the nearest workspace");
-        Console.WriteLine("  clear                   Clear indexed data from the workspace database");
-        Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
-        Console.WriteLine("  configure               Auto-configure MCP servers and agent rules for AI tools");
-        Console.WriteLine("  serve                   Run real-time WebSocket and HTTP API server (ws:// on --port)");
-        Console.WriteLine("  ingest                  Direct batch ingestion of code nodes and relationships");
-        Console.WriteLine("  test                    Test Impact Analysis (TIA): find exact test methods affected by changes");
-        Console.WriteLine("  coverage                Analyze static test reachability coverage");
-
+        Console.WriteLine(QuickStartBody);
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("EXAMPLES:");
+        Console.WriteLine(AvailableCommandsHeader);
         Console.ResetColor();
-        Console.WriteLine("  ce taxonomy");
-        Console.WriteLine("  ce search \"gates\"");
-        Console.WriteLine("  ce callers IComponentLibraryParser");
-        Console.WriteLine("  ce callers CheckGateAsync");
-        Console.WriteLine("  ce status");
-        Console.WriteLine("  ce query \"MATCH (p:Project) RETURN p.name, p.language\" --no-truncate\n");
+        Console.WriteLine(AvailableCommandsBody);
+        Console.WriteLine();
 
-        Console.WriteLine("For options and arguments on any specific command, run:");
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine(ExamplesHeader);
+        Console.ResetColor();
+        Console.WriteLine(ExamplesBody);
+        Console.WriteLine();
+
+        Console.WriteLine(HelpFooterPrompt);
         Console.ForegroundColor = ConsoleColor.DarkCyan;
-        Console.WriteLine("  ce <command> --help\n");
+        Console.WriteLine(HelpFooterCommand);
         Console.ResetColor();
     }
 }

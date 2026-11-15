@@ -33,8 +33,17 @@ public class TestOptions
     public string? Dir { get; set; }
 
     // Flags for coverage subcommand
-    [Option('p', "project", Required = false, HelpText = "Filter by project name (when subcommand is 'coverage').")]
+    [Option('p', "project", Required = false, HelpText = "Filter by project name (coverage mode).")]
     public string? Project { get; set; }
+
+    [Option("path", Required = false, HelpText = "Filter by workspace-relative directory or file path prefix (coverage mode).")]
+    public string? PathPrefix { get; set; }
+
+    [Option("status", Required = false, HelpText = "Coverage status filter: 'all', 'covered', or 'uncovered' (coverage mode).")]
+    public string? CoverageStatus { get; set; }
+
+    [Option('l', "limit", Required = false, HelpText = "Maximum number of symbol coverage entries to return (1 to 500, coverage mode).")]
+    public int? Limit { get; set; }
 
     [Option("uncovered-only", Default = false, HelpText = "Display only uncovered items.")]
     public bool UncoveredOnly { get; set; }

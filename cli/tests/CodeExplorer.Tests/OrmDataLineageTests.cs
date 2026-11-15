@@ -1,8 +1,8 @@
 using CodeExplorer.Core.Database;
 using CodeExplorer.Cypher.Common;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.Java;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -565,8 +565,8 @@ public class MyEntity { public int Id { get; set; } }
         var parserAssemblies = new[]
         {
             typeof(CSharpFileParser).Assembly,
-            typeof(Parser.Go.GoFileParser).Assembly,
-            typeof(Parser.Python.PythonFileParser).Assembly,
+            typeof(Parsers.Go.GoFileParser).Assembly,
+            typeof(Parsers.Python.PythonFileParser).Assembly,
             typeof(JavaFileParser).Assembly,
             typeof(TypeScriptFileParser).Assembly
         };

@@ -745,5 +745,20 @@ public class RealLifeExecutionTests
         reader.Read().Should().BeTrue();
         reader["name"].Should().Be("localhost");
     }
+
+    [Test]
+    public void Execution_MultiBranchUnion_PreservesDistinctStringLiteralParametersAcrossBranches()
+    {
+        var cypher =
+            "MATCH (w:Workspace) WHERE w.id = 'ws:1' RETURN 'BRANCH_A' AS kind, w.id AS id " +
+            "UNION " +
+            "MATCH (w:Workspace) WHERE w.id = 'ws:1' RETURN 'BRANCH_B' AS kind, w.id AS id " +
+            "UNION " +
+            "MATCH (w:Workspace) WHERE w.id = 'ws:1' RETURN 'BRANCH_C' AS kind, w.id AS id";
+
+        var rows = ExecuteCypher(cypher);
+
+        rows.Select(r => r["kind"]?.ToString()).Should().BeEquivalentTo(["BRANCH_A", "BRANCH_B", "BRANCH_C"]);
+    }
 }
 

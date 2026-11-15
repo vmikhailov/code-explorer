@@ -11,6 +11,9 @@ public class CallersOptions
     [Option('t', "tests", Required = false, Default = false, HelpText = "Include test callers (default: false).")]
     public bool IncludeTests { get; set; } = false;
 
+    [Option('m', "method", Required = false, HelpText = "Optional interface or abstract method name declared on target; resolves concrete implementing classes and DI targets instead of inbound callers.")]
+    public string? MethodName { get; set; }
+
     [Option('d', "dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 }

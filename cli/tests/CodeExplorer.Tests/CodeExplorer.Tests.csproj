@@ -36,13 +36,14 @@
     <ProjectReference Include="..\..\src\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
 
     <ProjectReference Include="..\..\src\UI\CodeExplorer\CodeExplorer.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Java\CodeExplorer.Parser.Java.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
-    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Terraform\CodeExplorer.Parser.Terraform.csproj" />
+    <ProjectReference Include="..\..\src\TreeSitter\CodeExplorer.TreeSitter\CodeExplorer.TreeSitter.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Kotlin\CodeExplorer.Parsers.Kotlin.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Java\CodeExplorer.Parsers.Java.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Android\CodeExplorer.Parsers.Android.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Rust\CodeExplorer.Parsers.Rust.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Shared\CodeExplorer.Parsers.Shared.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Script\CodeExplorer.Parsers.Script.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Terraform\CodeExplorer.Parsers.Terraform.csproj" />
   </ItemGroup>
 
   <!-- Link OntologyGen source files so tests can use the extractor/renderer directly -->

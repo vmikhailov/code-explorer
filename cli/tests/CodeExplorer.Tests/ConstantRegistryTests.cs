@@ -164,7 +164,7 @@ public class ConstantRegistryTests
 
             var fileNode = new CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode("f1", "my_table.entity.ts", "my_table.entity.ts", dummyFilePath);
             CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.EnrichFileDatabaseSignals(fileNode, File.ReadAllText(dummyFilePath), dummyFilePath);
-            var tsParser = new Parser.TypeScript.TypeScriptFileParser();
+            var tsParser = new Parsers.TypeScript.TypeScriptFileParser();
             var syntaxTree = new SyntaxTree(dummyFilePath, "test", null, null, null, fileNode, tsParser, [], [], []);
             var detected = ResourceSemanticAnalyzer.DetectDeclaredSchema(null, null, syntaxTree);
 
@@ -188,7 +188,7 @@ public class ConstantRegistryTests
         IGNORED_LINE_WITHOUT_EQUALS
         """;
 
-        var env = new CodeExplorer.Parser.Shared.EnvFileParser()
+        var env = new CodeExplorer.Parsers.Shared.EnvFileParser()
             .Parse(new SharedFileContext("path/to/.env", ".env", envContent)).Should().BeOfType<EnvironmentInformation>().Subject;
         ConfigurationIndex.Register(env, "billing");
 

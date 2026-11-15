@@ -298,12 +298,12 @@ public class ProjectEntityClassifierTests
     [Test]
     public void ScriptProjectParser_DoesNotTreatTsOrJsAsScripts()
     {
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.ts").Should().BeFalse();
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.js").Should().BeFalse();
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.mjs").Should().BeFalse();
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.cs").Should().BeFalse();
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.ps1").Should().BeTrue();
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.sh").Should().BeTrue();
-        Parser.Script.ScriptProjectParser.IsScriptFile("file.py").Should().BeTrue();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.ts").Should().BeFalse();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.js").Should().BeFalse();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.mjs").Should().BeFalse();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.cs").Should().BeFalse();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.ps1").Should().BeTrue();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.sh").Should().BeTrue();
+        Parsers.Script.ScriptProjectParser.IsScriptFile("file.py").Should().BeTrue();
     }
 }

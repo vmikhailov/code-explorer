@@ -459,7 +459,7 @@ public partial class CodeExplorerRepository
             }
 
             var singleResult = await engine.CheckGateAsync(singleGate, cancellationToken);
-            return FormatSingleGateResult(singleResult, includeTolerated, limit, fileFilter, groupBy);
+            return McpGateFormatter.FormatSingleGateResult(singleResult, includeTolerated, limit, fileFilter, groupBy);
         }
 
         var suiteResult = await engine.CheckSuiteAsync(
@@ -469,14 +469,16 @@ public partial class CodeExplorerRepository
             categoryFilter,
             platformFilter,
             cancellationToken);
-        return ToonYamlSerializer.SerializeObject(suiteResult);
+        return McpGateFormatter.FormatSuiteResult(suiteResult, includeTolerated, limit, fileFilter, groupBy);
     }
 
     public async Task<string> ListSemanticGatesAsync(
         string? category = null,
         string? platform = null,
         string? workspacePath = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? scope = null,
+        string? dimension = null)
     {
         var targetDir = workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory();
         var ws = WorkspaceLocator.Find(targetDir);
@@ -496,75 +498,35 @@ public partial class CodeExplorerRepository
                 .. allGates.Where(g => string.Equals(g.Platform, platform.Trim(), StringComparison.OrdinalIgnoreCase))
             ];
         }
+        if (!string.IsNullOrWhiteSpace(scope) && Enum.TryParse<InvariantScope>(scope, true, out var parsedScope))
+        {
+            allGates = [.. allGates.Where(g => g.Scope == parsedScope)];
+        }
+        if (!string.IsNullOrWhiteSpace(dimension) && Enum.TryParse<InvariantDimension>(dimension, true, out var parsedDim))
+        {
+            allGates = [.. allGates.Where(g => g.Dimension == parsedDim)];
+        }
 
         var payload = new
         {
             totalGates = allGates.Count,
             gates = allGates.Select(g => new
             {
-                g.Id,
-                Category = g.Category.ToString(),
-                g.Platform,
-                Scope = g.Scope.ToString(),
-                Dimension = g.Dimension.ToString(),
-                Coordinate = g.CoordinateCode,
-                g.Name,
-                Severity = g.Severity.ToString(),
-                g.Source,
-                g.Description,
-                g.Remediation
+                id = g.Id,
+                category = g.Category.ToString(),
+                platform = g.Platform,
+                scope = g.Scope.ToString(),
+                dimension = g.Dimension.ToString(),
+                coordinate = g.CoordinateCode,
+                name = g.Name,
+                severity = g.Severity.ToString(),
+                source = g.Source.ToString(),
+                description = g.Description,
+                remediation = g.Remediation
             })
         };
 
         return ToonYamlSerializer.SerializeObject(payload);
-    }
-
-    private static string FormatSingleGateResult(GateCheckResult result, bool includeTolerated, int limit, string? fileFilter, string? groupBy)
-    {
-        var toleratedFp = new HashSet<string>(result.ToleratedViolations.Select(t => t.Fingerprint));
-        var candidates = result.Violations.Where(v =>
-        {
-            var isTol = toleratedFp.Contains(v.Fingerprint);
-            if (!includeTolerated && isTol) return false;
-            if (!string.IsNullOrWhiteSpace(fileFilter) && (v.File == null || !v.File.Contains(fileFilter, StringComparison.OrdinalIgnoreCase))) return false;
-            return true;
-        }).ToList();
-
-        if (!string.IsNullOrWhiteSpace(groupBy))
-        {
-            var gb = groupBy.Trim().ToLowerInvariant();
-            var groups = gb switch
-            {
-                "callee" or "target" => candidates.GroupBy(v => ExtractCallee(v.Target)).Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
-                "symbol" => candidates.GroupBy(v => v.Symbol ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
-                _ => candidates.GroupBy(v => v.File ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList()
-            };
-
-            var groupedPayload = new
-            {
-                gateId = result.Gate.Id,
-                name = result.Gate.Name,
-                status = result.Status.ToString(),
-                groupBy = gb,
-                totalViolations = candidates.Count,
-                groups = groups.Take(limit > 0 ? limit : int.MaxValue)
-            };
-
-            return ToonYamlSerializer.SerializeObject(groupedPayload);
-        }
-
-        var singlePayload = new
-        {
-            result.Gate,
-            Status = result.Status.ToString(),
-            result.BaselineCount,
-            ViolationsCount = result.Violations.Count,
-            NewViolationsCount = result.NewViolations.Count,
-            ToleratedCount = result.ToleratedViolations.Count,
-            Violations = candidates.Take(limit > 0 ? limit : int.MaxValue)
-        };
-
-        return ToonYamlSerializer.SerializeObject(singlePayload);
     }
 
 }

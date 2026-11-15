@@ -5,9 +5,9 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.Go;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

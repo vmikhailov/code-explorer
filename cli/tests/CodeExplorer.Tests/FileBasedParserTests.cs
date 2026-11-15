@@ -1,8 +1,8 @@
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.SQL;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.Go;
+using CodeExplorer.Parsers.Python;
+using CodeExplorer.Parsers.Sql;
+using CodeExplorer.Parsers.TypeScript;
 using CodeExplorer.Tests.Shared;
 using NUnit.Framework;
 

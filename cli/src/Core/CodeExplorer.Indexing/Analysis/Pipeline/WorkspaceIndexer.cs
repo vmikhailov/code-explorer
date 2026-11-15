@@ -16,8 +16,19 @@ namespace CodeExplorer.Core.Parser;
 public class WorkspaceIndexer
 {
     private const string SemanticFootprintName = "<semantic>";
+    private const string Layer1PhysicalProgressTitle = "Layer 1: Physical";
+    private const string Layer1PhysicalProgressMessage = "Preparing database and physical scanning...";
+    private const string Layer2BoundariesProgressTitle = "Layer 2: Boundaries";
+    private const string Layer3SyntacticProgressTitle = "Layer 3: Syntactic";
+    private const string Layer4SemanticProgressTitle = "Layer 4: Semantic";
     private const string Layer5GlobalProgressTitle = "Layer 5: Global";
     private const string Layer5GlobalProgressMessage = "Semantic enrichment complete. Resolving global references...";
+    private const string FinalizingProgressTitle = "Finalizing";
+    private const string PostIndexingCompleteProgressMessage = "Post-indexing analysis pass complete.";
+    private const string RebuildingIndicesProgressMessage = "Rebuilding database indices...";
+    private const string InvalidatingViewCacheProgressMessage = "Invalidating view cache...";
+    private const string CompletedProgressTitle = "Completed";
+    private const string CompletedProgressMessage = "Indexing process completed successfully.";
 
     public static Func<Layer3Result, ParsingContext, Task>? PostSyntacticPipelineHook { get; set; } = static async (l3, ctx) =>
     {
@@ -40,8 +51,14 @@ public class WorkspaceIndexer
     /// <summary>
     /// Discovers parser assemblies (or scans the given ones) and registers every parser type they export.
     /// </summary>
-    public static IReadOnlyList<Type> AutoRegisterParsers(IEnumerable<Assembly>? assemblies = null) =>
-        ParserRegistry.AutoRegisterParsers(assemblies);
+    public static IReadOnlyList<Type> AutoRegisterParsers(IEnumerable<Assembly>? assemblies = null)
+    {
+        if (assemblies == null)
+        {
+            BuiltInParserAssemblyLoader.EnsureLoaded();
+        }
+        return ParserRegistry.AutoRegisterParsers(assemblies);
+    }
 
     public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => ParserRegistry.GetAllProjectParsers();
     public static IReadOnlyList<IFileParser> GetAllFileParsers() => ParserRegistry.GetAllFileParsers();
@@ -120,7 +137,7 @@ public class WorkspaceIndexer
 
         await RunParsingPipelineAsync(ctx);
 
-        ctx.ReportProgress(100, "Completed", "Indexing process completed successfully.", ctx.TotalNodesCount, ctx.TotalNodesCount);
+        ctx.ReportProgress(100, CompletedProgressTitle, CompletedProgressMessage, ctx.TotalNodesCount, ctx.TotalNodesCount);
         ctx.PipelineLog.IndexingCompleted(ctx.TotalNodesCount, ctx.TotalRelsCount);
 
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
@@ -191,25 +208,25 @@ public class WorkspaceIndexer
         {
             await using (new DatabasePersistenceWriter(ctx))
             {
-                ctx.ReportProgress(1, "Layer 1: Physical", "Preparing database and physical scanning...", 0, 0);
+                ctx.ReportProgress(1, Layer1PhysicalProgressTitle, Layer1PhysicalProgressMessage, 0, 0);
                 await PrepareDatabaseAsync(ctx);
                 var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
                 indexedFiles = l1.Files;
-                ctx.ReportProgress(8, "Layer 2: Boundaries", $"Discovered {indexedFiles.Count} files across workspace.", 0, indexedFiles.Count);
+                ctx.ReportProgress(8, Layer2BoundariesProgressTitle, $"Discovered {indexedFiles.Count} files across workspace.", 0, indexedFiles.Count);
 
                 var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
                 projects = l2.Projects;
-                ctx.ReportProgress(14, "Layer 3: Syntactic", $"Discovered {projects.Count} projects. Starting syntax parsing...", 0, indexedFiles.Count);
+                ctx.ReportProgress(14, Layer3SyntacticProgressTitle, $"Discovered {projects.Count} projects. Starting syntax parsing...", 0, indexedFiles.Count);
 
                 var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
                 syntaxTrees = l3.SyntaxTrees;
-                ctx.ReportProgress(52, "Layer 4: Semantic", $"Parsed {syntaxTrees.Count} syntax trees. Analyzing semantics...", syntaxTrees.Count, indexedFiles.Count);
+                ctx.ReportProgress(52, Layer4SemanticProgressTitle, $"Parsed {syntaxTrees.Count} syntax trees. Analyzing semantics...", syntaxTrees.Count, indexedFiles.Count);
 
                 if (PostSyntacticPipelineHook != null) await PostSyntacticPipelineHook(l3, ctx);
-                ctx.ReportProgress(68, "Layer 5: Global", "Semantic enrichment complete. Resolving global references...", syntaxTrees.Count, indexedFiles.Count);
+                ctx.ReportProgress(68, Layer5GlobalProgressTitle, Layer5GlobalProgressMessage, syntaxTrees.Count, indexedFiles.Count);
 
                 
-                ctx.ReportProgress(86, "Finalizing", "Post-indexing analysis pass complete.", syntaxTrees.Count, indexedFiles.Count);
+                ctx.ReportProgress(86, FinalizingProgressTitle, PostIndexingCompleteProgressMessage, syntaxTrees.Count, indexedFiles.Count);
             }
         }
         finally
@@ -220,12 +237,12 @@ public class WorkspaceIndexer
         await CodeIntentAnalyzer.EnrichAsync(ctx, ctx.CancellationToken);
 
         LogPersistenceSummary(ctx);
-        ctx.ReportProgress(88, "Finalizing", $"Synchronizing file registry for {indexedFiles.Count} files...", syntaxTrees.Count, indexedFiles.Count);
+        ctx.ReportProgress(88, FinalizingProgressTitle, $"Synchronizing file registry for {indexedFiles.Count} files...", syntaxTrees.Count, indexedFiles.Count);
         await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
-        ctx.ReportProgress(94, "Finalizing", "Rebuilding database indices...", syntaxTrees.Count, indexedFiles.Count);
+        ctx.ReportProgress(94, FinalizingProgressTitle, RebuildingIndicesProgressMessage, syntaxTrees.Count, indexedFiles.Count);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
         await _dbClient.CreateIndicesAsync();
-        ctx.ReportProgress(99, "Finalizing", "Invalidating view cache...", syntaxTrees.Count, indexedFiles.Count);
+        ctx.ReportProgress(99, FinalizingProgressTitle, InvalidatingViewCacheProgressMessage, syntaxTrees.Count, indexedFiles.Count);
         OnIndexCompletedHook?.Invoke();
         if (!ctx.ScanIssues.IsEmpty)
         {

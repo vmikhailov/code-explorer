@@ -67,4 +67,8 @@ site/presentation.html
 .hallmark/salt
 deploy/
 publish/
+.worktrees/
+repos/
+benchmarks/**/repos/
+
 

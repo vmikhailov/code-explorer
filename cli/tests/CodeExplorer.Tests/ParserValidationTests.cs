@@ -6,10 +6,10 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.Go;
+using CodeExplorer.Parsers.Python;
+using CodeExplorer.Parsers.TypeScript;
 using CodeExplorer.Tests.Shared;
 using NUnit.Framework;
 
@@ -268,7 +268,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_SqlParser_CreateTable_IfNotExists_And_Templated_Identifiers()
     {
-        var sqlParser = new Parser.SQL.SqlFileParser();
+        var sqlParser = new Parsers.Sql.SqlFileParser();
         var tempFile = Path.Combine(Path.GetTempPath(), $"test_sql_{Guid.NewGuid():N}.sql");
         var sql = """
             BEGIN
@@ -739,7 +739,7 @@ public class ParserValidationTests
                 r.ScopeSymbolId == "GetUsers")).Should().BeTrue();
 
         // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
-        var sqlParser = new Parser.SQL.SqlFileParser();
+        var sqlParser = new Parsers.Sql.SqlFileParser();
         var sqlFile = ws.GetFilePath("sp.sql");
 
         using var sqlSyntax = await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId,
@@ -1593,7 +1593,7 @@ public interface IUsersApi
     [Test]
     public void Test_ProjectParserRole_Fallback_Behavior()
     {
-        IProjectParser scriptParser = new Parser.Script.ScriptProjectParser();
+        IProjectParser scriptParser = new Parsers.Script.ScriptProjectParser();
         scriptParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
         scriptParser.IsFallback.Should().BeTrue();
 
@@ -1604,7 +1604,7 @@ public interface IUsersApi
         // Verify WorkspaceIndexer parser ordering puts fallback parser last
         WorkspaceIndexer.AutoRegisterParsers();
         var allParsers = WorkspaceIndexer.GetAllProjectParsers().ToList();
-        allParsers.Should().Contain(p => p is Parser.Script.ScriptProjectParser);
+        allParsers.Should().Contain(p => p is Parsers.Script.ScriptProjectParser);
         var lastParser = allParsers.Last();
         lastParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
     }

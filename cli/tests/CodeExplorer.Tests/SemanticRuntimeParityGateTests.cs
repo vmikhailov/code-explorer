@@ -7,7 +7,7 @@ using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Cypher.Common;
-using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Parsers.CSharp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

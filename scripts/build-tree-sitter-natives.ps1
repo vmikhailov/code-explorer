@@ -24,6 +24,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$coreRepo     = "https://github.com/tree-sitter/tree-sitter.git"
+$coreCommit   = "afcfe343ea050771f3deb59ab788c27882418bbc"
+
 $csharpRepo   = "https://github.com/vmikhailov/tree-sitter-c-sharp.git"
 $csharpCommit = "374984463f73e12fc5bc0326651d1fcca61e48fb"
 
@@ -36,6 +39,18 @@ $jsCommit     = "1f0ac36f28d33be17c1f39bc5f265730d146b525"
 $goRepo       = "https://github.com/vmikhailov/tree-sitter-go.git"
 $goCommit     = "b07b8a1baa93183b36db54b7f363bb0d46205145"
 
+$pyRepo       = "https://github.com/tree-sitter/tree-sitter-python.git"
+$pyCommit     = "bffb65a8cfe4e46290331dfef0dbf0ef3679de11"
+
+$javaRepo     = "https://github.com/tree-sitter/tree-sitter-java.git"
+$javaCommit   = "94703d5a6bed02b98e438d7cad1136c01a60ba2c"
+
+$rustRepo     = "https://github.com/tree-sitter/tree-sitter-rust.git"
+$rustCommit   = "77a3747266f4d621d0757825e6b11edcbf991ca5"
+
+$rRepo        = "https://github.com/r-lib/tree-sitter-r.git"
+$rCommit      = "58a22794466c0fc15b0d3b40531db751593721e8"
+
 $zigVersion   = "0.13.0"
 
 $scriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -44,7 +59,20 @@ $buildRoot    = Join-Path $repoRoot "cli/.Build"
 $workDir      = Join-Path $buildRoot "tree-sitter-native"
 $runtimesDir  = Join-Path $buildRoot "runtimes"
 $stampFile    = Join-Path $runtimesDir ".stamp"
-$expectedStamp = "csharp=$csharpCommit;ts=$tsCommit;js=$jsCommit;go=$goCommit;rids=$($Rids -join ',')"
+$expectedStamp = "core=$coreCommit;csharp=$csharpCommit;ts=$tsCommit;js=$jsCommit;go=$goCommit;py=$pyCommit;java=$javaCommit;rust=$rustCommit;r=$rCommit;rids=$($Rids -join ',')"
+
+$expectedLibs = @(
+    "tree-sitter",
+    "tree-sitter-c-sharp",
+    "tree-sitter-typescript",
+    "tree-sitter-tsx",
+    "tree-sitter-javascript",
+    "tree-sitter-go",
+    "tree-sitter-python",
+    "tree-sitter-java",
+    "tree-sitter-rust",
+    "tree-sitter-r"
+)
 
 # 1. Check if already built and up-to-date
 if (-not $Force -and (Test-Path $stampFile)) {
@@ -53,7 +81,7 @@ if (-not $Force -and (Test-Path $stampFile)) {
     foreach ($rid in $Rids) {
         $ext = if ($rid.StartsWith("win-")) { ".dll" } elseif ($rid.StartsWith("osx-")) { ".dylib" } else { ".so" }
         $prefix = if ($rid.StartsWith("win-")) { "" } else { "lib" }
-        foreach ($g in @("tree-sitter-c-sharp", "tree-sitter-typescript", "tree-sitter-tsx", "tree-sitter-javascript", "tree-sitter-go")) {
+        foreach ($g in $expectedLibs) {
             $binPath = Join-Path $runtimesDir "$rid/native/$prefix$g$ext"
             if (-not (Test-Path $binPath)) {
                 $allExist = $false
@@ -143,10 +171,15 @@ function Ensure-GrammarRepo([string]$Name, [string]$RepoUrl, [string]$CommitSha)
     return $dest
 }
 
-$csSrc = Ensure-GrammarRepo -Name "tree-sitter-c-sharp" -RepoUrl $csharpRepo -CommitSha $csharpCommit
-$tsSrc = Ensure-GrammarRepo -Name "tree-sitter-typescript" -RepoUrl $tsRepo -CommitSha $tsCommit
-$jsSrc = Ensure-GrammarRepo -Name "tree-sitter-javascript" -RepoUrl $jsRepo -CommitSha $jsCommit
-$goSrc = Ensure-GrammarRepo -Name "tree-sitter-go" -RepoUrl $goRepo -CommitSha $goCommit
+$coreSrc = Ensure-GrammarRepo -Name "tree-sitter"            -RepoUrl $coreRepo   -CommitSha $coreCommit
+$csSrc   = Ensure-GrammarRepo -Name "tree-sitter-c-sharp"    -RepoUrl $csharpRepo -CommitSha $csharpCommit
+$tsSrc   = Ensure-GrammarRepo -Name "tree-sitter-typescript" -RepoUrl $tsRepo     -CommitSha $tsCommit
+$jsSrc   = Ensure-GrammarRepo -Name "tree-sitter-javascript" -RepoUrl $jsRepo     -CommitSha $jsCommit
+$goSrc   = Ensure-GrammarRepo -Name "tree-sitter-go"         -RepoUrl $goRepo     -CommitSha $goCommit
+$pySrc   = Ensure-GrammarRepo -Name "tree-sitter-python"     -RepoUrl $pyRepo     -CommitSha $pyCommit
+$javaSrc = Ensure-GrammarRepo -Name "tree-sitter-java"       -RepoUrl $javaRepo   -CommitSha $javaCommit
+$rustSrc = Ensure-GrammarRepo -Name "tree-sitter-rust"       -RepoUrl $rustRepo   -CommitSha $rustCommit
+$rSrc    = Ensure-GrammarRepo -Name "tree-sitter-r"          -RepoUrl $rRepo      -CommitSha $rCommit
 
 # 4. Target mapping for Zig CC
 $targetMap = @{
@@ -159,6 +192,12 @@ $targetMap = @{
 }
 
 $grammars = @(
+    @{
+        Name    = "tree-sitter"
+        WorkDir = $coreSrc
+        Include = @("-I", (Join-Path $coreSrc "lib/include"), "-I", (Join-Path $coreSrc "lib/src"))
+        Sources = @((Join-Path $coreSrc "lib/src/lib.c"))
+    },
     @{
         Name    = "tree-sitter-c-sharp"
         WorkDir = $csSrc
@@ -188,6 +227,30 @@ $grammars = @(
         WorkDir = $goSrc
         Include = @("-I", (Join-Path $goSrc "src"))
         Sources = @((Join-Path $goSrc "src/parser.c"))
+    },
+    @{
+        Name    = "tree-sitter-python"
+        WorkDir = $pySrc
+        Include = @("-I", (Join-Path $pySrc "src"))
+        Sources = @((Join-Path $pySrc "src/parser.c"), (Join-Path $pySrc "src/scanner.c"))
+    },
+    @{
+        Name    = "tree-sitter-java"
+        WorkDir = $javaSrc
+        Include = @("-I", (Join-Path $javaSrc "src"))
+        Sources = @((Join-Path $javaSrc "src/parser.c"))
+    },
+    @{
+        Name    = "tree-sitter-rust"
+        WorkDir = $rustSrc
+        Include = @("-I", (Join-Path $rustSrc "src"))
+        Sources = @((Join-Path $rustSrc "src/parser.c"), (Join-Path $rustSrc "src/scanner.c"))
+    },
+    @{
+        Name    = "tree-sitter-r"
+        WorkDir = $rSrc
+        Include = @("-I", (Join-Path $rSrc "src"))
+        Sources = @((Join-Path $rSrc "src/parser.c"), (Join-Path $rSrc "src/scanner.c"))
     }
 )
 

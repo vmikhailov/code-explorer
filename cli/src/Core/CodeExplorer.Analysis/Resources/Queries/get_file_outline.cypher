@@ -7,4 +7,13 @@ RETURN child.name AS name,
        coalesce(child.start_line, 0) AS startLine,
        coalesce(child.end_line, 0) AS endLine,
        coalesce(child.symbol, child.name) AS symbol
-ORDER BY child.start_line
+UNION
+MATCH (f:File) WHERE f.path IS NOT NULL AND (f.path = $filePath OR f.path ENDS WITH ('/' + $filePath))
+MATCH (owner:Type)-[:DECLARED_IN]->(f)
+MATCH (owner)-[:HAS_METHOD|HAS_MEMBER]->(child)
+WHERE child:Function OR child:Member
+RETURN child.name AS name,
+       labels(child)[0] AS type,
+       coalesce(child.start_line, 0) AS startLine,
+       coalesce(child.end_line, 0) AS endLine,
+       coalesce(child.symbol, child.name) AS symbol

@@ -47,6 +47,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private int _paramIndex;
     private int _varIndex;
     private int _cteIndex;
+    private List<string>? _liftAllCtesTo;
     private readonly bool _rawNodeColumns;
     private readonly int? _maxPathTraversals;
 
@@ -111,8 +112,9 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         PopulateReturnGroupBy(effectiveQuery.Return, groupByColumns);
 
         var selectColumns = BuildSelectColumns(effectiveQuery.Return);
+        var unionSql = CompileUnions(effectiveQuery.Unions);
         var sql = AssembleQuerySql(effectiveQuery, selectColumns, fromAndJoins, whereConditions, groupByColumns, havingConditions);
-        return AppendUnions(sql, effectiveQuery.Unions);
+        return string.IsNullOrEmpty(unionSql) ? sql : sql + unionSql;
     }
 
     private bool IsMatchDecomposed(MatchClause match)
@@ -573,7 +575,12 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
     private void ProcessCallClause(CallClause call)
     {
-        var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters, maxPathTraversals: _maxPathTraversals);
+        var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters, maxPathTraversals: _maxPathTraversals)
+        {
+            _paramIndex = _paramIndex,
+            _varIndex = _varIndex,
+            _cteIndex = _cteIndex
+        };
         foreach (var node in _declaredNodes) subCompiler._declaredNodes.Add(node);
         foreach (var rel in _declaredRels) subCompiler._declaredRels.Add(rel);
         foreach (var rel in _varLenRels) subCompiler._varLenRels.Add(rel);
@@ -587,8 +594,9 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             _parameters[k] = v;
         }
 
-        _varIndex += subCompiler._varIndex;
-        _paramIndex += subCompiler._paramIndex;
+        _varIndex = subCompiler._varIndex;
+        _paramIndex = subCompiler._paramIndex;
+        _cteIndex = subCompiler._cteIndex;
 
         foreach (var item in call.Subquery.Return.Items)
         {
@@ -708,6 +716,11 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
         var isDistinct = query.Return.IsDistinct || query.WithClauses?.LastOrDefault()?.IsDistinct == true;
         FlushLiftedRelCtesIfEligible();
+        if (_liftAllCtesTo != null && _ctes.Count > 0)
+        {
+            _liftAllCtesTo.AddRange(_ctes);
+            _ctes.Clear();
+        }
 
         var model = new SqlQueryModel
         {
@@ -726,18 +739,29 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         return SqlTemplates.RenderQuery(model);
     }
 
-    private string AppendUnions(string baseSql, List<UnionClause>? unions)
+    private string CompileUnions(List<UnionClause>? unions)
     {
-        if (unions == null || unions.Count == 0) return baseSql;
+        if (unions == null || unions.Count == 0) return string.Empty;
 
-        var sb = new StringBuilder(baseSql);
+        var sb = new StringBuilder();
         foreach (var union in unions)
         {
-            var unionCompiled = new SqliteCompiler(union.Query, _initialParameters, maxPathTraversals: _maxPathTraversals).Compile();
+            var unionCompiler = new SqliteCompiler(union.Query, _initialParameters, _rawNodeColumns, _maxPathTraversals)
+            {
+                _paramIndex = _paramIndex,
+                _varIndex = _varIndex,
+                _cteIndex = _cteIndex,
+                _liftAllCtesTo = _liftAllCtesTo ?? _ctes
+            };
+            var unionCompiled = unionCompiler.Compile();
             foreach (var (k, v) in unionCompiled.Parameters)
             {
                 _parameters[k] = v;
             }
+
+            _paramIndex = unionCompiler._paramIndex;
+            _varIndex = unionCompiler._varIndex;
+            _cteIndex = unionCompiler._cteIndex;
 
             sb.AppendLine();
             sb.AppendLine(union.IsAll ? "UNION ALL" : "UNION");

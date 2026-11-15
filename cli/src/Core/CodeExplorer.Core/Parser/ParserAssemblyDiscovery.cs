@@ -10,6 +10,8 @@ namespace CodeExplorer.Core.Parser;
 /// </summary>
 public static class ParserAssemblyDiscovery
 {
+    private const string DllSearchPattern = "*.dll";
+
     private static readonly string AttributeName = nameof(ParserAssemblyAttribute);
     private static readonly string AttributeNamespace = typeof(ParserAssemblyAttribute).Namespace ?? string.Empty;
 
@@ -36,7 +38,12 @@ public static class ParserAssemblyDiscovery
         foreach (var dllPath in EnumerateDlls(probeDirectory))
         {
             var name = Path.GetFileNameWithoutExtension(dllPath);
-            if (parserAssemblies.ContainsKey(name) || !HasParserAssemblyAttribute(dllPath)) continue;
+            if (name.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) ||
+                parserAssemblies.ContainsKey(name) ||
+                !HasParserAssemblyAttribute(dllPath))
+            {
+                continue;
+            }
 
             var assembly = TryLoad(dllPath);
             if (assembly != null)
@@ -106,7 +113,7 @@ public static class ParserAssemblyDiscovery
 
         try
         {
-            return Directory.GetFiles(directory, "*.dll");
+            return Directory.GetFiles(directory, DllSearchPattern);
         }
         catch (Exception ex)
         {

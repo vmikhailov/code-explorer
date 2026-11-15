@@ -1,4 +1,4 @@
-using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Parsers.TypeScript;
 using CodeExplorer.Tests.Shared;
 using NUnit.Framework;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;

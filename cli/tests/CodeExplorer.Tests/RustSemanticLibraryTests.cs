@@ -4,7 +4,7 @@ using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.Rust;
+using CodeExplorer.Parsers.Rust;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

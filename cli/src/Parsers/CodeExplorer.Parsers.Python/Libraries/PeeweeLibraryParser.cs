@@ -1,0 +1,145 @@
+using System.Collections.Frozen;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+
+namespace CodeExplorer.Parsers.Python.Libraries;
+
+public class PeeweeLibraryParser : DeclarativeSemanticExtension
+{
+    private static readonly HashSet<string> PeeweeQueryMethods = new(StringComparer.Ordinal)
+    {
+        "select", "create", "get", "get_or_none", "delete", "update", "insert", "insert_many", "raw", "execute_sql"
+    };
+
+    public PeeweeLibraryParser()
+    {
+        Type = SemanticExtensionType.RelationalDb;
+        Name = "Peewee";
+        Id = "peewee";
+        SupportedPatterns = ["peewee", "peewee.*"];
+        LibraryRole = LibraryRole.OrmOrDatabase;
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Call }.ToFrozenSet(),
+                MapNodeType = static (node, ctx) =>
+                {
+                    if (IsPeeweeModelClass(node, out _)) return OntologyConstants.NodeLabels.Table;
+                    if (IsPeeweeCall(node, out _, out _, out _)) return OntologyConstants.NodeLabels.Query;
+                    return null;
+                },
+                ExtractIdentifier = ExtractPeeweeIdentifier,
+                CollectReferences = CollectPeeweeReferences
+            }
+        ];
+    }
+
+    private static string? ExtractPeeweeIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    {
+        if (IsPeeweeModelClass(node, out var className))
+        {
+            return className;
+        }
+
+        if (IsPeeweeCall(node, out var method, out var targetInfo, out var isSql))
+        {
+            if (isSql && !string.IsNullOrEmpty(targetInfo))
+            {
+                if (NestedSqlParser.TryParseSql(targetInfo, out var firstWord, out _))
+                {
+                    var clean = NestedSqlParser.CleanQueryText(targetInfo);
+                    return $"{firstWord} Query: {clean}";
+                }
+                return $"Peewee: {targetInfo}";
+            }
+
+            if (!string.IsNullOrEmpty(targetInfo))
+            {
+                return $"Peewee: {targetInfo}.{method}";
+            }
+
+            return $"Peewee: {method}";
+        }
+
+        return null;
+    }
+
+    private const string DefaultDatabaseId = "database";
+
+    private static void CollectPeeweeReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (IsPeeweeModelClass(node, out var className))
+        {
+            references.Add(new Reference(scopeSymbolId, className, OntologyConstants.Relationships.PersistedIn));
+            references.Add(new Reference(scopeSymbolId, DefaultDatabaseId, OntologyConstants.Relationships.UsesDb));
+            return;
+        }
+
+        if (IsPeeweeCall(node, out _, out var targetInfo, out var isSql))
+        {
+            if (isSql && !string.IsNullOrEmpty(targetInfo))
+            {
+                NestedSqlParser.TryDetectSqlDependencies(targetInfo, scopeSymbolId, references);
+            }
+            else if (!string.IsNullOrEmpty(targetInfo))
+            {
+                references.Add(new Reference(scopeSymbolId, targetInfo, OntologyConstants.Relationships.UsesDb));
+            }
+
+            references.Add(new Reference(scopeSymbolId, DefaultDatabaseId, OntologyConstants.Relationships.UsesDb));
+        }
+    }
+
+    private static bool IsPeeweeModelClass(Node node, out string className)
+    {
+        className = string.Empty;
+        if (!node.Is(TreeSitterSyntax.Python.ClassDefinition)) return false;
+
+        var superclasses = node.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+        if (superclasses.IsValid())
+        {
+            foreach (var sc in superclasses.Children)
+            {
+                var text = sc.Text;
+                if (text is "Model" or "peewee.Model" or "BaseModel")
+                {
+                    var nameNode = node.GetChildFieldText(TreeSitterSyntax.Fields.Name);
+                    className = nameNode ?? node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier))?.Text ?? string.Empty;
+                    return !string.IsNullOrEmpty(className);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsPeeweeCall(Node node, out string? methodName, out string? targetInfo, out bool isSql)
+    {
+        methodName = null;
+        targetInfo = null;
+        isSql = false;
+
+        if (PythonAstHelper.TryGetMemberAccess(node, out var objNode, out methodName))
+        {
+            if (methodName != null && PeeweeQueryMethods.Contains(methodName))
+            {
+                if (methodName is "execute_sql" or "raw")
+                {
+                    isSql = true;
+                    var args = PythonAstHelper.GetCallArguments(node);
+                    if (args.Count > 0)
+                    {
+                        targetInfo = PythonAstHelper.ResolveSqlStringOrVariable(args[0]);
+                    }
+                }
+                else
+                {
+                    targetInfo = objNode?.Text;
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

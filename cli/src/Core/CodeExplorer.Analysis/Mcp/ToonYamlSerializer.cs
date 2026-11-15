@@ -409,7 +409,7 @@ public static class ToonYamlSerializer
         return s;
     }
 
-    private static string EscapeYamlKey(string key)
+    internal static string EscapeYamlKey(string key)
     {
         if (string.IsNullOrEmpty(key)) return "\"\"";
         if (key.Contains(':') || key.Contains('#') || key.Contains(' ') || key.StartsWith('-'))
@@ -432,7 +432,7 @@ public static class ToonYamlSerializer
         };
     }
 
-    private static string FormatYamlString(string str)
+    internal static string FormatYamlString(string str)
     {
         if (string.IsNullOrEmpty(str)) return "\"\"";
         if (str.Equals("true", StringComparison.OrdinalIgnoreCase) ||

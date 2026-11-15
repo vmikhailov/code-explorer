@@ -1,5 +1,5 @@
 using System.Reflection;
-using CodeExplorer.Parser.Script;
+using CodeExplorer.Parsers.Script;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -9,19 +9,19 @@ public class ParserAssemblyDiscoveryTests
 {
     private static readonly string[] ExpectedParserAssemblies =
     [
-        "CodeExplorer.Parser.Android",
-        "CodeExplorer.Parser.ColdFusion",
-        "CodeExplorer.Parser.CSharp",
-        "CodeExplorer.Parser.Go",
-        "CodeExplorer.Parser.Java",
-        "CodeExplorer.Parser.Kotlin",
-        "CodeExplorer.Parser.Python",
-        "CodeExplorer.Parser.Rust",
-        "CodeExplorer.Parser.Script",
-        "CodeExplorer.Parser.Shared",
-        "CodeExplorer.Parser.SQL",
-        "CodeExplorer.Parser.Terraform",
-        "CodeExplorer.Parser.TypeScript"
+        "CodeExplorer.Parsers.Android",
+        "CodeExplorer.Parsers.ColdFusion",
+        "CodeExplorer.Parsers.CSharp",
+        "CodeExplorer.Parsers.Go",
+        "CodeExplorer.Parsers.Java",
+        "CodeExplorer.Parsers.Kotlin",
+        "CodeExplorer.Parsers.Python",
+        "CodeExplorer.Parsers.Rust",
+        "CodeExplorer.Parsers.Script",
+        "CodeExplorer.Parsers.Shared",
+        "CodeExplorer.Parsers.Sql",
+        "CodeExplorer.Parsers.Terraform",
+        "CodeExplorer.Parsers.TypeScript"
     ];
 
     [Test]

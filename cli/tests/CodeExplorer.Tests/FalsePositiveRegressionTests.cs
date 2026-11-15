@@ -1,6 +1,6 @@
 using CodeExplorer.Core.Parser.Components;
-using CodeExplorer.Parser.TypeScript;
-using CodeExplorer.Parser.TypeScript.Components;
+using CodeExplorer.Parsers.TypeScript;
+using CodeExplorer.Parsers.TypeScript.Components;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
