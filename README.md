@@ -7,7 +7,7 @@
 [![VS Marketplace](https://vsmarketplacebadges.dev/version/vmikhailov.code-explorer-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
 
-**Understand, query, and guard your codebase architecture — for you and your agent.**
+## Understand, query, and guard your codebase architecture — for you and your agent.
 
 CodeExplorer compiles polyglot repositories into a single local SQLite graph (`.codeexplorer/graph.db`) with an embedded OpenCypher-to-SQL engine. It ships as a standalone native binary and a VS Code extension — no external runtime, Docker container, or graph database server required, and nothing leaves your machine.
 
