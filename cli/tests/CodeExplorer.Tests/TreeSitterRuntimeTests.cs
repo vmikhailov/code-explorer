@@ -114,6 +114,24 @@ public class TreeSitterRuntimeTests
         allocatedBytes.Should().Be(0);
     }
 
+    [Test]
+    public void TypeScriptGrammar_ImportTypeInArraysUnionsAndGenerics_ParsesWithoutErrors()
+    {
+        const string tsSample = """
+            export interface WorkerConfig {
+              clientInfo?: import('../utils/clientInfo').ClientInfo;
+              timeouts?: import('../core/fsm/types').TimeoutSpec[];
+              result?: import('../core/fsm/types').Result<string> | null;
+            }
+            """;
+
+        using var lang = new Language(LangTypeScript);
+        using var parser = new CodeExplorer.TreeSitter.Parser(lang);
+        using var tree = parser.Parse(tsSample)!;
+
+        tree.RootNode.HasError.Should().BeFalse();
+    }
+
     private static int WalkAllNodes(TSNode root)
     {
         int count = 0;

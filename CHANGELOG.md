@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.1] - 2026-11-15
+
+### Fixed
+- **TypeScript Tree-sitter Grammar & Native Stamp Verification (`CodeExplorer.TreeSitter`, `scripts/build-tree-sitter-natives.ps1`, `cli/Directory.Build.targets`)**:
+  - Updated pinned `tree-sitter-typescript` grammar to `70491717` so inline `import('...').Type` expressions nested inside arrays, unions, and generic type arguments parse without syntax errors.
+  - Updated `EnsureTreeSitterNativeBuiltOuter` in `cli/Directory.Build.targets` to always invoke `build-tree-sitter-natives.ps1`'s commit-hash stamp check so grammar SHA bumps rebuild local native libraries automatically.
+- **Terraform HCL Indexed Attribute Tokenization (`CodeExplorer.Parsers.Terraform`)**:
+  - Added `.Try()` backtracking to fractional and exponent numeric sub-parsers in `HclTokenizer` so indexed resource traversal expressions (e.g., `kubernetes_namespace.this.metadata.0.name`) tokenize cleanly without consuming the trailing `.` separator.
+
+---
+
 ## [1.89.0] - 2026-11-15
 
 ### Added, Fixed & Improved

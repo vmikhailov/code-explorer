@@ -246,12 +246,12 @@ public static class HclTokenizer
         from frac in (
             from dot in Character.EqualTo(DotChar)
             from dec in Character.Digit.AtLeastOnce()
-            select Unit.Value).OptionalOrDefault()
+            select Unit.Value).Try().OptionalOrDefault()
         from exp in (
             from e in Character.In(ExpLowerChar, ExpUpperChar)
             from sign in Character.In(PlusChar, MinusChar).OptionalOrDefault()
             from expDigits in Character.Digit.AtLeastOnce()
-            select Unit.Value).OptionalOrDefault()
+            select Unit.Value).Try().OptionalOrDefault()
         select Unit.Value;
 
     private static readonly TextParser<Unit> HclIdentifierToken =

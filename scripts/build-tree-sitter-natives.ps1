@@ -31,7 +31,7 @@ $csharpRepo   = "https://github.com/vmikhailov/tree-sitter-c-sharp.git"
 $csharpCommit = "374984463f73e12fc5bc0326651d1fcca61e48fb"
 
 $tsRepo       = "https://github.com/vmikhailov/tree-sitter-typescript.git"
-$tsCommit     = "e660d046fcbc92427ed5fba098fed002a58f642a"
+$tsCommit     = "7049171754a5c2bdb72d353995d81e9f83dcc5f8"
 
 $jsRepo       = "https://github.com/vmikhailov/tree-sitter-javascript.git"
 $jsCommit     = "1f0ac36f28d33be17c1f39bc5f265730d146b525"

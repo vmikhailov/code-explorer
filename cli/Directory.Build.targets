@@ -6,7 +6,7 @@
 
   <Target Name="EnsureTreeSitterNativeBuiltOuter"
           BeforeTargets="DispatchToInnerBuilds"
-          Condition="'$(MSBuildProjectName)' == 'CodeExplorer.TreeSitter' and !Exists('$(TreeSitterNativeRuntimesDir)\.stamp') and Exists('$(TreeSitterBuildScript)')">
+          Condition="'$(MSBuildProjectName)' == 'CodeExplorer.TreeSitter' and Exists('$(TreeSitterBuildScript)')">
     <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(TreeSitterBuildScript)&quot;"
           Condition="'$(RuntimeIdentifier)' == ''" />
     <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(TreeSitterBuildScript)&quot; -Rids $(RuntimeIdentifier)"

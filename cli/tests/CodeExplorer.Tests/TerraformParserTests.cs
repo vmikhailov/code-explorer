@@ -529,9 +529,10 @@ public class TerraformParserTests
             }
 
             resource "aws_db_instance" "primary" {
-              count         = local.is_scaled && local.is_enabled ? local.half_count : 0
-              engine        = "postgres"
+              count          = local.is_scaled && local.is_enabled ? local.half_count : 0
+              engine         = "postgres"
               instance_class = "db.t4g.micro"
+              namespace      = kubernetes_namespace.this.metadata.0.name
             }
             """;
 

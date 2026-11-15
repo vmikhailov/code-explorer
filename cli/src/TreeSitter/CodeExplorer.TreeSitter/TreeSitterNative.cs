@@ -39,6 +39,8 @@ public readonly struct TSNode
 
     public bool IsNamed => !IsNull && TreeSitterNative.ts_node_is_named(this);
 
+    public bool HasError => !IsNull && TreeSitterNative.ts_node_has_error(this);
+
     public int StartIndex => TreeSitterNative.ByteToCharIndex(TreeSitterNative.ts_node_start_byte(this));
 
     public int EndIndex => TreeSitterNative.ByteToCharIndex(TreeSitterNative.ts_node_end_byte(this));
@@ -318,6 +320,10 @@ internal static class TreeSitterNative
     [DllImport(CoreLibraryName, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     internal static extern bool ts_node_is_named(TSNode self);
+
+    [DllImport(CoreLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static extern bool ts_node_has_error(TSNode self);
 
     [DllImport(CoreLibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern TSTreeCursor ts_tree_cursor_new(TSNode node);
