@@ -17,7 +17,7 @@ public class GateAnomaliesCommandHandler : BaseCommandHandler
         }
 
         var projectName = opts.ProjectName;
-        var workspaceDir = opts.Dir;
+        var workspaceDir = opts.EffectiveExplicitDir;
         if (string.IsNullOrWhiteSpace(projectName) && isAnomaliesAction && !string.IsNullOrWhiteSpace(opts.PositionalDir))
         {
             projectName = opts.PositionalDir;

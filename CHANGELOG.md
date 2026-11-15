@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.2] - 2026-11-16
+
+### Fixed
+- **CLI `ce gate` Workspace Directory Flag Resolution (`CodeExplorer`)**:
+  - Updated `GateOptions` and `GateAnomaliesCommandHandler` so passing `-d <path>` on `ce gate` subcommands (including `ce gate anomalies <project> -d <dir>`) resolves the target workspace directory consistently with all other `ce` commands while preserving `-d <Dimension>` filtering for valid `InvariantDimension` values (`Boundaries`, `Rules`, `Contract`, `Resources`).
+
+---
+
 ## [1.89.1] - 2026-11-15
 
 ### Fixed

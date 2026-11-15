@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Gates.Models;
 using CommandLine;
 
 namespace CodeExplorer.Options;
@@ -11,7 +12,30 @@ public class GateOptions : ITargetOption
     [Value(1, MetaName = "dir", Required = false, HelpText = "Optional path to workspace directory.")]
     public string? PositionalDir { get; set; }
 
-    public string? EffectiveDir => !string.IsNullOrWhiteSpace(Dir) ? Dir : PositionalDir;
+    public string? EffectiveExplicitDir
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Dir))
+            {
+                return Dir;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Dimension)
+                && !Enum.TryParse<InvariantDimension>(Dimension.Trim(), ignoreCase: true, out _)
+                && (string.Equals(Action, "anomalies", StringComparison.OrdinalIgnoreCase)
+                    || Directory.Exists(Dimension)
+                    || Dimension.Contains(Path.DirectorySeparatorChar)
+                    || Dimension.Contains(Path.AltDirectorySeparatorChar)))
+            {
+                return Dimension;
+            }
+
+            return null;
+        }
+    }
+
+    public string? EffectiveDir => EffectiveExplicitDir ?? PositionalDir;
 
     [Option('g', "gate", Required = false, HelpText = "Optional specific Gate ID to evaluate (e.g. 'SIG-P-B-001').")]
     public string? GateId { get; set; }
