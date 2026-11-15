@@ -1136,14 +1136,14 @@ button {
 
 /* Stage / Workbench Hero */
 .page-home .hero-stage {
-  padding-top: var(--space-2xl);
+  padding-top: var(--space-xl);
   padding-bottom: var(--section-gap-s);
   border-bottom: 1px solid var(--color-rule);
 }
 
 .page-home .hero-top {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: var(--gap-columns);
   align-items: start;
   margin-bottom: var(--space-xl);
@@ -1157,7 +1157,7 @@ button {
 .page-home .hero-aside {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-md);
 }
 
 .page-home .hero-lede {
