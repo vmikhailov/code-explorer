@@ -114,7 +114,7 @@ CodeExplorer exposes an identical **15-tool** surface across the terminal CLI (`
 | `ce gate [check\|anomalies]` | `check_semantic_gates` | Evaluate Semantic Invariant Gates (`SIG-*`), baselines, or dead-code/god-object checks. |
 | `ce query "<cypher>"` | `execute_custom_read_cypher` | Execute read-only OpenCypher or saved `.codeexplorer/queries/` templates. |
 
-*Additional workspace helpers*: `ce status` (node/edge summary), `ce export` (standalone Mermaid/C4 diagrams), `ce intent` / `ce model` (optional domain classification), and `ce clear` (reset index).
+*Additional workspace helpers*: `ce status` (node/edge summary), `ce export` (standalone Mermaid/C4 diagrams), `ce serve` (WebSocket/HTTP server for VS Code), and `ce clear` (reset index).
 
 ---
 
@@ -224,6 +224,6 @@ To embed the indexer or query compiler directly in .NET applications:
 * [`CodeExplorer.Cypher`](https://www.nuget.org/packages/CodeExplorer.Cypher) — Standalone OpenCypher parser, AST, and SQLite SQL compiler.
 
 ### Privacy & License
-All parsing, indexing, OpenCypher execution, gate checks, and MCP requests run locally against `.codeexplorer/graph.db` with zero telemetry. Network access occurs only if you explicitly download an optional GGUF model (`ce model download`) or configure an external LLM endpoint for `ce intent`.
+All parsing, indexing, OpenCypher execution, gate checks, and MCP requests run locally against `.codeexplorer/graph.db` with zero telemetry. The VS Code extension connects to GitHub Releases only if it needs to download the `ce` binary on first launch.
 
 Released under the [MIT License](LICENSE).

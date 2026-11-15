@@ -500,9 +500,14 @@ public class CeCliTests
         covExit.Should().Be(0);
         covOut.Should().Contain("OrderService");
 
-        // 14. check_semantic_gates (anomalies) -> ce gate anomalies <project>
-        var (anomExit, _, _) = await RunCliAsync("gate", "anomalies", "sample", "-d", _tempDir);
-        anomExit.Should().Be(0);
+        // 14. check_semantic_gates (anomalies) -> ce gate anomalies <project> (-d and --dir)
+        var (anomExit, anomOut, anomErr) = await RunCliAsync("gate", "anomalies", "sample", "-d", _tempDir);
+        anomExit.Should().Be(0, anomErr);
+        anomOut.Should().Contain("OrderService");
+
+        var (anomDirExit, anomDirOut, anomDirErr) = await RunCliAsync("gate", "anomalies", "sample", "--dir", _tempDir);
+        anomDirExit.Should().Be(0, anomDirErr);
+        anomDirOut.Should().Contain("OrderService");
 
         // 15. Help output exposes all new commands including impact, map, outline, snippets, symbol, lineage
         var (helpExit, helpOut, _) = await RunCliAsync("--help");
