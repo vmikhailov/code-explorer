@@ -38,14 +38,15 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>ce</AssemblyName>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFrameworks>$(CeTargetFrameworks)</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <!-- Runtime compatibility -->
     <RollForward>Major</RollForward>
     <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
-    <RuntimeFrameworkVersion>11.0.0</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.0</RuntimeFrameworkVersion>
 
     <!-- Single-file self-contained publish settings -->
     <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">true</PublishSingleFile>

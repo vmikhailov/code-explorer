@@ -113,6 +113,7 @@ jobs:
           echo "Publishing version: $VERSION"
           dotnet publish cli/src/UI/CodeExplorer/CodeExplorer.csproj \
             -c Release \
+            -f net11.0 \
             -r ${{ matrix.rid }} \
             --self-contained true \
             -p:Version="$VERSION" \

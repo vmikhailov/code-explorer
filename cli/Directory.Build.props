@@ -3,6 +3,11 @@
     <Deterministic>true</Deterministic>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
+    <!-- Dual targeting: net11.0 is primary (native binaries, tests); net10.0 keeps `dotnet tool install` working on .NET 10 SDK hosts. -->
+    <CeTargetFrameworks Condition="'$(CeTargetFrameworks)' == ''">net11.0;net10.0</CeTargetFrameworks>
+    <!-- Non-primary TFMs get a suffixed output folder; net11.0 paths stay unchanged for scripts and CI. -->
+    <CeTfmSuffix Condition="'$(TargetFramework)' != '' and '$(TargetFramework)' != 'net11.0'">_$(TargetFramework)</CeTfmSuffix>
+
     <!-- Vars are not defined when building projects explicitly -->
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
@@ -10,16 +15,16 @@
 
     <!-- Output paths: All build artifacts from all projects go strictly under $(SolutionDir).Build\ -->
     <BaseIntermediateOutputPath>$(SolutionDir).Build\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
-    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)_$(Platform)\</IntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)_$(Platform)$(CeTfmSuffix)\</IntermediateOutputPath>
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
-    <OutputPath>$(SolutionDir).Build\bin_$(Configuration)_$(Platform)\$(MSBuildProjectName)\</OutputPath>
+    <OutputPath>$(SolutionDir).Build\bin_$(Configuration)_$(Platform)$(CeTfmSuffix)\$(MSBuildProjectName)\</OutputPath>
     <OutDir>$(OutputPath)</OutDir>
-    <DocumentationFile>$(SolutionDir).Build\doc_$(Configuration)\$(MSBuildProjectName).xml</DocumentationFile>
-    <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' != ''">$(SolutionDir).Build\publish_$(Configuration)_$(RuntimeIdentifier)\$(MSBuildProjectName)\</PublishDir>
-    <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)\$(MSBuildProjectName)\</PublishDir>
+    <DocumentationFile>$(SolutionDir).Build\doc_$(Configuration)$(CeTfmSuffix)\$(MSBuildProjectName).xml</DocumentationFile>
+    <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' != ''">$(SolutionDir).Build\publish_$(Configuration)_$(RuntimeIdentifier)$(CeTfmSuffix)\$(MSBuildProjectName)\</PublishDir>
+    <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)$(CeTfmSuffix)\$(MSBuildProjectName)\</PublishDir>
 
     <!-- Versioning -->
-    <Version Condition="'$(Version)' == ''">1.87.2</Version>
+    <Version Condition="'$(Version)' == ''">1.87.3</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(Version)</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">$(Version)</FileVersion>

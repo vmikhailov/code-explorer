@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.87.3] - 2026-11-15
+
+### Fixed
+- **Dual-Target Global Tool Package (`net11.0` + `net10.0`)**:
+  - `CodeExplorer.Cli` and all SDK libraries now multi-target `net11.0;net10.0` (shared `CeTargetFrameworks` in `cli/Directory.Build.props`). The tool package ships both `tools/net11.0/any` and `tools/net10.0/any`, so `dotnet tool install/update -g CodeExplorer.Cli` works again on machines with only the .NET 10 SDK (previously failed with `Settings file 'DotnetToolSettings.xml' was not found in the package`).
+  - `net11.0` stays the primary target: native single-file binaries (Homebrew, GitHub Releases) and test suites are built on `net11.0`; .NET 11 hosts automatically pick the `net11.0` tool build.
+  - Note: the `net10.0` revert described in `1.80.2` was never applied to the code, so releases `1.80.2` to `1.87.2` were `net11.0`-only. This release is the actual fix.
+
 ## [1.87.2] - 2026-11-15
 
 ### Fixed & Improved
