@@ -1,0 +1,50 @@
+diff --git a/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts b/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts
+index 569597a2..22c8cb42 100644
+--- a/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts
++++ b/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts
+@@ -25,6 +25,7 @@ import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-worksp
+ import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+ import { CustomPermissionGuard } from 'src/engine/guards/custom-permission.guard';
+ import { AccountsToReconnectService } from 'src/modules/connected-account/services/accounts-to-reconnect.service';
++import { AccountsToReconnectKeys } from 'src/modules/connected-account/types/accounts-to-reconnect-key-value.type';
+ import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
+ import { type AccessPolicy } from 'src/engine/guards/types/access-policy.type';
+ 
+@@ -287,4 +288,37 @@ export class TimelineMessagingResolver {
+ 
+     return true;
+   }
++
++  @UseGuards(
++    AccessPolicyGuard({
++      authPrincipals: {
++        userSession: {
++          standard: true,
++          impersonated: true,
++          playground: true,
++          workspaceAgnostic: false,
++        },
++        apiKey: false,
++        oauthClient: false,
++        application: false,
++      },
++      requiredPermissionFlags: [PermissionFlagType.CONNECTED_ACCOUNTS],
++    }),
++    CustomPermissionGuard,
++  )
++  @Mutation(() => Boolean)
++  async triggerReconnectAccountBanner(
++    @AuthUser() user: AuthContextUser,
++    @AuthWorkspace() workspace: WorkspaceEntity,
++    @Args() { connectedAccountId }: DismissReconnectAccountBannerInput,
++  ): Promise<boolean> {
++    await this.accountsToReconnectService.addAccountToReconnectByKey(
++      AccountsToReconnectKeys.ACCOUNTS_TO_RECONNECT_INSUFFICIENT_PERMISSIONS,
++      user.id,
++      workspace.id,
++      connectedAccountId,
++    );
++
++    return true;
++  }
+ }

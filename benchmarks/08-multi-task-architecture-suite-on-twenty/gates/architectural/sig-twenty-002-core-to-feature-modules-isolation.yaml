@@ -1,0 +1,23 @@
+id: SIG-TWENTY-002
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Core-Engine to Feature-Modules Isolation"
+severity: Error
+description: "Core engine modules (src/engine/core-modules/**) must not introduce new direct calls to workspace feature modules (src/modules/**). Cross-layer side effects must be decoupled via domain events (WorkspaceEventBatch / EventEmitter2) or message queues."
+remediation: "Remove direct calls from src/engine/core-modules/** to src/modules/** and decouple side effects via domain events or message queues."
+target: "{target.name}"
+message: "Core module function '{caller.name}' directly calls feature module function '{target.name}' at {location}"
+thresholds:
+  warning: 1
+  error: 1
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-TWENTY-002.json
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(target:Function)
+  WHERE caller.path STARTS WITH 'packages/twenty-server/src/engine/core-modules/'
+    AND target.path STARTS WITH 'packages/twenty-server/src/modules/'
+    AND NOT coalesce(caller.is_test, false)
+  RETURN caller, r, target

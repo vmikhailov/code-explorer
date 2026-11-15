@@ -1,0 +1,99 @@
+diff --git a/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.module.ts b/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.module.ts
+index 7c18ad37..6a055de5 100644
+--- a/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.module.ts
+@@ -6,6 +6,7 @@ import { GetMessagesService } from 'src/engine/core-modules/messaging/services/g
+ import { TimelineMessagingService } from 'src/engine/core-modules/messaging/services/timeline-messaging.service';
+ import { TimelineMessagingResolver } from 'src/engine/core-modules/messaging/timeline-messaging.resolver';
+ import { RelatedPersonIdsModule } from 'src/engine/core-modules/related-person-ids/related-person-ids.module';
++import { UserVarsModule } from 'src/engine/core-modules/user/user-vars/user-vars.module';
+ import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+ import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
+ import { PermissionsModule } from 'src/engine/permissions/permissions.module';
+@@ -16,6 +17,7 @@ import { TargetModule } from 'src/engine/core-modules/target/target.module';
+   imports: [
+     FileUrlModule,
+     ConnectedAccountModule,
++    UserVarsModule,
+     PermissionsModule,
+     RelatedPersonIdsModule,
+     TargetModule,
+diff --git a/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts b/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts
+index 569597a2..5735eca4 100644
+--- a/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts
++++ b/packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts
+@@ -20,11 +20,16 @@ import { TimelineMessagingService } from 'src/engine/core-modules/messaging/serv
+ import { type AuthContextUser } from 'src/engine/core-modules/auth/types/auth-context.type';
+ import { AuthGraphqlApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-graphql-api-exception.filter';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
++import { UserVarsService } from 'src/engine/core-modules/user/user-vars/services/user-vars.service';
+ import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
+ import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
+ import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+ import { CustomPermissionGuard } from 'src/engine/guards/custom-permission.guard';
+ import { AccountsToReconnectService } from 'src/modules/connected-account/services/accounts-to-reconnect.service';
++import {
++  type AccountsToReconnectKeyValueType,
++  AccountsToReconnectKeys,
++} from 'src/modules/connected-account/types/accounts-to-reconnect-key-value.type';
+ import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
+ import { type AccessPolicy } from 'src/engine/guards/types/access-policy.type';
+ 
+@@ -124,6 +129,7 @@ export class TimelineMessagingResolver {
+     private readonly getMessagesFromPersonIdsService: GetMessagesService,
+     private readonly timelineMessagingService: TimelineMessagingService,
+     private readonly accountsToReconnectService: AccountsToReconnectService,
++    private readonly userVarsService: UserVarsService<AccountsToReconnectKeyValueType>,
+   ) {}
+ 
+   @Query(() => TimelineThreadsWithTotalDTO)
+@@ -287,4 +293,49 @@ export class TimelineMessagingResolver {
+ 
+     return true;
+   }
++
++  @UseGuards(
++    AccessPolicyGuard({
++      authPrincipals: {
++        userSession: {
++          standard: true,
++          impersonated: true,
++          playground: true,
++          workspaceAgnostic: false,
++        },
++        apiKey: false,
++        oauthClient: false,
++        application: false,
++      },
++      requiredPermissionFlags: [PermissionFlagType.CONNECTED_ACCOUNTS],
++    }),
++    CustomPermissionGuard,
++  )
++  @Mutation(() => Boolean)
++  async triggerReconnectAccountBanner(
++    @AuthUser() user: AuthContextUser,
++    @AuthWorkspace() workspace: WorkspaceEntity,
++    @Args() { connectedAccountId }: DismissReconnectAccountBannerInput,
++  ): Promise<boolean> {
++    const key =
++      AccountsToReconnectKeys.ACCOUNTS_TO_RECONNECT_INSUFFICIENT_PERMISSIONS;
++
++    const accountsToReconnect =
++      (await this.userVarsService.get({
++        userId: user.id,
++        workspaceId: workspace.id,
++        key,
++      })) ?? [];
++
++    if (!accountsToReconnect.includes(connectedAccountId)) {
++      await this.userVarsService.set({
++        userId: user.id,
++        workspaceId: workspace.id,
++        key,
++        value: [...accountsToReconnect, connectedAccountId],
++      });
++    }
++
++    return true;
++  }
+ }

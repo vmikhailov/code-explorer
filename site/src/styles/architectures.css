@@ -2,7 +2,7 @@
 /* Pre-emit critique: Extends the Console (graphite) system from benchmarks.css for the Architecture Encyclopedia prototype. Uses only tokenized oklch surfaces, 1px rules, Host Grotesk for UI and headings, and Atkinson Hyperlegible Mono for gate IDs, Cypher queries, and CLI commands. Interactive topology schematic visualizes allowed vs blocked layer dependencies alongside live stack-adapted YAML gate packs. */
 
 .arch-hero-stage {
-  padding-top: var(--space-lg);
+  padding-top: var(--section-gap-m);
   padding-bottom: var(--space-lg);
   border-bottom: 1px solid var(--color-rule);
 }

@@ -1,0 +1,72 @@
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+index c459c89f..7a54433d 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+@@ -13,6 +13,7 @@ import { type WorkspaceCreationDefaultsDTO } from 'src/engine/core-modules/domai
+ import { generateRandomSubdomain } from 'src/engine/core-modules/domain/subdomain-manager/utils/generate-random-subdomain.util';
+ import { getSubdomainFromEmail } from 'src/engine/core-modules/domain/subdomain-manager/utils/get-subdomain-from-email.util';
+ import { isSubdomainValid } from 'src/engine/core-modules/domain/subdomain-manager/utils/is-subdomain-valid.util';
++import { PublicDomainService } from 'src/engine/core-modules/public-domain/public-domain.service';
+ import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ import {
+@@ -30,6 +31,7 @@ export class SubdomainManagerService {
+   constructor(
+     @InjectRepository(WorkspaceEntity)
+     private readonly workspaceRepository: Repository<WorkspaceEntity>,
++    private readonly publicDomainService: PublicDomainService,
+     private readonly twentyConfigService: TwentyConfigService,
+   ) {}
+ 
+@@ -165,7 +167,33 @@ export class SubdomainManagerService {
+       withDeleted: true,
+     });
+ 
+-    return !existingWorkspace;
++    if (existingWorkspace) {
++      return false;
++    }
++
++    const baseHostname = this.getBaseHostname();
++
++    if (isDefined(baseHostname)) {
++      const existingPublicDomain = await this.publicDomainService.findByDomain(
++        `${subdomain}.${baseHostname}`,
++      );
++
++      if (existingPublicDomain) {
++        return false;
++      }
++    }
++
++    return true;
++  }
++
++  private getBaseHostname(): string | undefined {
++    const frontendUrl = this.twentyConfigService.get('FRONTEND_URL');
++
++    if (!isDefined(frontendUrl)) {
++      return undefined;
++    }
++
++    return new URL(frontendUrl).hostname;
+   }
+ 
+   async validateSubdomainOrThrow(subdomain: string) {
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+index 9e44cb3a..24794e06 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
+ import { TypeOrmModule } from '@nestjs/typeorm';
+ 
+ import { SubdomainManagerService } from 'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service';
++import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ 
+ @Module({
+-  imports: [TypeOrmModule.forFeature([WorkspaceEntity])],
++  imports: [TypeOrmModule.forFeature([WorkspaceEntity]), PublicDomainModule],
+   providers: [SubdomainManagerService],
+   exports: [SubdomainManagerService],
+ })

@@ -134,6 +134,7 @@
     --gutter: max(16px, env(safe-area-inset-left));
     --gap-columns: 16px;
     --section-gap-s: 40px;
+    --section-gap-m: 40px;
     --section-gap: 56px;
   }
 }
@@ -484,7 +485,7 @@ p code, li code, td code, th code {
 
 /* Hero & Sections */
 .hero-stage {
-  padding-top: var(--space-xl);
+  padding-top: var(--section-gap-m);
   padding-bottom: var(--space-xl);
   border-bottom: 1px solid var(--color-rule);
 }
@@ -1136,7 +1137,7 @@ button {
 
 /* Stage / Workbench Hero */
 .page-home .hero-stage {
-  padding-top: var(--space-xl);
+  padding-top: var(--section-gap-m);
   padding-bottom: var(--section-gap-s);
   border-bottom: 1px solid var(--color-rule);
 }
@@ -1883,7 +1884,7 @@ button {
 }
 
 .ont-hero-stage {
-  padding-top: var(--space-xl);
+  padding-top: var(--section-gap-m);
   padding-bottom: var(--space-2xl);
   border-bottom: 1px solid var(--color-rule);
 }
@@ -3168,7 +3169,7 @@ body.has-fullscreen-graph {
 /* Pre-emit critique: Extends the Console (graphite) system from benchmarks.css for the Architecture Encyclopedia prototype. Uses only tokenized oklch surfaces, 1px rules, Host Grotesk for UI and headings, and Atkinson Hyperlegible Mono for gate IDs, Cypher queries, and CLI commands. Interactive topology schematic visualizes allowed vs blocked layer dependencies alongside live stack-adapted YAML gate packs. */
 
 .arch-hero-stage {
-  padding-top: var(--space-lg);
+  padding-top: var(--section-gap-m);
   padding-bottom: var(--space-lg);
   border-bottom: 1px solid var(--color-rule);
 }

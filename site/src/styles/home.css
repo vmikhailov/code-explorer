@@ -69,7 +69,7 @@ button {
 
 /* Stage / Workbench Hero */
 .page-home .hero-stage {
-  padding-top: var(--space-xl);
+  padding-top: var(--section-gap-m);
   padding-bottom: var(--section-gap-s);
   border-bottom: 1px solid var(--color-rule);
 }

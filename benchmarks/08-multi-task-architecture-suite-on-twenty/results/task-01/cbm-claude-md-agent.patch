@@ -1,0 +1,55 @@
+diff --git a/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.resolver.ts b/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.resolver.ts
+index a0a13329..536af78d 100644
+--- a/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.resolver.ts
++++ b/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.resolver.ts
+@@ -313,4 +313,18 @@ export class TwoFactorAuthenticationResolver {
+       },
+     );
+   }
++
++  @Mutation(() => DeleteTwoFactorAuthenticationMethodDTO)
++  @UseGuards(
++    AccessPolicyGuard(TWO_FACTOR_AUTHENTICATION_RECOVERY_ACCESS_POLICY),
++  )
++  async resetTwoFactorAuthenticationMethodsForUser(
++    @Args() { userId }: TwoFactorAuthenticationRecoveryTargetInput,
++    @AuthWorkspace() workspace: WorkspaceEntity,
++  ): Promise<DeleteTwoFactorAuthenticationMethodDTO> {
++    return await this.twoFactorAuthenticationService.resetTwoFactorAuthenticationMethodsForUser(
++      userId,
++      workspace.id,
++    );
++  }
+ }
+diff --git a/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.service.ts b/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.service.ts
+index a29fb5b2..0d680db1 100644
+--- a/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/two-factor-authentication/two-factor-authentication.service.ts
+@@ -385,4 +385,27 @@ export class TwoFactorAuthenticationService {
+ 
+     return { success: true };
+   }
++
++  async resetTwoFactorAuthenticationMethodsForUser(
++    userId: UserEntity['id'],
++    workspaceId: WorkspaceEntity['id'],
++  ): Promise<{ success: boolean }> {
++    const userWorkspace =
++      await this.userWorkspaceService.getUserWorkspaceForUserOrThrow({
++        userId,
++        workspaceId,
++      });
++
++    await this.twoFactorAuthenticationMethodRepository.delete(workspaceId, {
++      userWorkspaceId: userWorkspace.id,
++    });
++
++    await this.revokeRecoveryCodes({
++      workspaceId,
++      userId,
++      includeRedeemed: true,
++    });
++
++    return { success: true };
++  }
+ }

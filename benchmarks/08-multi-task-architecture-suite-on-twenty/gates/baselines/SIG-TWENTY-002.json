@@ -1,0 +1,1016 @@
+{
+  "gateId": "SIG-TWENTY-002",
+  "allowedViolations": 101,
+  "entries": [
+    {
+      "fingerprint": "6a103b35cf07bb931788985c1a66adfe61bb60485d76f2206d6304e1a7d21054",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/calendar-tool/create-calendar-event-tool.ts",
+      "line": 37,
+      "column": 15,
+      "symbol": "execute",
+      "target": "composeCalendarEvent",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "54694537c1ca97e50ca4410a8c32309a0dafa3a16cf52312593ece4759fb8e77",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/calendar-tool/create-calendar-event-tool.ts",
+      "line": 55,
+      "column": 15,
+      "symbol": "execute",
+      "target": "createComposedCalendarEvent",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "b5389e209856a4fa549f022c8c28765b8fd5a2f858b36e9a7e131451ce61a62d",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/calendar-tool/create-calendar-event-tool.ts",
+      "line": 57,
+      "column": 13,
+      "symbol": "execute",
+      "target": "persistCalendarEvent",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4bf875b30be0644bad5e136f12b9ca48f6a8aae66fc3bc0bf4e58a3375d3f37e",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/find-workflow-step-connected-account.util.ts",
+      "line": 30,
+      "column": 14,
+      "symbol": "canConnectedAccountRunStep",
+      "target": "canConnectedAccountCreateCalendarEvents",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "496273f5eacbfdca694778d96b15ccb925d5437009c033c277173e4c5c8e1e50",
+      "file": "packages/twenty-server/src/engine/core-modules/imap-smtp-caldav-connection/services/imap-smtp-caldav-connection.service.ts",
+      "line": 177,
+      "column": 28,
+      "symbol": "testCaldavConnection",
+      "target": "getClient",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f487198024a9a802fa1319d8784560f14e8b802c687f685abd7558e48703e73d",
+      "file": "packages/twenty-server/src/engine/core-modules/imap-smtp-caldav-connection/services/imap-smtp-caldav-connection.service.ts",
+      "line": 184,
+      "column": 15,
+      "symbol": "testCaldavConnection",
+      "target": "listEventCalendars",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "476f05590ee9f83818b84b97834e7cc0e8213e0d4a4dcae5a71cd47cb37a08be",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 396,
+      "column": 21,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "resetAndMarkAsCalendarEventListFetchPending",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "69841d92aaf46674446589f41e1d4a259e913a172e52dd8d9c3d52fb0239e7eb",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 194,
+      "column": 19,
+      "symbol": "refreshMicrosoftRefreshToken",
+      "target": "resetAndMarkAsCalendarEventListFetchPending",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a04be50ff12a668b055929399b950c581eda1ecdf505d1cf7b4804c21ba2ad68",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 384,
+      "column": 17,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "markAsFailedInsufficientPermissionsAndFlushCalendarEventsToImport",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "1f11a4dd4f33afcaf7b353e9587e0c28f89c8219ea401d494a23a7b6e2e88870",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 295,
+      "column": 17,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "refreshHandleAliases",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "9ec401a2e9f550db04006039358200eac9470ba299af999a4739ea996f584a22",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 265,
+      "column": 17,
+      "symbol": "refreshMicrosoftRefreshToken",
+      "target": "refreshHandleAliases",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fa7ff0aea45ed273938b4c0482a403cde58cc28b1ff8f51b38b406542da25db3",
+      "file": "packages/twenty-server/src/engine/core-modules/application/connection-provider/connections/services/application-connections-list.service.ts",
+      "line": 298,
+      "column": 35,
+      "symbol": "decryptAccessToken",
+      "target": "resolveTokens",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "9efc4d99696827dbed1bfcdc9b9a5332dbcfd7e723c172092c42030e538aa2ab",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 217,
+      "column": 19,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "removeAccountToReconnect",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "589319fe3c1d796ca12923d9a93a8405dc3a342ac8abf4ff459d987b3a9f95a9",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 183,
+      "column": 19,
+      "symbol": "refreshMicrosoftRefreshToken",
+      "target": "removeAccountToReconnect",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2f5a5affd30aba51a252fa6f62ab6172495eda2eac907f0b970376f4088da410",
+      "file": "packages/twenty-server/src/engine/core-modules/messaging/timeline-messaging.resolver.ts",
+      "line": 282,
+      "column": 11,
+      "symbol": "dismissReconnectAccountBanner",
+      "target": "removeAccountToReconnect",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4bbeff11964018ce83af582bf7e4a8f4274d9ba69084ce778762d89f6d22055c",
+      "file": "packages/twenty-server/src/engine/core-modules/imap-smtp-caldav-connection/imap-smtp-caldav-connection.resolver.ts",
+      "line": 127,
+      "column": 13,
+      "symbol": "saveImapSmtpCaldavAccount",
+      "target": "upsertConnectedAccount",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "201f97900fb0224348e4a1ffe62360e5ab67cc1ead0176c27701caf3294cd89e",
+      "file": "packages/twenty-server/src/engine/core-modules/cron/sentry-cron-monitor.decorator.ts",
+      "line": 41,
+      "column": 50,
+      "symbol": "descriptor.value",
+      "target": "schedule",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f2aa748314de1ccd9782d7e6285f7f4dbf784f5579de55b17f161e2c2a51cc33",
+      "file": "packages/twenty-server/src/engine/core-modules/tool-provider/providers/action-tool.provider.ts",
+      "line": 267,
+      "column": 12,
+      "symbol": "executeStaticTool",
+      "target": "execute",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fffe5034b28a48da0a8dc6e5f998be383d221a45b2cb2c02030a9ccefbd8e2e1",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 346,
+      "column": 21,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "resetAndMarkAsMessagesListFetchPending",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e4a12aba1e02fc6d6b9f47f2a17b1d439cf766716c207cdbc665c4600495edfd",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 189,
+      "column": 19,
+      "symbol": "refreshMicrosoftRefreshToken",
+      "target": "resetAndMarkAsMessagesListFetchPending",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "dd02f062fc4e534ea2355de6872c7a4fa3a12b07b52b74c7704641af98acd404",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 332,
+      "column": 17,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "markAsFailed",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "d362ba759c5686774470299a83db7a52ce475d8aabc23f963b80c123b225a805",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 316,
+      "column": 17,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "syncMessageFolders",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3a633f2a5773f6d034d13cb4f1e645a6f3c5d7f296ece33abf1c477435b7b044",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 285,
+      "column": 17,
+      "symbol": "refreshMicrosoftRefreshToken",
+      "target": "syncMessageFolders",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2e1c83575a558f4839fb009376e825778852523452ae6ddbca3309fa1eab058f",
+      "file": "packages/twenty-server/src/engine/core-modules/cache-storage/cache-storage.module-factory.ts",
+      "line": 36,
+      "column": 27,
+      "symbol": "cacheStorageModuleFactory",
+      "target": "createClient",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e8d566e4fcdca363f38571cc8674500936c52613277173059e3d7f1baf1f8bc4",
+      "file": "packages/twenty-server/src/engine/core-modules/session-storage/session-storage.module-factory.ts",
+      "line": 50,
+      "column": 27,
+      "symbol": "getSessionStorageOptions",
+      "target": "createClient",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ce99597bac72c75d6dad5b367b70147ae84379a941c7130baa74a1758ce4da08",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/email-tool/draft-email-tool.ts",
+      "line": 117,
+      "column": 11,
+      "symbol": "createDraft",
+      "target": "createDraft",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5a342cc552a3bbd60b3c9a9e5f2ccbc4c086b1ed510c6013d91734cb0a668ddd",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/email-tool/send-email-tool.ts",
+      "line": 52,
+      "column": 32,
+      "symbol": "execute",
+      "target": "sendComposedEmail",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4bbe210b7b5571600e017cb4274c2beadfad5c908acdfea14fc6b6ae5e139d53",
+      "file": "packages/twenty-server/src/engine/core-modules/tool/tools/email-tool/send-email-tool.ts",
+      "line": 55,
+      "column": 17,
+      "symbol": "execute",
+      "target": "persistSentMessage",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "1dbc841f4226ff6223d8c8521ee35238ee0dca8753d33231cf617fddbed567b8",
+      "file": "packages/twenty-server/src/engine/core-modules/onboarding/onboarding.resolver.ts",
+      "line": 52,
+      "column": 12,
+      "symbol": "getInviteSuggestions",
+      "target": "getOrComputeSuggestions",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f6db89e23d511da79ca693d21fce7d0046f53928af42354eed05f6276689931b",
+      "file": "packages/twenty-server/src/engine/core-modules/onboarding/onboarding.service.ts",
+      "line": 644,
+      "column": 17,
+      "symbol": "setOnboardingInviteTeamPendingFromInviteSuggestions",
+      "target": "getOrComputeSuggestions",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fd224e2f776430cf33a501924aeb0df7a96dcf0d574a32d18232812517069d9a",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/google-apis.service.ts",
+      "line": 364,
+      "column": 15,
+      "symbol": "refreshGoogleRefreshToken",
+      "target": "importRecentMessages",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "943c343931b1a8d9309d8be0337f889b5348d5b92f0b80db5864456550d5fdd0",
+      "file": "packages/twenty-server/src/engine/core-modules/auth/services/microsoft-apis.service.ts",
+      "line": 324,
+      "column": 13,
+      "symbol": "refreshMicrosoftRefreshToken",
+      "target": "importRecentMessages",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "fd2f8a30fd28f39ff8b2f2ebbac6ddf6d6a646eaea5165ae1e23fb5805af2f07",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 180,
+      "column": 13,
+      "symbol": "activateCoreWorkflowVersion",
+      "target": "getFlatEntityMaps",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "c18f522cc8dbbdb0d04980189d812b7873dfb8d40a6b051bebd40a0c20751c85",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 755,
+      "column": 19,
+      "symbol": "resolveManualTriggerAvailability",
+      "target": "getFlatEntityMaps",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e908b90c110b5c1d66c367c57c561bcc6615b20ea76c44ae322057f2df5ed2ff",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-write.service.ts",
+      "line": 390,
+      "column": 15,
+      "symbol": "assertContentIsNotMalformed",
+      "target": "getFlatEntityMaps",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f8deeb164178b457a652a32e7f7f0d783dfb07a3be15f2473b98d4cc5c467bc1",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 581,
+      "column": 10,
+      "symbol": "updatePositions",
+      "target": "applyWorkflowStepPositions",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7d75a04476d3acbcc8da31a414aef874ec89a38a3c37d864cd600b8ef083885f",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-mutation.workspace-service.ts",
+      "line": 287,
+      "column": 21,
+      "symbol": "createWorkflowWithContent",
+      "target": "assembleWorkflowVersionContent",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "56573c9dcd9f56c8d08ffbb71a4eb3efa078e6a6c40a688750ee1c8164c91edf",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 603,
+      "column": 18,
+      "symbol": "autoLayoutCoreWorkflowVersion",
+      "target": "computeWorkflowStepPositions",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "49f2bd4de95d41879b2804b36b57e7ba57841176b6f1a805ba92026431306887",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 123,
+      "column": 12,
+      "symbol": "createStep",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "42cb7c17b139b96e0ede7f88ef9326458f35fd74780f738928971bdeb0b42df0",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 182,
+      "column": 12,
+      "symbol": "duplicateStep",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "30b2118c5a86fb521ef1c97f63ed13384d99cd4b20789f5e8cde49286c2563ba",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 386,
+      "column": 12,
+      "symbol": "deleteStep",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "405f0e70e67c6266c4eeacef19f6ce59593a1a9b830d75bb6d3dd8f6a82e88b7",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 423,
+      "column": 14,
+      "symbol": "createEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6f29f42ac78652debfa240142f5df05bc26d356d23264a85492cb8056073f12e",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 438,
+      "column": 12,
+      "symbol": "createEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7a26f89457e5386e4173cdf553b043ad3e4b53ef87053bd7c5f39d6d3ffd0375",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 480,
+      "column": 16,
+      "symbol": "deleteEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "63d02eada5facb1d884d1c1f81ea0ba9fa74c38664930ac63d8fe231f4480bb7",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 502,
+      "column": 14,
+      "symbol": "deleteEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "13d1bdd915d3d80dda675fb3651f994aae56f9b23bedb2325c1f79e5180cfdaa",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 520,
+      "column": 14,
+      "symbol": "deleteEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "51565278ee237689cfb90aaa02789793c996417337d423ef20e8fe718e5b772a",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 535,
+      "column": 14,
+      "symbol": "deleteEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "bd6a5852c384505046fca535aaad60f011fe9e879dc6913298d0efc23acff568",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 554,
+      "column": 12,
+      "symbol": "deleteEdge",
+      "target": "computeWorkflowVersionStepChanges",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "43aba3e5377f982b3db327a39c760ea345186c0c39921ffc64c83bd83ef3fe0c",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-mutation.workspace-service.ts",
+      "line": 389,
+      "column": 12,
+      "symbol": "cloneVersionContent",
+      "target": "remapDuplicatedStepDestinations",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "0c8d43d59b37a5269de4dad5ca39b427bb44f6258029500427077214f146bab9",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/build-workflow-manifest-export-references.util.ts",
+      "line": 144,
+      "column": 7,
+      "symbol": "buildWorkflowManifestExportReferences",
+      "target": "computeAiAgentOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "9d0f445a39c4204dce085fdcd2eaf8f18a60e625fc8f13ad2a6c40d5da6a0f2e",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/compute-workflow-manifest-output-schema.util.ts",
+      "line": 39,
+      "column": 14,
+      "symbol": "computeWorkflowManifestOutputSchema",
+      "target": "computeAiAgentOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "0473f53d5b2a8a7e8893b3bcffe800ed13fddbaf0db0f6202a0adbea2b59145b",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/compute-workflow-manifest-output-schema.util.ts",
+      "line": 45,
+      "column": 14,
+      "symbol": "computeWorkflowManifestOutputSchema",
+      "target": "computeAiAgentOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "26440850821a9cdf09c9b25aff54cdd1648cc859cfdf8b2d96210a8aa3b5e4d3",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/compute-workflow-manifest-output-schema.util.ts",
+      "line": 46,
+      "column": 9,
+      "symbol": "computeWorkflowManifestOutputSchema",
+      "target": "computeAiAgentOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "bdf44d0a7df7d3ed15b0b49a134e31da0f43d43f1cc4ce512df016aec05f6d63",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/prepare-workflow-manifest-references.util.ts",
+      "line": 113,
+      "column": 7,
+      "symbol": "prepareWorkflowManifestReferences",
+      "target": "computeAiAgentOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a082f5dd4a458ad6dbad88a4007c0bc488fcb886247e703005796a6fc0255914",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-builder.resolver.ts",
+      "line": 78,
+      "column": 12,
+      "symbol": "computeStepOutputSchema",
+      "target": "computeStepOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "54626d08ca571e296d525568eca1bdba85fc70e5aedcbedef3992d264c3f5f49",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-write.service.ts",
+      "line": 191,
+      "column": 13,
+      "symbol": "writeContent",
+      "target": "enrichStepsOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5b4632e8128314771a02080e281e659190a3c70b7f223798e0e779baea337dc0",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-write.service.ts",
+      "line": 322,
+      "column": 13,
+      "symbol": "createDraftCoreWorkflowVersion",
+      "target": "enrichStepsOutputSchema",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "a82f491186165223cf8d25062a8558b7279a45fdbadab61bb785eec4eb6d6f62",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-write.service.ts",
+      "line": 393,
+      "column": 7,
+      "symbol": "assertContentIsNotMalformed",
+      "target": "assertWorkflowVersionIsNotMalformedOrThrow",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "2025fd7b3d9afdd8c5490cab2052e8541c18ac52f5deb30cc799f5fedf571947",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 122,
+      "column": 11,
+      "symbol": "validateCoreWorkflowVersion",
+      "target": "assertWorkflowVersionIsActivableOrThrow",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "20ba5bec66eef62abdbaa03e0979cc2c5e070ea2ed4c1429708e752b1ddce43c",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 150,
+      "column": 11,
+      "symbol": "activateCoreWorkflowVersion",
+      "target": "assertWorkflowVersionIsActivableOrThrow",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "77d0dd6960f6ae06670ca8cb116a683ad808c9fb0d7287da44effa4e3f8eeec0",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 414,
+      "column": 30,
+      "symbol": "createEdge",
+      "target": "addEdgeToWorkflowVersionContent",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ad76b77c25cbf73dddd9973fb3283dc14a2ff1edb95f108cf9de7ea419285c27",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 526,
+      "column": 50,
+      "symbol": "deleteEdge",
+      "target": "buildSourceStepWithRemovedEdge",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6b547a70d84af1bae949eda9987a72a3471e5640d6b105b3c60621dd91a9a71a",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 461,
+      "column": 5,
+      "symbol": "deleteEdge",
+      "target": "assertEdgeConnectionOptionsAreSupported",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7ed6097e6f613058eb8458e12a94b0228dcc74d8431deb7a20732876af15136c",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 188,
+      "column": 11,
+      "symbol": "activateCoreWorkflowVersion",
+      "target": "buildCodeStepsFromSourceForSteps",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "84808dd0b65963e694ed0f9f0c2ebbcb4b6a797d615c14a45e09cac8dc1ee1a3",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 193,
+      "column": 11,
+      "symbol": "activateCoreWorkflowVersion",
+      "target": "switchCodeStepLogicFunctionsToPrebuilt",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "495e9c48f1b09e5b1eb7f363e8247e859851d1179b2ea55183cc58eadc349443",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 731,
+      "column": 22,
+      "symbol": "rebuildStepForTypeChange",
+      "target": "getNextStepIdsForStepTypeChange",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ec9080ca322dc9844bbdd57dd0fa586e6343d23c3c36b643496073f8bb7c52fd",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 104,
+      "column": 46,
+      "symbol": "createStep",
+      "target": "insertStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "17b9d1e215eeb1f2b87721e28cffb1718a1bb855e12d16dd825d4496a7293cca",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 167,
+      "column": 46,
+      "symbol": "duplicateStep",
+      "target": "insertStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3863b80be6b15adebaa708060160b4e662802c8dc5c70c288c7c0dcc5482cffa",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 226,
+      "column": 7,
+      "symbol": "updateStep",
+      "target": "isWorkflowAiAgentStepKindChanged",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "9aad2f8a3525af5dbe32e9b036945d09cdebfa495d022813e43ef6df1f8215c7",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 356,
+      "column": 62,
+      "symbol": "deleteStep",
+      "target": "removeStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "d2a1946e17bb3ae6d37fb51e4d0fadbb658fdc1568b2444d56cc0ab22c5dbf55",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-mutation.workspace-service.ts",
+      "line": 221,
+      "column": 15,
+      "symbol": "deleteClonedStepResources",
+      "target": "runWorkflowVersionStepDeletionSideEffects",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "0f14ee25b1fa8df3d619c1badefb3b27c641b00130ab37e91598376c6d0e12da",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 261,
+      "column": 15,
+      "symbol": "updateStep",
+      "target": "runWorkflowVersionStepDeletionSideEffects",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f849358690ab83ffef6ca40d9903c71bc2a55f6ddaeb3d63d2ca2a21f6d5b874",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 275,
+      "column": 13,
+      "symbol": "updateStep",
+      "target": "runWorkflowVersionStepDeletionSideEffects",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4f31513ef4203b5b059ffb3965a85e15d11b030abf4e9c51609b889516590681",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 377,
+      "column": 9,
+      "symbol": "deleteStep",
+      "target": "runWorkflowVersionStepDeletionSideEffects",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "740a9eb6d26bce4b9d7b61fca0066e8cf1178d2e84b3991bff3aa8ebbe8df18a",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 94,
+      "column": 13,
+      "symbol": "createStep",
+      "target": "runStepCreationSideEffectsAndBuildStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5a53f88694375e92bc0ec1cd256a30169ea68a9b614736891648c49ac4c87632",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 718,
+      "column": 13,
+      "symbol": "rebuildStepForTypeChange",
+      "target": "runStepCreationSideEffectsAndBuildStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "140b7e8f8e66c00f5ab1c8f7f11ac5aecbc137cdf77e385546e8cf89a70a9b0c",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-mutation.workspace-service.ts",
+      "line": 372,
+      "column": 17,
+      "symbol": "cloneVersionContent",
+      "target": "cloneStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e9dbe652855cbc97079cc22a22fed0a95ab8c2a0ee6c605c08fedcc90d5b65c8",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 157,
+      "column": 13,
+      "symbol": "duplicateStep",
+      "target": "cloneStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "c70607b640629d19efc6ac9d1254ea126c933a7df8615331f1c3af129a7c7ee9",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 163,
+      "column": 7,
+      "symbol": "duplicateStep",
+      "target": "markStepAsDuplicate",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "7bd5df3e08af956f2294fc076c551499f20cc9dc1da1bdc858c711d2d3b413e9",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-mutation.workspace-service.ts",
+      "line": 657,
+      "column": 15,
+      "symbol": "createDraftFromCoreWorkflowVersion",
+      "target": "createDraftStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "6f76f2ebf12d7d101a8102cd71e0ef980f87e88bffe6fff0da8f8bafd97d3ff5",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-version-step.resolver.ts",
+      "line": 248,
+      "column": 26,
+      "symbol": "testWorkflowCodeStep",
+      "target": "run",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ac2ae285b0505bb3de5274d3c5895c72c8c9901653316a2392dd5a9fa35aa13c",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/controllers/workflow-trigger.controller.ts",
+      "line": 144,
+      "column": 39,
+      "symbol": "runWorkflow",
+      "target": "run",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "4d99911487baa82cbbfe6e84d2007137d063b497e6abf627886ad4ba8e36bd91",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-run.service.ts",
+      "line": 52,
+      "column": 12,
+      "symbol": "run",
+      "target": "run",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "eed34cbcd2d6d2a9ce062e3461fdbee9e83f286c630877c970928dacb8f2baae",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-version-step.resolver.ts",
+      "line": 153,
+      "column": 10,
+      "symbol": "updateWorkflowRunStep",
+      "target": "canUpdateWorkflowRunStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "0a3f24aa268805997fdea9725403a11e42339fb0a9ff5a0dbd3821b131a1e4d4",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-version-step.resolver.ts",
+      "line": 163,
+      "column": 11,
+      "symbol": "updateWorkflowRunStep",
+      "target": "updateWorkflowRunStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ee9192be57263e4ede0d4881c71ab9e36e92b175613fe5fa58c7e79f1b0d4c05",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-version-step.resolver.ts",
+      "line": 320,
+      "column": 15,
+      "symbol": "assertWorkflowRunIsReadableByRequesterOrThrow",
+      "target": "isWorkflowRunReadableByRequester",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "48a65a454f9905f3bdf5e88fa8cb1558ae1e9f9c98808020f7caea03e1498272",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-version-step.resolver.ts",
+      "line": 148,
+      "column": 13,
+      "symbol": "updateWorkflowRunStep",
+      "target": "getWorkflowRunOrFail",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ad46081ce1eaa7643c3a84c4eebb200be83ebf216026586b7d0a5574e080aed3",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-version-step.resolver.ts",
+      "line": 187,
+      "column": 11,
+      "symbol": "submitFormStep",
+      "target": "submitFormStep",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "5697b46e9dd88efba7dc4aee616a8c88e8a7ab20a30561de4a752879cfcc5e40",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-trigger.resolver.ts",
+      "line": 58,
+      "column": 12,
+      "symbol": "stopWorkflowRun",
+      "target": "stopWorkflowRun",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "84fccf50a840bf830d43db416d5dc13f14de6333afaa36e0327436b17472a2ca",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/resolvers/workflow-trigger.resolver.ts",
+      "line": 70,
+      "column": 12,
+      "symbol": "retryWorkflowRun",
+      "target": "retryWorkflowRun",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "909e10cae7ad9ad446b3effc6818525efefe4baf1564ee4b5edd53f8bff3a64b",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 589,
+      "column": 11,
+      "symbol": "writeCronTriggerCacheEntry",
+      "target": "publishCronTriggerCacheEntry",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "ae3a44cf415f6bfc7b68cdd0752a9756fbd016dd58dcb394ad4555b17094f0fe",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/workflow-version-core-sync.service.ts",
+      "line": 307,
+      "column": 13,
+      "symbol": "publishCronTriggerCacheEntries",
+      "target": "publishCronTriggerCacheEntry",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "35fb8a3b98d8a787367daf8693f9ffa5fb4f3c6bda8a2e8b10f9253e15de2943",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 182,
+      "column": 5,
+      "symbol": "activateCoreWorkflowVersion",
+      "target": "assertPickRecordLoadBalanceConfigIsValid",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "490c2a27c168186efa01572d82dc57823bcb7d081b00f12f13b2d27e9af1e65b",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 165,
+      "column": 5,
+      "symbol": "activateCoreWorkflowVersion",
+      "target": "assertVersionCanBeActivated",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "f26915af756c5e9055ca960dec2dabdc36111b72c6badc3644101a4ff1b55379",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-version-run.service.ts",
+      "line": 47,
+      "column": 7,
+      "symbol": "run",
+      "target": "buildWorkflowRunTriggerContext",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "42b1378da6355aed107e3287c6c083c37f09906aecb338f7c08720ee0145d4c5",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/converters/from-workflow-trigger-manifest-to-trigger-or-throw.util.ts",
+      "line": 127,
+      "column": 5,
+      "symbol": "fromCronTriggerManifestOrThrow",
+      "target": "computeCronPatternFromSchedule",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "56f5b9fa9599d1ac750c60cbe3a1ea4b96770c65077f03cc3b21662d9558c5d8",
+      "file": "packages/twenty-server/src/engine/core-modules/application/application-manifest/utils/build-application-workflow-cron-trigger-cache-entries.util.ts",
+      "line": 37,
+      "column": 18,
+      "symbol": "buildApplicationWorkflowCronTriggerCacheEntries",
+      "target": "computeCronPatternFromSchedule",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "bf2aed9d63fefabcbe2b7e04aa45c11f73da7d979968ff2d2da1941f658f5a24",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 581,
+      "column": 16,
+      "symbol": "writeCronTriggerCacheEntry",
+      "target": "computeCronPatternFromSchedule",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "513b4ddd77faa0a24b5bd01b24580866c5656995e1808e98dc143f5d1b8bab20",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/utils/compute-automated-trigger-from-workflow-version.util.ts",
+      "line": 48,
+      "column": 30,
+      "symbol": "computeAutomatedTriggerFromWorkflowVersion",
+      "target": "computeCronPatternFromSchedule",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "3b21077983580d2e2297d31ef5ed4a724ad88fc0cf8c8cacb1b557e19d2c25a4",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-lifecycle.workspace-service.ts",
+      "line": 651,
+      "column": 19,
+      "symbol": "createOrUpdateCommandMenuItem",
+      "target": "getWorkflowCommandMenuItemLabel",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    },
+    {
+      "fingerprint": "e23f9a391dac6d0beb412bf2f7697e6eec99664ca9e2668466aac8acb72a4161",
+      "file": "packages/twenty-server/src/engine/core-modules/workflow/services/core-workflow-mutation.workspace-service.ts",
+      "line": 477,
+      "column": 19,
+      "symbol": "syncCommandMenuItemLabelFromCore",
+      "target": "getWorkflowCommandMenuItemLabel",
+      "acknowledgedAt": "2026-11-15T10:27:18.4504403+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-15 10:27:18"
+    }
+  ]
+}

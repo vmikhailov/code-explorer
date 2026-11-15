@@ -1,0 +1,172 @@
+diff --git a/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.module.ts b/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.module.ts
+index 87757a77..f4ce4ef7 100644
+--- a/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.module.ts
+@@ -32,6 +32,7 @@ import { BillingModule } from 'src/engine/core-modules/billing/billing.module';
+ import { BillingCustomerEntity } from 'src/engine/core-modules/billing/entities/billing-customer.entity';
+ import { BillingPriceEntity } from 'src/engine/core-modules/billing/entities/billing-price.entity';
+ import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
++import { EmailingDomainEntity } from 'src/engine/core-modules/emailing-domain/emailing-domain.entity';
+ import { EnterpriseModule } from 'src/engine/core-modules/enterprise/enterprise.module';
+ import { EventLogEmitterModule } from 'src/engine/core-modules/event-logs/emit/event-log-emitter.module';
+ import { FeatureFlagEntity } from 'src/engine/core-modules/feature-flag/feature-flag.entity';
+@@ -51,6 +52,7 @@ import { UserEntity } from 'src/engine/core-modules/user/user.entity';
+ import { UserModule } from 'src/engine/core-modules/user/user.module';
+ import { WorkspaceDataExportModule } from 'src/engine/core-modules/workspace-data-export/workspace-data-export.module';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
++import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
+ import { PermissionsModule } from 'src/engine/permissions/permissions.module';
+ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
+ @Module({
+@@ -63,6 +65,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
+       FeatureFlagEntity,
+       BillingCustomerEntity,
+       BillingPriceEntity,
++      EmailingDomainEntity,
+     ]),
+     BillingModule,
+     FileModule,
+@@ -79,6 +82,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
+     UserVarsModule,
+     UpgradeModule,
+     UserModule,
++    WorkspaceModule,
+     JwtModule,
+     CoreEntityCacheModule,
+     EventLogEmitterModule,
+@@ -112,6 +116,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
+     AppHealthIndicator,
+     provideWorkspaceScopedRepository(FeatureFlagEntity),
+     provideWorkspaceScopedRepository(BillingCustomerEntity),
++    provideWorkspaceScopedRepository(EmailingDomainEntity),
+   ],
+   exports: [MaintenanceModeService],
+ })
+diff --git a/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts b/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts
+index 9e6cfd99..c4ef548d 100644
+--- a/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts
++++ b/packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts
+@@ -739,6 +739,18 @@ export class AdminPanelResolver {
+     });
+   }
+ 
++  @UseGuards(AccessPolicyGuard(ADMIN_PANEL_ACCESS_POLICY), AdminPanelGuard)
++  @Mutation(() => Boolean)
++  async suspendWorkspaceAdminPanel(
++    @Args('workspaceId', { type: () => UUIDScalarType }) workspaceId: string,
++    @AuthUser() actor: AuthContextUser,
++  ): Promise<boolean> {
++    return this.adminBillingService.suspendWorkspace({
++      workspaceId,
++      actorUserId: actor.id,
++    });
++  }
++
+   @UseGuards(
+     AccessPolicyGuard(ADMIN_PANEL_ACCESS_POLICY),
+     ServerLevelImpersonateGuard,
+diff --git a/packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts b/packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts
+index 4d6c2595..9d91da82 100644
+--- a/packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/admin-panel/services/admin-panel-billing.service.ts
+@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
+ 
+ import { INTERNAL_CREDITS_PER_DISPLAY_CREDIT } from 'twenty-shared/constants';
+ import { isDefined } from 'twenty-shared/utils';
+-import { In, type Repository } from 'typeorm';
++import { In, IsNull, type Repository } from 'typeorm';
+ 
+ import { AdminPanelWorkspaceBillingDTO } from 'src/engine/core-modules/admin-panel/dtos/admin-panel-workspace-billing.dto';
+ import { type AdminPanelWorkspaceCreditGrantDTO } from 'src/engine/core-modules/admin-panel/dtos/admin-panel-workspace-credit-grant.dto';
+@@ -24,8 +24,17 @@ import { BillingCreditGrantService } from 'src/engine/core-modules/billing/servi
+ import { BillingCreditService } from 'src/engine/core-modules/billing/services/billing-credit.service';
+ import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
+ import { BillingUsageService } from 'src/engine/core-modules/billing/services/billing-usage.service';
++import { EmailingDomainEntity } from 'src/engine/core-modules/emailing-domain/emailing-domain.entity';
++import {
++  EmailingDomainWorkspaceCleanupJob,
++  type EmailingDomainWorkspaceCleanupJobData,
++} from 'src/engine/core-modules/emailing-domain/jobs/emailing-domain-workspace-cleanup.job';
++import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
++import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
++import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+ import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+ import { toDisplayCredits } from 'src/engine/core-modules/usage/utils/to-display-credits.util';
++import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+ import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
+@@ -49,6 +58,11 @@ export class AdminPanelBillingService {
+     private readonly billingCreditService: BillingCreditService,
+     private readonly billingCreditGrantService: BillingCreditGrantService,
+     private readonly twentyConfigService: TwentyConfigService,
++    private readonly workspaceService: WorkspaceService,
++    @InjectWorkspaceScopedRepository(EmailingDomainEntity)
++    private readonly emailingDomainRepository: WorkspaceScopedRepository<EmailingDomainEntity>,
++    @InjectMessageQueue(MessageQueue.deleteCascadeQueue)
++    private readonly deleteCascadeMessageQueueService: MessageQueueService,
+   ) {}
+ 
+   async grantWorkspaceCredits({
+@@ -132,6 +146,61 @@ export class AdminPanelBillingService {
+     return this.toCreditGrantDTO(grant);
+   }
+ 
++  async suspendWorkspace({
++    workspaceId,
++    actorUserId,
++  }: {
++    workspaceId: string;
++    actorUserId: string;
++  }): Promise<boolean> {
++    const workspace = await this.workspaceRepository.findOne({
++      where: { id: workspaceId, deletedAt: IsNull() },
++    });
++
++    if (!isDefined(workspace) || isDefined(workspace.deletedAt)) {
++      throw new BillingException(
++        `Workspace ${workspaceId} not found`,
++        BillingExceptionCode.BILLING_SUBSCRIPTION_EVENT_WORKSPACE_NOT_FOUND,
++      );
++    }
++
++    if (this.twentyConfigService.get('IS_BILLING_ENABLED')) {
++      await this.billingSubscriptionService.cancelSubscription(workspaceId);
++
++      const creditGrants = await this.getWorkspaceCreditGrants(workspaceId);
++      const activeCreditGrants = creditGrants.filter((grant) => grant.isActive);
++
++      for (const grant of activeCreditGrants) {
++        await this.billingCreditService.revokeGrant({
++          workspaceId,
++          grantId: grant.id,
++          revokedByUserId: actorUserId,
++        });
++      }
++    }
++
++    await this.workspaceService.suspendWorkspace(workspaceId);
++
++    const emailingDomains =
++      await this.emailingDomainRepository.find(workspaceId);
++
++    await this.deleteCascadeMessageQueueService.add<EmailingDomainWorkspaceCleanupJobData>(
++      EmailingDomainWorkspaceCleanupJob.name,
++      {
++        workspaceId,
++        domains: emailingDomains.map(
++          (emailingDomain) => emailingDomain.domain,
++        ),
++      },
++      {
++        workspaceId,
++        isWorkspaceJob: true,
++      },
++    );
++
++    return true;
++  }
++
+   private async getWorkspaceCreditGrants(
+     workspaceId: string,
+   ): Promise<AdminPanelWorkspaceCreditGrantDTO[]> {

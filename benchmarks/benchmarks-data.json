@@ -526,5 +526,93 @@
         "gates_final_failed": 1
       }
     }
+  },
+  "cs08": {
+    "id": "08-multi-task-architecture-suite-on-twenty",
+    "status": "ready",
+    "source_metrics": "benchmarks/08-multi-task-architecture-suite-on-twenty/results/metrics.json",
+    "ce_version": "v1.87.2",
+    "cbm_version": "v0.12.1",
+    "model": "Gemini 3.8 Flash",
+    "repo": {
+      "name": "twentyhq/twenty",
+      "commit": "12e8fae4",
+      "packages": 46,
+      "files": 24527,
+      "loc": "2.49M",
+      "graph_nodes": 464794,
+      "graph_edges": 1113891
+    },
+    "telemetry": {
+      "ce": {
+        "tasks_completed": 4,
+        "tasks_with_phase1_violations": 4,
+        "tasks_with_final_violations": 0,
+        "total_final_new_violations": 0,
+        "tasks_passed_all_gates": 4,
+        "tasks_all_tests_passed": 4,
+        "unit_tests_passed": 14,
+        "unit_tests_total": 14,
+        "gate_tampering_incidents": 0,
+        "wall_clock_s": 2054,
+        "turns": 125,
+        "steps": 338,
+        "tool_calls": 199,
+        "run_command_calls": 65,
+        "read_file_calls": 92,
+        "edit_file_calls": 31,
+        "write_file_calls": 6,
+        "raw_tool_chars": 795260,
+        "raw_tool_tokens": 198815,
+        "cum_input_tokens": 9745267,
+        "cost_flash_usd": 0.48
+      },
+      "cbm": {
+        "tasks_completed": 4,
+        "tasks_with_phase1_violations": 4,
+        "tasks_with_final_violations": 4,
+        "total_final_new_violations": 4,
+        "tasks_passed_all_gates": 0,
+        "tasks_all_tests_passed": 4,
+        "unit_tests_passed": 14,
+        "unit_tests_total": 14,
+        "gate_tampering_incidents": 0,
+        "wall_clock_s": 2646,
+        "turns": 127,
+        "steps": 320,
+        "tool_calls": 176,
+        "run_command_calls": 60,
+        "read_file_calls": 96,
+        "edit_file_calls": 12,
+        "write_file_calls": 4,
+        "raw_tool_chars": 732854,
+        "raw_tool_tokens": 183215,
+        "cum_input_tokens": 10030169,
+        "cost_flash_usd": 0.48
+      },
+      "cbm_claude_md": {
+        "tasks_completed": 4,
+        "tasks_with_phase1_violations": 0,
+        "tasks_with_final_violations": 0,
+        "total_final_new_violations": 0,
+        "tasks_passed_all_gates": 4,
+        "tasks_all_tests_passed": 3,
+        "unit_tests_passed": 12,
+        "unit_tests_total": 13,
+        "gate_tampering_incidents": 0,
+        "wall_clock_s": 2457,
+        "turns": 110,
+        "steps": 311,
+        "tool_calls": 182,
+        "run_command_calls": 62,
+        "read_file_calls": 98,
+        "edit_file_calls": 14,
+        "write_file_calls": 4,
+        "raw_tool_chars": 980427,
+        "raw_tool_tokens": 245108,
+        "cum_input_tokens": 9456303,
+        "cost_flash_usd": 0.47
+      }
+    }
   }
 }

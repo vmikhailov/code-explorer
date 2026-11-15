@@ -1,0 +1,19 @@
+id: SIG-TWENTY-004
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Boundaries
+name: "Async Message Queue Boundary (No Direct Job .handle() Invocation)"
+severity: Error
+description: "Application code (packages/twenty-server/src/**) must never invoke @Processor background job .handle() methods directly. Background jobs in /jobs/ must be enqueued asynchronously via MessageQueueService.add()."
+remediation: "Inject the appropriate MessageQueueService via @InjectMessageQueue(MessageQueue.<queue>) and call .add<JobData>(JobClass.name, payload) instead of calling job.handle() directly."
+message: "Function '{caller.name}' directly calls background job '{job.name}.handle()' at {location}"
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(h:Function {name: 'handle'})<-[:HAS_METHOD]-(job:Type)
+  WHERE caller.path STARTS WITH 'packages/twenty-server/src/'
+    AND NOT caller.path ENDS WITH '.spec.ts'
+    AND job.path CONTAINS '/jobs/'
+  RETURN caller, r, h

@@ -430,6 +430,48 @@ function ingestRawSources(data) {
     }
   }
 
+  // Case Study 08: benchmarks/08-multi-task-architecture-suite-on-twenty/results/metrics.json
+  if (data.cs08 && data.cs08.source_metrics) {
+    const m08Path = path.join(ROOT, data.cs08.source_metrics);
+    if (fs.existsSync(m08Path)) {
+      const m08 = JSON.parse(fs.readFileSync(m08Path, 'utf8'));
+      const ga = m08.graph_agent;
+      const ba = m08.baseline_agent;
+      const ca = m08.claude_md_agent;
+      if (ga && ba && ca) {
+        data.cs08.status = 'ready';
+        const mapAgent = (a) => ({
+          tasks_completed: a.tasks_completed,
+          tasks_with_phase1_violations: a.tasks_with_phase1_violations,
+          tasks_with_final_violations: a.tasks_with_final_violations,
+          total_final_new_violations: a.total_final_new_violations,
+          tasks_passed_all_gates: a.tasks_passed_all_gates,
+          tasks_all_tests_passed: a.tasks_all_tests_passed,
+          unit_tests_passed: a.unit_tests_passed,
+          unit_tests_total: a.unit_tests_total,
+          gate_tampering_incidents: a.gate_tampering_incidents,
+          wall_clock_s: a.wall_clock_seconds,
+          turns: a.llm_turns,
+          steps: a.total_steps,
+          tool_calls: a.total_tool_calls,
+          run_command_calls: a.tool_breakdown.run_command || 0,
+          read_file_calls: a.tool_breakdown.read_file || 0,
+          edit_file_calls: a.tool_breakdown.edit_file || 0,
+          write_file_calls: a.tool_breakdown.write_file || 0,
+          raw_tool_chars: a.tool_output_chars,
+          raw_tool_tokens: a.tool_output_est_tokens,
+          cum_input_tokens: a.cumulative_actual_input_est_tokens,
+          cost_flash_usd: a.cost_flash_usd,
+        });
+        data.cs08.telemetry = {
+          ce: mapAgent(ga),
+          cbm: mapAgent(ba),
+          cbm_claude_md: mapAgent(ca),
+        };
+      }
+    }
+  }
+
   return rawMilestones01;
 }
 
@@ -962,6 +1004,53 @@ function buildBindings(data, rawMilestones01) {
       `<strong>Both passed unit tests &amp; oxlint</strong> (<code>4/4</code> vs <code>3/3</code> specs; <code>CBM</code> kept <code>AdminPanelBillingService &rarr; emailingDomain</code>)`;
   }
 
+  // --- Case Study 08 (4-Task Brownfield Architecture & Feature Suite on twentyhq/twenty) ---
+  if (data.cs08 && data.cs08.status === 'ready' && data.cs08.telemetry) {
+    const c8 = data.cs08;
+    const ce = c8.telemetry.ce;
+    const cbm = c8.telemetry.cbm;
+    const cmd = c8.telemetry.cbm_claude_md;
+    const speedupCbm = cbm.wall_clock_s / ce.wall_clock_s;
+    const speedupCmd = cmd.wall_clock_s / ce.wall_clock_s;
+
+    b['cs08.meta_desc'] =
+      `Case Study 08: 4-task brownfield feature implementation ablation on twentyhq/twenty (${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC) comparing CodeExplorer (${c8.ce_version}) against CBM (${c8.cbm_version}) with default and augmented CLAUDE.md across 12 autonomous runs. CodeExplorer finished ${speedupCbm.toFixed(2)}× faster (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)}), caught 4/4 copied legacy shortcuts via pre-configured ratchet gates, and passed 14/14 unit tests with 0 gate-tampering attempts.`;
+    b['cs08.crumb_scale'] = `${c8.repo.packages} packages, ${fmtInt(c8.repo.files)} files, ${c8.repo.loc} LOC · 4 tasks × 3 agents (12 runs)`;
+
+    b['cs08.card_violations'] = `0/4 vs 4/4`;
+    b['cs08.card_violations_copy'] =
+      `Without gates, both <code>CBM</code> and <code>CE Phase 1</code> copied adjacent <code>[TOL]</code> legacy shortcuts in <strong>4/4 tasks (100%)</strong>. With <code>ce gate check</code>, <strong>0/4</strong> shipped.`;
+    b['cs08.card_violations_footer'] = `0 final violations vs 4 in CBM (256 tolerated baseline)`;
+
+    b['cs08.card_speedup'] = fmtRoundMult(speedupCbm);
+    b['cs08.card_speed_copy'] =
+      `Across all 4 tasks combined, <code>CodeExplorer</code> finished in <strong>${fmtDurShort(ce.wall_clock_s)}</strong> (incl. scan, gate check &amp; 1-turn fixes) vs <strong>${fmtDurShort(cbm.wall_clock_s)}</strong> for <code>CBM</code> and <strong>${fmtDurShort(cmd.wall_clock_s)}</strong> for <code>CBM + CLAUDE.md</code>.`;
+    b['cs08.card_speed_footer'] = `${fmtInt(ce.wall_clock_s)} s vs ${fmtInt(cbm.wall_clock_s)} s (-9m 52s across 4 tasks)`;
+
+    b['cs08.card_tests'] = `14/14 Pass`;
+    b['cs08.card_tests_copy'] =
+      `<code>CodeExplorer</code> passed <strong>14/14 unit tests (4/4 tasks)</strong> and <strong>4/4 gates</strong>. <code>CBM + CLAUDE.md</code> broke 1 guard unit test in Task 01 (<code>12/13</code> pass) due to a hallucinated method.`;
+    b['cs08.card_tests_footer'] = `100% unit tests + 100% architectural gates`;
+
+    b['cs08.card_tamper'] = `0 Bypasses`;
+    b['cs08.card_tamper_copy'] =
+      `In <strong>4/4 tasks</strong>, the <code>CodeExplorer</code> agent refactored to the proper NestJS domain service in <strong>1 iteration</strong> with <strong>0 attempts</strong> to run <code>ratchet --update</code> or edit gate files.`;
+    b['cs08.card_tamper_footer'] = `1 self-correction iteration per task, 0 gate tampering`;
+
+    b['cs08.participants_html'] = [
+      `<strong>Tested participants (12 autonomous runs = 4 tasks &times; 3 agent configurations):</strong><br>`,
+      `          1. <strong>CodeExplorer (<code>ce</code>):</strong> <code>${c8.ce_version}</code> (.NET 11, SQLite + OpenCypher + Incremental <code>ce scan</code> + 4 repo-wide Semantic Invariant Gates, evaluated both pre-gate <code>Phase 1: Navigation Only</code> and post-gate <code>Phase 2: Navigation + Gates</code>)<br>`,
+      `          2. <strong>codebase-memory-mcp (<code>CBM</code>):</strong> <code>${c8.cbm_version}</code> with default <code>twentyhq/twenty</code> <code>CLAUDE.md</code><br>`,
+      `          3. <strong>CBM + Augmented <code>CLAUDE.md</code>:</strong> <code>${c8.cbm_version}</code> with a 40-rule enterprise <code>CLAUDE.md</code> containing explicit prose rules for all 4 architectural boundaries<br>`,
+      `          4. <strong>LLM Model &amp; Target Repo:</strong> <code>${c8.model}</code> on <code>${c8.repo.name} @ ${c8.repo.commit}</code> (<code>${c8.repo.packages}</code> packages, <code>${fmtInt(c8.repo.files)}</code> files, <code>${c8.repo.loc}</code> LOC)`,
+    ].join('\n');
+
+    b['catalog.cs08_outcome'] =
+      `<strong class="tone-ok">0/4 vs 4/4 violated tasks</strong> (navigation alone copied adjacent <code>[TOL]</code> debt in <code>4/4</code> tasks; <code>ce gate check</code> caught &amp; fixed <code>4/4</code> in 1 iteration with <code>0</code> gate tampering)<br>` +
+      `<strong class="tone-ok">${fmtRoundMult(speedupCbm)} faster suite total</strong> (${fmtDurShort(ce.wall_clock_s)} vs ${fmtDurShort(cbm.wall_clock_s)} <code>CBM</code> &amp; ${fmtDurShort(cmd.wall_clock_s)} <code>CBM+CLAUDE.md</code>)<br>` +
+      `<strong>14/14 unit tests pass</strong> (<code>CBM+CLAUDE.md</code> broke 1 guard test in Task 01: <code>12/13</code> pass)`;
+  }
+
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
   {
     const c1 = data.cs01;
@@ -1018,9 +1107,20 @@ function buildBindings(data, rawMilestones01) {
     const cs06Row =
       `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>6 invariant gates + 4-phase brownfield SHA-256 ratchet lifecycle (Day 0 audit, line-shift-immune baseline freeze, PR regression block & monotonic debt tightening) | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\` & \`ratchet\`) | **\`${t6.duration_ms} ms\`** Day 0 check<br>**\`183–356 ms\`** ratcheted checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **4-phase deterministic lifecycle**<br>Freezes \`${t6.blocking_errors}\` legacy errors + \`${t6.audited_warnings}\` warnings (\`Exit 0\`), blocks \`1 new\` PR leak (\`Exit 1\`), tightens ceiling |`;
 
+    const c8 = data.cs08;
+    const ce8 = c8.telemetry.ce;
+    const cbm8 = c8.telemetry.cbm;
+    const cmd8 = c8.telemetry.cbm_claude_md;
+    const sp8 = (cbm8.wall_clock_s / ce8.wall_clock_s).toFixed(2);
+    const sp8Cmd = (cmd8.wall_clock_s / ce8.wall_clock_s).toFixed(2);
+
+    const cs08Row =
+      `| **[Case Study 08: 4-Task Brownfield Architecture & Feature Suite](./08-multi-task-architecture-suite-on-twenty/README.md)**<br>4 backend features & unit test suites across 3 modules (\`resetTwoFactorAuthenticationMethodsForUser\`, \`triggerReconnectAccountBanner\`, \`suspendWorkspaceAdminPanel\`, \`isSubdomainAvailable\`) isolating **Navigation Only** vs **Augmented \`CLAUDE.md\`** vs **Semantic Invariant Gates** (\`12\` runs) | \`${c8.repo.name}\`<br>\`${c8.repo.packages}\` packages, \`${fmtInt(c8.repo.files)}\` files, \`${c8.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`CBM\`<br>vs<br>\`CBM + CLAUDE.md\` | **\`${sp8}×\` faster than \`CBM\`** (\`${sp8Cmd}×\` vs \`CLAUDE.md\`)<br>\`${fmtDurShort(ce8.wall_clock_s)}\` vs \`${fmtDurShort(cbm8.wall_clock_s)}\` vs \`${fmtDurShort(cmd8.wall_clock_s)}\`<br>\`${ce8.turns}\` vs \`${cbm8.turns}\` vs \`${cmd8.turns}\` turns | \`${fmtInt(ce8.cum_input_tokens)}\` vs \`${fmtInt(cbm8.cum_input_tokens)}\` vs \`${fmtInt(cmd8.cum_input_tokens)}\`<br>(\`${ce8.read_file_calls}\` vs \`${cbm8.read_file_calls}\` vs \`${cmd8.read_file_calls}\` file reads) | **\`0/4\` vs \`4/4\` violated tasks (\`100%\` caught)**<br>Navigation alone copied adjacent \`[TOL]\` debt in \`4/4\` tasks; \`ce gate check\` fixed \`4/4\` in \`1\` iter (\`0\` tampering, \`14/14\` unit tests pass vs \`12/13\` for \`CBM+CLAUDE.md\`) |`;
+
     b['md.catalog_reallife_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Architectural Compliance & Outcome |`,
       `| :--- | :--- | :--- | :--- | :--- | :--- |`,
+      cs08Row,
       cs07Row,
       cs06Row,
     ].join('\n');
@@ -1195,7 +1295,7 @@ function syncMarkdownFile(relPath, bindings) {
 
   // Block markers: <!-- BEGIN:key --> ... <!-- END:key -->
   out = out.replace(
-    /(<!--\s*BEGIN:([a-zA-Z0-9._-]+)\s*-->)\r?\n[\s\S]*?\r?\n(<!--\s*END:\2\s*-->)/g,
+    /(<!--\s*BEGIN:([a-zA-Z0-9._-]+)\s*-->)\r?\n?[\s\S]*?(<!--\s*END:\2\s*-->)/g,
     (full, startTag, key, endTag) => {
       if (!(key in bindings)) return full;
       const eol = orig.includes('\r\n') ? '\r\n' : '\n';

@@ -34,6 +34,9 @@
     <loc>https://code-explorer.app/benchmarks/07-agent-feature-ce-vs-cbm-on-twenty</loc>
   </url>
   <url>
+    <loc>https://code-explorer.app/benchmarks/08-multi-task-architecture-suite-on-twenty</loc>
+  </url>
+  <url>
     <loc>https://code-explorer.app/privacy</loc>
   </url>
 </urlset>
