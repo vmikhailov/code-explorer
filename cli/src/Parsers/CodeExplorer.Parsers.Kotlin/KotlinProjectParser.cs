@@ -24,7 +24,7 @@ public class KotlinProjectParser : IProjectParser
     public bool IsConfigurationFile(string fileName)
     {
         var lower = fileName.ToLowerInvariant();
-        return (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml") || lower.EndsWith(".json")) &&
+        return (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml")) &&
                !lower.StartsWith("gradle") && !lower.StartsWith(".travis");
     }
 

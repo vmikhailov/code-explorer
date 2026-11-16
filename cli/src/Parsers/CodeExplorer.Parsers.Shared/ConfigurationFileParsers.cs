@@ -185,7 +185,12 @@ public sealed class YamlConfigurationParser : ISharedFileParser
         "azure-pipelines.yml", "azure-pipelines.yaml",
         "dependabot.yml", "dependabot.yaml",
         ".codecov.yml", ".codecov.yaml",
-        ".pre-commit-config.yaml", ".pre-commit-config.yml"
+        ".pre-commit-config.yaml", ".pre-commit-config.yml",
+        "pnpm-lock.yaml", "pnpm-workspace.yaml",
+        "docker-compose.yml", "docker-compose.yaml",
+        "compose.yml", "compose.yaml",
+        "mkdocs.yml", "mkdocs.yaml",
+        "buf.yaml", "buf.gen.yaml"
     };
 
     public bool CanParse(string fileName) =>

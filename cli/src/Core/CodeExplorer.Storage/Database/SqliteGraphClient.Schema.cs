@@ -582,43 +582,46 @@ public partial class SqliteGraphClient
         }
     }
 
+    public async Task<bool> HasFileRegistryDataAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            const string tableCheckSql = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'file_registry';";
+            var hasTable = await _conn.ExecuteScalarAsync<int>(new CommandDefinition(tableCheckSql, cancellationToken: cancellationToken)) > 0;
+            if (!hasTable)
+            {
+                return false;
+            }
+
+            const string rowCheckSql = "SELECT COUNT(*) FROM (SELECT 1 FROM file_registry LIMIT 1);";
+            return await _conn.ExecuteScalarAsync<int>(new CommandDefinition(rowCheckSql, cancellationToken: cancellationToken)) > 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     private async Task WipeDatabaseFastAsync()
     {
         ResetBulkLoadStateUnlocked();
-        if (IsSchemaOutdated)
-        {
-            await _conn.ExecuteAsync($"""
-                DROP TABLE IF EXISTS edges;
-                DROP TABLE IF EXISTS nodes;
-                DROP TABLE IF EXISTS file_registry;
-                DROP TABLE IF EXISTS metadata;
-                PRAGMA user_version = {CurrentSchemaVersion};
-                """);
-            CreateIndices();
-            SchemaVersion = CurrentSchemaVersion;
-            ResetTaxonomyInMemory();
-            ParserRegistry.OnIndexCompletedHook?.Invoke();
-            return;
-        }
-
-        using var tx = _conn.BeginTransaction();
-        try
-        {
-            await _conn.ExecuteAsync("""
-                DELETE FROM edges;
-                DELETE FROM nodes;
-                DELETE FROM file_registry;
-                DELETE FROM metadata;
-                """, transaction: tx);
-            tx.Commit();
-            ResetTaxonomyInMemory();
-        }
-        catch
-        {
-            tx.Rollback();
-            throw;
-        }
-
+        await _conn.ExecuteAsync($"""
+            DROP TABLE IF EXISTS edges;
+            DROP TABLE IF EXISTS nodes;
+            DROP TABLE IF EXISTS file_registry;
+            DROP TABLE IF EXISTS metadata;
+            DROP TABLE IF EXISTS identifier_index;
+            DROP TABLE IF EXISTS identifier_fts;
+            PRAGMA user_version = {CurrentSchemaVersion};
+            """);
+        CreateIndices();
+        SchemaVersion = CurrentSchemaVersion;
+        ResetTaxonomyInMemory();
         ParserRegistry.OnIndexCompletedHook?.Invoke();
     }
 

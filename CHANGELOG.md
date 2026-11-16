@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.3] - 2026-11-16
+
+### Fixed & Improved
+- **Project-Scoped Layer 1 Topology, Parallel Single-Read Streaming & Worktree Exclusion (`CodeExplorer.Indexing`, `CodeExplorer.Core`, `CodeExplorer.Parsers.*`)**:
+  - Replaced single-threaded blind directory file scanning in `Layer1PhysicalParser` with a two-phase project-boundary topology pass followed by bounded parallel single-pass file streaming (`Parallel.ForEachAsync`), computing file registry SHA-256 digests in memory during the initial read so `SyncFileRegistryAsync` performs zero redundant disk reads.
+  - Added automatic detection and exclusion of nested linked Git worktree checkouts (`GitSettingsParser.IsGitWorktreeDirectory`) and expanded default tool directory exclusions (`.codex`, `.superpowers`, `.opencode`, `.windsurf`, `worktrees`) so agent worktrees nested inside a repository no longer duplicate workspace graphs.
+  - Scoped project configuration file matching (`IsConfigurationFile`) to the active enclosing project's parser(s), pruned empty structural `:Folder` branches directly in Layer 1, removed global `.json` over-matching in `KotlinProjectParser`, excluded lockfiles and compose manifests (`pnpm-lock.yaml`, `docker-compose.yml`, `mkdocs.yml`) in `YamlConfigurationParser`, and fixed root-project (`Path == ""`) coverage in `Layer2ProjectParser` fallback script detection.
+- **Fast Database Reset on Full Rescan (`CodeExplorer.Storage`, `CodeExplorer`)**:
+  - Updated `WipeDatabaseFastAsync`, `ScanCommandHandler`, and `WorkspaceIndexer` so full workspace rescans (`--clear` or empty `file_registry`) skip `UpgradeSchemaAsync` migrations and reset SQLite tables directly to `CurrentSchemaVersion` via `DROP TABLE IF EXISTS` instead of row-by-row `DELETE` over indexed tables.
+
+---
+
 ## [1.89.2] - 2026-11-16
 
 ### Fixed

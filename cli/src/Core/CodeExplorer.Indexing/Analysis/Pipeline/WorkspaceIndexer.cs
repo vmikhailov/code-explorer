@@ -117,7 +117,7 @@ public class WorkspaceIndexer
             }
         }
 
-        if (_dbClient.IsSchemaOutdated && !clear)
+        if (_dbClient.IsSchemaOutdated && !clear && !string.IsNullOrWhiteSpace(scanPath))
         {
             _logger.LogInformation(
                 "[Database   ] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Attempting schema conversion...",
@@ -128,7 +128,7 @@ public class WorkspaceIndexer
         if (_dbClient.IsSchemaOutdated)
         {
             _logger.LogInformation(
-                "[Database   ] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Forcing full graph rebuild...",
+                "[Database   ] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Resetting database to current schema before full rebuild...",
                 _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
             clear = true;
         }

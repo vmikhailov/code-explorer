@@ -318,4 +318,78 @@ packages/
         combinedFilter.IsManifestFile("requirements.txt").Should().BeTrue();
         combinedFilter.IsManifestFile("unknown.txt").Should().BeFalse();
     }
+
+    [Test]
+    public async Task Test_ProjectScopedLayer1Scan_SkipsGitWorktrees_PrunesEmptyFolders_AndDiscoversNestedProjects()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_proj_scoped_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            // 1. Unowned structural folders outside all projects (should collect 0 JSON/YAML dumps and prune empty folders)
+            var docsPerfDir = Path.Combine(tempDir, "docs", "perf");
+            Directory.CreateDirectory(docsPerfDir);
+            await File.WriteAllTextAsync(Path.Combine(docsPerfDir, "lighthouse-report.json"), "{\"score\": 99}");
+            await File.WriteAllTextAsync(Path.Combine(docsPerfDir, "notes.md"), "# Perf notes");
+
+            // 2. Parent project (vscode-extension) with a nested project (webview) + an empty docs folder inside it
+            var extDir = Path.Combine(tempDir, "vscode-extension");
+            var extSrcDir = Path.Combine(extDir, "src");
+            var extDocsDir = Path.Combine(extDir, "docs");
+            var webviewDir = Path.Combine(extDir, "webview");
+            var webviewSrcDir = Path.Combine(webviewDir, "src");
+            Directory.CreateDirectory(extSrcDir);
+            Directory.CreateDirectory(extDocsDir);
+            Directory.CreateDirectory(webviewSrcDir);
+
+            await File.WriteAllTextAsync(Path.Combine(extDir, "package.json"), """{"name": "my-vscode-ext", "workspaces": ["webview"]}""");
+            await File.WriteAllTextAsync(Path.Combine(extSrcDir, "extension.ts"), "export function activate() {}");
+            await File.WriteAllTextAsync(Path.Combine(extDocsDir, "fixture-dump.json"), "{\"items\": [1, 2, 3]}");
+            await File.WriteAllTextAsync(Path.Combine(extDir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+
+            await File.WriteAllTextAsync(Path.Combine(webviewDir, "package.json"), """{"name": "my-webview", "dependencies": {"react": "^19.0.0"}}""");
+            await File.WriteAllTextAsync(Path.Combine(webviewSrcDir, "App.tsx"), "export function App() { return null; }");
+
+            // 3. Nested linked Git worktree inside workspace (must be completely skipped)
+            var worktreeDir = Path.Combine(tempDir, "tmp-sandboxes", "0d5542783c1d652905121d814a33609f");
+            Directory.CreateDirectory(Path.Combine(worktreeDir, "src"));
+            await File.WriteAllTextAsync(Path.Combine(worktreeDir, ".git"), "gitdir: /repo/.git/worktrees/0d5542783c1d652905121d814a33609f\n");
+            await File.WriteAllTextAsync(Path.Combine(worktreeDir, "package.json"), """{"name": "cloned-worktree"}""");
+            await File.WriteAllTextAsync(Path.Combine(worktreeDir, "src", "ClonedClone.ts"), "export class ClonedClone {}");
+
+            var dbPath = Path.Combine(tempDir, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+            WorkspaceIndexer.AutoRegisterParsers();
+
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var projectsJson = (await client.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name")).ToJson();
+            projectsJson.Should().Contain("vscode-extension");
+            projectsJson.Should().Contain("webview");
+            projectsJson.Should().NotContain("cloned-worktree");
+            projectsJson.Should().NotContain("0d5542783c1d652905121d814a33609f");
+
+            var filesJson = (await client.ExecuteCypherAsync("MATCH (f:File) RETURN f.path AS path")).ToJson();
+            filesJson.Should().Contain("vscode-extension/src/extension.ts");
+            filesJson.Should().Contain("vscode-extension/webview/src/App.tsx");
+            filesJson.Should().NotContain("lighthouse-report.json");
+            filesJson.Should().NotContain("fixture-dump.json");
+            filesJson.Should().NotContain("pnpm-lock.yaml");
+            filesJson.Should().NotContain("ClonedClone.ts");
+
+            var foldersJson = (await client.ExecuteCypherAsync("MATCH (fl:Folder) RETURN fl.name AS name")).ToJson();
+            foldersJson.Should().NotContain("perf");
+            foldersJson.Should().NotContain("docs");
+            foldersJson.Should().NotContain("tmp-sandboxes");
+
+            // Immediate incremental scan should see 0 changes (file_registry populated in single pass)
+            var changed = await indexer.IndexIncrementalAsync(tempDir, tempDir);
+            changed.Should().BeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

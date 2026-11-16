@@ -99,29 +99,83 @@ public class WorkspaceFileFilter
     public IReadOnlyList<IProjectParser>? ResolveDirectoryProjectParsers(
         string currentDir,
         IReadOnlyList<FileInfo> dirFiles,
-        IReadOnlyList<IProjectParser>? inheritedParsers)
+        IReadOnlyList<IProjectParser>? inheritedParsers,
+        string[]? dirFilePaths = null)
     {
-        List<IProjectParser>? matched = null;
-        for (int p = 0; p < _projectParsers.Count; p++)
-        {
-            var parser = _projectParsers[p];
-            for (int f = 0; f < dirFiles.Count; f++)
-            {
-                if (parser.IsManifestFile(dirFiles[f].Name))
-                {
-                    matched ??= [];
-                    matched.Add(parser);
-                    break;
-                }
-            }
-        }
-
+        var paths = dirFilePaths ?? BuildFilePaths(dirFiles);
+        var matched = MatchDirectoryProjectParsers(currentDir, dirFiles, paths, includeFallback: false);
         if (matched is { Count: > 0 })
         {
             return matched;
         }
 
-        return inheritedParsers;
+        if (inheritedParsers is { Count: > 0 })
+        {
+            return inheritedParsers;
+        }
+
+        return MatchDirectoryProjectParsers(currentDir, dirFiles, paths, includeFallback: true);
+    }
+
+    public IReadOnlyList<IProjectParser>? MatchDirectProjectParsers(
+        string currentDir,
+        IReadOnlyList<FileInfo> dirFiles,
+        string[] dirFilePaths,
+        bool allowFallback)
+    {
+        var matched = MatchDirectoryProjectParsers(currentDir, dirFiles, dirFilePaths, includeFallback: false);
+        if (matched is { Count: > 0 } || !allowFallback)
+        {
+            return matched;
+        }
+
+        return MatchDirectoryProjectParsers(currentDir, dirFiles, dirFilePaths, includeFallback: true);
+    }
+
+    private List<IProjectParser>? MatchDirectoryProjectParsers(
+        string currentDir,
+        IReadOnlyList<FileInfo> dirFiles,
+        string[] dirFilePaths,
+        bool includeFallback)
+    {
+        List<IProjectParser>? matched = null;
+        for (int p = 0; p < _projectParsers.Count; p++)
+        {
+            var parser = _projectParsers[p];
+            if (parser.IsFallback != includeFallback)
+            {
+                continue;
+            }
+
+            var hasManifest = false;
+            for (int f = 0; f < dirFiles.Count; f++)
+            {
+                if (parser.IsManifestFile(dirFiles[f].Name))
+                {
+                    hasManifest = true;
+                    break;
+                }
+            }
+
+            if (hasManifest || parser.IsProjectDirectory(currentDir, dirFilePaths))
+            {
+                matched ??= [];
+                matched.Add(parser);
+            }
+        }
+
+        return matched;
+    }
+
+    private static string[] BuildFilePaths(IReadOnlyList<FileInfo> dirFiles)
+    {
+        if (dirFiles.Count == 0) return [];
+        var paths = new string[dirFiles.Count];
+        for (int i = 0; i < dirFiles.Count; i++)
+        {
+            paths[i] = dirFiles[i].FullName;
+        }
+        return paths;
     }
 
     public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null, IReadOnlyList<IProjectParser>? activeParsers = null)
@@ -354,21 +408,48 @@ public class WorkspaceFileFilter
         }
     }
 
-    public bool IsSupportedSourceOrConfigFile(string fileName)
+    public bool IsSupportedSourceOrConfigFile(string fileName, IReadOnlyList<IProjectParser>? activeParsers = null)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         var baseName = Path.GetFileName(fileName);
         var hasParser = _fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName) || p.CanParseFile(baseName));
-        var isConfigFile = ConfigurationIndex.IsConfigurationFile(baseName) ||
-                           _projectParsers.Any(p => p.IsConfigurationFile(baseName));
+        if (hasParser)
+        {
+            return true;
+        }
 
-        return hasParser || isConfigFile;
+        if (SharedFileParserRegistry.CanParse(baseName))
+        {
+            return true;
+        }
+
+        var parsersToCheck = activeParsers ?? _projectParsers;
+        return parsersToCheck.Any(p => p.IsConfigurationFile(baseName));
     }
 
-    public bool IsSupportedFileType(string fileName)
+    public static bool IsStandaloneContractOrEnvFile(string filePathOrName, bool isWorkspaceRootFile)
+    {
+        var baseName = Path.GetFileName(filePathOrName);
+        if (isWorkspaceRootFile && SharedFileParserRegistry.CanParse(baseName))
+        {
+            return true;
+        }
+
+        var ext = Path.GetExtension(baseName).ToLowerInvariant();
+        if (ext is ".sql" or ".graphql" or ".gql")
+        {
+            return true;
+        }
+
+        var lowerName = baseName.ToLowerInvariant();
+        return lowerName is "openapi.yaml" or "openapi.yml" or "openapi.json"
+            or "swagger.yaml" or "swagger.yml" or "swagger.json";
+    }
+
+    public bool IsSupportedFileType(string fileName, IReadOnlyList<IProjectParser>? activeParsers = null)
     {
         var baseName = Path.GetFileName(fileName);
-        return IsSupportedSourceOrConfigFile(fileName) || IsManifestFile(baseName);
+        return IsSupportedSourceOrConfigFile(fileName, activeParsers) || IsManifestFile(baseName);
     }
 
     public bool IsCandidateSourceFile(string fullPath)
@@ -397,8 +478,10 @@ public class WorkspaceFileFilter
         var result = new List<string>();
         if (!Directory.Exists(targetPath)) return result;
 
+        var initialParsers = ResolveAncestorProjectParsers(targetPath, workspaceRoot);
+        var discoveredDirs = new List<(string RelativeDir, bool IsRoot, FileInfo[] Files, IReadOnlyList<IProjectParser>? ActiveParsers)>();
         var stack = new Stack<(string Dir, IReadOnlyList<IProjectParser>? ActiveParsers)>();
-        stack.Push((targetPath, null));
+        stack.Push((targetPath, initialParsers));
 
         while (stack.Count > 0)
         {
@@ -409,7 +492,12 @@ public class WorkspaceFileFilter
             var dirName = Path.GetFileName(currentDir);
             if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
 
-            if (IsExcludedDirectory(dirName, currentDir, inheritedParsers))
+            if (!isRoot && IsExcludedDirectory(dirName, currentDir, inheritedParsers))
+            {
+                continue;
+            }
+
+            if (!isRoot && GitSettingsParser.IsGitWorktreeDirectory(currentDir))
             {
                 continue;
             }
@@ -451,6 +539,8 @@ public class WorkspaceFileFilter
                 parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, log);
             }
 
+            discoveredDirs.Add((relativeDir, isRoot, files, activeParsers));
+
             // Enqueue subdirectories
             DirectoryInfo[] subDirs;
             try
@@ -466,8 +556,12 @@ public class WorkspaceFileFilter
             {
                 stack.Push((subDir.FullName, activeParsers));
             }
+        }
 
-            // Process files
+        var hasAnyOwnedDirectory = discoveredDirs.Any(d => d.ActiveParsers is { Count: > 0 });
+
+        foreach (var (_, isRoot, files, activeParsers) in discoveredDirs)
+        {
             foreach (var fileInfo in files)
             {
                 var relativeFile = fileInfo.FullName.GetNormalizedRelativePath(workspaceRoot);
@@ -477,12 +571,20 @@ public class WorkspaceFileFilter
                     continue;
                 }
 
-                if (!IsSupportedFileType(fileInfo.Name))
+                var isManifest = IsManifestFile(fileInfo.Name);
+                if (hasAnyOwnedDirectory && activeParsers is not { Count: > 0 })
+                {
+                    if (!isManifest && !IsStandaloneContractOrEnvFile(relativeFile, isRoot))
+                    {
+                        continue;
+                    }
+                }
+                else if (!isManifest && !IsSupportedSourceOrConfigFile(relativeFile, activeParsers))
                 {
                     continue;
                 }
 
-                if (ShouldSkipFile(fileInfo))
+                if (!isManifest && ShouldSkipFile(fileInfo))
                 {
                     continue;
                 }
@@ -492,6 +594,41 @@ public class WorkspaceFileFilter
         }
 
         return result;
+    }
+
+    public IReadOnlyList<IProjectParser>? ResolveAncestorProjectParsers(string targetPath, string workspaceRoot)
+    {
+        var normTarget = Path.GetFullPath(targetPath).NormalizeSlashes().TrimEnd('/');
+        var normRoot = Path.GetFullPath(workspaceRoot).NormalizeSlashes().TrimEnd('/');
+        if (string.Equals(normTarget, normRoot, StringComparison.OrdinalIgnoreCase) ||
+            !normTarget.StartWithIC(normRoot + "/"))
+        {
+            return null;
+        }
+
+        var rel = normTarget[(normRoot.Length + 1)..];
+        var segments = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        IReadOnlyList<IProjectParser>? active = TryProbeDirectoryParsers(workspaceRoot, null);
+        var cur = workspaceRoot;
+        for (int i = 0; i < segments.Length - 1; i++)
+        {
+            cur = Path.Combine(cur, segments[i]);
+            active = TryProbeDirectoryParsers(cur, active);
+        }
+        return active;
+    }
+
+    private IReadOnlyList<IProjectParser>? TryProbeDirectoryParsers(string dirPath, IReadOnlyList<IProjectParser>? inherited)
+    {
+        try
+        {
+            var files = new DirectoryInfo(dirPath).GetFiles();
+            return ResolveDirectoryProjectParsers(dirPath, files, inherited);
+        }
+        catch
+        {
+            return inherited;
+        }
     }
 
     public IEnumerable<string> EnumerateFiles(string rootDir, string? searchPattern = null)

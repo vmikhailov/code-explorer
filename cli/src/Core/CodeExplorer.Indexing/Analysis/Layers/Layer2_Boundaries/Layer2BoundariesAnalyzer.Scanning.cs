@@ -39,7 +39,7 @@ public partial class Layer2ProjectParser
                 }
             }
 
-            var filesInDir = Directory.GetFiles(dir);
+            var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
 
             // A manifest nested inside an already detected project that owns no source code of its own
             // (e.g. a package.json template or lockfile kept under src/) is a resource of that project,
@@ -291,12 +291,13 @@ public partial class Layer2ProjectParser
 
                 // Only trigger if NOT inside an already detected project
                 var isCovered = projects.Any(p =>
-                    relativeProjectDir == p.Path ||
-                    (!string.IsNullOrEmpty(p.Path) && relativeProjectDir.StartsWith(p.Path.TrimEnd('/') + "/")));
+                    (string.IsNullOrEmpty(p.Path) && p.EntityKind != ProjectEntityKind.ScriptProject) ||
+                    string.Equals(relativeProjectDir, p.Path, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(p.Path) && relativeProjectDir.StartsWith(p.Path.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)));
 
                 if (isCovered) continue;
 
-                var filesInDir = Directory.GetFiles(dir);
+                var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
                 var fallbackParser = fallbackParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
                 if (fallbackParser != null)
                 {
@@ -628,7 +629,7 @@ public partial class Layer2ProjectParser
         foreach (var dir in dirsToCheck)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
-            var filesInDir = Directory.GetFiles(dir);
+            var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
             foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
             {
                 foreach (var descriptor in parser.GetAdditionalProjects(dir, filesInDir))

@@ -567,7 +567,7 @@ public class ParserValidationTests
         var filesStructure = workspaceNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
         filesStructure.Should().NotBeNull();
 
-        // Before pruning, ProjectB and EmptyFolder are in the tree
+        // BeforeOntologyPruner runs, ProjectB (project root) is in the tree, while EmptyFolder is already pruned in Layer 1
         (projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB")).Should().BeTrue();
 
         var projectA =
@@ -579,7 +579,7 @@ public class ParserValidationTests
             .FirstOrDefault(f => f.Name == "ProjectA");
         projectAFolder.Should().NotBeNull();
 
-        (projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder")).Should().BeTrue();
+        (projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder")).Should().BeFalse();
 
         // 2. Perform pruning
         OntologyPruner.PruneEmptyFolders(workspaceNode);

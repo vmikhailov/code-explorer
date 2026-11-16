@@ -4,6 +4,40 @@ namespace CodeExplorer.Core.Parser;
 
 public static class GitSettingsParser
 {
+    private const string GitPointerDirectoryName = ".git";
+    private const string GitDirDirective = "gitdir:";
+    private const string WorktreesSegment = "/worktrees/";
+
+    /// <summary>
+    /// Returns true when <paramref name="directoryPath"/> contains a <c>.git</c> pointer file
+    /// referencing a linked Git worktree (<c>.../.git/worktrees/...</c>).
+    /// Nested worktrees checked out inside a workspace must not be indexed as part of the host repository.
+    /// </summary>
+    public static bool IsGitWorktreeDirectory(string directoryPath)
+    {
+        var gitPath = Path.Combine(directoryPath, GitPointerDirectoryName);
+        if (!File.Exists(gitPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var content = File.ReadAllText(gitPath).Trim();
+            if (!content.StartWithIC(GitDirDirective))
+            {
+                return false;
+            }
+
+            var target = content[GitDirDirective.Length..].Trim().Replace('\\', '/');
+            return target.Contains(WorktreesSegment, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public static GitSettingsNode? Parse(string workspaceId, string workspacePath)
         => Parse(workspaceId, workspacePath, workspacePath);
 

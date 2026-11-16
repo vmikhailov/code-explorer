@@ -39,34 +39,42 @@ public static class ScanCommandHandler
 
             await using var client = new SqliteGraphClient(ws.DbPath, clientLogger);
 
-            if (client.IsSchemaOutdated && !opts.ShouldClear)
+            var shouldClear = opts.ShouldClear;
+            var hasExistingRegistry = !shouldClear && await client.HasFileRegistryDataAsync();
+
+            if (!shouldClear && client.IsSchemaOutdated)
             {
-                logger.LogInformation(
-                    "Database schema version is outdated (v{Version} < v{Current}). Converting database schema...",
-                    client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
-                if (await client.UpgradeSchemaAsync())
+                if (hasExistingRegistry)
                 {
                     logger.LogInformation(
-                        "Database schema successfully converted to v{Current}.",
-                        SqliteGraphClient.CurrentSchemaVersion);
+                        "Database schema version is outdated (v{Version} < v{Current}). Converting database schema...",
+                        client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+                    if (await client.UpgradeSchemaAsync())
+                    {
+                        logger.LogInformation(
+                            "Database schema successfully converted to v{Current}.",
+                            SqliteGraphClient.CurrentSchemaVersion);
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Database schema version is outdated (v{Version} < v{Current}). Automatically performing clean rescan...",
+                            client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+                        shouldClear = true;
+                        hasExistingRegistry = false;
+                    }
                 }
-            }
-
-            var shouldClear = opts.ShouldClear || client.IsSchemaOutdated;
-
-            if (client.IsSchemaOutdated)
-            {
-                logger.LogWarning(
-                    "Database schema version is outdated (v{Version} < v{Current}). Automatically performing clean rescan...",
-                    client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
-                await client.ClearDatabaseAsync();
+                else
+                {
+                    shouldClear = true;
+                }
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
 
             var performedFullIndex = false;
 
-            if (!shouldClear)
+            if (!shouldClear && hasExistingRegistry)
             {
                 var fileReg = await client.LoadFileRegistryAsync();
 
