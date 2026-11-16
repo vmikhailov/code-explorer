@@ -396,6 +396,11 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
     public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         if (!rootNode.IsValid()) return;
+        var srcText = rootNode.Document?.SourceText;
+        if (srcText != null && !srcText.Contains(".use(", StringComparison.Ordinal))
+        {
+            return;
+        }
         var imports = new Dictionary<string, string>(StringComparer.Ordinal);
         CollectAstImports(rootNode, imports);
         TraverseForExpressMounts(rootNode, relativePath, projectName, ctx, imports);

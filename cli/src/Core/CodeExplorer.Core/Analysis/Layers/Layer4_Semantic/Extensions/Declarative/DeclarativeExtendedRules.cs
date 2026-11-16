@@ -114,7 +114,7 @@ internal static class DeclarativeExtendedRuleEvaluator
         CustomAstRule[] unfiltered)
     {
         if (byNodeType.Count > 0 &&
-            byNodeType.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(node.Type.AsSpan(), out var typedRules))
+            byNodeType.TryGetValue(node.Type, out var typedRules))
         {
             for (var i = 0; i < typedRules.Length; i++)
             {
@@ -157,7 +157,7 @@ internal static class DeclarativeExtendedRuleEvaluator
         CustomAstRule[] unfiltered)
     {
         if (byNodeType.Count > 0 &&
-            byNodeType.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(node.Type.AsSpan(), out var typedRules))
+            byNodeType.TryGetValue(node.Type, out var typedRules))
         {
             for (var i = 0; i < typedRules.Length; i++)
             {
@@ -207,7 +207,7 @@ internal static class DeclarativeExtendedRuleEvaluator
         CustomAstRule[] unfiltered)
     {
         if (byNodeType.Count > 0 &&
-            byNodeType.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(node.Type.AsSpan(), out var typedRules))
+            byNodeType.TryGetValue(node.Type, out var typedRules))
         {
             for (var i = 0; i < typedRules.Length; i++)
             {
@@ -229,7 +229,7 @@ internal static class DeclarativeExtendedRuleEvaluator
         CustomAstRule[] unfiltered)
     {
         if (byNodeType.Count > 0 &&
-            byNodeType.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(node.Type.AsSpan(), out var typedRules))
+            byNodeType.TryGetValue(node.Type, out var typedRules))
         {
             for (var i = 0; i < typedRules.Length; i++)
             {

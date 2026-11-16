@@ -16,7 +16,7 @@ internal static class McpGateFormatter
     private const string GroupByTarget = "target";
     private const string GroupBySymbol = "symbol";
 
-    private static readonly string[] SuiteGateColumns = ["id", "status", "severity", "newViolations", "tolerated", "name"];
+    private static readonly string[] SuiteGateColumns = ["id", "status", "severity", "newViolations", "tolerated", "name", "description", "remediation"];
     private static readonly string[] ViolationColumns = ["location", "symbol", "target", "message"];
     private static readonly string[] ViolationWithStatusColumns = ["status", "location", "symbol", "target", "message"];
     private static readonly string[] GroupColumns = ["key", "count"];
@@ -111,7 +111,9 @@ internal static class McpGateFormatter
                 r.Gate.Severity.ToString(),
                 r.NewViolations.Count.ToString(),
                 r.ToleratedViolations.Count.ToString(),
-                ToonYamlSerializer.FormatYamlString(r.Gate.Name));
+                ToonYamlSerializer.FormatYamlString(r.Gate.Name),
+                ToonYamlSerializer.FormatYamlString(r.Gate.Description ?? string.Empty),
+                ToonYamlSerializer.FormatYamlString(r.Gate.Remediation ?? string.Empty));
             sb.AppendLine($"  - [{cells}]");
         }
     }

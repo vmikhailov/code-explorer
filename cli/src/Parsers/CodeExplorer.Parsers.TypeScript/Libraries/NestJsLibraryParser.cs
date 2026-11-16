@@ -606,6 +606,11 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
     public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         if (!rootNode.IsValid()) return;
+        var srcText = rootNode.Document?.SourceText;
+        if (srcText != null && !srcText.Contains("setGlobalPrefix", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
         TraverseForGlobalPrefix(rootNode, projectName);
     }
 

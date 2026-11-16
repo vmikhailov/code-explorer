@@ -15,7 +15,6 @@ namespace CodeExplorer.Core.Parser;
 
 public class WorkspaceIndexer
 {
-    private const string SemanticFootprintName = "<semantic>";
     private const string Layer1PhysicalProgressTitle = "Layer 1: Physical";
     private const string Layer1PhysicalProgressMessage = "Preparing database and physical scanning...";
     private const string Layer2BoundariesProgressTitle = "Layer 2: Boundaries";
@@ -309,9 +308,12 @@ public class WorkspaceIndexer
             var normalizedFullPath = file.FullPath.Replace('\\', '/');
             if (treesByFullPath.TryGetValue(normalizedFullPath, out var syntaxTree) && syntaxTree.FileNode != null)
             {
-                var symbols = new Dictionary<string, Incremental.SymbolFootprint>(StringComparer.Ordinal);
-                CollectSymbols(syntaxTree.FileNode, syntaxTree.FileNode.References, symbols);
-                snapshot = new Incremental.FileGraphSnapshot(file.Path, hash, lastMod, symbols);
+                snapshot = Incremental.FileSnapshotBuilder.BuildFromSyntaxTree(
+                    syntaxTree,
+                    file.Path,
+                    hash,
+                    lastMod,
+                    includeSemanticFootprint: false);
                 snapshotJson = snapshot.ComputeStructuralHash();
             }
 
@@ -390,12 +392,17 @@ public class WorkspaceIndexer
         }
     }
 
+    public bool HasLoadedFileRegistry => _fileRegistry.Count > 0;
+
+    public void ResetFileRegistry() => _fileRegistry.Clear();
+
     public Task<bool> IndexIncrementalAsync(
         string workspacePath,
         CancellationToken cancellationToken = default,
         IProgress<IndexingProgress>? progress = null,
-        bool enableIntentAnalysis = false) =>
-        IndexIncrementalAsync(workspacePath, workspaceRoot: null, cancellationToken, progress, enableIntentAnalysis);
+        bool enableIntentAnalysis = false,
+        IReadOnlyCollection<string>? knownChangedFiles = null) =>
+        IndexIncrementalAsync(workspacePath, workspaceRoot: null, cancellationToken, progress, enableIntentAnalysis, knownChangedFiles);
 
 
     public async Task<bool> IndexIncrementalAsync(
@@ -403,7 +410,8 @@ public class WorkspaceIndexer
         string? workspaceRoot,
         CancellationToken cancellationToken = default,
         IProgress<IndexingProgress>? progress = null,
-        bool enableIntentAnalysis = false)
+        bool enableIntentAnalysis = false,
+        IReadOnlyCollection<string>? knownChangedFiles = null)
     {
         var root = string.IsNullOrWhiteSpace(workspaceRoot) ? targetPath : workspaceRoot;
         var absoluteWorkspacePath = Path.GetFullPath(root).Replace('\\', '/');
@@ -438,17 +446,29 @@ public class WorkspaceIndexer
 
         var filter = new WorkspaceFileFilter(_projectParsers, _fileParsers);
         var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath, filter);
-        var allFiles = filter.EnumerateCandidateFiles(
-            absoluteTargetPath,
-            absoluteWorkspacePath,
-            gitignore,
-            msg => _logger.LogInformation("{Msg}", msg));
 
         var targetSubPath = string.Equals(absoluteTargetPath, absoluteWorkspacePath, StringComparison.OrdinalIgnoreCase)
             ? null
             : Path.GetRelativePath(absoluteWorkspacePath, absoluteTargetPath).Replace('\\', '/');
 
-        var changeset = _fileRegistry.ComputeChangeset(absoluteWorkspacePath, allFiles, targetSubPath);
+        Incremental.FileChangeset changeset;
+        if (knownChangedFiles is { Count: > 0 })
+        {
+            var filteredPaths = knownChangedFiles
+                .Select(p => p.Replace('\\', '/').TrimStart('/'))
+                .Where(p => !string.IsNullOrWhiteSpace(p) && !gitignore.IsIgnored(p, false))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            changeset = _fileRegistry.ComputeChangesetForKnownPaths(absoluteWorkspacePath, filteredPaths);
+        }
+        else
+        {
+            var allFiles = filter.EnumerateCandidateFiles(
+                absoluteTargetPath,
+                absoluteWorkspacePath,
+                gitignore,
+                msg => _logger.LogInformation("{Msg}", msg));
+            changeset = _fileRegistry.ComputeChangeset(absoluteWorkspacePath, allFiles, targetSubPath);
+        }
         if (changeset.IsEmpty)
         {
             _logger.LogInformation("[Incremental] Workspace is up to date (0 changes detected).");
@@ -739,122 +759,18 @@ public class WorkspaceIndexer
 
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, workspaceId, workspaceRoot);
 
-            var symbols = new Dictionary<string, Incremental.SymbolFootprint>(StringComparer.Ordinal);
-            CollectSymbols(syntaxTree.FileNode, syntaxTree.FileNode.References, symbols);
-            if (syntaxTree.SemanticSymbols.Count > 0)
-            {
-                var semSummary = string.Join(";", syntaxTree.SemanticSymbols
-                    .Select(s => $"{s.Kind}:{s.Name}:{s.Callee}")
-                    .OrderBy(x => x, StringComparer.Ordinal));
-                var semHash = Incremental.HashUtility.ComputeSha256(semSummary);
-                var semKey = $"{relPath}:{SemanticFootprintName}";
-                symbols[semKey] = new Incremental.SymbolFootprint(
-                    semKey,
-                    SemanticFootprintName,
-                    NodeKind.File,
-                    semHash,
-                    semHash,
-                    new HashSet<string>(),
-                    new HashSet<string>(),
-                    0, 0, 0, 0);
-            }
-
-            return new Incremental.FileGraphSnapshot(relPath, contentHash, lastModifiedUtc, symbols);
+            return Incremental.FileSnapshotBuilder.BuildFromSyntaxTree(
+                syntaxTree,
+                relPath,
+                contentHash,
+                lastModifiedUtc,
+                includeSemanticFootprint: true);
         }
         catch
         {
             return null;
         }
     }
-
-    private static void CollectSymbols(
-        IOntologyNode node,
-        List<CodeExplorer.Common.Reference> references,
-        Dictionary<string, Incremental.SymbolFootprint> symbols,
-        ILookup<string, CodeExplorer.Common.Reference>? refsByScope = null)
-    {
-        refsByScope ??= references.ToLookup(r => r.ScopeSymbolId ?? string.Empty, StringComparer.Ordinal);
-        foreach (var child in node.Children)
-        {
-            if (child is not (FunctionNode or TypeNode or MemberNode { MemberKind: CodeExplorer.Cypher.Common.MemberKind.Field or CodeExplorer.Cypher.Common.MemberKind.Property or CodeExplorer.Cypher.Common.MemberKind.Event or CodeExplorer.Cypher.Common.MemberKind.Constant or CodeExplorer.Cypher.Common.MemberKind.EnumMember }))
-            {
-                if (child.Children.Count > 0)
-                {
-                    CollectSymbols(child, references, symbols, refsByScope);
-                }
-                continue;
-            }
-
-            if (child is FunctionNode { Name: var fnName } && fnName.StartsWith("<anon_", StringComparison.Ordinal))
-            {
-                if (child.Children.Count > 0)
-                {
-                    CollectSymbols(child, references, symbols, refsByScope);
-                }
-                continue;
-            }
-
-            var (name, startLine, endLine, startCol, endCol) = child switch
-            {
-                FunctionNode fn => (fn.Name, fn.StartLine, fn.EndLine, fn.StartCol, fn.EndCol),
-                TypeNode tn => (tn.Name, tn.StartLine, tn.EndLine, tn.StartCol, tn.EndCol),
-                MemberNode mn => (mn.Name, mn.StartLine, mn.EndLine, mn.StartCol, mn.EndCol),
-                _ => (child.Id, 0, 0, 0, 0)
-            };
-
-            var symbolKey = StripLineSuffix(child.Id);
-            var symbolRefs = child.References.Concat(refsByScope[child.Id]);
-
-            var calls = symbolRefs
-                .Where(r => r.RelationshipKind is RelationshipKind.Calls or RelationshipKind.CalledBy or RelationshipKind.CallsEndpoint or RelationshipKind.ServiceCall or RelationshipKind.TransitivelyCalls)
-                .Select(r => r.TargetName)
-                .ToHashSet();
-
-            var types = symbolRefs
-                .Where(r => r.RelationshipKind is RelationshipKind.UsesType or RelationshipKind.OfType)
-                .Select(r => r.TargetName)
-                .ToHashSet();
-
-            var sig = $"{child.Kind.ToCypherLabel()}:{name}";
-            var sigHash = Incremental.HashUtility.ComputeSha256(sig);
-
-            var bodySummary = string.Join(";", calls.OrderBy(x => x).Concat(types.OrderBy(x => x)));
-            var bodyHash = Incremental.HashUtility.ComputeSha256(bodySummary);
-
-            var footprint = new Incremental.SymbolFootprint(
-                symbolKey,
-                name,
-                child.Kind,
-                sigHash,
-                bodyHash,
-                calls,
-                types,
-                startLine,
-                endLine,
-                startCol,
-                endCol
-            );
-
-            symbols[symbolKey] = footprint;
-
-            if (child.Children.Count > 0)
-            {
-                CollectSymbols(child, references, symbols, refsByScope);
-            }
-        }
-    }
-
-    private static string StripLineSuffix(string symbolId)
-    {
-        var atIdx = symbolId.LastIndexOf('@');
-        if (atIdx <= 0) return symbolId;
-        for (var i = atIdx + 1; i < symbolId.Length; i++)
-        {
-            if (!char.IsDigit(symbolId[i])) return symbolId;
-        }
-        return symbolId[..atIdx];
-    }
-
 
     private async Task PrepareDatabaseAsync(ParsingContext ctx)
     {

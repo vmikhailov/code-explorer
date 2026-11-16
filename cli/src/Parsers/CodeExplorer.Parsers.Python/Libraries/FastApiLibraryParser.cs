@@ -727,6 +727,13 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
     public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         if (!rootNode.IsValid()) return;
+        var srcText = rootNode.Document?.SourceText;
+        if (srcText != null &&
+            !srcText.Contains("FastAPI", StringComparison.Ordinal) &&
+            !srcText.Contains("include_router", StringComparison.Ordinal))
+        {
+            return;
+        }
         TraverseForFastApiDeclarations(rootNode, relativePath, projectName, ctx);
     }
 

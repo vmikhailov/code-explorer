@@ -5,6 +5,22 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.4] - 2026-11-16
+
+### Fixed & Improved
+- **Layer 3 Syntactic Throughput, Server GC & Declarative Lookup Caching (`CodeExplorer`, `CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.*`)**:
+  - Enabled `ServerGarbageCollection` on the CLI host (`CodeExplorer.csproj`) to eliminate Workstation GC stop-the-world thread stalls and `SharedArrayPool` trim pauses during multi-core `Parallel.ForAsync` syntax parsing.
+  - Cached `FrozenDictionary.AlternateLookup<ReadOnlySpan<char>>` instances in `CompiledDeclarativeRuleIndex` and `ParsingContext` and switched `DeclarativeRuleEvaluator` node-kind dispatch to direct `TryGetValue`, removing per-AST-node struct copy write barriers on hot syntax traversal paths.
+  - Added fast source substring guards in `ExpressLibraryParser`, `NestJsLibraryParser`, and `FastApiLibraryParser` `DiscoverDeclarations` passes to skip full-AST walks on files without framework router or app declarations.
+  - Ordered project files by descending byte size (LPT scheduling) in `Layer3SyntacticParser.StreamProjectSyntaxTreesAsync` so large files begin parsing immediately rather than straggling at the tail of parallel batches, and extracted `FileSnapshotBuilder` from `WorkspaceIndexer`.
+- **Incremental MCP `scan_workspace`, Live `FileWatcher` & Targeted Changesets (`CodeExplorer.Analysis`, `CodeExplorer.Server`, `CodeExplorer.Indexing`, `CodeExplorer`)**:
+  - Updated MCP `scan_workspace` (`clear: false`) to use `WorkspaceIndexer.IndexIncrementalAsync` with cached `WorkspaceIndexer` and `FileWatcher` instances on `CodeExplorerRepository` (`enableFileWatchers: true` in `CodeExplorer.Server`).
+  - Added `FileRegistry.ComputeChangesetForKnownPaths` and `knownChangedFiles` fast-path handling in `WorkspaceIndexer.IndexIncrementalAsync`, `FileWatcher`, and `ScanCommandHandler` (`--watch`) so watcher batches process modified paths directly without full-workspace directory walks.
+- **TypeORM Local Repository Alias Lineage (`CodeExplorer.Parsers.TypeScript`)**:
+  - Added `TryResolveLocalRepositoryAlias` in `TypeOrmLibraryParser` so TypeORM queries invoked through local variable aliases (`const repo = this.userRepository; repo.save(...)`) resolve entity/table lineage accurately.
+
+---
+
 ## [1.89.3] - 2026-11-16
 
 ### Fixed & Improved

@@ -28,6 +28,7 @@ public class SyntheticBenchmarkGraphTests
     [OneTimeTearDown]
     public void OneTimeTearDown()
     {
+        _repo?.Dispose();
         _client?.Dispose();
         if (File.Exists(_dbPath))
         {

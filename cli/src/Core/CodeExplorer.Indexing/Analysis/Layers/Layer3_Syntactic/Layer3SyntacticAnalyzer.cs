@@ -349,10 +349,17 @@ public partial class Layer3SyntacticParser
             }
 
             var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFileCount];
-
-            // Step 1 (Project AST -> UAST & Declarations): Parse syntax trees into UAST and register project constants/declarations
-            await Parallel.ForAsync(0, projectFileCount, parallelOptions, async (i, ct) =>
+            var lptOrder = new int[projectFileCount];
+            for (var idx = 0; idx < projectFileCount; idx++)
             {
+                lptOrder[idx] = idx;
+            }
+            Array.Sort(lptOrder, (a, b) => (projectFiles[b].SizeBytes ?? 0L).CompareTo(projectFiles[a].SizeBytes ?? 0L));
+
+            // Step 1 (Project AST -> UAST & Declarations): Parse syntax trees into UAST and register project constants/declarations (largest files first to avoid tail stragglers)
+            await Parallel.ForAsync(0, projectFileCount, parallelOptions, async (slot, ct) =>
+            {
+                var i = lptOrder[slot];
                 var file = projectFiles[i];
                 var fileParser = WorkspaceIndexer.GetParserForFile(file.FullPath);
                 if (fileParser == null) return;
@@ -429,8 +436,9 @@ public partial class Layer3SyntacticParser
                 ? []
                 : Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 
-            await Parallel.ForAsync(0, projectFileCount, parallelOptions, (int i, CancellationToken ct) =>
+            await Parallel.ForAsync(0, projectFileCount, parallelOptions, (int slot, CancellationToken ct) =>
             {
+                var i = lptOrder[slot];
                 var item = parsedResults[i];
                 if (item == null) return ValueTask.CompletedTask;
 

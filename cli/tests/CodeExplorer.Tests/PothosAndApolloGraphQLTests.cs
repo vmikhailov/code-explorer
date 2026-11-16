@@ -189,6 +189,7 @@ public class PothosAndApolloGraphQLTests
     [OneTimeTearDown]
     public async Task OneTimeTearDown()
     {
+        _repo?.Dispose();
         await _client.DisposeAsync();
         if (Directory.Exists(_tempWorkspace))
         {

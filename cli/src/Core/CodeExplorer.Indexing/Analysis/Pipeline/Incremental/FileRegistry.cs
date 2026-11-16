@@ -132,6 +132,69 @@ public class FileRegistry
         return new FileChangeset(added, modified, deleted);
     }
 
+    public FileChangeset ComputeChangesetForKnownPaths(string workspaceRoot, IEnumerable<string> candidateRelativePaths)
+    {
+        var added = new List<string>();
+        var modified = new List<string>();
+        var deleted = new List<string>();
+
+        foreach (var rawPath in candidateRelativePaths)
+        {
+            var relPath = rawPath.Replace('\\', '/').TrimStart('/');
+            if (string.IsNullOrWhiteSpace(relPath)) continue;
+
+            var fullPath = Path.Combine(workspaceRoot, relPath);
+            var fileInfo = new FileInfo(fullPath);
+
+            if (!fileInfo.Exists)
+            {
+                if (_entries.ContainsKey(relPath))
+                {
+                    deleted.Add(relPath);
+                }
+                continue;
+            }
+
+            var lastMod = fileInfo.LastWriteTimeUtc;
+            var sizeBytes = fileInfo.Length;
+
+            if (_entries.TryGetValue(relPath, out var existing))
+            {
+                if (existing.LastModifiedUtc == lastMod && (existing.SizeBytes < 0 || existing.SizeBytes == sizeBytes))
+                {
+                    continue;
+                }
+
+                if (existing.SizeBytes >= 0 && existing.SizeBytes != sizeBytes)
+                {
+                    modified.Add(relPath);
+                    continue;
+                }
+
+                var hash = HashUtility.ComputeSha256FromFile(fullPath);
+                if (string.Equals(existing.ContentHash, hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    _entries[relPath] = (hash, lastMod, sizeBytes, existing.ProjectPath);
+                    continue;
+                }
+
+                modified.Add(relPath);
+            }
+            else
+            {
+                added.Add(relPath);
+            }
+        }
+
+        return new FileChangeset(added, modified, deleted);
+    }
+
+    public void Clear()
+    {
+        _entries.Clear();
+        _snapshots.Clear();
+    }
+
     public bool TryGetEntry(string relativePath, out (string ContentHash, DateTime LastModifiedUtc, string ProjectPath) entry)
     {
         if (_entries.TryGetValue(relativePath, out var raw))

@@ -41,6 +41,7 @@ public class ClearWorkspacesTests
     [TearDown]
     public async Task TearDown()
     {
+        _repository?.Dispose();
         await _client.DisposeAsync();
     }
 

@@ -66,8 +66,7 @@ public static class WorkspaceSymbolScopeExtensions
         var lastDot = targetName.LastIndexOf('.');
         if (lastDot >= 0 && lastDot + 1 < targetName.Length)
         {
-            var lookup = ctx.KnownWorkspaceCallableNames.GetAlternateLookup<ReadOnlySpan<char>>();
-            if (lookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
+            if (ctx.KnownWorkspaceCallableSpanLookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
         }
         return false;
     }
@@ -80,8 +79,7 @@ public static class WorkspaceSymbolScopeExtensions
         var lastDot = targetName.LastIndexOf('.');
         if (lastDot >= 0 && lastDot + 1 < targetName.Length)
         {
-            var lookup = ctx.KnownWorkspaceTypeNames.GetAlternateLookup<ReadOnlySpan<char>>();
-            if (lookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
+            if (ctx.KnownWorkspaceTypeSpanLookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
         }
         return false;
     }
@@ -167,6 +165,12 @@ public class ParsingContext
     public System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> FileImportedNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
     public System.Collections.Concurrent.ConcurrentDictionary<string, byte> KnownWorkspaceCallableNames { get; } = new(StringComparer.Ordinal);
     public System.Collections.Concurrent.ConcurrentDictionary<string, byte> KnownWorkspaceTypeNames { get; } = new(StringComparer.Ordinal);
+    private System.Collections.Concurrent.ConcurrentDictionary<string, byte>.AlternateLookup<ReadOnlySpan<char>>? _callableSpanLookup;
+    private System.Collections.Concurrent.ConcurrentDictionary<string, byte>.AlternateLookup<ReadOnlySpan<char>>? _typeSpanLookup;
+    internal System.Collections.Concurrent.ConcurrentDictionary<string, byte>.AlternateLookup<ReadOnlySpan<char>> KnownWorkspaceCallableSpanLookup =>
+        _callableSpanLookup ??= KnownWorkspaceCallableNames.GetAlternateLookup<ReadOnlySpan<char>>();
+    internal System.Collections.Concurrent.ConcurrentDictionary<string, byte>.AlternateLookup<ReadOnlySpan<char>> KnownWorkspaceTypeSpanLookup =>
+        _typeSpanLookup ??= KnownWorkspaceTypeNames.GetAlternateLookup<ReadOnlySpan<char>>();
     public bool HasWorkspaceSymbolFilter { get; set; }
 
     public List<RawImport> RawImports { get; } = [];

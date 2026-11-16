@@ -244,14 +244,44 @@ public partial class CodeExplorerRepository
             ws = WorkspaceLocator.Initialize(baseDir, defaultName);
         }
 
+        var hadActiveWatcher = HasActiveWatcher(ws.RootDirectory);
         var client = await ResolveClientAsync(ws.RootDirectory);
-        if (clear)
+        var indexer = GetOrCreateIndexer(ws.RootDirectory, client);
+
+        int nodesCount;
+        int relsCount;
+        Dictionary<string, int> nodesByKind;
+
+        if (!clear)
         {
-            await client.ClearWorkspaceAsync(targetDir);
+            var isRootScan = PathsEqualNormalized(targetDir, ws.RootDirectory);
+            if (!hadActiveWatcher || !isRootScan)
+            {
+                await indexer.IndexIncrementalAsync(
+                    targetDir,
+                    ws.RootDirectory,
+                    cancellationToken,
+                    enableIntentAnalysis: false);
+            }
+
+            (nodesCount, relsCount) = await client.GetGraphCountsAsync(cancellationToken);
+            nodesByKind = await client.GetNodesBreakdownAsync(cancellationToken);
+        }
+        else
+        {
+            if (clear)
+            {
+                indexer.ResetFileRegistry();
+                await client.ClearWorkspaceAsync(targetDir);
+            }
+
+            (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(
+                targetDir,
+                ws.RootDirectory,
+                clear: false,
+                cancellationToken: cancellationToken);
         }
 
-        var indexer = new WorkspaceIndexer(client);
-        var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetDir, ws.RootDirectory, clear: false, cancellationToken: cancellationToken);
         var visibleNodesByKind = nodesByKind
             .Where(kv => !IsTemporarilyHiddenTaxonomyLabel(kv.Key))
             .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);

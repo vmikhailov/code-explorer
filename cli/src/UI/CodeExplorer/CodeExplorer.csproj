@@ -42,6 +42,7 @@
     <TargetFrameworks>$(CeTargetFrameworks)</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
 
     <!-- Runtime compatibility -->
     <RollForward>Major</RollForward>

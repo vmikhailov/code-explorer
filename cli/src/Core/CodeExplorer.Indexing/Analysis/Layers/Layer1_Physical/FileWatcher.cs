@@ -10,6 +10,7 @@ public class FileWatcher : IDisposable
     private readonly System.Timers.Timer _debounceTimer;
     private readonly ConcurrentDictionary<string, byte> _pendingChanges = new(StringComparer.OrdinalIgnoreCase);
     private readonly WorkspaceFileFilter _fileFilter;
+    private readonly SemaphoreSlim _batchGate = new(1, 1);
     private readonly object _lock = new();
     private bool _isDisposed;
 
@@ -93,21 +94,43 @@ public class FileWatcher : IDisposable
 
     private async Task OnDebounceTimerFiredAsync()
     {
-        List<string> batch;
-        lock (_lock)
-        {
-            if (_pendingChanges.IsEmpty) return;
-            batch = [.. _pendingChanges.Keys];
-            _pendingChanges.Clear();
-        }
+        await FlushAsync();
+    }
 
+    public bool HasPendingOrRunningChanges => !_pendingChanges.IsEmpty || _batchGate.CurrentCount == 0;
+
+    public async Task FlushAsync()
+    {
+        if (_isDisposed) return;
+        if (_pendingChanges.IsEmpty && _batchGate.CurrentCount > 0) return;
+
+        await _batchGate.WaitAsync();
         try
         {
-            await _onBatchChanged(batch);
+            while (!_isDisposed)
+            {
+                List<string> batch;
+                lock (_lock)
+                {
+                    if (_pendingChanges.IsEmpty) break;
+                    _debounceTimer.Stop();
+                    batch = [.. _pendingChanges.Keys];
+                    _pendingChanges.Clear();
+                }
+
+                try
+                {
+                    await _onBatchChanged(batch);
+                }
+                catch
+                {
+                    // Logging or error handling hook
+                }
+            }
         }
-        catch
+        finally
         {
-            // Logging or error handling hook
+            _batchGate.Release();
         }
     }
 
@@ -139,6 +162,7 @@ public class FileWatcher : IDisposable
             _isDisposed = true;
             _watcher.Dispose();
             _debounceTimer.Dispose();
+            _batchGate.Dispose();
         }
         GC.SuppressFinalize(this);
     }

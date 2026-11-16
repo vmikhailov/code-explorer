@@ -14,12 +14,19 @@ internal sealed class CompiledDeclarativeRuleIndex
     private static readonly ConcurrentDictionary<string, DeclarativeSemanticExtension> FusedCache = new(StringComparer.Ordinal);
 
     internal required FrozenSet<string> AllTrackedCallMethods { get; init; }
+    internal required FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> AllTrackedCallMethodsLookup { get; init; }
     internal required FrozenDictionary<string, InboundRouteCallRule[]> InboundRoutesByMethod { get; init; }
+    internal required FrozenDictionary<string, InboundRouteCallRule[]>.AlternateLookup<ReadOnlySpan<char>> InboundRoutesLookup { get; init; }
     internal required FrozenDictionary<string, DataStoreAccessRule[]> DataStoresByMethod { get; init; }
+    internal required FrozenDictionary<string, DataStoreAccessRule[]>.AlternateLookup<ReadOnlySpan<char>> DataStoresLookup { get; init; }
     internal required FrozenDictionary<string, ServiceCallSinkRule[]> ServiceSinksByMethod { get; init; }
+    internal required FrozenDictionary<string, ServiceCallSinkRule[]>.AlternateLookup<ReadOnlySpan<char>> ServiceSinksLookup { get; init; }
     internal required FrozenDictionary<string, MessagingBrokerRule[]> PublishByMethod { get; init; }
+    internal required FrozenDictionary<string, MessagingBrokerRule[]>.AlternateLookup<ReadOnlySpan<char>> PublishLookup { get; init; }
     internal required FrozenDictionary<string, MessagingBrokerRule[]> SubscribeByMethod { get; init; }
+    internal required FrozenDictionary<string, MessagingBrokerRule[]>.AlternateLookup<ReadOnlySpan<char>> SubscribeLookup { get; init; }
     internal required FrozenDictionary<string, SqlSinkRule[]> SqlCallSinksByMethod { get; init; }
+    internal required FrozenDictionary<string, SqlSinkRule[]>.AlternateLookup<ReadOnlySpan<char>> SqlCallSinksLookup { get; init; }
     internal required SqlSinkRule[] AnnotationSqlSinkRules { get; init; }
     internal required OrmTableRule[] OrmTableRules { get; init; }
     internal required MessagingBrokerRule[] ConsumerInterfaceRules { get; init; }
@@ -200,15 +207,30 @@ internal sealed class CompiledDeclarativeRuleIndex
             }
         }
 
+        var frozenAllMethods = allMethods.ToFrozenSet(StringComparer.Ordinal);
+        var frozenInbound = ToFrozenArrayMap(inboundMap);
+        var frozenDataStores = ToFrozenArrayMap(dataStoreMap);
+        var frozenServiceSinks = ToFrozenArrayMap(serviceSinkMap);
+        var frozenPublish = ToFrozenArrayMap(publishMap);
+        var frozenSubscribe = ToFrozenArrayMap(subscribeMap);
+        var frozenSqlCalls = ToFrozenArrayMap(sqlCallMap);
+
         return new CompiledDeclarativeRuleIndex
         {
-            AllTrackedCallMethods = allMethods.ToFrozenSet(StringComparer.Ordinal),
-            InboundRoutesByMethod = ToFrozenArrayMap(inboundMap),
-            DataStoresByMethod = ToFrozenArrayMap(dataStoreMap),
-            ServiceSinksByMethod = ToFrozenArrayMap(serviceSinkMap),
-            PublishByMethod = ToFrozenArrayMap(publishMap),
-            SubscribeByMethod = ToFrozenArrayMap(subscribeMap),
-            SqlCallSinksByMethod = ToFrozenArrayMap(sqlCallMap),
+            AllTrackedCallMethods = frozenAllMethods,
+            AllTrackedCallMethodsLookup = frozenAllMethods.GetAlternateLookup<ReadOnlySpan<char>>(),
+            InboundRoutesByMethod = frozenInbound,
+            InboundRoutesLookup = frozenInbound.GetAlternateLookup<ReadOnlySpan<char>>(),
+            DataStoresByMethod = frozenDataStores,
+            DataStoresLookup = frozenDataStores.GetAlternateLookup<ReadOnlySpan<char>>(),
+            ServiceSinksByMethod = frozenServiceSinks,
+            ServiceSinksLookup = frozenServiceSinks.GetAlternateLookup<ReadOnlySpan<char>>(),
+            PublishByMethod = frozenPublish,
+            PublishLookup = frozenPublish.GetAlternateLookup<ReadOnlySpan<char>>(),
+            SubscribeByMethod = frozenSubscribe,
+            SubscribeLookup = frozenSubscribe.GetAlternateLookup<ReadOnlySpan<char>>(),
+            SqlCallSinksByMethod = frozenSqlCalls,
+            SqlCallSinksLookup = frozenSqlCalls.GetAlternateLookup<ReadOnlySpan<char>>(),
             AnnotationSqlSinkRules = [.. annotSqlRules],
             OrmTableRules = [.. ext.OrmTableRules],
             ConsumerInterfaceRules = [.. consumerRules],
@@ -309,13 +331,13 @@ internal sealed class CompiledDeclarativeRuleIndex
         if (AllTrackedCallMethods.Count == 0) return;
 
         var methodSpan = DeclarativeSemanticExtension.GetCallMethodSpan(callNode);
-        if (methodSpan.IsEmpty || !AllTrackedCallMethods.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
+        if (methodSpan.IsEmpty || !AllTrackedCallMethodsLookup.Contains(methodSpan))
         {
             return;
         }
 
         if (SqlCallSinksByMethod.Count > 0 &&
-            SqlCallSinksByMethod.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var sqlRules))
+            SqlCallSinksLookup.TryGetValue(methodSpan, out var sqlRules))
         {
             for (var i = 0; i < sqlRules.Length; i++)
             {
@@ -331,7 +353,7 @@ internal sealed class CompiledDeclarativeRuleIndex
         }
 
         if (PublishByMethod.Count > 0 &&
-            PublishByMethod.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var pubRules))
+            PublishLookup.TryGetValue(methodSpan, out var pubRules))
         {
             for (var i = 0; i < pubRules.Length; i++)
             {
@@ -343,7 +365,7 @@ internal sealed class CompiledDeclarativeRuleIndex
         }
 
         if (SubscribeByMethod.Count > 0 &&
-            SubscribeByMethod.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var subRules))
+            SubscribeLookup.TryGetValue(methodSpan, out var subRules))
         {
             for (var i = 0; i < subRules.Length; i++)
             {
@@ -356,7 +378,7 @@ internal sealed class CompiledDeclarativeRuleIndex
 
         var methodResolved = true;
         if (InboundRoutesByMethod.Count > 0 &&
-            InboundRoutesByMethod.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var routeRules))
+            InboundRoutesLookup.TryGetValue(methodSpan, out var routeRules))
         {
             for (var i = 0; i < routeRules.Length; i++)
             {
@@ -365,7 +387,7 @@ internal sealed class CompiledDeclarativeRuleIndex
         }
 
         if (DataStoresByMethod.Count > 0 &&
-            DataStoresByMethod.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var dbRules))
+            DataStoresLookup.TryGetValue(methodSpan, out var dbRules))
         {
             for (var i = 0; i < dbRules.Length; i++)
             {
@@ -374,7 +396,7 @@ internal sealed class CompiledDeclarativeRuleIndex
         }
 
         if (ServiceSinksByMethod.Count > 0 &&
-            ServiceSinksByMethod.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var sinkRules))
+            ServiceSinksLookup.TryGetValue(methodSpan, out var sinkRules))
         {
             for (var i = 0; i < sinkRules.Length; i++)
             {

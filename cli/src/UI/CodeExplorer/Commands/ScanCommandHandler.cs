@@ -147,7 +147,8 @@ public static class ScanCommandHandler
                     {
                         var changed = await indexer.IndexIncrementalAsync(targetPath,
                             ws.RootDirectory, cancellationToken: cts.Token,
-                            enableIntentAnalysis: false);
+                            enableIntentAnalysis: false,
+                            knownChangedFiles: batch);
 
                         if (changed)
                         {

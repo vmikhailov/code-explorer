@@ -26,7 +26,8 @@ public static class ServiceRegistrationExtensions
         services.AddSingleton(sp => new CodeExplorerRepository(
             sp.GetRequiredService<IGraphClient>(),
             sp.GetRequiredService<ProjectQueryManager>(),
-            workspaceRoot
+            workspaceRoot,
+            enableFileWatchers: true
         ));
         services.AddSingleton<WorkspaceIndexer>();
         services.AddHttpContextAccessor();

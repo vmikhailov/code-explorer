@@ -1,14 +1,18 @@
 using System.Text.Json;
 using CodeExplorer.Core.Diagrams;
+using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Core.Mcp;
 
-public partial class CodeExplorerRepository
+public partial class CodeExplorerRepository : IDisposable
 {
     private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
     private readonly ProjectQueryManager _queryManager;
     private readonly IGraphClient _defaultDbClient;
+    private readonly bool _enableFileWatchers;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IGraphClient> _clientCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, WorkspaceIndexer> _indexerCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, FileWatcher> _watcherCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _macroCache = new(StringComparer.OrdinalIgnoreCase);
     private volatile bool _defaultClientNonEmpty;
 
@@ -25,11 +29,76 @@ public partial class CodeExplorerRepository
     public CodeExplorerRepository(
         IGraphClient dbClient,
         ProjectQueryManager? queryManager = null,
-        string? defaultWorkspacePath = null)
+        string? defaultWorkspacePath = null,
+        bool enableFileWatchers = false)
     {
         _defaultDbClient = dbClient;
         _queryManager = queryManager ?? new();
         DefaultWorkspacePath = defaultWorkspacePath;
+        _enableFileWatchers = enableFileWatchers;
+    }
+
+    public WorkspaceIndexer GetOrCreateIndexer(string workspaceRoot, IGraphClient client)
+    {
+        var normRoot = Path.GetFullPath(workspaceRoot);
+        return _indexerCache.GetOrAdd(normRoot, _ => new WorkspaceIndexer(client));
+    }
+
+    public bool HasActiveWatcher(string workspaceRoot)
+    {
+        var normRoot = Path.GetFullPath(workspaceRoot);
+        return _watcherCache.ContainsKey(normRoot);
+    }
+
+    private async Task EnsureWatcherAndFlushAsync(string workspaceRoot, IGraphClient client)
+    {
+        if (!_enableFileWatchers || !Directory.Exists(workspaceRoot))
+        {
+            return;
+        }
+
+        var normRoot = Path.GetFullPath(workspaceRoot);
+        var indexer = GetOrCreateIndexer(normRoot, client);
+        var isNew = false;
+
+        var watcher = _watcherCache.GetOrAdd(normRoot, root =>
+        {
+            isNew = true;
+            var w = new FileWatcher(root, async batch =>
+            {
+                var changed = await indexer.IndexIncrementalAsync(
+                    root,
+                    root,
+                    enableIntentAnalysis: false,
+                    knownChangedFiles: batch);
+                if (changed)
+                {
+                    InvalidateCache();
+                }
+            });
+            w.Start();
+            return w;
+        });
+
+        if (isNew)
+        {
+            return;
+        }
+
+        if (watcher.HasPendingOrRunningChanges)
+        {
+            await watcher.FlushAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        foreach (var watcher in _watcherCache.Values)
+        {
+            watcher.Dispose();
+        }
+        _watcherCache.Clear();
+        GC.SuppressFinalize(this);
     }
 
     public async Task<IGraphClient> ResolveClientAsync(string? workspacePath)
@@ -39,7 +108,9 @@ public partial class CodeExplorerRepository
             var ws = WorkspaceLocator.Find(workspacePath);
             if (ws != null && File.Exists(ws.DbPath))
             {
-                return _clientCache.GetOrAdd(ws.DbPath, path => new SqliteGraphClient(path));
+                var client = _clientCache.GetOrAdd(ws.DbPath, path => new SqliteGraphClient(path));
+                await EnsureWatcherAndFlushAsync(ws.RootDirectory, client);
+                return client;
             }
 
             var hasDifferentDefault = !string.IsNullOrWhiteSpace(DefaultWorkspacePath) &&
@@ -50,6 +121,12 @@ public partial class CodeExplorerRepository
                     $"No indexed CodeExplorer workspace (.codeexplorer/graph.db) found at '{workspacePath}'. Run 'ce init' and 'ce scan' in that workspace first.");
             }
         }
+
+        if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath))
+        {
+            await EnsureWatcherAndFlushAsync(DefaultWorkspacePath, _defaultDbClient);
+        }
+
         return _defaultDbClient;
     }
 

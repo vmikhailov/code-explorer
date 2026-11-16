@@ -4,6 +4,11 @@ namespace CodeExplorer.Parsers.TypeScript.Libraries;
 
 public class TypeOrmLibraryParser : DeclarativeSemanticExtension
 {
+    private const string FieldName = "name";
+    private const string FieldValue = "value";
+    private const string RepoKeyword = "repo";
+    private const string RepositoryKeyword = "repository";
+
     public override SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public override string Name => "TypeORM";
     public override string Id => "typeorm";
@@ -293,6 +298,14 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
             {
                 return IsRepositoryReadMethod(propName) || IsRepositoryWriteMethod(propName);
             }
+
+            if ((IsRepositoryReadMethod(propName) || IsRepositoryWriteMethod(propName)) &&
+                objNode.IsValid() &&
+                objNode.Is(TreeSitterSyntax.TypeScript.Identifier) &&
+                TryResolveLocalRepositoryAlias(node, objNode.Text.Trim(), out _))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -369,6 +382,12 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
         {
             var fieldName = objNode.IsValid() ? objNode.GetCanonicalMemberPath() : objText;
             if (fieldName.Contains('.')) fieldName = fieldName[(fieldName.LastIndexOf('.') + 1)..];
+            if (objNode.IsValid() &&
+                objNode.Is(TreeSitterSyntax.TypeScript.Identifier) &&
+                TryResolveLocalRepositoryAlias(callNode, fieldName, out var aliasedField))
+            {
+                fieldName = aliasedField;
+            }
 
             entityOrTable = ResolveEntityFromEnclosingClass(callNode, fieldName);
             if (string.IsNullOrEmpty(entityOrTable))
@@ -391,6 +410,43 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
 
         tableName = char.ToLowerInvariant(entityOrTable[0]) + entityOrTable[1..];
         return true;
+    }
+
+    private static bool TryResolveLocalRepositoryAlias(Node callNode, string identifier, out string resolvedFieldName)
+    {
+        resolvedFieldName = "";
+        if (string.IsNullOrWhiteSpace(identifier)) return false;
+
+        var curr = callNode.Parent;
+        while (curr.IsValid() &&
+               !curr.IsAny(
+                   TreeSitterSyntax.TypeScript.MethodDefinition,
+                   TreeSitterSyntax.TypeScript.FunctionDeclaration,
+                   TreeSitterSyntax.TypeScript.ArrowFunction,
+                   TreeSitterSyntax.TypeScript.ClassDeclaration))
+        {
+            curr = curr.Parent;
+        }
+        if (!curr.IsValid()) return false;
+
+        foreach (var decl in curr.FindDescendantsOfType(TreeSitterSyntax.TypeScript.VariableDeclarator))
+        {
+            var nameNode = decl.GetChildForField(FieldName);
+            var valNode = decl.GetChildForField(FieldValue);
+            if (!nameNode.IsValid() || !valNode.IsValid()) continue;
+            if (!string.Equals(nameNode.Text.Trim(), identifier, StringComparison.Ordinal)) continue;
+
+            var rhs = valNode.GetCanonicalMemberPath();
+            if (rhs.Contains('.')) rhs = rhs[(rhs.LastIndexOf('.') + 1)..];
+            if (rhs.Contains(RepoKeyword, StringComparison.OrdinalIgnoreCase) ||
+                rhs.Contains(RepositoryKeyword, StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedFieldName = rhs;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string? ResolveEntityFromEnclosingClass(Node callNode, string fieldName)
