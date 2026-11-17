@@ -483,6 +483,7 @@ public static partial class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapAgentContextRoutes(wsRoot);
         return endpoints;
     }
 

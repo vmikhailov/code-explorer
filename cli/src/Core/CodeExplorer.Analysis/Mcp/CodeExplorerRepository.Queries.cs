@@ -559,4 +559,30 @@ public partial class CodeExplorerRepository
         return ToonYamlSerializer.SerializeObject(payload);
     }
 
+    public async Task<string> GetTaskContextAsync(
+        string query,
+        int maxAnchors = 8,
+        bool includeGates = true,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory();
+        var ws = WorkspaceLocator.Find(targetDir);
+        var effectivePath = ws?.RootDirectory ?? Path.GetFullPath(targetDir);
+
+        var client = await ResolveClientAsync(effectivePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return StandbyMessageYaml;
+        }
+
+        return await McpContextPackBuilder.BuildTaskContextYamlAsync(
+            client,
+            query,
+            maxAnchors,
+            includeGates,
+            effectivePath,
+            cancellationToken);
+    }
+
 }

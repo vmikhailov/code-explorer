@@ -45,7 +45,7 @@ public class Program
             typeof(OutlineOptions), typeof(SnippetsOptions), typeof(SnippetOptions),
             typeof(TraceOptions), typeof(CallChainOptions), typeof(LineageOptions),
             typeof(TestOptions), typeof(CoverageOptions), typeof(ConfigureOptions), typeof(GateOptions), typeof(CallersOptions),
-            typeof(ImpactOptions), typeof(SearchOptions), typeof(SymbolOptions), typeof(FindSymbolAliasOptions),
+            typeof(ImpactOptions), typeof(ContextOptions), typeof(SearchOptions), typeof(SymbolOptions), typeof(FindSymbolAliasOptions),
             typeof(TaxonomyOptions), typeof(SchemaOptions)
         ]);
 
@@ -76,6 +76,7 @@ public class Program
                 GateOptions opts => await GateAnomaliesCommandHandler.HandleOrDelegateAsync(opts),
                 CallersOptions opts => await CallersCommandHandler.HandleAsync(opts),
                 ImpactOptions opts => await ImpactCommandHandler.HandleAsync(opts),
+                ContextOptions opts => await ContextCommandHandler.HandleAsync(opts),
                 SearchOptions opts => await SearchCommandHandler.HandleAsync(opts),
                 TaxonomyOptions opts => await TaxonomyCommandHandler.HandleAsync(opts),
                 _ => 1

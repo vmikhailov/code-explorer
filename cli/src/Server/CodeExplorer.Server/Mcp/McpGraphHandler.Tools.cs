@@ -20,6 +20,7 @@ public partial class McpGraphHandler
     private const string DomainNameRequiredForAddError = "Domain 'name' is required for 'add' action.";
     private const string DomainNameRequiredForRemoveError = "Domain 'name' is required for 'remove' action.";
     private const string DomainNameRequiredWhenAssigningError = "'domainName' is required when assigning a domain.";
+    private const string MissingTaskQueryError = "Missing 'query' argument.";
 
     [UsedImplicitly]
     [McpServerTool(Title = "Analyze Affected Tests and Static Test Coverage", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -450,5 +451,24 @@ public partial class McpGraphHandler
         CancellationToken cancellationToken = default)
     {
         return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.ListSemanticGatesAsync(category, platform, ws, cancellationToken), cancellationToken);
+    }
+
+    [UsedImplicitly]
+    [McpServerTool(Title = "Compile One-Shot Task Subgraph Context Pack", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("Compile a complete, token-compact (<4 KB) architectural context pack for a coding, bugfix, or refactoring task in a single call. Given a natural-language task symptom, route, or domain keywords, resolves diversified anchor services/controllers/methods, expands 1-hop outbound side-effects (caches, queues, external calls) and inbound callers/endpoints, computes canonical owner services for every touched database table, flags ratcheted legacy debt traps in touched files so legacy anti-patterns are not copied, and returns a surgical file read plan. Call this tool FIRST before searching or reading files.")]
+    public async Task<CallToolResult> GetTaskContextAsync(
+        [Description("Required task symptom, feature description, route, or space-separated domain keywords (e.g. 'revoke api key usage limit' or 'DELETE /oauth/register/:clientId').")] string query,
+        [Range(3, 15)]
+        [Description("Maximum number of diversified anchor symbols to include across matched concepts (3 to 15; default: 8).")] int maxAnchors = 8,
+        [Description("When true, includes active Semantic Invariant Gates and flags any ratcheted legacy debt traps inside the matched subgraph files. Default: true.")] bool includeGates = true,
+        [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return WrapError(MissingTaskQueryError);
+        }
+
+        return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetTaskContextAsync(query, maxAnchors, includeGates, ws, cancellationToken), cancellationToken);
     }
 }
