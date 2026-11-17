@@ -114,6 +114,26 @@ public class ContextPackBuilderTests
                     async revokeApiKey(id: string): Promise<void> {}
                 }
                 """);
+            await File.WriteAllTextAsync(Path.Combine(limitsDir, "usage-limit.module.ts"), """
+                import { Module } from '@nestjs/common';
+                import { UsageLimitService } from './usage-limit.service';
+                import { WorkspaceCacheService } from './cache.service';
+
+                @Module({
+                    providers: [UsageLimitService, WorkspaceCacheService],
+                    exports: [UsageLimitService],
+                })
+                export class UsageLimitModule {}
+                """);
+            await File.WriteAllTextAsync(Path.Combine(authDir, "api-key.module.ts"), """
+                import { Module } from '@nestjs/common';
+                import { ApiKeyController } from './api-key.controller';
+
+                @Module({
+                    controllers: [ApiKeyController],
+                })
+                export class ApiKeyModule {}
+                """);
 
             WorkspaceLocator.Initialize(tempWs, "ctx-demo");
             var gatesDir = Path.Combine(tempWs, ".codeexplorer", "gates");
@@ -143,6 +163,9 @@ public class ContextPackBuilderTests
             yaml.Should().Contain("UsageLimitService");
             yaml.Should().Contain("invalidateUsageCache");
             yaml.Should().Contain("canonicalOwner: UsageLimitService");
+            yaml.Should().Contain("ApiKeyModule");
+            yaml.Should().Contain("UsageLimitModule");
+            yaml.Should().Contain("SAFE_DIRECT_IMPORT");
             yaml.Should().Contain("SIG-CTX-001");
             yaml.Should().Contain("TOLERATED LEGACY DEBT");
         }

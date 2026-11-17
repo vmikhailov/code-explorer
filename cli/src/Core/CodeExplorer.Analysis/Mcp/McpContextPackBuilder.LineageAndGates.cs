@@ -29,7 +29,8 @@ internal static partial class McpContextPackBuilder
     internal sealed record TablesOwnershipResult(
         List<object> Tables,
         List<(string Path, string Reason)> OwnerFiles,
-        HashSet<string> CanonicalOwnerMethodIds);
+        HashSet<string> CanonicalOwnerMethodIds,
+        HashSet<string> CanonicalOwnerNames);
 
     private static async Task<TablesOwnershipResult> BuildTablesAndCanonicalOwnersAsync(
         IGraphClient client,
@@ -64,7 +65,7 @@ internal static partial class McpContextPackBuilder
 
         if (tableIds.Count == 0)
         {
-            return new TablesOwnershipResult([], [], []);
+            return new TablesOwnershipResult([], [], [], []);
         }
 
         var idLiteral = BuildIdList(tableIds.Take(MaxContextTablesCap));
@@ -73,11 +74,12 @@ internal static partial class McpContextPackBuilder
         var tables = new List<object>();
         var ownerFiles = new List<(string Path, string Reason)>();
         var ownerMethodIds = new HashSet<string>(StringComparer.Ordinal);
+        var ownerNames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var grp in lineageRes.Rows.GroupBy(r => r.GetStringProp(ColTableName), StringComparer.Ordinal))
         {
             if (string.IsNullOrEmpty(grp.Key)) continue;
-            var summary = SummarizeSingleTableOwnership(grp.Key, grp.ToList(), subgraphFiles, ownerFiles, ownerMethodIds, workspaceRoot);
+            var summary = SummarizeSingleTableOwnership(grp.Key, grp.ToList(), subgraphFiles, ownerFiles, ownerMethodIds, ownerNames, workspaceRoot);
             if (summary != null)
             {
                 tables.Add(summary);
@@ -85,7 +87,7 @@ internal static partial class McpContextPackBuilder
             }
         }
 
-        return new TablesOwnershipResult(tables, ownerFiles, ownerMethodIds);
+        return new TablesOwnershipResult(tables, ownerFiles, ownerMethodIds, ownerNames);
     }
 
     private static string BuildTableOwnershipUnionQuery(string idLiteral)
@@ -105,6 +107,7 @@ internal static partial class McpContextPackBuilder
         HashSet<string> subgraphFiles,
         List<(string Path, string Reason)> ownerFiles,
         HashSet<string> ownerMethodIds,
+        HashSet<string> ownerNames,
         string? workspaceRoot)
     {
         var entityPath = rows
@@ -133,6 +136,8 @@ internal static partial class McpContextPackBuilder
         {
             return null;
         }
+
+        ownerNames.Add(canonical.OwnerKey);
 
         var canonicalLabel = !string.IsNullOrEmpty(canonical.FilePath) ? $"{canonical.OwnerKey} ({canonical.FilePath})" : canonical.OwnerKey;
         foreach (var mid in canonical.MethodIds)

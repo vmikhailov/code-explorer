@@ -11,6 +11,7 @@ internal static partial class McpContextPackBuilder
     internal sealed record ExpandedFunctionsResult(
         HashSet<string> AllFunctionIds,
         HashSet<string> AllTargetIds,
+        HashSet<string> ServiceTypeNames,
         List<object> TypeOutlines);
 
     private static AnchorCandidate ScoreCandidate(
@@ -154,12 +155,14 @@ internal static partial class McpContextPackBuilder
         }
 
         var outlines = new List<object>();
+        var serviceTypeNames = new HashSet<string>(StringComparer.Ordinal);
         if (allTypeIds.Count > 0)
         {
             var methodsRes = await client.ExecuteCypherAsync(ExpandTypeMethodsPrefix + BuildIdList(allTypeIds) + ExpandTypeMethodsSuffix, null, ct);
             foreach (var grp in methodsRes.Rows.GroupBy(r => r.GetStringProp(ColOwnerName), StringComparer.Ordinal))
             {
                 if (string.IsNullOrEmpty(grp.Key)) continue;
+                serviceTypeNames.Add(grp.Key);
                 var firstPath = McpResultFormatter.CleanRelativePath(grp.First().GetStringProp(ColFilePath), workspaceRoot);
                 if (!string.IsNullOrEmpty(firstPath)) subgraphFiles.Add(firstPath);
 
@@ -183,7 +186,7 @@ internal static partial class McpContextPackBuilder
 
         var allTargets = new HashSet<string>(allFnIds, StringComparer.Ordinal);
         allTargets.UnionWith(allTypeIds);
-        return new ExpandedFunctionsResult(allFnIds, allTargets, outlines);
+        return new ExpandedFunctionsResult(allFnIds, allTargets, serviceTypeNames, outlines);
     }
 
     private static async Task<List<string>> ExpandOutboundEffectsAsync(

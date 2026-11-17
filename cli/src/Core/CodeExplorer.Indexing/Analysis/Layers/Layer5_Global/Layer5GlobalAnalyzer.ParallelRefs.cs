@@ -96,7 +96,7 @@ public partial class Layer5AnalysisParser
                     ResolveCallsReference(refItem, ctx, symbols, bindings, imports, interfaceToImplementors, localRels);
                     break;
                 case RelationshipKind.DependsOn:
-                    Layer5SymbolVisibilityResolver.ResolveDependsOnReference(refItem, symbols, localRels);
+                    Layer5SymbolVisibilityResolver.ResolveDependsOnReference(refItem, ctx, symbols, localRels);
                     break;
                 case RelationshipKind.Instantiates:
                     ResolveInstantiatesReference(refItem, ctx, symbols, imports, localRels);

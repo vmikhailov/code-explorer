@@ -957,6 +957,7 @@ internal static partial class Layer5SymbolVisibilityResolver
 
     internal static void ResolveDependsOnReference(
         Reference refItem,
+        ParsingContext ctx,
         Layer5AnalysisParser.SymbolLookups symbols,
         List<Relationship> referenceRelationships)
     {
@@ -988,6 +989,20 @@ internal static partial class Layer5SymbolVisibilityResolver
                     FilePath = cleanFilePath
                 }));
             }
+            return;
+        }
+
+        var targetTypeId = ResolveVisibleTypeSymbol(refItem.TargetName, refItem.ScopeSymbolId, ctx, symbols);
+        if (targetTypeId != null && refItem.ScopeSymbolId != targetTypeId)
+        {
+            referenceRelationships.Add(Relationship.CreateWithCallSite(
+                refItem.ScopeSymbolId,
+                targetTypeId,
+                CodeExplorer.Cypher.Common.RelationshipKind.DependsOn,
+                refItem.Line,
+                refItem.Column,
+                refItem.Context,
+                refItem.ArgFlow));
         }
     }
 

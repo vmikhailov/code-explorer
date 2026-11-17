@@ -1366,11 +1366,38 @@ internal static partial class Layer5SymbolVisibilityResolver
                     matchedByImportNs = pool[i];
                     importNsCount++;
                 }
+                else if (string.IsNullOrEmpty(candScope.Namespace) && !string.IsNullOrEmpty(candScope.FilePath))
+                {
+                    var noExt = Path.ChangeExtension(candScope.FilePath, null);
+                    if (!string.IsNullOrEmpty(noExt) && MatchesAnyRelativeImport(noExt, importedNamespaces))
+                    {
+                        matchedByImportNs = pool[i];
+                        importNsCount++;
+                    }
+                }
             }
             if (importNsCount == 1) return matchedByImportNs;
         }
 
         return null;
+    }
+
+    private const char BackslashChar = '\\';
+    private const char SlashChar = '/';
+    private static readonly char[] RelativeImportTrimChars = ['.', '/'];
+
+    private static bool MatchesAnyRelativeImport(string rawNoExt, HashSet<string> importedNamespaces)
+    {
+        var normNoExt = rawNoExt.Replace(BackslashChar, SlashChar);
+        foreach (var imp in importedNamespaces)
+        {
+            var cleanImp = imp.TrimStart(RelativeImportTrimChars);
+            if (!string.IsNullOrEmpty(cleanImp) && normNoExt.EndsWith(cleanImp, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void DeduplicateSameFileOverloads(List<string> visible, string callerSymbolId, ParsingContext ctx)

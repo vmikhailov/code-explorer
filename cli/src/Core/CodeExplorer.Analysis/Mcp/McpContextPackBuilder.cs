@@ -145,6 +145,9 @@ internal static partial class McpContextPackBuilder
         var resolvedFns = await ExpandAnchorFunctionsAndTypesAsync(client, fnIds, typeIds, subgraphFiles, workspaceRoot, ct);
         var tablesOwnership = await BuildTablesAndCanonicalOwnersAsync(client, concepts, domainTokens, resolvedFns.AllFunctionIds, subgraphFiles, workspaceRoot, ct);
         resolvedFns.AllFunctionIds.UnionWith(tablesOwnership.CanonicalOwnerMethodIds);
+        var candidateServices = new HashSet<string>(resolvedFns.ServiceTypeNames, StringComparer.Ordinal);
+        candidateServices.UnionWith(tablesOwnership.CanonicalOwnerNames);
+        var moduleWiring = await BuildModuleWiringAndCycleSafetyAsync(client, candidateServices, subgraphFiles, workspaceRoot, ct);
         var outboundEffects = await ExpandOutboundEffectsAsync(client, resolvedFns.AllFunctionIds, subgraphFiles, workspaceRoot, ct);
         var inboundCallers = await ExpandInboundCallersAsync(client, resolvedFns.AllTargetIds, subgraphFiles, workspaceRoot, ct);
         var guardrails = includeGates && !string.IsNullOrEmpty(workspaceRoot)
@@ -166,6 +169,7 @@ internal static partial class McpContextPackBuilder
             outboundSideEffects = outboundEffects,
             inboundCallersAndRoutes = inboundCallers,
             tablesAndCanonicalOwners = tablesOwnership.Tables,
+            moduleWiringAndCycleSafety = moduleWiring,
             guardrails,
             readPlan
         });

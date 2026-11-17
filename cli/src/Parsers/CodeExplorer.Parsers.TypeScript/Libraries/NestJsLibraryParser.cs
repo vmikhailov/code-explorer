@@ -37,7 +37,8 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
             [
                 TreeSitterSyntax.TypeScript.Decorator,
                 TreeSitterSyntax.TypeScript.CallExpression,
-                TreeSitterSyntax.TypeScript.MethodDefinition
+                TreeSitterSyntax.TypeScript.MethodDefinition,
+                TreeSitterSyntax.TypeScript.ClassDeclaration
             ],
             MapNodeType = MapNodeTypeCore,
             ExtractIdentifier = static (node, ctx, proj, rel) => ExtractIdentifierStatic(node, ctx, proj),
@@ -507,6 +508,12 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
             {
                 symbol.Protocol = "REST";
             }
+            else if (decName is "Module" or "NgModule" &&
+                     node.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) &&
+                     symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class)
+            {
+                ExtractNestModuleRelationships(dec, symbol);
+            }
         }
 
         if (methodNode != null && methodNode.IsValid())
@@ -514,6 +521,144 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
             ExtractTypeScriptPayloadSchemas(methodNode, symbol);
         }
     }
+
+    private static readonly char[] ModuleQuoteTrimChars = ['\'', '"', '`'];
+    private static readonly string[] ModuleContainerNodeTypes =
+    [
+        TreeSitterSyntax.TypeScript.Array,
+        "spread_element",
+        "parenthesized_expression",
+        "ternary_expression"
+    ];
+
+    private static void ExtractNestModuleRelationships(Node dec, SyntacticSymbol symbol)
+    {
+        var callExpr = dec.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+        if (!callExpr.IsValid()) return;
+        var args = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+        if (!args.IsValid()) return;
+        var objNode = args.FindChildOfType(TreeSitterSyntax.TypeScript.Object);
+        if (!objNode.IsValid()) return;
+
+        foreach (var pair in objNode.Children)
+        {
+            if (!pair.Is(TreeSitterSyntax.TypeScript.Pair)) continue;
+            var key = pair.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim(ModuleQuoteTrimChars);
+            var valNode = pair.GetField(TreeSitterSyntax.Fields.Value);
+            if (string.IsNullOrEmpty(key) || !valNode.IsValid()) continue;
+
+            if (key == "imports")
+            {
+                CollectModuleArrayReferences(valNode, symbol, CodeExplorer.Cypher.Common.RelationshipKind.DependsOn);
+            }
+            else if (key is "providers" or "controllers" or "exports")
+            {
+                CollectModuleArrayReferences(valNode, symbol, CodeExplorer.Cypher.Common.RelationshipKind.UsesType);
+            }
+        }
+    }
+
+    private static void CollectModuleArrayReferences(
+        Node exprNode,
+        SyntacticSymbol symbol,
+        CodeExplorer.Cypher.Common.RelationshipKind relEnum)
+    {
+        foreach (var child in exprNode.Children)
+        {
+            if (!child.IsValid() || !child.IsNamed) continue;
+
+            var targetName = ExtractModuleElementTypeName(child);
+            if (!string.IsNullOrEmpty(targetName) && !IsExternalFrameworkModuleOrToken(targetName))
+            {
+                var line = child.StartPosition.Row + 1;
+                var col = child.StartPosition.Column + 1;
+                if (!symbol.References.Any(r => r.TargetName == targetName && r.Kind == relEnum))
+                {
+                    symbol.References.Add(new Reference(string.Empty, targetName, relEnum, line, col));
+                }
+                continue;
+            }
+
+            if (child.IsAny(ModuleContainerNodeTypes))
+            {
+                CollectModuleArrayReferences(child, symbol, relEnum);
+            }
+        }
+    }
+
+    private static string? ExtractModuleElementTypeName(Node item)
+    {
+        if (item.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            return item.Text;
+        }
+
+        if (item.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var fn = item.GetFunctionNode();
+            if (!fn.IsValid()) return null;
+
+            if (fn.Text == "forwardRef")
+            {
+                var args = item.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+                return args.IsValid() ? FindFirstPascalIdentifier(args) : null;
+            }
+
+            if (fn.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                var obj = fn.GetField(TreeSitterSyntax.Fields.Object);
+                if (obj.IsValid() && obj.Is(TreeSitterSyntax.TypeScript.Identifier))
+                {
+                    return obj.Text;
+                }
+            }
+        }
+        else if (item.Is(TreeSitterSyntax.TypeScript.Object))
+        {
+            foreach (var pair in item.Children)
+            {
+                if (!pair.Is(TreeSitterSyntax.TypeScript.Pair)) continue;
+                var k = pair.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim(ModuleQuoteTrimChars);
+                if (k is "useClass" or "useExisting" or "provide")
+                {
+                    var v = pair.GetField(TreeSitterSyntax.Fields.Value);
+                    if (v.IsValid() && v.Is(TreeSitterSyntax.TypeScript.Identifier) && !IsExternalFrameworkModuleOrToken(v.Text))
+                    {
+                        return v.Text;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindFirstPascalIdentifier(Node root)
+    {
+        foreach (var child in root.Children)
+        {
+            if (!child.IsValid()) continue;
+            if (child.Is(TreeSitterSyntax.TypeScript.Identifier) &&
+                child.Text.Length > 0 &&
+                char.IsUpper(child.Text[0]))
+            {
+                return child.Text;
+            }
+            var nested = FindFirstPascalIdentifier(child);
+            if (!string.IsNullOrEmpty(nested)) return nested;
+        }
+        return null;
+    }
+
+    private static bool IsExternalFrameworkModuleOrToken(string name) =>
+        string.IsNullOrEmpty(name) ||
+        !char.IsUpper(name[0]) ||
+        name is "TypeOrmModule" or "ConfigModule" or "BullModule" or "ScheduleModule"
+            or "CacheModule" or "HttpModule" or "EventEmitterModule" or "GraphQLModule"
+            or "ServeStaticModule" or "MulterModule" or "PassportModule" or "JwtModule"
+            or "ClientsModule" or "TerminusModule" or "ClsModule" or "DiscoveryModule"
+            or "RouterModule" or "DevtoolsModule" or "APP_GUARD" or "APP_INTERCEPTOR"
+            or "APP_FILTER" or "APP_PIPE";
 
     private static void ExtractTypeScriptPayloadSchemas(Node methodNode, SyntacticSymbol symbol)
     {
