@@ -626,6 +626,7 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${fmtRoundMult(tokRatio)} fewer tokens</strong> (${fmtRoundTokens(ce.cum_input_tokens)} vs ${fmtRoundTokens(cbm.cum_input_tokens)})<br>` +
       `<strong>${ceRecPct} vs ${cbmRecDisplay}</strong> native graph recall`;
 
+    b['index.cs01_head_html'] = `Case 01: <code>twentyhq/twenty</code> (${fmtInt(c1.repo.files)} files)`;
     b['index.cs01_cbm_val'] = `${fmtDurShort(cbm.time_to_answer_s)}, ${cbm.turns} turns, ${fmtRoundTokens(cbm.cum_input_tokens)} tokens`;
     b['index.cs01_ce_val'] = `${fmtDurShort(ce.time_to_answer_s)} (${fmtRoundMult(speedup)} faster), ${ce.turns} turns, ${fmtRoundTokens(ce.cum_input_tokens)} tokens`;
     b['index.cs01_cbm_rec'] = `${cbmRecDisplay} (${c1.recall.cbm_graph_matched}/${c1.recall.gt_total}) from CBM graph`;
@@ -726,6 +727,8 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${fmtRoundMult(tokRatio)} fewer tokens</strong> (${fmtRoundTokens(ce.cum_input_est_tokens)} vs ${fmtRoundTokens(rg.cum_input_est_tokens)})<br>` +
       `<strong>${c2.recall.ce_pct} vs ${c2.recall.rg_pct_round}</strong> (rg missed ${c2.recall.rg_missed_services} services)`;
 
+    b['index.cs02_head_html'] = `Case 02: ${c2.repo.services}-service workspace (${fmtInt(c2.repo.files)} files)`;
+    b['index.cs02_rg_label_html'] = `<code>ripgrep</code> + Python scripts (missed ${c2.recall.rg_missed_services} services)`;
     b['index.cs02_ce_label'] =
       `<code>CodeExplorer</code> (${ce.run_command_calls} CLI commands + ${ce.view_file_calls} file reads, ${ce.scripts_written} scripts, ${ce.compactions} compactions)`;
     b['index.cs02_rg_val'] =

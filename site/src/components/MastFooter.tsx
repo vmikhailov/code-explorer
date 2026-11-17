@@ -4,7 +4,7 @@ export interface MastFooterProps {
   versionLabel?: string;
 }
 
-const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v1.83.0';
+const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v1.89.5';
 
 export const MastFooter: React.FC<MastFooterProps> = ({
   versionLabel = DEFAULT_VERSION_LABEL,
@@ -18,7 +18,7 @@ export const MastFooter: React.FC<MastFooterProps> = ({
             <span>CodeExplorer</span>
           </a>
           <p className="panel-copy">
-            Make AI coding agents production-safe. Live 5-layer polyglot architecture intelligence in VS Code, CLI, and MCP.
+            Live architecture maps in VS Code, graph memory for AI agents via MCP, and deterministic CI gates.
           </p>
         </div>
 

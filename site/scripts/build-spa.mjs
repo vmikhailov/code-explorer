@@ -46,9 +46,9 @@ fs.rmSync(outAssetsDir, { recursive: true, force: true });
 fs.mkdirSync(outAssetsDir, { recursive: true });
 
 const hallmarkStamp = [
-  '/* Hallmark · theme: Console · modern-minimal · dark · restrained · host-grotesk + atkinson-hyperlegible-mono · hero: workbench · nav: slab · footer: mast · redesign: full */',
+  '/* Hallmark · theme: Console · modern-minimal · dark · restrained · host-grotesk + atkinson-hyperlegible-mono · hero: stage · nav: slab · footer: mast · job: try · redesign: full */',
   '/* Pre-emit critique: Console (graphite) theme. Two fonts: Host Grotesk for display, body, labels, and controls; Atkinson Hyperlegible Mono for code, timings, tabular figures, and diffs. Warm graphite surfaces oklch(17%/21%/13.5% 0.008 250) with 1px rules oklch(31% 0.01 250) and amber signal oklch(82% 0.15 80). */',
-  '/* Hallmark · waive 38iii · one accented phrase in the hero h1 · highlights the dual human and AI agent audience once in the hero */',
+  '/* Hallmark · waive 38iii · one accented phrase in the hero h1 · highlights the AI agent audience once in the hero */',
 ].join('\n');
 
 const rawCss = fs.readFileSync(path.join(distAssetsDir, cssFile), 'utf8');

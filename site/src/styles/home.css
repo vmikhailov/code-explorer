@@ -38,9 +38,32 @@ button {
   border-color: var(--color-ink);
 }
 
-/* Section Rhythm & Headings */
+/* Section Rhythm & Alternating Grounds */
 .page-home .band {
+  background: var(--color-paper);
+  color: var(--color-ink);
   padding-block: var(--section-gap);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.page-home .band--deep {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+  padding-block: var(--section-gap-s);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.page-home .band--gates {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+  padding-block: var(--space-3xl);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.page-home .band--closing {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding-block: var(--space-4xl);
   border-bottom: 1px solid var(--color-rule);
 }
 
@@ -51,10 +74,10 @@ button {
 
 .page-home .band-head {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: var(--gap-columns);
   align-items: end;
-  margin-bottom: var(--space-2xl);
+  margin-bottom: var(--space-xl);
 }
 
 .page-home .band-title {
@@ -64,42 +87,52 @@ button {
 .page-home .band-lede {
   font-size: var(--text-lead);
   color: var(--color-ink-2);
-  max-width: 60ch;
+  max-width: 54ch;
 }
 
-/* Stage / Workbench Hero */
+/* Two-Column Stage Hero */
 .page-home .hero-stage {
-  padding-top: var(--section-gap-m);
-  padding-bottom: var(--section-gap-s);
+  min-height: calc(100svh - 61px);
+  display: flex;
+  align-items: center;
+  padding-top: var(--space-xl);
+  padding-bottom: calc(var(--space-xl) + var(--space-md));
   border-bottom: 1px solid var(--color-rule);
 }
 
-.page-home .hero-top {
+.page-home .stage-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: var(--gap-columns);
-  align-items: start;
-  margin-bottom: var(--space-xl);
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: var(--space-2xl);
+  align-items: center;
 }
 
-.page-home .hero-title {
+.page-home .stage-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.page-home .stage-title {
   font-size: var(--text-display);
   letter-spacing: var(--tracking-display);
 }
 
-.page-home .hero-aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.page-home .hero-lede {
+.page-home .stage-lede {
   font-size: var(--text-lead);
   color: var(--color-ink-2);
-  max-width: 58ch;
+  max-width: 44ch;
 }
 
-.page-home .hero-controls {
+.page-home .stage-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.page-home .stage-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -114,22 +147,46 @@ button {
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-md);
   background: var(--color-paper-3);
-  border: 1px solid var(--color-rule);
+  border: 1px solid var(--color-rule-2);
   border-radius: var(--radius-pill);
   font-family: var(--font-outlier);
   font-size: var(--text-xs);
   color: var(--color-ink-2);
   white-space: nowrap;
+  transition: border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
 }
 
 .cmd-strip:hover {
-  border-color: var(--color-rule-2);
+  border-color: var(--color-accent);
   color: var(--color-ink);
 }
 
 .cmd-prompt {
   color: var(--color-accent);
   user-select: none;
+}
+
+.cmd-copy-tag {
+  margin-left: var(--space-xs);
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--color-rule);
+  font-family: var(--font-body);
+  color: var(--color-muted);
+}
+
+.cmd-strip:hover .cmd-copy-tag {
+  color: var(--color-accent);
+}
+
+.lang-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  list-style: none;
+  padding-top: var(--space-2xs);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
 }
 
 /* Workbench Surface (Interactive Cockpit & Playgrounds) */
@@ -195,9 +252,9 @@ button {
 
 .cockpit-viewport img {
   width: 100%;
-  max-height: 640px;
+  height: clamp(250px, 42svh, 420px);
   object-fit: cover;
-  object-position: top center;
+  object-position: center;
   transition: opacity var(--dur-short) var(--ease-out);
 }
 
@@ -248,58 +305,7 @@ button {
   background: var(--color-ok-soft);
 }
 
-/* Hairline Panels Grid (Console Signature) */
-.page-home .panels {
-  display: grid;
-  gap: 1px;
-  background: var(--color-rule);
-  color: var(--color-ink);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-}
-
-.page-home .panels--3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.page-home .panels--2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.page-home .panels--4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.page-home .panel {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-  padding: var(--space-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  min-width: 0;
-}
-
-.page-home .panel--sunken {
-  background: var(--color-paper-3);
-  color: var(--color-ink);
-}
-
-.page-home .panel-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
-}
-
-.page-home .panel-head code {
-  font-size: var(--text-xs);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
+/* Shared Typography Helpers */
 .page-home .panel-title {
   font-size: var(--text-title);
   font-weight: 500;
@@ -311,27 +317,70 @@ button {
   color: var(--color-ink-2);
 }
 
-.page-home .panel-code {
-  margin-top: auto;
-  padding-top: var(--space-sm);
-  font-family: var(--font-outlier);
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
-/* Console Diff Surface (Enterprise Benchmark) */
+/* Console Diff Surface & Open Proof Ledger */
 .diff-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-2xl);
+  align-items: start;
+}
+
+.diff-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.diff-surface {
+  border: 1px solid var(--color-rule-2);
+  overflow: hidden;
+  background: var(--color-paper);
+}
+
+.proof-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.proof-stat {
+  border-top: 1px solid var(--color-rule-2);
+  padding-top: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.proof-label {
+  font-size: var(--text-title);
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: var(--gap-columns);
   align-items: stretch;
 }
 
-.diff-surface {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: var(--color-paper-3);
+.setup-grid > .workbench {
+  display: flex;
+  flex-direction: column;
+}
+
+.quickstart-strip {
+  margin-top: auto;
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-rule);
+  background: var(--color-paper-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
 }
 
 .diff-head {
@@ -344,6 +393,11 @@ button {
   border-bottom: 1px solid var(--color-rule);
   font-size: var(--text-sm);
   color: var(--color-ink-2);
+}
+
+.diff-head a {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .diff-row {
@@ -527,95 +581,6 @@ button {
   color: var(--color-ink);
 }
 
-/* Console Audit Trail (5-Layer Ontology & Ratchet Steps) */
-.trail {
-  border-left: 1px solid var(--color-rule-2);
-  padding-left: var(--space-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.trail-item {
-  position: relative;
-  display: grid;
-  grid-template-columns: 120px 220px minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-md);
-  align-items: baseline;
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.trail-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.trail-item::before {
-  content: "";
-  position: absolute;
-  left: calc(-1 * var(--space-lg) - 4px);
-  top: 8px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--color-accent);
-}
-
-.trail-step {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
-}
-
-.trail-step::before {
-  content: "";
-  position: absolute;
-  left: calc(-1 * var(--space-lg) - 4px);
-  top: 8px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--color-accent);
-}
-
-/* Language Matrix */
-.lang-grid {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--color-rule);
-  border: 1px solid var(--color-rule);
-  margin-top: var(--space-xl);
-}
-
-.lang-cell {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-  padding: var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
-}
-
-.lang-code {
-  font-family: var(--font-outlier);
-  font-size: var(--text-xs);
-  color: var(--color-accent);
-}
-
-.lang-name {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-ink);
-}
-
-.lang-detail {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
 /* Installation Switcher */
 .install-pane {
   display: none;
@@ -709,27 +674,33 @@ button {
 }
 
 @media (max-width: 60rem) {
-  .page-home .hero-top,
+  .page-home .hero-stage {
+    min-height: auto;
+    padding-block: var(--section-gap-m);
+  }
+  .page-home .band--gates,
+  .page-home .band--closing {
+    padding-block: var(--section-gap-l);
+  }
+  .page-home .stage-grid,
   .page-home .band-head,
   .page-home .diff-layout,
-  .page-home .split-bench {
+  .page-home .split-bench,
+  .page-home .setup-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .page-home .panels--3,
-  .page-home .panels--4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .page-home .trail-item {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-xs);
-  }
-  .page-home .lang-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 40rem) {
-  .page-home .hero-controls {
+  .page-home .band--gates,
+  .page-home .band--closing {
+    padding-block: var(--section-gap-m);
+  }
+  .page-home .stage-actions,
+  .page-home .stage-controls {
+    width: 100%;
+  }
+  .page-home .stage-controls {
     flex-direction: column;
     align-items: stretch;
   }
@@ -752,12 +723,6 @@ button {
   .page-home .cmd-strip {
     max-width: 100%;
     overflow-x: auto;
-  }
-  .page-home .panels--3,
-  .page-home .panels--2,
-  .page-home .panels--4,
-  .page-home .lang-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
   .page-home .diff-row {
     grid-template-columns: 24px minmax(0, 1fr);

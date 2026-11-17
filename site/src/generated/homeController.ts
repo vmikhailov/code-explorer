@@ -9,29 +9,29 @@ export function initHomeController(): () => void {
     const showcaseSlides = [
       {
         src: 'all_services.png',
-        description: '<strong>Full System Architecture Map:</strong> Every microservice, REST/gRPC endpoint, RabbitMQ/Kafka topic, and database table rendered automatically from your code. Double-click any service to drill into internal call chains.',
+        description: '<strong>System Map:</strong> Services, HTTP/gRPC routes, queues, and SQL tables built straight from source code.',
         pills: [
-          '<span class="metric-chip metric-chip--accent">Always Synced With Code</span>',
-          '<span class="metric-chip metric-chip--ok">Sub-10ms SQLite Queries</span>',
-          '<span class="metric-chip">Click image to enlarge</span>'
+          '<span class="metric-chip metric-chip--accent">Synced with code</span>',
+          '<span class="metric-chip metric-chip--ok">Local SQLite</span>',
+          '<span class="metric-chip">Click to zoom</span>'
         ]
       },
       {
         src: 'selected_services.png',
-        description: '<strong>Focused Dependency Slice (Blast Radius):</strong> Pick only the services relevant to your task and hide the rest. CodeExplorer collapses intermediate hops into dashed indirect edges so you see the exact blast radius without visual clutter.',
+        description: '<strong>Focused Slice:</strong> Select the services you care about and hide surrounding noise while keeping indirect links.',
         pills: [
-          '<span class="metric-chip metric-chip--accent">Blast Radius View</span>',
-          '<span class="metric-chip metric-chip--ok">Zero Noise Focus</span>',
-          '<span class="metric-chip">Click image to enlarge</span>'
+          '<span class="metric-chip metric-chip--accent">Blast radius</span>',
+          '<span class="metric-chip metric-chip--ok">Noise filtered</span>',
+          '<span class="metric-chip">Click to zoom</span>'
         ]
       },
       {
         src: 'project_flow.png',
-        description: '<strong>Cross-Service Call Flows (API → Queue → DB):</strong> Trace synchronous HTTP/gRPC calls, asynchronous message broker publications, and SQL table reads/writes across project boundaries before modifying a single line of code.',
+        description: '<strong>Service Call Flow:</strong> Trace HTTP calls, broker events, and database reads and writes before editing code.',
         pills: [
-          '<span class="metric-chip metric-chip--accent">End-to-End Call Chains</span>',
-          '<span class="metric-chip metric-chip--ok">SQL &amp; Broker Lineage</span>',
-          '<span class="metric-chip">Click image to enlarge</span>'
+          '<span class="metric-chip metric-chip--accent">End-to-end flow</span>',
+          '<span class="metric-chip metric-chip--ok">SQL and queue lineage</span>',
+          '<span class="metric-chip">Click to zoom</span>'
         ]
       }
     ];
@@ -84,7 +84,7 @@ export function initHomeController(): () => void {
 <span class="syn-kw">ORDER BY</span> Hops <span class="syn-kw">ASC</span>
 <span class="syn-kw">LIMIT</span> <span class="syn-num">10</span>`,
         explanation: 'Finds all upstream callers within 4 hops that can impact PaymentProcessor.ChargeAsync.',
-        timing: '4 rows · 3.8 ms',
+        timing: '4 rows in 3.8 ms',
         headers: ['UpstreamCaller', 'Hops'],
         rows: [
           ['Billing.Application.Commands.CaptureOrderHandler.Handle', '1'],
@@ -102,7 +102,7 @@ export function initHomeController(): () => void {
        h.name <span class="syn-kw">AS</span> Handler,
        t.name <span class="syn-kw">AS</span> Table`,
         explanation: 'Traces HTTP endpoints through MediatR/CQRS commands to handlers and mutated SQL tables.',
-        timing: '3 rows · 4.2 ms',
+        timing: '3 rows in 4.2 ms',
         headers: ['Route', 'Command', 'Handler', 'Table'],
         rows: [
           ['POST /api/v1/orders', 'CreateOrderCommand', 'CreateOrderCommandHandler', 'orders.purchase_orders'],
@@ -118,7 +118,7 @@ export function initHomeController(): () => void {
        m.name <span class="syn-kw">AS</span> Method,
        <span class="syn-fn">type</span>(op) <span class="syn-kw">AS</span> Operation`,
         explanation: 'Discovers every microservice and repository method reading from or writing to a shared database table.',
-        timing: '4 rows · 2.9 ms',
+        timing: '4 rows in 2.9 ms',
         headers: ['Service', 'Method', 'Operation'],
         rows: [
           ['Billing.Service', 'LedgerRepository.AppendEntryAsync', 'WRITES_TO'],
@@ -135,7 +135,7 @@ export function initHomeController(): () => void {
 <span class="syn-kw">RETURN</span> a.name <span class="syn-kw">AS</span> ProjectA,
        b.name <span class="syn-kw">AS</span> ProjectB`,
         explanation: 'Detects direct or multi-hop circular project dependencies across the solution.',
-        timing: '2 rows · 1.9 ms',
+        timing: '2 rows in 1.9 ms',
         headers: ['ProjectA', 'ProjectB'],
         rows: [
           ['Orders.Application', 'Shared.Fulfillment.Contracts'],
@@ -186,9 +186,9 @@ export function initHomeController(): () => void {
     const gatePresets = {
       boundaries: {
         file: '.codeexplorer/gates/domain-purity.yaml',
-        dimension: 'Dimension: Boundaries (L2/L3)',
+        dimension: 'Layer boundary',
         description: 'Blocks any type inside a Domain module from depending on Infrastructure or EF Core types.',
-        status: 'Exit Code 1 · 2 Violations',
+        status: 'Exit 1 (2 violations)',
         statusOk: false,
         rawYaml: `id: ARCH-001
 name: Domain Layer Must Not Reference Infrastructure
@@ -222,9 +222,9 @@ query: |
       },
       topology: {
         file: '.codeexplorer/gates/no-shared-database-writes.yaml',
-        dimension: 'Dimension: Topology (L4/L5)',
+        dimension: 'Table ownership',
         description: 'Forbids two distinct microservices from writing to the same SQL table directly.',
-        status: 'Exit Code 1 · 1 Violation',
+        status: 'Exit 1 (1 violation)',
         statusOk: false,
         rawYaml: `id: TOPO-004
 name: Single-Writer Microservice Table Ownership
@@ -251,9 +251,9 @@ query: |
       },
       visitor: {
         file: '.codeexplorer/gates/no-sync-over-async.yaml',
-        dimension: 'Dimension: AST Visitor (L1/L3)',
+        dimension: 'Async safety',
         description: 'Catches blocking .Result or .Wait() calls inside async methods that cause thread-pool starvation.',
-        status: 'Exit Code 1 · 2 Violations',
+        status: 'Exit 1 (2 violations)',
         statusOk: false,
         rawYaml: `id: AST-012
 name: No Blocking .Result or .Wait() Inside Async Methods
@@ -284,9 +284,9 @@ query: |
       },
       literal: {
         file: '.codeexplorer/gates/no-hardcoded-urls.yaml',
-        dimension: 'Dimension: Literal Audit (L1)',
+        dimension: 'Config hygiene',
         description: 'Prevents AI agents from hardcoding internal service URLs or connection strings in production classes.',
-        status: 'Exit Code 1 · 1 Violation',
+        status: 'Exit 1 (1 violation)',
         statusOk: false,
         rawYaml: `id: SEC-003
 name: No Hardcoded Internal Service URLs Outside Config
@@ -313,9 +313,9 @@ query: |
       },
       ratchet: {
         file: '.codeexplorer/gate-baseline.json',
-        dimension: 'Dimension: Ratchet Baseline',
+        dimension: 'Baseline ratchet',
         description: 'Suppresses fingerprinted legacy debt while failing CI immediately on any net-new violation.',
-        status: 'Exit Code 0 · 0 Net-New (3 Baselined)',
+        status: 'Exit 0 (0 new, 3 baselined)',
         statusOk: true,
         rawYaml: `{
   "schemaVersion": 1,
@@ -339,7 +339,7 @@ query: |
           {
             rule: 'RATCHET PASS (0 net-new violations)',
             target: '3 known legacy violations matched baseline fingerprints; 0 new violations introduced in PR.',
-            loc: '.codeexplorer/gate-baseline.json · verified in 6.4 ms',
+            loc: '.codeexplorer/gate-baseline.json (verified in 6.4 ms)',
             ok: true
           }
         ]
