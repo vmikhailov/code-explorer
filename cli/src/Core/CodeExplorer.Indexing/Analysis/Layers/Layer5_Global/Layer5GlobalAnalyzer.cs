@@ -111,88 +111,29 @@ public partial class Layer5AnalysisParser
         var bindings = BuildBindingLookups(ctx);
         var imports = BuildImportLookups(ctx, _currentL4Result);
 
-        var resolvedCount = 0;
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
         var newTopicNodes = new List<TopicNode>();
         var existingRefRels = new HashSet<(string From, string To, string Kind)>();
         var deferredParamMessagingRefs = new List<Reference>();
 
-        var lastRefReport = Stopwatch.GetTimestamp();
-        foreach (var refItem in ctx.GlobalReferences)
-        {
-            ctx.CancellationToken.ThrowIfCancellationRequested();
-            resolvedCount++;
-
-            if (resolvedCount % 25000 == 0 || Stopwatch.GetElapsedTime(lastRefReport).TotalSeconds >= 3)
-            {
-                lastRefReport = Stopwatch.GetTimestamp();
-                var pct = totalReferences > 0 ? (double)resolvedCount / totalReferences * 100.0 : 100.0;
-                var pctInt = (int)Math.Round(pct);
-                var globalPct = totalReferences > 0 ? 71 + (int)(6.0 * resolvedCount / totalReferences) : 77;
-                ctx.Layer5Log.CrossReferenceProgress(resolvedCount, totalReferences, pctInt);
-                ctx.ReportProgress(globalPct, "Layer 5: Global", $"Resolving cross-references: {resolvedCount}/{totalReferences} ({pctInt}%)...");
-            }
-
-            if (refItem.Kind is RelationshipKind.Implements or RelationshipKind.InheritsFrom)
-            {
-                continue;
-            }
-
-            try
-            {
-                switch (refItem.Kind)
-                {
-                    case RelationshipKind.Calls:
-                        ResolveCallsReference(refItem, ctx, symbols, bindings, imports, interfaceToImplementors, referenceRelationships);
-                        break;
-                    case RelationshipKind.DependsOn:
-                        Layer5SymbolVisibilityResolver.ResolveDependsOnReference(refItem, symbols, referenceRelationships);
-                        break;
-                    case RelationshipKind.Triggers:
-                        ResolveTriggersReference(refItem, symbols, referenceRelationships, existingRefRels);
-                        break;
-                    case RelationshipKind.PublishesTo:
-                    case RelationshipKind.SubscribesTo:
-                        if (refItem.TargetName.Contains("$param:", StringComparison.Ordinal))
-                        {
-                            deferredParamMessagingRefs.Add(refItem);
-                        }
-                        else
-                        {
-                            ResolveMessagingReference(refItem, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
-                        }
-                        break;
-                    case RelationshipKind.PersistedIn:
-                        Layer5SymbolVisibilityResolver.ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships, existingRefRels);
-                        break;
-                    case RelationshipKind.Instantiates:
-                        ResolveInstantiatesReference(refItem, ctx, symbols, imports, referenceRelationships);
-                        break;
-                    case RelationshipKind.UsesType:
-                        Layer5SymbolVisibilityResolver.ResolveUsesTypeReference(refItem, ctx, symbols, referenceRelationships);
-                        break;
-                    case RelationshipKind.AccessedBy:
-                    case RelationshipKind.ImplementedBy:
-                        Layer5SymbolVisibilityResolver.ResolveAccessedByOrImplementedByReference(refItem, symbols, referenceRelationships);
-                        break;
-                    case RelationshipKind.ReadsFrom:
-                    case RelationshipKind.WritesTo:
-                        Layer5SymbolVisibilityResolver.ResolveReadsOrWritesReference(refItem, symbols, referenceRelationships);
-                        break;
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                ctx.RecordScanIssue("Layer5_Global", "reference_error", refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: "ReferenceResolutionError", exception: ex, isFileParent: false);
-            }
-        }
+        ResolveGlobalReferencesBatch(
+            ctx,
+            symbols,
+            bindings,
+            imports,
+            interfaceToImplementors,
+            referenceRelationships,
+            newTopicNodes,
+            createdTopicIds,
+            existingRefRels,
+            deferredParamMessagingRefs);
 
         if (deferredParamMessagingRefs.Count > 0)
         {
             ResolveDeferredParamMessagingReferences(deferredParamMessagingRefs, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
         }
 
-        ctx.Layer5Log.CrossReferencesResolved(resolvedCount, totalReferences, referenceRelationships.Count);
+        ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count);
 
         if (newTopicNodes.Count > 0)
         {

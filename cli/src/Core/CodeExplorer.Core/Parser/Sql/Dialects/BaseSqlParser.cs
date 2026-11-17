@@ -114,14 +114,10 @@ public abstract class BaseSqlParser : ISqlDialectParser
             return true;
         }
 
-        TokenList<SqlToken> tokens;
-        try
+        const string TokenizationFailedMessage = "Tokenization failed.";
+        if (!SqlTokenizer.TryTokenizeFast(sqlText, out var tokens))
         {
-            tokens = SqlTokenizer.Instance.Tokenize(sqlText);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Tokenization failed: {ex.Message}";
+            errorMessage = TokenizationFailedMessage;
             return false;
         }
 
@@ -138,8 +134,13 @@ public abstract class BaseSqlParser : ISqlDialectParser
         }
     }
 
-    protected virtual List<SqlStatementAst> ParseStatements(TokenList<SqlToken> tokens)
+    protected virtual List<SqlStatementAst> ParseStatements(TokenList<SqlToken> tokens) =>
+        ParseStatements(tokens.ToArray());
+
+    private List<SqlStatementAst> ParseStatements(Token<SqlToken>[] tokens)
     {
+        const string beginKeyword = "BEGIN";
+        const string endKeyword = "END";
         var statements = new List<SqlStatementAst>();
         var reader = new SqlTokenReader(tokens);
 
@@ -148,8 +149,8 @@ public abstract class BaseSqlParser : ISqlDialectParser
             reader.SkipSemicolons();
             if (reader.IsAtEnd) break;
 
-            if (reader.Current.ToStringValue().Equals("BEGIN", StringComparison.OrdinalIgnoreCase) ||
-                reader.Current.ToStringValue().Equals("END", StringComparison.OrdinalIgnoreCase))
+            if (reader.CurrentEqualsIgnoreCase(beginKeyword) ||
+                reader.CurrentEqualsIgnoreCase(endKeyword))
             {
                 reader.Advance();
                 continue;
@@ -201,6 +202,7 @@ public abstract class BaseSqlParser : ISqlDialectParser
                 return ParseSelect(reader, ctes, cteNames);
 
             case SqlToken.Insert:
+            case SqlToken.Replace:
                 return ParseInsert(reader, ctes, cteNames);
 
             case SqlToken.Update:
@@ -214,6 +216,9 @@ public abstract class BaseSqlParser : ISqlDialectParser
 
             case SqlToken.Create:
                 return ParseCreate(reader, ctes, cteNames);
+
+            case SqlToken.Alter:
+                return ParseAlter(reader);
 
             case SqlToken.Drop:
                 return ParseDrop(reader);
@@ -335,6 +340,12 @@ public abstract class BaseSqlParser : ISqlDialectParser
                     reader.Advance();
                 }
             }
+            else if (reader.Current.Kind == SqlToken.Select)
+            {
+                var nestedSelect = ParseSelect(reader, [], cteNames);
+                tables.AddRange(nestedSelect.Tables);
+                joins.AddRange(nestedSelect.Joins);
+            }
             else
             {
                 reader.Advance();
@@ -346,7 +357,16 @@ public abstract class BaseSqlParser : ISqlDialectParser
 
     private SqlInsertStatementAst ParseInsert(SqlTokenReader reader, List<SqlCteAst> ctes, HashSet<string> cteNames)
     {
-        reader.Match(SqlToken.Insert);
+        const string ignoreModifier = "IGNORE";
+        reader.MatchAny(SqlToken.Insert, SqlToken.Replace);
+        if (reader.Match(SqlToken.Or))
+        {
+            reader.ReadIdentifierOrString();
+        }
+        else if (reader.CurrentEqualsIgnoreCase(ignoreModifier))
+        {
+            reader.Advance();
+        }
         reader.Match(SqlToken.Into);
 
         var targetTable = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
@@ -369,19 +389,25 @@ public abstract class BaseSqlParser : ISqlDialectParser
     private SqlUpdateStatementAst ParseUpdate(SqlTokenReader reader, List<SqlCteAst> ctes, HashSet<string> cteNames)
     {
         reader.Match(SqlToken.Update);
+        if (reader.Match(SqlToken.Or))
+        {
+            reader.ReadIdentifierOrString();
+        }
 
         var targetTable = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
         var fromTables = new List<SqlTableRefAst>();
 
         while (!reader.IsAtEnd && reader.Current.Kind != SqlToken.Semicolon)
         {
-            if (reader.Match(SqlToken.From))
+            if (reader.Match(SqlToken.From) || reader.Match(SqlToken.Join))
             {
                 fromTables.AddRange(ParseTableReferenceList(reader, cteNames, isWriteTarget: false));
             }
-            else if (reader.Match(SqlToken.Join))
+            else if (reader.Current.Kind == SqlToken.Select)
             {
-                fromTables.AddRange(ParseTableReferenceList(reader, cteNames, isWriteTarget: false));
+                var sub = ParseSelect(reader, [], cteNames);
+                fromTables.AddRange(sub.Tables);
+                fromTables.AddRange(sub.Joins);
             }
             else
             {
@@ -395,20 +421,26 @@ public abstract class BaseSqlParser : ISqlDialectParser
     private SqlDeleteStatementAst ParseDelete(SqlTokenReader reader, List<SqlCteAst> ctes, HashSet<string> cteNames)
     {
         reader.Match(SqlToken.Delete);
-        reader.Match(SqlToken.From);
+        if (!reader.Match(SqlToken.From))
+        {
+            reader.ReadIdentifierOrString();
+            reader.Match(SqlToken.From);
+        }
 
         var targetTable = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
         var usingTables = new List<SqlTableRefAst>();
 
         while (!reader.IsAtEnd && reader.Current.Kind != SqlToken.Semicolon)
         {
-            if (reader.Match(SqlToken.Using))
+            if (reader.Match(SqlToken.Using) || reader.Match(SqlToken.Join))
             {
                 usingTables.AddRange(ParseTableReferenceList(reader, cteNames, isWriteTarget: false));
             }
-            else if (reader.Match(SqlToken.Join))
+            else if (reader.Current.Kind == SqlToken.Select)
             {
-                usingTables.AddRange(ParseTableReferenceList(reader, cteNames, isWriteTarget: false));
+                var sub = ParseSelect(reader, [], cteNames);
+                usingTables.AddRange(sub.Tables);
+                usingTables.AddRange(sub.Joins);
             }
             else
             {
@@ -465,19 +497,27 @@ public abstract class BaseSqlParser : ISqlDialectParser
             var table = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
             if (table == null) return null;
 
+            List<SqlTableRefAst>? refTables = null;
             if (reader.Match(SqlToken.LParen))
             {
-                reader.SkipToMatchingRightParen();
+                refTables = ScanReferencedTablesUntilRightParen(reader, cteNames);
             }
 
-            return new SqlCreateTableStatementAst(table, isTemp, null) { Ctes = ctes };
+            SqlStatementAst? asSelect = null;
+            if (reader.Match(SqlToken.As) && reader.Current.Kind is SqlToken.Select or SqlToken.With)
+            {
+                asSelect = TryParseNextStatement(reader);
+            }
+
+            return new SqlCreateTableStatementAst(table, isTemp, asSelect, refTables) { Ctes = ctes };
         }
         else if (reader.Match(SqlToken.View))
         {
+            const string existTypoKeyword = "EXIST";
             if (reader.Match(SqlToken.If))
             {
                 reader.Match(SqlToken.Not);
-                if (!reader.Match(SqlToken.Exists) && !reader.IsAtEnd && reader.Current.ToStringValue().Equals("EXIST", StringComparison.OrdinalIgnoreCase))
+                if (!reader.Match(SqlToken.Exists) && reader.CurrentEqualsIgnoreCase(existTypoKeyword))
                 {
                     reader.Advance();
                 }
@@ -486,7 +526,18 @@ public abstract class BaseSqlParser : ISqlDialectParser
             var view = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
             if (view == null) return null;
 
-            return new SqlCreateViewStatementAst(view, null) { Ctes = ctes };
+            SqlStatementAst? viewSelect = null;
+            while (!reader.IsAtEnd && reader.Current.Kind != SqlToken.Semicolon)
+            {
+                if (reader.Match(SqlToken.As) && reader.Current.Kind is SqlToken.Select or SqlToken.With)
+                {
+                    viewSelect = TryParseNextStatement(reader);
+                    break;
+                }
+                reader.Advance();
+            }
+
+            return new SqlCreateViewStatementAst(view, viewSelect) { Ctes = ctes };
         }
         else if (reader.MatchAny(SqlToken.Procedure, SqlToken.Proc, SqlToken.Function))
         {
@@ -588,6 +639,61 @@ public abstract class BaseSqlParser : ISqlDialectParser
         return null;
     }
 
+    private List<SqlTableRefAst> ScanReferencedTablesUntilRightParen(SqlTokenReader reader, HashSet<string> cteNames)
+    {
+        var refs = new List<SqlTableRefAst>();
+        var depth = 1;
+        while (!reader.IsAtEnd && depth > 0)
+        {
+            if (reader.Match(SqlToken.LParen))
+            {
+                depth++;
+                continue;
+            }
+            if (reader.Match(SqlToken.RParen))
+            {
+                depth--;
+                continue;
+            }
+            if (reader.Match(SqlToken.References))
+            {
+                var fkTable = ParseSingleTableReference(reader, cteNames, isWriteTarget: false);
+                if (fkTable != null) refs.Add(fkTable);
+                continue;
+            }
+            reader.Advance();
+        }
+        return refs;
+    }
+
+    private SqlAlterTableStatementAst? ParseAlter(SqlTokenReader reader)
+    {
+        reader.Match(SqlToken.Alter);
+        if (!reader.MatchAny(SqlToken.Table, SqlToken.View)) return null;
+        if (reader.Match(SqlToken.If))
+        {
+            reader.Match(SqlToken.Exists);
+        }
+
+        var emptyCtes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var target = ParseSingleTableReference(reader, emptyCtes, isWriteTarget: true);
+        if (target == null) return null;
+
+        var refs = new List<SqlTableRefAst>();
+        while (!reader.IsAtEnd && reader.Current.Kind != SqlToken.Semicolon)
+        {
+            if (reader.Match(SqlToken.References))
+            {
+                var fk = ParseSingleTableReference(reader, emptyCtes, isWriteTarget: false);
+                if (fk != null) refs.Add(fk);
+                continue;
+            }
+            reader.Advance();
+        }
+
+        return new SqlAlterTableStatementAst(target, refs);
+    }
+
     private SqlDropStatementAst? ParseDrop(SqlTokenReader reader)
     {
         reader.Match(SqlToken.Drop);
@@ -664,7 +770,7 @@ public abstract class BaseSqlParser : ISqlDialectParser
         var list = new List<SqlTableRefAst>();
         do
         {
-            var table = ParseSingleTableReference(reader, cteNames, isWriteTarget);
+            var table = ParseSingleTableReference(reader, cteNames, isWriteTarget, list);
             if (table != null)
             {
                 list.Add(table);
@@ -675,7 +781,11 @@ public abstract class BaseSqlParser : ISqlDialectParser
         return list;
     }
 
-    private SqlTableRefAst? ParseSingleTableReference(SqlTokenReader reader, HashSet<string> cteNames, bool isWriteTarget)
+    private SqlTableRefAst? ParseSingleTableReference(
+        SqlTokenReader reader,
+        HashSet<string> cteNames,
+        bool isWriteTarget,
+        List<SqlTableRefAst>? derivedTablesCollector = null)
     {
         // 1. Skip dialect modifiers like ONLY (Postgres) or FINAL/SAMPLE (ClickHouse)
         if (reader.Match(SqlToken.Only))
@@ -689,11 +799,13 @@ public abstract class BaseSqlParser : ISqlDialectParser
             if (reader.Current.Kind == SqlToken.Select)
             {
                 var subquery = ParseSelect(reader, [], cteNames);
+                derivedTablesCollector?.AddRange(subquery.Tables);
+                derivedTablesCollector?.AddRange(subquery.Joins);
                 reader.SkipToMatchingRightParen();
                 // Consume optional alias
                 reader.Match(SqlToken.As);
                 reader.ReadIdentifierOrString();
-                return null; // Derived table, not a physical table
+                return null; // Derived table, physical tables added via derivedTablesCollector
             }
             reader.SkipToMatchingRightParen();
             return null;

@@ -142,7 +142,7 @@ Tracks logical compilation units and module scopes (`.csproj`, `package.json`, `
 
 ## 📂 Layer 3: Syntactic AST (Syntax Outline)
 
-Represents declarations extracted by Tree-sitter and Microsoft SQL ScriptDom visitors. Nodes here describe code definitions and hierarchy in memory, completely isolated from runtime infrastructure.
+Represents declarations extracted by Tree-sitter and built-in multi-dialect SQL / HCL visitors. Nodes here describe code definitions and hierarchy in memory, completely isolated from runtime infrastructure.
 
 ### Nodes
 *   **`SyntaxStructure`**: Structural root representing all syntactic AST structures.

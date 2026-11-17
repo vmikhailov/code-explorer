@@ -73,7 +73,7 @@ await using (new DatabasePersistenceWriter(ctx))
 ### Stage 3: Syntactic AST Outline (`Layer3SyntacticParser`)
 *   **Goal**: Parse source code into pure in-memory syntax trees without database or filesystem I/O.
 *   **Behavior**:
-    *   Each file is parsed using **Tree-sitter** (C#, TypeScript, JavaScript, Go, Python) or Microsoft **ScriptDom** (SQL).
+    *   Each file is parsed using **Tree-sitter** (C#, TypeScript, JavaScript, Go, Python, Java, Kotlin, Rust) or the built-in multi-dialect **SQL / HCL** parsers.
     *   Language-specific AST visitors (`CSharpFileVisitor`, `TypeScriptFileVisitor`, etc.) extend `BaseParserVisitor`.
     *   **Library Parser Integration**: Before processing language AST nodes, the parser checks registered `ILibraryParser` instances (e.g., `NestJsLibraryParser`, `AspNetCoreLibraryParser`, `RestSharpLibraryParser`).
     *   Produces an in-memory `SyntacticSymbol` tree describing declarations:

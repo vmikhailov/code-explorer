@@ -170,9 +170,9 @@ public partial class Layer5AnalysisParser
         Dictionary<string, List<string>> StarImportsByFile,
         Dictionary<string, PackageTargetInfo> WorkspacePackages,
         Dictionary<string, string> TsConfigPaths,
-        Dictionary<(string CallerFile, string ImportPath), List<string>>? CandidateCache = null)
+        System.Collections.Concurrent.ConcurrentDictionary<(string CallerFile, string ImportPath), List<string>>? CandidateCache = null)
     {
-        public Dictionary<(string CallerFile, string ImportPath), List<string>> CandidateCache { get; init; } = CandidateCache ?? [];
+        public System.Collections.Concurrent.ConcurrentDictionary<(string CallerFile, string ImportPath), List<string>> CandidateCache { get; init; } = CandidateCache ?? new();
     }
 
     private record BindingLookups(

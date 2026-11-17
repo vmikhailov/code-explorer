@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.5] - 2026-11-17
+
+### Removed & Improved
+- **Zero-Regex SQL Lexer, O(1) Token Reader & Complete `ScriptDom` Removal (`CodeExplorer.Core`, `CodeExplorer.Indexing`)**:
+  - Removed the legacy `Microsoft.SqlServer.TransactSql.ScriptDom` NuGet dependency (~11 MB) from `CodeExplorer.Core` and `CodeExplorer.Indexing`, consolidating all file and inline SQL dependency extraction onto the built-in multi-dialect `BaseSqlParser` (`PostgreSql`, `TSql`, `MySql`, `BigQuery`, `ClickHouse`, `PlSql`, `Soql`, `Ansi`) with support for nested `(SELECT ...)` subqueries, `FROM (SELECT ...)`, `ALTER TABLE`, `CREATE VIEW ... AS SELECT`, `REPLACE INTO`, and foreign-key `REFERENCES`.
+  - Added a direct `ReadOnlySpan<char>` SQL lexer (`SqlTokenizer.TryTokenizeFast`) backed by `FrozenDictionary.AlternateLookup<ReadOnlySpan<char>>` keyword dispatch and backed `SqlTokenReader` with an `O(1)` `Token<SqlToken>[]` array instead of `O(N)` `IEnumerable` `.Count()` / `.ElementAt()` walks.
+- **Parallel Layer 5 Cross-Reference Resolution, SQLite Bulk-Load Tuning & TypeORM Fast Guard (`CodeExplorer.Indexing`, `CodeExplorer.Storage`, `CodeExplorer.Parsers.TypeScript`)**:
+  - Parallelized stateless global cross-reference resolution (`Calls`, `DependsOn`, `Instantiates`, `UsesType`, `AccessedBy`, `ImplementedBy`, `ReadsFrom`, `WritesTo`) across CPU cores in `Layer5AnalysisParser` with a `ConcurrentDictionary`-backed import candidate cache.
+  - Enabled `PRAGMA temp_store = MEMORY` for in-RAM index sorting during SQLite bulk loads, added a constant-folded `jsonb('{}')` prepared insert path for telemetry-free edges, and skipped redundant post-bulk `CreateIndices()` and `PRAGMA optimize` passes on fresh workspace scans.
+  - Added a fast enclosing-text guard in `TypeOrmLibraryParser.TryResolveLocalRepositoryAlias` to avoid full `VariableDeclarator` subtree scans when no repository reference is present.
+
+---
+
 ## [1.89.4] - 2026-11-16
 
 ### Fixed & Improved

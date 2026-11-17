@@ -2,101 +2,8 @@ using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Sql;
 using CodeExplorer.Core.Parser.Sql.Ast;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace CodeExplorer.Core.Parser;
-
-public class SqlDependencyVisitor : TSqlFragmentVisitor
-{
-    public List<(string? Db, string? Schema, string Table)> Tables { get; } = [];
-    public List<(string? Db, string? Schema, string Procedure)> Procedures { get; } = [];
-    public HashSet<string> CteNames { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-    private void AddSchemaObject(SchemaObjectName? schemaObject)
-    {
-        if (schemaObject == null) return;
-        var db = NestedSqlParser.CleanSqlIdentifier(schemaObject.DatabaseIdentifier?.Value ?? "");
-        var schema = NestedSqlParser.CleanSqlIdentifier(schemaObject.SchemaIdentifier?.Value ?? "");
-        var table = NestedSqlParser.CleanSqlIdentifier(schemaObject.BaseIdentifier?.Value ?? "");
-        if (!string.IsNullOrEmpty(table) && !NestedSqlParser.IsSqlKeyword(table))
-        {
-            Tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
-        }
-    }
-
-    public override void Visit(CommonTableExpression node)
-    {
-        var cteName = NestedSqlParser.CleanSqlIdentifier(node.ExpressionName?.Value ?? "");
-        if (!string.IsNullOrEmpty(cteName))
-        {
-            CteNames.Add(cteName);
-        }
-        base.Visit(node);
-    }
-
-    public override void Visit(NamedTableReference node)
-    {
-        AddSchemaObject(node.SchemaObject);
-        base.Visit(node);
-    }
-
-    public override void Visit(CreateTableStatement node)
-    {
-        AddSchemaObject(node.SchemaObjectName);
-        base.Visit(node);
-    }
-
-    public override void Visit(AlterTableStatement node)
-    {
-        AddSchemaObject(node.SchemaObjectName);
-        base.Visit(node);
-    }
-
-    public override void Visit(DropTableStatement node)
-    {
-        if (node.Objects != null)
-        {
-            foreach (var obj in node.Objects)
-            {
-                AddSchemaObject(obj);
-            }
-        }
-        base.Visit(node);
-    }
-
-    public override void Visit(TruncateTableStatement node)
-    {
-        AddSchemaObject(node.TableName);
-        base.Visit(node);
-    }
-
-    public override void Visit(CreateViewStatement node)
-    {
-        AddSchemaObject(node.SchemaObjectName);
-        base.Visit(node);
-    }
-
-    public override void Visit(ForeignKeyConstraintDefinition node)
-    {
-        AddSchemaObject(node.ReferenceTableName);
-        base.Visit(node);
-    }
-
-    public override void Visit(ExecutableProcedureReference node)
-    {
-        if (node.ProcedureReference?.ProcedureReference?.Name != null)
-        {
-            var db = NestedSqlParser.CleanSqlIdentifier(node.ProcedureReference.ProcedureReference.Name.DatabaseIdentifier?.Value ?? "");
-            var schema = NestedSqlParser.CleanSqlIdentifier(node.ProcedureReference.ProcedureReference.Name.SchemaIdentifier?.Value ?? "");
-            var proc = NestedSqlParser.CleanSqlIdentifier(node.ProcedureReference.ProcedureReference.Name.BaseIdentifier?.Value ?? "");
-            if (!string.IsNullOrEmpty(proc))
-            {
-                Procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, proc));
-            }
-        }
-        base.Visit(node);
-    }
-}
 
 public static class NestedSqlParser
 {
@@ -412,8 +319,7 @@ public static class NestedSqlParser
 
         cleaned = Regex.Replace(cleaned, @"\$\{(.*?)\}", "$1");
 
-        // Convert backticks to square brackets for ScriptDom T-SQL parser compatibility.
-        // If backticks contain dots (e.g. `dataset.table`), wrap each segment individually.
+        // Normalize backtick-quoted multipart identifiers (e.g. `dataset.table` -> [dataset].[table]).
         cleaned = Regex.Replace(cleaned, @"`([^`]+)`", m =>
         {
             var content = m.Groups[1].Value;
@@ -483,17 +389,6 @@ public static class NestedSqlParser
         return false;
     }
 
-    private static string NormalizeDialectForTSqlParser(string sql)
-    {
-        if (string.IsNullOrEmpty(sql)) return sql;
-        var norm = Regex.Replace(sql, @"\bIF\s+NOT\s+EXISTS\b", "", RegexOptions.IgnoreCase);
-        norm = Regex.Replace(norm, @"\bAUTOINCREMENT\b", "IDENTITY(1,1)", RegexOptions.IgnoreCase);
-        norm = Regex.Replace(norm, @"\bINSERT\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK)\s+INTO\b", "INSERT INTO", RegexOptions.IgnoreCase);
-        // Replace positional '?' placeholders outside single/double quotes with valid T-SQL variable '@p'
-        norm = Regex.Replace(norm, @"('[^']*'|""[^""]*"")|\?", m => m.Groups[1].Success ? m.Groups[1].Value : "@p");
-        return norm;
-    }
-
     private static void ExtractSqlDependencies(
         string cleanedSql,
         string rawText,
@@ -520,57 +415,6 @@ public static class NestedSqlParser
             if (!string.IsNullOrEmpty(cte)) cteNames.Add(cte);
         }
 
-        // 1. Try Grammar Parser (ScriptDom)
-        try
-        {
-            var parser = new TSql160Parser(true);
-
-            using var reader = new StringReader(NormalizeDialectForTSqlParser(cleanedSql));
-
-            var fragment = parser.Parse(reader, out _);
-
-            var visitor = new SqlDependencyVisitor();
-            fragment?.Accept(visitor);
-
-            foreach (var c in visitor.CteNames) cteNames.Add(c);
-
-            foreach (var t in visitor.Tables)
-            {
-                var table = ResolveSqlIdentifier(t.Table, rawText);
-                var schema = ResolveSqlIdentifier(t.Schema, rawText);
-                var db = ResolveSqlIdentifier(t.Db, rawText);
-
-                if (cteNames.Contains(table)) continue;
-                if (IsSqlKeyword(table)) continue;
-                if (!ResourceNamingHelper.IsValidTableIdentifier(table)) continue;
-                if (!string.IsNullOrEmpty(schema) && !string.Equals(schema, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schema)) continue;
-
-                if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
-                    IsUnresolvedVariable(db, rawText)) continue;
-
-                tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema,
-                    table));
-            }
-
-            foreach (var p in visitor.Procedures)
-            {
-                var proc = ResolveSqlIdentifier(p.Procedure, rawText);
-                var schema = ResolveSqlIdentifier(p.Schema, rawText);
-                var db = ResolveSqlIdentifier(p.Db, rawText);
-
-                if (IsUnresolvedVariable(proc, rawText) || IsUnresolvedVariable(schema, rawText) ||
-                    IsUnresolvedVariable(db, rawText)) continue;
-
-                procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema,
-                    proc));
-            }
-        }
-        catch
-        {
-            // Ignore syntax errors, fall back to regex
-        }
-
-        // 2. Dialect Parser Fallback
         var dialect = SqlDialectDetector.DetectDialect(cleanedSql, null);
         var dialectParser = SqlDialectParserFactory.GetParser(dialect);
         var script = dialectParser.Parse(cleanedSql);
@@ -618,7 +462,26 @@ public static class NestedSqlParser
                         break;
                     case SqlCreateTableStatementAst crt:
                         stmtTables.Add(crt.Table);
+                        if (crt.ReferencedTables is { Count: > 0 }) stmtTables.AddRange(crt.ReferencedTables);
                         if (crt.AsSelectQuery != null) CollectFromStatement(crt.AsSelectQuery);
+                        break;
+                    case SqlCreateViewStatementAst crv:
+                        stmtTables.Add(crv.View);
+                        if (crv.AsSelectQuery != null) CollectFromStatement(crv.AsSelectQuery);
+                        break;
+                    case SqlAlterTableStatementAst alt:
+                        stmtTables.Add(alt.TargetTable);
+                        stmtTables.AddRange(alt.ReferencedTables);
+                        break;
+                    case SqlDropStatementAst drp when drp.DropType is SqlDropObjectType.Table or SqlDropObjectType.View:
+                        stmtTables.Add(drp.Target);
+                        break;
+                    case SqlTruncateStatementAst trn:
+                        stmtTables.Add(trn.TargetTable);
+                        break;
+                    case SqlCreateProcedureStatementAst crp:
+                        stmtProcs.Add(crp.Procedure);
+                        foreach (var bodyStmt in crp.BodyStatements) CollectFromStatement(bodyStmt);
                         break;
                 }
             }

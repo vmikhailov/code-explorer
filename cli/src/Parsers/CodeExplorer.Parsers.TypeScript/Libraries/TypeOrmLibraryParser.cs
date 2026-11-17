@@ -427,7 +427,7 @@ public class TypeOrmLibraryParser : DeclarativeSemanticExtension
         {
             curr = curr.Parent;
         }
-        if (!curr.IsValid()) return false;
+        if (!curr.IsValid() || !curr.Text.Contains(RepoKeyword, StringComparison.OrdinalIgnoreCase)) return false;
 
         foreach (var decl in curr.FindDescendantsOfType(TreeSitterSyntax.TypeScript.VariableDeclarator))
         {

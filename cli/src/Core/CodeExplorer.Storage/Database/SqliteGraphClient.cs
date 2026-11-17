@@ -24,6 +24,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private bool _isBulkLoading;
     private bool _bulkIsFreshDb;
     private bool _bulkDropIdentifierIndex;
+    private bool _freshBulkLoadJustCommitted;
     private readonly Dictionary<string, Node> _bulkNodes = new(StringComparer.Ordinal);
     private readonly Dictionary<(string From, string To, RelationshipKind Kind), Relationship> _bulkRelationships = new();
     private readonly Dictionary<string, List<string>> _bulkProjectExternalApis = new(StringComparer.Ordinal);
@@ -183,20 +184,13 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         var sw = Stopwatch.StartNew();
         var nodesCount = _bulkNodes.Count;
         var relsCount = _bulkRelationships.Count;
+        var switchedToMemoryJournal = false;
 
         try
         {
             if (nodesCount > 0 || relsCount > 0 || _bulkProjectExternalApis.Count > 0)
             {
-                await using (var pragmaCmd = _conn.CreateCommand())
-                {
-                    pragmaCmd.CommandText = """
-                                            PRAGMA synchronous = OFF;
-                                            PRAGMA wal_autocheckpoint = 0;
-                                            PRAGMA cache_size = -256000;
-                                            """;
-                    await pragmaCmd.ExecuteNonQueryAsync(cancellationToken);
-                }
+                switchedToMemoryJournal = await ConfigureBulkLoadPragmasUnlockedAsync(isFresh, cancellationToken);
 
                 await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
 
@@ -223,8 +217,6 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 const string paramP = "@p";
                 const string paramDomains = "@domains";
                 const string paramId = "@id";
-                const string paramF = "@f";
-                const string paramT = "@t";
 
                 var nodeRowIds = relsCount > 0
                     ? new Dictionary<string, long>(Math.Max(nodesCount, 1024), StringComparer.Ordinal)
@@ -301,35 +293,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                         }
                     }
 
-                    await using var relCmd = _conn.CreateCommand();
-                    relCmd.CommandTimeout = 0;
-                    relCmd.Transaction = tx;
-                    relCmd.CommandText = isFresh
-                        ? "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p));"
-                        : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
-                    var pFrom = relCmd.Parameters.Add(paramF, SqliteType.Integer);
-                    var pTo = relCmd.Parameters.Add(paramT, SqliteType.Integer);
-                    var pKind = relCmd.Parameters.Add(paramK, SqliteType.Integer);
-                    var pProps = relCmd.Parameters.Add(paramP, SqliteType.Text);
-                    relCmd.Prepare();
-
-                    var bufferWriter = new ArrayBufferWriter<byte>(512);
-                    using var jsonWriter = new Utf8JsonWriter(bufferWriter);
-
-                    foreach (var ((fromId, toId, kind), rel) in _bulkRelationships)
-                    {
-                        if (!nodeRowIds.TryGetValue(fromId, out var fromRowId) ||
-                            !nodeRowIds.TryGetValue(toId, out var toRowId))
-                        {
-                            continue;
-                        }
-
-                        pFrom.Value = fromRowId;
-                        pTo.Value = toRowId;
-                        pKind.Value = (int)kind;
-                        pProps.Value = rel.SerializeJsonProperties(bufferWriter, jsonWriter);
-                        relCmd.ExecuteNonQuery();
-                    }
+                    BulkInsertRelationshipsUnlocked(tx, isFresh, nodeRowIds);
                 }
 
                 await tx.CommitAsync(cancellationToken);
@@ -359,22 +323,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             if (isFresh)
             {
                 CreateGraphSecondaryIndices();
+                _freshBulkLoadJustCommitted = true;
             }
 
-            try
-            {
-                await using var restoreCmd = _conn.CreateCommand();
-                restoreCmd.CommandText = """
-                                         PRAGMA synchronous = NORMAL;
-                                         PRAGMA wal_autocheckpoint = 1000;
-                                         PRAGMA cache_size = -64000;
-                                         """;
-                await restoreCmd.ExecuteNonQueryAsync(CancellationToken.None);
-            }
-            catch
-            {
-                // Best effort restore
-            }
+            await RestorePostBulkLoadPragmasUnlockedAsync(switchedToMemoryJournal);
         }
 
         sw.Stop();

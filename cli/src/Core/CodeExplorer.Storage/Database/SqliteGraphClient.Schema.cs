@@ -422,11 +422,22 @@ public partial class SqliteGraphClient
             {
                 await CommitBulkLoadUnlockedAsync();
             }
-            CreateIndices();
+
+            var wasFreshBulk = _freshBulkLoadJustCommitted;
+            _freshBulkLoadJustCommitted = false;
+
+            if (!wasFreshBulk)
+            {
+                CreateIndices();
+            }
+
             await FlushOrPersistTaxonomyUnlockedAsync();
-            await using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;";
-            await cmd.ExecuteNonQueryAsync();
+            if (!wasFreshBulk)
+            {
+                await using var cmd = _conn.CreateCommand();
+                cmd.CommandText = "PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;";
+                await cmd.ExecuteNonQueryAsync();
+            }
         }
         catch (Exception ex)
         {

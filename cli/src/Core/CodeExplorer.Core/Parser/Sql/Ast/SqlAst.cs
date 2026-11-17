@@ -69,7 +69,13 @@ public sealed record SqlMergeStatementAst(
 public sealed record SqlCreateTableStatementAst(
     SqlTableRefAst Table,
     bool IsTemporary,
-    SqlStatementAst? AsSelectQuery
+    SqlStatementAst? AsSelectQuery,
+    IReadOnlyList<SqlTableRefAst>? ReferencedTables = null
+) : SqlStatementAst;
+
+public sealed record SqlAlterTableStatementAst(
+    SqlTableRefAst TargetTable,
+    IReadOnlyList<SqlTableRefAst> ReferencedTables
 ) : SqlStatementAst;
 
 public sealed record SqlCreateViewStatementAst(
