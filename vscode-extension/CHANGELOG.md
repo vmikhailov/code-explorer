@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.1] - 2026-11-18
+
+### Fixed
+- **MCP Tool Surface Verification & `get_task_context` Schema Metadata (`CodeExplorer.Server`, `CodeExplorer.Tests`)**:
+  - Updated `get_task_context` tool description to include explicit usage differentiation guidelines (`Use when...`) and synchronized the registered MCP tool manifest expectation (`16` tools) in `McpIntegrationTests`.
+
+---
+
 ## [1.90.0] - 2026-11-18
 
 ### Added

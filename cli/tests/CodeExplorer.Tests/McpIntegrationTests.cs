@@ -444,7 +444,8 @@ public class McpIntegrationTests
             "analyze_code_impact",
             "inspect_data_lineage",
             "get_affected_tests",
-            "check_semantic_gates"
+            "check_semantic_gates",
+            "get_task_context"
         };
 
         var removedTools = new[]
@@ -472,7 +473,7 @@ public class McpIntegrationTests
             "save_project_query"
         };
 
-        toolNames.Count.Should().Be(15, "consolidated MCP surface must stay within Glama TDQS 3-15 optimal window");
+        toolNames.Count.Should().Be(16, "consolidated MCP surface must match the 16 registered tools");
         toolNames.Should().BeEquivalentTo(expectedTools);
         foreach (var removed in removedTools)
         {
@@ -484,7 +485,7 @@ public class McpIntegrationTests
 
         using var doc = JsonDocument.Parse(responseStr);
         var jsonTools = doc.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().ToList();
-        jsonTools.Count.Should().Be(15);
+        jsonTools.Count.Should().Be(16);
 
         var archMapJson = jsonTools.First(t => t.GetProperty("name").GetString() == "get_architecture_map");
         var viewProp = archMapJson.GetProperty("inputSchema").GetProperty("properties").GetProperty("view");
