@@ -42,6 +42,9 @@ export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
   const isOnt = currentRoute === ONT_ROUTE;
   const isBench = currentRoute === BENCH_ROUTE || currentRoute.startsWith(BENCH_PREFIX);
 
+  const queryHref = isHome ? '#playground' : '/#playground';
+  const mcpHref = isHome ? '#ai-mcp' : '/#ai-mcp';
+  const gatesHref = isHome ? '#gates' : '/#gates';
   const installHref = isHome ? '#install' : '/#install';
 
   return (
@@ -53,6 +56,19 @@ export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
         </a>
 
         <ul className="slab-links">
+          <li className="slab-anchor-item">
+            <a href={queryHref}>Query</a>
+          </li>
+          <li className="slab-anchor-item">
+            <a href={mcpHref}>MCP</a>
+          </li>
+          <li className="slab-anchor-item">
+            <a href={gatesHref}>Gates</a>
+          </li>
+          <li className="slab-anchor-item">
+            <a href={installHref}>Install</a>
+          </li>
+          <li className="slab-sep" aria-hidden="true" />
           <li>
             <a href="/architectures" aria-current={isArch ? 'page' : undefined}>
               Architectures
@@ -67,9 +83,6 @@ export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
             <a href="/benchmarks" aria-current={isBench ? 'page' : undefined}>
               Benchmarks
             </a>
-          </li>
-          <li className="slab-anchor-item">
-            <a href={installHref}>Install</a>
           </li>
         </ul>
 
