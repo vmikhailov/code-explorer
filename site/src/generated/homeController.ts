@@ -8,7 +8,8 @@ export function initHomeController(): () => void {
     // Showcase Switcher Data
     const showcaseSlides = [
       {
-        src: 'all_services.png',
+        src: 'all_services.png?v=2',
+        label: 'all_services.png',
         description: '<strong>System Map:</strong> Services, HTTP/gRPC routes, queues, and SQL tables built straight from source code.',
         pills: [
           '<span class="metric-chip metric-chip--accent">Synced with code</span>',
@@ -17,7 +18,8 @@ export function initHomeController(): () => void {
         ]
       },
       {
-        src: 'selected_services.png',
+        src: 'selected_services.png?v=2',
+        label: 'selected_services.png',
         description: '<strong>Focused Slice:</strong> Select the services you care about and hide surrounding noise while keeping indirect links.',
         pills: [
           '<span class="metric-chip metric-chip--accent">Blast radius</span>',
@@ -27,6 +29,7 @@ export function initHomeController(): () => void {
       },
       {
         src: 'project_flow.png',
+        label: 'project_flow.png',
         description: '<strong>Service Call Flow:</strong> Trace HTTP calls, broker events, and database reads and writes before editing code.',
         pills: [
           '<span class="metric-chip metric-chip--accent">End-to-end flow</span>',
@@ -44,7 +47,7 @@ export function initHomeController(): () => void {
       const pills = document.getElementById('showcasePills');
       const pathLabel = document.getElementById('showcasePathLabel');
 
-      document.querySelectorAll('#cockpit .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.workbench-tabs .tab-btn, #cockpit .tab-btn').forEach(b => b.classList.remove('active'));
       if (btnElement) btnElement.classList.add('active');
 
       img.style.opacity = '0.35';
@@ -52,7 +55,7 @@ export function initHomeController(): () => void {
         img.src = slide.src;
         desc.innerHTML = slide.description;
         pills.innerHTML = slide.pills.join('');
-        if (pathLabel) pathLabel.textContent = slide.src;
+        if (pathLabel) pathLabel.textContent = slide.label || slide.src;
         img.style.opacity = '1';
       }, 120);
     }
