@@ -376,25 +376,29 @@ public partial class Layer3SyntacticParser
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
 
-                        for (var v = 0; v < syntaxTree.RawVariables.Count; v++)
+                        var isTestSource = syntaxTree.FileNode.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
+                        if (!isTestSource || project.IsTest)
                         {
-                            var rv = syntaxTree.RawVariables[v];
-                            if (rv.Scope != "local" && rv.IsConstant &&
-                                !string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
+                            for (var v = 0; v < syntaxTree.RawVariables.Count; v++)
                             {
-                                var rawInit = rv.InitializerText.Trim();
-                                if ((rawInit.StartsWith('"') && rawInit.EndsWith('"')) ||
-                                    (rawInit.StartsWith('\'') && rawInit.EndsWith('\'')) ||
-                                    (rawInit.StartsWith('`') && rawInit.EndsWith('`')))
+                                var rv = syntaxTree.RawVariables[v];
+                                if (rv.Scope != "local" && rv.IsConstant &&
+                                    !string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
                                 {
-                                    ConstantRegistry.Register(project.Name, rv.Name, rawInit.Trim('\'', '"', '`'));
+                                    var rawInit = rv.InitializerText.Trim();
+                                    if ((rawInit.StartsWith('"') && rawInit.EndsWith('"')) ||
+                                        (rawInit.StartsWith('\'') && rawInit.EndsWith('\'')) ||
+                                        (rawInit.StartsWith('`') && rawInit.EndsWith('`')))
+                                    {
+                                        ConstantRegistry.Register(project.Name, rv.Name, rawInit.Trim('\'', '"', '`'));
+                                    }
                                 }
                             }
-                        }
 
-                        if (syntaxTree.Tree?.RootNode != null)
-                        {
-                            fileParser.DiscoverDeclarations(syntaxTree.Tree.RootNode, file.Path, project.Name, ctx);
+                            if (syntaxTree.Tree?.RootNode != null)
+                            {
+                                fileParser.DiscoverDeclarations(syntaxTree.Tree.RootNode, file.Path, project.Name, ctx);
+                            }
                         }
                     }
 

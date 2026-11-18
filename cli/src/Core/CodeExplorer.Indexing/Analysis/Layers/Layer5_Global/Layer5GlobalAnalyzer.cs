@@ -364,6 +364,11 @@ public partial class Layer5AnalysisParser
             }
         }
 
+        var projectsWithEndpoints = prepEndpoints
+            .Select(e => e.TargetProj?.Id)
+            .OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var prepEntryPoints = new List<PreparedEntryPoint>(entryPoints.Count);
         foreach (var entry in entryPoints)
         {
@@ -453,9 +458,16 @@ public partial class Layer5AnalysisParser
             }
 
             var candidateEndpoints = new List<PreparedEndpoint>();
+            var isRelOrPathSeg = extService.Service.IsRelativePath == true || extService.IsPathSegment;
             foreach (var endpoint in prepEndpoints)
             {
                 if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEndpointIds.Contains(endpoint.Endpoint.Id))
+                {
+                    continue;
+                }
+
+                if (isRelOrPathSeg &&
+                    IsRelativeFrontendTargetMismatch(extService.CallerProj, endpoint.TargetProj, projectsWithEndpoints))
                 {
                     continue;
                 }
@@ -622,6 +634,32 @@ public partial class Layer5AnalysisParser
         }
 
         return lateBoundRels;
+    }
+
+    private static bool IsRelativeFrontendTargetMismatch(
+        ProjectNode? callerProj,
+        ProjectNode? targetProj,
+        HashSet<string> projectsWithEndpoints)
+    {
+        if (callerProj == null || targetProj == null || callerProj.Id == targetProj.Id)
+        {
+            return false;
+        }
+
+        if (!IsFrontendAppProject(targetProj))
+        {
+            return false;
+        }
+
+        // A shared library or a fullstack FrontendApp with its own BFF endpoints never targets a different FrontendApp via a relative browser path
+        return callerProj.IsLibrary ||
+               (IsFrontendAppProject(callerProj) && projectsWithEndpoints.Contains(callerProj.Id));
+    }
+
+    private static bool IsFrontendAppProject(ProjectNode proj)
+    {
+        return proj.EntityKind == ProjectEntityKind.App ||
+               string.Equals(proj.Role, OntologyConstants.ProjectRoles.FrontendApp, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsNonServiceEntryPoint(string? entryType)

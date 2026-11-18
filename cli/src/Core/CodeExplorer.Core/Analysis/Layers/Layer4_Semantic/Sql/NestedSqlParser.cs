@@ -176,6 +176,40 @@ public static class NestedSqlParser
     private static bool FastCheckSqlCandidate(string text) =>
         !string.IsNullOrEmpty(text) && FastCheckSqlCandidate(text.AsSpan());
 
+    private const string SoqlWithDataCategory = "WITH DATA CATEGORY";
+    private static readonly string[] SalesforceObjectSuffixes =
+    [
+        "__c", "__kav", "__ka", "__mdt", "__e", "__b", "__x", "__hd",
+        "__Share", "__History", "__Feed", "__Tag", "__ChangeEvent"
+    ];
+
+    private static bool IsSalesforceSoqlQuery(string rawText, HashSet<(string? Db, string? Schema, string Table)> tables)
+    {
+        if (!string.IsNullOrEmpty(rawText) &&
+            rawText.Contains(SoqlWithDataCategory, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (tables.Count == 0) return false;
+
+        foreach (var (_, _, table) in tables)
+        {
+            var isSfSuffix = false;
+            for (var i = 0; i < SalesforceObjectSuffixes.Length; i++)
+            {
+                if (table.EndsWith(SalesforceObjectSuffixes[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    isSfSuffix = true;
+                    break;
+                }
+            }
+            if (!isSfSuffix) return false;
+        }
+
+        return true;
+    }
+
     public static string StripSqlComments(string sql)
     {
         if (string.IsNullOrEmpty(sql)) return sql;
@@ -678,6 +712,10 @@ public static class NestedSqlParser
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
 
         ExtractSqlDependencies(cleanedSql, rawText, tables, procedures);
+        if (IsSalesforceSoqlQuery(rawText, tables))
+        {
+            return;
+        }
 
         var dbNodes = new Dictionary<string, DatabaseNode>(StringComparer.OrdinalIgnoreCase);
         var datasetNodes = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
@@ -932,6 +970,10 @@ public static class NestedSqlParser
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
 
         ExtractSqlDependencies(cleanedSql, rawText, tables, procedures);
+        if (IsSalesforceSoqlQuery(rawText, tables))
+        {
+            return;
+        }
 
         var addedProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var procRef in procedures)

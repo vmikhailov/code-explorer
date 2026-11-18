@@ -205,12 +205,32 @@ public static class ConfigurationIndex
         return false;
     }
 
+    private const string DatadogEntityYaml = "entity.datadog.yaml";
+    private const string DatadogEntityYml = "entity.datadog.yml";
+    private const string BackstageCatalogYaml = "catalog-info.yaml";
+    private const string BackstageCatalogYml = "catalog-info.yml";
+
+    public static bool IsServiceCatalogMetadataFile(string? filePathOrName)
+    {
+        if (string.IsNullOrWhiteSpace(filePathOrName)) return false;
+        var fileName = Path.GetFileName(filePathOrName);
+        return fileName.Equals(DatadogEntityYaml, StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals(DatadogEntityYml, StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals(BackstageCatalogYaml, StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals(BackstageCatalogYml, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// Registers already-parsed configuration (produced once by shared file parsers) into the index
     /// and <see cref="ConstantRegistry"/>. Performs no file IO.
     /// </summary>
     public static void Register(ConfigurationFileInformation info, string? projectName)
     {
+        if (IsServiceCatalogMetadataFile(info.SourceFilePath) ||
+            (!Path.IsPathRooted(info.SourceFilePath) && WorkspaceConventions.IsTestFilePath(info.SourceFilePath)))
+        {
+            return;
+        }
         foreach (var value in info.Values)
         {
             RegisterConfigValue(value.Key, value.Value, info.SourceFilePath, projectName);
@@ -339,11 +359,11 @@ public static class ConfigurationIndex
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
 
         var host = uri.Host;
-        if (string.IsNullOrWhiteSpace(host)) return;
+        if (string.IsNullOrWhiteSpace(host) || WorkspaceConventions.IsGarbageExternalService(host)) return;
 
         // Derive Service Name from keyPath
         var serviceName = ExtractServiceNameFromKeyPath(keyPath);
-        if (string.IsNullOrWhiteSpace(serviceName))
+        if (string.IsNullOrWhiteSpace(serviceName) || WorkspaceConventions.IsGarbageExternalService(serviceName))
         {
             serviceName = host;
         }
@@ -382,11 +402,12 @@ public static class ConfigurationIndex
 
         _discoveredUrls.Add(endpoint);
 
-        // If URL has path (e.g. https://localhost:3001/spa-bff), check if path points to a downstream service
-        if (uri.AbsolutePath.Length > 1)
+        // If an internal gateway/localhost URL has a path (e.g. https://localhost:3001/spa-bff), check if path points to a downstream service
+        if (!isExternal && uri.AbsolutePath.Length > 1)
         {
             var firstSeg = uri.AbsolutePath.Trim('/').Split('/')[0];
             if (!string.IsNullOrWhiteSpace(firstSeg) &&
+                firstSeg.Length >= 2 &&
                 !firstSeg.All(char.IsDigit) &&
                 !firstSeg.Equals("api", StringComparison.OrdinalIgnoreCase) &&
                 !firstSeg.StartWithIC("v") &&
@@ -503,7 +524,13 @@ public static class ConfigurationIndex
                lower.Contains("validaudiences") ||
                lower.Contains("$schema") ||
                lower.Contains("xmlns") ||
+               lower.Contains("metadata:links") ||
+               lower.Contains("metadata.links") ||
+               lower.Contains("metadata:contacts") ||
+               lower.Contains("metadata.contacts") ||
+               lower.Contains("codelocations") ||
                lower.EndsWith("repository") ||
+               lower.EndsWith("repositoryurl") ||
                lower.EndsWith("repository:url") ||
                lower.EndsWith("homepage") ||
                lower.EndsWith("bugs:url");

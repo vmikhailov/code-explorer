@@ -25,9 +25,10 @@ public static class ConfigurationParser
         if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
             fileName.Equals("compose.yml") || fileName.Equals("compose.yaml") ||
             fileName.EndsWith(".toml", StringComparison.OrdinalIgnoreCase) ||
+            ConfigurationIndex.IsServiceCatalogMetadataFile(fileName) ||
             WorkspaceConventions.IsTestFilePath(relativePath))
         {
-            return; // docker-compose / compose describes local dev containers, not production architecture
+            return; // docker-compose / service-catalog descriptors do not describe runtime upstream calls
         }
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";

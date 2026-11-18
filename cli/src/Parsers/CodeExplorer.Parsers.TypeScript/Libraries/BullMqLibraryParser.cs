@@ -7,7 +7,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
     private const string PropQueueName = "queueName";
     private const string PropQueue = "queue";
     private const string PropName = "name";
-    public override SemanticExtensionType Type => SemanticExtensionType.Cloud;
+    public override SemanticExtensionType Type => SemanticExtensionType.Queue;
     public override string Name => "BullMQ";
     public override string Id => "bullmq";
     public override IReadOnlyList<string> SupportedPatterns =>
@@ -19,11 +19,11 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
         "*message-queue*",
         "*queue.decorator*",
         "*queue.service*",
-        "*decorators*",
-        "*enum*",
+        "*queue*decorator*",
+        "*queue*enum*",
         "*job.repository*"
     ];
-    public override LibraryRole LibraryRole => LibraryRole.WorkerService;
+    public override LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     private static readonly IReadOnlyList<CustomAstRule> Rules =
     [

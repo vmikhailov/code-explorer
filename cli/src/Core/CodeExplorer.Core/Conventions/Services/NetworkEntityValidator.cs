@@ -99,8 +99,9 @@ public sealed class NetworkEntityValidator
         }
 
         // 6. Test, mock, and placeholder asset domains
-        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") ||
-            lower is "test" or "0.0.0.0" or "via.placeholder.com" or "picsum.photos")
+        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower.EndsWith(".invalid") ||
+            lower.Length == 1 ||
+            lower is "test" or "invalid" or "0.0.0.0" or "via.placeholder.com" or "picsum.photos")
         {
             return true;
         }
@@ -156,6 +157,7 @@ public sealed class NetworkEntityValidator
 
         var labels = clean.Split('.', StringSplitOptions.RemoveEmptyEntries);
         if (labels.Length == 0) return false;
+        if (labels.Length == 1 && labels[0].Length < 2) return false;
 
         foreach (var label in labels)
         {

@@ -745,7 +745,6 @@ public static class EndpointSemanticAnalyzer
             }
         }
 
-        var hadExplicitPath = domainOrService.Contains('/');
         var path = "/";
         var slashIdx = domainOrService.IndexOf('/');
         if (protocol is "grpc" or "dubbo" or "tri")
@@ -877,11 +876,6 @@ public static class EndpointSemanticAnalyzer
             domainOrService = "unknown-service";
         }
 
-        var serviceScopeSuffix = domainOrService == "unknown-service"
-            ? $":{ConstantRegistry.ExtractProjectName(relativePath) ?? "generic"}"
-            : "";
-        var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}{serviceScopeSuffix}";
-
         bool? isRelativePath = null;
         bool? inferredFromPath = null;
         bool? isInternal = null;
@@ -907,12 +901,20 @@ public static class EndpointSemanticAnalyzer
         {
             isExternal = false;
         }
-        else if (!hasExplicitScheme && !domainOrService.Contains('.') && !hadExplicitPath)
+        else if (!hasExplicitScheme && !domainOrService.Contains('.'))
         {
             isExternal = false;
             inferredFromIdentifier = true;
         }
         else isExternal = true;
+
+        var projScope = ConstantRegistry.ExtractProjectName(relativePath) ?? "generic";
+        var serviceScopeSuffix = domainOrService == "unknown-service"
+            ? $"#{projScope}"
+            : (isRelativePath == true || inferredFromIdentifier == true)
+                ? $"#{projScope}#{path}"
+                : "";
+        var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}{serviceScopeSuffix}";
 
         return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path)
         {

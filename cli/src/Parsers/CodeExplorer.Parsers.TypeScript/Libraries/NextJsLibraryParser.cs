@@ -67,6 +67,12 @@ public class NextJsLibraryParser : DeclarativeSemanticExtension
             return true;
         }
 
+        if (!string.IsNullOrWhiteSpace(relativePath) &&
+            (relativePath.Contains('/') || relativePath.Contains('\\')))
+        {
+            return false;
+        }
+
         return HasNextImport(node);
     }
 

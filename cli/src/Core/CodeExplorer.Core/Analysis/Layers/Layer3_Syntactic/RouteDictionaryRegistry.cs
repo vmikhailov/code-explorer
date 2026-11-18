@@ -70,7 +70,7 @@ public static class RouteDictionaryRegistry
 
     private static readonly HashSet<string> _genericVariableNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "url", "uri", "path", "href", "link", "endpoint", "endpoints", "req", "res", "request", "response",
+        "url", "baseUrl", "apiUrl", "uri", "path", "href", "link", "endpoint", "endpoints", "req", "res", "request", "response",
         "data", "body", "query", "params", "param", "header", "headers", "options", "config", "result",
         "item", "file", "dir", "str", "text", "val", "value", "key", "cmd", "args", "output", "input",
         "err", "error", "msg", "message", "event", "evt", "target", "src", "dest", "base", "temp", "tmp"

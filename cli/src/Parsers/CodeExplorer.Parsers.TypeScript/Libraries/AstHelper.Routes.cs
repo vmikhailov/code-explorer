@@ -13,7 +13,6 @@ public static partial class AstHelper
     private const string FieldLeft = "left";
     private const string FieldRight = "right";
     private const string UpperConstantIdentifierPattern = @"^[A-Z0-9_]{3,}$";
-    private const string ExplicitServiceFilePattern = @"(?:^(?:create|make|build)-[a-z0-9\-]+-(?:fetch|client|service|driver)|[-.](?:fetch|client|service|driver|api))$";
 
     public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject = null)
     {
@@ -70,8 +69,11 @@ public static partial class AstHelper
                 return NormalizeResolvedUrl(subDecomp ?? val);
             }
 
+            // Formal parameter of enclosing function/method shadows cross-file ConstantRegistry constants
+            var isFormalParam = AstScopeResolver.IsEnclosingFunctionParameter(argNode, varName);
+
             // 2. Fall back to ConstantRegistry
-            if (ConstantRegistry.TryResolve(contextOrProject, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
+            if (!isFormalParam && ConstantRegistry.TryResolve(contextOrProject, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
             {
                 return cVal;
             }
@@ -88,6 +90,11 @@ public static partial class AstHelper
                 }
             }
 
+            if (isFormalParam)
+            {
+                return null;
+            }
+
             if (WorkspaceConventions.IsGenericUrlStemOrVariable(varName))
             {
                 return null;
@@ -102,12 +109,12 @@ public static partial class AstHelper
                 return null;
             }
 
-            if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$"))
+            if (Regex.IsMatch(varName, UpperConstantIdentifierPattern))
             {
-                return varName;
+                return AstIdentifierUrlSanitizer.IsNonUrlConstantIdentifier(varName) ? null : varName;
             }
 
-            var stripped = CleanIdentifierSuffix(varName);
+            var stripped = AstIdentifierUrlSanitizer.CleanIdentifierSuffix(varName);
             if (stripped != varName)
             {
                 if (WorkspaceConventions.IsGenericUrlStemOrVariable(stripped))
@@ -206,7 +213,7 @@ public static partial class AstHelper
                     return propText;
                 }
 
-                var strippedProp = CleanIdentifierSuffix(propText);
+                var strippedProp = AstIdentifierUrlSanitizer.CleanIdentifierSuffix(propText);
                 if (strippedProp != propText)
                 {
                     return strippedProp;
@@ -592,8 +599,27 @@ public static partial class AstHelper
                 }
             }
 
+            // 1a. Lexical scope first for bare identifiers (prevents formal parameters from matching global constants)
+            var cleanExprIdent = Regex.Replace(expr, @"\.[a-zA-Z0-9_]+\(.*?\)", "").Trim();
+            var isFormalParam = false;
+            if (!cleanExprIdent.Contains('.') && Regex.IsMatch(cleanExprIdent, @"^[A-Za-z_$][A-Za-z0-9_$]*$"))
+            {
+                var localScopedVal = FindVariableInitializerInAst(node, cleanExprIdent, depth, visitedVars);
+                if (!string.IsNullOrEmpty(localScopedVal))
+                {
+                    if (localScopedVal.StartWithIC(SchemeHttp) || localScopedVal.StartWithIC(SchemeHttps))
+                    {
+                        return localScopedVal;
+                    }
+                    var subDecomp = TryDecomposeTemplateString(node, localScopedVal, depth + 1, visitedVars);
+                    return !string.IsNullOrEmpty(subDecomp) ? subDecomp : localScopedVal;
+                }
+
+                isFormalParam = AstScopeResolver.IsEnclosingFunctionParameter(node, cleanExprIdent);
+            }
+
             // 1b. ConstantRegistry lookup: TELEGRAM_BOT_API_BASE_URL, BQ_ROUTES_CALC_API_HOST, ID_HELPER_NEST, etc.
-            if (ConstantRegistry.TryResolve(null, expr, out var constVal) && !string.IsNullOrEmpty(constVal))
+            if (!isFormalParam && ConstantRegistry.TryResolve(null, expr, out var constVal) && !string.IsNullOrEmpty(constVal))
             {
                 return constVal;
             }
@@ -626,7 +652,7 @@ public static partial class AstHelper
                 if (!string.IsNullOrEmpty(classVal)) return classVal;
                 if (expr.StartWithIC("this."))
                 {
-                    return CleanIdentifierSuffix(propName);
+                    return AstIdentifierUrlSanitizer.CleanIdentifierSuffix(propName);
                 }
             }
 
@@ -684,39 +710,25 @@ public static partial class AstHelper
                 if (!string.IsNullOrEmpty(fileFallback)) return fileFallback;
             }
 
+            if (isFormalParam)
+            {
+                return null;
+            }
+
             // 6. Suffix cleanup: hubUrl -> hub
-            var strippedIdent = CleanIdentifierSuffix(cleanIdent);
+            var strippedIdent = AstIdentifierUrlSanitizer.CleanIdentifierSuffix(cleanIdent);
             if (strippedIdent != cleanIdent)
             {
                 return WorkspaceConventions.IsGenericUrlStemOrVariable(strippedIdent) ? null : strippedIdent;
             }
-            return Regex.IsMatch(cleanIdent, UpperConstantIdentifierPattern) ? cleanIdent : null;
+            return Regex.IsMatch(cleanIdent, UpperConstantIdentifierPattern) && !AstIdentifierUrlSanitizer.IsNonUrlConstantIdentifier(cleanIdent)
+                ? cleanIdent
+                : null;
         }
         finally
         {
             visitedVars.Remove(exprKey);
         }
-    }
-
-    public static string CleanIdentifierSuffix(string ident)
-    {
-        var suffixes = new[] { "BaseUrl", "BaseURL", "Url", "URL", "Host", "Domain", "Client", "Endpoint", "Service" };
-        foreach (var s in suffixes)
-        {
-            if (ident.EndsWith(s, StringComparison.OrdinalIgnoreCase) && ident.Length > s.Length)
-            {
-                var stripped = ident[..^s.Length].TrimEnd('_', '-');
-                if (stripped.Length >= 2)
-                {
-                    if (WorkspaceConventions.IsGenericUrlStemOrVariable(stripped))
-                    {
-                        return ident;
-                    }
-                    return stripped;
-                }
-            }
-        }
-        return ident;
     }
 
     private static string? FindMethodReturnInAst(Node node, string methodName, int depth = 0, HashSet<string>? visitedVars = null)
@@ -921,54 +933,6 @@ public static partial class AstHelper
         {
             visitedVars.Remove("fallback:file");
         }
-    }
-
-    public static string? ExtractEnclosingServiceFallback(Node node, string? relativePath = null)
-    {
-        var curr = node.Parent;
-        while (curr.IsValid())
-        {
-            if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
-            {
-                var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
-                var className = nameNode.IsValid() ? nameNode.Text : (curr as CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax)?.Name;
-                if (!string.IsNullOrEmpty(className))
-                {
-                    var stem = Regex.Replace(className, @"(Driver|Repository|Service|Client|Controller|Provider|Manager|Helper|Adapter)$", "", RegexOptions.IgnoreCase);
-                    if (string.IsNullOrEmpty(stem)) stem = className;
-                    var kebab = Regex.Replace(stem, @"([a-z0-9])([A-Z])", "$1-$2").ToLowerInvariant();
-                    if (!string.IsNullOrEmpty(kebab) && !WorkspaceConventions.IsGarbageExternalService(kebab))
-                    {
-                        return $"https://{kebab}";
-                    }
-                }
-                break;
-            }
-            curr = curr.Parent;
-        }
-
-        var path = relativePath ?? node.Document?.RelativePath ?? node.Document?.FilePath;
-        if (!string.IsNullOrEmpty(path))
-        {
-            var rawFileName = Path.GetFileNameWithoutExtension(path);
-            var isExplicitServiceFile = Regex.IsMatch(
-                rawFileName,
-                ExplicitServiceFilePattern,
-                RegexOptions.IgnoreCase);
-            if (isExplicitServiceFile)
-            {
-                var fileName = rawFileName;
-                var dotIdx = fileName.IndexOf('.');
-                if (dotIdx > 0) fileName = fileName[..dotIdx];
-                var cleanStem = Regex.Replace(fileName, @"^(create|get|make|build|use)-|-?(fetch|client|service|repository|driver|helper|util|utils|api)$", "", RegexOptions.IgnoreCase).Trim('-');
-                if (!string.IsNullOrEmpty(cleanStem) && cleanStem.Length >= 3 && !WorkspaceConventions.IsGarbageExternalService(cleanStem))
-                {
-                    return $"https://{cleanStem.ToLowerInvariant()}";
-                }
-            }
-        }
-
-        return null;
     }
 
     private static string CombineServiceAndPath(string? service, string cleanPath)

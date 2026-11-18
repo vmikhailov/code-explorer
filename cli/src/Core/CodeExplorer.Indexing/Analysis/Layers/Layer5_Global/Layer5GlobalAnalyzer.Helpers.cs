@@ -231,7 +231,7 @@ public partial class Layer5AnalysisParser
         Func<T, ProjectNode?> getTargetProj,
         Func<T, string> getNormPath)
     {
-        if (!extService.IsGenericHostOrService || candidates.Count <= 1)
+        if ((!extService.IsGenericHostOrService && !extService.IsPathSegment && extService.Service.IsRelativePath != true) || candidates.Count <= 1)
             return candidates;
 
         if (string.Equals(extService.Service.Protocol, "graphql", StringComparison.OrdinalIgnoreCase))
