@@ -136,15 +136,15 @@ public class FileWatcher : IDisposable
 
     private bool ShouldIgnore(string fullPath)
     {
-        var normalized = fullPath.Replace('\\', '/');
-        var parts = normalized.Split('/');
+        var relPath = Path.GetRelativePath(_workspacePath, fullPath).Replace('\\', '/');
+        var parts = relPath.Split('/');
         foreach (var part in parts)
         {
             if (_fileFilter.IsExcludedDirectory(part))
                 return true;
         }
 
-        var fileName = Path.GetFileName(normalized);
+        var fileName = Path.GetFileName(relPath);
         if (_fileFilter.ShouldSkipFileName(fileName))
             return true;
 

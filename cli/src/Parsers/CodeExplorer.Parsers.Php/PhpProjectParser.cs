@@ -70,7 +70,7 @@ public class PhpProjectParser : IProjectParser
 
     public IReadOnlyCollection<string> ExcludedFolders =>
     [
-        "vendor", "node_modules", ".git", ".svn", "var", "cache", "tmp", "bin", "obj"
+        "vendor", "node_modules", ".git", ".svn", "templates_c", "bin", "obj"
     ];
 
     public IReadOnlyCollection<string> ManifestFileNames =>

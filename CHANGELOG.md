@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.3] - 2026-11-18
+
+### Fixed
+- **Relative Path Filtering in `FileWatcher` & Non-Colliding PHP/Perl `ExcludedFolders` (`CodeExplorer.Indexing`, `CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`)**:
+  - Updated `FileWatcher.ShouldIgnore` to evaluate directory exclusions against workspace-relative paths (`Path.GetRelativePath`) rather than absolute OS paths, and removed OS-temp colliding folder names (`tmp`, `var`, `local`, `cache`) from `PhpProjectParser.ExcludedFolders` and `PerlProjectParser.ExcludedFolders` so workspaces located under `/tmp`, `/var/folders`, or `AppData/Local/Temp` are never ignored.
+
+---
+
 ## [1.90.2] - 2026-11-18
 
 ### Fixed

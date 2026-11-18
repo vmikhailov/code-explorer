@@ -117,6 +117,29 @@ if (Test-Path $dockerfilePath) {
     Write-Host "  [OK] Updated $dockerfilePath" -ForegroundColor Gray
 }
 
+# 5d. Update site/package.json, SlabHeader.tsx, and MastFooter.tsx
+$sitePkgPath = Join-Path $repoRoot "site\package.json"
+if (Test-Path $sitePkgPath) {
+    $sitePkgContent = Get-Content $sitePkgPath -Raw
+    $updatedSitePkg = $sitePkgContent -replace '("version":\s*")\d+\.\d+\.\d+(")', ('${1}' + $newVersion + '${2}')
+    Set-Content -Path $sitePkgPath -Value $updatedSitePkg -NoNewline
+    Write-Host "  [OK] Updated $sitePkgPath" -ForegroundColor Gray
+}
+$slabHeaderPath = Join-Path $repoRoot "site\src\components\SlabHeader.tsx"
+if (Test-Path $slabHeaderPath) {
+    $slabContent = Get-Content $slabHeaderPath -Raw
+    $updatedSlab = $slabContent -replace "(const DEFAULT_VERSION = 'v)\d+\.\d+\.\d+(';)", ('${1}' + $newVersion + '${2}')
+    Set-Content -Path $slabHeaderPath -Value $updatedSlab -NoNewline
+    Write-Host "  [OK] Updated $slabHeaderPath" -ForegroundColor Gray
+}
+$mastFooterPath = Join-Path $repoRoot "site\src\components\MastFooter.tsx"
+if (Test-Path $mastFooterPath) {
+    $mastContent = Get-Content $mastFooterPath -Raw
+    $updatedMast = $mastContent -replace "(const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v)\d+\.\d+\.\d+(';)", ('${1}' + $newVersion + '${2}')
+    Set-Content -Path $mastFooterPath -Value $updatedMast -NoNewline
+    Write-Host "  [OK] Updated $mastFooterPath" -ForegroundColor Gray
+}
+
 # 6. Check & synchronize CHANGELOG.md -> vscode-extension/CHANGELOG.md
 $rootChangelog = Join-Path $repoRoot "CHANGELOG.md"
 $extChangelog = Join-Path $repoRoot "vscode-extension\CHANGELOG.md"

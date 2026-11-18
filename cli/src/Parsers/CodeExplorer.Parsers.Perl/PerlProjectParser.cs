@@ -45,7 +45,7 @@ public class PerlProjectParser : IProjectParser
 
     public IReadOnlyCollection<string> ExcludedFolders =>
     [
-        "blib", "local", ".build", "node_modules", "vendor", ".git", ".svn", "bin", "obj"
+        "blib", ".build", "node_modules", "vendor", ".git", ".svn", "bin", "obj"
     ];
 
     public IReadOnlyCollection<string> ManifestFileNames =>
