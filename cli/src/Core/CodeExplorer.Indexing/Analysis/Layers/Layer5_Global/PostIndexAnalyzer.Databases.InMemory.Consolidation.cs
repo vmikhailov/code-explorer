@@ -268,7 +268,8 @@ public partial class PostIndexAnalyzer
             var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
 
-            if (domainHasCodeFiles.TryGetValue(domain, out var hasFiles) && !hasFiles)
+            if (owner.IsBuildOrchestrator != true &&
+                domainHasCodeFiles.TryGetValue(domain, out var hasFiles) && !hasFiles)
             {
                 // Synthetic / config-only test project: keep
                 continue;

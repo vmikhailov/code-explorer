@@ -79,6 +79,7 @@ public static class ProjectEntityClassifierRegistry
         if (isOrchestratorRoot && extensions is Dictionary<string, string> rootExt)
         {
             rootExt["is_orchestrator"] = "true";
+            rootExt["is_build_orchestrator"] = "true";
         }
 
         var isTestProject = !isOrchestratorRoot && ((extensions != null && (

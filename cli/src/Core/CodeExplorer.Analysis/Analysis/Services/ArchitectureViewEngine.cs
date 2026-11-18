@@ -251,6 +251,8 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         if (!string.IsNullOrEmpty(secondaryRoles)) props["secondary_roles"] = secondaryRoles;
         var allRoles = elem.GetStringProp("all_roles", props.GetValueOrDefault("all_roles", ""));
         if (!string.IsNullOrEmpty(allRoles)) props["all_roles"] = allRoles;
+        var isBuildOrch = elem.GetStringProp("is_build_orchestrator", props.GetValueOrDefault("is_build_orchestrator", ""));
+        if (!string.IsNullOrEmpty(isBuildOrch)) props["is_build_orchestrator"] = isBuildOrch;
 
         var memberCount = elem.GetStringProp("member_count", props.GetValueOrDefault("member_count", ""));
         if (!string.IsNullOrEmpty(memberCount)) props["member_count"] = memberCount;
@@ -770,7 +772,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
                     foreach (var key in new[]
                              {
                                  "path", "FilePath", "layer", "layerId", "layerName", "layerOrder", "layerColor",
-                                 "layerIcon", "primary_role", "secondary_roles", "all_roles"
+                                 "layerIcon", "primary_role", "secondary_roles", "all_roles", "is_build_orchestrator"
                              })
                     {
                         if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
@@ -820,7 +822,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
                     foreach (var key in new[]
                              {
                                  "path", "FilePath", "layer", "layerId", "layerName", "layerOrder", "layerColor",
-                                 "layerIcon", "primary_role", "secondary_roles", "all_roles"
+                                 "layerIcon", "primary_role", "secondary_roles", "all_roles", "is_build_orchestrator"
                              })
                     {
                         if (!existingWorkload.Properties.ContainsKey(key) &&

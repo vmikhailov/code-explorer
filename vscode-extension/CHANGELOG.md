@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.4] - 2026-11-18
+
+### Fixed
+- **Monorepo Workspace Root Filtering & Deployment Config Database False-Positive Prevention (`CodeExplorer.Analysis`, `CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.TypeScript`)**:
+  - Propagated `is_build_orchestrator = "true"` for monorepo workspace roots in `TypeScriptProjectParser` and `ProjectEntityClassifierRegistry`, and excluded build orchestrator roots (and their orphaned databases) from `ArchitectureViewEngine.BuildBaseArchitectureTopologyAsync` so monorepo roots no longer appear as `Library` nodes with `USES_DB` edges on architecture diagrams.
+  - Updated `ConfigurationParser` and `DatabaseConfigurationDescriptor` to skip `podman-compose` and Helm `/templates/*.yaml|yml` files, tightened SQLite `.db`/`.sqlite`/`.sqlite3` matching to file-extension boundaries (preventing Helm expressions like `.Values.db.internal` from creating `SQLite` nodes), and stopped `PostIndexAnalyzer` from exempting build-orchestrator roots from unverified config `USES_DB` pruning.
+
+---
+
 ## [1.90.3] - 2026-11-18
 
 ### Fixed

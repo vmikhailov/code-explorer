@@ -22,13 +22,17 @@ public static class ConfigurationParser
         if (string.IsNullOrEmpty(filePath)) return;
 
         var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
-        if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
+        var normRelPath = relativePath.Replace('\\', '/');
+        if (fileName.Contains("docker-compose") || fileName.Contains("podman-compose") ||
+            fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
             fileName.Equals("compose.yml") || fileName.Equals("compose.yaml") ||
             fileName.EndsWith(".toml", StringComparison.OrdinalIgnoreCase) ||
+            ((fileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)) &&
+             normRelPath.Contains("/templates/", StringComparison.OrdinalIgnoreCase)) ||
             ConfigurationIndex.IsServiceCatalogMetadataFile(fileName) ||
             WorkspaceConventions.IsTestFilePath(relativePath))
         {
-            return; // docker-compose / service-catalog descriptors do not describe runtime upstream calls
+            return; // docker-compose / Helm templates / service-catalog descriptors do not describe runtime upstream calls
         }
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
@@ -145,7 +149,7 @@ public static class ConfigurationParser
         {
             CreateDatabaseNode("SQL Server", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
-        else if (lower.Contains(".db") || lower.Contains(".sqlite") || lowerName.Contains("sqlite"))
+        else if (Regex.IsMatch(lower, @"\.(?:db|sqlite|sqlite3)(?:$|[\s;'""?])") || lowerName.Contains("sqlite"))
         {
             const string engineSqlite = "SQLite";
             const string dbTypeRelational = "relational";

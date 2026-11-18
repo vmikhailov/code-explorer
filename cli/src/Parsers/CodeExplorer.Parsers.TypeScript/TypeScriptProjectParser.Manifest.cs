@@ -356,6 +356,7 @@ public partial class TypeScriptProjectParser
                 if (isWorkspaceRoot && !Directory.Exists(Path.Combine(directoryPath, "src")))
                 {
                     props["is_orchestrator"] = "true";
+                    props["is_build_orchestrator"] = "true";
                 }
 
                 // End-to-end / browser test suites (Playwright, Cypress ...) without a server or UI of their own are test

@@ -77,7 +77,8 @@ public sealed class DatabaseConfigurationDescriptor : ILibraryConfigurationDescr
     internal static bool IsDockerCompose(string relativePath)
     {
         var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
-        return fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
+        return fileName.Contains("docker-compose") || fileName.Contains("podman-compose") ||
+               fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
                fileName.Equals("compose.yml") || fileName.Equals("compose.yaml");
     }
 }

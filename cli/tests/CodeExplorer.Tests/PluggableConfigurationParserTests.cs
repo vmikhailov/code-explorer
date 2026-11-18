@@ -131,4 +131,38 @@ public class PluggableConfigurationParserTests
         handledDefaultTopic.Should().BeTrue();
         container.Children.OfType<TopicNode>().Any(t => t.Name == "orders").Should().BeTrue();
     }
+
+    [Test]
+    public void DatabaseDescriptor_IgnoresPodmanComposeAndHelmTemplateDbExpressions()
+    {
+        var container = new ProjectNode("ws:project:root:", "twenty", "", "typescript", "SharedLibrary", true);
+        var relationships = new List<Relationship>();
+        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+
+        var dbDescriptor = new DatabaseConfigurationDescriptor();
+        var handledPodman = dbDescriptor.TryHandle(
+            "services:server:environment:PG_DATABASE_URL",
+            "postgresql://twenty:pass@twenty-db:5432/twenty",
+            "packages/twenty-docker/podman/podman-compose.yml",
+            "ws:file:packages/twenty-docker/podman/podman-compose.yml",
+            "ws",
+            container,
+            relationships,
+            ctx);
+
+        handledPodman.Should().BeFalse();
+        relationships.Should().BeEmpty();
+
+        ConfigurationParser.InferAndCreateServiceFromConnectionString(
+            "stringData:url",
+            "{{ printf \"postgres://%s@%s-db/%s\" .Values.db.internal.database }}",
+            "packages/twenty-docker/helm/twenty/templates/secret-db-url.yaml",
+            "ws:file:packages/twenty-docker/helm/twenty/templates/secret-db-url.yaml",
+            "ws",
+            container,
+            relationships,
+            ctx);
+
+        container.Children.OfType<DatabaseNode>().Any(d => d.Engine == "SQLite").Should().BeFalse();
+    }
 }

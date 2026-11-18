@@ -987,4 +987,61 @@ public class ArchitectureViewEngineTests
             try { Directory.Delete(tempDir, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task GetSystemContextViewAsync_ExcludesBuildOrchestratorRootAndOrphanedDatabases()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ce-orch-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            using var db = new SqliteGraphClient(":memory:");
+            var engine = new ArchitectureViewEngine(db);
+
+            await db.UploadNodesAsync([
+                new("ws:lib:monorepo", "Library", new()
+                {
+                    ["name"] = "twenty",
+                    ["path"] = "",
+                    ["role"] = "SharedLibrary",
+                    ["is_library"] = "true",
+                    ["is_build_orchestrator"] = "true"
+                }),
+                new("ws:s:twenty-server", "Service", new()
+                {
+                    ["name"] = "twenty-server",
+                    ["path"] = "packages/twenty-server",
+                    ["role"] = "Service"
+                }),
+                new("ws:db:relational:postgresql:twenty", "Database", new()
+                {
+                    ["name"] = "PostgreSQL.twenty",
+                    ["engine"] = "PostgreSQL",
+                    ["db_type"] = "relational"
+                }),
+                new("ws:db:relational:postgresql:core", "Database", new()
+                {
+                    ["name"] = "PostgreSQL.core",
+                    ["engine"] = "PostgreSQL",
+                    ["db_type"] = "relational"
+                })
+            ]);
+
+            await db.UploadRelationshipsAsync([
+                new("ws:lib:monorepo", "ws:db:relational:postgresql:twenty", OntologyConstants.Relationships.UsesDb, new()),
+                new("ws:s:twenty-server", "ws:db:relational:postgresql:core", OntologyConstants.Relationships.UsesDb, new())
+            ]);
+
+            var view = await engine.GetSystemContextViewAsync(includeLibraries: true);
+
+            view.Nodes.Should().NotContain(n => n.Id == "ws:lib:monorepo");
+            view.Nodes.Should().NotContain(n => n.Id == "ws:db:relational:postgresql:twenty");
+            view.Nodes.Should().Contain(n => n.Id == "ws:s:twenty-server");
+            view.Nodes.Should().Contain(n => n.Id == "ws:db:relational:postgresql:core");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
 }
