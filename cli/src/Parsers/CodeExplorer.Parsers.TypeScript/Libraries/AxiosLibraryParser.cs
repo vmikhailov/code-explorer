@@ -215,7 +215,7 @@ public class AxiosLibraryParser : DeclarativeSemanticExtension
 
                 if (objText != null && (objText.Contains("http") || objText.Contains("axios")))
                 {
-                    var fallbackSvc = AstHelper.ExtractEnclosingServiceFallback(node);
+                    var fallbackSvc = AstIdentifierUrlSanitizer.ExtractEnclosingServiceFallback(node);
                     if (!string.IsNullOrEmpty(fallbackSvc))
                     {
                         return fallbackSvc;
@@ -366,7 +366,7 @@ public class AxiosLibraryParser : DeclarativeSemanticExtension
 
     private static string CleanSuffix(string ident)
     {
-        return AstHelper.CleanIdentifierSuffix(ident);
+        return AstIdentifierUrlSanitizer.CleanIdentifierSuffix(ident);
     }
 
     private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)

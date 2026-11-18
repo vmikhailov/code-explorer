@@ -386,7 +386,9 @@ public partial class PostIndexAnalyzer
         var lastColon = extId.LastIndexOf(':');
         if (lastColon >= 0 && lastColon < extId.Length - 1)
         {
-            return extId[(lastColon + 1)..];
+            var tail = extId[(lastColon + 1)..];
+            var hashIdx = tail.IndexOf('#');
+            return hashIdx >= 0 ? tail[..hashIdx] : tail;
         }
         return extId;
     }
@@ -401,28 +403,6 @@ public partial class PostIndexAnalyzer
             if (!string.IsNullOrEmpty(pId))
             {
                 projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
-            }
-        }
-
-        var projectCandidates = projectList.Select(p => new ProjectMatchCandidate(p.Id, p.Name, p.Path, null, p.IsLibrary)).ToList();
-
-        var endpointCandidates = new List<EndpointMatchCandidate>();
-        foreach (var ep in snapshot.Endpoints)
-        {
-            var epRoute = ep.Route;
-            var epMethod = ep.Method;
-
-            if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(ep.Name) && ep.Name.Contains(':'))
-            {
-                var parts = ep.Name.Split(':', 2);
-                if (string.IsNullOrEmpty(epMethod)) epMethod = parts[0];
-                epRoute = parts[1];
-            }
-
-            if (!string.IsNullOrEmpty(ep.Id) && !string.IsNullOrEmpty(epRoute))
-            {
-                var ownerProj = !string.IsNullOrEmpty(ep.Path) ? Layer2ProjectParser.FindProjectForFilePath(ep.Path, projectList) : null;
-                endpointCandidates.Add(new EndpointMatchCandidate(ep.Id, epRoute, epMethod, ownerProj?.Id));
             }
         }
 
@@ -500,25 +480,8 @@ public partial class PostIndexAnalyzer
 
             if (isRelative)
             {
-                if (servicesCallingEndpoints.Contains(id))
-                {
-                    idsToDelete.Add(id);
-                    continue;
-                }
-
-                if (endpointCandidates.Count > 0)
-                {
-                    var effectivePath = !string.IsNullOrEmpty(path) && path != "/" ? path : (cand.StartsWith('/') ? cand : null);
-                    if (!string.IsNullOrEmpty(effectivePath))
-                    {
-                        var match = EndpointScoringEngine.MatchCall(effectivePath, null, null, projectCandidates, endpointCandidates);
-                        if (match.IsInternal && match.EndpointScore >= 50.0)
-                        {
-                            idsToDelete.Add(id);
-                            continue;
-                        }
-                    }
-                }
+                idsToDelete.Add(id);
+                continue;
             }
         }
 

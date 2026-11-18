@@ -52,15 +52,17 @@ public static class Layer3FileSignalEnricher
             EnrichFileDatabaseSignals(l1File, sourceText, l1File.FullPath);
         }
 
-        // 1. Pre-scan route & config candidates (in-memory on already-read text)
+        // 1. Pre-scan route & config candidates (in-memory on comment-stripped non-test text)
         if (!ctx.LightweightAstScanMode &&
             sourceText.Length <= 1024 * 1024 &&
+            !WorkspaceConventions.IsTestFilePath(l1File.Path) &&
             isRouteOrConfigCandidate(l1File.Path) &&
             !SharedFileParserRegistry.CanParse(l1File.Name))
         {
-            RouteDictionaryRegistry.ScanServiceDomains(sourceText);
-            RouteDictionaryRegistry.ScanAndRegister(sourceText);
-            ConstantRegistry.ScanAndRegisterRegexOnly(l1File.FullPath, sourceText, project.Name);
+            var strippedText = ConstantRegistry.StripCommentsPreservingStrings(sourceText);
+            RouteDictionaryRegistry.ScanServiceDomains(strippedText);
+            RouteDictionaryRegistry.ScanAndRegister(strippedText);
+            ConstantRegistry.ScanAndRegisterRegexOnly(l1File.FullPath, strippedText, project.Name);
         }
 
         // 2. Database verification signals for Layer 5 PostIndexAnalyzer.Databases.InMemory.Consolidation

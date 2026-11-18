@@ -368,3 +368,190 @@ public class MonorepoProjectClassificationTests
         names.Should().NotContain("unknown-service");
     }
 }
+
+/// <summary>
+/// Regression suite for provenance-safe identification of ExternalServices, Endpoints, cross-app relative BFF calls,
+/// service-catalog YAML descriptors, test-constant isolation, and non-relational SOQL queries.
+/// </summary>
+[TestFixture]
+[Category("Integration")]
+public class ServiceAndEndpointIdentificationRegressionTests
+{
+    private string _tempWorkspace = null!;
+    private SqliteGraphClient _client = null!;
+
+    [OneTimeSetUp]
+    public async Task OneTimeSetUp()
+    {
+        _tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_ident_reg_" + Guid.NewGuid()).Replace('\\', '/');
+        Directory.CreateDirectory(_tempWorkspace);
+
+        async Task Write(string relative, string content)
+        {
+            var full = Path.Combine(_tempWorkspace, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            await File.WriteAllTextAsync(full, content);
+        }
+
+        await Write("package.json", """{ "name": "acme-web-monorepo", "private": true, "dependencies": { "next": "15.0.0", "react": "19.0.0", "react-dom": "19.0.0", "graphql-request": "7.0.0", "libphonenumber-js": "1.11.0" } }""");
+        await Write("nx.json", "{}");
+
+        // Shared library with generic fetch wrapper, shared route helper, and test mock constants
+        await Write("shared/project.json", """{ "name": "shared", "projectType": "library" }""");
+        await Write("shared/src/http/apiFetch.ts", """
+            /**
+             * @example
+             * const baseUrl = "https://jsdoc-comment-leak.example.com";
+             */
+            export const apiFetch = async (url: string) => {
+                const res = await fetch(url.trim(), { method: 'GET' });
+                return res.json();
+            };
+            """);
+        await Write("shared/src/http/apiFetch.test.ts", """
+            export const MOCK_API_URL = 'https://mock-upstream.example.com';
+            export const url = 'https://external-fixture.com/api/test';
+            """);
+        await Write("shared/src/catalog/getItemByIdAction.ts", """
+            declare const config: { catalogUrls?: { getItemById?: string }; widget?: { signinUrl?: string } };
+            export async function getItemByIdAction(itemId: string) {
+                const getItemByIdUrl = config.catalogUrls?.getItemById;
+                const target = `${getItemByIdUrl}/${itemId}`;
+                await fetch(target);
+                await fetch(`${config.widget.signinUrl}`);
+            }
+            """);
+        await Write("shared/src/routes/sharedSearchRouteHelper.ts", """
+            import { NextRequest, NextResponse } from 'next/server';
+            export async function GET(req: NextRequest) {
+                return NextResponse.json({ ok: true });
+            }
+            """);
+        await Write("shared/src/phone/validatePhone.ts", """
+            import { parsePhoneNumberFromString } from 'libphonenumber-js';
+            export function isValidPhone(raw: string) {
+                return Boolean(parsePhoneNumberFromString(raw));
+            }
+            """);
+
+        // App Alpha (Next.js FrontendApp) with Datadog catalog descriptor, BFF routes, relative fetch, and real external call
+        await Write("apps/portal-alpha/project.json", """{ "name": "portal-alpha", "projectType": "application" }""");
+        await Write("apps/portal-alpha/entity.datadog.yaml", """
+            apiVersion: v3
+            kind: service
+            metadata:
+              name: portal-alpha
+              links:
+                - name: source
+                  url: https://github.com/AcmeOrg/acme-web-monorepo
+              contacts:
+                - type: microsoft-teams
+                  contact: https://teams.microsoft.com/l/channel/19%3Aabc/Alpha
+            integrations:
+              pagerduty:
+                serviceURL: https://acme.pagerduty.com/service-directory/P12345
+            """);
+        await Write("apps/portal-alpha/src/app/api/auth/logout/route.ts", """
+            import { NextResponse } from 'next/server';
+            export async function POST() { return NextResponse.json({ ok: true }); }
+            """);
+        await Write("apps/portal-alpha/src/features/account/useHistory.ts", """
+            import { GraphQLClient } from 'graphql-request';
+            const GET_ITEMS_QUERY = 'query GetItems { items { id } }';
+            export async function loadHistory(client: GraphQLClient) {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                await fetch('/api/unmatched-internal-history');
+                await client.request(GET_ITEMS_QUERY, { limit: 10 });
+                await fetch('https://api.stripe.com/v1/charges');
+            }
+            """);
+
+        // App Beta (sibling Next.js FrontendApp) exposing duplicate /api/auth/logout and unique /api/auth/email-verify
+        await Write("apps/portal-beta/project.json", """{ "name": "portal-beta", "projectType": "application" }""");
+        await Write("apps/portal-beta/src/app/api/auth/logout/route.ts", """
+            import { NextResponse } from 'next/server';
+            export async function POST() { return NextResponse.json({ ok: true }); }
+            """);
+        await Write("apps/portal-beta/src/app/api/auth/email-verify/route.ts", """
+            import { NextResponse } from 'next/server';
+            export async function POST() { return NextResponse.json({ ok: true }); }
+            """);
+        await Write("apps/portal-beta/src/features/verify/verifyClient.ts", """
+            export async function triggerVerify() {
+                await fetch('/api/auth/email-verify', { method: 'POST' });
+            }
+            """);
+
+        // Sync worker querying Salesforce Knowledge SOQL and reading dynamic env baseUrl
+        await Write("workers/faq-sync/project.json", """{ "name": "faq-sync", "projectType": "application" }""");
+        await Write("workers/faq-sync/src/salesforce.ts", """
+            function resolveDynamicBaseUrl(): string { return process.env.SYNC_UPSTREAM_URL || ''; }
+            export async function buildKnowledgeSoql() {
+                const baseUrl = resolveDynamicBaseUrl();
+                const queryUrl = new URL(baseUrl);
+                await fetch(queryUrl);
+                return "SELECT Id, Title FROM Knowledge__kav WHERE PublishStatus = 'Online' WITH DATA CATEGORY Brand__c ABOVE All__c";
+            }
+            """);
+
+        _client = new SqliteGraphClient(Path.Combine(_tempWorkspace, "graph.db"));
+        WorkspaceIndexer.AutoRegisterParsers();
+        await new WorkspaceIndexer(_client).IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+    }
+
+    [OneTimeTearDown]
+    public async Task OneTimeTearDown()
+    {
+        await _client.DisposeAsync();
+        if (Directory.Exists(_tempWorkspace))
+        {
+            try { Directory.Delete(_tempWorkspace, true); }
+            catch (IOException) { /* best-effort temp cleanup */ }
+        }
+    }
+
+    [Test]
+    public async Task ExternalServices_ContainOnlyVerifiedExternalTargets_WithoutCatalogOrIdentifierPollution()
+    {
+        var res = await _client.ExecuteCypherAsync("MATCH (e:ExternalService) RETURN e.name AS name, e.domain_or_service AS domain");
+        var names = res.Rows.Select(r => r.GetStringProp("name")).ToList();
+
+        names.Should().Contain(n => n.Contains("stripe.com", StringComparison.OrdinalIgnoreCase), "real external HTTPS endpoint must be retained");
+        names.Should().NotContain("l", "Teams channel /l/ path in entity.datadog.yaml must not become an ExternalService");
+        names.Should().NotContain("AcmeOrg", "GitHub org in entity.datadog.yaml must not become an ExternalService");
+        names.Should().NotContain("service-directory", "PagerDuty path in entity.datadog.yaml must not become an ExternalService");
+        names.Should().NotContain("external-fixture.com", "test-file constants must not leak into production formal parameters");
+        names.Should().NotContain("jsdoc-comment-leak.example.com", "JSDoc @example comments must not register constants into ConstantRegistry");
+        names.Should().NotContain("mock-upstream.example.com", "test-file constants must not leak into ConstantRegistry");
+        names.Should().NotContain("getitembyid", "unresolved config property stems without scheme must be purged when unmatched");
+        names.Should().NotContain("widget.signin", "dotted member access stripped of Url suffix must not masquerade as DNS host");
+        names.Should().NotContain("get_items_query", "GraphQLClient instance .request(DOC) must not treat query constant as URL");
+        names.Should().NotContain("unmatched-internal-history", "unmatched relative /api/* paths must not remain as ExternalServices");
+        names.Should().NotContain("BullMQ", "importing libphonenumber-js ('phon'+'enum'+'ber') must not emit phantom BullMQ service");
+    }
+
+    [Test]
+    public async Task SiblingFrontendApps_WithDuplicateRelativeApiRoutes_DoNotCrossLink()
+    {
+        var deps = await _client.ExecuteCypherAsync(
+            "MATCH (p1:Project)-[r:DEPENDS_ON]->(p2:Project) RETURN p1.name AS fromProj, p2.name AS toProj, r.dependency_type AS depType");
+
+        var crossFrontend = deps.Rows.Where(r =>
+            (r.GetStringProp("fromProj") == "portal-alpha" && r.GetStringProp("toProj") == "portal-beta") ||
+            (r.GetStringProp("fromProj") == "portal-beta" && r.GetStringProp("toProj") == "portal-alpha")).ToList();
+
+        crossFrontend.Should().BeEmpty("relative /api/auth/* calls in sibling Next.js apps must bind within their own app, never across sibling FrontendApps");
+    }
+
+    [Test]
+    public async Task SharedHelperOutsideNextAppDir_AndSalesforceSoql_DoNotFabricateEndpointsOrRelationalDatabases()
+    {
+        var epRes = await _client.ExecuteCypherAsync("MATCH (e:Endpoint) RETURN e.name AS name");
+        var epNames = epRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+        epNames.Should().NotContain("GET:route", "Next.js helpers in shared/ outside app/**/route.ts must not emit fake GET:route endpoints");
+        epNames.Should().Contain("POST:/api/auth/logout");
+
+        var dbRes = await _client.ExecuteCypherAsync("MATCH (d:Database) RETURN d.name AS name");
+        dbRes.Rows.Should().BeEmpty("Salesforce SOQL against Knowledge__kav must not fabricate a relational Database.dbo node");
+    }
+}

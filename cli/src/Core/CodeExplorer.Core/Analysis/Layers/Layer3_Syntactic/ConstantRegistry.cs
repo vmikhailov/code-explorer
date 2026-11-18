@@ -65,7 +65,8 @@ public static class ConstantRegistry
     private static readonly HashSet<string> GenericVariableNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "topicNameOrId", "topicName", "subscriptionName", "subName", "queueName",
-        "topic", "subscription", "queue", "url", "name", "id", "key", "value",
+        "topic", "subscription", "queue", "url", "baseUrl", "apiUrl", "uri", "endpoint", "host", "path",
+        "name", "id", "key", "value",
         "channel", "exchange", "routingKey", "receiveTopicName", "publishTopicName",
         "sendTopicName", "ruleTreeTopic", "ruleTreeSub", "kvTopic",
         "PUBSUB_TOPIC_NAME", "PUBSUB_SUBSCRIPTION_NAME", "TOPIC_NAME", "SUBSCRIPTION_NAME",
@@ -78,12 +79,18 @@ public static class ConstantRegistry
 
         var cleanKey = key.Trim();
         var cleanVal = value.Trim().Trim('\'', '"', '`');
+        var leafKey = cleanKey.Contains('.') ? cleanKey[(cleanKey.LastIndexOf('.') + 1)..] : cleanKey;
+        var isGenericKey = GenericVariableNames.Contains(cleanKey) || GenericVariableNames.Contains(leafKey);
 
         if (!string.IsNullOrWhiteSpace(projectName))
         {
             var projTrimmed = projectName.Trim();
             _projectConstants[$"{projTrimmed}:{cleanKey}"] = cleanVal;
             IndexProjectLeaf(projTrimmed, cleanKey, cleanVal);
+            if (IsTestProjectIdentifier(projTrimmed))
+            {
+                return;
+            }
             IndexProjectKey(cleanKey, cleanVal);
 
             var domain = ExtractDomainNameFromProject(projectName);
@@ -103,8 +110,6 @@ public static class ConstantRegistry
                 IndexProjectLeaf(normStripped, cleanKey, cleanVal);
             }
 
-            var leafKey = cleanKey.Contains('.') ? cleanKey[(cleanKey.LastIndexOf('.') + 1)..] : cleanKey;
-            var isGenericKey = GenericVariableNames.Contains(cleanKey) || GenericVariableNames.Contains(leafKey);
             if (!isGenericKey)
             {
                 if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
@@ -126,6 +131,29 @@ public static class ConstantRegistry
                 IndexGlobalLeaf(cleanKey, cleanVal);
             }
         }
+    }
+
+    private const string SuffixDotTests = ".tests";
+    private const string SuffixDotTest = ".test";
+    private const string SuffixDashTests = "-tests";
+    private const string SuffixDashTest = "-test";
+    private const string SuffixUnderscoreTests = "_tests";
+    private const string SuffixUnderscoreTest = "_test";
+    private const string WordTests = "tests";
+    private const string WordTest = "test";
+    private const string WordE2e = "e2e";
+
+    private static bool IsTestProjectIdentifier(string projectName)
+    {
+        return projectName.Equals(WordTests, StringComparison.OrdinalIgnoreCase) ||
+               projectName.Equals(WordTest, StringComparison.OrdinalIgnoreCase) ||
+               projectName.Equals(WordE2e, StringComparison.OrdinalIgnoreCase) ||
+               projectName.EndsWith(SuffixDotTests, StringComparison.OrdinalIgnoreCase) ||
+               projectName.EndsWith(SuffixDotTest, StringComparison.OrdinalIgnoreCase) ||
+               projectName.EndsWith(SuffixDashTests, StringComparison.OrdinalIgnoreCase) ||
+               projectName.EndsWith(SuffixDashTest, StringComparison.OrdinalIgnoreCase) ||
+               projectName.EndsWith(SuffixUnderscoreTests, StringComparison.OrdinalIgnoreCase) ||
+               projectName.EndsWith(SuffixUnderscoreTest, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void IndexProjectLeaf(string projKey, string key, string val)
@@ -428,23 +456,30 @@ public static class ConstantRegistry
     public static void ScanAndRegisterRegexOnly(string filePath, string content, string? projectName = null)
     {
         if (string.IsNullOrWhiteSpace(content)) return;
+        if (!Path.IsPathRooted(filePath) && WorkspaceConventions.IsTestFilePath(filePath)) return;
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         // (AST extraction handled in ScanAndRegister or directly via SyntaxTree in Layer 3)
 
-        // 2. Run regex scanner for any non-AST / comment / fallback definitions
+        // 2. Run regex scanner on comment-stripped source for fallback definitions
         switch (ext)
         {
             case ".ts":
             case ".tsx":
             case ".js":
             case ".jsx":
-                ScanAndRegisterTypeScript(content, projectName);
+                ScanAndRegisterTypeScript(StripCommentsPreservingStrings(content), projectName);
                 break;
 
             case ".go":
-                ScanAndRegisterGo(content, projectName);
+                ScanAndRegisterGo(StripCommentsPreservingStrings(content), projectName);
                 break;
         }
+    }
+
+    public static string StripCommentsPreservingStrings(string content)
+    {
+        var noBlock = Regex.Replace(content, @"/\*[\s\S]*?\*/", "", RegexOptions.None, RegexTimeout);
+        return Regex.Replace(noBlock, @"^\s*//.*$", "", RegexOptions.Multiline, RegexTimeout);
     }
 
     public static bool TryDeriveTopicOrQueueFromConstantName(string name, out string derived) =>

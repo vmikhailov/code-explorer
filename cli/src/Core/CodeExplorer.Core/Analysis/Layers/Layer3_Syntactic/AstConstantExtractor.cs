@@ -14,6 +14,11 @@ public static class AstConstantExtractor
     public static void ExtractAndRegister(SyntaxTree syntaxTree, string? projectName = null)
     {
         if (syntaxTree.Tree?.RootNode == null || syntaxTree.Tree.RootNode.Children.Count == 0) return;
+        if ((syntaxTree.FileNode?.IsTest ?? false) ||
+            (!string.IsNullOrEmpty(syntaxTree.RelativePath) && WorkspaceConventions.IsTestFilePath(syntaxTree.RelativePath)))
+        {
+            return;
+        }
         ExtractAndRegister(syntaxTree.Tree.RootNode, syntaxTree.FileParser, projectName);
     }
 
@@ -39,6 +44,7 @@ public static class AstConstantExtractor
     public static void ExtractAndRegister(string filePath, string content, string? projectName = null)
     {
         if (string.IsNullOrWhiteSpace(content)) return;
+        if (!Path.IsPathRooted(filePath) && WorkspaceConventions.IsTestFilePath(filePath)) return;
 
         var fileParser = ParserRegistry.GetParserForFile(filePath);
         if (fileParser == null) return;

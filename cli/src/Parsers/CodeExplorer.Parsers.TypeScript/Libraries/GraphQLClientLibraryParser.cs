@@ -224,7 +224,7 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
                     }
                 }
             }
-            // 2. Imperative ApolloClient calls: client.query({ query: PublishedItemsDocument }), client.mutate({ mutation: ... })
+            // 2. Imperative ApolloClient / GraphQLClient calls: client.query({ query: PublishedItemsDocument }), client.request(GET_OUTLETS_QUERY, vars)
             else if (shortFn is "query" or "mutate" or "watchQuery" or "subscribe")
             {
                 var args = AstHelper.GetCallArguments(node);
@@ -238,6 +238,20 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
                         {
                             references.Add(new Reference(scopeSymbolId, docProp.Text.Trim(), OntologyConstants.Relationships.Calls));
                         }
+                    }
+                }
+            }
+            else if (shortFn == "request" && fnNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                var args = AstHelper.GetCallArguments(node);
+                if (args.Count > 0 &&
+                    args[0].IsValid() &&
+                    args[0].IsAny(TreeSitterSyntax.TypeScript.Identifier, TreeSitterSyntax.TypeScript.MemberExpression))
+                {
+                    var docName = args[0].Text.Trim();
+                    if (!string.IsNullOrEmpty(docName))
+                    {
+                        references.Add(new Reference(scopeSymbolId, docName, OntologyConstants.Relationships.Calls));
                     }
                 }
             }
@@ -383,23 +397,24 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
             if (func.IsValid())
             {
                 var name = func.Text;
-                if (name is "ApolloClient" or "HttpLink" or "createClient" ||
+                if (name is "ApolloClient" or "HttpLink" or "createClient" or "GraphQLClient" ||
                     name.EndsWith(".ApolloClient", StringComparison.Ordinal) ||
-                    name.EndsWith(".HttpLink", StringComparison.Ordinal))
+                    name.EndsWith(".HttpLink", StringComparison.Ordinal) ||
+                    name.EndsWith(".GraphQLClient", StringComparison.Ordinal))
                 {
                     return true;
                 }
             }
         }
 
-        // 2. Direct call: request(url, query)
+        // 2. Direct standalone call: request(url, query, variables) — NOT instance client.request(document, variables)
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
             var func = node.GetFunctionNode();
             if (func.IsValid())
             {
                 var name = func.Text.ToLowerInvariant();
-                if (name is "request" or "graphqlclient.request" || name.EndsWith(".request"))
+                if (name is "request" or "graphqlrequest.request")
                 {
                     var args = AstHelper.GetCallArguments(node);
                     if (args.Count >= 2)

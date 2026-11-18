@@ -33,7 +33,7 @@ public class FetchLibraryParser : DeclarativeSemanticExtension
                                 return resolved;
                             }
                         }
-                        var fallback = AstHelper.ExtractEnclosingServiceFallback(node, rel);
+                        var fallback = AstIdentifierUrlSanitizer.ExtractEnclosingServiceFallback(node, rel);
                         if (!string.IsNullOrWhiteSpace(fallback))
                         {
                             return fallback;
