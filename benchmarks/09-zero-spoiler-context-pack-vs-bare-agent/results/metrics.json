@@ -1,0 +1,450 @@
+{
+  "benchmark_id": "09-zero-spoiler-context-pack-vs-bare-agent",
+  "repository": "twentyhq/twenty",
+  "commit": "12e8fae4",
+  "repository_scale": {
+    "packages": 46,
+    "indexed_files": 36543,
+    "graph_nodes": 465090,
+    "graph_relationships": 1068128,
+    "nestjs_modules_indexed": 460
+  },
+  "round1_context_pack_v1": {
+    "model": "Gemini 4 Carbon (High)",
+    "totals": {
+      "ce": {
+        "behavioral_passed": 15,
+        "behavioral_total": 15,
+        "gates_passed": 21,
+        "new_sig_violations": 0,
+        "wall_clock_seconds": 2516,
+        "llm_turns": 100,
+        "total_tool_calls": 189,
+        "run_command_calls": 45,
+        "read_file_calls": 121,
+        "api_uncached_input_tokens": 488327,
+        "api_cached_input_tokens": 8969310,
+        "api_total_input_tokens": 9457637,
+        "api_output_tokens": 98913
+      },
+      "bare": {
+        "behavioral_passed": 15,
+        "behavioral_total": 15,
+        "gates_passed": 21,
+        "new_sig_violations": 0,
+        "wall_clock_seconds": 2946,
+        "llm_turns": 140,
+        "total_tool_calls": 283,
+        "run_command_calls": 82,
+        "read_file_calls": 175,
+        "api_uncached_input_tokens": 773756,
+        "api_cached_input_tokens": 16728873,
+        "api_total_input_tokens": 17502629,
+        "api_output_tokens": 127093
+      }
+    },
+    "runs": {
+      "t1-ce": {
+        "label": "t1-ce",
+        "feature": 1,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "ef5674c2-dd62-4a30-92b8-c54882d88857",
+          "wall_clock_seconds": 509,
+          "llm_turns": 31,
+          "total_tool_calls": 60,
+          "tool_breakdown": {
+            "run_command": 12,
+            "read_file": 43,
+            "edit_file": 4,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 151694,
+          "api_cached_input_tokens": 2706762,
+          "api_total_input_tokens": 2858456,
+          "api_output_tokens": 26197,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t1-bare": {
+        "label": "t1-bare",
+        "feature": 1,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "fb8ef959-7f78-41f3-9050-35c075a4c6ce",
+          "wall_clock_seconds": 676,
+          "llm_turns": 40,
+          "total_tool_calls": 92,
+          "tool_breakdown": {
+            "run_command": 19,
+            "read_file": 67,
+            "edit_file": 5,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 212272,
+          "api_cached_input_tokens": 4821210,
+          "api_total_input_tokens": 5033482,
+          "api_output_tokens": 31381,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t2-ce": {
+        "label": "t2-ce",
+        "feature": 3,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "6ac74748-b74a-4482-92ae-f7f521103f45",
+          "wall_clock_seconds": 1039,
+          "llm_turns": 38,
+          "total_tool_calls": 69,
+          "tool_breakdown": {
+            "run_command": 20,
+            "read_file": 40,
+            "write_file": 1,
+            "edit_file": 7,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 188875,
+          "api_cached_input_tokens": 3978031,
+          "api_total_input_tokens": 4166906,
+          "api_output_tokens": 37142,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t2-bare": {
+        "label": "t2-bare",
+        "feature": 3,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "8f024003-5d9e-4085-a33f-aeec579e01d0",
+          "wall_clock_seconds": 1216,
+          "llm_turns": 55,
+          "total_tool_calls": 109,
+          "tool_breakdown": {
+            "run_command": 39,
+            "read_file": 60,
+            "write_file": 1,
+            "edit_file": 8,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 273548,
+          "api_cached_input_tokens": 7930812,
+          "api_total_input_tokens": 8204360,
+          "api_output_tokens": 51125,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t3-ce": {
+        "label": "t3-ce",
+        "feature": 4,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "016b7807-c248-496b-ac1e-ee8c9364bf23",
+          "wall_clock_seconds": 968,
+          "llm_turns": 31,
+          "total_tool_calls": 60,
+          "tool_breakdown": {
+            "run_command": 13,
+            "read_file": 38,
+            "write_file": 2,
+            "edit_file": 6,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 147758,
+          "api_cached_input_tokens": 2284517,
+          "api_total_input_tokens": 2432275,
+          "api_output_tokens": 35574,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t3-bare": {
+        "label": "t3-bare",
+        "feature": 4,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "f36f9f11-27ec-498b-9692-7a4835fbc416",
+          "wall_clock_seconds": 1054,
+          "llm_turns": 45,
+          "total_tool_calls": 82,
+          "tool_breakdown": {
+            "run_command": 24,
+            "read_file": 48,
+            "write_file": 2,
+            "edit_file": 7,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 287936,
+          "api_cached_input_tokens": 3976851,
+          "api_total_input_tokens": 4264787,
+          "api_output_tokens": 44587,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      }
+    }
+  },
+  "round2_context_pack_v2_with_module_graph": {
+    "model": "Gemini 4 Argon (Medium)",
+    "totals": {
+      "ce": {
+        "behavioral_passed": 15,
+        "behavioral_total": 15,
+        "gates_passed": 21,
+        "new_sig_violations": 0,
+        "wall_clock_seconds": 1178,
+        "llm_turns": 59,
+        "total_tool_calls": 95,
+        "run_command_calls": 20,
+        "read_file_calls": 55,
+        "api_uncached_input_tokens": 316255,
+        "api_cached_input_tokens": 2764021,
+        "api_total_input_tokens": 3080276,
+        "api_output_tokens": 41472
+      },
+      "bare": {
+        "behavioral_passed": 15,
+        "behavioral_total": 15,
+        "gates_passed": 21,
+        "new_sig_violations": 0,
+        "wall_clock_seconds": 1682,
+        "llm_turns": 84,
+        "total_tool_calls": 165,
+        "run_command_calls": 41,
+        "read_file_calls": 104,
+        "api_uncached_input_tokens": 491682,
+        "api_cached_input_tokens": 6405933,
+        "api_total_input_tokens": 6897615,
+        "api_output_tokens": 61150
+      }
+    },
+    "runs": {
+      "t1-ce": {
+        "label": "t1-ce",
+        "feature": 1,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "033c2892-fac6-4103-b216-03194ff9c29e",
+          "wall_clock_seconds": 322,
+          "llm_turns": 16,
+          "total_tool_calls": 25,
+          "tool_breakdown": {
+            "run_command": 7,
+            "read_file": 12,
+            "edit_file": 5,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 77390,
+          "api_cached_input_tokens": 695424,
+          "api_total_input_tokens": 772814,
+          "api_output_tokens": 11782,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t1-bare": {
+        "label": "t1-bare",
+        "feature": 1,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "30821df7-2c36-4f42-bb14-75438f9d0d5f",
+          "wall_clock_seconds": 587,
+          "llm_turns": 26,
+          "total_tool_calls": 55,
+          "tool_breakdown": {
+            "run_command": 11,
+            "read_file": 39,
+            "edit_file": 4,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 142325,
+          "api_cached_input_tokens": 2061624,
+          "api_total_input_tokens": 2203949,
+          "api_output_tokens": 23368,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t2-ce": {
+        "label": "t2-ce",
+        "feature": 3,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "8f369d07-130e-4574-bf7f-dec3f6f4c979",
+          "wall_clock_seconds": 252,
+          "llm_turns": 16,
+          "total_tool_calls": 28,
+          "tool_breakdown": {
+            "run_command": 2,
+            "read_file": 19,
+            "edit_file": 6,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 85483,
+          "api_cached_input_tokens": 795523,
+          "api_total_input_tokens": 881006,
+          "api_output_tokens": 8811,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t2-bare": {
+        "label": "t2-bare",
+        "feature": 3,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "9484bd71-6374-4ee1-8891-fe673f95dc4d",
+          "wall_clock_seconds": 425,
+          "llm_turns": 26,
+          "total_tool_calls": 48,
+          "tool_breakdown": {
+            "run_command": 15,
+            "read_file": 26,
+            "edit_file": 6,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 127830,
+          "api_cached_input_tokens": 1934852,
+          "api_total_input_tokens": 2062682,
+          "api_output_tokens": 13997,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t3-ce": {
+        "label": "t3-ce",
+        "feature": 4,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "8a09e6d0-a4f5-4d51-bbc1-944f892d3866",
+          "wall_clock_seconds": 604,
+          "llm_turns": 27,
+          "total_tool_calls": 42,
+          "tool_breakdown": {
+            "run_command": 11,
+            "read_file": 24,
+            "edit_file": 6,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 153382,
+          "api_cached_input_tokens": 1273074,
+          "api_total_input_tokens": 1426456,
+          "api_output_tokens": 20879,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      },
+      "t3-bare": {
+        "label": "t3-bare",
+        "feature": 4,
+        "compile_passed": true,
+        "compile_errors": "",
+        "behavioral_passed": 5,
+        "behavioral_total": 5,
+        "behavioral_failures": [],
+        "gates_passed": 7,
+        "gates_failed": 0,
+        "new_sig_violations": 0,
+        "telemetry": {
+          "conversation_id": "95008cac-958b-4f20-bae1-9f63f66fd9d9",
+          "wall_clock_seconds": 670,
+          "llm_turns": 32,
+          "total_tool_calls": 62,
+          "tool_breakdown": {
+            "run_command": 15,
+            "read_file": 39,
+            "edit_file": 7,
+            "send_message": 1
+          },
+          "api_uncached_input_tokens": 221527,
+          "api_cached_input_tokens": 2409457,
+          "api_total_input_tokens": 2630984,
+          "api_output_tokens": 23785,
+          "purity_passed": true,
+          "purity_issues": []
+        }
+      }
+    }
+  }
+}

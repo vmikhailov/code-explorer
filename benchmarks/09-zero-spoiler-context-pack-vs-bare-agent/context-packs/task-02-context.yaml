@@ -1,0 +1,138 @@
+query: application delete public domain dns
+anchors:
+  - symbol: "MUTATION:deletePublicDomain"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:108"
+    concept: publicDomain
+  - symbol: publicDomain
+    kind: Table
+    location: packages/twenty-server/src/database/commands/upgrade-version-command/2-16/2-16-instance-command-fast-1782281874768-add-primary-public-domain-to-application.ts
+    concept: publicDomain
+  - symbol: "MUTATION:checkPublicDomainValidRecords"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:122"
+    concept: public
+  - symbol: "QUERY:findManyPublicDomains"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:79"
+    concept: public
+  - symbol: "MUTATION:deleteEmailingDomain"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/emailing-domain/emailing-domain.resolver.ts:65"
+    concept: domain
+  - symbol: "MUTATION:deleteApprovedAccessDomain"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/approved-access-domain/approved-access-domain.resolver.ts:85"
+    concept: domain
+  - symbol: SettingsEmailingDomainDnsRecordsProps
+    kind: Type
+    location: "packages/twenty-front/src/modules/settings/emailing-domains/components/SettingsEmailingDomainDnsRecords.tsx:17"
+    concept: dns
+  - symbol: SettingsEmailingDomainDnsRecords
+    kind: Function
+    location: "packages/twenty-front/src/modules/settings/emailing-domains/components/SettingsEmailingDomainDnsRecords.tsx:24"
+    concept: dns
+outboundSideEffects: ["ApplicationService.create -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)", "ApplicationService.delete -> ApplicationLookupService.findByUniversalIdentifier (packages/twenty-server/src/engine/core-modules/application/application-lookup/application-lookup.service.ts:26)", "ApplicationService.delete -> FileStorageService.invalidateStorageStock (packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts:90)", "ApplicationService.delete -> FileStorageService.deleteApplicationFileRows (packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts:848)", "ApplicationService.delete -> FileStorageService.deleteApplicationFilesFromStorage (packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts:868)", "ApplicationService.delete -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)", "ApplicationService.grantIframeMediaPermissions -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)", "ApplicationService.update -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)", "ApplicationService.uploadPackageFilesAndSetFileIds -> FileStorageService.writeFile (packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts:460)", "PublicDomainService.checkPublicDomainValidRecords -> DnsManagerService.getHostnameWithRecords (packages/twenty-server/src/engine/core-modules/dns-manager/services/dns-manager.service.ts:62)"]
+inboundCallersAndRoutes: ["SettingsWorkspaceCommunicationGroupChannelDetail -> SettingsEmailingDomainDnsRecords (packages/twenty-front/src/pages/settings/communications/SettingsWorkspaceCommunicationGroupChannelDetail.tsx:64)"]
+tablesAndCanonicalOwners:
+  - table: application
+    canonicalOwner: ApplicationService (packages/twenty-server/src/engine/core-modules/application/application.service.ts)
+    ownerMethods: ["findApplicationRoleId [R] (L86)", "findManyApplications [R] (L171)", "findOneApplication [R] (L233)", "findPrimaryPublicDomainName [R] (L367)", "countInstalledWorkspacesForApplication [R] (L382)", "isUninstallBlockedByOtherWorkspaceInstallations [R] (L396)", "countInstalledWorkspacesByApplication [R] (L475)"]
+    otherDirectAccessors: [ApplicationRegistrationService (packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration.service.ts), ApplicationUninstallService (packages/twenty-server/src/engine/core-modules/application/application-manifest/services/application-uninstall.service.ts), ApplicationLookupService (packages/twenty-server/src/engine/core-modules/application/application-lookup/application-lookup.service.ts)]
+  - table: applicationAuthorization
+    canonicalOwner: ApplicationAuthorizationService (packages/twenty-server/src/engine/core-modules/application/application-authorization/services/application-authorization.service.ts)
+    ownerMethods: ["recordAuthorization [W] (L16)", "backfillAuthorizationFromRefreshToken [R] (L51)", "findByUserAndApplication [R] (L80)", "findActiveAuthorizationsForUserWorkspace [R] (L94)", "touchLastUsedAt [W] (L113)", "revokeMatching [W] (L148)"]
+  - table: publicDomain
+    canonicalOwner: PublicDomainService (packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts)
+    ownerMethods: ["deletePublicDomain [W] (L37)", "createPublicDomain [RW] (L55)", "checkPublicDomainValidRecords [W] (L130)", "findByDomain [R] (L161)"]
+    otherDirectAccessors: [CheckPublicDomainsValidRecordsCronJob (packages/twenty-server/src/engine/core-modules/public-domain/crons/jobs/check-public-domains-valid-records.cron.job.ts), CustomDomainManagerService (packages/twenty-server/src/engine/core-modules/domain/custom-domain-manager/services/custom-domain-manager.service.ts), WorkspaceDomainsService (packages/twenty-server/src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service.ts)]
+moduleWiringAndCycleSafety:
+  owningModules:
+    - module: ApplicationAuthorizationModule
+      filePath: packages/twenty-server/src/engine/core-modules/application/application-authorization/application-authorization.module.ts
+      provides: [ApplicationAuthorizationService]
+    - module: ApplicationModule
+      filePath: packages/twenty-server/src/engine/core-modules/application/application.module.ts
+      provides: [ApplicationService]
+      directModuleImports: [ApplicationLookupModule, ApplicationRegistrationLookupModule, ApplicationStopModule, MetricsModule, WorkspaceCacheModule, WorkspaceManyOrAllFlatEntityMapsCacheModule]
+    - module: PublicDomainModule
+      filePath: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.module.ts
+      provides: [PublicDomainService]
+      directModuleImports: [ApplicationLookupModule, ApplicationRegistrationLookupModule, DnsManagerModule, PermissionsModule, WorkspaceManyOrAllFlatEntityMapsCacheModule]
+  importSafetyVerdicts: ["SAFE_DIRECT_IMPORT: ApplicationAuthorizationModule can import ApplicationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: ApplicationAuthorizationModule can import PublicDomainModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: ApplicationModule can import ApplicationAuthorizationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: ApplicationModule can import PublicDomainModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: PublicDomainModule can import ApplicationAuthorizationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: PublicDomainModule can import ApplicationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files)."]
+guardrails:
+  suiteStatus: passed
+  newViolationsCount: 0
+  activeRules:
+    - id: SIG-TWENTY-001
+      status: PassedTolerated
+      rule: Transport State Purity (No Direct DB Access in Resolvers/Controllers)
+      remediation: Remove @InjectRepository / Repository / DataSource usage from the resolver or controller and delegate the persistence operation to the owning domain service.
+    - id: SIG-TWENTY-002
+      status: PassedTolerated
+      rule: Metadata Table Ownership
+      remediation: Import the owning metadata module and call its exported service instead of querying metadata TypeORM entities directly from core-modules.
+    - id: SIG-TWENTY-003
+      status: PassedTolerated
+      rule: Core Domain & Application Sub-Domain Table Ownership
+      remediation: Do not inject another module's TypeORM Entity repository or query its table directly; import the owning NestJS module and call its exported domain service.
+    - id: SIG-TWENTY-004
+      status: PassedTolerated
+      rule: Core-to-Feature Layer Isolation
+      remediation: Decouple side effects from src/engine/core-modules/** via WorkspaceEventBatch / EventEmitter2 or MessageQueueService instead of calling src/modules/** directly.
+    - id: SIG-TWENTY-005
+      status: Passed
+      rule: Async Queue Worker Boundary (No Direct Job .handle() Invocation)
+      remediation: "Inject MessageQueueService via @InjectMessageQueue(MessageQueue.<queue>) and call .add<JobData>(JobClass.name, payload) instead of calling job.handle() synchronously."
+    - id: SIG-TWENTY-006
+      status: PassedTolerated
+      rule: Transport Handler Thinness Ceiling (<= 45 LOC)
+      remediation: "Extract business, validation, and orchestration logic out of the resolver/controller method into a domain service so the transport method stays <= 45 LOC."
+    - id: SIG-TWENTY-007
+      status: PassedTolerated
+      rule: No Silent Exception Swallowing
+      remediation: "Handle, rethrow, or log the caught error, or document why the exception is intentionally ignored."
+  legacyTrapsInSubgraphFiles:
+    - file: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts
+      gateId: SIG-TWENTY-001
+      legacySymbols: [findManyPublicDomains, checkPublicDomainValidRecords]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/approved-access-domain/approved-access-domain.resolver.ts
+      gateId: SIG-TWENTY-001
+      legacySymbols: [createApprovedAccessDomain]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/application/application.service.ts
+      gateId: SIG-TWENTY-002
+      legacySymbols: [findOneApplicationWithRelations, broadcastFrontComponentSharedDependenciesChecksumUpdates, isUninstallBlockedByOtherWorkspaceInstallations]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/application/application.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [createWorkspaceCustomApplicationRegistration, isUninstallBlockedByOtherWorkspaceInstallations, findOneApplicationWithRelations, uploadPackageFilesAndSetFileIds]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/application/application-lookup/application-lookup.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [findById, findByUniversalIdentifier]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/file-storage/services/file-storage.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [resolveApplicationIdOrThrow, writeFile, promotePendingFile, markFileUploaded]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+readPlan:
+  - filePath: packages/twenty-server/src/engine/core-modules/application/application.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'application': ApplicationService"
+  - filePath: packages/twenty-server/src/engine/core-modules/application/application-authorization/services/application-authorization.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'applicationAuthorization': ApplicationAuthorizationService"
+  - filePath: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'publicDomain': PublicDomainService"
+  - filePath: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts
+    startLine: 108
+    reason: "Anchor Endpoint: MUTATION:deletePublicDomain"
+  - filePath: packages/twenty-server/src/database/commands/upgrade-version-command/2-16/2-16-instance-command-fast-1782281874768-add-primary-public-domain-to-application.ts
+    startLine: 1
+    reason: "Anchor Table: publicDomain"
+  - filePath: packages/twenty-server/src/engine/core-modules/emailing-domain/emailing-domain.resolver.ts
+    startLine: 65
+    reason: "Anchor Endpoint: MUTATION:deleteEmailingDomain"

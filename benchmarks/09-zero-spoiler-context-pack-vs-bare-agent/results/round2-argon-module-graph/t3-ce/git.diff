@@ -1,0 +1,194 @@
+diff --git a/.codeexplorer/.gitignore b/.codeexplorer/.gitignore
+new file mode 100644
+index 00000000..1d1c5dc0
+--- /dev/null
++++ b/.codeexplorer/.gitignore
+@@ -0,0 +1,5 @@
++# Ignore local SQLite graph database, journal/WAL files, and locks
++*.db
++*.db-*
++*.lock
++*.tmp
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts b/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts
+index 2542e8ba..c557ae63 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts
+@@ -8,7 +8,9 @@ export const getHostnameFromUrlOrUndefined = (
+   }
+ 
+   try {
+-    return new URL(url).hostname.toLowerCase();
++    const hostname = new URL(url).hostname.toLowerCase();
++
++    return isNonEmptyString(hostname) ? hostname : undefined;
+   } catch {
+     return undefined;
+   }
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+index c459c89f..ab7a6969 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+@@ -8,11 +8,13 @@ import {
+ } from 'twenty-shared/utils';
+ import { In, Repository } from 'typeorm';
+ 
++import { getHostnameFromUrlOrUndefined } from 'src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util';
+ import { type SubdomainAvailabilityDTO } from 'src/engine/core-modules/domain/subdomain-manager/dtos/subdomain-availability.dto';
+ import { type WorkspaceCreationDefaultsDTO } from 'src/engine/core-modules/domain/subdomain-manager/dtos/workspace-creation-defaults.dto';
+ import { generateRandomSubdomain } from 'src/engine/core-modules/domain/subdomain-manager/utils/generate-random-subdomain.util';
+ import { getSubdomainFromEmail } from 'src/engine/core-modules/domain/subdomain-manager/utils/get-subdomain-from-email.util';
+ import { isSubdomainValid } from 'src/engine/core-modules/domain/subdomain-manager/utils/is-subdomain-valid.util';
++import { PublicDomainService } from 'src/engine/core-modules/public-domain/public-domain.service';
+ import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ import {
+@@ -31,6 +33,7 @@ export class SubdomainManagerService {
+     @InjectRepository(WorkspaceEntity)
+     private readonly workspaceRepository: Repository<WorkspaceEntity>,
+     private readonly twentyConfigService: TwentyConfigService,
++    private readonly publicDomainService: PublicDomainService,
+   ) {}
+ 
+   async generateSubdomain({
+@@ -121,18 +124,40 @@ export class SubdomainManagerService {
+       return [];
+     }
+ 
+-    const existingWorkspaces = await this.workspaceRepository.find({
+-      where: { subdomain: In(validCandidates) },
+-      withDeleted: true,
+-      select: { subdomain: true },
+-    });
++    const publicBaseHostname = this.getPublicBaseHostname();
++
++    const [existingWorkspaces, existingPublicDomains] = await Promise.all([
++      this.workspaceRepository.find({
++        where: { subdomain: In(validCandidates) },
++        withDeleted: true,
++        select: { subdomain: true },
++      }),
++      isDefined(publicBaseHostname)
++        ? this.publicDomainService.findByDomains(
++            validCandidates.map((candidate) =>
++              this.buildPublicHostname(candidate, publicBaseHostname),
++            ),
++          )
++        : Promise.resolve([]),
++    ]);
+ 
+     const takenSubdomains = new Set(
+       existingWorkspaces.map((workspace) => workspace.subdomain),
+     );
+ 
++    const takenPublicDomains = new Set(
++      existingPublicDomains.map((publicDomain) =>
++        publicDomain.domain.toLowerCase(),
++      ),
++    );
++
+     return validCandidates.filter(
+-      (candidate) => !takenSubdomains.has(candidate),
++      (candidate) =>
++        !takenSubdomains.has(candidate) &&
++        (!isDefined(publicBaseHostname) ||
++          !takenPublicDomains.has(
++            this.buildPublicHostname(candidate, publicBaseHostname),
++          )),
+     );
+   }
+ 
+@@ -160,12 +185,34 @@ export class SubdomainManagerService {
+   }
+ 
+   async isSubdomainAvailable(subdomain: string) {
+-    const existingWorkspace = await this.workspaceRepository.findOne({
+-      where: { subdomain: subdomain },
+-      withDeleted: true,
+-    });
++    const publicBaseHostname = this.getPublicBaseHostname();
++
++    const [existingWorkspace, existingPublicDomain] = await Promise.all([
++      this.workspaceRepository.findOne({
++        where: { subdomain: subdomain },
++        withDeleted: true,
++      }),
++      isDefined(publicBaseHostname)
++        ? this.publicDomainService.findByDomain(
++            this.buildPublicHostname(subdomain, publicBaseHostname),
++          )
++        : Promise.resolve(null),
++    ]);
++
++    return !existingWorkspace && !existingPublicDomain;
++  }
+ 
+-    return !existingWorkspace;
++  private getPublicBaseHostname(): string | undefined {
++    return getHostnameFromUrlOrUndefined(
++      this.twentyConfigService.get('PUBLIC_DOMAIN_URL'),
++    );
++  }
++
++  private buildPublicHostname(
++    subdomain: string,
++    publicBaseHostname: string,
++  ): string {
++    return `${subdomain.toLowerCase()}.${publicBaseHostname.toLowerCase()}`;
+   }
+ 
+   async validateSubdomainOrThrow(subdomain: string) {
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+index 9e44cb3a..24794e06 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
+ import { TypeOrmModule } from '@nestjs/typeorm';
+ 
+ import { SubdomainManagerService } from 'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service';
++import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ 
+ @Module({
+-  imports: [TypeOrmModule.forFeature([WorkspaceEntity])],
++  imports: [TypeOrmModule.forFeature([WorkspaceEntity]), PublicDomainModule],
+   providers: [SubdomainManagerService],
+   exports: [SubdomainManagerService],
+ })
+diff --git a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+index 95c7ee97..dd50aaea 100644
+--- a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
+ 
+ import { msg } from '@lingui/core/macro';
+ import { isDefined } from 'twenty-shared/utils';
+-import { Repository } from 'typeorm';
++import { In, Repository } from 'typeorm';
+ import { type QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+ 
+ import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
+@@ -159,6 +159,23 @@ export class PublicDomainService {
+   }
+ 
+   async findByDomain(domain: string) {
+-    return this.publicDomainRepositoryUnscoped.findOne({ where: { domain } });
++    return this.publicDomainRepositoryUnscoped.findOne({
++      where: { domain: domain.trim().toLowerCase() },
++    });
++  }
++
++  async findByDomains(domains: string[]) {
++    if (domains.length === 0) {
++      return [];
++    }
++
++    const formattedDomains = domains.map((domain) =>
++      domain.trim().toLowerCase(),
++    );
++
++    return this.publicDomainRepositoryUnscoped.find({
++      where: { domain: In(formattedDomains) },
++      select: { domain: true },
++    });
+   }
+ }

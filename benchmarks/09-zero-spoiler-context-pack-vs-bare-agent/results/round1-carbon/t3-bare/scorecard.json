@@ -1,0 +1,31 @@
+{
+  "label": "t3-bare",
+  "feature": 4,
+  "compile_passed": true,
+  "compile_errors": "",
+  "behavioral_passed": 5,
+  "behavioral_total": 5,
+  "behavioral_failures": [],
+  "gates_passed": 7,
+  "gates_failed": 0,
+  "new_sig_violations": 0,
+  "telemetry": {
+    "conversation_id": "f36f9f11-27ec-498b-9692-7a4835fbc416",
+    "wall_clock_seconds": 1054,
+    "llm_turns": 45,
+    "total_tool_calls": 82,
+    "tool_breakdown": {
+      "run_command": 24,
+      "read_file": 48,
+      "write_file": 2,
+      "edit_file": 7,
+      "send_message": 1
+    },
+    "api_uncached_input_tokens": 287936,
+    "api_cached_input_tokens": 3976851,
+    "api_total_input_tokens": 4264787,
+    "api_output_tokens": 44587,
+    "purity_passed": true,
+    "purity_issues": []
+  }
+}

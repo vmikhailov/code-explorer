@@ -1,0 +1,324 @@
+diff --git a/.codeexplorer/.gitignore b/.codeexplorer/.gitignore
+new file mode 100644
+index 00000000..1d1c5dc0
+--- /dev/null
++++ b/.codeexplorer/.gitignore
+@@ -0,0 +1,5 @@
++# Ignore local SQLite graph database, journal/WAL files, and locks
++*.db
++*.db-*
++*.lock
++*.tmp
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts b/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts
+index 2542e8ba..1514fd61 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util.ts
+@@ -8,8 +8,11 @@ export const getHostnameFromUrlOrUndefined = (
+   }
+ 
+   try {
+-    return new URL(url).hostname.toLowerCase();
++    const hostname = new URL(url).hostname.toLowerCase();
++
++    return isNonEmptyString(hostname) ? hostname : undefined;
+   } catch {
++    // Ignore malformed URLs and treat the base hostname as unconfigured.
+     return undefined;
+   }
+ };
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+index c459c89f..9077a7e6 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+@@ -1,6 +1,7 @@
+ import { Injectable } from '@nestjs/common';
+ import { InjectRepository } from '@nestjs/typeorm';
+ 
++import { isNonEmptyString } from '@sniptt/guards';
+ import {
+   capitalize,
+   getSubdomainSlugFromDisplayName,
+@@ -8,11 +9,13 @@ import {
+ } from 'twenty-shared/utils';
+ import { In, Repository } from 'typeorm';
+ 
++import { DomainServerConfigService } from 'src/engine/core-modules/domain/domain-server-config/services/domain-server-config.service';
+ import { type SubdomainAvailabilityDTO } from 'src/engine/core-modules/domain/subdomain-manager/dtos/subdomain-availability.dto';
+ import { type WorkspaceCreationDefaultsDTO } from 'src/engine/core-modules/domain/subdomain-manager/dtos/workspace-creation-defaults.dto';
+ import { generateRandomSubdomain } from 'src/engine/core-modules/domain/subdomain-manager/utils/generate-random-subdomain.util';
+ import { getSubdomainFromEmail } from 'src/engine/core-modules/domain/subdomain-manager/utils/get-subdomain-from-email.util';
+ import { isSubdomainValid } from 'src/engine/core-modules/domain/subdomain-manager/utils/is-subdomain-valid.util';
++import { PublicDomainLookupService } from 'src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.service';
+ import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ import {
+@@ -31,6 +34,8 @@ export class SubdomainManagerService {
+     @InjectRepository(WorkspaceEntity)
+     private readonly workspaceRepository: Repository<WorkspaceEntity>,
+     private readonly twentyConfigService: TwentyConfigService,
++    private readonly domainServerConfigService: DomainServerConfigService,
++    private readonly publicDomainLookupService: PublicDomainLookupService,
+   ) {}
+ 
+   async generateSubdomain({
+@@ -121,18 +126,40 @@ export class SubdomainManagerService {
+       return [];
+     }
+ 
+-    const existingWorkspaces = await this.workspaceRepository.find({
+-      where: { subdomain: In(validCandidates) },
+-      withDeleted: true,
+-      select: { subdomain: true },
+-    });
++    const publicBaseHostname =
++      this.domainServerConfigService.getPublicBaseHostnameOrUndefined();
++
++    const [existingWorkspaces, existingPublicDomains] = await Promise.all([
++      this.workspaceRepository.find({
++        where: { subdomain: In(validCandidates) },
++        withDeleted: true,
++        select: { subdomain: true },
++      }),
++      isNonEmptyString(publicBaseHostname)
++        ? this.publicDomainLookupService.findByDomains(
++            validCandidates.map((candidate) =>
++              this.getDerivedPublicDomain(candidate, publicBaseHostname),
++            ),
++          )
++        : Promise.resolve([]),
++    ]);
+ 
+     const takenSubdomains = new Set(
+       existingWorkspaces.map((workspace) => workspace.subdomain),
+     );
++    const takenPublicDomains = new Set(
++      existingPublicDomains.map((publicDomain) =>
++        publicDomain.domain.toLowerCase(),
++      ),
++    );
+ 
+     return validCandidates.filter(
+-      (candidate) => !takenSubdomains.has(candidate),
++      (candidate) =>
++        !takenSubdomains.has(candidate) &&
++        (!isNonEmptyString(publicBaseHostname) ||
++          !takenPublicDomains.has(
++            this.getDerivedPublicDomain(candidate, publicBaseHostname),
++          )),
+     );
+   }
+ 
+@@ -159,13 +186,30 @@ export class SubdomainManagerService {
+     };
+   }
+ 
+-  async isSubdomainAvailable(subdomain: string) {
+-    const existingWorkspace = await this.workspaceRepository.findOne({
+-      where: { subdomain: subdomain },
+-      withDeleted: true,
+-    });
++  async isSubdomainAvailable(subdomain: string): Promise<boolean> {
++    const publicBaseHostname =
++      this.domainServerConfigService.getPublicBaseHostnameOrUndefined();
++
++    const [existingWorkspace, existingPublicDomain] = await Promise.all([
++      this.workspaceRepository.findOne({
++        where: { subdomain },
++        withDeleted: true,
++      }),
++      isNonEmptyString(publicBaseHostname)
++        ? this.publicDomainLookupService.findByDomain(
++            this.getDerivedPublicDomain(subdomain, publicBaseHostname),
++          )
++        : Promise.resolve(null),
++    ]);
++
++    return !existingWorkspace && !existingPublicDomain;
++  }
+ 
+-    return !existingWorkspace;
++  private getDerivedPublicDomain(
++    subdomain: string,
++    publicBaseHostname: string,
++  ): string {
++    return `${subdomain.toLowerCase()}.${publicBaseHostname}`;
+   }
+ 
+   async validateSubdomainOrThrow(subdomain: string) {
+diff --git a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+index 9e44cb3a..24c8292d 100644
+--- a/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+@@ -1,11 +1,17 @@
+ import { Module } from '@nestjs/common';
+ import { TypeOrmModule } from '@nestjs/typeorm';
+ 
++import { DomainServerConfigModule } from 'src/engine/core-modules/domain/domain-server-config/domain-server-config.module';
+ import { SubdomainManagerService } from 'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service';
++import { PublicDomainLookupModule } from 'src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.module';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ 
+ @Module({
+-  imports: [TypeOrmModule.forFeature([WorkspaceEntity])],
++  imports: [
++    TypeOrmModule.forFeature([WorkspaceEntity]),
++    DomainServerConfigModule,
++    PublicDomainLookupModule,
++  ],
+   providers: [SubdomainManagerService],
+   exports: [SubdomainManagerService],
+ })
+diff --git a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.module.ts b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.module.ts
+new file mode 100644
+index 00000000..b03e73be
+--- /dev/null
++++ b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.module.ts
+@@ -0,0 +1,12 @@
++import { Module } from '@nestjs/common';
++import { TypeOrmModule } from '@nestjs/typeorm';
++
++import { PublicDomainLookupService } from 'src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.service';
++import { PublicDomainEntity } from 'src/engine/core-modules/public-domain/public-domain.entity';
++
++@Module({
++  imports: [TypeOrmModule.forFeature([PublicDomainEntity])],
++  providers: [PublicDomainLookupService],
++  exports: [PublicDomainLookupService],
++})
++export class PublicDomainLookupModule {}
+diff --git a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.service.ts b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.service.ts
+new file mode 100644
+index 00000000..62d31c45
+--- /dev/null
++++ b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.service.ts
+@@ -0,0 +1,68 @@
++import { Injectable } from '@nestjs/common';
++import { InjectRepository } from '@nestjs/typeorm';
++
++import { isNonEmptyString } from '@sniptt/guards';
++import { Raw, Repository } from 'typeorm';
++
++import { PublicDomainEntity } from 'src/engine/core-modules/public-domain/public-domain.entity';
++
++@Injectable()
++export class PublicDomainLookupService {
++  constructor(
++    // Global public-domain hostname lookups run across workspaces (routing and subdomain collision checks).
++    // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
++    @InjectRepository(PublicDomainEntity)
++    private readonly publicDomainRepository: Repository<PublicDomainEntity>,
++  ) {}
++
++  async findByDomain(domain: string): Promise<PublicDomainEntity | null> {
++    const normalizedDomain = domain.trim().toLowerCase();
++
++    if (!isNonEmptyString(normalizedDomain)) {
++      return null;
++    }
++
++    return this.publicDomainRepository.findOne({
++      where: {
++        domain: Raw(
++          (alias) => `LOWER(${this.quoteColumnAlias(alias)}) = :domain`,
++          { domain: normalizedDomain },
++        ),
++      },
++    });
++  }
++
++  async findByDomains(domains: string[]): Promise<PublicDomainEntity[]> {
++    const normalizedDomains = [
++      ...new Set(
++        domains
++          .map((domain) => domain.trim().toLowerCase())
++          .filter(isNonEmptyString),
++      ),
++    ];
++
++    if (normalizedDomains.length === 0) {
++      return [];
++    }
++
++    return this.publicDomainRepository.find({
++      where: {
++        domain: Raw(
++          (alias) => `LOWER(${this.quoteColumnAlias(alias)}) IN (:...domains)`,
++          { domains: normalizedDomains },
++        ),
++      },
++      select: {
++        id: true,
++        domain: true,
++      },
++    });
++  }
++
++  private quoteColumnAlias(alias: string): string {
++    return alias
++      .split('.')
++      .map((aliasPart) => `"${aliasPart.replace(/"/g, '')}"`)
++      .join('.');
++  }
++}
+diff --git a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.module.ts b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.module.ts
+index b084d8e3..fef08f59 100644
+--- a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.module.ts
+@@ -14,10 +14,12 @@ import { WorkspaceManyOrAllFlatEntityMapsCacheModule } from 'src/engine/metadata
+ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
+ import { ApplicationLookupModule } from 'src/engine/core-modules/application/application-lookup/application-lookup.module';
+ import { ApplicationRegistrationLookupModule } from 'src/engine/core-modules/application/application-registration/application-registration-lookup/application-registration-lookup.module';
++import { PublicDomainLookupModule } from 'src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.module';
+ @Module({
+   imports: [
+     ApplicationLookupModule,
+     ApplicationRegistrationLookupModule,
++    PublicDomainLookupModule,
+     TypeOrmModule.forFeature([
+       PublicDomainEntity,
+       WorkspaceEntity,
+@@ -27,7 +29,11 @@ import { ApplicationRegistrationLookupModule } from 'src/engine/core-modules/app
+     PermissionsModule,
+     WorkspaceManyOrAllFlatEntityMapsCacheModule,
+   ],
+-  exports: [CheckPublicDomainsValidRecordsCronCommand, PublicDomainService],
++  exports: [
++    CheckPublicDomainsValidRecordsCronCommand,
++    PublicDomainLookupModule,
++    PublicDomainService,
++  ],
+   providers: [
+     PublicDomainService,
+     PublicDomainResolver,
+diff --git a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+index 95c7ee97..5ce3614b 100644
+--- a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+@@ -9,6 +9,7 @@ import { type QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialE
+ import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
+ import { DnsManagerService } from 'src/engine/core-modules/dns-manager/services/dns-manager.service';
+ import { PublicDomainDTO } from 'src/engine/core-modules/public-domain/dtos/public-domain.dto';
++import { PublicDomainLookupService } from 'src/engine/core-modules/public-domain/public-domain-lookup/public-domain-lookup.service';
+ import { PublicDomainEntity } from 'src/engine/core-modules/public-domain/public-domain.entity';
+ import {
+   PublicDomainException,
+@@ -24,10 +25,7 @@ export class PublicDomainService {
+     private readonly dnsManagerService: DnsManagerService,
+     @InjectWorkspaceScopedRepository(PublicDomainEntity)
+     private readonly publicDomainRepository: WorkspaceScopedRepository<PublicDomainEntity>,
+-    // Hostname-to-workspace resolution at request-routing time, before workspace context exists.
+-    // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
+-    @InjectRepository(PublicDomainEntity)
+-    private readonly publicDomainRepositoryUnscoped: Repository<PublicDomainEntity>,
++    private readonly publicDomainLookupService: PublicDomainLookupService,
+     @InjectRepository(WorkspaceEntity)
+     private readonly workspaceRepository: Repository<WorkspaceEntity>,
+     @InjectWorkspaceScopedRepository(ApplicationEntity)
+@@ -159,6 +157,6 @@ export class PublicDomainService {
+   }
+ 
+   async findByDomain(domain: string) {
+-    return this.publicDomainRepositoryUnscoped.findOne({ where: { domain } });
++    return this.publicDomainLookupService.findByDomain(domain);
+   }
+ }

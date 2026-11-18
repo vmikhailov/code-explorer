@@ -1,0 +1,30 @@
+{
+  "label": "t1-bare",
+  "feature": 1,
+  "compile_passed": true,
+  "compile_errors": "",
+  "behavioral_passed": 5,
+  "behavioral_total": 5,
+  "behavioral_failures": [],
+  "gates_passed": 7,
+  "gates_failed": 0,
+  "new_sig_violations": 0,
+  "telemetry": {
+    "conversation_id": "fb8ef959-7f78-41f3-9050-35c075a4c6ce",
+    "wall_clock_seconds": 676,
+    "llm_turns": 40,
+    "total_tool_calls": 92,
+    "tool_breakdown": {
+      "run_command": 19,
+      "read_file": 67,
+      "edit_file": 5,
+      "send_message": 1
+    },
+    "api_uncached_input_tokens": 212272,
+    "api_cached_input_tokens": 4821210,
+    "api_total_input_tokens": 5033482,
+    "api_output_tokens": 31381,
+    "purity_passed": true,
+    "purity_issues": []
+  }
+}

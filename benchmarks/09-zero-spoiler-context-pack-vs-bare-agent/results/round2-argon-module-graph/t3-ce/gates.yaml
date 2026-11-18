@@ -1,0 +1,10 @@
+status: passed
+summary:
+  totalGates: 0
+  passed: 0
+  warnings: 0
+  failed: 0
+  newViolations: 0
+  toleratedViolations: 0
+  durationMs: 1
+gates: []

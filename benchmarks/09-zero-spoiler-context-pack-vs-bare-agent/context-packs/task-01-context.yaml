@@ -1,0 +1,135 @@
+query: api key revoke usage limit
+anchors:
+  - symbol: "MUTATION:createWorkspaceUsageLimit"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel-usage-limit.resolver.ts:64"
+    concept: usageLimit
+  - symbol: "MUTATION:updateWorkspaceUsageLimit"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel-usage-limit.resolver.ts:77"
+    concept: usageLimit
+  - symbol: ApiKeyService.revoke
+    kind: Function
+    location: "packages/twenty-server/src/engine/core-modules/api-key/services/api-key.service.ts:121"
+    concept: revoke
+  - symbol: "MUTATION:revokeApiKey"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/api-key/api-key.resolver.ts:118"
+    concept: apiKey
+  - symbol: SigningKeyUsage
+    kind: Type
+    location: "packages/twenty-server/src/engine/core-modules/jwt/services/signing-key-verify-counter.service.ts:21"
+    concept: keyUsage
+  - symbol: "MUTATION:assignRoleToApiKey"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/api-key/api-key.resolver.ts:128"
+    concept: apiKey
+  - symbol: "MUTATION:revokeSigningKey"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts:866"
+    concept: key
+  - symbol: key_column_usage
+    kind: Table
+    location: packages/twenty-server/src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-foreign-key-manager.service.ts
+    concept: key
+serviceMethods:
+  - serviceOrClass: ApiKeyService
+    filePath: packages/twenty-server/src/engine/core-modules/api-key/services/api-key.service.ts
+    methods: [create (L34-L63), findById (L65-L72), findByWorkspaceId (L74-L78), findActiveByWorkspaceId (L80-L85), update (L87-L119), revoke (L121-L123), validateApiKey (L125-L156), generateApiKeyToken (L158-L192), isExpired (L194-L196), isRevoked (L198-L200)]
+outboundSideEffects: ["ApiKeyService.create -> RoleTargetService.create (packages/twenty-server/src/engine/metadata-modules/role-target/services/role-target.service.ts:22)", "ApiKeyService.generateApiKeyToken -> JwtWrapperService.signAsyncOrThrow (packages/twenty-server/src/engine/core-modules/jwt/services/jwt-wrapper.service.ts:50)", "UsageLimitService.create -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)", "UsageLimitService.delete -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)", "UsageLimitService.update -> WorkspaceCacheService.invalidateAndRecompute (packages/twenty-server/src/engine/workspace-cache/services/workspace-cache.service.ts:420)"]
+inboundCallersAndRoutes: ["GenerateApiKeyCommand.run -> ApiKeyService.create (packages/twenty-server/src/engine/core-modules/api-key/commands/generate-api-key.command.ts:79)", "ApiKeyController.create -> ApiKeyService.create (packages/twenty-server/src/engine/core-modules/api-key/controllers/api-key.controller.ts:74)", "ApiKeyResolver.createApiKey -> ApiKeyService.create (packages/twenty-server/src/engine/core-modules/api-key/api-key.resolver.ts:77)", "ApiKeyController.findAll -> ApiKeyService.findActiveByWorkspaceId (packages/twenty-server/src/engine/core-modules/api-key/controllers/api-key.controller.ts:48)", "ApiKeyResolver.apiKeys -> ApiKeyService.findActiveByWorkspaceId (packages/twenty-server/src/engine/core-modules/api-key/api-key.resolver.ts:38)", "ApiKeyController.findOne -> ApiKeyService.findById (packages/twenty-server/src/engine/core-modules/api-key/controllers/api-key.controller.ts:63)", "update -> ApiKeyService.findById (packages/twenty-server/src/engine/core-modules/api-key/services/api-key.service.ts:87)", "validateApiKey -> ApiKeyService.findById (packages/twenty-server/src/engine/core-modules/api-key/services/api-key.service.ts:125)"]
+tablesAndCanonicalOwners:
+  - table: apiKey
+    canonicalOwner: ApiKeyService (packages/twenty-server/src/engine/core-modules/api-key/services/api-key.service.ts)
+    ownerMethods: ["create [W] (L34)", "findById [R] (L65)", "findByWorkspaceId [R] (L74)", "findActiveByWorkspaceId [R] (L80)", "update [W] (L87)"]
+    otherDirectAccessors: [ApiKeyRoleService (packages/twenty-server/src/engine/core-modules/api-key/services/api-key-role.service.ts), UsageLimitService (packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts), UsageQuotaConsumptionService (packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-quota-consumption.service.ts)]
+  - table: usageLimit
+    canonicalOwner: UsageLimitService (packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts)
+    ownerMethods: ["findAll [R] (L59)", "create [RW] (L63)", "update [RW] (L102)", "assertScopeIsFree [R] (L185)", "delete [RW] (L254)"]
+moduleWiringAndCycleSafety:
+  owningModules:
+    - module: ApiKeyModule
+      filePath: packages/twenty-server/src/engine/core-modules/api-key/api-key.module.ts
+      provides: [ApiKeyService]
+      directModuleImports: [ApiKeyRoleModule, RoleTargetModule, TokenModule, WorkspaceCacheModule, WorkspaceCacheStorageModule]
+    - module: UsageLimitModule
+      filePath: packages/twenty-server/src/engine/core-modules/usage-limit/usage-limit.module.ts
+      provides: [UsageLimitService]
+      directModuleImports: [BillingModule, MetricsModule, PermissionsModule, ThrottlerModule, UsageAnalyticsModule, UsageModule, WorkspaceCacheModule]
+  importSafetyVerdicts: ["SAFE_DIRECT_IMPORT: ApiKeyModule can import UsageLimitModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: UsageLimitModule can import ApiKeyModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files)."]
+guardrails:
+  suiteStatus: passed
+  newViolationsCount: 0
+  activeRules:
+    - id: SIG-TWENTY-001
+      status: PassedTolerated
+      rule: Transport State Purity (No Direct DB Access in Resolvers/Controllers)
+      remediation: Remove @InjectRepository / Repository / DataSource usage from the resolver or controller and delegate the persistence operation to the owning domain service.
+    - id: SIG-TWENTY-002
+      status: PassedTolerated
+      rule: Metadata Table Ownership
+      remediation: Import the owning metadata module and call its exported service instead of querying metadata TypeORM entities directly from core-modules.
+    - id: SIG-TWENTY-003
+      status: PassedTolerated
+      rule: Core Domain & Application Sub-Domain Table Ownership
+      remediation: Do not inject another module's TypeORM Entity repository or query its table directly; import the owning NestJS module and call its exported domain service.
+    - id: SIG-TWENTY-004
+      status: PassedTolerated
+      rule: Core-to-Feature Layer Isolation
+      remediation: Decouple side effects from src/engine/core-modules/** via WorkspaceEventBatch / EventEmitter2 or MessageQueueService instead of calling src/modules/** directly.
+    - id: SIG-TWENTY-005
+      status: Passed
+      rule: Async Queue Worker Boundary (No Direct Job .handle() Invocation)
+      remediation: "Inject MessageQueueService via @InjectMessageQueue(MessageQueue.<queue>) and call .add<JobData>(JobClass.name, payload) instead of calling job.handle() synchronously."
+    - id: SIG-TWENTY-006
+      status: PassedTolerated
+      rule: Transport Handler Thinness Ceiling (<= 45 LOC)
+      remediation: "Extract business, validation, and orchestration logic out of the resolver/controller method into a domain service so the transport method stays <= 45 LOC."
+    - id: SIG-TWENTY-007
+      status: PassedTolerated
+      rule: No Silent Exception Swallowing
+      remediation: "Handle, rethrow, or log the caught error, or document why the exception is intentionally ignored."
+  legacyTrapsInSubgraphFiles:
+    - file: packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts
+      gateId: SIG-TWENTY-001
+      legacySymbols: [getAdminAiUsageByWorkspace]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts
+      gateId: SIG-TWENTY-002
+      legacySymbols: [spenderExists]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/api-key/commands/generate-api-key.command.ts
+      gateId: SIG-TWENTY-002
+      legacySymbols: [run]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [spenderExists]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/api-key/commands/generate-api-key.command.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [run]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [getAdminAiUsageByWorkspace]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+readPlan:
+  - filePath: packages/twenty-server/src/engine/core-modules/api-key/services/api-key.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'apiKey': ApiKeyService"
+  - filePath: packages/twenty-server/src/engine/core-modules/usage-limit/services/usage-limit.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'usageLimit': UsageLimitService"
+  - filePath: packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel-usage-limit.resolver.ts
+    startLine: 64
+    reason: "Anchor Endpoint: MUTATION:createWorkspaceUsageLimit"
+  - filePath: packages/twenty-server/src/engine/core-modules/api-key/api-key.resolver.ts
+    startLine: 118
+    reason: "Anchor Endpoint: MUTATION:revokeApiKey"
+  - filePath: packages/twenty-server/src/engine/core-modules/jwt/services/signing-key-verify-counter.service.ts
+    startLine: 21
+    reason: "Anchor Type: SigningKeyUsage"
+  - filePath: packages/twenty-server/src/engine/core-modules/admin-panel/admin-panel.resolver.ts
+    startLine: 866
+    reason: "Anchor Endpoint: MUTATION:revokeSigningKey"

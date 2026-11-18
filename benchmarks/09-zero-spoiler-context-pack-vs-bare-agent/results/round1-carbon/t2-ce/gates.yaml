@@ -1,0 +1,19 @@
+status: passed
+summary:
+  totalGates: 7
+  passed: 7
+  warnings: 0
+  failed: 0
+  newViolations: 0
+  toleratedViolations: 538
+  durationMs: 1241
+gates:
+  columns: [id, status, severity, newViolations, tolerated, name, description, remediation]
+  rows:
+  - [SIG-TWENTY-001, PassedTolerated, Error, 0, 27, Transport State Purity (No Direct DB Access in Resolvers/Controllers), GraphQL Resolvers (*.resolver.ts) and HTTP Controllers (*.controller.ts) in twenty-server core-modules must not directly read from or write to database tables (READS_FROM|WRITES_TO). All persistence queries and mutations must be delegated to domain services., Remove @InjectRepository / Repository / DataSource usage from the resolver or controller and delegate the persistence operation to the owning domain service.]
+  - [SIG-TWENTY-002, PassedTolerated, Error, 0, 59, Metadata Table Ownership, Core engine modules (src/engine/core-modules/**) must not directly read or write database tables owned by metadata modules (src/engine/metadata-modules/**). Metadata state must be accessed through exported metadata services., Import the owning metadata module and call its exported service instead of querying metadata TypeORM entities directly from core-modules.]
+  - [SIG-TWENTY-003, PassedTolerated, Error, 0, 310, Core Domain & Application Sub-Domain Table Ownership, Core modules (src/engine/core-modules/<domain>/**) and application sub-domains (src/engine/core-modules/application/<sub-domain>/**) must not introduce new direct database reads or writes (READS_FROM|WRITES_TO) against tables whose owning TypeORM Entity belongs to another domain or sub-domain. Cross-domain state must be accessed or mutated exclusively through the owning module's exported service., Do not inject another module's TypeORM Entity repository or query its table directly; import the owning NestJS module and call its exported domain service.]
+  - [SIG-TWENTY-004, PassedTolerated, Error, 0, 99, Core-to-Feature Layer Isolation, Core engine modules (src/engine/core-modules/**) must not introduce new direct calls to workspace feature modules (src/modules/**). Cross-layer side effects must be decoupled via domain events or message queues., Decouple side effects from src/engine/core-modules/** via WorkspaceEventBatch / EventEmitter2 or MessageQueueService instead of calling src/modules/** directly.]
+  - [SIG-TWENTY-005, Passed, Error, 0, 0, Async Queue Worker Boundary (No Direct Job .handle() Invocation), Production code (packages/twenty-server/src/**) must never invoke @Processor background job .handle() methods directly. Background jobs in /jobs/ must be enqueued asynchronously via MessageQueueService.add()., "Inject MessageQueueService via @InjectMessageQueue(MessageQueue.<queue>) and call .add<JobData>(JobClass.name, payload) instead of calling job.handle() synchronously."]
+  - [SIG-TWENTY-006, PassedTolerated, Error, 0, 37, Transport Handler Thinness Ceiling (<= 45 LOC), "GraphQL Resolver (*.resolver.ts) and HTTP Controller (*.controller.ts) methods in twenty-server core-modules must remain thin transport adapters (<= 45 LOC) and delegate orchestration, validation, and domain logic to services.", "Extract business, validation, and orchestration logic out of the resolver/controller method into a domain service so the transport method stays <= 45 LOC."]
+  - [SIG-TWENTY-007, PassedTolerated, Error, 0, 6, No Silent Exception Swallowing, Production TypeScript code in twenty-server must not contain empty catch blocks without an explicit explanatory comment or error handling., "Handle, rethrow, or log the caught error, or document why the exception is intentionally ignored."]

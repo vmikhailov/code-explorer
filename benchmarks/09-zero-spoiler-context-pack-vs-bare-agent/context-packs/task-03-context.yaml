@@ -1,0 +1,157 @@
+query: subdomain availability public domain
+anchors:
+  - symbol: AuthResolver.checkWorkspaceSubdomainAvailability
+    kind: Function
+    location: "packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts:675"
+    concept: subdomainAvailability
+  - symbol: SubdomainManagerService.getSubdomainAvailability
+    kind: Function
+    location: "packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts:139"
+    concept: subdomainAvailability
+  - symbol: "MUTATION:createPublicDomain"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:87"
+    concept: publicDomain
+  - symbol: "MUTATION:deletePublicDomain"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:108"
+    concept: publicDomain
+  - symbol: "MUTATION:checkPublicDomainValidRecords"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:122"
+    concept: public
+  - symbol: "QUERY:findManyPublicDomains"
+    kind: Endpoint
+    location: "packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts:79"
+    concept: public
+  - symbol: CHECK_WORKSPACE_SUBDOMAIN_AVAILABILITY
+    kind: Function
+    location: "packages/twenty-front/src/modules/auth/graphql/queries/checkWorkspaceSubdomainAvailability.ts:3"
+    concept: subdomain
+  - symbol: LoginPage.typeSubdomain
+    kind: Function
+    location: "packages/twenty-e2e-testing/lib/pom/loginPage.ts:164"
+    concept: subdomain
+serviceMethods:
+  - serviceOrClass: LoginPage
+    filePath: packages/twenty-e2e-testing/lib/pom/loginPage.ts
+    methods: [loginWithGoogle (L94-L96), clickLoginWithEmail (L98-L100), clickLoginWithEmailIfVisible (L102-L110), clickContinueButton (L112-L114), clickTermsLink (L116-L118), clickPrivacyPolicyLink (L120-L122), typeEmail (L124-L126), typePassword (L128-L130), clickSignInButton (L132-L134), clickSignUpButton (L136-L138)]
+  - serviceOrClass: AuthResolver
+    filePath: packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts
+    methods: [checkUserExists (L203-L209), getAuthorizationUrlForSSO (L214-L221), checkWorkspaceInviteHashIsValid (L225-L231), findWorkspaceFromInviteHash (L235-L241), getLoginTokenFromCredentials (L246-L278), signIn (L283-L326), verifyEmailAndGetLoginToken (L331-L373), verifyEmailAndGetWorkspaceAgnosticToken (L378-L437), getAuthTokensFromOTP (L442-L482), getAuthTokensFromTwoFactorAuthenticationRecoveryCode (L487-L532)]
+  - serviceOrClass: SubdomainManagerService
+    filePath: packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+    methods: [generateSubdomain (L36-L48), getWorkspaceCreationDefaults (L50-L63), findAvailableSubdomain (L65-L69), findAvailableSubdomains (L71-L94), buildSubdomainCandidates (L96-L108), filterFreeToUseSubdomains (L110-L137), getSubdomainAvailability (L139-L160), isSubdomainAvailable (L162-L169), validateSubdomainOrThrow (L171-L192), isSubdomainFreeToUse (L194-L200)]
+outboundSideEffects: ["CHECK_WORKSPACE_SUBDOMAIN_AVAILABILITY -> AuthResolver.checkWorkspaceSubdomainAvailability (packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts:675)", "AuthResolver.checkUserExists -> AuthService.checkUserExists (packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts:518)", "AuthResolver.getAuthorizationUrlForSSO -> SsoService.getAuthorizationUrlForSSO (packages/twenty-server/src/engine/core-modules/sso/services/sso.service.ts:267)", "AuthResolver.checkWorkspaceInviteHashIsValid -> AuthService.checkWorkspaceInviteHashIsValid (packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts:531)", "AuthResolver.findWorkspaceFromInviteHash -> AuthService.findWorkspaceFromInviteHashOrFail (packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts:793)", "AuthResolver.getLoginTokenFromCredentials -> AuthService.validateLoginWithPasswordAndJoinWorkspaceIfInvited (packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts:197)", "AuthResolver.getLoginTokenFromCredentials -> LoginTokenService.generateLoginToken (packages/twenty-server/src/engine/core-modules/auth/token/services/login-token.service.ts:33)", "AuthResolver.getLoginTokenFromCredentials -> WorkspaceDomainsService.getWorkspaceByOriginOrDefaultWorkspace (packages/twenty-server/src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service.ts:106)", "AuthResolver.signIn -> AuthService.validateLoginWithPassword (packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts:189)", "AuthResolver.signIn -> RefreshTokenService.generateRefreshToken (packages/twenty-server/src/engine/core-modules/auth/token/services/refresh-token.service.ts:114)"]
+inboundCallersAndRoutes: ["Playwright:Test:Login test -> LoginPage.clickContinueButton (packages/twenty-e2e-testing/tests/login.setup.ts:12)", "Playwright:Test:Login test -> LoginPage.clickLoginWithEmailIfVisible (packages/twenty-e2e-testing/tests/login.setup.ts:12)", "Playwright:Test:Login test -> LoginPage.clickSignInButton (packages/twenty-e2e-testing/tests/login.setup.ts:12)", "Playwright:Test:Login test -> LoginPage.typeEmail (packages/twenty-e2e-testing/tests/login.setup.ts:12)", "Playwright:Test:Login test -> LoginPage.typePassword (packages/twenty-e2e-testing/tests/login.setup.ts:12)", "test.loginPage -> LoginPage (packages/twenty-e2e-testing/tests/authentication/fixture.ts:23)", "test.loginPage -> LoginPage (packages/twenty-e2e-testing/tests/login.setup.ts:6)", "CheckUserExistsDocument -> AuthResolver.checkUserExists (packages/twenty-front/src/generated-metadata/graphql.ts:3101)"]
+tablesAndCanonicalOwners:
+  - table: appToken
+    canonicalOwner: WorkspaceInvitationService (packages/twenty-server/src/engine/core-modules/workspace-invitation/services/workspace-invitation.service.ts)
+    ownerMethods: ["validatePersonalInvitation [R] (L69)", "findInvitationsByEmail [R] (L109)", "getOneWorkspaceInvitation [R] (L126)", "getAppTokenByInvitationToken [R] (L140)", "loadWorkspaceInvitations [R] (L159)", "createWorkspaceInvitation [W] (L174)", "deleteWorkspaceInvitation [RW] (L228)"]
+    otherDirectAccessors: [TwoFactorAuthenticationRecoveryService (packages/twenty-server/src/engine/core-modules/two-factor-authentication/services/two-factor-authentication-recovery.service.ts), AuthService (packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts), ResetPasswordService (packages/twenty-server/src/engine/core-modules/auth/services/reset-password.service.ts)]
+  - table: publicDomain
+    canonicalOwner: PublicDomainService (packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts)
+    ownerMethods: ["deletePublicDomain [W] (L37)", "createPublicDomain [RW] (L55)", "checkPublicDomainValidRecords [W] (L130)", "findByDomain [R] (L161)"]
+    otherDirectAccessors: [CheckPublicDomainsValidRecordsCronJob (packages/twenty-server/src/engine/core-modules/public-domain/crons/jobs/check-public-domains-valid-records.cron.job.ts), CustomDomainManagerService (packages/twenty-server/src/engine/core-modules/domain/custom-domain-manager/services/custom-domain-manager.service.ts), WorkspaceDomainsService (packages/twenty-server/src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service.ts)]
+  - table: workspace
+    canonicalOwner: WorkspaceService (packages/twenty-server/src/engine/core-modules/workspace/services/workspace.service.ts)
+    ownerMethods: ["updateWorkspaceById [RW] (L456)", "activateWorkspace [RW] (L678)", "activateAndInitializeUpgradeState [W] (L782)", "suspendWorkspace [W] (L830)", "reactivateWorkspace [W] (L857)", "deleteWorkspace [RW] (L886)", "hardDeleteWorkspaceWithApplicationUninstallLock [W] (L930)"]
+    otherDirectAccessors: [SignInUpService (packages/twenty-server/src/engine/core-modules/auth/services/sign-in-up.service.ts), WorkspaceDomainsService (packages/twenty-server/src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service.ts), WorkspaceAssistantProfileService (packages/twenty-server/src/engine/core-modules/workspace/services/workspace-assistant-profile.service.ts)]
+moduleWiringAndCycleSafety:
+  owningModules:
+    - module: AuthModule
+      filePath: packages/twenty-server/src/engine/core-modules/auth/auth.module.ts
+      provides: [AuthResolver]
+      directModuleImports: [ApiKeyModule, ApplicationConnectionsModule, ApplicationModule, ApplicationRegistrationModule, BillingModule, CalendarCommonModule, ConnectedAccountModule, ConnectedAccountTokenEncryptionModule, ConnectionProviderModule, DomainServerConfigModule, EmailAliasManagerModule, EmailVerificationModule, EnterpriseModule, EventLogEmitterModule, FeatureFlagModule, FileModule, GuardRedirectModule, ImpersonationAuthorizationModule, MessagingCommonModule, MessagingFolderSyncManagerModule, MetricsModule, OnboardingModule, OnboardingRecentMessagesImportModule, PermissionsModule, SecureHttpClientModule, SubdomainManagerModule, ThrottlerModule, TokenModule, TwoFactorAuthenticationModule, UserModule, UserSessionModule, UserWorkspaceModule, WorkspaceCacheModule, WorkspaceDomainsModule, WorkspaceInvitationModule, WorkspaceSsoModule]
+    - module: PublicDomainModule
+      filePath: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.module.ts
+      provides: [PublicDomainService]
+      directModuleImports: [ApplicationLookupModule, ApplicationRegistrationLookupModule, DnsManagerModule, PermissionsModule, WorkspaceManyOrAllFlatEntityMapsCacheModule]
+    - module: SubdomainManagerModule
+      filePath: packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module.ts
+      provides: [SubdomainManagerService]
+    - module: WorkspaceInvitationModule
+      filePath: packages/twenty-server/src/engine/core-modules/workspace-invitation/workspace-invitation.module.ts
+      provides: [WorkspaceInvitationService]
+      directModuleImports: [FileModule, GettingStartedModule, OnboardingModule, PermissionsModule, RoleAssignmentModule, ThrottlerModule, WorkspaceDomainsModule]
+    - module: WorkspaceModule
+      filePath: packages/twenty-server/src/engine/core-modules/workspace/workspace.module.ts
+      provides: [WorkspaceService]
+      directModuleImports: [AiAgentModule, ApplicationManifestModule, ApplicationModule, BillingModule, CompanyEnrichmentModule, CoreEntityCacheModule, CustomDomainManagerModule, DnsManagerModule, EnterpriseModule, EventLogRetentionModule, FeatureFlagModule, FileModule, MetricsModule, PermissionsModule, PreInstalledAppsModule, RoleAssignmentModule, RoleModule, SdkClientModule, StandardObjectsPrefillModule, SubdomainManagerModule, TypeORMModule, UpgradeModule, UserWorkspaceModule, ViewModule, WorkspaceCacheStorageModule, WorkspaceDataSourceModule, WorkspaceDomainsModule, WorkspaceManagerModule, WorkspaceManyOrAllFlatEntityMapsCacheModule, WorkspaceMigrationModule]
+  importSafetyVerdicts: ["SAFE_DIRECT_IMPORT: AuthModule can import PublicDomainModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "ALREADY_IMPORTED: AuthModule already imports SubdomainManagerModule.", "ALREADY_IMPORTED: AuthModule already imports WorkspaceInvitationModule.", "SAFE_DIRECT_IMPORT: AuthModule can import WorkspaceModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: PublicDomainModule can import AuthModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: PublicDomainModule can import SubdomainManagerModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: PublicDomainModule can import WorkspaceInvitationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: PublicDomainModule can import WorkspaceModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "CYCLE_WARNING: Importing AuthModule into SubdomainManagerModule creates a circular dependency (AuthModule -> SubdomainManagerModule -> AuthModule). Extract or import a cycle-free sub-module instead.", "SAFE_DIRECT_IMPORT: SubdomainManagerModule can import PublicDomainModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: SubdomainManagerModule can import WorkspaceInvitationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "CYCLE_WARNING: Importing WorkspaceModule into SubdomainManagerModule creates a circular dependency (WorkspaceModule -> SubdomainManagerModule -> WorkspaceModule). Extract or import a cycle-free sub-module instead.", "CYCLE_WARNING: Importing AuthModule into WorkspaceInvitationModule creates a circular dependency (AuthModule -> WorkspaceInvitationModule -> AuthModule). Extract or import a cycle-free sub-module instead.", "SAFE_DIRECT_IMPORT: WorkspaceInvitationModule can import PublicDomainModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "SAFE_DIRECT_IMPORT: WorkspaceInvitationModule can import SubdomainManagerModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "CYCLE_WARNING: Importing WorkspaceModule into WorkspaceInvitationModule creates a circular dependency (WorkspaceModule -> UserWorkspaceModule -> WorkspaceInvitationModule -> WorkspaceModule). Extract or import a cycle-free sub-module instead.", "CYCLE_WARNING: Importing AuthModule into WorkspaceModule creates a circular dependency (AuthModule -> UserModule -> WorkspaceModule -> AuthModule). Extract or import a cycle-free sub-module instead.", "SAFE_DIRECT_IMPORT: WorkspaceModule can import PublicDomainModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files).", "ALREADY_IMPORTED: WorkspaceModule already imports SubdomainManagerModule.", "SAFE_DIRECT_IMPORT: WorkspaceModule can import WorkspaceInvitationModule directly (0 reverse paths in module graph; no need to inspect other *.module.ts files)."]
+guardrails:
+  suiteStatus: passed
+  newViolationsCount: 0
+  activeRules:
+    - id: SIG-TWENTY-001
+      status: PassedTolerated
+      rule: Transport State Purity (No Direct DB Access in Resolvers/Controllers)
+      remediation: Remove @InjectRepository / Repository / DataSource usage from the resolver or controller and delegate the persistence operation to the owning domain service.
+    - id: SIG-TWENTY-002
+      status: PassedTolerated
+      rule: Metadata Table Ownership
+      remediation: Import the owning metadata module and call its exported service instead of querying metadata TypeORM entities directly from core-modules.
+    - id: SIG-TWENTY-003
+      status: PassedTolerated
+      rule: Core Domain & Application Sub-Domain Table Ownership
+      remediation: Do not inject another module's TypeORM Entity repository or query its table directly; import the owning NestJS module and call its exported domain service.
+    - id: SIG-TWENTY-004
+      status: PassedTolerated
+      rule: Core-to-Feature Layer Isolation
+      remediation: Decouple side effects from src/engine/core-modules/** via WorkspaceEventBatch / EventEmitter2 or MessageQueueService instead of calling src/modules/** directly.
+    - id: SIG-TWENTY-005
+      status: Passed
+      rule: Async Queue Worker Boundary (No Direct Job .handle() Invocation)
+      remediation: "Inject MessageQueueService via @InjectMessageQueue(MessageQueue.<queue>) and call .add<JobData>(JobClass.name, payload) instead of calling job.handle() synchronously."
+    - id: SIG-TWENTY-006
+      status: PassedTolerated
+      rule: Transport Handler Thinness Ceiling (<= 45 LOC)
+      remediation: "Extract business, validation, and orchestration logic out of the resolver/controller method into a domain service so the transport method stays <= 45 LOC."
+    - id: SIG-TWENTY-007
+      status: PassedTolerated
+      rule: No Silent Exception Swallowing
+      remediation: "Handle, rethrow, or log the caught error, or document why the exception is intentionally ignored."
+  legacyTrapsInSubgraphFiles:
+    - file: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts
+      gateId: SIG-TWENTY-001
+      legacySymbols: [findManyPublicDomains, checkPublicDomainValidRecords]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts
+      gateId: SIG-TWENTY-001
+      legacySymbols: [validateAndLogImpersonation, verifyEmailAndGetLoginToken, verifyEmailAndGetWorkspaceAgnosticToken]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/auth/services/auth.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [generateAuthorizationCode, updatePassword, findInvitationForSignInUp, findUserByEmailOrThrow]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/auth/token/services/refresh-token.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [generateRefreshToken, verifyRefreshToken]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [verifyEmailAndGetLoginToken, verifyEmailAndGetWorkspaceAgnosticToken, validateAndLogImpersonation]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+    - file: packages/twenty-server/src/engine/core-modules/workspace-invitation/services/workspace-invitation.service.ts
+      gateId: SIG-TWENTY-003
+      legacySymbols: [createWorkspaceInvitation, deleteWorkspaceInvitation, invalidateWorkspaceInvitation, sendInvitations]
+      note: "TOLERATED LEGACY DEBT: do NOT imitate this pattern in new/modified methods; follow activeRules remediation."
+readPlan:
+  - filePath: packages/twenty-server/src/engine/core-modules/workspace-invitation/services/workspace-invitation.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'appToken': WorkspaceInvitationService"
+  - filePath: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'publicDomain': PublicDomainService"
+  - filePath: packages/twenty-server/src/engine/core-modules/workspace/services/workspace.service.ts
+    startLine: 1
+    reason: "Canonical owner of table 'workspace': WorkspaceService"
+  - filePath: packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts
+    startLine: 675
+    reason: "Anchor Function: AuthResolver.checkWorkspaceSubdomainAvailability"
+  - filePath: packages/twenty-server/src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service.ts
+    startLine: 139
+    reason: "Anchor Function: SubdomainManagerService.getSubdomainAvailability"
+  - filePath: packages/twenty-server/src/engine/core-modules/public-domain/public-domain.resolver.ts
+    startLine: 87
+    reason: "Anchor Endpoint: MUTATION:createPublicDomain"

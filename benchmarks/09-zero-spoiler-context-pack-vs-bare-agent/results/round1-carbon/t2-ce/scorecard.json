@@ -1,0 +1,31 @@
+{
+  "label": "t2-ce",
+  "feature": 3,
+  "compile_passed": true,
+  "compile_errors": "",
+  "behavioral_passed": 5,
+  "behavioral_total": 5,
+  "behavioral_failures": [],
+  "gates_passed": 7,
+  "gates_failed": 0,
+  "new_sig_violations": 0,
+  "telemetry": {
+    "conversation_id": "6ac74748-b74a-4482-92ae-f7f521103f45",
+    "wall_clock_seconds": 1039,
+    "llm_turns": 38,
+    "total_tool_calls": 69,
+    "tool_breakdown": {
+      "run_command": 20,
+      "read_file": 40,
+      "write_file": 1,
+      "edit_file": 7,
+      "send_message": 1
+    },
+    "api_uncached_input_tokens": 188875,
+    "api_cached_input_tokens": 3978031,
+    "api_total_input_tokens": 4166906,
+    "api_output_tokens": 37142,
+    "purity_passed": true,
+    "purity_issues": []
+  }
+}

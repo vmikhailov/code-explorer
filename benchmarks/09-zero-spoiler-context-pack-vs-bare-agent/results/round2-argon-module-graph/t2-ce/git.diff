@@ -1,0 +1,102 @@
+diff --git a/.codeexplorer/.gitignore b/.codeexplorer/.gitignore
+new file mode 100644
+index 00000000..1d1c5dc0
+--- /dev/null
++++ b/.codeexplorer/.gitignore
+@@ -0,0 +1,5 @@
++# Ignore local SQLite graph database, journal/WAL files, and locks
++*.db
++*.db-*
++*.lock
++*.tmp
+diff --git a/packages/twenty-server/src/engine/core-modules/application/application.module.ts b/packages/twenty-server/src/engine/core-modules/application/application.module.ts
+index 1b18cb75..de71d286 100644
+--- a/packages/twenty-server/src/engine/core-modules/application/application.module.ts
++++ b/packages/twenty-server/src/engine/core-modules/application/application.module.ts
+@@ -11,6 +11,7 @@ import { ApplicationService } from 'src/engine/core-modules/application/applicat
+ import { WorkspaceFlatApplicationMapCacheService } from 'src/engine/core-modules/application/workspace-flat-application-map-cache.service';
+ import { ApplicationVariableEntity } from 'src/engine/core-modules/application/application-variable/application-variable.entity';
+ import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
++import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ import { AgentEntity } from 'src/engine/metadata-modules/ai/ai-agent/entities/agent.entity';
+ import { CommandMenuItemEntity } from 'src/engine/metadata-modules/command-menu-item/entities/command-menu-item.entity';
+@@ -40,6 +41,7 @@ import { ApplicationRegistrationLookupModule } from 'src/engine/core-modules/app
+     ]),
+     ApplicationLookupModule,
+     ApplicationStopModule,
++    PublicDomainModule,
+     WorkspaceManyOrAllFlatEntityMapsCacheModule,
+     WorkspaceCacheModule,
+     MetricsModule,
+diff --git a/packages/twenty-server/src/engine/core-modules/application/application.service.ts b/packages/twenty-server/src/engine/core-modules/application/application.service.ts
+index 7c171720..3e70877f 100644
+--- a/packages/twenty-server/src/engine/core-modules/application/application.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/application/application.service.ts
+@@ -34,6 +34,7 @@ import { canCallerReachApplication } from 'src/engine/core-modules/application/u
+ import { buildApplicationIframeMediaPermissionGrantQuery } from 'src/engine/core-modules/application/utils/build-application-iframe-media-permission-grant-query.util';
+ import { findActiveFlatApplicationById } from 'src/engine/core-modules/application/utils/find-active-flat-application-by-id.util';
+ import { FileStorageService } from 'src/engine/core-modules/file-storage/services/file-storage.service';
++import { PublicDomainService } from 'src/engine/core-modules/public-domain/public-domain.service';
+ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+ import { AgentEntity } from 'src/engine/metadata-modules/ai/ai-agent/entities/agent.entity';
+ import { CommandMenuItemEntity } from 'src/engine/metadata-modules/command-menu-item/entities/command-menu-item.entity';
+@@ -81,6 +82,7 @@ export class ApplicationService {
+     private readonly applicationVariableRepository: WorkspaceScopedRepository<ApplicationVariableEntity>,
+     private readonly workspaceEventBroadcaster: WorkspaceEventBroadcaster,
+     private readonly applicationLookupService: ApplicationLookupService,
++    private readonly publicDomainService: PublicDomainService,
+   ) {}
+ 
+   async findApplicationRoleId(
+@@ -940,6 +942,11 @@ export class ApplicationService {
+       );
+     }
+ 
++    await this.publicDomainService.deleteApplicationPublicDomains({
++      applicationId: application.id,
++      workspaceId,
++    });
++
+     const queryRunner = this.coreDataSource.createQueryRunner();
+ 
+     await queryRunner.connect();
+diff --git a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+index 95c7ee97..bb46188e 100644
+--- a/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
++++ b/packages/twenty-server/src/engine/core-modules/public-domain/public-domain.service.ts
+@@ -39,7 +39,7 @@ export class PublicDomainService {
+     workspace,
+   }: {
+     domain: string;
+-    workspace: WorkspaceEntity;
++    workspace: Pick<WorkspaceEntity, 'id'>;
+   }): Promise<void> {
+     const formattedDomain = domain.trim().toLowerCase();
+ 
+@@ -52,6 +52,25 @@ export class PublicDomainService {
+     });
+   }
+ 
++  async deleteApplicationPublicDomains({
++    applicationId,
++    workspaceId,
++  }: {
++    applicationId: string;
++    workspaceId: string;
++  }): Promise<void> {
++    const publicDomains = await this.publicDomainRepository.find(workspaceId, {
++      where: { applicationId },
++    });
++
++    for (const publicDomain of publicDomains) {
++      await this.deletePublicDomain({
++        domain: publicDomain.domain,
++        workspace: { id: workspaceId },
++      });
++    }
++  }
++
+   async createPublicDomain({
+     domain,
+     workspace,

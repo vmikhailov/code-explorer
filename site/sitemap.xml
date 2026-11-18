@@ -37,6 +37,9 @@
     <loc>https://code-explorer.app/benchmarks/08-multi-task-architecture-suite-on-twenty</loc>
   </url>
   <url>
+    <loc>https://code-explorer.app/benchmarks/09-zero-spoiler-context-pack-vs-bare-agent</loc>
+  </url>
+  <url>
     <loc>https://code-explorer.app/privacy</loc>
   </url>
 </urlset>
