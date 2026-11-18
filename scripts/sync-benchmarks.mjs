@@ -476,6 +476,31 @@ function ingestRawSources(data) {
     }
   }
 
+  // Case Study 09: Zero-Spoiler Coding Suite (One-Shot Context Pack vs Bare Agent)
+  if (data.cs09 && data.cs09.source_metrics) {
+    const abs09 = path.join(ROOT, data.cs09.source_metrics);
+    if (fs.existsSync(abs09)) {
+      const m09 = JSON.parse(fs.readFileSync(abs09, 'utf8'));
+      if (m09.totals && m09.totals.ce && m09.totals.bare && m09.runs) {
+        data.cs09.status = 'ready';
+        if (m09.ce_version) data.cs09.ce_version = m09.ce_version;
+        if (m09.ripgrep_version) data.cs09.ripgrep_version = m09.ripgrep_version;
+        if (m09.model) data.cs09.model = m09.model;
+        if (m09.repository_scale) {
+          data.cs09.repo.packages = m09.repository_scale.packages;
+          data.cs09.repo.files = m09.repository_scale.indexed_files;
+          data.cs09.repo.graph_nodes = m09.repository_scale.graph_nodes;
+          data.cs09.repo.graph_edges = m09.repository_scale.graph_relationships;
+        }
+        data.cs09.telemetry = {
+          ce: m09.totals.ce,
+          bare: m09.totals.bare,
+          runs: m09.runs,
+        };
+      }
+    }
+  }
+
   return rawMilestones01;
 }
 
@@ -788,8 +813,8 @@ function buildBindings(data, rawMilestones01) {
       `          2. codebase-memory-mcp (CBM): ${data.meta.tools.cbm_version} (win32-x64 Go + SQLite binary, ${data.meta.tools.cbm_mcp_tools} MCP tools)<br>`,
       `          3. Graphify (graphifyy): ${data.meta.tools.graphify_version} (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX --code-only, ${data.meta.tools.graphify_mcp_tools} MCP tools)<br>`,
       `          4. Lexical CLI Baseline: ripgrep (rg ${data.meta.tools.ripgrep_version}) + Python ${data.meta.tools.python_version} (Case 02) + view_file<br>`,
-      `          5. LLM Model (Tracks 1 &amp; 2): ${data.meta.llm_model} (symmetric system prompts across paired runs)<br>`,
-      `          6. Pinned Target Commits: twentyhq/twenty @ ${data.cs01.repo.commit} (Case 01), twentyhq/twenty @ ${c3.repos.twenty.commit} (Cases 03, 04, 07 &amp; 08), immich-app/immich @ ${c3.repos.immich.commit} (Cases 03 &amp; 04), ${data.cs05.repo.name} @ ${data.cs05.repo.commit} (Case 05), ${data.cs06.repo.name} @ ${data.cs06.repo.commit} (Case 06)`,
+      `          5. LLM Models: ${data.meta.llm_model} (Cases 01, 02, 05, 07 &amp; 08) &amp; ${data.cs09.model} (Case 09, symmetric system prompts across paired runs)<br>`,
+      `          6. Pinned Target Commits: twentyhq/twenty @ ${data.cs01.repo.commit} (Case 01), twentyhq/twenty @ ${c3.repos.twenty.commit} (Cases 03, 04, 07, 08 &amp; 09), immich-app/immich @ ${c3.repos.immich.commit} (Cases 03 &amp; 04), ${data.cs05.repo.name} @ ${data.cs05.repo.commit} (Case 05), ${data.cs06.repo.name} @ ${data.cs06.repo.commit} (Case 06)`,
     ].join('\n');
 
     b['index.cs0304_p1_comp'] = `CBM: ${cbmPctA}% (${c3.recall.group_a_cbm_matched}/${c3.recall.group_a_gt}) | graphify: ${grPctA}% (${c4.recall.group_a_graphify_matched}/${c4.recall.group_a_gt})`;
@@ -1056,6 +1081,168 @@ function buildBindings(data, rawMilestones01) {
       `<strong>14/14 unit tests pass for both</strong> (CBM shipped 4 cross-module / transport leaks)`;
   }
 
+  // --- Case Study 09 (Zero-Spoiler Coding Benchmark: One-Shot Context Pack vs Bare Agent) ---
+  if (data.cs09 && data.cs09.status === 'ready' && data.cs09.telemetry) {
+    const c9 = data.cs09;
+    const ce = c9.telemetry.ce;
+    const bare = c9.telemetry.bare;
+    const runs = c9.telemetry.runs;
+
+    const speedup = bare.wall_clock_seconds / ce.wall_clock_seconds;
+    const turnsRatio = bare.llm_turns / ce.llm_turns;
+    const callsRatio = bare.total_tool_calls / ce.total_tool_calls;
+    const readsRatio = bare.read_file_calls / ce.read_file_calls;
+    const cmdsRatio = bare.run_command_calls / ce.run_command_calls;
+    const uncachedRatio = bare.api_uncached_input_tokens / ce.api_uncached_input_tokens;
+    const tokRatio = bare.api_total_input_tokens / ce.api_total_input_tokens;
+    const outRatio = bare.api_output_tokens / ce.api_output_tokens;
+
+    const pctSaved = (a, bVal) => Math.round(((a - bVal) / a) * 100);
+
+    b['cs09.meta_desc'] =
+      `Zero-spoiler constructive coding benchmark across 3 multi-module tickets (6 paired runs) on ${c9.repo.name} (${fmtInt(c9.repo.files)} indexed files) with symmetric architectural rules: ` +
+      `CodeExplorer One-Shot Context Pack (${fmtDurShort(ce.wall_clock_seconds, true)}, ${ce.llm_turns} turns, ${fmtRoundTokens(ce.api_total_input_tokens)} input tokens, ${ce.read_file_calls} file reads) vs ` +
+      `Bare Agent (${fmtDurShort(bare.wall_clock_seconds, true)}, ${bare.llm_turns} turns, ${fmtRoundTokens(bare.api_total_input_tokens)} input tokens, ${bare.read_file_calls} file reads).`;
+
+    b['cs09.crumb_scale'] = `${c9.repo.packages} packages, ${fmtInt(c9.repo.files)} indexed files, 3 zero-spoiler tasks (6 paired runs)`;
+
+    b['cs09.card_tokens'] = fmtRoundMult(tokRatio);
+    b['cs09.card_tokens_copy'] =
+      `Across all 3 zero-spoiler tasks, CodeExplorer used ${fmtRoundTokens(ce.api_total_input_tokens)} cumulative input tokens vs ${fmtRoundTokens(bare.api_total_input_tokens)} for the Bare Agent (${fmtRoundMult(uncachedRatio)} fewer uncached tokens).`;
+    b['cs09.card_tokens_footer'] = `${fmtInt(ce.api_total_input_tokens)} vs ${fmtInt(bare.api_total_input_tokens)} total input tokens`;
+
+    b['cs09.card_reads'] = fmtRoundMult(readsRatio);
+    b['cs09.card_reads_copy'] =
+      `One-shot task context compilation cut source file reads from ${bare.read_file_calls} down to ${ce.read_file_calls} and shell commands from ${bare.run_command_calls} down to ${ce.run_command_calls} (0 rg calls in Task 2).`;
+    b['cs09.card_reads_footer'] = `${ce.read_file_calls} vs ${bare.read_file_calls} file reads (${ce.total_tool_calls} vs ${bare.total_tool_calls} tool calls)`;
+
+    b['cs09.card_speedup'] = fmtRoundMult(speedup);
+    b['cs09.card_speed_copy'] =
+      `Completed all 3 backend tasks in ${fmtDurShort(ce.wall_clock_seconds, true)} (${ce.llm_turns} turns) with CodeExplorer vs ${fmtDurShort(bare.wall_clock_seconds, true)} (${bare.llm_turns} turns) for the Bare Agent.`;
+    b['cs09.card_speed_footer'] = `${fmtInt(ce.wall_clock_seconds)} s (${ce.llm_turns} turns) vs ${fmtInt(bare.wall_clock_seconds)} s (${bare.llm_turns} turns)`;
+
+    b['cs09.card_pass'] = `${ce.behavioral_passed}/${ce.behavioral_total} Pass`;
+    b['cs09.card_pass_copy'] =
+      `Every run is verified against an external held-out suite of ${ce.behavioral_total} Jest behavioral assertions (5 per task), tsgo typechecking, and 7 Semantic Invariant Gates (${ce.gates_passed}/${ce.gates_total} passed).`;
+    b['cs09.card_pass_footer'] = `${ce.behavioral_passed}/${ce.behavioral_total} Jest assertions, ${ce.gates_passed}/${ce.gates_total} SIG gates (0 new)`;
+
+    b['cs09.participants_html'] = [
+      `Tested participants (3 zero-spoiler constructive coding tasks = 6 paired runs on ${c9.repo.name} @ ${c9.repo.commit}):<br>`,
+      `          1. CodeExplorer (ce): ${c9.ce_version} (.NET 11, SQLite + OpenCypher, one-shot task context pack + semantic invariant gates, ${fmtInt(c9.repo.graph_nodes)} nodes, ${fmtInt(c9.repo.graph_edges)} edges)<br>`,
+      `          2. Bare Agent Baseline: ripgrep (rg ${c9.ripgrep_version}) + read_file + edit_file + write_file (identical sandbox and identical 7 architectural rules in system prompt)<br>`,
+      `          3. LLM Model: ${c9.model} (100% paired same-model runs across all 3 tasks)<br>`,
+      `          4. Target Repository: ${c9.repo.name} @ ${c9.repo.commit} (${c9.repo.packages} packages, ${fmtInt(c9.repo.files)} indexed files, TypeScript, NestJS, GraphQL, TypeORM)`,
+    ].join('\n');
+
+    b['cs09.suite_tbody'] = [
+      `              <tr>`,
+      `                <td><strong>Held-Out Jest Behavioral Specs</strong></td>`,
+      `                <td class="cell-num">${bare.behavioral_passed} / ${bare.behavioral_total} (100%)</td>`,
+      `                <td class="cell-win">${ce.behavioral_passed} / ${ce.behavioral_total} (100%)</td>`,
+      `                <td class="cell-win">Parity (${ce.behavioral_passed}/${ce.behavioral_total} pass)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Architectural Gates (SIG-TWENTY-001..007)</strong></td>`,
+      `                <td class="cell-num">${bare.gates_passed} / ${bare.gates_total} (0&nbsp;new)</td>`,
+      `                <td class="cell-win">${ce.gates_passed} / ${ce.gates_total} (0&nbsp;new)</td>`,
+      `                <td class="cell-win">0 new violations</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>LLM Turns</strong></td>`,
+      `                <td class="cell-num">${bare.llm_turns}&nbsp;turns</td>`,
+      `                <td class="cell-win">${ce.llm_turns}&nbsp;turns</td>`,
+      `                <td class="cell-win">${turnsRatio.toFixed(2)}× fewer turns (-${pctSaved(bare.llm_turns, ce.llm_turns)}%)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Total Tool Calls</strong></td>`,
+      `                <td class="cell-num">${bare.total_tool_calls}&nbsp;calls</td>`,
+      `                <td class="cell-win">${ce.total_tool_calls}&nbsp;calls</td>`,
+      `                <td class="cell-win">${callsRatio.toFixed(2)}× fewer calls (-${pctSaved(bare.total_tool_calls, ce.total_tool_calls)}%)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Source File Reads (read_file)</strong></td>`,
+      `                <td class="cell-num">${bare.read_file_calls}&nbsp;reads</td>`,
+      `                <td class="cell-win">${ce.read_file_calls}&nbsp;reads</td>`,
+      `                <td class="cell-win">${readsRatio.toFixed(2)}× fewer reads (-${pctSaved(bare.read_file_calls, ce.read_file_calls)}%)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Shell Commands (run_command)</strong></td>`,
+      `                <td class="cell-num">${bare.run_command_calls}&nbsp;commands</td>`,
+      `                <td class="cell-win">${ce.run_command_calls}&nbsp;commands</td>`,
+      `                <td class="cell-win">${cmdsRatio.toFixed(2)}× fewer commands (-${pctSaved(bare.run_command_calls, ce.run_command_calls)}%)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Wall-Clock Time</strong></td>`,
+      `                <td class="cell-num">${fmtInt(bare.wall_clock_seconds)}&nbsp;s (${fmtDurShort(bare.wall_clock_seconds, true)})</td>`,
+      `                <td class="cell-win">${fmtInt(ce.wall_clock_seconds)}&nbsp;s (${fmtDurShort(ce.wall_clock_seconds, true)})</td>`,
+      `                <td class="cell-win">${speedup.toFixed(2)}× faster (${fmtSavedShort(bare.wall_clock_seconds - ce.wall_clock_seconds)})</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Uncached Input Tokens</strong></td>`,
+      `                <td class="cell-num">${fmtInt(bare.api_uncached_input_tokens)}&nbsp;tokens</td>`,
+      `                <td class="cell-win">${fmtInt(ce.api_uncached_input_tokens)}&nbsp;tokens</td>`,
+      `                <td class="cell-win">${uncachedRatio.toFixed(2)}× fewer uncached (-${pctSaved(bare.api_uncached_input_tokens, ce.api_uncached_input_tokens)}%)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Cumulative Input Tokens (Total)</strong></td>`,
+      `                <td class="cell-num">${fmtInt(bare.api_total_input_tokens)}&nbsp;tokens</td>`,
+      `                <td class="cell-win">${fmtInt(ce.api_total_input_tokens)}&nbsp;tokens</td>`,
+      `                <td class="cell-win">${tokRatio.toFixed(2)}× fewer input tokens (-${pctSaved(bare.api_total_input_tokens, ce.api_total_input_tokens)}%)</td>`,
+      `              </tr>`,
+      `              <tr>`,
+      `                <td><strong>Output Tokens</strong></td>`,
+      `                <td class="cell-num">${fmtInt(bare.api_output_tokens)}&nbsp;tokens</td>`,
+      `                <td class="cell-win">${fmtInt(ce.api_output_tokens)}&nbsp;tokens</td>`,
+      `                <td class="cell-win">${outRatio.toFixed(2)}× fewer output tokens (-${pctSaved(bare.api_output_tokens, ce.api_output_tokens)}%)</td>`,
+      `              </tr>`,
+    ].join('\n');
+
+    const taskMeta = [
+      { key: 't1', title: 'Task 1: API Key Revocation', desc: 'Delete scoped usageLimit rows, recompute cache &amp; drop quota counters' },
+      { key: 't2', title: 'Task 2: Application Deletion', desc: 'Cascade publicDomain teardown + external DNS custom hostname removal' },
+      { key: 't3', title: 'Task 3: Subdomain Collisions', desc: 'Prevent subdomain &amp; suggestion collisions with registered PublicDomain' },
+    ];
+
+    b['cs09.tasks_tbody'] = taskMeta
+      .map(({ key, title, desc }) => {
+        const rCe = runs[`${key}-ce`];
+        const rBare = runs[`${key}-bare`];
+        const tCe = rCe.telemetry;
+        const tBare = rBare.telemetry;
+        const tbCe = tCe.tool_breakdown;
+        const tbBare = tBare.tool_breakdown;
+        const tTokRatio = (tBare.api_total_input_tokens / tCe.api_total_input_tokens).toFixed(2);
+        return [
+          `              <tr>`,
+          `                <td><strong>${title}</strong><br><span class="tone-muted">${desc}</span></td>`,
+          `                <td><strong>CodeExplorer</strong></td>`,
+          `                <td class="cell-win">${rCe.behavioral_passed}/${rCe.behavioral_total} Jest<br>${rCe.gates_passed}/7 SIG</td>`,
+          `                <td class="cell-win">${tCe.llm_turns}&nbsp;turns<br><span class="tone-muted">${tCe.total_tool_calls}&nbsp;tools (${tbCe.run_command}/${tbCe.read_file}/${tbCe.edit_file})</span></td>`,
+          `                <td class="cell-win">${fmtInt(tCe.wall_clock_seconds)}&nbsp;s (${fmtDurShort(tCe.wall_clock_seconds, true)})</td>`,
+          `                <td class="cell-win">${fmtInt(tCe.api_uncached_input_tokens)}&nbsp;tokens</td>`,
+          `                <td class="cell-win">${fmtInt(tCe.api_total_input_tokens)}&nbsp;tokens<br><span class="tone-muted">${tTokRatio}× fewer</span></td>`,
+          `                <td class="cell-win">${fmtInt(tCe.api_output_tokens)}&nbsp;tokens</td>`,
+          `              </tr>`,
+          `              <tr>`,
+          `                <td><strong>${title}</strong><br><span class="tone-muted">Baseline ripgrep + read_file</span></td>`,
+          `                <td>Bare</td>`,
+          `                <td class="cell-num">${rBare.behavioral_passed}/${rBare.behavioral_total} Jest<br>${rBare.gates_passed}/7 SIG</td>`,
+          `                <td class="cell-num">${tBare.llm_turns}&nbsp;turns<br><span class="tone-muted">${tBare.total_tool_calls}&nbsp;tools (${tbBare.run_command}/${tbBare.read_file}/${tbBare.edit_file})</span></td>`,
+          `                <td class="cell-num">${fmtInt(tBare.wall_clock_seconds)}&nbsp;s (${fmtDurShort(tBare.wall_clock_seconds, true)})</td>`,
+          `                <td class="cell-num">${fmtInt(tBare.api_uncached_input_tokens)}&nbsp;tokens</td>`,
+          `                <td class="cell-num">${fmtInt(tBare.api_total_input_tokens)}&nbsp;tokens</td>`,
+          `                <td class="cell-num">${fmtInt(tBare.api_output_tokens)}&nbsp;tokens</td>`,
+          `              </tr>`,
+        ].join('\n');
+      })
+      .join('\n');
+
+    b['catalog.cs09_outcome'] =
+      `<strong class="tone-ok">${fmtRoundMult(tokRatio)} fewer input tokens</strong> (${fmtRoundTokens(ce.api_total_input_tokens)} vs ${fmtRoundTokens(bare.api_total_input_tokens)})<br>` +
+      `<strong class="tone-ok">${fmtRoundMult(readsRatio)} fewer file reads &amp; ${fmtRoundMult(speedup)} faster</strong> (${ce.read_file_calls} vs ${bare.read_file_calls} reads, ${fmtDurShort(ce.wall_clock_seconds, true)} vs ${fmtDurShort(bare.wall_clock_seconds, true)})<br>` +
+      `<strong>${ce.behavioral_passed}/${ce.behavioral_total} Jest specs &amp; ${ce.gates_passed}/${ce.gates_total} SIG gates pass</strong> (0 rg calls needed in Task 2)`;
+  }
+
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
   {
     const c1 = data.cs01;
@@ -1120,8 +1307,14 @@ function buildBindings(data, rawMilestones01) {
     const cs08Row =
       `| **[Case Study 08: 4-Task Brownfield Architecture & Feature Suite](./08-multi-task-architecture-suite-on-twenty/README.md)**<br>4 backend features & unit test suites across 4 modules (\`resetTwoFactorAuthenticationMethodsForUser\`, \`triggerReconnectAccountBanner\`, \`suspendWorkspaceAdminPanel\`, \`isSubdomainAvailable\`) comparing **\`CBM\`** vs **\`CodeExplorer Phase 1 (Navigation Only)\`** vs **\`Phase 2 (Navigation + Gates)\`** | \`${c8.repo.name}\`<br>\`${c8.repo.packages}\` packages, \`${fmtInt(c8.repo.files)}\` files, \`${c8.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp8}×\` faster suite total**<br>\`${fmtDurShort(ce8.wall_clock_s)}\` vs \`${fmtDurShort(cbm8.wall_clock_s)}\`<br>\`${ce8.turns}\` turns vs \`${cbm8.turns}\` turns | \`${fmtInt(ce8.cum_input_tokens)}\` vs \`${fmtInt(cbm8.cum_input_tokens)}\`<br>(\`$${ce8.cost_flash_usd.toFixed(2)}\` vs \`$${cbm8.cost_flash_usd.toFixed(2)}\`, \`${ce8.read_file_calls}\` vs \`${cbm8.read_file_calls}\` file reads) | **\`0/4\` vs \`4/4\` violated tasks (\`100%\` caught)**<br>Navigation alone copied adjacent \`[TOL]\` debt in \`4/4\` tasks; \`ce gate check\` fixed \`4/4\` in \`1\` iter (\`0\` tampering, \`14/14\` unit tests pass for both via \`run-acceptance-tests.mjs\`) |`;
 
+    const c9 = data.cs09;
+    const ce9 = c9.telemetry.ce;
+    const bare9 = c9.telemetry.bare;
+    const sp9 = (bare9.wall_clock_seconds / ce9.wall_clock_seconds).toFixed(2);
+    const tk9 = (bare9.api_total_input_tokens / ce9.api_total_input_tokens).toFixed(2);
+
     const cs09Row =
-      `| **[Case Study 09: Zero-Spoiler Coding Benchmark (One-Shot Context Pack vs Bare Agent)](./09-zero-spoiler-context-pack-vs-bare-agent/README.md)**<br>3 zero-spoiler bug & feature tickets across 12 runs (\`apiKey\` revocation lifecycle, \`application\` public-domain DNS teardown, \`subdomain\` collision guard) with 100% symmetric architectural rules, comparing **\`Bare Agent\` (\`rg\` + \`read_file\`)** vs **\`CodeExplorer 1-Shot Context Pack\`** (Iter 1: without \`@Module\` graph; Iter 2: with \`@Module\` cycle safety) | \`twentyhq/twenty\`<br>\`46\` packages, \`36,543\` indexed files (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`1.43×\` faster (\`2.14×\` vs Iter 1)**<br>\`19m 38s\` vs \`28m 02s\`<br>\`59\` turns vs \`84\` turns | **\`2.24×\` fewer tokens (\`3.07×\` vs Iter 1)**<br>\`3,080,276\` vs \`6,897,615\`<br>(\`55\` vs \`104\` file reads, \`20\` vs \`41\` cmds) | **\`15/15\` Jest specs & \`21/21\` SIG gates (\`0\` new)**<br>Pre-computed \`@Module\` cycle verdicts (\`SAFE_DIRECT_IMPORT\`) eliminated 20+ turns of manual \`*.module.ts\` reads (\`0\` \`rg\` calls in Task 2) |`;
+      `| **[Case Study 09: Zero-Spoiler Coding Benchmark (One-Shot Context Pack vs Bare Agent)](./09-zero-spoiler-context-pack-vs-bare-agent/README.md)**<br>3 zero-spoiler bug & feature tickets (6 paired runs: \`apiKey\` revocation lifecycle, \`application\` public-domain DNS teardown, \`subdomain\` collision guard) with 100% symmetric architectural rules, comparing **\`Bare Agent\` (\`rg\` + \`read_file\`)** vs **\`CodeExplorer\` (One-Shot Context Pack + Gates)** | \`${c9.repo.name}\`<br>\`${c9.repo.packages}\` packages, \`${fmtInt(c9.repo.files)}\` indexed files (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`${sp9}×\` faster**<br>\`${fmtDurShort(ce9.wall_clock_seconds, true)}\` vs \`${fmtDurShort(bare9.wall_clock_seconds, true)}\`<br>\`${ce9.llm_turns}\` turns vs \`${bare9.llm_turns}\` turns | **\`${tk9}×\` fewer tokens**<br>\`${fmtInt(ce9.api_total_input_tokens)}\` vs \`${fmtInt(bare9.api_total_input_tokens)}\`<br>(\`${ce9.read_file_calls}\` vs \`${bare9.read_file_calls}\` file reads, \`${ce9.run_command_calls}\` vs \`${bare9.run_command_calls}\` cmds) | **\`${ce9.behavioral_passed}/${ce9.behavioral_total}\` Jest specs & \`${ce9.gates_passed}/${ce9.gates_total}\` SIG gates (\`0\` new)**<br>Turn-1 context pack resolved table owners, cache/DNS side-effects & legacy traps upfront (\`0\` \`rg\` calls in Task 2) |`;
 
     b['md.catalog_reallife_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Architectural Compliance & Outcome |`,
@@ -1145,8 +1338,8 @@ function buildBindings(data, rawMilestones01) {
       `2. **codebase-memory-mcp (\`CBM\`)**: \`${data.meta.tools.cbm_version}\` (\`win32-x64\` Go + SQLite binary, \`${data.meta.tools.cbm_mcp_tools}\` MCP tools)`,
       `3. **Graphify (\`graphifyy\`)**: \`${data.meta.tools.graphify_version}\` (Python ${data.meta.tools.python_version}, Tree-sitter + NetworkX \`--code-only\`, \`${data.meta.tools.graphify_mcp_tools}\` MCP tools)`,
       `4. **Lexical CLI Baseline**: \`ripgrep\` (\`rg ${data.meta.tools.ripgrep_version}\`) + Python \`${data.meta.tools.python_version}\` (Case 02) + \`view_file\``,
-      `5. **LLM Model (Tracks 1 & 2)**: \`${data.meta.llm_model}\` (symmetric system prompts across paired runs)`,
-      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` (Cases 03, 04, 07 & 08), \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
+      `5. **LLM Models**: \`${data.meta.llm_model}\` (Cases 01, 02, 05, 07 & 08) & \`${data.cs09.model}\` (Case 09, symmetric system prompts across paired runs)`,
+      `6. **Pinned Target Commits**: \`twentyhq/twenty @ ${data.cs01.repo.commit}\` (Case 01), \`twentyhq/twenty @ ${data.cs03.repos.twenty.commit}\` (Cases 03, 04, 07, 08 & 09), \`immich-app/immich @ ${data.cs03.repos.immich.commit}\` (Cases 03 & 04), \`${data.cs05.repo.name} @ ${data.cs05.repo.commit}\` (Case 05), \`${data.cs06.repo.name} @ ${data.cs06.repo.commit}\` (Case 06)`,
     ].join('\n');
 
     const c3 = data.cs03;
@@ -1162,7 +1355,7 @@ function buildBindings(data, rawMilestones01) {
     b['md.root_summary_table'] = [
       `| Case Study | Codebase | Baseline | Speed & Tokens | Recall & Governance |`,
       `| :--- | :--- | :--- | :--- | :--- |`,
-      `| **[Case 09: Zero-Spoiler Coding Suite](./benchmarks/09-zero-spoiler-context-pack-vs-bare-agent/README.md)** | \`twentyhq/twenty\` (\`36.5k\` files, TS/NestJS) | \`ripgrep\` + \`read_file\` | **\`1.43×\` faster** (\`19m 38s\` vs \`28m 02s\`) · **\`2.24×\` fewer tokens** (\`3.08M\` vs \`6.90M\`; \`3.07×\` vs Iter 1) | **\`15/15\` Jest specs & \`21/21\` SIG gates** (\`55\` vs \`104\` file reads; \`@Module\` cycle graph cut \`CE\` tokens by \`3.07×\`) |`,
+      `| **[Case 09: Zero-Spoiler Coding Suite](./benchmarks/09-zero-spoiler-context-pack-vs-bare-agent/README.md)** | \`${c9.repo.name}\` (\`${(c9.repo.files / 1000).toFixed(1)}k\` files, TS/NestJS) | \`ripgrep\` + \`read_file\` | **\`${sp9}×\` faster** (\`${fmtDurShort(ce9.wall_clock_seconds, true)}\` vs \`${fmtDurShort(bare9.wall_clock_seconds, true)}\`) · **\`${tk9}×\` fewer tokens** (\`${fmtCompactTokens(ce9.api_total_input_tokens, 2)}\` vs \`${fmtCompactTokens(bare9.api_total_input_tokens, 2)}\`) | **\`${ce9.behavioral_passed}/${ce9.behavioral_total}\` Jest specs & \`${ce9.gates_passed}/${ce9.gates_total}\` SIG gates** (\`${ce9.read_file_calls}\` vs \`${bare9.read_file_calls}\` file reads; \`${ce9.run_command_calls}\` vs \`${bare9.run_command_calls}\` cmds) |`,
       `| **[Case 08: 4-Task Feature Suite](./benchmarks/08-multi-task-architecture-suite-on-twenty/README.md)** | \`${c8.repo.name}\` (\`${(c8.repo.files / 1000).toFixed(1)}k\` files, TS/NestJS) | \`CBM\` | **\`${sp8}×\` faster** (\`${fmtDurShort(ce8.wall_clock_s)}\` vs \`${fmtDurShort(cbm8.wall_clock_s)}\`) · \`${fmtCompactTokens(ce8.cum_input_tokens, 2)}\` vs \`${fmtCompactTokens(cbm8.cum_input_tokens, 2)}\` tokens | **\`0/4\` vs \`4/4\` violated tasks** (\`14/14\` unit tests pass; gates caught & fixed \`4/4\` copied legacy leaks) |`,
       `| **[Case 01: Monorepo Deep Audit](./benchmarks/01-agent-audit-ce-vs-cbm-on-twenty/README.md)** | \`${c1.repo.name}\` (\`${(c1.repo.files / 1000).toFixed(1)}k\` files, TS/NestJS) | \`CBM\` | **\`${sp1}×\` faster** (\`${fmtDurShort(ce1.time_to_answer_s)}\` vs \`${fmtDurShort(cbm1.time_to_answer_s)}\`) · **\`${tk1}×\` fewer tokens** (\`${fmtCompactTokens(ce1.cum_input_tokens, 1)}\` vs \`${fmtCompactTokens(cbm1.cum_input_tokens, 2)}\`) | **\`${ce1Rec}%\` vs \`${cbm1Rec}%\` native graph recall** (\`${c1.recall.ce_matched}/${c1.recall.gt_total}\` from \`graph.db\`, \`${c1.effort_details.ce_file_reads}\` file reads) |`,
       `| **[Case 02: ${c2.repo.services}-Service Audit](./benchmarks/02-enterprise-microservices-deep-audit/README.md)** | Multi-Repo (\`${c2.repo.services}\` services, \`${(c2.repo.files / 1000).toFixed(1)}k\` files) | \`ripgrep\` + Python | **\`${sp2}×\` faster** (\`${fmtDurShort(ce2.time_to_answer_s, true)}\` vs \`${fmtDurShort(rg2.time_to_answer_s, true)}\`) · **\`${tk2}×\` fewer tokens** (\`${fmtCompactTokens(ce2.cum_input_est_tokens, 2)}\` vs \`${fmtCompactTokens(rg2.cum_input_est_tokens, 2)}\`) | **\`${c2.recall.ce_pct}\` vs \`82%\` recall** (\`${ce2.turns}\` vs \`${rg2.turns}\` turns; \`rg\` missed \`${c2.recall.rg_missed_services}\` services) |`,
