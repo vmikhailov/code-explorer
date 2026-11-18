@@ -19,6 +19,7 @@ public static class TerraformDeclarationMapper
     private const string BlockModule = "module";
     private const string BlockProvider = "provider";
     private const string BlockDependency = "dependency";
+    private const string BlockInclude = "include";
     private const string BlockVariable = "variable";
     private const string BlockLocals = "locals";
     private const string BlockOutput = "output";
@@ -26,6 +27,7 @@ public static class TerraformDeclarationMapper
 
     private const string AttrSource = "source";
     private const string AttrConfigPath = "config_path";
+    private const string AttrPath = "path";
     private const string AttrAlias = "alias";
     private const string AttrRegion = "region";
     private const string BlockEnvironment = "environment";
@@ -92,6 +94,10 @@ public static class TerraformDeclarationMapper
 
                 case BlockDependency when block.Labels.Count >= 1:
                     MapDependencyBlock(block, workspaceId, fileNodeId, relativeFilePath, moduleDir, symbols, nodeSink);
+                    break;
+
+                case BlockInclude:
+                    MapIncludeBlock(block, workspaceId, fileNodeId, relativeFilePath, moduleDir, symbols, nodeSink);
                     break;
 
                 case BlockVariable when block.Labels.Count >= 1:
@@ -421,6 +427,48 @@ public static class TerraformDeclarationMapper
             block.EndLine,
             block.CollectReferences(),
             ModuleSourceRaw: configPath));
+    }
+
+    private static void MapIncludeBlock(
+        HclBlock block,
+        string workspaceId,
+        string fileNodeId,
+        string relativeFilePath,
+        string moduleDir,
+        List<TerraformSymbol> symbols,
+        List<IOntologyNode> nodeSink)
+    {
+        var incName = block.Labels.Count >= 1 ? block.Labels[0] : "root";
+        var canonical = $"{BlockInclude}.{incName}";
+        var nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindType, canonical);
+        var pathAttr = block.FindAttribute(AttrPath);
+        var pathRaw = FormatHclValueSummary(pathAttr?.Value);
+
+        nodeSink.Add(new TypeNode(
+            nodeId,
+            canonical,
+            canonical,
+            relativeFilePath,
+            relativeFilePath,
+            block.StartLine,
+            block.EndLine,
+            0,
+            0,
+            TypeKind.Dependency));
+
+        symbols.Add(new TerraformSymbol(
+            TerraformSymbolKind.Dependency,
+            canonical,
+            BlockInclude,
+            incName,
+            nodeId,
+            fileNodeId,
+            relativeFilePath,
+            moduleDir,
+            block.StartLine,
+            block.EndLine,
+            block.CollectReferences(),
+            ModuleSourceRaw: pathRaw));
     }
 
     private static void MapVariableBlock(

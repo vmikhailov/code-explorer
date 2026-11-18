@@ -340,35 +340,49 @@ public partial class Layer4SemanticParser
                 await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetFileParser, ctx, workloadNode);
             }
 
-            var enrichResult = await projectParser.EnrichProjectAsync(new ProjectEnrichmentContext(
+            var enrichContext = new ProjectEnrichmentContext(
                 ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath,
                 project,
                 projectTrees,
                 allProjects,
                 treesByProjectId,
-                allFiles));
+                allFiles);
 
-            foreach (var semNode in enrichResult.SemanticNodes)
+            foreach (var syntaxTree in projectTrees)
             {
-                if (semanticStructureChildIds.Add(semNode.Id))
+                var treeLangParser = WorkspaceIndexer.GetProjectParser(syntaxTree.FileParser.LanguageName);
+                if (treeLangParser != null && !matchingParsers.Contains(treeLangParser))
                 {
-                    semanticStructureNode.Children.Add(semNode);
-                    semanticNodes.Add(semNode);
+                    matchingParsers.Add(treeLangParser);
                 }
             }
 
-            foreach (var rel in enrichResult.SemanticRelationships)
+            foreach (var enrichParser in matchingParsers)
             {
-                if (existingRelKeys.Add((rel.From, rel.To, rel.Kind.ToCypherType())))
-                {
-                    semanticRelationships.Add(rel);
-                }
-            }
+                var enrichResult = await enrichParser.EnrichProjectAsync(enrichContext);
 
-            foreach (var globalRel in enrichResult.GlobalRelationships)
-            {
-                ctx.AddGlobalProjectDependency(globalRel);
+                foreach (var semNode in enrichResult.SemanticNodes)
+                {
+                    if (semanticStructureChildIds.Add(semNode.Id))
+                    {
+                        semanticStructureNode.Children.Add(semNode);
+                        semanticNodes.Add(semNode);
+                    }
+                }
+
+                foreach (var rel in enrichResult.SemanticRelationships)
+                {
+                    if (existingRelKeys.Add((rel.From, rel.To, rel.Kind.ToCypherType())))
+                    {
+                        semanticRelationships.Add(rel);
+                    }
+                }
+
+                foreach (var globalRel in enrichResult.GlobalRelationships)
+                {
+                    ctx.AddGlobalProjectDependency(globalRel);
+                }
             }
 
             // Collect semantic nodes parsed from files

@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.7] - 2026-11-18
+
+### Fixed & Improved
+- **Hybrid Manifest + Terraform Layer 4 Enrichment & Terragrunt `include` Nodes/Edges (`CodeExplorer.Indexing`, `CodeExplorer.Parsers.Terraform`)**:
+  - Fixed a bug in `Layer4SemanticParser.EnrichProjectsSemanticsAsync` where repositories containing a primary language manifest (`pyproject.toml`, `requirements.txt`, `package.json`, `.csproj`, `go.mod`, `Cargo.toml`) alongside `.tf` / `.hcl` files only executed the primary language's `IProjectParser.EnrichProjectAsync` and skipped `TerraformProjectParser.EnrichProjectAsync`, leaving Terraform nodes without reference edges. Layer 4 now runs `EnrichProjectAsync` across all project parsers matching the project's parsed `SyntaxTree` languages.
+  - Added Terragrunt `include` / `include "<name>"` declaration nodes (`Type` with `kind: "dependency"`), `HclRefKind.Include` reference extraction (`include.<name>.locals.<attr>`), and `DEPENDS_ON` (`via: "terragrunt.include"`) edges connecting `include` blocks to parent `.hcl` files and their `local.*` declarations.
+
+---
+
 ## [1.89.6] - 2026-11-18
 
 ### Fixed & Improved

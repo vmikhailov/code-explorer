@@ -182,4 +182,100 @@ public class TerraformCrossRepoAndMcpTests
             }
         }
     }
+
+    [Test]
+    public async Task HybridManifestAndTerragruntInclude_EmitsAllTerraformReferenceEdgesAndIncludeNodes()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "ce-tf-hybrid-" + Guid.NewGuid().ToString("N"));
+        var datasetRepoDir = Path.Combine(tempRoot, "framework-dataset");
+        var liveRootDir = Path.Combine(tempRoot, "demo-bng", "live");
+        var liveUnitDir = Path.Combine(liveRootDir, "bngds");
+
+        Directory.CreateDirectory(datasetRepoDir);
+        Directory.CreateDirectory(liveUnitDir);
+
+        var dbPath = Path.Combine(tempRoot, "graph.db");
+
+        try
+        {
+            // pyproject.toml and requirements.txt sitting right next to .tf files
+            await File.WriteAllTextAsync(Path.Combine(datasetRepoDir, "pyproject.toml"), """
+                [project]
+                name = "framework-dataset"
+                version = "0.1.0"
+                """);
+            await File.WriteAllTextAsync(Path.Combine(datasetRepoDir, "requirements.txt"), "boto3>=1.34.0\n");
+
+            await File.WriteAllTextAsync(Path.Combine(datasetRepoDir, "main.tf"), """
+                variable "dataset_name" {
+                  type = string
+                }
+
+                locals {
+                  bucket_name = "ds-${var.dataset_name}"
+                }
+
+                resource "aws_s3_bucket" "dataset" {
+                  bucket = local.bucket_name
+                }
+
+                output "bucket_arn" {
+                  value = aws_s3_bucket.dataset.arn
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(liveRootDir, "terragrunt.hcl"), """
+                locals {
+                  default_dataset = "player360"
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(liveUnitDir, "terragrunt.hcl"), """
+                include "root" {
+                  path = find_in_parent_folders()
+                }
+
+                terraform {
+                  source = "git::https://github.com/example/framework-dataset.git?ref=v1.0.0"
+                }
+
+                inputs = {
+                  dataset_name = include.root.locals.default_dataset
+                }
+                """);
+
+            await using var client = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempRoot, tempRoot, clear: true);
+
+            // 1. Even with pyproject.toml + requirements.txt in framework-dataset, all intra-module Terraform reference edges exist
+            var tfEdges = await client.ExecuteCypherAsync(
+                "MATCH (cr:CloudResource {name: 'aws_s3_bucket.dataset'})-[:DEPENDS_ON]->(loc:Member {name: 'local.bucket_name'})-[:DEPENDS_ON]->(v:Member {name: 'var.dataset_name'}) RETURN cr.name AS res");
+            tfEdges.Count.Should().Be(1);
+
+            var outEdges = await client.ExecuteCypherAsync(
+                "MATCH (o:Member {name: 'output.bucket_arn'})-[:DEPENDS_ON]->(cr:CloudResource {name: 'aws_s3_bucket.dataset'}) RETURN o.name AS outName");
+            outEdges.Count.Should().Be(1);
+
+            // 2. Terragrunt include "root" node exists and links to parent terragrunt.hcl + local.default_dataset
+            var includeNode = await client.ExecuteCypherAsync(
+                "MATCH (inc:Type {name: 'include.root'})-[r:DEPENDS_ON]->(f:File) RETURN f.path AS path, r.via AS via");
+            includeNode.Count.Should().Be(1);
+            includeNode.Rows[0].GetStringProp("path").Should().EndWith("demo-bng/live/terragrunt.hcl");
+            includeNode.Rows[0].GetStringProp("via").Should().Be("terragrunt.include");
+
+            var includeLocalEdge = await client.ExecuteCypherAsync(
+                "MATCH (inp:Member {name: 'inputs.dataset_name'})-[r:DEPENDS_ON]->(loc:Member {name: 'local.default_dataset'}) RETURN r.via AS via, r.reference_expression AS refExpr");
+            includeLocalEdge.Count.Should().Be(1);
+            includeLocalEdge.Rows[0].GetStringProp("via").Should().Be("terragrunt.include");
+            includeLocalEdge.Rows[0].GetStringProp("refExpr").Should().Be("include.root.locals.default_dataset");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                try { Directory.Delete(tempRoot, recursive: true); } catch { }
+            }
+        }
+    }
 }

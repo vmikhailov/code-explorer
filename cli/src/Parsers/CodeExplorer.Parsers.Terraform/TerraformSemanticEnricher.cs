@@ -110,7 +110,7 @@ public static class TerraformSemanticEnricher
 
         foreach (var tree in context.ProjectTrees)
         {
-            if (tree.FileNode == null) continue;
+            if (tree.FileNode == null || TryGetHclDocument(tree) == null) continue;
             var relPath = tree.FileNode.Path.Replace(BackslashChar, SlashChar);
             var modDir = TerraformDeclarationMapper.GetModuleDir(relPath);
             if (seen.Add(modDir))
@@ -140,6 +140,7 @@ public static class TerraformSemanticEnricher
         public List<HclExpr> TerragruntIncludePathExprs { get; } = [];
         public Dictionary<string, IReadOnlyList<HclReference>> TerragruntInputs { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, HclExpr> DependencyConfigPathExprs { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, HclExpr> IncludePathExprsBySymbol { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, string> LocalStrings { get; } = new(StringComparer.Ordinal);
     }
 
@@ -189,6 +190,11 @@ public static class TerraformSemanticEnricher
 
     private static void ExtractTerragruntMetadata(HclFile hclFile, string fileNodeId, ModuleMemoryState state)
     {
+        if (hclFile.FilePath.EndsWith(".hcl", StringComparison.OrdinalIgnoreCase))
+        {
+            state.TerragruntFileNodeId ??= fileNodeId;
+        }
+
         foreach (var block in hclFile.Blocks)
         {
             if (string.Equals(block.BlockHeader, BlockTerraform, StringComparison.Ordinal))
@@ -206,6 +212,8 @@ public static class TerraformSemanticEnricher
                 if (pathAttr != null)
                 {
                     state.TerragruntIncludePathExprs.Add(pathAttr.Value);
+                    var incLabel = block.Labels.Count >= 1 ? block.Labels[0] : "root";
+                    state.IncludePathExprsBySymbol[$"include.{incLabel}"] = pathAttr.Value;
                 }
             }
             else if (string.Equals(block.BlockHeader, BlockDependency, StringComparison.Ordinal) && block.Labels.Count >= 1)
@@ -413,6 +421,7 @@ public static class TerraformSemanticEnricher
         HashSet<string> dirSet,
         Action<OntologyRelationship> addRel)
     {
+        EnrichTerragruntIncludes(module, allModules, workspaceRoot, fileSet, dirSet, addRel);
         EnrichTerragruntDependencyOutputs(module, allModules, workspaceRoot, fileSet, dirSet, addRel);
 
         if (module.TerragruntInputs.Count == 0 || string.IsNullOrEmpty(module.TerragruntFileNodeId))
@@ -485,6 +494,82 @@ public static class TerraformSemanticEnricher
                     Via = ViaTerragruntInputs,
                     Line = module.TerragruntInputsLine
                 });
+            }
+        }
+    }
+
+    private static void EnrichTerragruntIncludes(
+        ModuleMemoryState module,
+        Dictionary<string, ModuleMemoryState> allModules,
+        string workspaceRoot,
+        HashSet<string> fileSet,
+        HashSet<string> dirSet,
+        Action<OntologyRelationship> addRel)
+    {
+        if (module.IncludePathExprsBySymbol.Count == 0)
+        {
+            return;
+        }
+
+        var absModuleDir = CombineWorkspacePath(workspaceRoot, module.ModuleDir);
+
+        foreach (var (incCanonical, pathExpr) in module.IncludePathExprsBySymbol)
+        {
+            if (!module.SymbolsByCanonical.TryGetValue(incCanonical, out var incSym))
+            {
+                continue;
+            }
+
+            var includedAbs = TerraformPathResolver.EvaluatePathExpr(
+                pathExpr,
+                absModuleDir,
+                workspaceRoot,
+                fileSet.Contains,
+                dirSet.Contains,
+                module.LocalStrings);
+            var parentRelDir = ToRelativeModuleDir(workspaceRoot, includedAbs);
+            if (parentRelDir == null || !allModules.TryGetValue(parentRelDir, out var parentMod))
+            {
+                continue;
+            }
+
+            var targetFileNodeId = parentMod.TerragruntFileNodeId
+                ?? parentMod.AllSymbols.FirstOrDefault()?.FileNodeId;
+            if (!string.IsNullOrEmpty(targetFileNodeId))
+            {
+                addRel(new DependsOnRelationship(incSym.NodeId, targetFileNodeId)
+                {
+                    Via = ViaTerragruntInclude,
+                    ReferenceExpression = incCanonical,
+                    Line = incSym.StartLine
+                });
+            }
+
+            foreach (var sym in module.AllSymbols)
+            {
+                foreach (var r in sym.References)
+                {
+                    if (r.Kind != HclRefKind.Include ||
+                        !string.Equals(r.CanonicalTarget, incCanonical, StringComparison.Ordinal) ||
+                        string.IsNullOrEmpty(r.Attribute) ||
+                        !r.Attribute.StartsWith("locals.", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var localName = r.Attribute["locals.".Length..].Split('.')[0];
+                    if (parentMod.SymbolsByCanonical.TryGetValue($"local.{localName}", out var parentLocalSym) &&
+                        parentLocalSym.NodeId != sym.NodeId)
+                    {
+                        addRel(new DependsOnRelationship(sym.NodeId, parentLocalSym.NodeId)
+                        {
+                            Via = ViaTerragruntInclude,
+                            ReferenceExpression = $"{incCanonical}.{r.Attribute}",
+                            OutputName = localName,
+                            Line = r.Line
+                        });
+                    }
+                }
             }
         }
     }
@@ -872,6 +957,12 @@ public static class TerraformSemanticEnricher
         if (string.IsNullOrEmpty(resolvedAbsDir)) return null;
         var normRoot = TerraformPathResolver.NormalizeDirPath(workspaceRoot);
         var normTarget = TerraformPathResolver.NormalizeDirPath(resolvedAbsDir);
+        if (normTarget.EndsWith(".hcl", StringComparison.OrdinalIgnoreCase) ||
+            normTarget.EndsWith(".tf", StringComparison.OrdinalIgnoreCase) ||
+            normTarget.EndsWith(".tofu", StringComparison.OrdinalIgnoreCase))
+        {
+            normTarget = TerraformPathResolver.NormalizeDirPath(Path.GetDirectoryName(normTarget));
+        }
         if (string.Equals(normRoot, normTarget, StringComparison.OrdinalIgnoreCase))
         {
             return string.Empty;

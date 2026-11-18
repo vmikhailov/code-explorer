@@ -10,6 +10,7 @@ public enum HclRefKind : byte
     Data,
     Resource,
     Dependency,
+    Include,
     Each,
     Self,
     Count,
@@ -185,6 +186,7 @@ public sealed record HclReference(
     private const string ModulePrefix = "module";
     private const string DataPrefix = "data";
     private const string DependencyPrefix = "dependency";
+    private const string IncludePrefix = "include";
     private const string EachPrefix = "each";
     private const string SelfPrefix = "self";
     private const string CountPrefix = "count";
@@ -199,6 +201,7 @@ public sealed record HclReference(
         HclRefKind.Data => $"{DataPrefix}.{TargetScope}.{TargetName}",
         HclRefKind.Resource => $"{TargetScope}.{TargetName}",
         HclRefKind.Dependency => $"{DependencyPrefix}.{TargetName}",
+        HclRefKind.Include => string.IsNullOrEmpty(TargetName) ? IncludePrefix : $"{IncludePrefix}.{TargetName}",
         HclRefKind.Each => string.IsNullOrEmpty(TargetName) ? EachPrefix : $"{EachPrefix}.{TargetName}",
         HclRefKind.Self => string.IsNullOrEmpty(TargetName) ? SelfPrefix : $"{SelfPrefix}.{TargetName}",
         HclRefKind.Count => string.IsNullOrEmpty(TargetName) ? CountPrefix : $"{CountPrefix}.{TargetName}",

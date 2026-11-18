@@ -14,6 +14,7 @@ public static class HclReferenceCollector
     private const string ModulePrefix = "module";
     private const string DataPrefix = "data";
     private const string DependencyPrefix = "dependency";
+    private const string IncludePrefix = "include";
     private const string EachPrefix = "each";
     private const string SelfPrefix = "self";
     private const string CountPrefix = "count";
@@ -374,6 +375,14 @@ public static class HclReferenceCollector
             DependencyPrefix => new HclReference(
                 HclRefKind.Dependency,
                 DependencyPrefix,
+                parts[1],
+                parts.Count > 2 ? JoinTail(parts, 2) : null,
+                line,
+                via),
+
+            IncludePrefix => new HclReference(
+                HclRefKind.Include,
+                IncludePrefix,
                 parts[1],
                 parts.Count > 2 ? JoinTail(parts, 2) : null,
                 line,
