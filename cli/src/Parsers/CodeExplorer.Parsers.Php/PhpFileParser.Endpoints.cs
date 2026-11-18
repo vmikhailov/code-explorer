@@ -13,6 +13,7 @@ public partial class PhpFileParser
     private const string ProtocolRest = "REST";
     private const string ProtocolHttp = "HTTP";
     private const string ProtocolMreg = "MREG";
+    private const string ProtocolKjs = "KJS";
     private const string ProtocolSmtp = "SMTP";
     private const string MethodGet = "GET";
     private const string MethodPost = "POST";
@@ -29,6 +30,7 @@ public partial class PhpFileParser
     private const string IsExternalKey = "is_external";
     private const string TrueString = "true";
     private const string MregServiceDomain = "mreg";
+    private const string KjsServiceDomain = "kimjongsocket";
     private const string SmtpServiceDomain = "smtp-mailer";
     private const string PaymentServiceDomain = "payment-gateway";
     private const string KirbyControllersPath = "controllers/";
@@ -36,6 +38,7 @@ public partial class PhpFileParser
     private const string RootSlash = "/";
     private const string CommentEndMarker = "*/";
     private const string CommentStartMarker = "/**";
+    private const string CmdGroup = "cmd";
 
     private static readonly Regex ParamDeclRegex = new(
         @"(?:\??(?<type>[a-zA-Z0-9_\\]+)\s+)?&?\$(?<name>[a-zA-Z0-9_]+)",
@@ -62,7 +65,11 @@ public partial class PhpFileParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex MregCallRegex = new(
-        @"(?:Mreg[_\\]Request|->(?:sendCommand|sendRequest|executeCommand|callMreg)|PTF_XClient)\s*(?:::|->|\()\s*(?:[a-zA-Z0-9_]+\s*\(\s*)?['""]?(?<cmd>[a-zA-Z0-9_.:-]+)['""]?",
+        @"(?:(?:Mreg[_\\]Request|PTF_XClient)\s*(?:::|->|\()\s*(?:[a-zA-Z0-9_]+\s*\(\s*)?['""]?(?<cmd>[a-zA-Z0-9_.:-]+)['""]?|WL_Socket_Mreg::(?<cmd>[a-zA-Z_][a-zA-Z0-9_]*)\s*\(|WL_Socket_Request::sendCommand\s*\(\s*\\?WL_Socket_Request::MREG\s*,\s*(?:\\?[A-Za-z0-9_]+::)?['""]?(?<cmd>[a-zA-Z0-9_.:-]+)['""]?|->(?:sendCommand|sendRequest|executeCommand|callMreg)\s*\(\s*['""]?(?<cmd>[a-zA-Z0-9_.:-]+)['""]?)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex KjsCallRegex = new(
+        @"(?:WL_Socket_KimJong::(?<cmd>[a-zA-Z_][a-zA-Z0-9_]*)\s*\(|WL_Socket_Request::sendCommand\s*\(\s*\\?WL_Socket_Request::KIMJONG\s*,\s*(?:\\?WL_Socket_KimJong::)?['""]?(?<cmd>[a-zA-Z0-9_.:-]+)['""]?)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex TemplateRenderRegex = new(
@@ -344,14 +351,16 @@ public partial class PhpFileParser
             AddPhpEndpoint(fileNode, workspaceId, relativePath, MethodGet, route, topFunc, 1, 1);
         }
 
-        foreach (Match mm in MregCallRegex.Matches(content))
+        foreach (Match mm in MregCallRegex.Matches(commentMasked))
         {
-            var cmd = mm.Groups["cmd"].Value.Trim();
+            var cmd = mm.Groups[CmdGroup].Value.Trim();
             if (string.IsNullOrWhiteSpace(cmd)) continue;
 
             var (line, col) = GetLineAndColumn(lineOffsets, mm.Index);
             var enclosingFn = FindEnclosingFunction(mm.Index, funSpans);
             var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{relativePath}:mreg:{cmd}:{line}";
+            if (fileNode.Children.Any(c => c.Id == extId)) continue;
+
             var extNode = new ExternalServiceNode(extId, $"MREG {cmd}", ProtocolMreg, MregServiceDomain, cmd)
             {
                 FilePath = relativePath,
@@ -366,6 +375,37 @@ public partial class PhpFileParser
             extNode.CustomProperties[FilePathKey] = relativePath;
             extNode.CustomProperties[TargetKey] = cmd;
             extNode.CustomProperties[DomainOrServiceKey] = MregServiceDomain;
+            extNode.CustomProperties[IsExternalKey] = TrueString;
+            fileNode.Children.Add(extNode);
+
+            var callerId = enclosingFn?.Id ?? fileNode.Id;
+            fileNode.References.Add(new Reference(callerId, extId, OntologyConstants.Relationships.Calls, line, col));
+        }
+
+        foreach (Match km in KjsCallRegex.Matches(commentMasked))
+        {
+            var cmd = km.Groups[CmdGroup].Value.Trim();
+            if (string.IsNullOrWhiteSpace(cmd)) continue;
+
+            var (line, col) = GetLineAndColumn(lineOffsets, km.Index);
+            var enclosingFn = FindEnclosingFunction(km.Index, funSpans);
+            var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{relativePath}:kjs:{cmd}:{line}";
+            if (fileNode.Children.Any(c => c.Id == extId)) continue;
+
+            var extNode = new ExternalServiceNode(extId, $"KJS {cmd}", ProtocolKjs, KjsServiceDomain, cmd)
+            {
+                FilePath = relativePath,
+                StartLine = line,
+                StartCol = col,
+                CallerSymbolId = enclosingFn?.Id,
+                Url = cmd,
+                Method = ProtocolKjs,
+                IsExternal = true
+            };
+            extNode.CustomProperties ??= new();
+            extNode.CustomProperties[FilePathKey] = relativePath;
+            extNode.CustomProperties[TargetKey] = cmd;
+            extNode.CustomProperties[DomainOrServiceKey] = KjsServiceDomain;
             extNode.CustomProperties[IsExternalKey] = TrueString;
             fileNode.Children.Add(extNode);
 

@@ -16,8 +16,9 @@ Use CodeExplorer **only where graph structure beats direct file reading**:
    - You need to find every caller of a method (`get_callers`), every consumer of a changed contract (`analyze_code_impact`), every implementation of a base class/interface (`execute_custom_read_cypher`), or every service writing to a table (`inspect_data_lineage`).
 3. **Architecture & Boundary Onboarding**:
    - Starting in an unfamiliar codebase or checking project/module boundaries (`get_architecture_map`, `get_project_dependencies`).
-4. **Post-Edit Architectural Verification**:
-   - Running `check_semantic_gates` **once** after all code edits are complete to verify zero architectural regressions (`SIG-*`).
+4. **Post-Edit Architectural Verification & Affected Test Selection**:
+   - Call `get_affected_tests` (`filePaths` / `symbolName`) after modifying code to discover all transitively affected test classes/methods and get the exact `runnerCommands.dotnet` (`dotnet test --filter "..."`) command instead of hand-guessing `--filter`.
+   - Run `check_semantic_gates` **once** after all code edits are complete to verify zero architectural regressions (`SIG-*`).
 
 ### DO NOT Use CodeExplorer When:
 1. **Localized Single-File Edits with Known Coordinates**:

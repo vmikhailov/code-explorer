@@ -338,6 +338,18 @@ public class WorkspaceFileFilter
     public static string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>
         Default.ClassifyFileArtifactRole(relativePath, fileName, contentBytes);
 
+    private const string BrowserifyDereqSignature = "function(_dereq_,module,exports)";
+    private const string WebpackRequireSignature = "__webpack_require__";
+    private const string WebpackUmdSignature = "webpackUniversalModuleDefinition";
+    private const string MinifiedUmdSignature1 = "typeof exports===\"object\"&&typeof module!==\"undefined\"";
+    private const string MinifiedUmdSignature2 = "\"object\"===typeof exports&&\"object\"===typeof module";
+
+    private static ReadOnlySpan<byte> BrowserifyDereqBytes => "function(_dereq_,module,exports)"u8;
+    private static ReadOnlySpan<byte> WebpackRequireBytes => "__webpack_require__"u8;
+    private static ReadOnlySpan<byte> WebpackUmdBytes => "webpackUniversalModuleDefinition"u8;
+    private static ReadOnlySpan<byte> MinifiedUmdBytes1 => "typeof exports===\"object\"&&typeof module!==\"undefined\""u8;
+    private static ReadOnlySpan<byte> MinifiedUmdBytes2 => "\"object\"===typeof exports&&\"object\"===typeof module"u8;
+
     public static bool IsMinifiedBytes(ReadOnlySpan<byte> bytes, int maxLineLength = 5000)
     {
         if (bytes.IsEmpty) return false;
@@ -359,6 +371,17 @@ public class WorkspaceFileFilter
         }
         if (lineLen > maxLineLength) return true;
         if (limit >= 4096 && newlines <= 3) return true;
+
+        var head = bytes[..limit];
+        if (head.IndexOf(BrowserifyDereqBytes) >= 0 ||
+            head.IndexOf(WebpackRequireBytes) >= 0 ||
+            head.IndexOf(WebpackUmdBytes) >= 0 ||
+            head.IndexOf(MinifiedUmdBytes1) >= 0 ||
+            head.IndexOf(MinifiedUmdBytes2) >= 0)
+        {
+            return true;
+        }
+
         return false;
     }
 
@@ -383,6 +406,17 @@ public class WorkspaceFileFilter
         }
         if (lineLen > maxLineLength) return true;
         if (limit >= 4096 && newlines <= 3) return true;
+
+        var head = text[..limit];
+        if (head.IndexOf(BrowserifyDereqSignature, StringComparison.Ordinal) >= 0 ||
+            head.IndexOf(WebpackRequireSignature, StringComparison.Ordinal) >= 0 ||
+            head.IndexOf(WebpackUmdSignature, StringComparison.Ordinal) >= 0 ||
+            head.IndexOf(MinifiedUmdSignature1, StringComparison.Ordinal) >= 0 ||
+            head.IndexOf(MinifiedUmdSignature2, StringComparison.Ordinal) >= 0)
+        {
+            return true;
+        }
+
         return false;
     }
 

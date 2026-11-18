@@ -14,6 +14,8 @@
   <assembly fullname="CodeExplorer.Parsers.Go" preserve="all" />
   <assembly fullname="CodeExplorer.Parsers.Java" preserve="all" />
   <assembly fullname="CodeExplorer.Parsers.Kotlin" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Perl" preserve="all" />
+  <assembly fullname="CodeExplorer.Parsers.Php" preserve="all" />
   <assembly fullname="CodeExplorer.Parsers.Python" preserve="all" />
   <assembly fullname="CodeExplorer.Parsers.Rust" preserve="all" />
   <assembly fullname="CodeExplorer.Parsers.Script" preserve="all" />

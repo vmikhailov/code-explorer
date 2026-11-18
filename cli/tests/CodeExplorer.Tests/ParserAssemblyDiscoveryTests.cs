@@ -15,6 +15,8 @@ public class ParserAssemblyDiscoveryTests
         "CodeExplorer.Parsers.Go",
         "CodeExplorer.Parsers.Java",
         "CodeExplorer.Parsers.Kotlin",
+        "CodeExplorer.Parsers.Perl",
+        "CodeExplorer.Parsers.Php",
         "CodeExplorer.Parsers.Python",
         "CodeExplorer.Parsers.Rust",
         "CodeExplorer.Parsers.Script",

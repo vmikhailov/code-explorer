@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.2] - 2026-11-18
+
+### Fixed
+- **CLI Single-File Parser Assembly Anchoring, Browserify/Webpack Bundle Skipping & PHP/Perl Extractor Hardening (`CodeExplorer`, `CodeExplorer.Indexing`, `CodeExplorer.Core`, `CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`, `CodeExplorer.Storage`)**:
+  - Anchored `CodeExplorer.Parsers.Php` and `CodeExplorer.Parsers.Perl` in `BuiltInParserAssemblyLoader`, `CodeExplorer.csproj`, and `TrimmerRoots.xml` so single-file CLI binaries load both parser assemblies at startup.
+  - Extended `WorkspaceFileFilter.IsMinifiedBytes` / `IsMinifiedText` to detect Browserify (`function(_dereq_,module,exports)`), Webpack (`__webpack_require__`, `webpackUniversalModuleDefinition`), and UMD pre-bundled JavaScript artifacts (such as 2 MB `openpgp.js` distributions) in Layer 1 so Layer 3 does not hang parsing multi-megabyte third-party JS bundles.
+  - Replaced backreference lookahead SQL string matching in `PhpDatabaseSqlExtractor` and `PerlDatabaseAndExternalExtractor` with linear-time non-backtracking patterns, added PHP `$sql = "..."` / `<<<EOSQL` heredoc, `WL_Db`, `table_name` / `join_with_table`, `WL_Socket_Mreg`, and `WL_Socket_KimJong` (`KJS`) extraction, and excluded `ON DUPLICATE KEY UPDATE` column names from table extraction.
+  - Fixed `TestIntelligenceService.BuildRunnerCommands` (`get_affected_tests`) so mixed `.NET` test framework labels (`nunit`, `xunit`, `dotnet`) merge into a single `|`-delimited `dotnet test --filter` command instead of overwriting, and restricted `TraverseReverseToTestsAsync` to `NodeKind.Function` nodes.
+
+---
+
 ## [1.90.1] - 2026-11-18
 
 ### Fixed

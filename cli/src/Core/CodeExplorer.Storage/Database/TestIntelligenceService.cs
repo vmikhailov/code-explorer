@@ -689,7 +689,8 @@ public class TestIntelligenceService
                            tn.id,
                            ce_rel_kind(e.kind),
                            json(fn.properties),
-                           COALESCE(json_extract(fn.properties, '$.name'), fn.id) AS caller_name
+                           COALESCE(json_extract(fn.properties, '$.name'), fn.id) AS caller_name,
+                           fn.kind
                     FROM temp_frontier f
                     JOIN nodes tn ON tn.id = f.id
                     JOIN edges e ON e.to_id = tn.rowid
@@ -705,6 +706,7 @@ public class TestIntelligenceService
                     var edgeKind = reader.GetString(2);
                     var propsJson = reader.GetString(3);
                     var callerName = reader.GetString(4);
+                    var callerKind = (NodeKind)reader.GetInt32(5);
 
                     if (!paths.TryGetValue(toId, out var targetPath))
                     {
@@ -722,7 +724,7 @@ public class TestIntelligenceService
                     var sLine = root.TryGetProperty(PropStartLine, out var slp) ? slp.AsInt32() : 0;
                     var framework = root.TryGetProperty(PropTestFramework, out var tfp) && !tfp.IsNull ? tfp.AsString() : DetectFramework(filePath);
 
-                    var isTest = IsTestFunction(root, name, filePath);
+                    var isTest = callerKind == NodeKind.Function && IsTestFunction(root, name, filePath);
 
                     if (isTest)
                     {
@@ -1025,6 +1027,21 @@ public class TestIntelligenceService
         return (updatedTests, groups);
     }
 
+    private static string NormalizeRunnerKey(string? framework, string filePath)
+    {
+        var raw = framework ?? DetectFramework(filePath);
+        var fw = raw.ToLowerInvariant();
+        return fw switch
+        {
+            "dotnet" or "nunit" or "xunit" or "mstest" or "csharp" => "dotnet",
+            "go-testing" or "go" or "gotest" => "go",
+            "pytest" or "python" or "unittest" => "pytest",
+            "jest" or "vitest" or "js" or "ts" or "mocha" => "jest",
+            "junit" or "java" or "testng" => "junit",
+            _ => fw
+        };
+    }
+
     public static Dictionary<string, string> BuildRunnerCommands(
         IReadOnlyList<AffectedTestMethod> tests,
         IReadOnlyList<AffectedTestGroup>? groups = null)
@@ -1034,10 +1051,10 @@ public class TestIntelligenceService
 
         if (groups == null || groups.Count == 0)
         {
-            var byFramework = tests.GroupBy(t => t.TestFramework ?? DetectFramework(t.TestFilePath));
+            var byFramework = tests.GroupBy(t => NormalizeRunnerKey(t.TestFramework, t.TestFilePath));
             foreach (var group in byFramework)
             {
-                var fw = group.Key.ToLowerInvariant();
+                var fw = group.Key;
                 if (fw is "dotnet" or "nunit" or "xunit" or "mstest" or "csharp")
                 {
                     var filters = group.Select(t => $"FullyQualifiedName~{t.TestMethodName}").Distinct();
@@ -1071,11 +1088,11 @@ public class TestIntelligenceService
             return commands;
         }
 
-        var groupedFw = groups.GroupBy(g => g.TestFramework ?? DetectFramework(g.FilePath));
+        var groupedFw = groups.GroupBy(g => NormalizeRunnerKey(g.TestFramework, g.FilePath));
 
         foreach (var fwGroup in groupedFw)
         {
-            var fw = fwGroup.Key.ToLowerInvariant();
+            var fw = fwGroup.Key;
             if (fw is "dotnet" or "nunit" or "xunit" or "mstest" or "csharp")
             {
                 var filters = new List<string>();

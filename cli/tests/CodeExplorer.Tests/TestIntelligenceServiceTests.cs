@@ -592,5 +592,62 @@ public class TestIntelligenceServiceTests
         report.RunnerCommands.Should().ContainKey("dotnet");
         report.RunnerCommands["dotnet"].Should().Be("dotnet test --filter \"FullyQualifiedName~WorkerTests\"");
     }
+
+    [Test]
+    public void BuildRunnerCommands_MixedDotnetFrameworkLabels_MergesAllFiltersWithPipe()
+    {
+        var method1 = new AffectedTestMethod(
+            "Test_InspectDataLineage_Works",
+            "McpIntegrationTests.Test_InspectDataLineage_Works",
+            "McpIntegrationTests",
+            "cli/tests/CodeExplorer.Tests/McpIntegrationTests.cs",
+            100,
+            "xUnit",
+            "Direct CALLS",
+            1,
+            ["Test_InspectDataLineage_Works", "InspectDataLineageAsync"],
+            "InspectDataLineageAsync",
+            "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs");
+        var method2 = new AffectedTestMethod(
+            "WebSocketServer_GetSymbols_HandlesRequestAndReplies",
+            "WebSocketServerTests.WebSocketServer_GetSymbols_HandlesRequestAndReplies",
+            "WebSocketServerTests",
+            "cli/tests/CodeExplorer.Tests/WebSocketServerTests.cs",
+            50,
+            "dotnet",
+            "Direct CALLS",
+            1,
+            ["WebSocketServer_GetSymbols_HandlesRequestAndReplies", "InspectDataLineageAsync"],
+            "InspectDataLineageAsync",
+            "cli/src/Core/CodeExplorer.Analysis/Mcp/CodeExplorerRepository.Lineage.cs");
+
+        var groups = new List<AffectedTestGroup>
+        {
+            new(
+                GroupName: "McpIntegrationTests",
+                ClassName: "McpIntegrationTests",
+                FilePath: "cli/tests/CodeExplorer.Tests/McpIntegrationTests.cs",
+                TestFramework: "xUnit",
+                AffectedTestCount: 1,
+                TotalTestCount: 10,
+                AllTestsAffected: false,
+                Methods: [method1]),
+            new(
+                GroupName: "WebSocketServerTests",
+                ClassName: "WebSocketServerTests",
+                FilePath: "cli/tests/CodeExplorer.Tests/WebSocketServerTests.cs",
+                TestFramework: "dotnet",
+                AffectedTestCount: 4,
+                TotalTestCount: 4,
+                AllTestsAffected: true,
+                Methods: [method2])
+        };
+
+        var commands = TestIntelligenceService.BuildRunnerCommands([method1, method2], groups);
+
+        commands.Should().ContainKey("dotnet");
+        commands["dotnet"].Should().Be(
+            "dotnet test --filter \"FullyQualifiedName~Test_InspectDataLineage_Works|FullyQualifiedName~WebSocketServerTests\"");
+    }
 }
 

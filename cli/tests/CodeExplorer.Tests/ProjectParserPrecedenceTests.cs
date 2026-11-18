@@ -9,7 +9,7 @@ public class ProjectParserPrecedenceTests
 {
     private static readonly string[] ExpectedOrder =
     [
-        "coldfusion", "csharp", "go", "java", "kotlin", "python", "rust",
+        "coldfusion", "csharp", "go", "java", "kotlin", "perl", "php", "python", "rust",
         "typescript", "javascript",
         "sql", "terraform",
         "script"

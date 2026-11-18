@@ -28,6 +28,7 @@ internal static class PhpDatabaseSqlExtractor
     private const string DeletePrefix = "DELETE";
     private const string SelectPrefix = "SELECT";
     private const string ZendDbMarker = "Zend_Db";
+    private const string WlDbMarker = "WL_Db";
     private const string DoctrineMarker = "Doctrine\\";
     private const string NetteDatabaseMarker = "Nette\\Database";
     private const string PdoMarker = "PDO";
@@ -36,6 +37,8 @@ internal static class PhpDatabaseSqlExtractor
     private const string ArrowInsert = "->insert";
     private const string ArrowUpdate = "->update";
     private const string ArrowDelete = "->delete";
+    private const string SqlGroup = "sql";
+    private const string TableGroup = "table";
     private const string SnakeCasePattern = @"([a-z0-9])([A-Z])";
     private const string SnakeCaseReplacement = "$1_$2";
     private const char BacktickChar = '`';
@@ -66,11 +69,19 @@ internal static class PhpDatabaseSqlExtractor
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SqlQueryCallRegex = new(
-        @"(?:->\s*(?:query|prepare|fetchAll|fetchRow|fetchOne|fetchCol|fetchPairs|fetchAssoc|fetchAssociative|executeQuery|executeUpdate|executeStatement|createQuery)|(?:\bmysql_query|\bmysqli_query))\s*\(\s*(?:\$[a-zA-Z0-9_]+\s*,\s*)?(?<quote>['""])(?<sql>(?:\\.|(?!\k<quote>)[\s\S])+)\k<quote>",
+        @"(?:->\s*(?:query|prepare|fetchAll|fetchRow|fetchOne|fetchCol|fetchPairs|fetchAssoc|fetchAssociative|executeQuery|executeUpdate|executeStatement|createQuery)|(?:\bmysql_query|\bmysqli_query))\s*\(\s*(?:\$[a-zA-Z0-9_]+\s*,\s*)?(?:'(?<sql>(?:\\.|[^'\\])+)'|""(?<sql>(?:\\.|[^""\\])+)"")",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex SqlVarAssignRegex = new(
+        @"\$(?:sql|query|stmt)\s*=\s*(?:'(?<sql>\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b(?:\\.|[^'\\]){1,8000})'|""(?<sql>\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b(?:\\.|[^""\\]){1,8000})""|<<<\s*['""]?(?<tag>[A-Za-z0-9_]+)\b['""]?[^\n]*\n(?<sql>[\s\S]{1,8000}?)\n[ \t]*\k<tag>\b)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex TableOptionAssignRegex = new(
+        @"['""](?:table_name|join_with_table)['""]\s*(?:\]\s*=\s*|=>\s*)['""](?<table>[a-zA-Z_][a-zA-Z0-9_]*)['""]",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SqlTableExtractRegex = new(
-        @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+[`""']?(?<tbl>[a-zA-Z_][a-zA-Z0-9_]*)[`""']?",
+        @"\b(?:FROM|JOIN|INTO|(?<!DUPLICATE\s+KEY\s+)UPDATE|TABLE)\s+[`""']?(?<tbl>[a-zA-Z_][a-zA-Z0-9_]*)[`""']?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly HashSet<string> SqlIgnoredWords = new(StringComparer.OrdinalIgnoreCase)
@@ -163,6 +174,7 @@ internal static class PhpDatabaseSqlExtractor
         _ = masked;
 
         if (content.Contains(ZendDbMarker, StringComparison.OrdinalIgnoreCase) ||
+            content.Contains(WlDbMarker, StringComparison.OrdinalIgnoreCase) ||
             content.Contains(DoctrineMarker, StringComparison.OrdinalIgnoreCase) ||
             content.Contains(NetteDatabaseMarker, StringComparison.OrdinalIgnoreCase) ||
             content.Contains(PdoMarker, StringComparison.Ordinal) ||
@@ -170,6 +182,14 @@ internal static class PhpDatabaseSqlExtractor
             content.Contains(MysqliQueryMarker, StringComparison.OrdinalIgnoreCase))
         {
             EnsureMySqlDatabaseNode(fileNode, workspaceId, relativePath);
+        }
+
+        foreach (Match tm in TableOptionAssignRegex.Matches(commentMasked))
+        {
+            var tableName = tm.Groups[TableGroup].Value.Trim();
+            if (SqlIgnoredWords.Contains(tableName) || tableName.Length < 2) continue;
+            var (line, col) = PhpFileParser.GetLineAndColumn(lineOffsets, tm.Index);
+            RecordTableAccess(fileNode, workspaceId, relativePath, tableName, OpSelect, $"TableOption: {tableName}", line, col, tm.Index, classScopes, funSpans, hasUnorderedGroupBy: false);
         }
 
         foreach (Match nm in NetteTableCallRegex.Matches(commentMasked))
@@ -202,9 +222,22 @@ internal static class PhpDatabaseSqlExtractor
             RecordTableAccess(fileNode, workspaceId, relativePath, rawTable, op, $"Fluent: {op} {rawTable}", line, col, fm.Index, classScopes, funSpans, hasUnorderedGroupBy: false);
         }
 
-        foreach (Match sm in SqlQueryCallRegex.Matches(commentMasked))
+        ProcessSqlMatches(SqlQueryCallRegex.Matches(commentMasked), lineOffsets, classScopes, funSpans, fileNode, workspaceId, relativePath);
+        ProcessSqlMatches(SqlVarAssignRegex.Matches(commentMasked), lineOffsets, classScopes, funSpans, fileNode, workspaceId, relativePath);
+    }
+
+    private static void ProcessSqlMatches(
+        MatchCollection matches,
+        int[] lineOffsets,
+        List<PhpFileParser.PhpClassScope> classScopes,
+        List<PhpFileParser.PhpFunctionSpan> funSpans,
+        FileNode fileNode,
+        string workspaceId,
+        string relativePath)
+    {
+        foreach (Match sm in matches)
         {
-            var rawSql = sm.Groups["sql"].Value.Trim();
+            var rawSql = sm.Groups[SqlGroup].Value.Trim();
             if (string.IsNullOrWhiteSpace(rawSql)) continue;
 
             var op = DetermineSqlOperation(rawSql);

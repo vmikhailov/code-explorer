@@ -30,8 +30,9 @@ Whenever fixes or features are made to CodeExplorer's shipped code (CLI, MCP ser
      - **All gates MUST pass (Failed: 0)**. Never finish a task or publish a release while any gate is in [FAIL] state — always fix all failed gates first.
    - **CLI**:
      - Run `dotnet build cli/CodeExplorer.slnx -c Release` (compiles with 0 warnings and 0 errors; `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` is enforced globally via [Directory.Build.props](../../cli/Directory.Build.props)).
-     - Run `dotnet test cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj`.
-     - Run `dotnet test cli/tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj`.
+     - Call `get_affected_tests` (`filePaths`) on all modified source files and execute its `runnerCommands.dotnet` command (never hand-pick `--filter` by guessing), or run the full test suites:
+       - `dotnet test cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj`
+       - `dotnet test cli/tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj`
    - **VS Code Extension**:
      - In `vscode-extension/`, run `npm run typecheck` and `npm run test`.
 

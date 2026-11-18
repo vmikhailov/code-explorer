@@ -46,19 +46,19 @@ internal static class PerlDatabaseAndExternalExtractor
     private static readonly char[] SqlIdentifierTrimChars = [BacktickChar, SingleQuoteChar, DoubleQuoteChar, ' ', '\t', '\r', '\n'];
 
     private static readonly Regex DbiQuotedQueryRegex = new(
-        @"->\s*(?:prepare|prepare_cached|do|selectall_arrayref|selectall_hashref|selectrow_array|selectrow_arrayref|selectrow_hashref|selectcol_arrayref)\s*\(\s*(?:qq\s*[\{\(\[/]|q\s*[\{\(\[/]|(?<quote>['""]))(?<sql>[\s\S]*?)(?(quote)\k<quote>|[\}\)\]/])",
+        @"->\s*(?:prepare|prepare_cached|do|selectall_arrayref|selectall_hashref|selectrow_array|selectrow_arrayref|selectrow_hashref|selectcol_arrayref)\s*\(\s*(?:qq\s*[\{\(\[/](?<sql>[^\}\)\]/]{1,8000})[\}\)\]/]|q\s*[\{\(\[/](?<sql>[^\}\)\]/]{1,8000})[\}\)\]/]|'(?<sql>(?:\\.|[^'\\]){1,8000})'|""(?<sql>(?:\\.|[^""\\]){1,8000})"")",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex DbiHeredocQueryRegex = new(
-        @"->\s*(?:prepare|prepare_cached|do|selectall_arrayref|selectall_hashref|selectrow_array|selectrow_arrayref|selectrow_hashref|selectcol_arrayref)\s*\(\s*<<\s*['""]?(?<tag>[A-Za-z0-9_]+)['""]?[^\n]*\n(?<sql>[\s\S]*?)\n\k<tag>\b",
+        @"->\s*(?:prepare|prepare_cached|do|selectall_arrayref|selectall_hashref|selectrow_array|selectrow_arrayref|selectrow_hashref|selectcol_arrayref)\s*\(\s*<<\s*['""]?(?<tag>[A-Za-z0-9_]+)\b['""]?[^\n]*\n(?<sql>[\s\S]{1,8000}?)\n[ \t]*\k<tag>\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SqlVariableAssignmentRegex = new(
-        @"\$(?:sql|query|stmt)\s*=\s*(?:qq\s*[\{\(\[/]|(?<quote>['""]))(?<sql>\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[\s\S]*?)(?(quote)\k<quote>|[\}\)\]/])",
+        @"\$(?:sql|query|stmt)\s*=\s*(?:qq\s*[\{\(\[/](?<sql>\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^\}\)\]/]{1,8000})[\}\)\]/]|'(?<sql>\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b(?:\\.|[^'\\]){1,8000})'|""(?<sql>\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b(?:\\.|[^""\\]){1,8000})"")",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SqlTableExtractRegex = new(
-        @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+[`""']?(?<tbl>[a-zA-Z_][a-zA-Z0-9_]*)[`""']?",
+        @"\b(?:FROM|JOIN|INTO|(?<!DUPLICATE\s+KEY\s+)UPDATE|TABLE)\s+[`""']?(?<tbl>[a-zA-Z_][a-zA-Z0-9_]*)[`""']?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex PtfXClientCallRegex = new(

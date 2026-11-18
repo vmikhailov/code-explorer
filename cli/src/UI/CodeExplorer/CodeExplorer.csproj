@@ -22,6 +22,8 @@
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Go\CodeExplorer.Parsers.Go.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Java\CodeExplorer.Parsers.Java.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Kotlin\CodeExplorer.Parsers.Kotlin.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Perl\CodeExplorer.Parsers.Perl.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Php\CodeExplorer.Parsers.Php.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Python\CodeExplorer.Parsers.Python.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Rust\CodeExplorer.Parsers.Rust.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parsers.Shared\CodeExplorer.Parsers.Shared.csproj" />

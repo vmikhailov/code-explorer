@@ -16,6 +16,8 @@ internal static class BuiltInParserAssemblyLoader
         typeof(Parsers.Go.GoFileParser).Assembly,
         typeof(Parsers.Java.JavaFileParser).Assembly,
         typeof(Parsers.Kotlin.KotlinProjectParser).Assembly,
+        typeof(Parsers.Perl.PerlFileParser).Assembly,
+        typeof(Parsers.Php.PhpFileParser).Assembly,
         typeof(Parsers.Python.PythonFileParser).Assembly,
         typeof(Parsers.Rust.RustFileParser).Assembly,
         typeof(Parsers.Script.ScriptProjectParser).Assembly,
