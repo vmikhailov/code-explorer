@@ -288,5 +288,50 @@
     "projectType": "terraform",
     "entityKind": "Service",
     "isLibrary": false
+  },
+  "terraform/hybrid-python-tf": {
+    "projectType": "python",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "terraform/terragrunt-live": {
+    "projectType": "terraform",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "terraform/terragrunt-live/bngteam": {
+    "projectType": "terraform",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "terraform/terragrunt-live/frontend-p360": {
+    "projectType": "terraform",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "php/symfony-login-service": {
+    "projectType": "php",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "php/zf1-billsys-service": {
+    "projectType": "php",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "php/library-wl": {
+    "projectType": "php",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "perl/cron-renewals-service": {
+    "projectType": "perl",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "perl/backend-libs": {
+    "projectType": "perl",
+    "entityKind": "Library",
+    "isLibrary": true
   }
 }

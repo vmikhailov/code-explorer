@@ -278,4 +278,85 @@ public class TerraformCrossRepoAndMcpTests
             }
         }
     }
+
+    [Test]
+    public async Task SampleProjects_Terraform_FullScan_ExtractsHybridPythonTfTerragruntIncludesAndDependencyOutputs()
+    {
+        var currentDir = TestContext.CurrentContext.TestDirectory;
+        var dir = new DirectoryInfo(currentDir);
+        string? sampleTerraformDir = null;
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "cli", "tests", "SampleProjects", "terraform");
+            if (Directory.Exists(candidate))
+            {
+                sampleTerraformDir = candidate;
+                break;
+            }
+            var direct = Path.Combine(dir.FullName, "SampleProjects", "terraform");
+            if (Directory.Exists(direct))
+            {
+                sampleTerraformDir = direct;
+                break;
+            }
+            dir = dir.Parent;
+        }
+
+        sampleTerraformDir.Should().NotBeNull("SampleProjects/terraform directory must exist.");
+
+        var tempDbPath = Path.Combine(Path.GetTempPath(), "ce-sample-tf-" + Guid.NewGuid().ToString("N") + ".db");
+        try
+        {
+            await using var client = new SqliteGraphClient(tempDbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(sampleTerraformDir!, sampleTerraformDir!, clear: true);
+
+            // 1. All 5 sample projects under SampleProjects/terraform are discovered
+            var projRes = await client.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name, p.project_type AS type ORDER BY p.name");
+            var projNames = projRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+            projNames.Should().Contain(["aws-infra", "hybrid-python-tf", "terragrunt-live", "bngteam", "frontend-p360"]);
+
+            // 2. Hybrid Python+Terraform sample project (pyproject.toml + requirements.txt + main.tf) emits all Terraform reference edges
+            var hybridEdges = await client.ExecuteCypherAsync(
+                "MATCH (cr:CloudResource {name: 'aws_s3_bucket.dataset'})-[:DEPENDS_ON]->(loc:Member {name: 'local.bucket_name'})-[:DEPENDS_ON]->(v:Member {name: 'var.dataset_name'}) RETURN cr.start_line AS startLine, cr.end_line AS endLine");
+            hybridEdges.Count.Should().Be(1);
+            hybridEdges.Rows[0].GetIntProp("startLine").Should().BeGreaterThan(0);
+            hybridEdges.Rows[0].GetIntProp("endLine").Should().BeGreaterThanOrEqualTo(hybridEdges.Rows[0].GetIntProp("startLine"));
+
+            // 3. Lambda environment variables in aws-infra wire CloudResource -> env.ATHENA_WG -> aws_athena_workgroup.team -> var.workgroup_name
+            var lambdaEdges = await client.ExecuteCypherAsync(
+                "MATCH (fn:CloudResource {name: 'aws_lambda_function.api'})-[:DEPENDS_ON]->(env:Member {name: 'env.ATHENA_WG'})-[:DEPENDS_ON]->(wg:CloudResource {name: 'aws_athena_workgroup.team'})-[:DEPENDS_ON]->(v:Member {name: 'var.workgroup_name'}) RETURN env.initializer_expression AS initExpr");
+            lambdaEdges.Count.Should().Be(1);
+            lambdaEdges.Rows[0].GetStringProp("initExpr").Should().Be("aws_athena_workgroup.team.name");
+
+            // 4. Terragrunt frontend-p360 wires inputs.workgroup_name -> dependency.team_outputs (with output_name) AND -> output.athena_workgroup_name
+            var tgDepEdges = await client.ExecuteCypherAsync(
+                "MATCH (inp:Member {name: 'inputs.workgroup_name'})-[r:DEPENDS_ON]->(d:Type {name: 'dependency.team_outputs'}) RETURN r.output_name AS outName, r.reference_expression AS refExpr");
+            tgDepEdges.Count.Should().Be(1);
+            tgDepEdges.Rows[0].GetStringProp("outName").Should().Be("athena_workgroup_name");
+            tgDepEdges.Rows[0].GetStringProp("refExpr").Should().Be("dependency.team_outputs.outputs.athena_workgroup_name");
+
+            var tgOutEdges = await client.ExecuteCypherAsync(
+                "MATCH (inp:Member {name: 'inputs.workgroup_name'})-[r:DEPENDS_ON]->(out:Member {name: 'output.athena_workgroup_name'}) RETURN r.output_name AS outName");
+            tgOutEdges.Count.Should().Be(1);
+
+            // 5. Terragrunt include.root wires to root terragrunt.hcl and include.root.locals.default_origin -> local.default_origin
+            var includeFileEdges = await client.ExecuteCypherAsync(
+                "MATCH (inc:Type {name: 'include.root'})-[r:DEPENDS_ON]->(f:File {path: 'terragrunt-live/terragrunt.hcl'}) RETURN count(r) AS cnt");
+            includeFileEdges.Rows[0].GetIntProp("cnt").Should().Be(2);
+
+            var includeLocalEdges = await client.ExecuteCypherAsync(
+                "MATCH (inp:Member {name: 'inputs.allowed_origin'})-[r:DEPENDS_ON]->(loc:Member {name: 'local.default_origin'}) RETURN r.via AS via, r.reference_expression AS refExpr");
+            includeLocalEdges.Count.Should().Be(1);
+            includeLocalEdges.Rows[0].GetStringProp("via").Should().Be("terragrunt.include");
+            includeLocalEdges.Rows[0].GetStringProp("refExpr").Should().Be("include.root.locals.default_origin");
+        }
+        finally
+        {
+            if (File.Exists(tempDbPath))
+            {
+                try { File.Delete(tempDbPath); } catch { }
+            }
+        }
+    }
 }
