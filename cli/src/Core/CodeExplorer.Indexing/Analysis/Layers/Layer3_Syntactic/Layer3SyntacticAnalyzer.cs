@@ -59,7 +59,7 @@ public partial class Layer3SyntacticParser
             var bestMatches = new List<ProjectNode>();
             var hasNonScriptProject = l2Result.Projects.Any(pr => pr.EntityKind != ProjectEntityKind.ScriptProject);
             var isManagedSourceExt = Path.GetExtension(file.Name).ToLowerInvariant() is
-                ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs";
+                ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs" or ".php" or ".phtml" or ".inc" or ".pm" or ".pl";
             foreach (var p in l2Result.Projects)
             {
                 if (hasNonScriptProject && isManagedSourceExt && p.EntityKind == ProjectEntityKind.ScriptProject)
@@ -525,6 +525,7 @@ public partial class Layer3SyntacticParser
         var fileParser = syntaxTree.FileParser;
         if (!fileParser.UsesTreeSitter)
         {
+            Layer3ScopeVisibilityPass.EnrichNonTreeSitterTree(syntaxTree, projectName, isTest, ctx);
             SemanticPostProcessor?.Invoke(syntaxTree, ctx);
             return;
         }

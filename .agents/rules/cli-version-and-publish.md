@@ -7,7 +7,7 @@ trigger: always_on
 
 Whenever fixes or features are made to CodeExplorer's shipped code (CLI, MCP server, SDK libraries, or VS Code Extension):
 
-0. **No bump for non-shipped changes**: Website (`site/`), benchmarks, case studies, docs, proposals, roadmap, agent rules/skills, and CI-only tweaks are committed **without** a version bump, changelog release section, or release tag. They never justify a MINOR bump.
+0. **No bump or `ce gate` scan for non-shipped changes**: Website (`site/`), benchmarks, case studies, docs, proposals, roadmap, agent rules/skills, and CI-only tweaks are committed **without** a version bump, changelog release section, release tag, or `ce scan` / `ce gate check` run (use `site` / `benchmarks` dedicated checks instead). They never justify a MINOR bump.
 
 1. **Increment Version via SemVer (Skill: `versioning`)**:
    - Always follow the `versioning` skill ([.agents/skills/versioning/SKILL.md](../../.agents/skills/versioning/SKILL.md)):

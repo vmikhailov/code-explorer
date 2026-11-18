@@ -124,6 +124,10 @@ query: |
 * **Kotlin & Android** (`.kt`, `.kts`, `AndroidManifest.xml`): Spring Boot, Ktor, Android Components & Intents, Retrofit, Room, gRPC, Hilt/Koin, Jetpack Compose
 * **Python** (`.py`, `pyproject.toml`, `requirements.txt`): FastAPI, Flask, Django, SQLAlchemy, Celery, `requests`, `httpx`, `aiohttp`
 * **Go** (`.go`, `go.mod`): Gin, Fiber, Echo, Chi, `net/http`, gRPC, `database/sql`, `pgx`, GORM
+* **Rust** (`.rs`, `Cargo.toml`): Axum, Actix Web, Tonic gRPC, Reqwest, SQLx, SeaORM, Diesel, Tokio
+* **PHP** (`.php`, `.phtml`, `.inc`, `composer.json`): Symfony, Zend Framework 1, Kirby CMS, Doctrine ORM/DBAL, Nette Database, PDO, Smarty/Twig
+* **Perl** (`.pl`, `.pm`, `.t`, `cpanfile`): Packages, cron/CLI entrypoints, `DBI` SQL lineage, `Switch`, `LWP::UserAgent`, `Mail::Sendmail`
+* **Terraform / HCL** (`.tf`, `.tfvars`, `terragrunt.hcl`): Resources, modules, variables, data sources, outputs, Terragrunt links
 * **SQL & Data Lineage** (`.sql` & embedded SQL strings): T-SQL, PostgreSQL, MySQL, SQLite, Oracle, ClickHouse, BigQuery
 * **ColdFusion / CFML** (`.cfc`, `.cfm`): Components, `cfquery` SQL lineage, `cfhttp`, wirebox DI
 

@@ -38,6 +38,8 @@
     <ProjectReference Include="..\..\src\UI\CodeExplorer\CodeExplorer.csproj" />
     <ProjectReference Include="..\..\src\TreeSitter\CodeExplorer.TreeSitter\CodeExplorer.TreeSitter.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Kotlin\CodeExplorer.Parsers.Kotlin.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Perl\CodeExplorer.Parsers.Perl.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Php\CodeExplorer.Parsers.Php.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Java\CodeExplorer.Parsers.Java.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Android\CodeExplorer.Parsers.Android.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parsers.Rust\CodeExplorer.Parsers.Rust.csproj" />

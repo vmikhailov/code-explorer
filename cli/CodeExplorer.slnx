@@ -24,6 +24,8 @@
     <Project Path="src/Parsers/CodeExplorer.Parsers.Go/CodeExplorer.Parsers.Go.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parsers.Java/CodeExplorer.Parsers.Java.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parsers.Kotlin/CodeExplorer.Parsers.Kotlin.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parsers.Perl/CodeExplorer.Parsers.Perl.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parsers.Php/CodeExplorer.Parsers.Php.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parsers.Python/CodeExplorer.Parsers.Python.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parsers.Rust/CodeExplorer.Parsers.Rust.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parsers.Shared/CodeExplorer.Parsers.Shared.csproj" />

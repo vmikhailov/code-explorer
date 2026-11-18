@@ -179,19 +179,21 @@ Every entity in `.codeexplorer/graph.db` belongs to a 5-layer schema (interactiv
   </a>
 </p>
 
-Tree-sitter grammars, SQL/HCL parsers, and framework analyzers extract architectural semantics across 10 ecosystems (see [code-explorer.app/architectures](https://code-explorer.app/architectures)):
+Tree-sitter grammars, SQL/HCL parsers, and framework analyzers extract architectural semantics across 12 ecosystems (see [code-explorer.app/architectures](https://code-explorer.app/architectures)):
 
 | Language | Maturity | Files & Manifests | Representative Frameworks & Semantics |
 | :--- | :--- | :--- | :--- |
 | **C# / .NET** | Stable | `.cs`, `.csproj`, `.sln`, `.slnx` | ASP.NET Core, Minimal APIs, gRPC, HttpClient, EF Core, Dapper, MassTransit, Wolverine, Hangfire, MediatR |
-| **TypeScript / JS** | Stable | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS (REST, GraphQL, DI), Next.js, Express, Fastify, Hono, tRPC, Prisma, TypeORM, Kysely, BullMQ |
+| **TypeScript / JS** | Stable | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS (REST, GraphQL, DI, `@Module` cycles), Next.js, Express, Fastify, Hono, tRPC, Prisma, TypeORM, Kysely, BullMQ |
 | **Go** | Stable | `.go`, `go.mod` | Gin, Fiber, Echo, `net/http`, gRPC, Watermill, Asynq, Kafka-Go, GORM, `sqlx`, `sqlc`, Ent |
 | **Java** | Stable | `.java`, `pom.xml`, `build.gradle` | Spring Boot/Cloud, Quarkus, Micronaut, Dubbo, Kafka, JPA/Hibernate, MyBatis, jOOQ, OpenFeign |
 | **Kotlin & Android** | Stable | `.kt`, `.kts`, `AndroidManifest.xml` | Spring, Ktor, Exposed, Room, SQLDelight, Coroutines, Retrofit/OkHttp, Hilt/Koin, Jetpack Compose |
 | **Python** | Stable | `.py`, `pyproject.toml`, `requirements.txt` | FastAPI, Litestar, Django, Flask, SQLAlchemy, Celery, Dramatiq, FastStream, Temporal |
 | **Rust** | Stable | `.rs`, `Cargo.toml` | Axum, Actix Web, Tonic gRPC, Reqwest, SQLx, SeaORM, Diesel, Tokio |
+| **PHP** | Stable | `.php`, `.phtml`, `.inc`, `composer.json` | Symfony, Zend Framework 1 (PSR-0 & PSR-4), Kirby CMS, Doctrine ORM/DBAL, Nette Database, PDO, Smarty/Twig, PHP 8 upgrade risk markers |
+| **Perl** | Stable | `.pl`, `.pm`, `.t`, `cpanfile`, `Makefile.PL` | Packages, cron/CLI entrypoints, `DBI` SQL & heredoc lineage, `Switch`, `LWP::UserAgent`, `Mail::Sendmail` |
 | **SQL** | Stable | `.sql` & embedded SQL strings | PostgreSQL, T-SQL, MySQL, SQLite, ClickHouse, BigQuery DDL & `READS_FROM` / `WRITES_TO` lineage |
-| **Terraform / HCL** | Stable | `.tf`, `.tfvars` | Resources, modules, variables, data sources, outputs, provider & infrastructure links |
+| **Terraform / HCL** | Stable | `.tf`, `.tfvars`, `terragrunt.hcl` | Resources, modules, variables, data sources, outputs, Terragrunt hierarchy, provider & infrastructure links |
 | **ColdFusion** | Beta | `.cfc`, `.cfm` | Components, functions, `cfquery` SQL lineage, outbound HTTP calls |
 
 ---

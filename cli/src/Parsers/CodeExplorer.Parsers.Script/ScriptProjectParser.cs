@@ -52,13 +52,13 @@ public class ScriptProjectParser : IProjectParser
     public static bool IsScriptFile(string filePath)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        return ext is ".ps1" or ".sh" or ".bash" or ".zsh" or ".py" or ".rb" or ".pl" or ".bat" or ".cmd";
+        return ext is ".ps1" or ".sh" or ".bash" or ".zsh" or ".py" or ".rb" or ".bat" or ".cmd";
     }
 
     public static bool IsNonScriptSourceFile(string filePath)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        return ext is ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs";
+        return ext is ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs" or ".php" or ".phtml" or ".inc" or ".pm" or ".pl";
     }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)

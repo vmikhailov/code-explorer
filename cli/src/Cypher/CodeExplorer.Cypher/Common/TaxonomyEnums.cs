@@ -259,7 +259,8 @@ public enum ProjectLanguage : byte
     PowerShell = 33,
     Android = 34,
     MultiLanguage = 35,
-    Unknown = 36
+    Unknown = 36,
+    Perl = 37
 }
 
 [JsonConverter(typeof(ProjectArchetypeJsonConverter))]

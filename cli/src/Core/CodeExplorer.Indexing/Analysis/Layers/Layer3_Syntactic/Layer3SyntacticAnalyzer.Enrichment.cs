@@ -956,6 +956,24 @@ public partial class Layer3SyntacticParser
 
 internal static class Layer3ScopeVisibilityPass
 {
+    internal static void EnrichNonTreeSitterTree(SyntaxTree syntaxTree, string? projectName, bool isTest, ParsingContext? ctx)
+    {
+        if (syntaxTree.RawImports.Count > 0)
+        {
+            RegisterFileRawImports(ctx, syntaxTree.RelativePath, syntaxTree.RawImports);
+        }
+        if (syntaxTree.FileNode != null && syntaxTree.Document != null)
+        {
+            PopulateSymbolScopeMetadata(
+                syntaxTree.FileNode,
+                syntaxTree.Document,
+                syntaxTree.RelativePath,
+                projectName ?? syntaxTree.FileNode.ProjectName,
+                isTest || syntaxTree.FileNode.IsTest,
+                ctx);
+        }
+    }
+
     internal static void RegisterFileRawImports(ParsingContext? ctx, string relativePath, List<RawImport> rawImports)
     {
         if (ctx == null || rawImports.Count == 0) return;

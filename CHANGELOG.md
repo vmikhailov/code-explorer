@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.0] - 2026-11-18
+
+### Added
+- **PHP & Perl Language Parsers, Framework Extractors & Upgrade Risk Markers (`CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`, `CodeExplorer.Indexing`)**:
+  - Added `CodeExplorer.Parsers.Php` supporting Composer (`composer.json`, `composer.lock`) and standalone PHP directory projects (`.php`, `.phtml`, `.inc`), `PSR-4` namespaces/imports alongside legacy `PSR-0` / `PEAR` class naming (`Foo_Bar_Controller`), Symfony `@Route` / `#[Route]` and Zend Framework 1 (`Zend_Controller_Action`) endpoints, Kirby CMS controllers/templates, Doctrine ORM/DBAL (`@ORM\Table`, `@ORM\Entity`), `Zend_Db_Table` (`$_name`), Nette Database (`->table(...)`), PDO, and `mysql_query` (`php7-mysql-shim`) SQL table lineage (`READS_FROM` / `WRITES_TO`), `Mreg\Request` / `Mreg_Request` (`MREG`) and mailer (`SMTP`) external service calls, Smarty/Twig template imports, per-method cyclomatic complexity, and PHP 8 / MySQL 8 upgrade risk markers (`upgrade_risks`, `has_group_by_without_order_by`).
+  - Added `CodeExplorer.Parsers.Perl` supporting CPAN (`cpanfile`, `Makefile.PL`, `Build.PL`) and standalone Perl module/script directories (`.pl`, `.pm`, `.t`), `package` declarations, `use` / `require` / `use base` / `use parent` inheritance, resilient `Switch.pm` (`switch`/`case`) parsing with `switch_module` upgrade risk tagging, cron/CLI `.pl` script `Endpoint` extraction (`CRON` / `CLI`), `DBI` SQL and heredoc (`<<SQL`) table lineage, and `PTF::XClient` (`MREG`), `Mail::Sendmail` / `MIME::Lite` (`SMTP`), and `LWP::UserAgent` / `WWW::Mechanize` (`HTTP`) external calls.
+- **One-Shot Task Context Pack (`ce context`, `get_task_context`, `GET /api/context`) & NestJS `@Module` Cycle Safety (`CodeExplorer.Analysis`, `CodeExplorer.Server`, `CodeExplorer`, `CodeExplorer.Parsers.TypeScript`)**:
+  - Added `McpContextPackBuilder`, CLI `ce context "<query>"`, MCP `get_task_context`, and HTTP `GET /api/context` to compile focal anchor symbols, 1-hop service/class method inventories, inbound/outbound call chains, SQL table lineage with canonical owner services, active Semantic Invariant Gates + baselined legacy debt traps, and a prioritized file read plan in a single call.
+  - Extended `NestJsLibraryParser` and `Layer5GlobalAnalyzer` to extract `@Module` / `@NgModule` `imports` (`DEPENDS_ON`) and `providers` / `controllers` / `exports` (`USES_TYPE`) edges between module classes and compute `<1 ms` pairwise module cycle safety verdicts (`SAFE_DIRECT_IMPORT` / `CYCLE_WARNING` / `ALREADY_IMPORTED`) in `moduleWiringAndCycleSafety`.
+
+---
+
 ## [1.89.7] - 2026-11-18
 
 ### Fixed & Improved
