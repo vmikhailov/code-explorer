@@ -18,6 +18,15 @@ public partial class CodeExplorerRepository
     private const string ColLanguage = "language";
     private const string ColLines = "lines";
     private const string ColSymbolName = "symbolName";
+    private const string PropNodesKey = "nodes";
+    private const string PropTargetsKey = "targets";
+    private const string PropItemsKey = "items";
+    private const string PropFileKey = "file";
+    private const string PropLineKey = "line";
+    private const string PropStartKey = "start";
+    private const string PropLineEndSnake = "line_end";
+    private const string PropLineEndCamel = "lineEnd";
+    private const string PropEndKey = "end";
     private const string ParamFilePath = "filePath";
     private const string ParamDirPrefix = "dirPrefix";
     private const string ParamNormalizedDir = "normalizedDir";
@@ -26,18 +35,18 @@ public partial class CodeExplorerRepository
     private const string FastFileOutlineQuery =
         "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path = $filePath " +
         "OPTIONAL MATCH (child)-[:DECLARED_IN]->(f) " +
-        "WHERE child:Type OR child:Function OR child:Member OR child:Query " +
+        "WHERE child:Type OR child:Function OR child:Member OR child:Query OR child:CloudResource " +
         "WITH child WHERE child IS NOT NULL " +
         "RETURN child.name AS name, " +
         "CASE WHEN child:Type THEN (CASE WHEN child.kind = 'class' THEN 'Class' WHEN child.kind = 'interface' THEN 'Interface' ELSE child.kind END) ELSE labels(child)[0] END AS type, " +
-        "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol " +
+        "coalesce(child.start_line, child.line, 0) AS startLine, coalesce(child.end_line, child.line_end, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol " +
         "UNION " +
         "MATCH (f:File) WHERE f.path IS NOT NULL AND f.path = $filePath " +
         "MATCH (owner:Type)-[:DECLARED_IN]->(f) " +
         "MATCH (owner)-[:HAS_METHOD|HAS_MEMBER]->(child) " +
         "WHERE child:Function OR child:Member " +
         "RETURN child.name AS name, labels(child)[0] AS type, " +
-        "coalesce(child.start_line, 0) AS startLine, coalesce(child.end_line, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol";
+        "coalesce(child.start_line, child.line, 0) AS startLine, coalesce(child.end_line, child.line_end, 0) AS endLine, coalesce(child.symbol, child.name) AS symbol";
     private const string RootDirectoryFilesQuery =
         "MATCH (f:File) WHERE f.path IS NOT NULL " +
         "RETURN f.path AS path, coalesce(f.language, '') AS language, coalesce(f.line_count, f.loc, f.lines, 0) AS lines";
@@ -518,6 +527,22 @@ public partial class CodeExplorerRepository
         var parsed = ToonYamlSerializer.ParseYamlOrJson(nodesInput);
         if (!parsed.IsNull)
         {
+            if (parsed.Kind == CypherValueKind.Object)
+            {
+                if (parsed.TryGetProperty(PropNodesKey, out var nArr) && nArr.Kind == CypherValueKind.Array)
+                {
+                    parsed = nArr;
+                }
+                else if (parsed.TryGetProperty(PropTargetsKey, out var tArr) && tArr.Kind == CypherValueKind.Array)
+                {
+                    parsed = tArr;
+                }
+                else if (parsed.TryGetProperty(PropItemsKey, out var iArr) && iArr.Kind == CypherValueKind.Array)
+                {
+                    parsed = iArr;
+                }
+            }
+
             var result = new List<McpRAGNode>();
             var items = parsed.Kind == CypherValueKind.Array ? parsed.AsArray() : [parsed];
             foreach (var item in items)
@@ -528,18 +553,30 @@ public partial class CodeExplorerRepository
                 if (nodeVal.Kind == CypherValueKind.Object)
                 {
                     var fp = nodeVal.TryGetProperty(PropFilePath, out var fpVal) ? fpVal.AsNullableString()
-                        : (nodeVal.TryGetProperty(ColFilePathCamel, out var fpCam) ? fpCam.AsNullableString() : null);
-                    var sl = nodeVal.TryGetProperty(PropStartLineSnake, out var slVal) ? (int?)slVal.AsInt64()
-                        : (nodeVal.TryGetProperty(ColStartLineCamel, out var slCam) ? (int?)slCam.AsInt64() : null);
-                    var el = nodeVal.TryGetProperty(PropEndLineSnake, out var elVal) ? (int?)elVal.AsInt64()
-                        : (nodeVal.TryGetProperty(ColEndLineCamel, out var elCam) ? (int?)elCam.AsInt64() : null);
+                        : nodeVal.TryGetProperty(ColFilePathCamel, out var fpCam) ? fpCam.AsNullableString()
+                        : nodeVal.TryGetProperty(ColPath, out var pVal) ? pVal.AsNullableString()
+                        : nodeVal.TryGetProperty(PropFileKey, out var fVal) ? fVal.AsNullableString()
+                        : null;
+                    var sl = nodeVal.TryGetProperty(PropStartLineSnake, out var slVal) && !slVal.IsNull ? (int?)slVal.AsInt64()
+                        : nodeVal.TryGetProperty(ColStartLineCamel, out var slCam) && !slCam.IsNull ? (int?)slCam.AsInt64()
+                        : nodeVal.TryGetProperty(PropLineKey, out var lnVal) && !lnVal.IsNull ? (int?)lnVal.AsInt64()
+                        : nodeVal.TryGetProperty(PropStartKey, out var stVal) && !stVal.IsNull ? (int?)stVal.AsInt64()
+                        : null;
+                    var el = nodeVal.TryGetProperty(PropEndLineSnake, out var elVal) && !elVal.IsNull ? (int?)elVal.AsInt64()
+                        : nodeVal.TryGetProperty(ColEndLineCamel, out var elCam) && !elCam.IsNull ? (int?)elCam.AsInt64()
+                        : nodeVal.TryGetProperty(PropLineEndSnake, out var leVal) && !leVal.IsNull ? (int?)leVal.AsInt64()
+                        : nodeVal.TryGetProperty(PropLineEndCamel, out var leCam) && !leCam.IsNull ? (int?)leCam.AsInt64()
+                        : nodeVal.TryGetProperty(PropEndKey, out var endVal) && !endVal.IsNull ? (int?)endVal.AsInt64()
+                        : null;
                     if (!string.IsNullOrEmpty(fp))
                     {
+                        var effectiveStart = sl is > 0 ? sl.Value : 1;
+                        var effectiveEnd = el is > 0 ? el.Value : (sl is > 0 ? effectiveStart + 80 : 200);
                         result.Add(new McpRAGNode
                         {
                             file_path = fp,
-                            start_line = sl,
-                            end_line = el
+                            start_line = effectiveStart,
+                            end_line = Math.Max(effectiveStart, effectiveEnd)
                         });
                     }
                 }
@@ -549,12 +586,14 @@ public partial class CodeExplorerRepository
         return null;
     }
 
-    private static string? ResolveWorkspaceRoot(string? hostWorkspacePath)
+    private string? ResolveWorkspaceRoot(string? hostWorkspacePath)
     {
+        if (!string.IsNullOrEmpty(hostWorkspacePath)) return hostWorkspacePath;
+
+        if (!string.IsNullOrEmpty(DefaultWorkspacePath)) return DefaultWorkspacePath;
+
         var workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
         if (!string.IsNullOrEmpty(workspaceRoot)) return workspaceRoot;
-
-        if (!string.IsNullOrEmpty(hostWorkspacePath)) return hostWorkspacePath;
 
         return WorkspaceLocator.Find()?.RootDirectory;
     }

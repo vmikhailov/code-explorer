@@ -1173,6 +1173,9 @@ graph TD
 | `Mode` | `string?` | Declaration mode of the resource (managed or data). |
 | `FilePath` | `string?` | Workspace-relative source file declaring the cloud resource. |
 | `Line` | `int?` | 1-indexed starting line number of the resource declaration. |
+| `LineEnd` | `int?` | 1-indexed ending line number of the resource declaration. |
+| `StartLine` | `int?` | 1-indexed starting line number of the resource declaration. |
+| `EndLine` | `int?` | 1-indexed ending line number of the resource declaration. |
 
 ---
 

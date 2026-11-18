@@ -59,7 +59,9 @@ public record Relationship
     private const string PropIsImplicitSchema = "is_implicit_schema";
     private const string PropProtocols = "protocols";
     private const string PropRef = "ref";
+    private const string PropReferenceExpression = "reference_expression";
     private const string PropOut = "out";
+    private const string PropOutputName = "output_name";
     private const string PropInferred = "inferred";
     private const string BoolTrueStr = "true";
     private const string BoolFalseStr = "false";
@@ -359,7 +361,9 @@ public record Relationship
         if (props.TryGetValue(PropIsImplicitSchema, out var imp) && bool.TryParse(imp?.ToString(), out var pImp)) IsImplicitSchema = pImp;
         if (props.TryGetValue(PropProtocols, out var prt) && prt != null) Protocols = prt.ToString();
         if (props.TryGetValue(PropRef, out var rf) && rf != null) ReferenceExpression = rf.ToString();
+        else if (props.TryGetValue(PropReferenceExpression, out var rfLong) && rfLong != null) ReferenceExpression = rfLong.ToString();
         if (props.TryGetValue(PropOut, out var ot) && ot != null) OutputName = ot.ToString();
+        else if (props.TryGetValue(PropOutputName, out var otLong) && otLong != null) OutputName = otLong.ToString();
         if (props.TryGetValue(PropInferred, out var inf) && bool.TryParse(inf?.ToString(), out var pInf)) IsInferred = pInf;
         HydrateCallContext(props);
     }
@@ -529,8 +533,16 @@ public record Relationship
         if (!string.IsNullOrEmpty(DbType)) dict[PropDbType] = DbType;
         if (IsImplicitSchema) dict[PropIsImplicitSchema] = BoolTrueStr;
         if (!string.IsNullOrEmpty(Protocols)) dict[PropProtocols] = Protocols;
-        if (!string.IsNullOrEmpty(ReferenceExpression)) dict[PropRef] = ReferenceExpression;
-        if (!string.IsNullOrEmpty(OutputName)) dict[PropOut] = OutputName;
+        if (!string.IsNullOrEmpty(ReferenceExpression))
+        {
+            dict[PropRef] = ReferenceExpression;
+            dict[PropReferenceExpression] = ReferenceExpression;
+        }
+        if (!string.IsNullOrEmpty(OutputName))
+        {
+            dict[PropOut] = OutputName;
+            dict[PropOutputName] = OutputName;
+        }
         if (IsInferred) dict[PropInferred] = BoolTrueStr;
 
         if (EvidenceIds is { Count: > 0 })
@@ -648,8 +660,16 @@ public record Relationship
         if (!string.IsNullOrEmpty(DbType)) writer.WriteString(PropDbType, DbType);
         if (IsImplicitSchema) writer.WriteString(PropIsImplicitSchema, BoolTrueStr);
         if (!string.IsNullOrEmpty(Protocols)) writer.WriteString(PropProtocols, Protocols);
-        if (!string.IsNullOrEmpty(ReferenceExpression)) writer.WriteString(PropRef, ReferenceExpression);
-        if (!string.IsNullOrEmpty(OutputName)) writer.WriteString(PropOut, OutputName);
+        if (!string.IsNullOrEmpty(ReferenceExpression))
+        {
+            writer.WriteString(PropRef, ReferenceExpression);
+            writer.WriteString(PropReferenceExpression, ReferenceExpression);
+        }
+        if (!string.IsNullOrEmpty(OutputName))
+        {
+            writer.WriteString(PropOut, OutputName);
+            writer.WriteString(PropOutputName, OutputName);
+        }
         if (IsInferred) writer.WriteString(PropInferred, BoolTrueStr);
 
         if (EvidenceIds is { Count: > 0 })

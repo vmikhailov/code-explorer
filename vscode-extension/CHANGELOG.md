@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.6] - 2026-11-18
+
+### Fixed & Improved
+- **Cross-Repo Terraform/Terragrunt Wiring, Per-Input/Environment Symbols & `CloudResource` Line Coordinates (`CodeExplorer.Parsers.Terraform`, `CodeExplorer.Core`)**:
+  - Expanded top-level Terragrunt `inputs` (both object literals and `merge(...)` calls, plus nested maps) into individual `Member` nodes (`inputs.<key>`) with `initializer_expression` and line coordinates, and extracted resource `environment { variables = { ... } }` entries as `Member` nodes (`env.<KEY>`) wired from the enclosing `CloudResource`.
+  - Populated `output_name` / `out` and `reference_expression` / `ref` on intra-unit and cross-unit `dependency.<name>.outputs.<attr>` `DEPENDS_ON` edges, and linked `dependency.<name>` references directly to target `output.<attr>` declarations across Terragrunt units.
+  - Added workspace-local sibling repository resolution (`TryResolveWorkspaceSiblingRepo`) and subrepo `${get_repo_root()}` / `local.*` path resolution in `TerraformPathResolver` and `TerraformProjectParser` so `git::https://.../<repo>.git//<subpath>` module sources resolve against sibling repositories in multi-repo workspaces.
+  - Added `start_line` and `end_line` properties alongside `line` and `line_end` on `CloudResourceNode` and included `CloudResource` in `get_file_outline` and `find_symbol`.
+- **Flow-Style YAML Parsing in `fetch_code_snippets` & SQL View/CTE Extraction (`CodeExplorer.Analysis`, `CodeExplorer.Parsers.Sql`)**:
+  - Fixed `ToonYamlSerializer.ParseYamlOrJson` to support top-level flow arrays/objects (`[{file_path: ..., start_line: ...}]`) and block sequences of flow objects (`- {file_path: ...}`), and fixed workspace root resolution precedence in `FetchCodeSnippetsAsync`.
+  - Extended `SqlFileParser` to extract `CREATE VIEW ... AS SELECT`, `CREATE TABLE ... AS SELECT`, and `WITH` CTE table dependencies.
+
+---
+
 ## [1.89.5] - 2026-11-17
 
 ### Removed & Improved

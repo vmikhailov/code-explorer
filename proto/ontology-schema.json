@@ -1973,6 +1973,24 @@
           "sourceName": "Line",
           "type": "integer",
           "description": "1-indexed starting line number of the resource declaration."
+        },
+        {
+          "name": "line_end",
+          "sourceName": "LineEnd",
+          "type": "integer",
+          "description": "1-indexed ending line number of the resource declaration."
+        },
+        {
+          "name": "start_line",
+          "sourceName": "StartLine",
+          "type": "integer",
+          "description": "1-indexed starting line number of the resource declaration."
+        },
+        {
+          "name": "end_line",
+          "sourceName": "EndLine",
+          "type": "integer",
+          "description": "1-indexed ending line number of the resource declaration."
         }
       ],
       "outEdges": [

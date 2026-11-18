@@ -45,8 +45,14 @@ public record CloudResourceNode(
     [JsonPropertyName("line"), OntologyProperty("1-indexed starting line number of the resource declaration.")]
     public int? Line { get; init; }
 
-    [JsonPropertyName("line_end"), OntologyProperty("1-indexed ending line number of the resource declaration.", isSystem: true)]
+    [JsonPropertyName("line_end"), OntologyProperty("1-indexed ending line number of the resource declaration.")]
     public int? LineEnd { get; init; }
+
+    [JsonPropertyName("start_line"), OntologyProperty("1-indexed starting line number of the resource declaration.")]
+    public int? StartLine => Line;
+
+    [JsonPropertyName("end_line"), OntologyProperty("1-indexed ending line number of the resource declaration.")]
+    public int? EndLine => LineEnd;
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.CloudResource;

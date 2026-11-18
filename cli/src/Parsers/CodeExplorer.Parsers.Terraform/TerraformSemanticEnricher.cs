@@ -20,6 +20,9 @@ public static class TerraformSemanticEnricher
     private const string BlockTerraform = "terraform";
     private const string BlockInclude = "include";
     private const string BlockResource = "resource";
+    private const string BlockDependency = "dependency";
+    private const string BlockLocals = "locals";
+    private const string AttrConfigPath = "config_path";
     private const string AttrSource = "source";
     private const string AttrPath = "path";
     private const string AttrInputs = "inputs";
@@ -136,6 +139,8 @@ public static class TerraformSemanticEnricher
         public HclExpr? TerragruntSourceExpr { get; set; }
         public List<HclExpr> TerragruntIncludePathExprs { get; } = [];
         public Dictionary<string, IReadOnlyList<HclReference>> TerragruntInputs { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, HclExpr> DependencyConfigPathExprs { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, string> LocalStrings { get; } = new(StringComparer.Ordinal);
     }
 
     private static Dictionary<string, ModuleMemoryState> BuildInMemoryWorkspaceModules(ProjectEnrichmentContext context)
@@ -203,14 +208,32 @@ public static class TerraformSemanticEnricher
                     state.TerragruntIncludePathExprs.Add(pathAttr.Value);
                 }
             }
+            else if (string.Equals(block.BlockHeader, BlockDependency, StringComparison.Ordinal) && block.Labels.Count >= 1)
+            {
+                var cfgAttr = block.FindAttribute(AttrConfigPath);
+                if (cfgAttr != null)
+                {
+                    state.DependencyConfigPathExprs[$"dependency.{block.Labels[0]}"] = cfgAttr.Value;
+                }
+            }
+            else if (string.Equals(block.BlockHeader, BlockLocals, StringComparison.Ordinal))
+            {
+                foreach (var attr in block.Attributes)
+                {
+                    if (attr.Value.TryGetStringLiteral() is { Length: > 0 } strLit)
+                    {
+                        state.LocalStrings[$"local.{attr.Name}"] = strLit;
+                    }
+                }
+            }
         }
 
         var inputsAttr = hclFile.FindAttribute(AttrInputs);
-        if (inputsAttr?.Value is HclExpr.ObjectExpr inputsObj)
+        if (inputsAttr != null)
         {
             state.TerragruntFileNodeId = fileNodeId;
             state.TerragruntInputsLine = inputsAttr.Line;
-            foreach (var entry in inputsObj.Entries)
+            foreach (var entry in TerraformDeclarationMapper.EnumerateObjectEntries(inputsAttr.Value))
             {
                 if (!string.IsNullOrEmpty(entry.Name))
                 {
@@ -226,6 +249,19 @@ public static class TerraformSemanticEnricher
     {
         foreach (var sym in module.AllSymbols)
         {
+            if (sym.Kind == TerraformSymbolKind.Local &&
+                !string.IsNullOrEmpty(sym.BlockClass) &&
+                sym.CanonicalName.Contains(".env.", StringComparison.Ordinal) &&
+                module.SymbolsByCanonical.TryGetValue(sym.BlockClass, out var ownerResSym))
+            {
+                addRel(new DependsOnRelationship(ownerResSym.NodeId, sym.NodeId)
+                {
+                    Via = "environment.variables",
+                    ReferenceExpression = $"env.{sym.ShortName}",
+                    Line = sym.StartLine
+                });
+            }
+
             foreach (var reference in sym.References)
             {
                 if (reference.Kind is HclRefKind.Each or HclRefKind.Self or HclRefKind.Count or HclRefKind.Path or HclRefKind.Terraform)
@@ -239,10 +275,23 @@ public static class TerraformSemanticEnricher
                     continue;
                 }
 
+                var outAttr = reference.Kind == HclRefKind.Dependency &&
+                              reference.Attribute != null &&
+                              reference.Attribute.StartsWith(OutputsPrefix, StringComparison.Ordinal)
+                    ? reference.Attribute[OutputsPrefix.Length..]
+                    : reference.Kind == HclRefKind.Module && !string.IsNullOrEmpty(reference.Attribute)
+                        ? reference.Attribute.Split('.')[0]
+                        : null;
+
+                var fullRefExpr = string.IsNullOrEmpty(reference.Attribute)
+                    ? reference.CanonicalTarget
+                    : $"{reference.CanonicalTarget}.{reference.Attribute}";
+
                 addRel(new DependsOnRelationship(sym.NodeId, target.NodeId)
                 {
                     Via = reference.Via,
-                    ReferenceExpression = reference.CanonicalTarget,
+                    ReferenceExpression = fullRefExpr,
+                    OutputName = outAttr,
                     Line = reference.Line
                 });
             }
@@ -262,15 +311,15 @@ public static class TerraformSemanticEnricher
         foreach (var sym in module.AllSymbols)
         {
             if (sym.Kind == TerraformSymbolKind.Module &&
-                !string.IsNullOrEmpty(sym.ModuleSourceRaw) &&
-                TerraformPathResolver.IsLocalModuleSource(sym.ModuleSourceRaw))
+                !string.IsNullOrEmpty(sym.ModuleSourceRaw))
             {
                 var resolvedAbs = TerraformPathResolver.ResolveStringPath(
                     sym.ModuleSourceRaw,
                     absModuleDir,
                     workspaceRoot,
                     fileSet.Contains,
-                    dirSet.Contains);
+                    dirSet.Contains,
+                    module.LocalStrings);
                 var targetRelDir = ToRelativeModuleDir(workspaceRoot, resolvedAbs);
                 if (targetRelDir != null &&
                     allModules.TryGetValue(targetRelDir, out var targetMod) &&
@@ -289,8 +338,7 @@ public static class TerraformSemanticEnricher
 
                 var modCanonical = $"module.{reference.TargetName}";
                 if (!module.SymbolsByCanonical.TryGetValue(modCanonical, out var modSym) ||
-                    string.IsNullOrEmpty(modSym.ModuleSourceRaw) ||
-                    !TerraformPathResolver.IsLocalModuleSource(modSym.ModuleSourceRaw))
+                    string.IsNullOrEmpty(modSym.ModuleSourceRaw))
                 {
                     continue;
                 }
@@ -300,7 +348,8 @@ public static class TerraformSemanticEnricher
                     absModuleDir,
                     workspaceRoot,
                     fileSet.Contains,
-                    dirSet.Contains);
+                    dirSet.Contains,
+                    module.LocalStrings);
                 var targetRelDir = ToRelativeModuleDir(workspaceRoot, resolvedAbs);
                 if (targetRelDir == null || !allModules.TryGetValue(targetRelDir, out var targetMod))
                 {
@@ -364,6 +413,8 @@ public static class TerraformSemanticEnricher
         HashSet<string> dirSet,
         Action<OntologyRelationship> addRel)
     {
+        EnrichTerragruntDependencyOutputs(module, allModules, workspaceRoot, fileSet, dirSet, addRel);
+
         if (module.TerragruntInputs.Count == 0 || string.IsNullOrEmpty(module.TerragruntFileNodeId))
         {
             return;
@@ -383,6 +434,22 @@ public static class TerraformSemanticEnricher
             }
 
             var linkedAnySymbol = false;
+            if (module.SymbolsByCanonical.TryGetValue($"inputs.{inputName}", out var inputEntrySym))
+            {
+                addRel(new ConfiguresRelationship(inputEntrySym.NodeId, targetVar.NodeId)
+                {
+                    Via = ViaTerragruntInputs,
+                    Line = inputEntrySym.StartLine
+                });
+
+                addRel(new DependsOnRelationship(targetVar.NodeId, inputEntrySym.NodeId)
+                {
+                    Via = ViaTerragruntInputs,
+                    ReferenceExpression = $"inputs.{inputName}",
+                    Line = inputEntrySym.StartLine
+                });
+            }
+
             foreach (var r in refsInInput)
             {
                 if (module.SymbolsByCanonical.TryGetValue(r.CanonicalTarget, out var tgSym))
@@ -390,6 +457,9 @@ public static class TerraformSemanticEnricher
                     var outAttr = r.Kind == HclRefKind.Dependency && r.Attribute != null && r.Attribute.StartsWith(OutputsPrefix, StringComparison.Ordinal)
                         ? r.Attribute[OutputsPrefix.Length..]
                         : null;
+                    var fullRefExpr = string.IsNullOrEmpty(r.Attribute)
+                        ? r.CanonicalTarget
+                        : $"{r.CanonicalTarget}.{r.Attribute}";
 
                     addRel(new ConfiguresRelationship(tgSym.NodeId, targetVar.NodeId)
                     {
@@ -400,7 +470,7 @@ public static class TerraformSemanticEnricher
                     addRel(new DependsOnRelationship(targetVar.NodeId, tgSym.NodeId)
                     {
                         Via = ViaTerragruntInputs,
-                        ReferenceExpression = r.CanonicalTarget,
+                        ReferenceExpression = fullRefExpr,
                         OutputName = outAttr,
                         Line = r.Line
                     });
@@ -415,6 +485,77 @@ public static class TerraformSemanticEnricher
                     Via = ViaTerragruntInputs,
                     Line = module.TerragruntInputsLine
                 });
+            }
+        }
+    }
+
+    private static void EnrichTerragruntDependencyOutputs(
+        ModuleMemoryState module,
+        Dictionary<string, ModuleMemoryState> allModules,
+        string workspaceRoot,
+        HashSet<string> fileSet,
+        HashSet<string> dirSet,
+        Action<OntologyRelationship> addRel)
+    {
+        if (module.DependencyConfigPathExprs.Count == 0)
+        {
+            return;
+        }
+
+        var absModuleDir = CombineWorkspacePath(workspaceRoot, module.ModuleDir);
+
+        foreach (var sym in module.AllSymbols)
+        {
+            foreach (var r in sym.References)
+            {
+                if (r.Kind != HclRefKind.Dependency ||
+                    string.IsNullOrEmpty(r.Attribute) ||
+                    !r.Attribute.StartsWith(OutputsPrefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var outName = r.Attribute[OutputsPrefix.Length..].Split('.')[0];
+                if (string.IsNullOrEmpty(outName) ||
+                    !module.DependencyConfigPathExprs.TryGetValue(r.CanonicalTarget, out var cfgExpr))
+                {
+                    continue;
+                }
+
+                var depUnitAbs = TerraformPathResolver.EvaluatePathExpr(
+                    cfgExpr,
+                    absModuleDir,
+                    workspaceRoot,
+                    fileSet.Contains,
+                    dirSet.Contains,
+                    module.LocalStrings);
+                var depUnitRel = ToRelativeModuleDir(workspaceRoot, depUnitAbs);
+                if (depUnitRel == null || !allModules.TryGetValue(depUnitRel, out var depUnitMod))
+                {
+                    continue;
+                }
+
+                TerraformSymbol? targetOutSym = null;
+                if (!depUnitMod.SymbolsByCanonical.TryGetValue($"{OutputPrefix}{outName}", out targetOutSym))
+                {
+                    var backingModDir = ResolveTerragruntTargetModuleDir(depUnitMod, allModules, workspaceRoot, fileSet, dirSet);
+                    if (backingModDir != null && allModules.TryGetValue(backingModDir, out var backingMod))
+                    {
+                        backingMod.SymbolsByCanonical.TryGetValue($"{OutputPrefix}{outName}", out targetOutSym);
+                    }
+                }
+
+                if (targetOutSym != null && targetOutSym.NodeId != sym.NodeId)
+                {
+                    var fullRefExpr = $"{r.CanonicalTarget}.{r.Attribute}";
+                    addRel(new DependsOnRelationship(sym.NodeId, targetOutSym.NodeId)
+                    {
+                        Via = ViaOutput,
+                        ReferenceExpression = fullRefExpr,
+                        OutputName = outName,
+                        Line = r.Line
+                    });
+                }
             }
         }
     }
@@ -435,7 +576,8 @@ public static class TerraformSemanticEnricher
                 absModuleDir,
                 workspaceRoot,
                 fileSet.Contains,
-                dirSet.Contains);
+                dirSet.Contains,
+                module.LocalStrings);
             var rel = ToRelativeModuleDir(workspaceRoot, resolvedAbs);
             if (rel != null) return rel;
         }
@@ -447,19 +589,27 @@ public static class TerraformSemanticEnricher
                 absModuleDir,
                 workspaceRoot,
                 fileSet.Contains,
-                dirSet.Contains);
+                dirSet.Contains,
+                module.LocalStrings);
             var parentRelDir = ToRelativeModuleDir(workspaceRoot, includedAbs);
             if (parentRelDir != null &&
                 allModules.TryGetValue(parentRelDir, out var parentMod) &&
                 parentMod.TerragruntSourceExpr != null)
             {
+                var mergedLocals = new Dictionary<string, string>(parentMod.LocalStrings, StringComparer.Ordinal);
+                foreach (var (k, v) in module.LocalStrings)
+                {
+                    mergedLocals[k] = v;
+                }
+
                 var parentAbsDir = CombineWorkspacePath(workspaceRoot, parentMod.ModuleDir);
                 var resolvedFromParent = TerraformPathResolver.EvaluatePathExpr(
                     parentMod.TerragruntSourceExpr,
                     parentAbsDir,
                     workspaceRoot,
                     fileSet.Contains,
-                    dirSet.Contains);
+                    dirSet.Contains,
+                    mergedLocals);
                 var rel = ToRelativeModuleDir(workspaceRoot, resolvedFromParent);
                 if (rel != null) return rel;
             }

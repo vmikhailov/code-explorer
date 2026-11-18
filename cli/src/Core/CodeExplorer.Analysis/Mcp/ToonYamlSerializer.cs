@@ -262,6 +262,11 @@ public static class ToonYamlSerializer
         {
             var jsonParsed = CypherValue.TryParseJsonText(trimmed);
             if (!jsonParsed.IsNull) return jsonParsed;
+            if ((trimmed.StartsWith('[') && trimmed.EndsWith(']')) ||
+                (trimmed.StartsWith('{') && trimmed.EndsWith('}')))
+            {
+                return ParseYamlScalarOrFlow(trimmed);
+            }
         }
 
         var lines = trimmed.Replace("\r\n", "\n").Split('\n');
@@ -318,7 +323,7 @@ public static class ToonYamlSerializer
 
     private static CypherValue FinalizeSequenceItem(List<string> itemLines)
     {
-        if (itemLines.Count == 1 && (itemLines[0].StartsWith('[') || !itemLines[0].Contains(':')))
+        if (itemLines.Count == 1 && (itemLines[0].StartsWith('[') || itemLines[0].StartsWith('{') || !itemLines[0].Contains(':')))
         {
             return ParseYamlScalarOrFlow(itemLines[0]);
         }
@@ -369,23 +374,24 @@ public static class ToonYamlSerializer
 
     private static CypherValue ParseYamlScalarOrFlow(string text)
     {
-        if (text.StartsWith('[') && text.EndsWith(']'))
+        var normalized = text.Contains('\n') ? text.Replace("\r\n", " ").Replace('\n', ' ').Trim() : text.Trim();
+        if (normalized.StartsWith('[') && normalized.EndsWith(']'))
         {
-            var jsonTry = CypherValue.TryParseJsonText(text);
+            var jsonTry = CypherValue.TryParseJsonText(normalized);
             if (!jsonTry.IsNull) return jsonTry;
-            var inner = text[1..^1].Trim();
+            var inner = normalized[1..^1].Trim();
             if (string.IsNullOrEmpty(inner)) return CypherValue.FromArray([]);
             var parts = SplitTopLevelFlowItems(inner);
             return CypherValue.FromArray(parts.Select(ParseYamlScalarOrFlow).ToList());
         }
-        if (text.StartsWith('{') && text.EndsWith('}'))
+        if (normalized.StartsWith('{') && normalized.EndsWith('}'))
         {
-            var jsonTry = CypherValue.TryParseJsonText(text);
+            var jsonTry = CypherValue.TryParseJsonText(normalized);
             if (!jsonTry.IsNull) return jsonTry;
-            var inner = text[1..^1].Trim();
+            var inner = normalized[1..^1].Trim();
             if (string.IsNullOrEmpty(inner)) return CypherValue.FromObject([]);
-            var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return ParseYamlObject(parts.ToList());
+            var parts = SplitTopLevelFlowItems(inner);
+            return ParseYamlObject(parts);
         }
         return ParseYamlScalar(text);
     }

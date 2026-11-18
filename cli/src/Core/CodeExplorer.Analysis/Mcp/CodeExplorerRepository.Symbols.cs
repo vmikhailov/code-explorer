@@ -68,6 +68,12 @@ public partial class CodeExplorerRepository
         query = query.Replace(LimitTenClause, $"LIMIT {effectiveLimit}", StringComparison.Ordinal);
         var res = await client.ExecuteCypherAsync(query, parameters, cancellationToken);
 
+        if (res.Count == 0 && string.IsNullOrEmpty(symbolType))
+        {
+            var memberFallback = FindMemberQueryTemplate.Replace(LimitTenClause, $"LIMIT {effectiveLimit}", StringComparison.Ordinal);
+            res = await client.ExecuteCypherAsync(memberFallback, parameters, cancellationToken);
+        }
+
         if (res.Count == 0 && (string.IsNullOrEmpty(symbolType) || symbolType == SymTypeFunction))
         {
             var gqlQuery =

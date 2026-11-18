@@ -139,6 +139,11 @@ public class SqlFileParser : IFileParser
                 Tables = [new SqlTableRefSyntax(tableName, IsWriteTarget: true)],
                 RawSql = tableName
             });
+
+            if (createTable.AsSelectQuery != null)
+            {
+                AddQueryNode(createTable.AsSelectQuery, fileNode, fileNodeId);
+            }
         }
 
         foreach (var stmt in script.Statements)
@@ -148,6 +153,12 @@ public class SqlFileParser : IFileParser
                 case SqlCreateTableStatementAst createTable:
                 {
                     ProcessCreateTable(createTable);
+                    break;
+                }
+
+                case SqlCreateViewStatementAst createView:
+                {
+                    ProcessCreateTable(new SqlCreateTableStatementAst(createView.View, false, createView.AsSelectQuery));
                     break;
                 }
 
@@ -237,6 +248,18 @@ public class SqlFileParser : IFileParser
                     break;
                 default:
                     return;
+            }
+
+            if (queryStmt.Ctes.Count > 0)
+            {
+                foreach (var cte in queryStmt.Ctes)
+                {
+                    if (cte.InnerStatement is SqlSelectStatementAst cteSel)
+                    {
+                        queryTables.AddRange(cteSel.Tables);
+                        queryTables.AddRange(cteSel.Joins);
+                    }
+                }
             }
 
             if (queryTables.Count == 0 && queryProcs.Count == 0) return;

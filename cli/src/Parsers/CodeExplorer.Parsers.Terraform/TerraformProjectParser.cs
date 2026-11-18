@@ -254,12 +254,12 @@ public sealed class TerraformProjectParser : IProjectParser
         if (string.IsNullOrWhiteSpace(sourceRaw)) return;
 
         var version = block.FindAttribute(AttrVersion)?.Value.TryGetStringLiteral();
-        if (TerraformPathResolver.IsLocalModuleSource(sourceRaw))
+        var resolved = TerraformPathResolver.ResolveStringPath(sourceRaw, projectDir, repoRoot, File.Exists, Directory.Exists);
+        if (!string.IsNullOrEmpty(resolved))
         {
-            var resolved = TerraformPathResolver.ResolveStringPath(sourceRaw, projectDir, repoRoot, File.Exists, Directory.Exists);
             addLocalDir(resolved);
         }
-        else
+        else if (!TerraformPathResolver.IsLocalModuleSource(sourceRaw))
         {
             addPackage(sourceRaw, version);
         }
@@ -275,14 +275,18 @@ public sealed class TerraformProjectParser : IProjectParser
         var sourceExpr = block.FindAttribute(AttrSource)?.Value;
         if (sourceExpr != null)
         {
-            var rawLit = sourceExpr.TryGetStringLiteral();
-            if (!string.IsNullOrEmpty(rawLit) && TerraformPathResolver.IsRemoteSource(rawLit))
+            var resolved = TerraformPathResolver.EvaluatePathExpr(sourceExpr, projectDir, repoRoot, File.Exists, Directory.Exists);
+            if (!string.IsNullOrEmpty(resolved))
             {
-                addPackage(rawLit, null);
+                addLocalDir(resolved);
             }
             else
             {
-                addLocalDir(TerraformPathResolver.EvaluatePathExpr(sourceExpr, projectDir, repoRoot, File.Exists, Directory.Exists));
+                var rawLit = sourceExpr.TryGetStringLiteral();
+                if (!string.IsNullOrEmpty(rawLit) && TerraformPathResolver.IsRemoteSource(rawLit))
+                {
+                    addPackage(rawLit, null);
+                }
             }
         }
 

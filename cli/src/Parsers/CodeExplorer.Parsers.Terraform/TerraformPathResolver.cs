@@ -72,20 +72,24 @@ public static class TerraformPathResolver
         string baseDir,
         string workspaceRootDir,
         Func<string, bool> fileExists,
-        Func<string, bool> directoryExists)
+        Func<string, bool> directoryExists,
+        IReadOnlyDictionary<string, string>? localStrings = null)
     {
         if (expr == null) return null;
 
         switch (expr)
         {
             case HclExpr.Literal lit:
-                return ResolveStringPath(lit.Value, baseDir, workspaceRootDir, fileExists, directoryExists);
+                return ResolveStringPath(lit.Value, baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
 
             case HclExpr.Template tpl:
-                return EvaluateTemplatePath(tpl, baseDir, workspaceRootDir, fileExists, directoryExists);
+                return EvaluateTemplatePath(tpl, baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
 
             case HclExpr.Call call:
-                return EvaluateCallPath(call, baseDir, workspaceRootDir, fileExists, directoryExists);
+                return EvaluateCallPath(call, baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
+
+            case HclExpr.Traversal tr when localStrings != null && localStrings.TryGetValue(tr.Joined, out var resolvedLocal):
+                return ResolveStringPath(resolvedLocal, baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
 
             default:
                 return null;
@@ -97,7 +101,8 @@ public static class TerraformPathResolver
         string baseDir,
         string workspaceRootDir,
         Func<string, bool> fileExists,
-        Func<string, bool> directoryExists)
+        Func<string, bool> directoryExists,
+        IReadOnlyDictionary<string, string>? localStrings)
     {
         if (string.Equals(call.FunctionName, FnFindInParentFolders, StringComparison.Ordinal))
         {
@@ -109,7 +114,7 @@ public static class TerraformPathResolver
 
         if (string.Equals(call.FunctionName, FnDirname, StringComparison.Ordinal) && call.Arguments.Count > 0)
         {
-            var inner = EvaluatePathExpr(call.Arguments[0], baseDir, workspaceRootDir, fileExists, directoryExists);
+            var inner = EvaluatePathExpr(call.Arguments[0], baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
             return string.IsNullOrEmpty(inner) ? null : NormalizeDirPath(Path.GetDirectoryName(inner));
         }
 
@@ -137,17 +142,18 @@ public static class TerraformPathResolver
         string baseDir,
         string workspaceRootDir,
         Func<string, bool> fileExists,
-        Func<string, bool> directoryExists)
+        Func<string, bool> directoryExists,
+        IReadOnlyDictionary<string, string>? localStrings)
     {
         if (tpl.Interpolations.Count == 1 &&
             tpl.RawValue.StartsWith("${", StringComparison.Ordinal) &&
             tpl.RawValue.EndsWith('}') &&
             tpl.RawValue.IndexOf('}', 2) == tpl.RawValue.Length - 1)
         {
-            return EvaluatePathExpr(tpl.Interpolations[0], baseDir, workspaceRootDir, fileExists, directoryExists);
+            return EvaluatePathExpr(tpl.Interpolations[0], baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
         }
 
-        return ResolveStringPath(tpl.RawValue, baseDir, workspaceRootDir, fileExists, directoryExists);
+        return ResolveStringPath(tpl.RawValue, baseDir, workspaceRootDir, fileExists, directoryExists, localStrings);
     }
 
     public static string? ResolveStringPath(
@@ -155,14 +161,32 @@ public static class TerraformPathResolver
         string baseDir,
         string workspaceRootDir,
         Func<string, bool> fileExists,
-        Func<string, bool> directoryExists)
+        Func<string, bool> directoryExists,
+        IReadOnlyDictionary<string, string>? localStrings = null)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
 
         var s = raw.Trim();
-        if (IsRemoteSource(s)) return null;
+        if (localStrings is { Count: > 0 } && s.Contains("${local.", StringComparison.Ordinal))
+        {
+            foreach (var (k, v) in localStrings)
+            {
+                var token = $"${{{k}}}";
+                if (s.Contains(token, StringComparison.Ordinal))
+                {
+                    s = s.Replace(token, v, StringComparison.Ordinal);
+                }
+            }
+        }
 
-        if (s.Contains(InterpPrefixRepoRoot, StringComparison.Ordinal))
+        if (IsRemoteSource(s))
+        {
+            return TryResolveWorkspaceSiblingRepo(s, baseDir, workspaceRootDir, directoryExists);
+        }
+
+        var hadRepoRootPrefix = s.Contains(InterpPrefixRepoRoot, StringComparison.Ordinal);
+        var rawBeforeRepoRoot = s;
+        if (hadRepoRootPrefix)
         {
             s = s.Replace(InterpPrefixRepoRoot, NormalizeDirPath(workspaceRootDir), StringComparison.Ordinal);
         }
@@ -179,13 +203,13 @@ public static class TerraformPathResolver
 
         if (s.Contains("${", StringComparison.Ordinal))
         {
-            return null;
+            return TryResolveWorkspaceSiblingRepo(s, baseDir, workspaceRootDir, directoryExists);
         }
 
-        s = StripModuleSubpath(s);
-        var candidate = Path.IsPathRooted(s)
-            ? NormalizeDirPath(Path.GetFullPath(s))
-            : NormalizeDirPath(Path.GetFullPath(Path.Combine(baseDir, s)));
+        var stripped = StripModuleSubpath(s);
+        var candidate = Path.IsPathRooted(stripped)
+            ? NormalizeDirPath(Path.GetFullPath(stripped))
+            : NormalizeDirPath(Path.GetFullPath(Path.Combine(baseDir, stripped)));
 
         if (directoryExists(candidate))
         {
@@ -196,7 +220,116 @@ public static class TerraformPathResolver
             return NormalizeDirPath(Path.GetDirectoryName(candidate));
         }
 
+        if (hadRepoRootPrefix)
+        {
+            var subrepoRoot = GetEnclosingSubrepoRoot(baseDir, workspaceRootDir);
+            if (!string.IsNullOrEmpty(subrepoRoot))
+            {
+                var subCandidate = StripModuleSubpath(
+                    rawBeforeRepoRoot.Replace(InterpPrefixRepoRoot, subrepoRoot, StringComparison.Ordinal));
+                var normSub = NormalizeDirPath(Path.GetFullPath(subCandidate));
+                if (directoryExists(normSub))
+                {
+                    return normSub;
+                }
+                if (fileExists(normSub))
+                {
+                    return NormalizeDirPath(Path.GetDirectoryName(normSub));
+                }
+            }
+        }
+
+        return TryResolveWorkspaceSiblingRepo(s, baseDir, workspaceRootDir, directoryExists);
+    }
+
+    public static string? TryResolveWorkspaceSiblingRepo(
+        string? raw,
+        string baseDir,
+        string workspaceRootDir,
+        Func<string, bool> directoryExists)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var s = raw.Trim();
+        var qIdx = s.IndexOf('?');
+        if (qIdx >= 0)
+        {
+            s = s[..qIdx];
+        }
+
+        var schemeIdx = s.IndexOf("://", StringComparison.Ordinal);
+        var searchStart = schemeIdx >= 0 ? schemeIdx + 3 : 0;
+        var doubleSlashIdx = s.IndexOf(DoubleSlash, searchStart, StringComparison.Ordinal);
+
+        string repoPart;
+        string subpathPart;
+        if (doubleSlashIdx >= 0)
+        {
+            repoPart = s[..doubleSlashIdx].TrimEnd('/');
+            subpathPart = s[(doubleSlashIdx + 2)..].Trim('/');
+        }
+        else
+        {
+            repoPart = s.TrimEnd('/');
+            subpathPart = string.Empty;
+        }
+
+        var lastSep = repoPart.LastIndexOfAny(['/', ':', '}']);
+        var repoName = lastSep >= 0 ? repoPart[(lastSep + 1)..] : repoPart;
+        if (repoName.EndsWith(GitMarker, StringComparison.OrdinalIgnoreCase))
+        {
+            repoName = repoName[..^GitMarker.Length];
+        }
+
+        var normWsRoot = NormalizeDirPath(workspaceRootDir);
+        var parentWsRoot = NormalizeDirPath(Path.GetDirectoryName(normWsRoot));
+        var subrepoRoot = GetEnclosingSubrepoRoot(baseDir, normWsRoot);
+
+        if (!string.IsNullOrEmpty(repoName) && !repoName.Contains('$'))
+        {
+            var relFromRepo = string.IsNullOrEmpty(subpathPart) ? repoName : $"{repoName}/{subpathPart}";
+            if (!string.IsNullOrEmpty(normWsRoot))
+            {
+                var wsCandidate = $"{normWsRoot}/{relFromRepo}";
+                if (directoryExists(wsCandidate)) return wsCandidate;
+            }
+            if (!string.IsNullOrEmpty(parentWsRoot))
+            {
+                var parentCandidate = $"{parentWsRoot}/{relFromRepo}";
+                if (directoryExists(parentCandidate)) return parentCandidate;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(subpathPart) && !subpathPart.Contains('$'))
+        {
+            if (!string.IsNullOrEmpty(subrepoRoot))
+            {
+                var subCandidate = $"{subrepoRoot}/{subpathPart}";
+                if (directoryExists(subCandidate)) return subCandidate;
+            }
+            if (!string.IsNullOrEmpty(normWsRoot))
+            {
+                var wsSubCandidate = $"{normWsRoot}/{subpathPart}";
+                if (directoryExists(wsSubCandidate)) return wsSubCandidate;
+            }
+        }
+
         return null;
+    }
+
+    private static string? GetEnclosingSubrepoRoot(string baseDir, string workspaceRootDir)
+    {
+        var normBase = NormalizeDirPath(baseDir);
+        var normRoot = NormalizeDirPath(workspaceRootDir);
+        if (string.IsNullOrEmpty(normBase) || string.IsNullOrEmpty(normRoot)) return null;
+
+        var prefix = normRoot + "/";
+        if (!normBase.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
+
+        var remainder = normBase[prefix.Length..];
+        var slashIdx = remainder.IndexOf('/');
+        var firstSegment = slashIdx >= 0 ? remainder[..slashIdx] : remainder;
+        return string.IsNullOrEmpty(firstSegment) ? null : $"{normRoot}/{firstSegment}";
     }
 
     public static string? FindInParentFolders(

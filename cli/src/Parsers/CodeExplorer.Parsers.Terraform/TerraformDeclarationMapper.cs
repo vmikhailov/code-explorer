@@ -28,6 +28,9 @@ public static class TerraformDeclarationMapper
     private const string AttrConfigPath = "config_path";
     private const string AttrAlias = "alias";
     private const string AttrRegion = "region";
+    private const string BlockEnvironment = "environment";
+    private const string AttrVariables = "variables";
+    private const string InputsTypeName = "inputs";
     private const string AttrType = "type";
     private const string AttrDefault = "default";
     private const string AttrValue = "value";
@@ -155,6 +158,91 @@ public static class TerraformDeclarationMapper
             block.StartLine,
             block.EndLine,
             block.CollectReferences()));
+
+        MapResourceEnvironmentVariables(block, canonical, workspaceId, fileNodeId, relativeFilePath, moduleDir, symbols, nodeSink);
+    }
+
+    private static void MapResourceEnvironmentVariables(
+        HclBlock resourceBlock,
+        string resourceCanonical,
+        string workspaceId,
+        string fileNodeId,
+        string relativeFilePath,
+        string moduleDir,
+        List<TerraformSymbol> symbols,
+        List<IOntologyNode> nodeSink)
+    {
+        foreach (var nested in resourceBlock.NestedBlocks)
+        {
+            if (!string.Equals(nested.BlockHeader, BlockEnvironment, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var varsAttr = nested.FindAttribute(AttrVariables);
+            if (varsAttr != null)
+            {
+                foreach (var entry in EnumerateObjectEntries(varsAttr.Value))
+                {
+                    EmitResourceEnvVarSymbol(entry.Name, entry.Value, entry.Line, resourceCanonical, workspaceId, fileNodeId, relativeFilePath, moduleDir, symbols, nodeSink);
+                }
+            }
+            else
+            {
+                foreach (var attr in nested.Attributes)
+                {
+                    EmitResourceEnvVarSymbol(attr.Name, attr.Value, attr.Line, resourceCanonical, workspaceId, fileNodeId, relativeFilePath, moduleDir, symbols, nodeSink);
+                }
+            }
+        }
+    }
+
+    private static void EmitResourceEnvVarSymbol(
+        string envKey,
+        HclExpr envVal,
+        int line,
+        string resourceCanonical,
+        string workspaceId,
+        string fileNodeId,
+        string relativeFilePath,
+        string moduleDir,
+        List<TerraformSymbol> symbols,
+        List<IOntologyNode> nodeSink)
+    {
+        if (string.IsNullOrEmpty(envKey)) return;
+
+        var shortName = $"env.{envKey}";
+        var fullCanonical = $"{resourceCanonical}.{shortName}";
+        var nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, fullCanonical);
+
+        nodeSink.Add(new MemberNode(
+            nodeId,
+            shortName,
+            fullCanonical,
+            relativeFilePath,
+            relativeFilePath,
+            line,
+            line,
+            0,
+            0,
+            MemberKind.Property,
+            AnyType)
+        {
+            InitializerExpression = FormatHclValueSummary(envVal)
+        });
+
+        symbols.Add(new TerraformSymbol(
+            TerraformSymbolKind.Local,
+            fullCanonical,
+            resourceCanonical,
+            envKey,
+            nodeId,
+            fileNodeId,
+            relativeFilePath,
+            moduleDir,
+            line,
+            line,
+            envVal.CollectReferences(shortName)));
     }
 
     private static void MapDataBlock(
@@ -409,7 +497,7 @@ public static class TerraformDeclarationMapper
                 MemberKind.Local,
                 AnyType)
             {
-                InitializerExpression = attr.Value.TryGetStringLiteral()
+                InitializerExpression = FormatHclValueSummary(attr.Value)
             };
             nodeSink.Add(memberNode);
 
@@ -455,7 +543,7 @@ public static class TerraformDeclarationMapper
             MemberKind.Output,
             AnyType)
         {
-            InitializerExpression = valueAttr?.Value.TryGetStringLiteral()
+            InitializerExpression = FormatHclValueSummary(valueAttr?.Value)
         };
         nodeSink.Add(memberNode);
 
@@ -543,6 +631,44 @@ public static class TerraformDeclarationMapper
 
         foreach (var attr in hclFile.Attributes)
         {
+            if (!isTfvars && string.Equals(attr.Name, "inputs", StringComparison.Ordinal))
+            {
+                foreach (var entry in EnumerateObjectEntries(attr.Value))
+                {
+                    EmitTerragruntInputEntrySymbol(
+                        $"inputs.{entry.Name}",
+                        entry.Name,
+                        entry.Value,
+                        entry.Line,
+                        workspaceId,
+                        fileNodeId,
+                        relativeFilePath,
+                        moduleDir,
+                        emittedSymbolNodeIds,
+                        symbols,
+                        nodeSink);
+
+                    if (entry.Value is HclExpr.ObjectExpr nestedMap)
+                    {
+                        foreach (var sub in nestedMap.Entries)
+                        {
+                            EmitTerragruntInputEntrySymbol(
+                                $"inputs.{entry.Name}.{sub.Name}",
+                                sub.Name,
+                                sub.Value,
+                                sub.Line,
+                                workspaceId,
+                                fileNodeId,
+                                relativeFilePath,
+                                moduleDir,
+                                emittedSymbolNodeIds,
+                                symbols,
+                                nodeSink);
+                        }
+                    }
+                }
+            }
+
             var collected = attr.Value.CollectReferences(attr.Name);
             List<HclReference>? refs = null;
             if (isTfvars)
@@ -558,7 +684,8 @@ public static class TerraformDeclarationMapper
 
             if (refs == null || refs.Count == 0)
             {
-                continue;
+                if (!isTfvars) continue;
+                refs = [new HclReference(HclRefKind.Var, VarScope, attr.Name, null, attr.Line, ViaTfvars)];
             }
 
             var canonical = isTfvars ? $"{TfvarsPrefix}.{attr.Name}" : attr.Name;
@@ -583,7 +710,7 @@ public static class TerraformDeclarationMapper
                 MemberKind.Property,
                 AnyType)
             {
-                InitializerExpression = attr.Value.TryGetStringLiteral()
+                InitializerExpression = FormatHclValueSummary(attr.Value)
             };
             nodeSink.Add(memberNode);
 
@@ -601,6 +728,99 @@ public static class TerraformDeclarationMapper
                 refs));
         }
     }
+
+    private static void EmitTerragruntInputEntrySymbol(
+        string canonical,
+        string shortName,
+        HclExpr valueExpr,
+        int line,
+        string workspaceId,
+        string fileNodeId,
+        string relativeFilePath,
+        string moduleDir,
+        HashSet<string> emittedSymbolNodeIds,
+        List<TerraformSymbol> symbols,
+        List<IOntologyNode> nodeSink)
+    {
+        if (string.IsNullOrEmpty(shortName)) return;
+
+        var nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, canonical);
+        if (!emittedSymbolNodeIds.Add(nodeId))
+        {
+            canonical = $"{canonical}.L{line}";
+            nodeId = BuildSymbolId(workspaceId, relativeFilePath, SymKindMember, canonical);
+            emittedSymbolNodeIds.Add(nodeId);
+        }
+
+        nodeSink.Add(new MemberNode(
+            nodeId,
+            canonical,
+            canonical,
+            relativeFilePath,
+            relativeFilePath,
+            line,
+            line,
+            0,
+            0,
+            MemberKind.Property,
+            AnyType)
+        {
+            InitializerExpression = FormatHclValueSummary(valueExpr)
+        });
+
+        symbols.Add(new TerraformSymbol(
+            TerraformSymbolKind.Local,
+            canonical,
+            InputsTypeName,
+            shortName,
+            nodeId,
+            fileNodeId,
+            relativeFilePath,
+            moduleDir,
+            line,
+            line,
+            valueExpr.CollectReferences(canonical)));
+    }
+
+    public static IEnumerable<HclAttribute> EnumerateObjectEntries(HclExpr? expr)
+    {
+        if (expr == null) yield break;
+
+        switch (expr)
+        {
+            case HclExpr.ObjectExpr obj:
+                foreach (var entry in obj.Entries)
+                {
+                    if (!string.IsNullOrEmpty(entry.Name))
+                    {
+                        yield return entry;
+                    }
+                }
+                break;
+
+            case HclExpr.Call call:
+                foreach (var arg in call.Arguments)
+                {
+                    foreach (var entry in EnumerateObjectEntries(arg))
+                    {
+                        yield return entry;
+                    }
+                }
+                break;
+        }
+    }
+
+    public static string? FormatHclValueSummary(HclExpr? expr) => expr switch
+    {
+        null => null,
+        HclExpr.Literal lit => lit.Value,
+        HclExpr.Template tpl => tpl.RawValue,
+        HclExpr.Traversal tr => tr.Joined,
+        HclExpr.Call call => call.Arguments.Count > 0 && call.Arguments[0].TryGetStringLiteral() is { } firstLit
+            ? $"{call.FunctionName}({firstLit})"
+            : $"{call.FunctionName}(...)",
+        _ => expr.TryGetStringLiteral()
+    };
 
     public static string BuildCloudResourceId(string workspaceId, string moduleDir, string canonicalAddress)
     {
