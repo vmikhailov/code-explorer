@@ -132,12 +132,52 @@ public class WorkspaceFileFilter
         return MatchDirectoryProjectParsers(currentDir, dirFiles, dirFilePaths, includeFallback: true);
     }
 
+    private static readonly HashSet<string> NonManifestProjectTriggerExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".cfc", ".cfm", ".cfml",
+        ".php", ".phtml",
+        ".pl", ".pm", ".t", ".psgi"
+    };
+
     private List<IProjectParser>? MatchDirectoryProjectParsers(
         string currentDir,
         IReadOnlyList<FileInfo> dirFiles,
         string[] dirFilePaths,
         bool includeFallback)
     {
+        if (!includeFallback && dirFiles.Count == 0)
+        {
+            var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
+            var parentName = parentDir != null ? Path.GetFileName(parentDir) : string.Empty;
+            if (!parentName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+        }
+
+        if (!includeFallback && dirFiles.Count > 0)
+        {
+            var hasTrigger = false;
+            for (int f = 0; f < dirFiles.Count; f++)
+            {
+                var fn = dirFiles[f].Name;
+                if (IsManifestFile(fn) || NonManifestProjectTriggerExtensions.Contains(dirFiles[f].Extension))
+                {
+                    hasTrigger = true;
+                    break;
+                }
+            }
+            if (!hasTrigger)
+            {
+                var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
+                var parentName = parentDir != null ? Path.GetFileName(parentDir) : string.Empty;
+                if (!parentName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+            }
+        }
+
         List<IProjectParser>? matched = null;
         for (int p = 0; p < _projectParsers.Count; p++)
         {

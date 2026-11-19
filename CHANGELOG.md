@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.8] - 2026-11-18
+
+### Changed
+- **Layer 1 Physical Discovery & `GitIgnoreMatcher` Performance Optimization (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.CSharp`)**:
+  - Split `GitIgnoreMatcher` evaluation into `IsIgnoredDirectory(relativePath, out keptForLaterNegation)` and `IsIgnoredFile(relativePath, skipDirectoryOnlyRules)` so files inside verified non-ignored directories bypass all directory-only `.gitignore` regexes (`node_modules/`, `dist/`, `build/`, `bin/`, `obj/`), eliminating millions of redundant `Regex.Match` evaluations on large repositories.
+  - Refactored `Layer1PhysicalParser.DiscoverDirectoryTree` to check directory exclusion and `.gitignore` rules before hitting `dirInfo.GetFiles()`, and to reuse in-memory `dirInfo.GetFiles()` / `dirInfo.GetDirectories()` arrays for `.git`, `.gitignore`, `.codeexplorerignore`, and `.vscode` detection instead of issuing separate `File.Exists` / `Directory.Exists` syscalls per folder.
+  - Added fast candidate manifest/trigger pre-filtering in `WorkspaceFileFilter.MatchDirectoryProjectParsers` (`includeFallback: false`) and replaced `File.Exists` with `PhysicalFileStore.FileExistsInCachedDirectory` in `CSharpProjectParser.OnDirectoryScan`, accelerating Layer 1 physical discovery by `~1.5x–1.9x` across `Twenty`, `OrchardCore`, and `Cal.com`.
+
+---
+
 ## [1.90.7] - 2026-11-18
 
 ### Fixed

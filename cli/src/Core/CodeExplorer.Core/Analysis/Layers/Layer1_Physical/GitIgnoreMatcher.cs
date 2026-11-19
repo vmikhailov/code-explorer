@@ -181,37 +181,101 @@ public class GitIgnoreMatcher
     }
 
     public bool IsIgnored(string relativePath, bool isDirectory)
+        => isDirectory
+            ? IsIgnoredDirectory(relativePath, out _)
+            : IsIgnoredFile(relativePath, skipDirectoryOnlyRules: false);
+
+    public bool IsIgnoredDirectory(string relativePath, out bool keptForLaterNegation)
+    {
+        keptForLaterNegation = false;
+        relativePath = relativePath.Replace('\\', '/').Trim('/');
+        if (string.IsNullOrEmpty(relativePath)) return false;
+
+        var ignored = false;
+        var lastExclusionIndex = -1;
+
+        for (var i = 0; i < _rules.Count; i++)
+        {
+            var rule = _rules[i];
+            var testPath = relativePath;
+
+            if (rule.Scope != null)
+            {
+                if (string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
+                {
+                    // A scoped rule loaded from inside a directory cannot ignore the directory itself
+                    continue;
+                }
+
+                if (!relativePath.StartWithIC(rule.Scope + "/"))
+                {
+                    continue;
+                }
+
+                testPath = relativePath[(rule.Scope.Length + 1)..];
+            }
+
+            if (rule.Regex.IsMatch(testPath))
+            {
+                if (!string.IsNullOrEmpty(_workspaceRoot) &&
+                    _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
+                {
+                    continue;
+                }
+
+                if (rule.IsNegated)
+                {
+                    ignored = false;
+                }
+                else
+                {
+                    ignored = true;
+                    lastExclusionIndex = i;
+                }
+            }
+        }
+
+        if (ignored && HasLaterNegationUnderneath(relativePath, lastExclusionIndex))
+        {
+            keptForLaterNegation = true;
+            return false;
+        }
+
+        return ignored;
+    }
+
+    public bool IsIgnoredFile(string relativePath, bool skipDirectoryOnlyRules)
     {
         relativePath = relativePath.Replace('\\', '/').Trim('/');
         if (string.IsNullOrEmpty(relativePath)) return false;
 
-        if (isDirectory)
+        var ignoredByDir = false;
+        var ignoredByFile = false;
+
+        for (var i = 0; i < _rules.Count; i++)
         {
-            var ignored = false;
-            var lastExclusionIndex = -1;
-
-            for (var i = 0; i < _rules.Count; i++)
+            var rule = _rules[i];
+            if (skipDirectoryOnlyRules && rule.IsDirectoryOnly)
             {
-                var rule = _rules[i];
-                var testPath = relativePath;
+                continue;
+            }
 
-                if (rule.Scope != null)
+            var testPath = relativePath;
+
+            if (rule.Scope != null)
+            {
+                if (!relativePath.StartWithIC(rule.Scope + "/"))
                 {
-                    if (string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // A scoped rule loaded from inside a directory cannot ignore the directory itself
-                        continue;
-                    }
-
-                    if (!relativePath.StartWithIC(rule.Scope + "/"))
-                    {
-                        continue;
-                    }
-
-                    testPath = relativePath[(rule.Scope.Length + 1)..];
+                    continue;
                 }
 
-                if (rule.Regex.IsMatch(testPath))
+                testPath = relativePath[(rule.Scope.Length + 1)..];
+            }
+
+            if (rule.IsDirectoryOnly)
+            {
+                var m = rule.Regex.Match(testPath);
+                if (m.Success && m.Value.EndsWith('/'))
                 {
                     if (!string.IsNullOrEmpty(_workspaceRoot) &&
                         _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
@@ -221,83 +285,32 @@ public class GitIgnoreMatcher
 
                     if (rule.IsNegated)
                     {
-                        ignored = false;
+                        ignoredByDir = false;
                     }
                     else
                     {
-                        ignored = true;
-                        lastExclusionIndex = i;
+                        ignoredByDir = true;
                     }
                 }
             }
-
-            if (ignored && HasLaterNegationUnderneath(relativePath, lastExclusionIndex))
+            else
             {
-                return false;
-            }
-
-            return ignored;
-        }
-        else
-        {
-            var ignoredByDir = false;
-            var ignoredByFile = false;
-
-            for (var i = 0; i < _rules.Count; i++)
-            {
-                var rule = _rules[i];
-                var testPath = relativePath;
-
-                if (rule.Scope != null)
+                if (rule.Regex.IsMatch(testPath))
                 {
-                    if (!relativePath.StartWithIC(rule.Scope + "/"))
+                    if (rule.IsNegated)
                     {
-                        continue;
+                        ignoredByFile = false;
+                        ignoredByDir = false;
                     }
-
-                    testPath = relativePath[(rule.Scope.Length + 1)..];
-                }
-
-                if (rule.IsDirectoryOnly)
-                {
-                    var m = rule.Regex.Match(testPath);
-                    if (m.Success && m.Value.EndsWith('/'))
+                    else
                     {
-                        if (!string.IsNullOrEmpty(_workspaceRoot) &&
-                            _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
-                        {
-                            continue;
-                        }
-
-                        if (rule.IsNegated)
-                        {
-                            ignoredByDir = false;
-                        }
-                        else
-                        {
-                            ignoredByDir = true;
-                        }
-                    }
-                }
-                else
-                {
-                    if (rule.Regex.IsMatch(testPath))
-                    {
-                        if (rule.IsNegated)
-                        {
-                            ignoredByFile = false;
-                            ignoredByDir = false;
-                        }
-                        else
-                        {
-                            ignoredByFile = true;
-                        }
+                        ignoredByFile = true;
                     }
                 }
             }
-
-            return ignoredByDir || ignoredByFile;
         }
+
+        return ignoredByDir || ignoredByFile;
     }
 
     private bool HasLaterNegationUnderneath(string relativeDir, int afterRuleIndex)

@@ -137,7 +137,7 @@ public partial class CSharpProjectParser : IProjectParser
     public void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null)
     {
         var libmanPath = Path.Combine(directoryPath, "libman.json");
-        if (File.Exists(libmanPath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(libmanPath))
         {
             RegisterLibManExclusions(libmanPath, directoryPath, gitignore, log);
         }

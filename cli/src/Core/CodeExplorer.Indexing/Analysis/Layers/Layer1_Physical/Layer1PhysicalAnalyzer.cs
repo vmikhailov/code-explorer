@@ -130,7 +130,8 @@ public class Layer1PhysicalParser
         FolderNode? FolderNode,
         FileInfo[] DirFiles,
         IReadOnlyList<IProjectParser>? ActiveParsers,
-        bool IsProjectRoot);
+        bool IsProjectRoot,
+        bool KeptForNegation = false);
 
     private sealed record CandidateFileItem(
         int Index,
@@ -199,18 +200,8 @@ public class Layer1PhysicalParser
             return;
         }
 
-        if (!isRoot && GitSettingsParser.IsGitWorktreeDirectory(currentDir))
-        {
-            ctx.Layer1Log.SkippingExcludedDirectory(relativeDir);
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(relativeDir))
-        {
-            gitignore.LoadScopedDirectory(currentDir, relativeDir);
-        }
-
-        if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
+        var keptForNegation = false;
+        if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnoredDirectory(relativeDir, out keptForNegation))
         {
             ctx.Layer1Log.SkippingGitIgnoredDirectory(relativeDir);
             return;
@@ -218,6 +209,39 @@ public class Layer1PhysicalParser
 
         var dirInfo = new DirectoryInfo(currentDir);
         var dirFiles = dirInfo.GetFiles();
+
+        var hasGitPointerFile = false;
+        string? gitIgnoreFilePath = null;
+        string? ceIgnoreFilePath = null;
+        for (int i = 0; i < dirFiles.Length; i++)
+        {
+            var fn = dirFiles[i].Name;
+            if (fn.Equals(".git", StringComparison.OrdinalIgnoreCase))
+            {
+                hasGitPointerFile = true;
+            }
+            else if (fn.Equals(".gitignore", StringComparison.OrdinalIgnoreCase))
+            {
+                gitIgnoreFilePath = dirFiles[i].FullName;
+            }
+            else if (fn.Equals(".codeexplorerignore", StringComparison.OrdinalIgnoreCase))
+            {
+                ceIgnoreFilePath = dirFiles[i].FullName;
+            }
+        }
+
+        if (!isRoot && hasGitPointerFile && GitSettingsParser.IsGitWorktreeDirectory(currentDir))
+        {
+            ctx.Layer1Log.SkippingExcludedDirectory(relativeDir);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(relativeDir) && !ctx.FileFilter.IncludeDistAndMinifiedArtifacts)
+        {
+            if (gitIgnoreFilePath != null) gitignore.LoadScopedFile(gitIgnoreFilePath, relativeDir);
+            if (ceIgnoreFilePath != null) gitignore.LoadScopedFile(ceIgnoreFilePath, relativeDir);
+        }
+
         var dirFilePaths = new string[dirFiles.Length];
         for (int i = 0; i < dirFiles.Length; i++)
         {
@@ -233,10 +257,23 @@ public class Layer1PhysicalParser
         var activeParsers = directParsers is { Count: > 0 } ? directParsers : inheritedParsers;
         var parsersToNotify = activeParsers is { Count: > 0 } ? activeParsers : ctx.FileFilter.ConnectedProjectParsers;
 
-        for (int i = 0; i < parsersToNotify.Count; i++)
+        if (dirFiles.Length > 0)
         {
-            parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.Layer1Log.DirectoryScanHookMessage);
-            parsersToNotify[i].InspectDirectoryFiles(currentDir, dirFiles, workspaceNode);
+            for (int i = 0; i < parsersToNotify.Count; i++)
+            {
+                parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.Layer1Log.DirectoryScanHookMessage);
+                parsersToNotify[i].InspectDirectoryFiles(currentDir, dirFiles, workspaceNode);
+            }
+        }
+
+        var subDirs = dirInfo.GetDirectories();
+        var hasGitSubDir = false;
+        var hasVscodeSubDir = false;
+        for (int i = 0; i < subDirs.Length; i++)
+        {
+            var sName = subDirs[i].Name;
+            if (sName.Equals(".git", StringComparison.OrdinalIgnoreCase)) hasGitSubDir = true;
+            else if (sName.Equals(".vscode", StringComparison.OrdinalIgnoreCase)) hasVscodeSubDir = true;
         }
 
         FolderNode? folderNode = null;
@@ -249,10 +286,13 @@ public class Layer1PhysicalParser
             folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
             currentParentNode = folderNode;
 
-            AttachNestedGitSettingsIfPresent(currentDir, folderNode, ctx);
+            if (hasGitPointerFile || hasGitSubDir)
+            {
+                AttachNestedGitSettingsIfPresent(currentDir, folderNode, ctx);
+            }
         }
 
-        if (File.Exists(Path.Combine(currentDir, ".vscode", OntologyConstants.ManifestFields.TasksJsonFileName)))
+        if (hasVscodeSubDir && File.Exists(Path.Combine(currentDir, ".vscode", OntologyConstants.ManifestFields.TasksJsonFileName)))
         {
             vscodeTaskDirs.Add(currentDir);
         }
@@ -265,11 +305,12 @@ public class Layer1PhysicalParser
             folderNode,
             dirFiles,
             activeParsers,
-            IsProjectRoot: directParsers is { Count: > 0 }));
+            IsProjectRoot: directParsers is { Count: > 0 },
+            KeptForNegation: keptForNegation));
 
-        foreach (var subDir in dirInfo.GetDirectories())
+        for (int i = 0; i < subDirs.Length; i++)
         {
-            DiscoverDirectoryTree(subDir.FullName, currentParentNode, workspaceNode, gitignore, activeParsers, discoveredDirs, vscodeTaskDirs, ctx);
+            DiscoverDirectoryTree(subDirs[i].FullName, currentParentNode, workspaceNode, gitignore, activeParsers, discoveredDirs, vscodeTaskDirs, ctx);
         }
     }
 
@@ -297,12 +338,13 @@ public class Layer1PhysicalParser
         foreach (var dirEntry in discoveredDirs)
         {
             var fileParentNode = (IOntologyNode?)dirEntry.FolderNode ?? dirEntry.ParentNode;
+            var skipDirOnlyRules = !dirEntry.KeptForNegation;
             foreach (var fileInfo in dirEntry.DirFiles)
             {
                 var file = fileInfo.FullName;
                 var relativeFile = file.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
 
-                if (gitignore.IsIgnored(relativeFile, false)) continue;
+                if (gitignore.IsIgnoredFile(relativeFile, skipDirOnlyRules)) continue;
                 if (ctx.CustomFileExclusionPredicate?.Invoke(fileInfo.Name, relativeFile) == true) continue;
 
                 var fileName = fileInfo.Name;
