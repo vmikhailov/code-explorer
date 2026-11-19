@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.10] - 2026-11-19
+
+### Fixed
+- **C# Tree-sitter Grammar: `in`/`out` Typed Lambda Parameters & Pointer-Cast Dereferences (`CodeExplorer.TreeSitter`, `scripts/build-tree-sitter-natives.ps1`)**:
+  - Updated pinned `tree-sitter-c-sharp` grammar to `0976026f` so lambda expressions whose first parameter carries an `in` or `out` modifier (e.g., `(in CompilationAnalyzerContext c, string name) => c.ReportRequiredSymbolNotFound(name)`) and pointer dereferences of pointer casts or parenthesized expressions (e.g., `var addr = *(long*)&command;`) parse cleanly with zero `ScanIssue` syntax errors on `martinothamar/Mediator`.
+
+---
+
 ## [1.90.9] - 2026-11-19
 
 ### Changed

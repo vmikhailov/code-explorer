@@ -132,6 +132,36 @@ public class TreeSitterRuntimeTests
         tree.RootNode.HasError.Should().BeFalse();
     }
 
+    [Test]
+    public void CSharpGrammar_InOutTypedLambdaParametersAndPointerCastDereference_ParsesWithoutErrors()
+    {
+        const string csSample = """
+            namespace Mediator.SourceGenerator;
+            public sealed class CompilationAnalyzer
+            {
+                public unsafe void Analyze(SomeStructCommand command, string unitSymbolName)
+                {
+                    ReportDiagnostic(
+                        unitSymbolName,
+                        ((in CompilationAnalyzerContext c, string name) => c.ReportRequiredSymbolNotFound(name))
+                    );
+                    ReportDiagnostic(
+                        unitSymbolName,
+                        (in CompilationAnalyzerContext c, INamedTypeSymbol s) => c.ReportMessageWithoutHandler(s)
+                    );
+                    var addr = *(long*)&command;
+                    Addresses.Add(addr);
+                }
+            }
+            """;
+
+        using var lang = new Language(LangCSharp);
+        using var parser = new CodeExplorer.TreeSitter.Parser(lang);
+        using var tree = parser.Parse(csSample)!;
+
+        tree.RootNode.HasError.Should().BeFalse();
+    }
+
     private static int WalkAllNodes(TSNode root)
     {
         int count = 0;
