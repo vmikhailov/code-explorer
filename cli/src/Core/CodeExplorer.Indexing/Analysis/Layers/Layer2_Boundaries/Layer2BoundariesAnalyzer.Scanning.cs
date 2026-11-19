@@ -47,7 +47,7 @@ public partial class Layer2ProjectParser
             var coveredPaths = projects
                 .Where(p => !string.IsNullOrEmpty(p.Path))
                 .Select(p => (Exact: p.Path, Prefix: p.Path.TrimEnd('/') + "/"))
-                .ToArray();
+                .ToList();
 
             foreach (var dir in dirsToCheck)
             {
@@ -64,7 +64,7 @@ public partial class Layer2ProjectParser
                 if (string.IsNullOrEmpty(relativeProjectDir) && projects.Any(p => string.IsNullOrEmpty(p.Path))) continue;
 
                 var isCovered = false;
-                for (var i = 0; i < coveredPaths.Length; i++)
+                for (var i = 0; i < coveredPaths.Count; i++)
                 {
                     var (exact, prefix) = coveredPaths[i];
                     if (string.Equals(relativeProjectDir, exact, StringComparison.OrdinalIgnoreCase) ||
@@ -111,6 +111,10 @@ public partial class Layer2ProjectParser
 
                     projectsStructureNode.Children.Add(projectNode);
                     projects.Add(projectNode);
+                    if (!string.IsNullOrEmpty(relativeProjectDir))
+                    {
+                        coveredPaths.Add((relativeProjectDir, relativeProjectDir.TrimEnd('/') + "/"));
+                    }
                     packageToProjectMap[projectName] = projectNode;
                     var normName = WorkspaceConventions.NormalizeServiceName(projectName);
                     if (!string.IsNullOrEmpty(normName))

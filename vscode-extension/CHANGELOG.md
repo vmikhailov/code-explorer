@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.7] - 2026-11-18
+
+### Fixed
+- **Fallback `ScriptProject` Subdirectory Coverage Tracking in Layer 2 (`CodeExplorer.Indexing`)**:
+  - Updated `coveredPaths` in Pass 2 of `Layer2ProjectParser.ScanProjectsInDirectoriesAsync` (`Layer2BoundariesAnalyzer.Scanning.cs`) to append newly created fallback `ScriptProject` roots as they are discovered so nested subdirectories (e.g., `scripts/helpers` under `scripts/`) are covered by their parent script project instead of spawning duplicate `ScriptProject` nodes.
+
+---
+
 ## [1.90.6] - 2026-11-18
 
 ### Changed
