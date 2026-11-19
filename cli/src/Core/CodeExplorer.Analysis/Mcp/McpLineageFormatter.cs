@@ -71,15 +71,21 @@ internal static class McpLineageFormatter
                "RETURN t.name AS tableName, 'ENTITY' AS kind, coalesce(e.name, '') AS name, '' AS ownerName, '' AS extra, coalesce(e.file_path, e.path, '') AS filePath, 0 AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(q:Query)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
+               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(q.verb, r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(q:Query)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
+               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, '') AS filePath, coalesce(fn.start_line, 0) AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
+               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (t)<-[:DEPENDS_ON|READS_FROM|WRITES_TO]-(q:Query) " +
+               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query) " +
                "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, '') AS filePath, 0 AS startLine";
     }
 
@@ -303,7 +309,7 @@ internal static class McpLineageFormatter
         var writers = FormatAccessorList(rowList.Where(r => r.GetStringProp(ColKind) == KindWriter), workspaceRoot, includeOperation: true, MaxLineageAccessorsCap);
         var readers = FormatAccessorList(rowList.Where(r => r.GetStringProp(ColKind) == KindReader), workspaceRoot, includeOperation: false, MaxLineageAccessorsCap);
         var upstream = FormatAccessorList(rowList.Where(r => r.GetStringProp(ColKind) == KindCaller), workspaceRoot, includeOperation: false, MaxUpstreamCallersCap);
-        var queries = FormatQueriesList(rowList.Where(r => r.GetStringProp(ColKind) == KindQuery), workspaceRoot);
+        var queries = FormatQueriesList(rowList.Where(r => r.GetStringProp(ColKind) == KindQuery), tableName, workspaceRoot);
 
         return new
         {
@@ -319,18 +325,43 @@ internal static class McpLineageFormatter
         };
     }
 
-    private static List<object> FormatQueriesList(IEnumerable<CypherRow> rows, string? workspaceRoot) =>
+    private static List<object> FormatQueriesList(IEnumerable<CypherRow> rows, string tableName, string? workspaceRoot) =>
         rows.Select(r =>
             {
                 var qText = r.GetStringProp(ColExtra).Replace("\r", " ").Replace("\n", " ").Trim();
                 if (qText.Length > MaxQueryTextLength) qText = qText[..MaxQueryTextLength] + "...";
                 return (Name: r.GetStringProp(ColName), Path: McpResultFormatter.CleanRelativePath(r.GetStringProp(ColFilePath), workspaceRoot), Sql: qText);
             })
-            .Where(q => !string.IsNullOrEmpty(q.Sql) || !string.IsNullOrEmpty(q.Name))
+            .Where(q => (!string.IsNullOrEmpty(q.Sql) || !string.IsNullOrEmpty(q.Name)) && IsQueryRelevantToTable(q.Sql, tableName))
             .Distinct()
             .Take(MaxQueriesCap)
             .Select(q => (object)new { name = q.Name, filePath = q.Path, sql = q.Sql })
             .ToList();
+
+    private static bool IsQueryRelevantToTable(string sql, string tableName)
+    {
+        if (string.IsNullOrWhiteSpace(sql) || string.IsNullOrWhiteSpace(tableName))
+        {
+            return true;
+        }
+
+        if (sql.Contains(tableName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var trimmed = sql.TrimStart();
+        if (trimmed.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("INSERT ", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("UPDATE ", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("DELETE ", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("REPLACE ", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
 
     private static (int TotalCount, List<string> Items) FormatAccessorList(
         IEnumerable<CypherRow> rows,

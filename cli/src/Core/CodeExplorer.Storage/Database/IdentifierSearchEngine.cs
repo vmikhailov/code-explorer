@@ -212,6 +212,16 @@ public class IdentifierSearchEngine
         await ftsCmd.ExecuteNonQueryAsync(ct);
 
         await tx.CommitAsync(ct);
+        try
+        {
+            await using var ckptCmd = conn.CreateCommand();
+            ckptCmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            await ckptCmd.ExecuteNonQueryAsync(ct);
+        }
+        catch
+        {
+            // Best-effort WAL truncation after search index rebuild
+        }
         sw.Stop();
         _logger.LogDebug("[Database   ] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Length, sw.Elapsed.TotalMilliseconds);
     }

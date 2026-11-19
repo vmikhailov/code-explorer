@@ -106,10 +106,9 @@ public class FileGateRepository : IGateRepository
             Directory.CreateDirectory(_baselinesDir);
         }
 
-        var exampleFile = Path.Combine(_gatesDir, "example-gate.yaml.example");
-        if (!File.Exists(exampleFile) || overwrite)
+        var starterTemplates = new (string FileName, string Content)[]
         {
-            var exampleYaml = """
+            ("example-gate.yaml.example", """
                 # Semantic Invariant Gate Example Template (v2 Node-First & Edge-Aware)
                 # To activate this gate, rename this file to .yaml and customize the Cypher query.
                 id: SIG-M-I-002
@@ -131,20 +130,106 @@ public class FileGateRepository : IGateRepository
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-M-I-002.json
-                """;
-            try
+                """),
+            ("table-write-boundary.yaml.example", """
+                # Starter Gate: Table Write Boundary
+                # Only designated folders or services may write to a protected database table.
+                # Rename to .yaml and replace 'user_balance' and 'billing/' with your table and owner path.
+                id: SIG-D-B-001
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Boundaries
+                name: Protected Table Write Boundary
+                severity: Error
+                description: Only the designated owner module may execute write queries against the protected table.
+                remediation: Route table mutations through the owning service or repository instead of writing directly.
+                target: "{t.name}"
+                message: "Unauthorized write to table '{t.name}' from '{fn.file_path}'"
+                query: |
+                  MATCH (fn:Function)-[:WRITES_TO]->(t:Table)
+                  WHERE t.name = 'user_balance'
+                    AND NOT coalesce(fn.is_test, false)
+                    AND NOT coalesce(fn.file_path, '') STARTS WITH 'billing/'
+                  RETURN fn, t
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-D-B-001.json
+                """),
+            ("external-service-boundary.yaml.example", """
+                # Starter Gate: Forbidden Direct ExternalService Call
+                # Prevent modules outside the designated integration layer from calling an external service directly.
+                # Rename to .yaml and customize the service domain/command and allowed folder prefix.
+                id: SIG-S-B-001
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Boundaries
+                name: Forbidden Direct External Service Call
+                severity: Error
+                description: Application modules must not invoke the backend command socket directly; use the command service adapter.
+                remediation: Call the shared integration client or command service instead of issuing direct socket/HTTP calls.
+                target: "{es.name}"
+                message: "Direct call to external service '{es.name}' from '{caller.file_path}' bypasses the integration boundary"
+                query: |
+                  MATCH (caller)-[r:CALLS]->(es:ExternalService)
+                  WHERE (caller:Function OR caller:Type)
+                    AND NOT coalesce(caller.is_test, false)
+                    AND es.domain_or_service = 'mreg'
+                    AND NOT coalesce(caller.file_path, '') STARTS WITH 'command-service/'
+                  RETURN caller, r, es
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-S-B-001.json
+                """),
+            ("no-raw-sql-outside-dal.yaml.example", """
+                # Starter Gate: No Raw SQL Outside Data-Access Layer
+                # Ensure raw SQL queries are confined to data-access, repository, or migration folders.
+                # Rename to .yaml and adjust the allowed path patterns for your workspace.
+                id: SIG-D-B-002
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Boundaries
+                name: No Raw SQL Outside Data-Access Layer
+                severity: Warning
+                description: Raw SQL queries must reside inside data-access, repository, model, or migration folders.
+                remediation: Move raw SQL statements into a repository/datasource class in the data-access layer.
+                target: "{q.name}"
+                message: "Raw SQL query '{q.name}' found outside data-access layer in '{q.file_path}'"
+                query: |
+                  MATCH (q:Query)
+                  WHERE NOT coalesce(q.file_path, '') CONTAINS '/models/'
+                    AND NOT coalesce(q.file_path, '') CONTAINS '/repositories/'
+                    AND NOT coalesce(q.file_path, '') CONTAINS '/datasource/'
+                    AND NOT coalesce(q.file_path, '') CONTAINS '/db/'
+                    AND NOT coalesce(q.file_path, '') CONTAINS '/migrations/'
+                  RETURN q
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-D-B-002.json
+                """)
+        };
+
+        var createdAny = false;
+        foreach (var (fileName, content) in starterTemplates)
+        {
+            var filePath = Path.Combine(_gatesDir, fileName);
+            if (!File.Exists(filePath) || overwrite)
             {
-                await File.WriteAllTextAsync(exampleFile, exampleYaml, cancellationToken);
-                return 1;
-            }
-            catch (IOException) when (!overwrite && File.Exists(exampleFile))
-            {
-                // Another instance concurrently created the starter example file
-                return 0;
+                try
+                {
+                    await File.WriteAllTextAsync(filePath, content, cancellationToken);
+                    createdAny = true;
+                }
+                catch (IOException) when (!overwrite && File.Exists(filePath))
+                {
+                    // Another instance concurrently created the starter example file
+                }
             }
         }
 
-        return 0;
+        return createdAny ? 1 : 0;
     }
 
     private string ResolveBaselinePath(SemanticGate gate)

@@ -26,6 +26,9 @@ public static class StatusCommandHandler
 
             var fileInfo = new FileInfo(ws.DbPath);
             var sizeMb = fileInfo.Length / (1024.0 * 1024.0);
+            var walFileInfo = new FileInfo(ws.DbPath + "-wal");
+            var walBytes = walFileInfo.Exists ? walFileInfo.Length : 0L;
+            var walSizeMb = walBytes / (1024.0 * 1024.0);
 
             await using var client = new SqliteGraphClient(ws.DbPath);
 
@@ -92,6 +95,9 @@ public static class StatusCommandHandler
                 database_path = ws.DbPath,
                 database_size_bytes = fileInfo.Length,
                 database_size_mb = Math.Round(sizeMb, 2),
+                wal_size_bytes = walBytes,
+                wal_size_mb = Math.Round(walSizeMb, 2),
+                total_storage_mb = Math.Round(sizeMb + walSizeMb, 2),
                 schema_version = client.SchemaVersion,
                 current_schema_version = SqliteGraphClient.CurrentSchemaVersion,
                 is_schema_outdated = client.IsSchemaOutdated,

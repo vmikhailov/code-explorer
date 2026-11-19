@@ -60,7 +60,30 @@ public class QueryCommandHandler : BaseCommandHandler
             }
             else if (!string.IsNullOrWhiteSpace(opts.Query))
             {
-                cypherQuery = opts.Query;
+                var trimmedQ = opts.Query.Trim();
+                if (!trimmedQ.Contains(' ') && !trimmedQ.Contains('\n'))
+                {
+                    var custom = ws != null ? new ProjectQueryManager().GetQuery(ws.RootDirectory, trimmedQ) : null;
+                    if (custom != null)
+                    {
+                        cypherQuery = custom.Cypher;
+                    }
+                    else if (Queries.Exists(trimmedQ))
+                    {
+                        cypherQuery = Queries.Get(trimmedQ);
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.Error.WriteLine($"Error: Query '{trimmedQ}' not found in custom or built-in queries. Run 'ce queries' to list available query names, or pass a valid Cypher query.");
+                        Console.ResetColor();
+                        return 1;
+                    }
+                }
+                else
+                {
+                    cypherQuery = opts.Query;
+                }
             }
             else
             {
@@ -117,6 +140,16 @@ public class QueryCommandHandler : BaseCommandHandler
                 parameters["wsIdPrefix"] = "ws:";
             }
 
+            if (cypherQuery.Contains("$projectName", StringComparison.OrdinalIgnoreCase))
+            {
+                parameters["projectName"] = "";
+            }
+
+            if (cypherQuery.Contains("$projectFilter", StringComparison.OrdinalIgnoreCase))
+            {
+                parameters["projectFilter"] = "";
+            }
+
             if (opts.Params != null)
             {
                 foreach (var paramStr in opts.Params)
@@ -157,7 +190,7 @@ public class QueryCommandHandler : BaseCommandHandler
                 result = new CypherQueryResult(result.Columns, result.Rows.Take(opts.Limit.Value).ToList());
             }
 
-            Console.WriteLine(ToonYamlSerializer.SerializeYaml(result));
+            Console.WriteLine(FormatQueryResult(result, opts.Format));
             return 0;
         }
         catch (Exception ex)
@@ -167,6 +200,97 @@ public class QueryCommandHandler : BaseCommandHandler
             Console.ResetColor();
             return 1;
         }
+    }
+
+    private const char CommaDelimiter = ',';
+    private const char TabDelimiter = '\t';
+
+    internal static string FormatQueryResult(CypherQueryResult result, string? format)
+    {
+        var fmt = (format ?? "yaml").Trim().ToLowerInvariant();
+        return fmt switch
+        {
+            "json" => FormatJsonResult(result),
+            "csv" => FormatDelimitedResult(result, CommaDelimiter),
+            "tsv" => FormatDelimitedResult(result, TabDelimiter),
+            _ => ToonYamlSerializer.SerializeYaml(result)
+        };
+    }
+
+    private static string FormatJsonResult(CypherQueryResult result)
+    {
+        var list = new List<Dictionary<string, object?>>(result.Rows.Count);
+        foreach (var row in result.Rows)
+        {
+            var dict = new Dictionary<string, object?>(result.Columns.Count, StringComparer.Ordinal);
+            for (var c = 0; c < result.Columns.Count && c < row.Values.Count; c++)
+            {
+                var val = row.Values[c];
+                dict[result.Columns[c]] = val.Kind switch
+                {
+                    CypherValueKind.Null => null,
+                    CypherValueKind.Boolean => val.AsBool(),
+                    CypherValueKind.Int64 => val.AsInt64(),
+                    CypherValueKind.Float64 => val.AsDouble(),
+                    CypherValueKind.String => val.AsString(),
+                    _ => val.ToJsonString()
+                };
+            }
+            list.Add(dict);
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(list, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static string FormatDelimitedResult(CypherQueryResult result, char delimiter)
+    {
+        if (result.Columns.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(string.Join(delimiter, result.Columns.Select(c => EscapeDelimitedCell(c, delimiter))));
+
+        foreach (var row in result.Rows)
+        {
+            for (var c = 0; c < result.Columns.Count; c++)
+            {
+                if (c > 0) sb.Append(delimiter);
+                var cell = c < row.Values.Count ? FormatCellText(row.Values[c]) : string.Empty;
+                sb.Append(EscapeDelimitedCell(cell, delimiter));
+            }
+            sb.AppendLine();
+        }
+
+        return sb.ToString().TrimEnd('\r', '\n');
+    }
+
+    private static string FormatCellText(CypherValue val) =>
+        val.Kind switch
+        {
+            CypherValueKind.Null => string.Empty,
+            CypherValueKind.String => val.AsString(),
+            CypherValueKind.Boolean => val.AsBool() ? "true" : "false",
+            CypherValueKind.Int64 => val.AsInt64().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            CypherValueKind.Float64 => val.AsDouble().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            _ => val.ToJsonString()
+        };
+
+    private static string EscapeDelimitedCell(string text, char delimiter)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        if (delimiter == '\t')
+        {
+            return text.Replace('\t', ' ').Replace("\r", " ").Replace("\n", " ");
+        }
+
+        if (text.Contains(delimiter) || text.Contains('"') || text.Contains('\n') || text.Contains('\r'))
+        {
+            return $"\"{text.Replace("\"", "\"\"")}\"";
+        }
+
+        return text;
     }
 
     public static int PrintAllQueries(QueryOptions opts)

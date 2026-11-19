@@ -267,7 +267,7 @@ public partial class CodeExplorerRepository
         return funcIdentifier;
     }
 
-    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default, bool includeTests = false)
     {
         var query = Queries.Get(QueryResolveCallTarget);
         var parameters = new Dictionary<string, string>
@@ -275,7 +275,19 @@ public partial class CodeExplorerRepository
             ["interfaceName"] = interfaceName,
             ["methodName"] = methodName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+        var formatted = await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(formatted) && !string.Equals(formatted.Trim(), "[]", StringComparison.Ordinal))
+        {
+            return formatted;
+        }
+
+        var qualifiedCallers = await GetCallersAsync($"{interfaceName}.{methodName}", includeTests, workspacePath, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(qualifiedCallers) && !string.Equals(qualifiedCallers.Trim(), "[]", StringComparison.Ordinal))
+        {
+            return qualifiedCallers;
+        }
+
+        return formatted;
     }
 
     public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null, CancellationToken cancellationToken = default)

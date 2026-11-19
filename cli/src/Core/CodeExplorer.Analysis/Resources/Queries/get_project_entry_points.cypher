@@ -1,5 +1,6 @@
-MATCH (ep)-[:DECLARED_IN]->(p:Project {name: $projectName})
-WHERE ep:Endpoint OR ep:EntryPoint
+MATCH (ep)-[:DECLARED_IN]->(p:Project)
+WHERE (ep:Endpoint OR ep:EntryPoint)
+  AND ($projectName IS NULL OR $projectName = '' OR p.name = $projectName)
 OPTIONAL MATCH (ep)-[:TRIGGERS|IMPLEMENTED_BY]->(func:Function)
 OPTIONAL MATCH (ep)-[:EXPOSED_BY]->(class:Type)
 OPTIONAL MATCH (func)-[:DECLARED_IN]->(f:File)

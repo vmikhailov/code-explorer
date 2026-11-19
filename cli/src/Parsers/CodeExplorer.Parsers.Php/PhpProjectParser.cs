@@ -132,6 +132,12 @@ public class PhpProjectParser : IProjectParser
         string[] childFiles,
         IProjectParser candidateChildParser)
     {
+        if (PhysicalFileStore.TryGetConfiguredProject(childDirectoryPath, out _) ||
+            (PhysicalFileStore.IsGitRepositoryRoot(childDirectoryPath) && !PhysicalFileStore.HasChildGitRepositories(childDirectoryPath)))
+        {
+            return true;
+        }
+
         if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
         {
             return false;
@@ -168,6 +174,12 @@ public class PhpProjectParser : IProjectParser
         if (HasComposerManifest(filesInDirectory))
         {
             return !HasAncestorPhpProject(directoryPath);
+        }
+
+        if (PhysicalFileStore.HasChildGitRepositories(directoryPath) ||
+            PhysicalFileStore.HasChildConfiguredProjects(directoryPath))
+        {
+            return false;
         }
 
         var hasPhpFiles = filesInDirectory.Any(IsPhpSourceFile) ||
@@ -329,6 +341,25 @@ public class PhpProjectParser : IProjectParser
             return false;
         }
 
+        if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath) &&
+            !PhysicalFileStore.HasChildGitRepositories(directoryPath) &&
+            !SubtreeHasOtherPrimaryManifests(directoryPath))
+        {
+            var phpCount = 0;
+            var pyCount = 0;
+            var perlCount = 0;
+            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            {
+                if (IsPhpSourceFile(file)) phpCount++;
+                else if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
+                else if (file.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".pm", StringComparison.OrdinalIgnoreCase)) perlCount++;
+            }
+            if (phpCount > 0 && phpCount >= pyCount && phpCount >= perlCount)
+            {
+                return true;
+            }
+        }
+
         var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
         if (childDirs.Count == 0)
         {
@@ -365,12 +396,39 @@ public class PhpProjectParser : IProjectParser
             {
                 var fn = Path.GetFileName(f);
                 return fn.Equals("Dockerfile", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals("compose.yaml", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals("compose.yml", StringComparison.OrdinalIgnoreCase) ||
                        fn.Equals("docker-compose.yml", StringComparison.OrdinalIgnoreCase) ||
                        fn.Equals("docker-compose.yaml", StringComparison.OrdinalIgnoreCase) ||
                        fn.Equals(".htaccess", StringComparison.OrdinalIgnoreCase);
             }))
         {
             return true;
+        }
+
+        return false;
+    }
+
+    private static bool SubtreeHasOtherPrimaryManifests(string directoryPath)
+    {
+        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+        {
+            var fn = Path.GetFileName(file);
+            if (fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("pyproject.toml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("setup.py", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("go.mod", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("pom.xml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("build.gradle", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
 
         return false;

@@ -48,6 +48,26 @@ public partial class PhpFileParser
         @"(?:\$(?<var>[a-zA-Z0-9_]+)(?:->(?<prop>[a-zA-Z0-9_]+))?->|(?<static>[a-zA-Z0-9_\\]+)::)((?<method>[a-zA-Z0-9_]+))\s*\(",
         RegexOptions.Compiled);
 
+    private static readonly Regex ChainedMethodCallRegex = new(
+        @"\)\s*->\s*(?<method>[a-zA-Z0-9_]+)\s*\(",
+        RegexOptions.Compiled);
+
+    private static readonly Regex StringKeyedFactoryChainRegex = new(
+        @"(?:->|::)\s*(?<factory>[a-zA-Z0-9_]+)\s*\(\s*['""](?<key>[a-zA-Z0-9_\\/-]+)['""]\s*\)\s*->\s*(?<method>[a-zA-Z0-9_]+)\s*\(",
+        RegexOptions.Compiled);
+
+    private static readonly Regex StringKeyedFactoryAssignRegex = new(
+        @"\$(?:this->)?(?<var>[a-zA-Z0-9_]+)\s*=\s*(?:\$[a-zA-Z0-9_]+(?:\s*->\s*[a-zA-Z0-9_]+)?\s*->|[a-zA-Z0-9_\\]+::)\s*(?<factory>[a-zA-Z0-9_]+)\s*\(\s*['""](?<key>[a-zA-Z0-9_\\/-]+)['""]\s*\)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex PhpConstDeclRegex = new(
+        @"(?:\bconst\s+(?<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*['""](?<val>[^'""]+)['""]|\bdefine\s*\(\s*['""](?<name>[a-zA-Z_][a-zA-Z0-9_]*)['""]\s*,\s*['""](?<val>[^'""]+)['""]\s*\))",
+        RegexOptions.Compiled);
+
+    private static readonly Regex FactoryMapEntryRegex = new(
+        @"(?:['""](?<key>[a-zA-Z0-9_\\/-]+)['""]\s*=>\s*(?:['""](?<cls>[A-Za-z_][A-Za-z0-9_\\]*)['""]|(?<cls>[A-Za-z_][A-Za-z0-9_\\]*)::class)|\bcase\s+['""](?<key>[a-zA-Z0-9_\\/-]+)['""]\s*:\s*return\s+new\s+(?<cls>[A-Za-z_][A-Za-z0-9_\\]*))",
+        RegexOptions.Compiled);
+
     private static readonly Regex NewInstanceRegex = new(
         @"\bnew\s+(?<type>[a-zA-Z0-9_\\]+)\s*\(",
         RegexOptions.Compiled);
@@ -249,6 +269,21 @@ public partial class PhpFileParser
             }
         }
 
+        var factoryBoundVars = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match fm in StringKeyedFactoryAssignRegex.Matches(rawBodySlice))
+        {
+            var varName = fm.Groups["var"].Value.Trim();
+            var key = fm.Groups["key"].Value.Trim();
+            if (string.IsNullOrEmpty(varName) || string.IsNullOrEmpty(key)) continue;
+
+            var candidateClasses = ExpandFactoryKeyCandidates(key, useAliases);
+            factoryBoundVars[varName] = candidateClasses;
+            if (candidateClasses.Count > 0)
+            {
+                rawTypeBindings.Add(new RawTypeBinding(varName, candidateClasses[0], fnNode.Id, relativePath));
+            }
+        }
+
         foreach (Match cm in MethodCallRegex.Matches(maskedBodySlice))
         {
             var methodName = cm.Groups["method"].Value.Trim();
@@ -279,6 +314,38 @@ public partial class PhpFileParser
 
             var target = !string.IsNullOrEmpty(receiver) ? $"{receiver}.{methodName}" : methodName;
             fnNode.References.Add(new Reference(fnNode.Id, target, OntologyConstants.Relationships.Calls, callLine, callCol));
+
+            if (!string.IsNullOrEmpty(receiver) && factoryBoundVars.TryGetValue(receiver, out var factoryCandidates))
+            {
+                foreach (var candCls in factoryCandidates)
+                {
+                    fnNode.References.Add(new Reference(fnNode.Id, $"{candCls}.{methodName}", OntologyConstants.Relationships.Calls, callLine, callCol));
+                }
+                fnNode.References.Add(new Reference(fnNode.Id, methodName, OntologyConstants.Relationships.Calls, callLine, callCol));
+            }
+        }
+
+        foreach (Match fcm in StringKeyedFactoryChainRegex.Matches(rawBodySlice))
+        {
+            var key = fcm.Groups["key"].Value.Trim();
+            var methodName = fcm.Groups["method"].Value.Trim();
+            if (string.IsNullOrEmpty(methodName) || IgnoredPhpKeywords.Contains(methodName)) continue;
+
+            var (callLine, callCol) = GetLineAndColumn(lineOffsets, bodyOffset + fcm.Index);
+            foreach (var candCls in ExpandFactoryKeyCandidates(key, useAliases))
+            {
+                fnNode.References.Add(new Reference(fnNode.Id, $"{candCls}.{methodName}", OntologyConstants.Relationships.Calls, callLine, callCol));
+            }
+            fnNode.References.Add(new Reference(fnNode.Id, methodName, OntologyConstants.Relationships.Calls, callLine, callCol));
+        }
+
+        foreach (Match chm in ChainedMethodCallRegex.Matches(maskedBodySlice))
+        {
+            var methodName = chm.Groups["method"].Value.Trim();
+            if (string.IsNullOrEmpty(methodName) || IgnoredPhpKeywords.Contains(methodName)) continue;
+
+            var (callLine, callCol) = GetLineAndColumn(lineOffsets, bodyOffset + chm.Index);
+            fnNode.References.Add(new Reference(fnNode.Id, methodName, OntologyConstants.Relationships.Calls, callLine, callCol));
         }
 
         var risks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -351,10 +418,15 @@ public partial class PhpFileParser
             AddPhpEndpoint(fileNode, workspaceId, relativePath, MethodGet, route, topFunc, 1, 1);
         }
 
+        var localConstants = ExtractAndRegisterPhpConstants(commentMasked, classScopes);
+
         foreach (Match mm in MregCallRegex.Matches(commentMasked))
         {
-            var cmd = mm.Groups[CmdGroup].Value.Trim();
-            if (string.IsNullOrWhiteSpace(cmd)) continue;
+            var rawCmd = mm.Groups[CmdGroup].Value.Trim();
+            if (string.IsNullOrWhiteSpace(rawCmd)) continue;
+
+            var enclosingCls = FindEnclosingClass(mm.Index, classScopes);
+            var cmd = ResolvePhpCommandConstant(rawCmd, enclosingCls?.Name, localConstants);
 
             var (line, col) = GetLineAndColumn(lineOffsets, mm.Index);
             var enclosingFn = FindEnclosingFunction(mm.Index, funSpans);
@@ -384,8 +456,11 @@ public partial class PhpFileParser
 
         foreach (Match km in KjsCallRegex.Matches(commentMasked))
         {
-            var cmd = km.Groups[CmdGroup].Value.Trim();
-            if (string.IsNullOrWhiteSpace(cmd)) continue;
+            var rawCmd = km.Groups[CmdGroup].Value.Trim();
+            if (string.IsNullOrWhiteSpace(rawCmd)) continue;
+
+            var enclosingCls = FindEnclosingClass(km.Index, classScopes);
+            var cmd = ResolvePhpCommandConstant(rawCmd, enclosingCls?.Name, localConstants);
 
             var (line, col) = GetLineAndColumn(lineOffsets, km.Index);
             var enclosingFn = FindEnclosingFunction(km.Index, funSpans);
@@ -570,5 +645,157 @@ public partial class PhpFileParser
             }
         }
         return null;
+    }
+
+    private static Dictionary<string, string> ExtractAndRegisterPhpConstants(
+        string commentMasked,
+        List<PhpClassScope> classScopes)
+    {
+        var local = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match cm in PhpConstDeclRegex.Matches(commentMasked))
+        {
+            var name = cm.Groups["name"].Value.Trim();
+            var val = cm.Groups["val"].Value.Trim();
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(val)) continue;
+
+            local[name] = val;
+            ConstantRegistry.Register(null, name, val);
+
+            var enclosingCls = FindEnclosingClass(cm.Index, classScopes);
+            if (enclosingCls != null)
+            {
+                local[$"{enclosingCls.Name}::{name}"] = val;
+                local[$"self::{name}"] = val;
+                local[$"static::{name}"] = val;
+                ConstantRegistry.Register(null, $"{enclosingCls.Name}.{name}", val);
+                ConstantRegistry.Register(null, $"{enclosingCls.Name}::{name}", val);
+            }
+        }
+
+        foreach (Match fm in FactoryMapEntryRegex.Matches(commentMasked))
+        {
+            var key = fm.Groups["key"].Value.Trim();
+            var cls = NormalizePhpTypeName(fm.Groups["cls"].Value.Trim());
+            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(cls))
+            {
+                ConstantRegistry.Register(null, $"php_factory:{key}", cls);
+            }
+        }
+
+        return local;
+    }
+
+    internal static string ResolvePhpCommandConstant(
+        string rawCmd,
+        string? enclosingClassName,
+        Dictionary<string, string> localConstants)
+    {
+        var trimmed = rawCmd.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return trimmed;
+
+        if (localConstants.TryGetValue(trimmed, out var directLocal))
+        {
+            return directLocal;
+        }
+
+        var normalized = trimmed;
+        if (normalized.StartsWith("self::", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("static::", StringComparison.OrdinalIgnoreCase))
+        {
+            var leaf = normalized[(normalized.IndexOf("::", StringComparison.Ordinal) + 2)..];
+            if (localConstants.TryGetValue(leaf, out var leafVal))
+            {
+                return leafVal;
+            }
+            if (!string.IsNullOrEmpty(enclosingClassName))
+            {
+                if (ConstantRegistry.TryResolve(null, $"{enclosingClassName}.{leaf}", out var clsResolved) &&
+                    !string.IsNullOrWhiteSpace(clsResolved))
+                {
+                    return clsResolved;
+                }
+            }
+            if (ConstantRegistry.TryResolve(null, leaf, out var leafResolved) && !string.IsNullOrWhiteSpace(leafResolved))
+            {
+                return leafResolved;
+            }
+            return trimmed;
+        }
+
+        if (normalized.Contains("::", StringComparison.Ordinal))
+        {
+            var dotKey = normalized.Replace("::", ".", StringComparison.Ordinal).TrimStart('\\');
+            if (ConstantRegistry.TryResolve(null, dotKey, out var dotResolved) && !string.IsNullOrWhiteSpace(dotResolved))
+            {
+                return dotResolved;
+            }
+            var leaf = normalized[(normalized.LastIndexOf("::", StringComparison.Ordinal) + 2)..];
+            if (localConstants.TryGetValue(leaf, out var leafVal))
+            {
+                return leafVal;
+            }
+            if (ConstantRegistry.TryResolve(null, leaf, out var leafResolved) && !string.IsNullOrWhiteSpace(leafResolved))
+            {
+                return leafResolved;
+            }
+        }
+        else if (normalized.All(c => char.IsUpper(c) || char.IsDigit(c) || c == '_') && normalized.Contains('_'))
+        {
+            if (ConstantRegistry.TryResolve(null, normalized, out var constResolved) && !string.IsNullOrWhiteSpace(constResolved))
+            {
+                return constResolved;
+            }
+        }
+
+        return trimmed;
+    }
+
+    private static List<string> ExpandFactoryKeyCandidates(
+        string rawKey,
+        Dictionary<string, string>? useAliases)
+    {
+        var results = new List<string>();
+        void AddCandidate(string? c)
+        {
+            var norm = NormalizePhpTypeName(c, useAliases);
+            if (!string.IsNullOrEmpty(norm) && !results.Contains(norm, StringComparer.OrdinalIgnoreCase))
+            {
+                results.Add(norm);
+            }
+        }
+
+        if (ConstantRegistry.TryResolve(null, $"php_factory:{rawKey}", out var mappedCls) && !string.IsNullOrWhiteSpace(mappedCls))
+        {
+            AddCandidate(mappedCls);
+        }
+
+        var parts = rawKey.Split(['_', '-', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0)
+        {
+            var pascal = string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+            AddCandidate(pascal);
+            AddCandidate($"{pascal}Datasource");
+            AddCandidate($"Datasource_{pascal}");
+            AddCandidate($"{pascal}Model");
+            AddCandidate($"Model_{pascal}");
+            AddCandidate($"{pascal}Table");
+            AddCandidate($"Table_{pascal}");
+
+            if (pascal.EndsWith('s') && pascal.Length > 2)
+            {
+                var singular = pascal.EndsWith("ies", StringComparison.OrdinalIgnoreCase) && pascal.Length > 4
+                    ? pascal[..^3] + "y"
+                    : pascal[..^1];
+                AddCandidate(singular);
+                AddCandidate($"{singular}Datasource");
+                AddCandidate($"Datasource_{singular}");
+                AddCandidate($"{singular}Model");
+                AddCandidate($"Model_{singular}");
+                AddCandidate($"{singular}Table");
+                AddCandidate($"Table_{singular}");
+            }
+        }
+
+        return results;
     }
 }

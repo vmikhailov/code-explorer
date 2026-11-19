@@ -426,6 +426,10 @@ public class WorkspaceFileFilter
 
         var normPath = relativePath.NormalizeSlashes();
         var padded = "/" + normPath.TrimStart('/');
+        if (IsVendorArtifactPath(padded, fileName))
+        {
+            return "vendor";
+        }
         if (padded.Contains("/dist/", StringComparison.OrdinalIgnoreCase) ||
             padded.Contains("/build/", StringComparison.OrdinalIgnoreCase) ||
             padded.Contains("/out/", StringComparison.OrdinalIgnoreCase))
@@ -438,6 +442,82 @@ public class WorkspaceFileFilter
             return "script";
         }
         return "source";
+    }
+
+    private static readonly string[] KnownVendoredJsLibraries =
+    [
+        "select2", "slick", "bootstrap", "jquery", "tinymce", "ckeditor", "datatables",
+        "moment", "lodash", "underscore", "handlebars", "mustache", "chart.js", "chartjs",
+        "fullcalendar", "dropzone", "clipboard", "sweetalert", "toastr", "magnific-popup",
+        "owl.carousel", "swiper", "fancybox", "lightslider", "codemirror", "prettify",
+        "highlight.js", "jszip", "pdfmake", "vfs_fonts", "popper", "modernizr", "respond.js", "html5shiv"
+    ];
+
+    private static bool IsVendorArtifactPath(string paddedPath, string fileName)
+    {
+        if (paddedPath.Contains("/vendor/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/vendors/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/3rdparty/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/thirdparty/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/third_party/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/third-party/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/bower_components/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/js/vendor/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/js/vendors/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/js/plugins/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/assets/vendor/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/assets/plugins/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var isJsOrCss = fileName.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+                        fileName.EndsWith(".css", StringComparison.OrdinalIgnoreCase);
+        if (!isJsOrCss)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < KnownVendoredJsLibraries.Length; i++)
+        {
+            var lib = KnownVendoredJsLibraries[i];
+            if (paddedPath.Contains($"/{lib}/", StringComparison.OrdinalIgnoreCase) ||
+                paddedPath.Contains($"/{lib}-", StringComparison.OrdinalIgnoreCase) ||
+                paddedPath.Contains($"/{lib}.", StringComparison.OrdinalIgnoreCase) ||
+                fileName.StartsWith($"{lib}.", StringComparison.OrdinalIgnoreCase) ||
+                fileName.StartsWith($"{lib}-", StringComparison.OrdinalIgnoreCase) ||
+                fileName.Equals($"{lib}.js", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        if (paddedPath.Contains("/assets/js/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/public/js/", StringComparison.OrdinalIgnoreCase) ||
+            paddedPath.Contains("/static/js/", StringComparison.OrdinalIgnoreCase))
+        {
+            var idx = paddedPath.IndexOf("/js/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                var afterJs = paddedPath[(idx + 4)..];
+                if (afterJs.Contains('/'))
+                {
+                    var subFolder = afterJs[..afterJs.IndexOf('/')];
+                    if (!subFolder.Equals("app", StringComparison.OrdinalIgnoreCase) &&
+                        !subFolder.Equals("src", StringComparison.OrdinalIgnoreCase) &&
+                        !subFolder.Equals("modules", StringComparison.OrdinalIgnoreCase) &&
+                        !subFolder.Equals("pages", StringComparison.OrdinalIgnoreCase) &&
+                        !subFolder.Equals("components", StringComparison.OrdinalIgnoreCase) &&
+                        !subFolder.Equals("controllers", StringComparison.OrdinalIgnoreCase) &&
+                        !subFolder.Equals("custom", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     public static string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>

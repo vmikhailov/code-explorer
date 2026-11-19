@@ -254,7 +254,10 @@ internal static class PhpDatabaseSqlExtractor
             if (tables.Count == 0)
             {
                 var cls = PhpFileParser.FindEnclosingClass(sm.Index, classScopes);
-                if (!string.IsNullOrEmpty(cls?.BoundTableName))
+                if (!string.IsNullOrEmpty(cls?.BoundTableName) &&
+                    (rawSql.Contains("_name", StringComparison.OrdinalIgnoreCase) ||
+                     rawSql.Contains("_tableName", StringComparison.OrdinalIgnoreCase) ||
+                     rawSql.Contains("->table", StringComparison.OrdinalIgnoreCase)))
                 {
                     tables.Add(cls.BoundTableName);
                 }
@@ -307,7 +310,7 @@ internal static class PhpDatabaseSqlExtractor
                 queryNode.CustomProperties[GroupByWithoutOrderByKey] = TrueString;
             }
             fileNode.Children.Add(queryNode);
-            fileNode.References.Add(new Reference(qId, tableNode.Id, edgeKind, line, col));
+            fileNode.References.Add(new Reference(qId, tableName, edgeKind, line, col));
         }
 
         var enclosingFn = PhpFileParser.FindEnclosingFunction(charIndex, funSpans);

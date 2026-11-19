@@ -65,6 +65,10 @@ internal static class PerlDatabaseAndExternalExtractor
         @"(?:PTF::XClient|\$(?:xclient|mreg|client))\s*->\s*(?<method>send|request|execute|call|command|[a-zA-Z0-9_]+)\s*\(\s*['""]?(?<cmd>[a-zA-Z0-9_.:-]+)['""]?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex PerlConstDeclRegex = new(
+        @"(?:\buse\s+constant\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=>\s*['""](?<val>[^'""]+)['""]|(?<name>[A-Z_][A-Z0-9_]{2,})\s*=>\s*['""](?<val>[^'""]+)['""]|\b(?:my|our)\s+\$(?<name>[A-Z_][A-Z0-9_]{2,})\s*=\s*['""](?<val>[^'""]+)['""])",
+        RegexOptions.Compiled);
+
     private static readonly Regex PerlMailRegex = new(
         @"\b(?:Mail::Sendmail|MIME::Lite|\bsendmail\s*\()",
         RegexOptions.Compiled);
@@ -94,6 +98,19 @@ internal static class PerlDatabaseAndExternalExtractor
             EnsureMySqlDatabaseNode(fileNode, workspaceId, relativePath);
         }
 
+        var localConstants = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match cm in PerlConstDeclRegex.Matches(commentMasked))
+        {
+            var cName = cm.Groups["name"].Value.Trim();
+            var cVal = cm.Groups["val"].Value.Trim();
+            if (!string.IsNullOrEmpty(cName) && !string.IsNullOrEmpty(cVal))
+            {
+                localConstants[cName] = cVal;
+                ConstantRegistry.Register(null, cName, cVal);
+                ConstantRegistry.Register(null, $"{moduleNode.Name}.{cName}", cVal);
+            }
+        }
+
         ProcessSqlMatches(DbiQuotedQueryRegex.Matches(commentMasked), lineOffsets, moduleNode, subSpans, fileNode, workspaceId, relativePath);
         ProcessSqlMatches(DbiHeredocQueryRegex.Matches(commentMasked), lineOffsets, moduleNode, subSpans, fileNode, workspaceId, relativePath);
         ProcessSqlMatches(SqlVariableAssignmentRegex.Matches(commentMasked), lineOffsets, moduleNode, subSpans, fileNode, workspaceId, relativePath);
@@ -105,6 +122,7 @@ internal static class PerlDatabaseAndExternalExtractor
 
             var cmd = xm.Groups["cmd"].Value.Trim();
             if (string.IsNullOrWhiteSpace(cmd)) cmd = method;
+            cmd = ResolvePerlCommandConstant(cmd, localConstants);
 
             var (line, col) = PerlFileParser.GetLineAndColumn(lineOffsets, xm.Index);
             var enclosingFn = FindEnclosingSub(xm.Index, subSpans);
@@ -228,7 +246,7 @@ internal static class PerlDatabaseAndExternalExtractor
                         queryNode.CustomProperties[GroupByWithoutOrderByKey] = TrueString;
                     }
                     fileNode.Children.Add(queryNode);
-                    fileNode.References.Add(new Reference(qId, tableNode.Id, edgeKind, line, col));
+                    fileNode.References.Add(new Reference(qId, tbl, edgeKind, line, col));
                 }
 
                 if (enclosingFn != null)
@@ -314,6 +332,41 @@ internal static class PerlDatabaseAndExternalExtractor
             if (pos >= s.Start && pos <= s.End) return s.Node;
         }
         return subSpans.FirstOrDefault()?.Node;
+    }
+
+    private static string ResolvePerlCommandConstant(string rawCmd, Dictionary<string, string> localConstants)
+    {
+        var trimmed = rawCmd.Trim().TrimStart('$');
+        if (string.IsNullOrEmpty(trimmed)) return rawCmd;
+
+        if (localConstants.TryGetValue(trimmed, out var direct))
+        {
+            return direct;
+        }
+
+        if (trimmed.Contains("::", StringComparison.Ordinal))
+        {
+            var dotKey = trimmed.Replace("::", ".", StringComparison.Ordinal);
+            if (ConstantRegistry.TryResolve(null, dotKey, out var dotVal) && !string.IsNullOrWhiteSpace(dotVal))
+            {
+                return dotVal;
+            }
+            var leaf = trimmed[(trimmed.LastIndexOf("::", StringComparison.Ordinal) + 2)..];
+            if (localConstants.TryGetValue(leaf, out var leafVal))
+            {
+                return leafVal;
+            }
+            if (ConstantRegistry.TryResolve(null, leaf, out var leafResolved) && !string.IsNullOrWhiteSpace(leafResolved))
+            {
+                return leafResolved;
+            }
+        }
+        else if (ConstantRegistry.TryResolve(null, trimmed, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved;
+        }
+
+        return rawCmd;
     }
 
     internal static string MaskComments(string source) => MaskPerlSource(source, maskStrings: false);

@@ -1178,6 +1178,21 @@ internal static partial class Layer5SymbolVisibilityResolver
             return;
         }
 
+        if (targetName.Contains(":tbl:", StringComparison.OrdinalIgnoreCase) ||
+            targetName.Contains(":table:", StringComparison.OrdinalIgnoreCase))
+        {
+            var lastColon = targetName.LastIndexOf(':');
+            if (lastColon >= 0 && lastColon + 1 < targetName.Length)
+            {
+                var extractedTbl = targetName[(lastColon + 1)..];
+                if (symbols.TableSymbols.TryGetValue(extractedTbl, out var urnTableId) && refItem.ScopeSymbolId != urnTableId)
+                {
+                    AddTableAccessRel(urnTableId);
+                    return;
+                }
+            }
+        }
+
         if (refItem.HasExplicitReceiver)
         {
             var shortTableName = refItem.MemberName;

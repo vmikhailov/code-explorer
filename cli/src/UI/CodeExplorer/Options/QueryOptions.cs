@@ -50,6 +50,9 @@ public class QueryOptions
 
     [Option("limit", Required = false, HelpText = "Maximum number of rows to return.")]
     public int? Limit { get; set; }
+
+    [Option("format", Required = false, Default = "yaml", HelpText = "Output format: yaml, json, csv, or tsv (default: yaml).")]
+    public string Format { get; set; } = "yaml";
 }
 
 [Verb("queries", HelpText = "Lists all available built-in and workspace custom queries.")]

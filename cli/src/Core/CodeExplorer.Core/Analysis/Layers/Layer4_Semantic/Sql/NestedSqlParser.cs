@@ -827,7 +827,7 @@ public static class NestedSqlParser
 
     public static void TryDetectSqlDependencies(string rawText, string scopeSymbolId, List<Reference> references)
     {
-        if (!TryParseSql(rawText, out _, out var cleanedSql)) return;
+        if (!TryParseSql(rawText, out var firstWord, out var cleanedSql)) return;
 
         var tables = new HashSet<(string? Db, string? Schema, string Table)>();
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
@@ -837,6 +837,11 @@ public static class NestedSqlParser
         {
             return;
         }
+
+        var verb = (firstWord ?? "SELECT").ToUpperInvariant();
+        var accessKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "REPLACE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE"
+            ? OntologyConstants.Relationships.WritesTo
+            : OntologyConstants.Relationships.ReadsFrom;
 
         var addedProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var procRef in procedures)
@@ -853,6 +858,7 @@ public static class NestedSqlParser
             if (addedTables.Add(tableRef.Table))
             {
                 references.Add(new Reference(scopeSymbolId, tableRef.Table, OntologyConstants.Relationships.DependsOn));
+                references.Add(new Reference(scopeSymbolId, tableRef.Table, accessKind));
             }
             if (!string.IsNullOrEmpty(tableRef.Schema) &&
                 !tableRef.Schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&

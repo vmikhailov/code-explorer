@@ -79,6 +79,12 @@ public class PerlProjectParser : IProjectParser
         string[] childFiles,
         IProjectParser candidateChildParser)
     {
+        if (PhysicalFileStore.TryGetConfiguredProject(childDirectoryPath, out _) ||
+            (PhysicalFileStore.IsGitRepositoryRoot(childDirectoryPath) && !PhysicalFileStore.HasChildGitRepositories(childDirectoryPath)))
+        {
+            return true;
+        }
+
         if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
         {
             return false;
@@ -115,6 +121,12 @@ public class PerlProjectParser : IProjectParser
         if (HasPerlManifest(filesInDirectory))
         {
             return !HasAncestorPerlProject(directoryPath);
+        }
+
+        if (PhysicalFileStore.HasChildGitRepositories(directoryPath) ||
+            PhysicalFileStore.HasChildConfiguredProjects(directoryPath))
+        {
+            return false;
         }
 
         if (!filesInDirectory.Any(IsPerlSourceFile) &&
@@ -249,6 +261,37 @@ public class PerlProjectParser : IProjectParser
         if (HasPythonOrPhpServiceManifest(directoryPath, filesInDirectory))
         {
             return false;
+        }
+
+        if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath) &&
+            !PhysicalFileStore.HasChildGitRepositories(directoryPath))
+        {
+            var phpCount = 0;
+            var pyCount = 0;
+            var perlCount = 0;
+            var hasOtherManifest = false;
+            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            {
+                var fn = Path.GetFileName(file);
+                if (fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                    fn.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                    fn.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                    fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
+                    fn.Equals("pyproject.toml", StringComparison.OrdinalIgnoreCase) ||
+                    fn.Equals("go.mod", StringComparison.OrdinalIgnoreCase) ||
+                    fn.Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasOtherManifest = true;
+                    break;
+                }
+                if (IsPerlSourceFile(file)) perlCount++;
+                else if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
+                else if (file.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".inc", StringComparison.OrdinalIgnoreCase)) phpCount++;
+            }
+            if (!hasOtherManifest && perlCount > 0 && perlCount > phpCount && perlCount > pyCount)
+            {
+                return true;
+            }
         }
 
         var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);

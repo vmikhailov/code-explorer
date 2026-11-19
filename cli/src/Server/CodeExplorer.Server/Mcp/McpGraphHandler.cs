@@ -600,7 +600,7 @@ public partial class McpGraphHandler(
 
         return await ExecuteForWorkspaceAsync(workspacePath, ws =>
             !string.IsNullOrWhiteSpace(methodName)
-                ? repository.ResolveCallTargetAsync(target, methodName, ws, cancellationToken)
+                ? repository.ResolveCallTargetAsync(target, methodName, ws, cancellationToken, includeTests)
                 : repository.GetCallersAsync(target, includeTests, ws, cancellationToken), cancellationToken);
     }
 

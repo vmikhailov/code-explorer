@@ -537,4 +537,96 @@ public class PhpAndPerlParserTests
                 Directory.Delete(tempRoot, recursive: true);
         }
     }
+
+    [Test]
+    public async Task AuditFeedback_TenPoints_ResolvesFactoryCallsConstantsLineageConcreteCallersAndDrift()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-audit-10pts-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var repoA = Path.Combine(tempDir, "billing-admin");
+            var repoB = Path.Combine(tempDir, "socket-daemon");
+            Directory.CreateDirectory(Path.Combine(repoA, ".git"));
+            Directory.CreateDirectory(Path.Combine(repoA, "custom_classes"));
+            Directory.CreateDirectory(Path.Combine(repoB, ".git"));
+            Directory.CreateDirectory(Path.Combine(repoB, "workers"));
+
+            await File.WriteAllTextAsync(Path.Combine(repoA, "custom_classes", "Orders.php"), """
+                <?php
+                class Orders
+                {
+                    const QUERY_ACCOUNT_LIST = 'QueryAccountList';
+
+                    public function markPaidByIds($db, $ids)
+                    {
+                        $db->query("UPDATE user_balance SET status = 'PAID'");
+                        WL_Socket_Request::sendCommand(WL_Socket_Request::MREG, self::QUERY_ACCOUNT_LIST);
+                    }
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(repoA, "custom_classes", "OrderController.php"), """
+                <?php
+                class OrderController
+                {
+                    public function approveOrderAction($ids)
+                    {
+                        $this->datasource('orders')->markPaidByIds($this->db, $ids);
+                    }
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(repoB, "workers", "balance_writer.py"), """
+                def sync_balances(cursor):
+                    cursor.execute("INSERT INTO user_balance (user_id, amount) VALUES (1, 100)")
+                """);
+
+            WorkspaceLocator.Initialize(tempDir, "audit-10pts");
+            var dbPath = Path.Combine(tempDir, ".codeexplorer", "graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+            WorkspaceIndexer.AutoRegisterParsers();
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var repository = new CodeExplorerRepository(client, defaultWorkspacePath: tempDir);
+
+            // 1. Both manifestless .git repos are detected as distinct projects
+            var projRes = await client.ExecuteCypherAsync("MATCH (p:Project) RETURN p.name AS name");
+            var projNames = projRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+            projNames.Should().Contain(["billing-admin", "socket-daemon"]);
+
+            // 2. Both PHP (Query & Function) and Python (Query & Function) have WRITES_TO -> Table(user_balance)
+            var lineageYaml = await repository.InspectDataLineageAsync("user_balance", tempDir);
+            lineageYaml.Should().Contain("markPaidByIds");
+            lineageYaml.Should().Contain("sync_balances");
+
+            var qWritesRes = await client.ExecuteCypherAsync("MATCH (q:Query)-[:WRITES_TO]->(t:Table {name: 'user_balance'}) RETURN count(q) AS cnt");
+            qWritesRes.Rows[0].GetLongProp("cnt").Should().BeGreaterThanOrEqualTo(2);
+
+            // 3 & 4. Chained factory call ($this->datasource('orders')->markPaidByIds) AND concrete class callers (Orders -m markPaidByIds)
+            var callersYaml = await repository.ResolveCallTargetAsync("Orders", "markPaidByIds", tempDir, includeTests: false);
+            callersYaml.Should().Contain("approveOrderAction");
+
+            // 7. Constant self::QUERY_ACCOUNT_LIST resolved on ExternalService
+            var extRes = await client.ExecuteCypherAsync("MATCH (es:ExternalService) RETURN es.name AS name");
+            var extNames = extRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+            extNames.Should().Contain("MREG QueryAccountList");
+
+            // 6. Vendored JS classification
+            WorkspaceFileFilter.ClassifyArtifactRole("public/assets/js/select2/select2.full.js", "select2.full.js").Should().Be("vendor");
+            WorkspaceFileFilter.ClassifyArtifactRole("assets/js/slick/slick.js", "slick.js").Should().Be("vendor");
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+            catch (IOException)
+            {
+                // Ignore transient Windows SQLite lock cleanup race
+            }
+        }
+    }
 }

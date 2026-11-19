@@ -59,7 +59,7 @@ public partial class GateCommandHandler : BaseCommandHandler
         {
             var created = await repo.InitStarterGatesAsync(opts.Update);
             PrintSuccess($"Initialized gate directories in '{Path.Combine(ws.RootDirectory, ".codeexplorer", "gates")}'.");
-            Console.WriteLine("Created template '.codeexplorer/gates/example-gate.yaml.example'. Copy and customize YAML manifests to activate gates.");
+            Console.WriteLine("Created starter gate templates (example-gate, table-write-boundary, external-service-boundary, no-raw-sql-outside-dal) in '.codeexplorer/gates/*.yaml.example'. Rename to '.yaml' and customize to activate.");
             return 0;
         }
 

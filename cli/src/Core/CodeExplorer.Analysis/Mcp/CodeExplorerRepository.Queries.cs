@@ -16,6 +16,8 @@ public partial class CodeExplorerRepository
     private const string QueryGetWorkspaceContent = "get_workspace_content";
     private const string ParamWorkspaceId = "workspaceId";
     private const string ParamWorkspaceIdPrefix = "workspaceIdPrefix";
+    private const string ParamProjectName = "projectName";
+    private const string ParamProjectFilter = "projectFilter";
     private const string CypherFilePattern = "*.cypher";
     private const string JsonPropId = "id";
     private const string JsonPropLabel = "kind";
@@ -26,6 +28,12 @@ public partial class CodeExplorerRepository
 
     public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var trimmed = query.Trim();
+        if (!trimmed.Contains(' ') && !trimmed.Contains('\n') && Queries.Exists(trimmed))
+        {
+            return await ExecuteProjectQueryAsync(trimmed, null, workspacePath, cancellationToken);
+        }
+
         CypherSecurityValidator.ValidateReadOnly(query);
         return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object?>(), workspacePath, cancellationToken);
     }
@@ -135,10 +143,23 @@ public partial class CodeExplorerRepository
     {
         var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
         var queryItem = _queryManager.GetQuery(effectiveWsPath, name);
-        if (queryItem == null)
+        string cypherText;
+        IReadOnlyList<ProjectQueryParameter> queryParams;
+
+        if (queryItem != null)
+        {
+            cypherText = queryItem.Cypher;
+            queryParams = queryItem.Parameters;
+        }
+        else if (Queries.Exists(name))
+        {
+            cypherText = Queries.Get(name);
+            queryParams = [];
+        }
+        else
         {
             throw new FileNotFoundException(
-                $"Project query '{name}' not found in '{_queryManager.GetQueriesDirectory(effectiveWsPath)}'. " +
+                $"Project query '{name}' not found in '{_queryManager.GetQueriesDirectory(effectiveWsPath)}' or built-in queries. " +
                 "Pass 'listSaved=true' to execute_custom_read_cypher to see available saved queries.");
         }
 
@@ -165,7 +186,7 @@ public partial class CodeExplorerRepository
             }
         }
 
-        foreach (var p in queryItem.Parameters)
+        foreach (var p in queryParams)
         {
             if (p.Required && (!paramDict.ContainsKey(p.Name) || paramDict[p.Name] == null))
             {
@@ -173,17 +194,27 @@ public partial class CodeExplorerRepository
             }
         }
 
-        if (queryItem.Cypher.Contains("$workspaceId") && !paramDict.ContainsKey(ParamWorkspaceId))
+        if (cypherText.Contains("$workspaceId") && !paramDict.ContainsKey(ParamWorkspaceId))
         {
             paramDict[ParamWorkspaceId] = OntologyConstants.IdPrefixes.Workspace;
         }
 
-        if (queryItem.Cypher.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey(ParamWorkspaceIdPrefix))
+        if (cypherText.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey(ParamWorkspaceIdPrefix))
         {
             paramDict[ParamWorkspaceIdPrefix] = $"{OntologyConstants.IdPrefixes.Workspace}:";
         }
 
-        return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, workspacePath, cancellationToken);
+        if (cypherText.Contains("$projectName", StringComparison.OrdinalIgnoreCase) && !paramDict.ContainsKey(ParamProjectName))
+        {
+            paramDict[ParamProjectName] = string.Empty;
+        }
+
+        if (cypherText.Contains("$projectFilter", StringComparison.OrdinalIgnoreCase) && !paramDict.ContainsKey(ParamProjectFilter))
+        {
+            paramDict[ParamProjectFilter] = string.Empty;
+        }
+
+        return await ExecuteAndFormatQueryAsync(cypherText, paramDict, workspacePath, cancellationToken);
     }
 
 

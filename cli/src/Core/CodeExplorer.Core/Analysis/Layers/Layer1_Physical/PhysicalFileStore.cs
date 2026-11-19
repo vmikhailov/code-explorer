@@ -19,6 +19,12 @@ public static class PhysicalFileStore
     private static readonly ConcurrentDictionary<string, string[]> _directoryFiles =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, byte> _gitRepositoryRoots =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ConcurrentDictionary<string, WorkspaceProjectSetting> _configuredProjects =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static string NormalizePath(string path) => path.NormalizeFullPath(trimTrailingSlash: true);
 
     public static string DecodeUtf8(ReadOnlySpan<byte> bytes)
@@ -483,6 +489,79 @@ public static class PhysicalFileStore
         }
     }
 
+    public static void RegisterGitRepositoryRoot(string directoryPath)
+    {
+        var key = NormalizePath(directoryPath);
+        if (!string.IsNullOrEmpty(key))
+        {
+            _gitRepositoryRoots[key] = 1;
+        }
+    }
+
+    public static bool IsGitRepositoryRoot(string directoryPath)
+    {
+        var key = NormalizePath(directoryPath);
+        return !string.IsNullOrEmpty(key) && _gitRepositoryRoots.ContainsKey(key);
+    }
+
+    public static bool HasChildGitRepositories(string directoryPath)
+    {
+        var parentKey = NormalizePath(directoryPath);
+        if (string.IsNullOrEmpty(parentKey)) return false;
+
+        var prefix = parentKey + "/";
+        foreach (var k in _gitRepositoryRoots.Keys)
+        {
+            if (k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static void RegisterConfiguredProjects(string workspaceRootPath, IReadOnlyList<WorkspaceProjectSetting>? projects)
+    {
+        if (projects is not { Count: > 0 }) return;
+        foreach (var p in projects)
+        {
+            if (p == null || string.IsNullOrWhiteSpace(p.Path)) continue;
+            var absPath = Path.Combine(workspaceRootPath, p.Path);
+            var key = NormalizePath(absPath);
+            if (!string.IsNullOrEmpty(key))
+            {
+                _configuredProjects[key] = p;
+            }
+        }
+    }
+
+    public static bool TryGetConfiguredProject(string directoryPath, out WorkspaceProjectSetting? setting)
+    {
+        var key = NormalizePath(directoryPath);
+        if (!string.IsNullOrEmpty(key) && _configuredProjects.TryGetValue(key, out setting))
+        {
+            return true;
+        }
+        setting = null;
+        return false;
+    }
+
+    public static bool HasChildConfiguredProjects(string directoryPath)
+    {
+        var parentKey = NormalizePath(directoryPath);
+        if (string.IsNullOrEmpty(parentKey)) return false;
+
+        var prefix = parentKey + "/";
+        foreach (var k in _configuredProjects.Keys)
+        {
+            if (k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void ClearWorkspace(string workspaceRootPath)
     {
         var rootKey = NormalizePath(workspaceRootPath);
@@ -490,6 +569,8 @@ public static class PhysicalFileStore
         {
             _fileContents.Clear();
             _directoryFiles.Clear();
+            _gitRepositoryRoots.Clear();
+            _configuredProjects.Clear();
             return;
         }
 
@@ -509,6 +590,24 @@ public static class PhysicalFileStore
                 k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 _directoryFiles.TryRemove(k, out _);
+            }
+        }
+
+        foreach (var k in _gitRepositoryRoots.Keys)
+        {
+            if (k.Equals(rootKey, StringComparison.OrdinalIgnoreCase) ||
+                k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                _gitRepositoryRoots.TryRemove(k, out _);
+            }
+        }
+
+        foreach (var k in _configuredProjects.Keys)
+        {
+            if (k.Equals(rootKey, StringComparison.OrdinalIgnoreCase) ||
+                k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                _configuredProjects.TryRemove(k, out _);
             }
         }
     }

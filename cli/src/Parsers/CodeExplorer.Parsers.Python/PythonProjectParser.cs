@@ -43,6 +43,12 @@ public class PythonProjectParser : IProjectParser
         string[] childFiles,
         IProjectParser candidateChildParser)
     {
+        if (PhysicalFileStore.TryGetConfiguredProject(childDirectoryPath, out _) ||
+            (PhysicalFileStore.IsGitRepositoryRoot(childDirectoryPath) && !PhysicalFileStore.HasChildGitRepositories(childDirectoryPath)))
+        {
+            return true;
+        }
+
         if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
         {
             return false;
@@ -118,6 +124,12 @@ public class PythonProjectParser : IProjectParser
                 return false;
             }
             return true;
+        }
+
+        if (PhysicalFileStore.HasChildGitRepositories(directoryPath) ||
+            PhysicalFileStore.HasChildConfiguredProjects(directoryPath))
+        {
+            return false;
         }
 
         if (HasNestedRequirementsManifest(directoryPath) && HasPythonFilesInSubtree(directoryPath))
@@ -212,12 +224,32 @@ public class PythonProjectParser : IProjectParser
         {
             var fn = Path.GetFileName(f);
             return fn.Equals("Dockerfile", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("compose.yaml", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("compose.yml", StringComparison.OrdinalIgnoreCase) ||
                    fn.Equals("docker-compose.yml", StringComparison.OrdinalIgnoreCase) ||
                    fn.Equals("docker-compose.yaml", StringComparison.OrdinalIgnoreCase) ||
                    fn.Equals(".coveragerc", StringComparison.OrdinalIgnoreCase) ||
                    fn.Equals("pytest.ini", StringComparison.OrdinalIgnoreCase) ||
                    fn.Equals("tox.ini", StringComparison.OrdinalIgnoreCase);
         });
+
+        if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath) &&
+            !PhysicalFileStore.HasChildGitRepositories(directoryPath))
+        {
+            var phpCount = 0;
+            var pyCount = 0;
+            var perlCount = 0;
+            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            {
+                if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
+                else if (file.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".inc", StringComparison.OrdinalIgnoreCase)) phpCount++;
+                else if (file.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".pm", StringComparison.OrdinalIgnoreCase)) perlCount++;
+            }
+            if (pyCount > 0 && pyCount > phpCount && pyCount >= perlCount)
+            {
+                return true;
+            }
+        }
 
         var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
         var pyChildCount = 0;

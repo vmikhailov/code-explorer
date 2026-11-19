@@ -565,8 +565,18 @@ public partial class Layer4SemanticParser
             }
 
             var workloadChildIds = workloadChildIdsByWorkload[workloadNode.Id];
-            foreach (var semNode in projectSemanticNodes)
+            for (var sIdx = 0; sIdx < projectSemanticNodes.Count; sIdx++)
             {
+                var semNode = projectSemanticNodes[sIdx];
+                if (semNode is ExternalServiceNode rawEs)
+                {
+                    var resolvedEs = ResolveLateExternalServiceCommandConstant(rawEs, projectTrees);
+                    if (!ReferenceEquals(resolvedEs, rawEs))
+                    {
+                        semNode = resolvedEs;
+                        projectSemanticNodes[sIdx] = resolvedEs;
+                    }
+                }
                 semanticNodes.Add(semNode);
                 if (semNode is EndpointNode or ExternalServiceNode)
                 {
@@ -610,6 +620,61 @@ public partial class Layer4SemanticParser
 
             ReportProgressIfNeeded();
         }
+    }
+
+    private const string PropTargetKey = "target";
+
+    private static ExternalServiceNode ResolveLateExternalServiceCommandConstant(
+        ExternalServiceNode es,
+        List<SyntaxTree> projectTrees)
+    {
+        if (es.Protocol is not ("MREG" or "KJS")) return es;
+        var rawTarget = es.Url ?? es.Path;
+        if (string.IsNullOrWhiteSpace(rawTarget)) return es;
+
+        string? resolved = null;
+        if (rawTarget.Contains("::", StringComparison.Ordinal))
+        {
+            var dotKey = rawTarget.Replace("::", ".", StringComparison.Ordinal).TrimStart('\\');
+            if (!ConstantRegistry.TryResolve(null, dotKey, out resolved) || string.IsNullOrWhiteSpace(resolved))
+            {
+                var leaf = rawTarget[(rawTarget.LastIndexOf("::", StringComparison.Ordinal) + 2)..];
+                ConstantRegistry.TryResolve(null, leaf, out resolved);
+            }
+        }
+        else if (rawTarget.All(c => char.IsUpper(c) || char.IsDigit(c) || c == '_') && rawTarget.Contains('_'))
+        {
+            ConstantRegistry.TryResolve(null, rawTarget, out resolved);
+        }
+
+        if (!string.IsNullOrWhiteSpace(resolved) && !string.Equals(resolved, rawTarget, StringComparison.Ordinal))
+        {
+            if (es.CustomProperties != null && es.CustomProperties.ContainsKey(PropTargetKey))
+            {
+                es.CustomProperties[PropTargetKey] = resolved;
+            }
+            var updated = es with
+            {
+                Name = $"{es.Protocol} {resolved}",
+                Path = resolved,
+                Url = resolved
+            };
+            foreach (var st in projectTrees)
+            {
+                var fn = st.FileNode;
+                if (fn == null) continue;
+                for (var i = 0; i < fn.Children.Count; i++)
+                {
+                    if (fn.Children[i].Id == es.Id)
+                    {
+                        fn.Children[i] = updated;
+                    }
+                }
+            }
+            return updated;
+        }
+
+        return es;
     }
 
     private static void MaterializeWorkloadDependencies(

@@ -5,6 +5,37 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.91.0] - 2026-11-19
+
+### Added
+- **Multi-Repo `.git` Boundary Detection & Explicit `.codeexplorer/settings.json` `"projects"` Support (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Python`, `CodeExplorer.Parsers.Perl`)**:
+  - Added nested `.git` repository boundary tracking (`PhysicalFileStore.RegisterGitRepositoryRoot` / `HasChildGitRepositories`) and `Dockerfile` / `compose.yaml` / `docker-compose.yml` container triggers so multi-repository workspaces without package manifests automatically detect each nested git repository as its own `Project` while preventing the umbrella parent directory from swallowing child repositories.
+  - Added `"projects": [{"name": "...", "path": "...", "language": "..."}]` support in `.codeexplorer/settings.json` (`WorkspaceSettings.Projects`) for declaring explicit project boundaries and names in manifestless workspaces.
+- **`ce query` Output Formats (`--format json|csv|tsv`), Positional Built-In Query Execution & Optional `$projectName` (`CodeExplorer`, `CodeExplorer.Analysis`)**:
+  - Added `--format yaml|json|csv|tsv` to `ce query`.
+  - Allowed passing built-in or saved custom query names directly as the positional argument to `ce query <query_name>` (in addition to `-n <query_name>`), and made `$projectName` / `$projectFilter` optional across built-in queries (`find_refactor_*`, `get_project_entry_points`, `get_architecture_map_project`, `get_project_dependencies_filtered`) so omitting `-p projectName=...` runs workspace-wide.
+- **Module Copy Drift Built-In Query (`find_module_copy_drift`) (`CodeExplorer.Analysis`)**:
+  - Added built-in Cypher query `find_module_copy_drift` comparing duplicate or forked module files across projects/folders by `content_hash` and `line_count` (`identical` vs `drifted` and `lineDelta`).
+- **Architecture Boundary Starter Gates in `ce gate init` (`CodeExplorer.Gates`, `CodeExplorer`)**:
+  - Expanded `ce gate init` with starter `.yaml.example` templates for protected table write boundaries (`table-write-boundary.yaml.example`), forbidden direct external service calls (`external-service-boundary.yaml.example`), and raw SQL outside the data-access layer (`no-raw-sql-outside-dal.yaml.example`).
+
+### Fixed
+- **Unified `Query -> Table` and `Function -> Table` Data Lineage Edges & Filtered Unrelated Queries (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`, `CodeExplorer.Analysis`)**:
+  - Fixed PHP and Perl `QueryNode` table references to pass the canonical table name so Layer 5 materializes `(Query)-[:READS_FROM|WRITES_TO]->(Table)` alongside `(Function)-[:READS_FROM|WRITES_TO]->(Table)`.
+  - Updated `NestedSqlParser.TryDetectSqlDependencies`, `BaseParserVisitor`, and `Layer3SyntacticParser` to emit and propagate `ReadsFrom` / `WritesTo` references from embedded SQL queries to enclosing functions (and `<module_init>`), and expanded `McpLineageFormatter` to traverse `(Table)<-[:WRITES_TO|READS_FROM]-(Query)-[:ACCESSED_BY]->(Function)` while filtering out unrelated queries in `inspect_data_lineage`.
+- **Duplicate Class Disambiguation in `get_task_context` (`CodeExplorer.Analysis`)**:
+  - Grouped `serviceMethods` in `McpContextPackBuilder` by `OwnerId` instead of `OwnerName` and deduplicated method entries so two copies of a class in different folders are listed with their respective file paths instead of merged.
+- **PHP Chained & String-Keyed Factory Method Calls & Constant Resolution in `ExternalService` Names (`CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`, `CodeExplorer.Indexing`)**:
+  - Added extraction and candidate target resolution for chained PHP method calls (`)->method(`) and string-keyed factory/datasource invocations (`$this->datasource('orders')->markPaidByIds($ids)`).
+  - Added PHP (`const`, `define`) and Perl (`use constant`) constant extraction and late Layer 4 resolution so command socket calls using `self::CONST`, `Class::CONST`, or Perl constants resolve to the underlying command name on `ExternalService` nodes.
+- **Concrete Class Fallback in `ce callers <Class> -m <method>` (`CodeExplorer.Analysis`, `CodeExplorer`, `CodeExplorer.Server`)**:
+  - Updated `ResolveCallTargetAsync` to fall back to `GetCallersAsync("<Class>.<method>")` when `<Class>` is a concrete class with no interface/subclass implementations.
+- **Vendored JavaScript Filtering & Post-Scan WAL Checkpointing (`CodeExplorer.Core`, `CodeExplorer.Storage`, `CodeExplorer`)**:
+  - Classified third-party frontend libraries under `/assets/js/<lib>/`, `/public/js/<lib>/`, `/vendor/`, and known library names (`select2`, `slick`, `bootstrap`, `jquery`, `tinymce`, etc.) as `artifact_role: "vendor"` and excluded `vendor` files from `find_refactor_*` anomaly queries.
+  - Added `PRAGMA wal_checkpoint(TRUNCATE);` after bulk load and identifier search index rebuilds so `graph.db-wal` is truncated immediately after `ce scan`, and added `wal_size_bytes` / `wal_size_mb` / `total_storage_mb` to `ce status`.
+
+---
+
 ## [1.90.14] - 2026-11-19
 
 ### Fixed

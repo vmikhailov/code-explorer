@@ -72,6 +72,7 @@ public class Layer1PhysicalParser
         var folders = new List<FolderNode>();
         var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
         PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
+        PhysicalFileStore.RegisterConfiguredProjects(ctx.AbsoluteWorkspacePath, WorkspaceSettings.Load(ctx.AbsoluteWorkspacePath).Projects);
 
         var discoveredDirs = new List<DiscoveredDirectoryEntry>();
         var vscodeTaskDirs = new List<string>();
@@ -284,6 +285,11 @@ public class Layer1PhysicalParser
             else if (sName.Equals(".vscode", StringComparison.OrdinalIgnoreCase)) hasVscodeSubDir = true;
         }
 
+        if (hasGitPointerFile || hasGitSubDir)
+        {
+            PhysicalFileStore.RegisterGitRepositoryRoot(currentDir);
+        }
+
         FolderNode? folderNode = null;
         var currentParentNode = parentNode;
 
@@ -347,6 +353,23 @@ public class Layer1PhysicalParser
                 inherited = rootParsers;
             }
 
+            if (entry.IsProjectRoot &&
+                (PhysicalFileStore.HasChildGitRepositories(entry.CurrentDir) ||
+                 PhysicalFileStore.HasChildConfiguredProjects(entry.CurrentDir)))
+            {
+                var cachedPaths = PhysicalFileStore.GetDirectoryFiles(entry.CurrentDir);
+                var rechecked = ctx.FileFilter.MatchDirectProjectParsers(
+                    entry.CurrentDir,
+                    entry.DirFiles,
+                    cachedPaths,
+                    allowFallback: false);
+                if (rechecked is not { Count: > 0 })
+                {
+                    entry = entry with { ActiveParsers = inherited, IsProjectRoot = false };
+                    discoveredDirs[i] = entry;
+                }
+            }
+
             if (!entry.IsProjectRoot)
             {
                 var cachedPaths = PhysicalFileStore.GetDirectoryFiles(entry.CurrentDir);
@@ -355,6 +378,16 @@ public class Layer1PhysicalParser
                     entry.DirFiles,
                     cachedPaths,
                     allowFallback: inherited is not { Count: > 0 });
+                if (direct is not { Count: > 0 } &&
+                    PhysicalFileStore.TryGetConfiguredProject(entry.CurrentDir, out var cfgProj) &&
+                    cfgProj != null)
+                {
+                    direct = ctx.FileFilter.ConnectedProjectParsers
+                        .Where(p => string.IsNullOrEmpty(cfgProj.Language) ||
+                                    p.ProjectType.Equals(cfgProj.Language, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
                 if (direct is { Count: > 0 })
                 {
                     entry = entry with { ActiveParsers = direct, IsProjectRoot = true };

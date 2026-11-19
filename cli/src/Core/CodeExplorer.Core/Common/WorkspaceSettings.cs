@@ -40,6 +40,12 @@ public sealed class WorkspaceSettings
     [JsonPropertyName("exclude")]
     public List<string> Exclude { get; set; } = [];
 
+    /// <summary>
+    /// Optional explicit project declarations for multi-repo or manifestless workspaces.
+    /// </summary>
+    [JsonPropertyName("projects")]
+    public List<WorkspaceProjectSetting>? Projects { get; set; }
+
     public static string GetSettingsPath(string workspaceRoot)
     {
         var ceDir = Path.Combine(workspaceRoot, WorkspaceLocator.FolderName);
@@ -71,6 +77,20 @@ public sealed class WorkspaceSettings
                 .Select(p => p.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            if (settings.Projects is { Count: > 0 })
+            {
+                settings.Projects = settings.Projects
+                    .Where(p => p != null && !string.IsNullOrWhiteSpace(p.Path))
+                    .Select(p => new WorkspaceProjectSetting
+                    {
+                        Name = string.IsNullOrWhiteSpace(p.Name)
+                            ? Path.GetFileName(p.Path.Trim().Trim('/', '\\'))
+                            : p.Name.Trim(),
+                        Path = p.Path.Trim().Replace('\\', '/').Trim('/'),
+                        Language = string.IsNullOrWhiteSpace(p.Language) ? null : p.Language.Trim().ToLowerInvariant()
+                    })
+                    .ToList();
+            }
             return settings;
         }
         catch
@@ -176,4 +196,16 @@ public sealed class WorkspaceSettings
 
         return normalized;
     }
+}
+
+public sealed class WorkspaceProjectSetting
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    [JsonPropertyName("language")]
+    public string? Language { get; set; }
 }

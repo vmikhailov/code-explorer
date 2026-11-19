@@ -1,5 +1,6 @@
-MATCH (p:Project {name: $projectName})<-[:BELONGS_TO]-(ps:ProjectSyntax)-[:CONTAINS]->(item)
-WHERE (item:Function OR item:Type)
+MATCH (p:Project)<-[:BELONGS_TO]-(ps:ProjectSyntax)-[:CONTAINS]->(item)
+WHERE ($projectName IS NULL OR $projectName = '' OR p.name = $projectName)
+  AND (item:Function OR item:Type)
   AND (item.is_test IS NULL OR item.is_test = false)
   AND item.name <> '<module_init>'
   AND NOT item.name STARTS WITH 'Jest:'
@@ -7,6 +8,7 @@ OPTIONAL MATCH (item)-[:DECLARED_IN]->(f:File)
 OPTIONAL MATCH (caller)-[:CALLS|USES_TYPE]->(item)
 WITH f, item, caller
 WHERE caller IS NULL
+  AND (f IS NULL OR coalesce(f.artifact_role, 'source') <> 'vendor')
   AND NOT coalesce(f.path, '') CONTAINS '.config.'
   AND NOT coalesce(f.path, '') CONTAINS 'jest.setup'
   AND NOT coalesce(f.path, '') CONTAINS 'jest.env'

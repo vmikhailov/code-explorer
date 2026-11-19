@@ -194,7 +194,8 @@ public partial class Layer2ProjectParser
         "cpanfile", "Makefile.PL", "Build.PL", "META.json", "META.yml", "dist.ini",
         "terragrunt.hcl", "root.hcl",
         "box.json", "Application.cfc", "Application.cfm",
-        "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "packages.config"
+        "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "packages.config",
+        "Dockerfile", "compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"
     };
 
     private static readonly HashSet<string> CandidateTriggerExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -211,6 +212,12 @@ public partial class Layer2ProjectParser
 
     private static bool HasCandidateProjectTrigger(string dir, string[] filesInDir)
     {
+        if (PhysicalFileStore.IsGitRepositoryRoot(dir) ||
+            PhysicalFileStore.TryGetConfiguredProject(dir, out _))
+        {
+            return true;
+        }
+
         if (filesInDir.Length == 0)
         {
             return IsPotentialManifestlessBinarySubfolder(dir);
@@ -289,6 +296,12 @@ public partial class Layer2ProjectParser
         EnclosingProjectScope? enclosingScope,
         DirectoryScanState state)
     {
+        if (PhysicalFileStore.TryGetConfiguredProject(dir, out _) ||
+            (PhysicalFileStore.IsGitRepositoryRoot(dir) && !PhysicalFileStore.HasChildGitRepositories(dir)))
+        {
+            return null;
+        }
+
         foreach (var (absPath, ownerNode) in state.AbsorbedDirectoryOwners)
         {
             if (normCurrentDir.Equals(absPath, StringComparison.OrdinalIgnoreCase) ||
@@ -359,12 +372,20 @@ public partial class Layer2ProjectParser
         EnclosingProjectScope? enclosingScope,
         ParsingContext ctx)
     {
+        var isExplicitConfigured = PhysicalFileStore.TryGetConfiguredProject(dir, out var configuredSetting) && configuredSetting != null;
+        if (!isExplicitConfigured && PhysicalFileStore.HasChildConfiguredProjects(dir))
+        {
+            return [];
+        }
+
+        var isNestedGitRepo = PhysicalFileStore.IsGitRepositoryRoot(dir) &&
+                              !PhysicalFileStore.HasChildGitRepositories(dir);
         var parseContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath);
         var matchedResults = new List<(IProjectParser Parser, ProjectParseResult Result)>();
 
         foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
         {
-            if (enclosingScope != null)
+            if (enclosingScope != null && !isExplicitConfigured && !isNestedGitRepo)
             {
                 if (!enclosingScope.IsOrchestrator &&
                     !HasExplicitManifestForParser(parser, filesInDir) &&
@@ -389,6 +410,28 @@ public partial class Layer2ProjectParser
             }
         }
 
+        if (isExplicitConfigured && configuredSetting != null)
+        {
+            if (matchedResults.Count == 0)
+            {
+                var fallbackParser = ResolveConfiguredProjectParser(dir, configuredSetting);
+                if (fallbackParser != null)
+                {
+                    var props = fallbackParser.ExtractManifestProperties(dir, filesInDir);
+                    var desc = new ParsedProjectDescriptor(configuredSetting.Name, dir, fallbackParser.ProjectType, props);
+                    matchedResults.Add((fallbackParser, new ProjectParseResult(desc)));
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(configuredSetting.Name))
+            {
+                for (var i = 0; i < matchedResults.Count; i++)
+                {
+                    var (p, r) = matchedResults[i];
+                    matchedResults[i] = (p, r with { Project = r.Project with { Name = configuredSetting.Name } });
+                }
+            }
+        }
+
         if (matchedResults.Count == 0)
         {
             return [];
@@ -397,6 +440,68 @@ public partial class Layer2ProjectParser
         var matchingParsers = matchedResults.Select(m => m.Parser).ToList();
         ProjectParserPrecedence.RemoveSuperseded(matchingParsers);
         return matchedResults.Where(m => matchingParsers.Contains(m.Parser)).ToList();
+    }
+
+    private static IProjectParser? ResolveConfiguredProjectParser(string dir, WorkspaceProjectSetting setting)
+    {
+        if (!string.IsNullOrWhiteSpace(setting.Language))
+        {
+            var byLang = WorkspaceIndexer._projectParsers.FirstOrDefault(p =>
+                !p.IsFallback && p.ProjectType.Equals(setting.Language, StringComparison.OrdinalIgnoreCase));
+            if (byLang != null)
+            {
+                return byLang;
+            }
+        }
+
+        var phpCount = 0;
+        var pyCount = 0;
+        var perlCount = 0;
+        var tsCount = 0;
+        var jsCount = 0;
+        var csCount = 0;
+        var goCount = 0;
+
+        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(dir))
+        {
+            switch (Path.GetExtension(file).ToLowerInvariant())
+            {
+                case ".php" or ".phtml" or ".inc":
+                    phpCount++;
+                    break;
+                case ".py":
+                    pyCount++;
+                    break;
+                case ".pl" or ".pm":
+                    perlCount++;
+                    break;
+                case ".ts" or ".tsx":
+                    tsCount++;
+                    break;
+                case ".js" or ".jsx":
+                    jsCount++;
+                    break;
+                case ".cs":
+                    csCount++;
+                    break;
+                case ".go":
+                    goCount++;
+                    break;
+            }
+        }
+
+        var dominantType = "php";
+        var maxCount = phpCount;
+        if (pyCount > maxCount) { dominantType = "python"; maxCount = pyCount; }
+        if (perlCount > maxCount) { dominantType = "perl"; maxCount = perlCount; }
+        if (tsCount > maxCount) { dominantType = "typescript"; maxCount = tsCount; }
+        if (jsCount > maxCount) { dominantType = "javascript"; maxCount = jsCount; }
+        if (csCount > maxCount) { dominantType = "csharp"; maxCount = csCount; }
+        if (goCount > maxCount) { dominantType = "go"; }
+
+        return WorkspaceIndexer._projectParsers.FirstOrDefault(p =>
+                   !p.IsFallback && p.ProjectType.Equals(dominantType, StringComparison.OrdinalIgnoreCase))
+               ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => !p.IsFallback);
     }
 
     private static List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<IProjectParser> MergedSecondaryParsers)>

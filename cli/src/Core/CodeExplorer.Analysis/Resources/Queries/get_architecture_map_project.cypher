@@ -1,4 +1,5 @@
-MATCH (p:Project {name: $projectName})
+MATCH (p:Project)
+WHERE $projectName IS NULL OR $projectName = '' OR p.name = $projectName
 OPTIONAL MATCH (p)-[:LOCATED_IN]->(target:Folder)-[:CONTAINS]->(pf:Folder)
 OPTIONAL MATCH (db:Database) WHERE db.id STARTS WITH p.id
 WITH p, collect(DISTINCT pf.name) AS folders, collect(DISTINCT db.name) AS projectDbs

@@ -159,10 +159,11 @@ internal static partial class McpContextPackBuilder
         if (allTypeIds.Count > 0)
         {
             var methodsRes = await client.ExecuteCypherAsync(ExpandTypeMethodsPrefix + BuildIdList(allTypeIds) + ExpandTypeMethodsSuffix, null, ct);
-            foreach (var grp in methodsRes.Rows.GroupBy(r => r.GetStringProp(ColOwnerName), StringComparer.Ordinal))
+            foreach (var grp in methodsRes.Rows.GroupBy(r => r.GetStringProp(ColOwnerId), StringComparer.Ordinal))
             {
-                if (string.IsNullOrEmpty(grp.Key)) continue;
-                serviceTypeNames.Add(grp.Key);
+                var ownerName = grp.First().GetStringProp(ColOwnerName);
+                if (string.IsNullOrEmpty(ownerName)) continue;
+                serviceTypeNames.Add(ownerName);
                 var firstPath = McpResultFormatter.CleanRelativePath(grp.First().GetStringProp(ColFilePath), workspaceRoot);
                 if (!string.IsNullOrEmpty(firstPath)) subgraphFiles.Add(firstPath);
 
@@ -178,9 +179,10 @@ internal static partial class McpContextPackBuilder
                         var el = m.GetLongProp(ColEndLine);
                         return el > sl ? $"{m.GetStringProp(ColName)} (L{sl}-L{el})" : $"{m.GetStringProp(ColName)} (L{sl})";
                     })
+                    .Distinct(StringComparer.Ordinal)
                     .ToList();
 
-                outlines.Add(new { serviceOrClass = grp.Key, filePath = firstPath, methods });
+                outlines.Add(new { serviceOrClass = ownerName, filePath = firstPath, methods });
             }
         }
 

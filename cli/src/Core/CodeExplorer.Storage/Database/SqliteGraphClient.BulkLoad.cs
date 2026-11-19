@@ -31,11 +31,13 @@ public partial class SqliteGraphClient
                   PRAGMA synchronous = NORMAL;
                   PRAGMA wal_autocheckpoint = 1000;
                   PRAGMA cache_size = -64000;
+                  PRAGMA wal_checkpoint(TRUNCATE);
                   """
                 : """
                   PRAGMA synchronous = NORMAL;
                   PRAGMA wal_autocheckpoint = 1000;
                   PRAGMA cache_size = -64000;
+                  PRAGMA wal_checkpoint(TRUNCATE);
                   """;
             await restoreCmd.ExecuteNonQueryAsync(CancellationToken.None);
         }

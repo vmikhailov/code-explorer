@@ -948,7 +948,10 @@ public partial class Layer3SyntacticParser
         }
 
         // 3. Emit canonical `<module_init>` FunctionNode if top-level statements/calls/references exist
-        var hasTopLevelMessagingRefs = fileNode.References.Any(r => r.Kind is RelationshipKind.PublishesTo or RelationshipKind.SubscribesTo);
+        var hasTopLevelMessagingRefs = fileNode.References.Any(r =>
+            r.Kind is RelationshipKind.PublishesTo or RelationshipKind.SubscribesTo ||
+            (r.Kind is RelationshipKind.ReadsFrom or RelationshipKind.WritesTo &&
+             (string.IsNullOrEmpty(r.ScopeSymbolId) || r.ScopeSymbolId == fileNode.Id)));
         if (HasTopLevelCallsOrStatements(doc) || hasTopLevelMessagingRefs)
         {
             const string moduleInitFunctionName = "<module_init>";
@@ -980,7 +983,9 @@ public partial class Layer3SyntacticParser
                 for (var rIdx = fileNode.References.Count - 1; rIdx >= 0; rIdx--)
                 {
                     var fileRef = fileNode.References[rIdx];
-                    if (fileRef.Kind is not (RelationshipKind.PublishesTo or RelationshipKind.SubscribesTo))
+                    var isTopLevelTableAccess = fileRef.Kind is RelationshipKind.ReadsFrom or RelationshipKind.WritesTo &&
+                                                (string.IsNullOrEmpty(fileRef.ScopeSymbolId) || fileRef.ScopeSymbolId == fileNode.Id);
+                    if (fileRef.Kind is not (RelationshipKind.PublishesTo or RelationshipKind.SubscribesTo) && !isTopLevelTableAccess)
                     {
                         continue;
                     }

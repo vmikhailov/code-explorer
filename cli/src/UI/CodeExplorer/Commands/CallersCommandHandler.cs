@@ -21,7 +21,7 @@ public class CallersCommandHandler : BaseCommandHandler
         var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
 
         var output = !string.IsNullOrWhiteSpace(opts.MethodName)
-            ? await repository.ResolveCallTargetAsync(opts.Target, opts.MethodName, ws.RootDirectory)
+            ? await repository.ResolveCallTargetAsync(opts.Target, opts.MethodName, ws.RootDirectory, includeTests: opts.IncludeTests)
             : await repository.GetCallersAsync(target: opts.Target, includeTests: opts.IncludeTests, workspacePath: ws.RootDirectory);
 
         Console.WriteLine(output);
