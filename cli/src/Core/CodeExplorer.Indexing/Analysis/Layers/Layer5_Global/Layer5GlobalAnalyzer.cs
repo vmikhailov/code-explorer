@@ -13,6 +13,7 @@ public partial class Layer5AnalysisParser
 
     public async Task<Layer5Result> ParseAsync(Layer4Result l4Result, ParsingContext ctx)
     {
+        var sw = Stopwatch.StartNew();
         _currentL4Result = l4Result;
         ctx.ReportProgress(68, "Layer 5: Global", "Starting late binding, cross-references & post-indexing analysis...");
         ctx.Layer5Log.ScanStarted();
@@ -80,7 +81,7 @@ public partial class Layer5AnalysisParser
         // 6. Materialize Layer 5 Logical Structure (LogicalStructure, Domain, BoundedContext)
         if (ctx.IncrementalChangedFiles == null) await MaterializeLogicalStructureAsync(l4Result, ctx);
 
-        ctx.Layer5Log.ScanCompleted();
+        ctx.Layer5Log.ScanCompleted(sw.ElapsedMilliseconds);
         return new Layer5Result(l4Result, lateBoundRels);
     }
 
@@ -96,6 +97,7 @@ public partial class Layer5AnalysisParser
 
     private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
     {
+        var sw = Stopwatch.StartNew();
         var totalReferences = ctx.GlobalReferences.Count;
         ctx.ReportProgress(71, "Layer 5: Global", $"Resolving {totalReferences} global cross-references...");
         ctx.Layer5Log.ResolvingCrossReferences(totalReferences);
@@ -133,7 +135,7 @@ public partial class Layer5AnalysisParser
             ResolveDeferredParamMessagingReferences(deferredParamMessagingRefs, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
         }
 
-        ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count);
+        ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count, sw.ElapsedMilliseconds);
 
         if (newTopicNodes.Count > 0)
         {
@@ -157,6 +159,7 @@ public partial class Layer5AnalysisParser
         ParsingContext ctx,
         List<Relationship>? referenceRelationships = null)
     {
+        var sw = Stopwatch.StartNew();
         var workspaceNode = l4Result.Prev.Prev.Prev.Workspace;
         var allProjects = l4Result.Prev.Prev.Projects.ToList();
 
@@ -564,7 +567,7 @@ public partial class Layer5AnalysisParser
 
         if (boundServicesCount > 0)
         {
-            ctx.Layer5Log.LateBindingCompleted(boundServicesCount);
+            ctx.Layer5Log.LateBindingCompleted(boundServicesCount, sw.ElapsedMilliseconds);
         }
 
         if (lateBoundRels.Count > 0)

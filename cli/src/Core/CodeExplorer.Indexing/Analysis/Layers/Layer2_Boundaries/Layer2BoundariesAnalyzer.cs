@@ -9,6 +9,7 @@ public partial class Layer2ProjectParser
 {
     public async Task<Layer2Result> ParseAsync(Layer1Result l1Result, ParsingContext ctx)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         ctx.Layer2Log.ScanStarted();
 
         var projectsStructureNode = new ProjectsStructureNode(
@@ -95,7 +96,7 @@ public partial class Layer2ProjectParser
 
         SharedFileEnricher.Enrich(l1Result.Files, projects, ctx);
 
-        ctx.Layer2Log.ScanCompleted(projects.Count, packages.Count);
+        ctx.Layer2Log.ScanCompleted(projects.Count, packages.Count, sw.ElapsedMilliseconds);
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
 

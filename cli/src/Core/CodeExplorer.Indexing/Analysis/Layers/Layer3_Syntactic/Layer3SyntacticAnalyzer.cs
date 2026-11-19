@@ -14,6 +14,7 @@ public partial class Layer3SyntacticParser
 {
     public async Task<Layer3Result> ParseAsync(Layer2Result l2Result, ParsingContext ctx)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         ctx.Layer3Log.ScanStarted();
 
         WorkspaceConventions.LoadFromWorkspace(l2Result.Prev.Workspace.Path);
@@ -272,7 +273,7 @@ public partial class Layer3SyntacticParser
         }
 
         PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
-        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count);
+        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count, sw.ElapsedMilliseconds);
         return new Layer3Result(
             l2Result,
             syntaxStructureNode,

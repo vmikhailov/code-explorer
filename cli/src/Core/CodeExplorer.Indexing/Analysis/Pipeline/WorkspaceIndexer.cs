@@ -93,6 +93,7 @@ public class WorkspaceIndexer
         IProgress<IndexingProgress>? progress = null,
         bool enableIntentAnalysis = false)
     {
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
         string root;
         string? scanPath = null;
 
@@ -137,7 +138,7 @@ public class WorkspaceIndexer
         await RunParsingPipelineAsync(ctx);
 
         ctx.ReportProgress(100, CompletedProgressTitle, CompletedProgressMessage, ctx.TotalNodesCount, ctx.TotalNodesCount);
-        ctx.PipelineLog.IndexingCompleted(ctx.TotalNodesCount, ctx.TotalRelsCount);
+        ctx.PipelineLog.IndexingCompleted(ctx.TotalNodesCount, ctx.TotalRelsCount, totalSw.ElapsedMilliseconds);
 
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
@@ -259,6 +260,7 @@ public class WorkspaceIndexer
         IReadOnlyList<SyntaxTree> syntaxTrees,
         ParsingContext ctx)
     {
+        var regSw = System.Diagnostics.Stopwatch.StartNew();
         ctx.PipelineLog.SyncingFileRegistry(files.Count);
 
         var parallelOptions = new ParallelOptions
@@ -390,6 +392,8 @@ public class WorkspaceIndexer
                 await _dbClient.DeleteFileRegistryEntriesAsync(staleKeys, ctx.CancellationToken);
             }
         }
+
+        ctx.PipelineLog.FileRegistrySynced(entries.Count, regSw.ElapsedMilliseconds);
     }
 
     public bool HasLoadedFileRegistry => _fileRegistry.Count > 0;
@@ -413,6 +417,7 @@ public class WorkspaceIndexer
         bool enableIntentAnalysis = false,
         IReadOnlyCollection<string>? knownChangedFiles = null)
     {
+        var incSw = System.Diagnostics.Stopwatch.StartNew();
         var root = string.IsNullOrWhiteSpace(workspaceRoot) ? targetPath : workspaceRoot;
         var absoluteWorkspacePath = Path.GetFullPath(root).Replace('\\', '/');
         var absoluteTargetPath = Path.GetFullPath(targetPath).Replace('\\', '/');
@@ -471,7 +476,7 @@ public class WorkspaceIndexer
         }
         if (changeset.IsEmpty)
         {
-            _logger.LogInformation("[Incremental] Workspace is up to date (0 changes detected).");
+            _logger.LogInformation("[Incremental] Workspace is up to date (0 changes detected) in {ElapsedMs:N0}ms.", incSw.ElapsedMilliseconds);
             return false;
         }
 
@@ -725,16 +730,16 @@ public class WorkspaceIndexer
             incCtx.IncrementalRelevantDirectories = relevantDirs;
 
             await RunParsingPipelineAsync(incCtx);
-            incCtx.PipelineLog.IndexingCompleted(incCtx.TotalNodesCount, incCtx.TotalRelsCount);
+            incCtx.PipelineLog.IndexingCompleted(incCtx.TotalNodesCount, incCtx.TotalRelsCount, incSw.ElapsedMilliseconds);
         }
         else if (changeset.Deleted.Count == 0 && filesToUpdateRegistry.Count == 0)
         {
-            _logger.LogInformation("[Incremental] Workspace is up to date (0 effective changes detected).");
+            _logger.LogInformation("[Incremental] Workspace is up to date (0 effective changes detected) in {ElapsedMs:N0}ms.", incSw.ElapsedMilliseconds);
             return false;
         }
         else
         {
-            _logger.LogInformation("[Incremental:Decision] All modifications were logic-only; graph remains unchanged.");
+            _logger.LogInformation("[Incremental:Decision] All modifications were logic-only; graph remains unchanged ({ElapsedMs:N0}ms).", incSw.ElapsedMilliseconds);
         }
 
         return true;

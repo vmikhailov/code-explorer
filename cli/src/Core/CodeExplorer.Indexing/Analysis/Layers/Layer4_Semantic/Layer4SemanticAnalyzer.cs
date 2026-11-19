@@ -13,6 +13,7 @@ public partial class Layer4SemanticParser
 {
     public async Task<Layer4Result> ParseAsync(Layer3Result l3Result, ParsingContext ctx)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         ctx.Layer4Log.ScanStarted();
 
         var semanticNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SemanticStructure}";
@@ -168,7 +169,7 @@ public partial class Layer4SemanticParser
             }
         }
 
-        ctx.Layer4Log.ScanCompleted(semanticNodes.Count);
+        ctx.Layer4Log.ScanCompleted(semanticNodes.Count, sw.ElapsedMilliseconds);
         return new Layer4Result(l3Result, semanticStructureNode, semanticNodes, semanticRelationships);
     }
 

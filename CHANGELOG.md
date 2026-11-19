@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.9] - 2026-11-19
+
+### Changed
+- **Stage-by-Stage & Total Scan Duration Telemetry in Indexing Logs (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer`)**:
+  - Updated `PipelineLoggers` (`Layer1LogMessages`, `Layer2LogMessages`, `Layer3LogMessages`, `Layer4LogMessages`, `Layer5LogMessages`, `PipelineLogMessages`), `WorkspaceIndexer`, and `ScanCommandHandler` to record and log the exact elapsed time (`{ElapsedMs:N0}ms`) of every pipeline stage (`Layer 1` through `Layer 5`, cross-reference resolution, late-binding, incremental file registry synchronization) as well as total indexing duration (`{ElapsedMs:N0}ms ({ElapsedSeconds:F2}s)`).
+
+---
+
 ## [1.90.8] - 2026-11-18
 
 ### Changed

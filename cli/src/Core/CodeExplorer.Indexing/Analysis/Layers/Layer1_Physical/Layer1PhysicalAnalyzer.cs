@@ -7,6 +7,7 @@ public class Layer1PhysicalParser
 {
     public async Task<Layer1Result> ParseAsync(ParsingContext ctx)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         ctx.Layer1Log.ScanStarted();
 
         // 0. Get or create Workspace ID from database (auto-incremented)
@@ -118,7 +119,7 @@ public class Layer1PhysicalParser
 
         AttachNonEmptyFolders(discoveredDirs, folders);
 
-        ctx.Layer1Log.ScanCompleted(files.Count, folders.Count);
+        ctx.Layer1Log.ScanCompleted(files.Count, folders.Count, sw.ElapsedMilliseconds);
         return new Layer1Result(workspaceNode, filesStructureNode, files, folders);
     }
 

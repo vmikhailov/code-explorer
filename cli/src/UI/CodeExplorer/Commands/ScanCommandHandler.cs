@@ -73,6 +73,7 @@ public static class ScanCommandHandler
             var indexer = new WorkspaceIndexer(client, indexerLogger);
 
             var performedFullIndex = false;
+            var scanSw = System.Diagnostics.Stopwatch.StartNew();
 
             if (!shouldClear && hasExistingRegistry)
             {
@@ -84,25 +85,26 @@ public static class ScanCommandHandler
 
                     var changed = await indexer.IndexIncrementalAsync(targetPath, ws.RootDirectory,
                         enableIntentAnalysis: false);
+                    scanSw.Stop();
 
                     if (!changed)
                     {
                         Console.ForegroundColor = ConsoleColor.Green;
 
                         Console.WriteLine(
-                            "\n✓ Workspace is up to date (0 changes detected). Use --clear to force a full re-index.");
+                            $"\n✓ Workspace is up to date (0 changes detected) in {scanSw.ElapsedMilliseconds:N0}ms. Use --clear to force a full re-index.");
                         Console.ResetColor();
                     }
                     else
                     {
                         Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("\n✓ Incremental indexing completed successfully!");
+                        Console.WriteLine($"\n✓ Incremental indexing completed successfully in {scanSw.Elapsed.TotalSeconds:F2}s ({scanSw.ElapsedMilliseconds:N0}ms)!");
                         Console.ResetColor();
                     }
 
                     var (nodesCount, relsCount) = await client.GetGraphCountsAsync();
                     var nodesByKind = await client.GetNodesBreakdownAsync();
-                    PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
+                    PrintNodesBreakdown(nodesCount, relsCount, nodesByKind, scanSw.Elapsed);
                 }
                 else
                 {
@@ -116,9 +118,11 @@ public static class ScanCommandHandler
 
             if (performedFullIndex)
             {
+                scanSw.Restart();
                 var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath,
                     ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: false);
-                PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
+                scanSw.Stop();
+                PrintNodesBreakdown(nodesCount, relsCount, nodesByKind, scanSw.Elapsed);
             }
 
             if (opts.Watch)
@@ -198,10 +202,11 @@ public static class ScanCommandHandler
         }
     }
 
-    private static void PrintNodesBreakdown(int nodesCount, int relsCount, Dictionary<string, int> nodesByKind)
+    private static void PrintNodesBreakdown(int nodesCount, int relsCount, Dictionary<string, int> nodesByKind, TimeSpan? elapsed = null)
     {
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");
+        var timeSuffix = elapsed.HasValue ? $" in {elapsed.Value.TotalSeconds:F2}s ({elapsed.Value.TotalMilliseconds:N0}ms)" : string.Empty;
+        Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships{timeSuffix}!");
         Console.ResetColor();
 
         Console.WriteLine("Nodes breakdown:");

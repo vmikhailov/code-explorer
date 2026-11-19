@@ -7,8 +7,8 @@ public static partial class Layer1LogMessages
     [LoggerMessage(EventId = 1001, Level = LogLevel.Information, Message = "[Layer 1    ] Starting physical scan of directory topology...")]
     public static partial void StartingPhysicalScan(ILogger logger);
 
-    [LoggerMessage(EventId = 1002, Level = LogLevel.Information, Message = "[Layer 1    ] Physical topology scan complete. Found {FileCount} files, {FolderCount} folders.")]
-    public static partial void PhysicalScanComplete(ILogger logger, int fileCount, int folderCount);
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Information, Message = "[Layer 1    ] Physical topology scan complete in {ElapsedMs:N0}ms. Found {FileCount} files, {FolderCount} folders.")]
+    public static partial void PhysicalScanComplete(ILogger logger, long elapsedMs, int fileCount, int folderCount);
 
     [LoggerMessage(EventId = 1003, Level = LogLevel.Debug, Message = "[Layer 1    ] Skipping excluded directory: '{RelativeDir}'")]
     public static partial void SkippingExcludedDirectory(ILogger logger, string relativeDir);
@@ -29,7 +29,7 @@ public static partial class Layer1LogMessages
 public readonly struct Layer1Logger(ILogger logger)
 {
     public void ScanStarted() => Layer1LogMessages.StartingPhysicalScan(logger);
-    public void ScanCompleted(int fileCount, int folderCount) => Layer1LogMessages.PhysicalScanComplete(logger, fileCount, folderCount);
+    public void ScanCompleted(int fileCount, int folderCount, long elapsedMs = 0) => Layer1LogMessages.PhysicalScanComplete(logger, elapsedMs, fileCount, folderCount);
     public void SkippingExcludedDirectory(string relativeDir) => Layer1LogMessages.SkippingExcludedDirectory(logger, relativeDir);
     public void SkippingGitIgnoredDirectory(string relativeDir) => Layer1LogMessages.SkippingGitIgnoredDirectory(logger, relativeDir);
     public void FileReadFailed(string relativeFile, Exception ex) => Layer1LogMessages.FileReadFailed(logger, relativeFile, ex.Message, ex);
@@ -45,8 +45,8 @@ public static partial class Layer2LogMessages
     [LoggerMessage(EventId = 2002, Level = LogLevel.Information, Message = "[Layer 2    ] Resolved and enqueued {DependencyCount} project dependencies.")]
     public static partial void ResolvedDependencies(ILogger logger, int dependencyCount);
 
-    [LoggerMessage(EventId = 2003, Level = LogLevel.Information, Message = "[Layer 2    ] Project detection scan complete. Found {ProjectCount} projects, {PackageCount} package nodes.")]
-    public static partial void BoundaryScanComplete(ILogger logger, int projectCount, int packageCount);
+    [LoggerMessage(EventId = 2003, Level = LogLevel.Information, Message = "[Layer 2    ] Project detection scan complete in {ElapsedMs:N0}ms. Found {ProjectCount} projects, {PackageCount} package nodes.")]
+    public static partial void BoundaryScanComplete(ILogger logger, long elapsedMs, int projectCount, int packageCount);
 
     [LoggerMessage(EventId = 2004, Level = LogLevel.Warning, Message = "[Layer 2    ] Sibling library scan error in '{LibRoot}': {ErrorMessage}")]
     public static partial void SiblingLibraryScanError(ILogger logger, string libRoot, string errorMessage, Exception? ex);
@@ -62,7 +62,7 @@ public readonly struct Layer2Logger(ILogger logger)
 {
     public void ScanStarted() => Layer2LogMessages.StartingBoundaryScan(logger);
     public void DependenciesEnqueued(int dependencyCount) => Layer2LogMessages.ResolvedDependencies(logger, dependencyCount);
-    public void ScanCompleted(int projectCount, int packageCount) => Layer2LogMessages.BoundaryScanComplete(logger, projectCount, packageCount);
+    public void ScanCompleted(int projectCount, int packageCount, long elapsedMs = 0) => Layer2LogMessages.BoundaryScanComplete(logger, elapsedMs, projectCount, packageCount);
     public void SiblingLibraryScanError(string libRoot, Exception ex) => Layer2LogMessages.SiblingLibraryScanError(logger, libRoot, ex.Message, ex);
     public void DependencyParseFailed(string projectType, string projectDir, string errorMessage, Exception ex) => Layer2LogMessages.DependencyParseError(logger, projectType, projectDir, errorMessage, ex);
     public void ProducedPackageParseFailed(string projectType, string projectDir, string errorMessage, Exception ex) => Layer2LogMessages.ProducedPackageError(logger, projectType, projectDir, errorMessage, ex);
@@ -88,8 +88,8 @@ public static partial class Layer3LogMessages
     [LoggerMessage(EventId = 3006, Level = LogLevel.Warning, Message = "[Layer 3    ] Error processing visitor for '{FilePath}': {ErrorMessage}")]
     public static partial void VisitorProcessingError(ILogger logger, string filePath, string errorMessage, Exception? ex);
 
-    [LoggerMessage(EventId = 3007, Level = LogLevel.Information, Message = "[Layer 3    ] Syntactic parsing pass complete. Parsed {SyntaxTreeCount} files.")]
-    public static partial void SyntacticScanComplete(ILogger logger, int syntaxTreeCount);
+    [LoggerMessage(EventId = 3007, Level = LogLevel.Information, Message = "[Layer 3    ] Syntactic parsing pass complete in {ElapsedMs:N0}ms. Parsed {SyntaxTreeCount} files.")]
+    public static partial void SyntacticScanComplete(ILogger logger, long elapsedMs, int syntaxTreeCount);
 
     [LoggerMessage(EventId = 3008, Level = LogLevel.Information, Message = "[Layer 3    ] Running in-memory AST visitors across {TotalFiles} parsed syntax trees...")]
     public static partial void StartingInMemoryVisitors(ILogger logger, int totalFiles);
@@ -108,7 +108,7 @@ public readonly struct Layer3Logger(ILogger logger)
     public void VisitorProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.VisitorProgress(logger, completed, totalFiles, percentage, projectName);
     public void FileParseFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.FileParseError(logger, filePath, errorMessage, ex);
     public void VisitorFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.VisitorProcessingError(logger, filePath, errorMessage, ex);
-    public void ScanCompleted(int syntaxTreeCount) => Layer3LogMessages.SyntacticScanComplete(logger, syntaxTreeCount);
+    public void ScanCompleted(int syntaxTreeCount, long elapsedMs = 0) => Layer3LogMessages.SyntacticScanComplete(logger, elapsedMs, syntaxTreeCount);
 }
 
 public static partial class Layer4LogMessages
@@ -128,8 +128,8 @@ public static partial class Layer4LogMessages
     [LoggerMessage(EventId = 4005, Level = LogLevel.Debug, Message = "[Layer 4    ] Queuing workspace ontology tree for database persistence...")]
     public static partial void QueuingOntologyTree(ILogger logger);
 
-    [LoggerMessage(EventId = 4006, Level = LogLevel.Information, Message = "[Layer 4    ] Semantic enrichment pass complete. Identified {SemanticNodeCount} semantic nodes.")]
-    public static partial void SemanticPassComplete(ILogger logger, int semanticNodeCount);
+    [LoggerMessage(EventId = 4006, Level = LogLevel.Information, Message = "[Layer 4    ] Semantic enrichment pass complete in {ElapsedMs:N0}ms. Identified {SemanticNodeCount} semantic nodes.")]
+    public static partial void SemanticPassComplete(ILogger logger, long elapsedMs, int semanticNodeCount);
 
     [LoggerMessage(EventId = 4007, Level = LogLevel.Information, Message = "[Layer 4    ] Enriched {Processed}/{Total} projects ({Percentage}%) - {ProjectName}...")]
     public static partial void EnrichedProjectProgress(ILogger logger, int processed, int total, int percentage, string projectName);
@@ -145,7 +145,7 @@ public readonly struct Layer4Logger(ILogger logger)
     public void MaterializingWorkloads(int totalProjects) => Layer4LogMessages.MaterializingWorkloadHierarchy(logger, totalProjects);
     public void UploadingSemanticRelationships(int relationshipCount) => Layer4LogMessages.UploadingSemanticRelationships(logger, relationshipCount);
     public void QueuingOntologyTree() => Layer4LogMessages.QueuingOntologyTree(logger);
-    public void ScanCompleted(int semanticNodeCount) => Layer4LogMessages.SemanticPassComplete(logger, semanticNodeCount);
+    public void ScanCompleted(int semanticNodeCount, long elapsedMs = 0) => Layer4LogMessages.SemanticPassComplete(logger, elapsedMs, semanticNodeCount);
     public void EnrichingProgress(int processed, int total, int percentage, string projectName) => Layer4LogMessages.EnrichedProjectProgress(logger, processed, total, percentage, projectName);
     public void ConfigParseFailed(string relativePath, Exception ex) => Layer4LogMessages.ConfigParseFailed(logger, relativePath, ex.Message, ex);
 }
@@ -164,8 +164,8 @@ public static partial class Layer5LogMessages
     [LoggerMessage(EventId = 5004, Level = LogLevel.Information, Message = "[Layer 5    ] Running in-memory post-indexing analysis via PostIndexAnalyzer...")]
     public static partial void RunningInMemoryPostIndexAnalysis(ILogger logger);
 
-    [LoggerMessage(EventId = 5005, Level = LogLevel.Information, Message = "[Layer 5    ] Late binding and post-indexing analysis pass complete.")]
-    public static partial void GlobalPassComplete(ILogger logger);
+    [LoggerMessage(EventId = 5005, Level = LogLevel.Information, Message = "[Layer 5    ] Late binding and post-indexing analysis pass complete in {ElapsedMs:N0}ms.")]
+    public static partial void GlobalPassComplete(ILogger logger, long elapsedMs);
 
     [LoggerMessage(EventId = 5006, Level = LogLevel.Information, Message = "[Layer 5    ] Uploading {Count} local project dependency relationships...")]
     public static partial void UploadingProjectDependencies(ILogger logger, int count);
@@ -176,8 +176,8 @@ public static partial class Layer5LogMessages
     [LoggerMessage(EventId = 5008, Level = LogLevel.Information, Message = "[Layer 5    ] Resolving global cross-references: {Resolved}/{Total} ({Percentage}%)...")]
     public static partial void ResolvingCrossReferencesProgress(ILogger logger, int resolved, int total, int percentage);
 
-    [LoggerMessage(EventId = 5009, Level = LogLevel.Information, Message = "[Layer 5    ] Resolved {Resolved}/{Total} global cross-references ({EdgeCount} edges).")]
-    public static partial void ResolvedCrossReferencesComplete(ILogger logger, int resolved, int total, int edgeCount);
+    [LoggerMessage(EventId = 5009, Level = LogLevel.Information, Message = "[Layer 5    ] Resolved {Resolved}/{Total} global cross-references ({EdgeCount} edges) in {ElapsedMs:N0}ms.")]
+    public static partial void ResolvedCrossReferencesComplete(ILogger logger, int resolved, int total, int edgeCount, long elapsedMs);
 
     [LoggerMessage(EventId = 5010, Level = LogLevel.Debug, Message = "[Layer 5    ] Uploading {Count} resolved reference relationships...")]
     public static partial void UploadingReferenceRelationships(ILogger logger, int count);
@@ -203,8 +203,8 @@ public static partial class Layer5LogMessages
     [LoggerMessage(EventId = 5017, Level = LogLevel.Information, Message = "[Layer 5    ] Late-binding progress: {Processed}/{Total} external services ({Percentage}%)...")]
     public static partial void LateBindingProgress(ILogger logger, int processed, int total, int percentage);
 
-    [LoggerMessage(EventId = 5018, Level = LogLevel.Information, Message = "[Layer 5    ] Successfully bound {BoundCount} ExternalService call(s) to endpoints/entrypoints.")]
-    public static partial void LateBindingComplete(ILogger logger, int boundCount);
+    [LoggerMessage(EventId = 5018, Level = LogLevel.Information, Message = "[Layer 5    ] Successfully bound {BoundCount} ExternalService call(s) to endpoints/entrypoints in {ElapsedMs:N0}ms.")]
+    public static partial void LateBindingComplete(ILogger logger, int boundCount, long elapsedMs);
 
     [LoggerMessage(EventId = 5019, Level = LogLevel.Debug, Message = "[Layer 5    ] Uploading {Count} late-bound relationships...")]
     public static partial void UploadingLateBoundRelationships(ILogger logger, int count);
@@ -225,11 +225,11 @@ public readonly struct Layer5Logger(ILogger logger)
     public void UploadingBelongsToRelationships(int count) => Layer5LogMessages.UploadingBelongsToRelationships(logger, count);
     public void RunningGlobalPostIndexAnalysis() => Layer5LogMessages.RunningGlobalPostIndexAnalysis(logger);
     public void RunningInMemoryPostIndexAnalysis() => Layer5LogMessages.RunningInMemoryPostIndexAnalysis(logger);
-    public void ScanCompleted() => Layer5LogMessages.GlobalPassComplete(logger);
+    public void ScanCompleted(long elapsedMs = 0) => Layer5LogMessages.GlobalPassComplete(logger, elapsedMs);
     public void UploadingProjectDependencies(int count) => Layer5LogMessages.UploadingProjectDependencies(logger, count);
     public void ResolvingCrossReferences(int totalReferences) => Layer5LogMessages.ResolvingCrossReferences(logger, totalReferences);
     public void CrossReferenceProgress(int resolved, int total, int percentage) => Layer5LogMessages.ResolvingCrossReferencesProgress(logger, resolved, total, percentage);
-    public void CrossReferencesResolved(int resolved, int total, int edgeCount) => Layer5LogMessages.ResolvedCrossReferencesComplete(logger, resolved, total, edgeCount);
+    public void CrossReferencesResolved(int resolved, int total, int edgeCount, long elapsedMs = 0) => Layer5LogMessages.ResolvedCrossReferencesComplete(logger, resolved, total, edgeCount, elapsedMs);
     public void UploadingReferenceRelationships(int count) => Layer5LogMessages.UploadingReferenceRelationships(logger, count);
     public void LateBindingStarted(int externalServiceCount, int endpointCount, int entryPointCount) => Layer5LogMessages.StartingLateBinding(logger, externalServiceCount, endpointCount, entryPointCount);
     public void BindingToEntryPoint(string serviceId, string entryPointId) => Layer5LogMessages.BindingExternalServiceToEntryPoint(logger, serviceId, entryPointId);
@@ -238,7 +238,7 @@ public readonly struct Layer5Logger(ILogger logger)
     public void SynthesizedDependencyViaEndpoint(string callerProject, string targetProject, string? routeTemplate) => Layer5LogMessages.SynthesizedEndpointDependency(logger, callerProject, targetProject, routeTemplate);
     public void InferredDependencyViaDomain(string callerProject, string targetProject, string serviceDomain) => Layer5LogMessages.InferredDomainDependency(logger, callerProject, targetProject, serviceDomain);
     public void LateBindingProgress(int processed, int total, int percentage) => Layer5LogMessages.LateBindingProgress(logger, processed, total, percentage);
-    public void LateBindingCompleted(int boundCount) => Layer5LogMessages.LateBindingComplete(logger, boundCount);
+    public void LateBindingCompleted(int boundCount, long elapsedMs = 0) => Layer5LogMessages.LateBindingComplete(logger, boundCount, elapsedMs);
     public void UploadingLateBoundRelationships(int count) => Layer5LogMessages.UploadingLateBoundRelationships(logger, count);
     public void PreloadingTargetedSymbols(int symbolCount) => Layer5LogMessages.StartingTargetedPreload(logger, symbolCount);
     public void PreloadedTargetedSymbols(int addedCount) => Layer5LogMessages.TargetedPreloadComplete(logger, addedCount);
@@ -247,8 +247,8 @@ public readonly struct Layer5Logger(ILogger logger)
 
 public static partial class PipelineLogMessages
 {
-    [LoggerMessage(EventId = 6001, Level = LogLevel.Information, Message = "[Indexer    ] Indexing process completed successfully! Total Nodes: {TotalNodes:N0}, Total Relationships: {TotalRelationships:N0}.")]
-    public static partial void IndexingCompleted(ILogger logger, int totalNodes, int totalRelationships);
+    [LoggerMessage(EventId = 6001, Level = LogLevel.Information, Message = "[Indexer    ] Indexing process completed successfully in {ElapsedMs:N0}ms ({ElapsedSeconds:F2}s)! Total Nodes: {TotalNodes:N0}, Total Relationships: {TotalRelationships:N0}.")]
+    public static partial void IndexingCompleted(ILogger logger, long elapsedMs, double elapsedSeconds, int totalNodes, int totalRelationships);
 
     [LoggerMessage(EventId = 6002, Level = LogLevel.Warning, Message = "[Indexer    ] Recorded {TotalIssues} scan/parse issue(s) in graph ({SyntaxErrorCount} syntax error(s), {OtherErrorCount} runtime/manifest issue(s)). Query via: MATCH (i:ScanIssue) RETURN i")]
     public static partial void RecordedScanIssuesSummary(ILogger logger, int totalIssues, int syntaxErrorCount, int otherErrorCount);
@@ -258,6 +258,9 @@ public static partial class PipelineLogMessages
 
     [LoggerMessage(EventId = 6004, Level = LogLevel.Information, Message = "[Incremental] Persisting {EntryCount} file registry metadata and snapshot entries to SQLite...")]
     public static partial void PersistingFileRegistry(ILogger logger, int entryCount);
+
+    [LoggerMessage(EventId = 6018, Level = LogLevel.Information, Message = "[Incremental] Synchronized and persisted {EntryCount} file registry entries in {ElapsedMs:N0}ms.")]
+    public static partial void FileRegistrySynced(ILogger logger, int entryCount, long elapsedMs);
 
     [LoggerMessage(EventId = 6005, Level = LogLevel.Information, Message = "[Incremental] Pruning {StaleCount} obsolete file registry entries from SQLite...")]
     public static partial void PruningFileRegistry(ILogger logger, int staleCount);
@@ -301,10 +304,11 @@ public static partial class PipelineLogMessages
 
 public readonly struct PipelineLogger(ILogger logger)
 {
-    public void IndexingCompleted(int totalNodes, int totalRelationships) => PipelineLogMessages.IndexingCompleted(logger, totalNodes, totalRelationships);
+    public void IndexingCompleted(int totalNodes, int totalRelationships, long elapsedMs = 0) => PipelineLogMessages.IndexingCompleted(logger, elapsedMs, elapsedMs / 1000.0, totalNodes, totalRelationships);
     public void RecordedScanIssues(int totalIssues, int syntaxErrorCount, int otherErrorCount) => PipelineLogMessages.RecordedScanIssuesSummary(logger, totalIssues, syntaxErrorCount, otherErrorCount);
     public void SyncingFileRegistry(int fileCount) => PipelineLogMessages.SynchronizingFileRegistry(logger, fileCount);
     public void PersistingFileRegistry(int entryCount) => PipelineLogMessages.PersistingFileRegistry(logger, entryCount);
+    public void FileRegistrySynced(int entryCount, long elapsedMs) => PipelineLogMessages.FileRegistrySynced(logger, entryCount, elapsedMs);
     public void PruningFileRegistry(int staleCount) => PipelineLogMessages.PruningFileRegistry(logger, staleCount);
     public void ClearingWorkspaceData(string targetPath) => PipelineLogMessages.ClearingDatabaseData(logger, targetPath);
     public void PersistenceSummary(int nodeCount, int relationshipCount) => PipelineLogMessages.QueuedOntologyTree(logger, nodeCount, relationshipCount);
