@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.6] - 2026-11-18
+
+### Changed
+- **Layer 2 Directory Subtree Pruning, In-Memory `PhysicalFileStore` Resolution & Driver Memoization (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.CSharp`, `CodeExplorer.Parsers.TypeScript`, `CodeExplorer.Parsers.Java`, `CodeExplorer.Parsers.Kotlin`)**:
+  - Added bottom-up `SubtreeHasCandidateManifest` propagation in `Layer2ProjectParser.BuildDirectoryForest` (`Layer2BoundariesAnalyzer.TreeWalker.cs`) so directory subtrees with no candidate manifest files are pruned in `O(1)` without evaluating project parsers.
+  - Updated `PhysicalFileStore.ReadAllText` / `ReadAllTextAsync` to short-circuit negative lookups against cached Layer 1 `_directoryFiles` listings without hitting `File.Exists` on disk, and added `PhysicalFileStore.EnumerateCachedFilesInSubtree` for in-memory subtree queries in `TypeScriptProjectParser.ExtractTsConfigPathDependencies`, `CSharpProjectParser`, and `SourcelessManifestDetector`.
+  - Memoized `DetectDriverForProjectInLayer2` across projects and directories, eliminated redundant `Directory.EnumerateDirectories` / `File.Exists` syscalls in `CSharpProjectParser`, `JavaProjectParser`, and `KotlinProjectParser`, and removed per-file list allocations in `SharedFileParserRegistry.CanParse` (accelerating Layer 2 by `5.6x` on `OrchardCore`, `3.6x` on `Cal.com`, and `1.8x` on `Twenty`).
+
+---
+
 ## [1.90.5] - 2026-11-18
 
 ### Changed

@@ -37,16 +37,32 @@ public class KotlinProjectParser : IProjectParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        var hasBuildGradleKts = false;
+        var hasBuildGradle = false;
+        var hasSettingsGradle = false;
+        string? pomFile = null;
+
+        foreach (var f in filesInDirectory)
+        {
+            var fn = Path.GetFileName(f);
+            if (fn.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase)) hasBuildGradleKts = true;
+            else if (fn.Equals("build.gradle", StringComparison.OrdinalIgnoreCase)) hasBuildGradle = true;
+            else if (fn.Equals("settings.gradle.kts", StringComparison.OrdinalIgnoreCase) || fn.Equals("settings.gradle", StringComparison.OrdinalIgnoreCase)) hasSettingsGradle = true;
+            else if (fn.Equals("pom.xml", StringComparison.OrdinalIgnoreCase)) pomFile = f;
+        }
+
+        if (!hasBuildGradleKts && !hasBuildGradle && !hasSettingsGradle && pomFile == null)
+        {
+            return false;
+        }
+
         // 1. Detect multi-project containers (e.g. flutter/android with settings.gradle.kts and no project plugins applied to root)
-        if (GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
+        if (hasSettingsGradle && GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
         {
             return false;
         }
 
         // 2. Check for build.gradle.kts or build.gradle
-        var hasBuildGradleKts = filesInDirectory.Any(f => Path.GetFileName(f).Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase));
-        var hasBuildGradle = filesInDirectory.Any(f => Path.GetFileName(f).Equals("build.gradle", StringComparison.OrdinalIgnoreCase));
-
         if (hasBuildGradleKts || hasBuildGradle)
         {
             var info = GradleBuildScriptParser.ParseDirectory(directoryPath);
@@ -63,8 +79,7 @@ public class KotlinProjectParser : IProjectParser
         }
 
         // 3. Maven pom.xml with kotlin
-        var pomFile = Path.Combine(directoryPath, "pom.xml");
-        if (File.Exists(pomFile))
+        if (pomFile != null)
         {
             try
             {

@@ -40,22 +40,43 @@ public partial class Layer2ProjectParser
         var fallbackParsers = WorkspaceIndexer._projectParsers.Where(p => p.IsFallback).ToList();
         if (!ctx.IsSubtreeScan && fallbackParsers.Count > 0)
         {
+            var hasRootNonScriptOwner = projects.Any(p =>
+                string.IsNullOrEmpty(p.Path) &&
+                p.EntityKind != ProjectEntityKind.ScriptProject &&
+                p.IsBuildOrchestrator != true);
+            var coveredPaths = projects
+                .Where(p => !string.IsNullOrEmpty(p.Path))
+                .Select(p => (Exact: p.Path, Prefix: p.Path.TrimEnd('/') + "/"))
+                .ToArray();
+
             foreach (var dir in dirsToCheck)
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
+
+                var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+                if (filesInDir.Length == 0) continue;
 
                 var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
                 if (relativeProjectDir == ".") relativeProjectDir = "";
 
                 // Only trigger if NOT inside an already detected project
-                var isCovered = projects.Any(p =>
-                    (string.IsNullOrEmpty(p.Path) && p.EntityKind != ProjectEntityKind.ScriptProject) ||
-                    string.Equals(relativeProjectDir, p.Path, StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrEmpty(p.Path) && relativeProjectDir.StartsWith(p.Path.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)));
+                if (hasRootNonScriptOwner) continue;
+                if (string.IsNullOrEmpty(relativeProjectDir) && projects.Any(p => string.IsNullOrEmpty(p.Path))) continue;
+
+                var isCovered = false;
+                for (var i = 0; i < coveredPaths.Length; i++)
+                {
+                    var (exact, prefix) = coveredPaths[i];
+                    if (string.Equals(relativeProjectDir, exact, StringComparison.OrdinalIgnoreCase) ||
+                        relativeProjectDir.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isCovered = true;
+                        break;
+                    }
+                }
 
                 if (isCovered) continue;
 
-                var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
                 var fallbackParser = fallbackParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
                 if (fallbackParser != null)
                 {
@@ -388,8 +409,15 @@ public partial class Layer2ProjectParser
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
             var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+            if (filesInDir.Length == 0) continue;
+
             foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
             {
+                if (!filesInDir.Any(f => parser.IsManifestFile(Path.GetFileName(f))))
+                {
+                    continue;
+                }
+
                 foreach (var descriptor in parser.GetAdditionalProjects(dir, filesInDir))
                 {
                     if (!File.Exists(descriptor.EntryPointPath))
@@ -469,6 +497,11 @@ public partial class Layer2ProjectParser
         Dictionary<string, ProjectNode> packageToProjectMap,
         List<Relationship> dependencies)
     {
+        var seenDependsOn = dependencies
+            .Where(d => d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn)
+            .Select(d => (d.From, d.To))
+            .ToHashSet();
+
         foreach (var (proj, depInfo) in projectDepList)
         {
             foreach (var extPack in depInfo.ExternalPackages)
@@ -487,14 +520,12 @@ public partial class Layer2ProjectParser
 
                 if (matched && targetProj != null)
                 {
-                    if (!string.Equals(proj.Id, targetProj.Id, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(proj.Id, targetProj.Id, StringComparison.OrdinalIgnoreCase) &&
+                        seenDependsOn.Add((proj.Id, targetProj.Id)))
                     {
                         var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id, new() { ["dependency_type"] = "library" }));
-                        if (!dependencies.Any(d => d.From == proj.Id && d.To == targetProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
-                        {
-                            dependencies.Add(depRel);
-                            ctx.AddGlobalProjectDependency(depRel);
-                        }
+                        dependencies.Add(depRel);
+                        ctx.AddGlobalProjectDependency(depRel);
                     }
                 }
             }
@@ -633,6 +664,16 @@ public partial class Layer2ProjectParser
         IProjectParser projectParser,
         ParsingContext ctx)
     {
+        var seenTargets = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < dependencies.Count; i++)
+        {
+            var d = dependencies[i];
+            if (d.From == projectNodeId && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn)
+            {
+                seenTargets.Add(d.To);
+            }
+        }
+
         // A. Process local project dependencies (DependsOn relationships)
         foreach (var localPath in depInfo.LocalProjectPaths)
         {
@@ -642,9 +683,9 @@ public partial class Layer2ProjectParser
             if (relativeTargetDir == ".") relativeTargetDir = "";
             var targetProjectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeTargetDir}:";
 
-            var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
-            if (!dependencies.Any(d => d.From == projectNodeId && d.To == targetProjectNodeId && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
+            if (seenTargets.Add(targetProjectNodeId))
             {
+                var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
                 dependencies.Add(dependsOnRel);
                 ctx.AddGlobalProjectDependency(dependsOnRel);
             }
@@ -670,9 +711,9 @@ public partial class Layer2ProjectParser
                 projectNode.Children.Add(packageNode);
                 packages.Add(packageNode);
 
-                var dependsOnPkgRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, packageNodeId, new() { ["dependency_type"] = "package", ["category"] = "library" }));
-                if (!dependencies.Any(d => d.From == projectNodeId && d.To == packageNodeId && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
+                if (seenTargets.Add(packageNodeId))
                 {
+                    var dependsOnPkgRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, packageNodeId, new() { ["dependency_type"] = "package", ["category"] = "library" }));
                     dependencies.Add(dependsOnPkgRel);
                     ctx.AddGlobalProjectDependency(dependsOnPkgRel);
                 }

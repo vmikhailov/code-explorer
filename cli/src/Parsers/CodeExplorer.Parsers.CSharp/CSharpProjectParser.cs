@@ -316,7 +316,9 @@ public partial class CSharpProjectParser : IProjectParser
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var csprojFiles = Directory.GetFiles(projectDirectory, "*.csproj");
+        var csprojFiles = PhysicalFileStore.GetDirectoryFiles(projectDirectory)
+            .Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
         if (csprojFiles.Length == 0) return null;
 
         var csprojFile = csprojFiles[0];
@@ -371,10 +373,11 @@ public partial class CSharpProjectParser : IProjectParser
     {
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
+        var dirFiles = PhysicalFileStore.GetDirectoryFiles(projectDirectory);
 
         // Check legacy NuGet packages.config
-        var packagesConfigFile = Path.Combine(projectDirectory, "packages.config");
-        if (File.Exists(packagesConfigFile))
+        var packagesConfigFile = dirFiles.FirstOrDefault(f => Path.GetFileName(f).Equals("packages.config", StringComparison.OrdinalIgnoreCase));
+        if (packagesConfigFile != null)
         {
             try
             {
@@ -396,7 +399,7 @@ public partial class CSharpProjectParser : IProjectParser
             }
         }
 
-        var csprojFiles = Directory.GetFiles(projectDirectory, "*.csproj");
+        var csprojFiles = dirFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).ToArray();
         foreach (var csprojFile in csprojFiles)
         {
             try
@@ -492,26 +495,13 @@ public partial class CSharpProjectParser : IProjectParser
 
     private static string ResolveActualDirectoryPath(string dirPath)
     {
+        if (PhysicalFileStore.HasCachedDirectory(dirPath) || OperatingSystem.IsWindows())
+        {
+            return dirPath;
+        }
+
         if (Directory.Exists(dirPath))
         {
-            try
-            {
-                var parent = Path.GetDirectoryName(dirPath);
-                var leaf = Path.GetFileName(dirPath);
-                if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(leaf) && Directory.Exists(parent))
-                {
-                    var match = Directory.EnumerateDirectories(parent)
-                        .FirstOrDefault(d => string.Equals(Path.GetFileName(d), leaf, StringComparison.OrdinalIgnoreCase));
-                    if (match != null)
-                    {
-                        return Path.GetFullPath(match).Replace('\\', '/');
-                    }
-                }
-            }
-            catch
-            {
-                // Fallback
-            }
             return dirPath;
         }
 
@@ -539,14 +529,20 @@ public partial class CSharpProjectParser : IProjectParser
 
     private static string FindSolutionDir(string startDir)
     {
-        var curr = new DirectoryInfo(startDir);
-        while (curr != null)
+        var curr = startDir;
+        while (!string.IsNullOrEmpty(curr))
         {
-            if (curr.GetFiles("*.sln").Length > 0 || curr.GetFiles("*.slnx").Length > 0)
+            var files = PhysicalFileStore.GetDirectoryFiles(curr);
+            if (files.Any(f => f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase)))
             {
-                return curr.FullName;
+                return curr;
             }
-            curr = curr.Parent;
+            var parent = Path.GetDirectoryName(curr);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, curr, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+            curr = parent;
         }
         return startDir;
     }

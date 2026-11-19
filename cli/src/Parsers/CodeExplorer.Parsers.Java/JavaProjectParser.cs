@@ -50,17 +50,34 @@ public class JavaProjectParser : IProjectParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
-        if (GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
+        var hasJavaManifest = false;
+        var hasGradleScript = false;
+        foreach (var file in filesInDirectory)
+        {
+            var fileName = Path.GetFileName(file);
+            if (fileName.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase) ||
+                fileName.Equals("build.gradle", StringComparison.OrdinalIgnoreCase))
+            {
+                hasGradleScript = true;
+                hasJavaManifest = true;
+            }
+            else if (fileName.Equals("pom.xml", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.Equals("settings.gradle", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.Equals("settings.gradle.kts", StringComparison.OrdinalIgnoreCase))
+            {
+                hasJavaManifest = true;
+            }
+        }
+
+        if (!hasJavaManifest)
         {
             return false;
         }
 
-        var hasGradleScript = filesInDirectory.Any(f =>
+        if (GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
         {
-            var fn = Path.GetFileName(f);
-            return fn.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase) ||
-                   fn.Equals("build.gradle", StringComparison.OrdinalIgnoreCase);
-        });
+            return false;
+        }
 
         if (hasGradleScript)
         {
@@ -71,15 +88,7 @@ public class JavaProjectParser : IProjectParser
             }
         }
 
-        foreach (var file in filesInDirectory)
-        {
-            var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName is "pom.xml" or "build.gradle" or "build.gradle.kts" or "settings.gradle" or "settings.gradle.kts")
-            {
-                return true;
-            }
-        }
-        return false;
+        return true;
     }
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)

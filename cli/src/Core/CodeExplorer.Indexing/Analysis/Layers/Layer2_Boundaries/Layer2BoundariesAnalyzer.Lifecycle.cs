@@ -598,11 +598,36 @@ public partial class Layer2ProjectParser
             .GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
+        var dependsOnTargetsBySource = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < dependencies.Count; i++)
+        {
+            var dep = dependencies[i];
+            if (dep.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn)
+            {
+                if (!dependsOnTargetsBySource.TryGetValue(dep.From, out var list))
+                {
+                    list = [];
+                    dependsOnTargetsBySource[dep.From] = list;
+                }
+                list.Add(dep.To);
+            }
+        }
+
+        var memoizedByProjectId = new Dictionary<string, (string? Engine, string? DbType)>(StringComparer.OrdinalIgnoreCase);
+        var propsCacheByDir = new Dictionary<string, (string? Engine, string? DbType)>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var project in projects)
         {
             var projSignals = project.Signals();
             projSignals.DbDriverChecked = true;
-            var (engine, dbType) = DetectDriverForProjectInLayer2(project, projectById, dependencies, ctx, []);
+            var (engine, dbType) = DetectDriverForProjectInLayer2(
+                project,
+                projectById,
+                dependsOnTargetsBySource,
+                memoizedByProjectId,
+                propsCacheByDir,
+                ctx,
+                []);
             if (!string.IsNullOrEmpty(engine) && !string.IsNullOrEmpty(dbType))
             {
                 projSignals.DbDriverEngine = engine;
@@ -614,29 +639,35 @@ public partial class Layer2ProjectParser
     private static (string? Engine, string? DbType) DetectDriverForProjectInLayer2(
         ProjectNode projectNode,
         Dictionary<string, ProjectNode> projectById,
-        List<Relationship> dependencies,
+        Dictionary<string, List<string>> dependsOnTargetsBySource,
+        Dictionary<string, (string? Engine, string? DbType)> memoizedByProjectId,
+        Dictionary<string, (string? Engine, string? DbType)> propsCacheByDir,
         ParsingContext ctx,
         HashSet<string> visited)
     {
+        if (memoizedByProjectId.TryGetValue(projectNode.Id, out var cachedDriver))
+        {
+            return cachedDriver;
+        }
         if (!visited.Add(projectNode.Id)) return (null, null);
 
         foreach (var pkg in projectNode.Children.OfType<PackageNode>())
         {
             var pLower = pkg.Name.ToLowerInvariant();
             if (pLower.Contains("npgsql") || pLower is "pg" or "pg-promise" or "@types/pg" or "postgres" or "tokio-postgres" || pLower.Contains("psycopg") || pLower.Contains("asyncpg"))
-                return ("PostgreSQL", "relational");
+                return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
             if (pLower.Contains("sqlclient") || pLower.Contains("entityframeworkcore.sqlserver") || pLower is "mssql" or "tedious" || pLower.Equals("entityframework") || pLower.Equals("system.data.entity"))
-                return ("SQL Server", "relational");
+                return memoizedByProjectId[projectNode.Id] = ("SQL Server", "relational");
             if (pLower.Contains("mysql") || pLower.Contains("pomelo") || pLower.Contains("pymysql"))
-                return ("MySQL", "relational");
+                return memoizedByProjectId[projectNode.Id] = ("MySQL", "relational");
             if (pLower.Contains("sqlite"))
-                return ("SQLite", "relational");
+                return memoizedByProjectId[projectNode.Id] = ("SQLite", "relational");
             if (pLower.Contains("oracle"))
-                return ("Oracle", "relational");
+                return memoizedByProjectId[projectNode.Id] = ("Oracle", "relational");
             if (pLower.Contains("mongodb"))
-                return ("MongoDB", "document");
+                return memoizedByProjectId[projectNode.Id] = ("MongoDB", "document");
             if (pLower is "redis" or "ioredis" || pLower.Contains("redis") || pLower.Contains("stackexchange"))
-                return ("Redis", "cache");
+                return memoizedByProjectId[projectNode.Id] = ("Redis", "cache");
         }
 
         var projectAbsDir = string.IsNullOrEmpty(projectNode.Path)
@@ -644,12 +675,25 @@ public partial class Layer2ProjectParser
             : (Path.IsPathRooted(projectNode.Path) ? projectNode.Path : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectNode.Path)));
 
         // Transitive local project dependencies already resolved in Layer 2
-        foreach (var dep in dependencies.Where(d => d.From.Equals(projectNode.Id, StringComparison.OrdinalIgnoreCase) && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
+        if (dependsOnTargetsBySource.TryGetValue(projectNode.Id, out var targets))
         {
-            if (projectById.TryGetValue(dep.To, out var targetProj))
+            foreach (var targetId in targets)
             {
-                var subRes = DetectDriverForProjectInLayer2(targetProj, projectById, dependencies, ctx, visited);
-                if (subRes.Engine != null) return subRes;
+                if (projectById.TryGetValue(targetId, out var targetProj))
+                {
+                    var subRes = DetectDriverForProjectInLayer2(
+                        targetProj,
+                        projectById,
+                        dependsOnTargetsBySource,
+                        memoizedByProjectId,
+                        propsCacheByDir,
+                        ctx,
+                        visited);
+                    if (subRes.Engine != null)
+                    {
+                        return memoizedByProjectId[projectNode.Id] = subRes;
+                    }
+                }
             }
         }
 
@@ -657,18 +701,29 @@ public partial class Layer2ProjectParser
         var curr = projectAbsDir;
         while (!string.IsNullOrEmpty(curr))
         {
-            foreach (var propFile in new[] { "Directory.Packages.props", "Directory.Build.props" })
+            if (!propsCacheByDir.TryGetValue(curr, out var dirPropsDriver))
             {
-                var content = PhysicalFileStore.ReadAllText(Path.Combine(curr, propFile)).ToLowerInvariant();
-                if (!string.IsNullOrEmpty(content))
+                dirPropsDriver = (null, null);
+                foreach (var propFile in new[] { "Directory.Packages.props", "Directory.Build.props" })
                 {
-                    if (content.Contains("npgsql")) return ("PostgreSQL", "relational");
-                    if (content.Contains("sqlclient") || content.Contains("entityframeworkcore.sqlserver")) return ("SQL Server", "relational");
-                    if (content.Contains("mysql") || content.Contains("pomelo")) return ("MySQL", "relational");
-                    if (content.Contains("sqlite")) return ("SQLite", "relational");
-                    if (content.Contains("oracle")) return ("Oracle", "relational");
+                    var content = PhysicalFileStore.ReadAllText(Path.Combine(curr, propFile));
+                    if (!string.IsNullOrEmpty(content))
+                    {
+                        if (content.Contains("npgsql", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("PostgreSQL", "relational"); break; }
+                        if (content.Contains("sqlclient", StringComparison.OrdinalIgnoreCase) || content.Contains("entityframeworkcore.sqlserver", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("SQL Server", "relational"); break; }
+                        if (content.Contains("mysql", StringComparison.OrdinalIgnoreCase) || content.Contains("pomelo", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("MySQL", "relational"); break; }
+                        if (content.Contains("sqlite", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("SQLite", "relational"); break; }
+                        if (content.Contains("oracle", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("Oracle", "relational"); break; }
+                    }
                 }
+                propsCacheByDir[curr] = dirPropsDriver;
             }
+
+            if (dirPropsDriver.Engine != null)
+            {
+                return memoizedByProjectId[projectNode.Id] = dirPropsDriver;
+            }
+
             if (string.Equals(curr.TrimEnd('/', '\\'), ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase))
                 break;
             curr = Path.GetDirectoryName(curr);
@@ -680,42 +735,42 @@ public partial class Layer2ProjectParser
             var fName = Path.GetFileName(f);
             if (fName.StartsWith("appsettings", StringComparison.OrdinalIgnoreCase) && fName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
-                var content = PhysicalFileStore.ReadAllText(f).ToLowerInvariant();
-                if (content.Contains("port=5432") || content.Contains("username=postgres") || content.Contains("npgsql") || content.Contains("database=postgres"))
-                    return ("PostgreSQL", "relational");
-                if (content.Contains("initial catalog=") || content.Contains("trusted_connection=") || content.Contains("server=localhost;database="))
-                    return ("SQL Server", "relational");
-                if (content.Contains("port=3306") || content.Contains("uid=root") || content.Contains("user id=root"))
-                    return ("MySQL", "relational");
-                if (content.Contains("data source=") && (content.Contains(".db") || content.Contains(".sqlite")))
-                    return ("SQLite", "relational");
+                var content = PhysicalFileStore.ReadAllText(f);
+                if (content.Contains("port=5432", StringComparison.OrdinalIgnoreCase) || content.Contains("username=postgres", StringComparison.OrdinalIgnoreCase) || content.Contains("npgsql", StringComparison.OrdinalIgnoreCase) || content.Contains("database=postgres", StringComparison.OrdinalIgnoreCase))
+                    return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
+                if (content.Contains("initial catalog=", StringComparison.OrdinalIgnoreCase) || content.Contains("trusted_connection=", StringComparison.OrdinalIgnoreCase) || content.Contains("server=localhost;database=", StringComparison.OrdinalIgnoreCase))
+                    return memoizedByProjectId[projectNode.Id] = ("SQL Server", "relational");
+                if (content.Contains("port=3306", StringComparison.OrdinalIgnoreCase) || content.Contains("uid=root", StringComparison.OrdinalIgnoreCase) || content.Contains("user id=root", StringComparison.OrdinalIgnoreCase))
+                    return memoizedByProjectId[projectNode.Id] = ("MySQL", "relational");
+                if (content.Contains("data source=", StringComparison.OrdinalIgnoreCase) && (content.Contains(".db", StringComparison.OrdinalIgnoreCase) || content.Contains(".sqlite", StringComparison.OrdinalIgnoreCase)))
+                    return memoizedByProjectId[projectNode.Id] = ("SQLite", "relational");
             }
         }
 
         // Fallback for monorepos: workspace root package.json or Cargo.toml
-        var rootPkg = PhysicalFileStore.ReadAllText(Path.Combine(ctx.AbsoluteWorkspacePath, "package.json")).ToLowerInvariant();
+        var rootPkg = PhysicalFileStore.ReadAllText(Path.Combine(ctx.AbsoluteWorkspacePath, "package.json"));
         if (!string.IsNullOrEmpty(rootPkg))
         {
-            if (rootPkg.Contains("\"pg\"") || rootPkg.Contains("\"pg-promise\"") || rootPkg.Contains("\"postgres\""))
-                return ("PostgreSQL", "relational");
+            if (rootPkg.Contains("\"pg\"", StringComparison.OrdinalIgnoreCase) || rootPkg.Contains("\"pg-promise\"", StringComparison.OrdinalIgnoreCase) || rootPkg.Contains("\"postgres\"", StringComparison.OrdinalIgnoreCase))
+                return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
         }
 
         foreach (var cargoDir in new[] { projectAbsDir, ctx.AbsoluteWorkspacePath })
         {
-            var cargoLower = PhysicalFileStore.ReadAllText(Path.Combine(cargoDir, "Cargo.toml")).ToLowerInvariant();
-            if (!string.IsNullOrEmpty(cargoLower) &&
-                (cargoLower.Contains("sqlx") || cargoLower.Contains("sea-orm") || cargoLower.Contains("diesel") || cargoLower.Contains("tokio-postgres")))
+            var cargoText = PhysicalFileStore.ReadAllText(Path.Combine(cargoDir, "Cargo.toml"));
+            if (!string.IsNullOrEmpty(cargoText) &&
+                (cargoText.Contains("sqlx", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("sea-orm", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("diesel", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("tokio-postgres", StringComparison.OrdinalIgnoreCase)))
             {
-                if (cargoLower.Contains("postgres") || cargoLower.Contains("pgpool") || cargoLower.Contains("pq"))
-                    return ("PostgreSQL", "relational");
-                if (cargoLower.Contains("mysql"))
-                    return ("MySQL", "relational");
-                if (cargoLower.Contains("sqlite"))
-                    return ("SQLite", "relational");
-                return ("PostgreSQL", "relational");
+                if (cargoText.Contains("postgres", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("pgpool", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("pq", StringComparison.OrdinalIgnoreCase))
+                    return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
+                if (cargoText.Contains("mysql", StringComparison.OrdinalIgnoreCase))
+                    return memoizedByProjectId[projectNode.Id] = ("MySQL", "relational");
+                if (cargoText.Contains("sqlite", StringComparison.OrdinalIgnoreCase))
+                    return memoizedByProjectId[projectNode.Id] = ("SQLite", "relational");
+                return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
             }
         }
 
-        return (null, null);
+        return memoizedByProjectId[projectNode.Id] = (null, null);
     }
 }

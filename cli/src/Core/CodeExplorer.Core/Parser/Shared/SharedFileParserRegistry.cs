@@ -72,7 +72,35 @@ public static class SharedFileParserRegistry
         return result;
     }
 
-    public static bool CanParse(string fileName) => GetParsers(fileName).Count > 0;
+    public static bool CanParse(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return false;
+
+        var name = Path.GetFileName(fileName);
+        var ext = Path.GetExtension(name);
+        if (!string.IsNullOrEmpty(ext) && ByExtension.TryGetValue(ext, out var byExt))
+        {
+            for (var i = 0; i < byExt.Length; i++)
+            {
+                if (byExt[i].CanParse(name)) return true;
+            }
+        }
+
+        if (_prefixed.Length > 0)
+        {
+            var lower = name.ToLowerInvariant();
+            for (var i = 0; i < _prefixed.Length; i++)
+            {
+                var p = _prefixed[i];
+                if (p.FileNamePrefixes.Any(pref => lower.StartsWith(pref, StringComparison.Ordinal)) && p.CanParse(name))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Runs every matching parser over content that has already been read.</summary>
     public static IReadOnlyList<IProjectEnrichment> Parse(string fullPath, string content)

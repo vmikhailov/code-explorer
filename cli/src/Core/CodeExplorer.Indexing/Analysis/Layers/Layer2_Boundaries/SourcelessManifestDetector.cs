@@ -56,6 +56,12 @@ internal static class SourcelessManifestDetector
 
     private static bool ContainsSourceFiles(string dir)
     {
+        if (PhysicalFileStore.HasCachedDirectory(dir))
+        {
+            return PhysicalFileStore.EnumerateCachedFilesInSubtree(dir)
+                .Any(f => SourceCodeExtensions.Contains(Path.GetExtension(f)));
+        }
+
         var pending = new Stack<string>();
         pending.Push(dir);
         while (pending.Count > 0)

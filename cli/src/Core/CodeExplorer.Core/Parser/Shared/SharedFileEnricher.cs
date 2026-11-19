@@ -36,22 +36,36 @@ public static class SharedFileEnricher
             }
         });
 
+        var normalizedProjects = projects
+            .Select(p => (Project: p, Prefix: string.IsNullOrEmpty(p.Path) ? "" : p.Path.Replace('\\', '/').TrimEnd('/') + "/"))
+            .ToArray();
+
         foreach (var (file, results) in parsed.OrderBy(p => p.File.Path, StringComparer.Ordinal))
         {
-            var owner = FindOwner(file, projects);
+            var owner = FindOwner(file, normalizedProjects);
             if (owner != null) owner.Enrichments.AddRange(results);
             else ctx.WorkspaceEnrichments.AddRange(results);
         }
     }
 
-    private static ProjectNode? FindOwner(FileNode file, IReadOnlyList<ProjectNode> projects)
+    private static ProjectNode? FindOwner(
+        FileNode file,
+        (ProjectNode Project, string Prefix)[] normalizedProjects)
     {
         ProjectNode? best = null;
         var bestLength = -1;
-        foreach (var p in projects)
+        foreach (var (p, prefix) in normalizedProjects)
         {
-            if (string.IsNullOrEmpty(p.Path))
+            if (prefix.Length == 0)
             {
+                var isRootScriptOrOrchestrator =
+                    p.IsBuildOrchestrator == true ||
+                    p.EntityKind == ProjectEntityKind.ScriptProject ||
+                    p.ProjectType is ProjectLanguage.Script or ProjectLanguage.Batch or ProjectLanguage.PowerShell or ProjectLanguage.Shell;
+                if (isRootScriptOrOrchestrator && file.Path.Contains('/'))
+                {
+                    continue;
+                }
                 if (bestLength < 0)
                 {
                     best = p;
@@ -60,7 +74,6 @@ public static class SharedFileEnricher
                 continue;
             }
 
-            var prefix = p.Path.Replace('\\', '/').TrimEnd('/') + "/";
             if (file.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && prefix.Length > bestLength)
             {
                 best = p;

@@ -228,37 +228,100 @@ public static class PhysicalFileStore
         }
     }
 
+    public static bool FileExistsInCachedDirectory(string fullPath)
+    {
+        var key = NormalizePath(fullPath);
+        if (string.IsNullOrEmpty(key)) return false;
+        if (_fileContents.ContainsKey(key)) return true;
+
+        var lastSlash = key.LastIndexOf('/');
+        if (lastSlash > 0)
+        {
+            var parentKey = key[..lastSlash];
+            if (_directoryFiles.TryGetValue(parentKey, out var dirFiles))
+            {
+                var targetName = key[(lastSlash + 1)..];
+                for (var i = 0; i < dirFiles.Length; i++)
+                {
+                    if (Path.GetFileName(dirFiles[i]).Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        return File.Exists(fullPath);
+    }
+
     public static string ReadAllText(string fullPath)
     {
         var key = NormalizePath(fullPath);
-        if (!string.IsNullOrEmpty(key) && _fileContents.TryGetValue(key, out var cached))
+        if (!string.IsNullOrEmpty(key))
         {
-            return cached;
+            if (_fileContents.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var lastSlash = key.LastIndexOf('/');
+            if (lastSlash > 0 && _directoryFiles.TryGetValue(key[..lastSlash], out var dirFiles))
+            {
+                var targetName = key[(lastSlash + 1)..];
+                var existsInDir = false;
+                for (var i = 0; i < dirFiles.Length; i++)
+                {
+                    if (Path.GetFileName(dirFiles[i]).Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existsInDir = true;
+                        break;
+                    }
+                }
+                if (!existsInDir)
+                {
+                    return string.Empty;
+                }
+            }
         }
 
         if (!File.Exists(fullPath)) return string.Empty;
         var text = File.ReadAllText(fullPath);
-        if (!string.IsNullOrEmpty(key))
-        {
-            // Do not cache unmanaged standalone fallback reads outside Layer 1
-        }
         return text;
     }
 
     public static async ValueTask<string> ReadAllTextAsync(string fullPath, CancellationToken cancellationToken = default)
     {
         var key = NormalizePath(fullPath);
-        if (!string.IsNullOrEmpty(key) && _fileContents.TryGetValue(key, out var cached))
+        if (!string.IsNullOrEmpty(key))
         {
-            return cached;
+            if (_fileContents.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var lastSlash = key.LastIndexOf('/');
+            if (lastSlash > 0 && _directoryFiles.TryGetValue(key[..lastSlash], out var dirFiles))
+            {
+                var targetName = key[(lastSlash + 1)..];
+                var existsInDir = false;
+                for (var i = 0; i < dirFiles.Length; i++)
+                {
+                    if (Path.GetFileName(dirFiles[i]).Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existsInDir = true;
+                        break;
+                    }
+                }
+                if (!existsInDir)
+                {
+                    return string.Empty;
+                }
+            }
         }
 
         if (!File.Exists(fullPath)) return string.Empty;
         var text = await File.ReadAllTextAsync(fullPath, cancellationToken);
-        if (!string.IsNullOrEmpty(key))
-        {
-            // Do not cache unmanaged standalone fallback reads outside Layer 1
-        }
         return text;
     }
 
@@ -291,6 +354,44 @@ public static class PhysicalFileStore
         if (!string.IsNullOrEmpty(key))
         {
             _directoryFiles[key] = files;
+        }
+    }
+
+    public static bool TryGetCachedDirectoryFiles(string directoryPath, out string[] files)
+    {
+        var key = NormalizePath(directoryPath);
+        if (!string.IsNullOrEmpty(key) && _directoryFiles.TryGetValue(key, out var cached))
+        {
+            files = cached;
+            return true;
+        }
+        files = [];
+        return false;
+    }
+
+    public static bool HasCachedDirectory(string directoryPath)
+    {
+        var key = NormalizePath(directoryPath);
+        return !string.IsNullOrEmpty(key) && _directoryFiles.ContainsKey(key);
+    }
+
+    public static IEnumerable<string> EnumerateCachedFilesInSubtree(string rootDirectoryPath)
+    {
+        var rootKey = NormalizePath(rootDirectoryPath);
+        if (string.IsNullOrEmpty(rootKey)) yield break;
+
+        if (_directoryFiles.TryGetValue(rootKey, out var rootFiles))
+        {
+            foreach (var f in rootFiles) yield return f;
+        }
+
+        var prefix = rootKey + "/";
+        foreach (var (k, arr) in _directoryFiles)
+        {
+            if (k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var f in arr) yield return f;
+            }
         }
     }
 

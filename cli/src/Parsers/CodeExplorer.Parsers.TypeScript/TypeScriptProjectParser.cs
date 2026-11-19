@@ -139,14 +139,20 @@ public partial class TypeScriptProjectParser : IProjectParser
             depth++;
             try
             {
-                var hasParentCsproj = Directory.EnumerateFiles(parentDir, "*.csproj").Any();
-                var parentPkgJson = Path.Combine(parentDir, "package.json");
-                var hasParentWebConfig = Directory.EnumerateFiles(parentDir, "*").Any(f =>
-                    Path.GetFileName(f).Equals("web.config", StringComparison.OrdinalIgnoreCase));
-
-                if (hasParentCsproj && (File.Exists(parentPkgJson) || hasParentWebConfig))
+                var parentFiles = PhysicalFileStore.GetDirectoryFiles(parentDir);
+                var hasParentCsproj = parentFiles.Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+                if (hasParentCsproj)
                 {
-                    return true;
+                    var hasParentPkgOrWebConfig = parentFiles.Any(f =>
+                    {
+                        var fn = Path.GetFileName(f);
+                        return fn.Equals("package.json", StringComparison.OrdinalIgnoreCase) ||
+                               fn.Equals("web.config", StringComparison.OrdinalIgnoreCase);
+                    });
+                    if (hasParentPkgOrWebConfig)
+                    {
+                        return true;
+                    }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -160,8 +166,8 @@ public partial class TypeScriptProjectParser : IProjectParser
 
     private static bool IsInsideParentProject(string directoryPath)
     {
-        var projectJsonPath = Path.Combine(directoryPath, "project.json");
-        if (File.Exists(projectJsonPath))
+        var dirFiles = PhysicalFileStore.GetDirectoryFiles(directoryPath);
+        if (dirFiles.Any(f => Path.GetFileName(f).Equals("project.json", StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
@@ -173,13 +179,14 @@ public partial class TypeScriptProjectParser : IProjectParser
             depth++;
             try
             {
-                if (Directory.EnumerateFiles(parentDir, "*.csproj").Any())
+                var parentFiles = PhysicalFileStore.GetDirectoryFiles(parentDir);
+                if (parentFiles.Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
                 {
                     return true;
                 }
 
-                var parentPkgJson = Path.Combine(parentDir, "package.json");
-                if (File.Exists(parentPkgJson))
+                var parentPkgJson = parentFiles.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
+                if (parentPkgJson != null)
                 {
                     const string propWorkspaces = "workspaces";
                     var content = PhysicalFileStore.ReadAllText(parentPkgJson);
@@ -187,10 +194,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                     if (pRoot.Kind == CypherValueKind.Object)
                     {
                         var isMonorepoRoot = pRoot.TryGetProperty(propWorkspaces, out _) ||
-                                             File.Exists(Path.Combine(parentDir, "nx.json")) ||
-                                             File.Exists(Path.Combine(parentDir, "pnpm-workspace.yaml")) ||
-                                             File.Exists(Path.Combine(parentDir, "lerna.json")) ||
-                                             File.Exists(Path.Combine(parentDir, "turbo.json"));
+                                             parentFiles.Any(f => Path.GetFileName(f) is "nx.json" or "pnpm-workspace.yaml" or "lerna.json" or "turbo.json");
                         if (!isMonorepoRoot)
                         {
                             return true;
@@ -211,7 +215,9 @@ public partial class TypeScriptProjectParser : IProjectParser
     {
         try
         {
-            var allFiles = WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, "*").ToList();
+            var allFiles = PhysicalFileStore.HasCachedDirectory(directoryPath)
+                ? PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath)
+                : WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, "*");
             bool hasAnyDts = false;
             foreach (var f in allFiles)
             {
@@ -732,7 +738,11 @@ public partial class TypeScriptProjectParser : IProjectParser
                 return;
             }
 
-            var pathMappings = new List<(string AliasPrefix, string TargetRelPath)>();
+            var existingNames = externalPackages
+                .Select(p => p.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var pathMappings = new List<(string AliasPrefix, string TargetRelPath, string ShortName)>();
 
             foreach (var mapping in pathsProp.AsObject())
             {
@@ -753,12 +763,31 @@ public partial class TypeScriptProjectParser : IProjectParser
                 var cleanAlias = alias.EndsWith("/*") ? alias[..^2] : alias;
                 var cleanTarget = firstTarget.EndsWith("/*") ? firstTarget[..^2] : firstTarget;
 
-                pathMappings.Add((cleanAlias, cleanTarget));
+                if (cleanAlias is "~" or "@" ||
+                    cleanTarget.Equals("src", StringComparison.OrdinalIgnoreCase) ||
+                    cleanTarget.Equals("./src", StringComparison.OrdinalIgnoreCase) ||
+                    cleanTarget.StartsWith("src/", StringComparison.OrdinalIgnoreCase) ||
+                    cleanTarget.StartsWith("./src/", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var shortName = cleanAlias.Contains('/') ? cleanAlias.Split('/')[^1].TrimEnd('*') : cleanAlias;
+                if (string.IsNullOrEmpty(shortName) || existingNames.Contains(shortName))
+                {
+                    continue;
+                }
+
+                pathMappings.Add((cleanAlias, cleanTarget, shortName));
             }
 
             if (pathMappings.Count == 0) return;
 
-            var tsFiles = Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories)
+            var candidateFiles = PhysicalFileStore.HasCachedDirectory(projectDirectory)
+                ? PhysicalFileStore.EnumerateCachedFilesInSubtree(projectDirectory)
+                : Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories);
+
+            var tsFiles = candidateFiles
                 .Where(f =>
                 {
                     var ext = Path.GetExtension(f);
@@ -770,6 +799,11 @@ public partial class TypeScriptProjectParser : IProjectParser
 
             foreach (var file in tsFiles)
             {
+                if (matchedTargets.Count >= pathMappings.Count)
+                {
+                    break;
+                }
+
                 string text;
                 try
                 {
@@ -780,7 +814,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                     continue;
                 }
 
-                foreach (var (alias, target) in pathMappings)
+                foreach (var (alias, target, shortName) in pathMappings)
                 {
                     if (matchedTargets.Contains(target)) continue;
 
@@ -788,8 +822,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                     {
                         matchedTargets.Add(target);
 
-                        var shortName = alias.Contains('/') ? alias.Split('/')[^1].TrimEnd('*') : alias;
-                        if (!string.IsNullOrEmpty(shortName) && !externalPackages.Any(p => p.Name.Equals(shortName, StringComparison.OrdinalIgnoreCase)))
+                        if (existingNames.Add(shortName))
                         {
                             externalPackages.Add(new ProducedPackageInfo(shortName, "*", "npm", "runtime"));
                         }

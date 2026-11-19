@@ -536,11 +536,11 @@ public sealed class WorkerEvidenceClassifier : IProjectEntityClassifier
         }
 
         var csproj = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
-        if (csproj != null && File.Exists(csproj))
+        if (csproj != null)
         {
             try
             {
-                var content = File.ReadAllText(csproj);
+                var content = PhysicalFileStore.ReadAllText(csproj);
                 if (content.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase))
                 {
                     return ProjectClassification.Worker;
@@ -658,12 +658,12 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
             return ProjectClassification.Library;
         }
 
-        var pkgJson = Path.Combine(directoryPath, "package.json");
-        if (File.Exists(pkgJson))
+        var pkgJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
+        if (pkgJson != null)
         {
             try
             {
-                var content = File.ReadAllText(pkgJson);
+                var content = PhysicalFileStore.ReadAllText(pkgJson);
                 if (content.Contains("\"ngPackage\"", StringComparison.OrdinalIgnoreCase))
                 {
                     return ProjectClassification.Library;
@@ -705,11 +705,11 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
 
         // 4. C# Class Library check (OutputType Library and not Web SDK)
         var csproj = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
-        if (csproj != null && File.Exists(csproj))
+        if (csproj != null)
         {
             try
             {
-                var content = File.ReadAllText(csproj);
+                var content = PhysicalFileStore.ReadAllText(csproj);
                 var isWebSdk = content.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase);
                 var isWorkerSdk = content.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase);
                 var isExe = content.Contains("<OutputType>Exe</OutputType>", StringComparison.OrdinalIgnoreCase);

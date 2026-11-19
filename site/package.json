@@ -1,6 +1,6 @@
 {
   "name": "code-explorer-site",
-  "version": "1.90.5",
+  "version": "1.90.6",
   "private": true,
   "type": "module",
   "scripts": {

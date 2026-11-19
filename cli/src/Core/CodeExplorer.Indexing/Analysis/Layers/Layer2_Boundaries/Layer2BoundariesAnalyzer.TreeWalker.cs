@@ -7,15 +7,41 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer2ProjectParser
 {
-    private sealed record DirectoryTreeNode(
-        string DirectoryPath,
-        string NormalizedPath,
-        List<DirectoryTreeNode> Children);
+    private sealed class DirectoryTreeNode(
+        string directoryPath,
+        string normalizedPath,
+        string[] filesInDir,
+        bool hasCandidateManifest)
+    {
+        public string DirectoryPath { get; } = directoryPath;
+        public string NormalizedPath { get; } = normalizedPath;
+        public string[] FilesInDir { get; } = filesInDir;
+        public bool HasCandidateManifest { get; } = hasCandidateManifest;
+        public bool SubtreeHasCandidateManifest { get; set; } = hasCandidateManifest;
+        public List<DirectoryTreeNode> Children { get; } = [];
+    }
 
     private sealed record EnclosingProjectScope(
         ProjectNode Project,
         IProjectParser Parser,
-        ParsedProjectDescriptor Descriptor);
+        ParsedProjectDescriptor Descriptor,
+        bool IsOrchestrator,
+        IReadOnlyList<string> ExcludedFullPaths)
+    {
+        public bool IsExcludedSubtree(string normDir)
+        {
+            for (var i = 0; i < ExcludedFullPaths.Count; i++)
+            {
+                var excl = ExcludedFullPaths[i];
+                if (normDir.Equals(excl, StringComparison.OrdinalIgnoreCase) ||
+                    normDir.StartsWith(excl + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 
     private sealed record DirectoryScanState(
         ParsingContext Ctx,
@@ -30,7 +56,8 @@ public partial class Layer2ProjectParser
 
     private static List<DirectoryTreeNode> BuildDirectoryForest(List<string> dirsToCheck)
     {
-        var nodesByNormPath = new Dictionary<string, DirectoryTreeNode>(StringComparer.OrdinalIgnoreCase);
+        var nodesByNormPath = new Dictionary<string, DirectoryTreeNode>(dirsToCheck.Count, StringComparer.OrdinalIgnoreCase);
+        var allNodes = new List<(DirectoryTreeNode Node, DirectoryTreeNode? Parent)>(dirsToCheck.Count);
         var roots = new List<DirectoryTreeNode>();
 
         foreach (var dir in dirsToCheck)
@@ -41,7 +68,9 @@ public partial class Layer2ProjectParser
                 continue;
             }
 
-            var node = new DirectoryTreeNode(dir, norm, []);
+            var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+            var hasCandidate = HasCandidateProjectTrigger(dir, filesInDir);
+            var node = new DirectoryTreeNode(dir, norm, filesInDir, hasCandidate);
             nodesByNormPath[norm] = node;
 
             DirectoryTreeNode? parentNode = null;
@@ -64,6 +93,16 @@ public partial class Layer2ProjectParser
             {
                 roots.Add(node);
             }
+            allNodes.Add((node, parentNode));
+        }
+
+        for (var i = allNodes.Count - 1; i >= 0; i--)
+        {
+            var (node, parent) = allNodes[i];
+            if (node.SubtreeHasCandidateManifest && parent != null)
+            {
+                parent.SubtreeHasCandidateManifest = true;
+            }
         }
 
         return roots;
@@ -85,10 +124,28 @@ public partial class Layer2ProjectParser
         EnclosingProjectScope? enclosingScope,
         DirectoryScanState state)
     {
+        if (!node.SubtreeHasCandidateManifest)
+        {
+            return;
+        }
+
         state.Ctx.CancellationToken.ThrowIfCancellationRequested();
 
         var dir = node.DirectoryPath;
-        var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+        if (enclosingScope != null && enclosingScope.IsExcludedSubtree(node.NormalizedPath))
+        {
+            return;
+        }
+
+        var filesInDir = node.FilesInDir;
+        if (!node.HasCandidateManifest)
+        {
+            foreach (var child in node.Children)
+            {
+                await WalkDirectoryNodeAsync(child, enclosingScope, state);
+            }
+            return;
+        }
 
         var absorbingOwner = ResolveAbsorbingOwner(node.NormalizedPath, dir, filesInDir, enclosingScope, state);
         if (absorbingOwner != null)
@@ -118,6 +175,67 @@ public partial class Layer2ProjectParser
         {
             await WalkDirectoryNodeAsync(child, nextScope, state);
         }
+    }
+
+    private static readonly HashSet<string> CandidateTriggerFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "package.json", "tsconfig.json", "tsconfig.base.json", "jsconfig.json",
+        "project.json", "ng-package.json", "wrangler.toml", "wrangler.jsonc",
+        "wrangler.json", "angular.json", "nest-cli.json",
+        "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "AndroidManifest.xml",
+        "go.mod", "Cargo.toml",
+        "requirements.txt", "pyproject.toml", "setup.py", "setup.cfg", "Pipfile", "alembic.ini", "manage.py",
+        "composer.json", "composer.lock",
+        "cpanfile", "Makefile.PL", "Build.PL", "META.json", "META.yml", "dist.ini",
+        "terragrunt.hcl", "root.hcl",
+        "box.json", "Application.cfc", "Application.cfm",
+        "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "packages.config"
+    };
+
+    private static readonly HashSet<string> CandidateTriggerExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".csproj", ".fsproj", ".vbproj", ".nuspec",
+        ".tf", ".tofu",
+        ".cfc", ".cfm", ".cfml",
+        ".php", ".phtml",
+        ".pl", ".pm", ".t", ".psgi"
+    };
+
+    private const string BuiltInParserNamespacePrefix = "CodeExplorer.Parsers";
+
+    private static bool HasCandidateProjectTrigger(string dir, string[] filesInDir)
+    {
+        if (filesInDir.Length == 0)
+        {
+            return IsPotentialManifestlessBinarySubfolder(dir);
+        }
+
+        for (var i = 0; i < filesInDir.Length; i++)
+        {
+            var file = filesInDir[i];
+            var fileName = Path.GetFileName(file);
+            if (CandidateTriggerFileNames.Contains(fileName))
+            {
+                return true;
+            }
+
+            var ext = Path.GetExtension(fileName);
+            if (!string.IsNullOrEmpty(ext) && CandidateTriggerExtensions.Contains(ext))
+            {
+                return true;
+            }
+        }
+
+        return IsPotentialManifestlessBinarySubfolder(dir) ||
+               WorkspaceIndexer._projectParsers.Any(p => !p.IsFallback && p.GetType().Namespace?.StartsWith(BuiltInParserNamespacePrefix, StringComparison.Ordinal) != true);
+    }
+
+    private static bool IsPotentialManifestlessBinarySubfolder(string dir)
+    {
+        var parentDir = Path.GetDirectoryName(dir.TrimEnd('/', '\\'));
+        if (string.IsNullOrEmpty(parentDir)) return false;
+        var parentName = Path.GetFileName(parentDir);
+        return parentName.Equals("bin", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ProjectNode? ResolveAbsorbingOwner(
@@ -332,10 +450,36 @@ public partial class Layer2ProjectParser
             }
 
             await RegisterProducedPackageAliasesAsync(projectNode, projectNodeId, projectParser, dir, state);
-            primaryScope ??= new EnclosingProjectScope(projectNode, projectParser, descriptor);
+            primaryScope ??= CreateEnclosingProjectScope(dir, projectNode, projectParser, descriptor);
         }
 
         return primaryScope;
+    }
+
+    private const string PropIsBuildOrchestratorKey = "is_build_orchestrator";
+    private const string PropIsOrchestratorKey = "is_orchestrator";
+
+    private static EnclosingProjectScope CreateEnclosingProjectScope(
+        string dir,
+        ProjectNode projectNode,
+        IProjectParser projectParser,
+        ParsedProjectDescriptor descriptor)
+    {
+        var isOrchestrator =
+            projectNode.IsBuildOrchestrator == true ||
+            string.Equals(descriptor.ManifestProperties.GetValueOrDefault(PropIsBuildOrchestratorKey), "true", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(descriptor.ManifestProperties.GetValueOrDefault(PropIsOrchestratorKey), "true", StringComparison.OrdinalIgnoreCase);
+
+        var excludedFull = descriptor.ExcludedSubpaths is { Count: > 0 }
+            ? descriptor.ExcludedSubpaths.Select(s => Path.GetFullPath(Path.Combine(dir, s)).Replace('\\', '/').TrimEnd('/')).ToArray()
+            : [];
+
+        return new EnclosingProjectScope(
+            projectNode,
+            projectParser,
+            descriptor,
+            isOrchestrator,
+            excludedFull);
     }
 
     private static async Task<ProjectDependencyInfo?> ParseMergedDependenciesAsync(
