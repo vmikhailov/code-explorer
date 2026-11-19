@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.91.1] - 2026-11-19
+
+### Changed
+- **MCP Tool Descriptions & Server Instructions for Live File Watcher (`CodeExplorer.Server`)**:
+  - Updated `DefaultServerInstructions` and the `[Description]` attributes on `scan_workspace` and `check_semantic_gates` to explicitly clarify that the MCP server runs a live file watcher refreshing `.codeexplorer/graph.db` automatically in real time as files change (so agents should query or run `check_semantic_gates` directly after routine edits and reserve `scan_workspace` for unindexed repository onboarding, major branch switches, or explicit `clear=true` rebuilds), and documented `'empty_catches'` anomaly detection in `check_semantic_gates`.
+
+---
+
 ## [1.91.0] - 2026-11-19
 
 ### Added

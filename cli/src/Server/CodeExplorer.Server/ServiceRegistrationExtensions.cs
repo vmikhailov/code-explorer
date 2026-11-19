@@ -6,7 +6,8 @@ public static class ServiceRegistrationExtensions
 {
     public const string DefaultServerInstructions = """
         CodeExplorer provides a deterministic polyglot AST & architecture knowledge graph with OpenCypher querying.
-        1. One-Shot Task Context & Parallel Batching:
+        1. One-Shot Task Context, Live File Watcher & Parallel Batching:
+           - The MCP server runs a live file watcher that refreshes `.codeexplorer/graph.db` automatically in real time as files change. Do NOT call `scan_workspace` after routine edits — query or run `check_semantic_gates` directly; reserve `scan_workspace` for onboarding an unindexed repository, major branch switches, or explicit `clear=true` rebuilds.
            - For coding, bugfix, or refactoring tasks, call `get_task_context` FIRST with the task symptom/keywords — it resolves anchor symbols, side-effects, canonical table owners, and ratcheted legacy debt traps in a single <4 KB response.
            - Call `get_taxonomy` or `get_architecture_map` when exploring whole-system topology (pass `workspacePath` when targeting a specific repository).
            - Batch independent `execute_custom_read_cypher` queries in parallel tool calls within the same turn rather than working sequentially one query or sub-task per turn.
