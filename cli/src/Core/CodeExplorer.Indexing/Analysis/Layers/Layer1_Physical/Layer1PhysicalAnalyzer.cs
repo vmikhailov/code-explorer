@@ -255,7 +255,12 @@ public class Layer1PhysicalParser
             dirFiles,
             dirFilePaths,
             allowFallback: inheritedParsers is not { Count: > 0 });
-        var activeParsers = directParsers is { Count: > 0 } ? directParsers : inheritedParsers;
+        var activeParsers = directParsers is { Count: > 0 }
+            ? directParsers
+            : inheritedParsers is { Count: > 0 }
+                ? inheritedParsers
+                : ctx.FileFilter.MatchFileSupportedProjectParsers(dirFiles, includeFallback: false)
+                  ?? ctx.FileFilter.MatchFileSupportedProjectParsers(dirFiles, includeFallback: true);
         var parsersToNotify = activeParsers is { Count: > 0 } ? activeParsers : ctx.FileFilter.ConnectedProjectParsers;
 
         if (dirFiles.Length > 0)
@@ -396,6 +401,16 @@ public class Layer1PhysicalParser
         List<DiscoveredDirectoryEntry> discoveredDirs,
         List<FolderNode> folders)
     {
+        var parentMap = new Dictionary<string, FolderNode>(discoveredDirs.Count, StringComparer.Ordinal);
+        for (int i = 0; i < discoveredDirs.Count; i++)
+        {
+            var e = discoveredDirs[i];
+            if (e.FolderNode != null && e.ParentNode is FolderNode pf)
+            {
+                parentMap[e.FolderNode.Id] = pf;
+            }
+        }
+
         var keptFolderIds = new HashSet<string>(StringComparer.Ordinal);
         for (int i = discoveredDirs.Count - 1; i >= 0; i--)
         {
@@ -409,9 +424,14 @@ public class Layer1PhysicalParser
             if (keep)
             {
                 keptFolderIds.Add(entry.FolderNode.Id);
-                if (entry.ParentNode is FolderNode parentFolder)
+                var currentId = entry.FolderNode.Id;
+                while (parentMap.TryGetValue(currentId, out var ancestorFolder))
                 {
-                    keptFolderIds.Add(parentFolder.Id);
+                    if (!keptFolderIds.Add(ancestorFolder.Id))
+                    {
+                        break;
+                    }
+                    currentId = ancestorFolder.Id;
                 }
             }
         }
@@ -467,7 +487,7 @@ public class Layer1PhysicalParser
 
     private static async Task<FileNode?> StreamCandidateFileAsync(CandidateFileItem item, ParsingContext ctx)
     {
-        var sizeBytes = item.FileInfo.Length;
+        long sizeBytes = 0;
         int? lineCount = null;
         string? contentHash = null;
         DateTime? lastModifiedUtc = null;
@@ -476,6 +496,7 @@ public class Layer1PhysicalParser
         var skipByContent = false;
         try
         {
+            sizeBytes = item.FileInfo.Length;
             lastModifiedUtc = item.FileInfo.LastWriteTimeUtc;
             var shouldComputeHash = item.IsManifest || ctx.PersistToGraphDb;
             var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
@@ -502,9 +523,16 @@ public class Layer1PhysicalParser
                 ctx.DiscoveredContentSkippedFiles[item.RelativeFile] = (item.AbsoluteFilePath, lastModifiedUtc.Value, sizeBytes);
             }
         }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            ctx.Layer1Log.SkippingBrokenSymlink(item.RelativeFile);
+            PhysicalFileStore.RemoveCachedFile(item.AbsoluteFilePath);
+            return null;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             ctx.Layer1Log.FileReadFailed(item.RelativeFile, ex);
+            PhysicalFileStore.RemoveCachedFile(item.AbsoluteFilePath);
             if (item.IsSupportedSourceOrConfig || item.IsManifest)
             {
                 var issueName = item.IsManifest ? IssueManifestReadError : IssueFileReadError;
@@ -516,9 +544,11 @@ public class Layer1PhysicalParser
                     name: issueName,
                     severity: SeverityWarning,
                     exception: ex,
-                    parentNodeId: item.IsSupportedSourceOrConfig ? item.FileId : null,
-                    isFileParent: item.IsSupportedSourceOrConfig);
+                    parentNodeId: null,
+                    isFileParent: false,
+                    logToConsole: false);
             }
+            return null;
         }
 
         if (!item.IsSupportedSourceOrConfig || skipByContent)

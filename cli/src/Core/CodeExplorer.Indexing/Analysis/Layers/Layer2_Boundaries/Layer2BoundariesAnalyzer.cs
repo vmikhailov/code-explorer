@@ -39,7 +39,8 @@ public partial class Layer2ProjectParser
         }
         dirsToCheck = [.. dirsToCheck
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(d => d.Replace('\\', '/').Length)
+            .OrderBy(d => d.Replace('\\', '/').Trim('/').Count(c => c == '/'))
+            .ThenBy(d => d.Replace('\\', '/').Length)
             .ThenBy(d => d, StringComparer.OrdinalIgnoreCase)];
 
         var projectDepList = new List<(ProjectNode Project, ProjectDependencyInfo DepInfo)>();

@@ -71,11 +71,47 @@ public class ScriptProjectParser : IProjectParser
         var scriptCount = filesInDirectory.Count(IsScriptFile);
         if (scriptCount == 0)
         {
-            return false;
+            return IsScriptContainerRoot(directoryPath, filesInDirectory);
         }
 
         var nonScriptSourceCount = filesInDirectory.Count(IsNonScriptSourceFile);
         return scriptCount >= nonScriptSourceCount;
+    }
+
+    private static bool IsScriptContainerRoot(string directoryPath, string[] filesInDirectory)
+    {
+        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            return false;
+        }
+
+        if (filesInDirectory.Length == 0 || filesInDirectory.Any(IsNonScriptSourceFile))
+        {
+            return false;
+        }
+
+        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        if (childDirs.Count < 2)
+        {
+            return false;
+        }
+
+        var scriptChildCount = 0;
+        for (var i = 0; i < childDirs.Count; i++)
+        {
+            var childFiles = childDirs[i].Files;
+            var sCount = childFiles.Count(IsScriptFile);
+            if (sCount > 0 && sCount >= childFiles.Count(IsNonScriptSourceFile))
+            {
+                scriptChildCount++;
+                if (scriptChildCount >= 2)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
@@ -113,8 +149,15 @@ public class ScriptProjectParser : IProjectParser
             };
         }
 
-        var dominant = filesInDirectory
-            .Where(IsScriptFile)
+        var scriptFiles = filesInDirectory.Where(IsScriptFile).ToList();
+        if (scriptFiles.Count == 0 && PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            scriptFiles = PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath)
+                .Where(IsScriptFile)
+                .ToList();
+        }
+
+        var dominant = scriptFiles
             .GroupBy(f => Path.GetExtension(f).ToLowerInvariant())
             .OrderByDescending(g => g.Count())
             .FirstOrDefault()?.Key;

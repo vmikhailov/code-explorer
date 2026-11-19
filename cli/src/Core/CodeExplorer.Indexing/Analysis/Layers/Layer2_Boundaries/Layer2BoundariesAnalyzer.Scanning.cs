@@ -68,7 +68,9 @@ public partial class Layer2ProjectParser
                 {
                     var (exact, prefix) = coveredPaths[i];
                     if (string.Equals(relativeProjectDir, exact, StringComparison.OrdinalIgnoreCase) ||
-                        relativeProjectDir.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        relativeProjectDir.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(relativeProjectDir) &&
+                         exact.StartsWith(relativeProjectDir.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)))
                     {
                         isCovered = true;
                         break;

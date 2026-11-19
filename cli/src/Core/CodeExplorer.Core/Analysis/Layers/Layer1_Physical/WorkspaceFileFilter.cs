@@ -207,6 +207,62 @@ public class WorkspaceFileFilter
         return matched;
     }
 
+    public IReadOnlyList<IProjectParser>? MatchFileSupportedProjectParsers(
+        IReadOnlyList<FileInfo> dirFiles,
+        bool includeFallback)
+    {
+        if (dirFiles.Count == 0)
+        {
+            return null;
+        }
+
+        List<IProjectParser>? matched = null;
+        for (int p = 0; p < _projectParsers.Count; p++)
+        {
+            var parser = _projectParsers[p];
+            if (parser.IsFallback != includeFallback)
+            {
+                continue;
+            }
+
+            for (int f = 0; f < dirFiles.Count; f++)
+            {
+                var fn = dirFiles[f].Name;
+                var ext = dirFiles[f].Extension;
+                if (parser.IsManifestFile(fn))
+                {
+                    matched ??= [];
+                    matched.Add(parser);
+                    break;
+                }
+
+                var isNonManifestMatch = parser.ProjectType switch
+                {
+                    "php" => ext.Equals(".php", StringComparison.OrdinalIgnoreCase) ||
+                             ext.Equals(".phtml", StringComparison.OrdinalIgnoreCase) ||
+                             ext.Equals(".inc", StringComparison.OrdinalIgnoreCase),
+                    "perl" => ext.Equals(".pl", StringComparison.OrdinalIgnoreCase) ||
+                              ext.Equals(".pm", StringComparison.OrdinalIgnoreCase) ||
+                              ext.Equals(".t", StringComparison.OrdinalIgnoreCase) ||
+                              ext.Equals(".psgi", StringComparison.OrdinalIgnoreCase),
+                    "coldfusion" => ext.Equals(".cfc", StringComparison.OrdinalIgnoreCase) ||
+                                    ext.Equals(".cfm", StringComparison.OrdinalIgnoreCase) ||
+                                    ext.Equals(".cfml", StringComparison.OrdinalIgnoreCase),
+                    _ => false
+                };
+
+                if (isNonManifestMatch)
+                {
+                    matched ??= [];
+                    matched.Add(parser);
+                    break;
+                }
+            }
+        }
+
+        return matched;
+    }
+
     private static string[] BuildFilePaths(IReadOnlyList<FileInfo> dirFiles)
     {
         if (dirFiles.Count == 0) return [];

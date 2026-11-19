@@ -16,7 +16,7 @@ public partial class Layer2ProjectParser
         public string DirectoryPath { get; } = directoryPath;
         public string NormalizedPath { get; } = normalizedPath;
         public string[] FilesInDir { get; } = filesInDir;
-        public bool HasCandidateManifest { get; } = hasCandidateManifest;
+        public bool HasCandidateManifest { get; set; } = hasCandidateManifest;
         public bool SubtreeHasCandidateManifest { get; set; } = hasCandidateManifest;
         public List<DirectoryTreeNode> Children { get; } = [];
     }
@@ -99,6 +99,11 @@ public partial class Layer2ProjectParser
         for (var i = allNodes.Count - 1; i >= 0; i--)
         {
             var (node, parent) = allNodes[i];
+            if (!node.HasCandidateManifest && HasChildContainerProjectTrigger(node))
+            {
+                node.HasCandidateManifest = true;
+                node.SubtreeHasCandidateManifest = true;
+            }
             if (node.SubtreeHasCandidateManifest && parent != null)
             {
                 parent.SubtreeHasCandidateManifest = true;
@@ -238,6 +243,87 @@ public partial class Layer2ProjectParser
         return parentName.Equals("bin", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasChildContainerProjectTrigger(DirectoryTreeNode node)
+    {
+        if (node.Children.Count == 0)
+        {
+            return false;
+        }
+
+        var phpChildren = 0;
+        var perlChildren = 0;
+        for (var i = 0; i < node.Children.Count; i++)
+        {
+            var child = node.Children[i];
+            var childName = Path.GetFileName(child.NormalizedPath);
+            if (childName.Equals("requirements", StringComparison.OrdinalIgnoreCase) ||
+                childName.Equals("public", StringComparison.OrdinalIgnoreCase) ||
+                childName.Equals("www", StringComparison.OrdinalIgnoreCase) ||
+                childName.Equals("htdocs", StringComparison.OrdinalIgnoreCase) ||
+                childName.Equals("web", StringComparison.OrdinalIgnoreCase) ||
+                childName.Equals("html", StringComparison.OrdinalIgnoreCase) ||
+                childName.Equals("application", StringComparison.OrdinalIgnoreCase))
+            {
+                if (child.SubtreeHasCandidateManifest)
+                {
+                    return true;
+                }
+            }
+
+            var hasPhp = false;
+            var hasPerl = false;
+            for (var f = 0; f < child.FilesInDir.Length; f++)
+            {
+                var ext = Path.GetExtension(child.FilesInDir[f]);
+                if (ext.Equals(".php", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".phtml", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".inc", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasPhp = true;
+                }
+                else if (ext.Equals(".pl", StringComparison.OrdinalIgnoreCase) ||
+                         ext.Equals(".pm", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasPerl = true;
+                }
+            }
+
+            if (hasPhp) phpChildren++;
+            if (hasPerl) perlChildren++;
+            if (phpChildren >= 2 || perlChildren >= 2)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasExplicitManifestForParser(IProjectParser parser, string[] filesInDir)
+    {
+        for (var i = 0; i < filesInDir.Length; i++)
+        {
+            var fileName = Path.GetFileName(filesInDir[i]);
+            if (parser.IsManifestFile(fileName) ||
+                CandidateTriggerFileNames.Contains(fileName))
+            {
+                return true;
+            }
+
+            var ext = Path.GetExtension(fileName);
+            if (ext.Equals(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".nuspec", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".tf", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".tofu", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static ProjectNode? ResolveAbsorbingOwner(
         string normCurrentDir,
         string dir,
@@ -320,10 +406,19 @@ public partial class Layer2ProjectParser
 
         foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
         {
-            if (enclosingScope != null &&
-                !enclosingScope.Parser.CanContainNestedProject(enclosingScope.Descriptor, dir, filesInDir, parser))
+            if (enclosingScope != null)
             {
-                continue;
+                if (!enclosingScope.IsOrchestrator &&
+                    !HasExplicitManifestForParser(parser, filesInDir) &&
+                    !IsPotentialManifestlessBinarySubfolder(dir))
+                {
+                    continue;
+                }
+
+                if (!enclosingScope.Parser.CanContainNestedProject(enclosingScope.Descriptor, dir, filesInDir, parser))
+                {
+                    continue;
+                }
             }
 
             if (parser.TryParse(parseContext, out var res) && res != null)

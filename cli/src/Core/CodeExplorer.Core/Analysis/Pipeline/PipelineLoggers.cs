@@ -24,6 +24,9 @@ public static partial class Layer1LogMessages
 
     [LoggerMessage(EventId = 1007, Level = LogLevel.Debug, Message = "[Layer 1    ] {HookMessage}")]
     public static partial void DirectoryScanHookMessage(ILogger logger, string hookMessage);
+
+    [LoggerMessage(EventId = 1008, Level = LogLevel.Warning, Message = "[Layer 1    ] Skipping broken symlink or missing file '{RelativeFile}'.")]
+    public static partial void SkippingBrokenSymlink(ILogger logger, string relativeFile);
 }
 
 public readonly struct Layer1Logger(ILogger logger)
@@ -32,7 +35,8 @@ public readonly struct Layer1Logger(ILogger logger)
     public void ScanCompleted(int fileCount, int folderCount, long elapsedMs = 0) => Layer1LogMessages.PhysicalScanComplete(logger, elapsedMs, fileCount, folderCount);
     public void SkippingExcludedDirectory(string relativeDir) => Layer1LogMessages.SkippingExcludedDirectory(logger, relativeDir);
     public void SkippingGitIgnoredDirectory(string relativeDir) => Layer1LogMessages.SkippingGitIgnoredDirectory(logger, relativeDir);
-    public void FileReadFailed(string relativeFile, Exception ex) => Layer1LogMessages.FileReadFailed(logger, relativeFile, ex.Message, ex);
+    public void FileReadFailed(string relativeFile, Exception ex) => Layer1LogMessages.FileReadFailed(logger, relativeFile, ex.Message, null);
+    public void SkippingBrokenSymlink(string relativeFile) => Layer1LogMessages.SkippingBrokenSymlink(logger, relativeFile);
     public void WorkspaceNameLookupFallback(string workspacePath, Exception ex) => Layer1LogMessages.WorkspaceNameLookupFallback(logger, workspacePath, ex.Message);
     public void DirectoryScanHookMessage(string hookMessage) => Layer1LogMessages.DirectoryScanHookMessage(logger, hookMessage);
 }

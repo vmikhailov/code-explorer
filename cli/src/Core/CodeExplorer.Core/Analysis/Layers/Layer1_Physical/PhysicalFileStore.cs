@@ -157,6 +157,18 @@ public static class PhysicalFileStore
             if (decoder != null && charBuf != null)
             {
                 charCount += DecodeChunkToPool(decoder, ReadOnlySpan<byte>.Empty, flush: true, ref charBuf, charCount);
+                for (var i = 0; i < charCount; i++)
+                {
+                    if (charBuf[i] == '\r' && (i + 1 >= charCount || charBuf[i + 1] != '\n'))
+                    {
+                        charBuf[i] = '\n';
+                        newlines++;
+                        if (i == charCount - 1)
+                        {
+                            lastByte = (byte)'\n';
+                        }
+                    }
+                }
                 decodedText = new string(charBuf, 0, charCount);
                 SetFileText(fullPath, decodedText);
             }
@@ -225,6 +237,30 @@ public static class PhysicalFileStore
         if (!string.IsNullOrEmpty(key))
         {
             _fileContents.TryRemove(key, out _);
+        }
+    }
+
+    public static void RemoveCachedFile(string fullPath)
+    {
+        var key = NormalizePath(fullPath);
+        if (string.IsNullOrEmpty(key)) return;
+        _fileContents.TryRemove(key, out _);
+
+        var lastSlash = key.LastIndexOf('/');
+        if (lastSlash > 0)
+        {
+            var parentKey = key[..lastSlash];
+            if (_directoryFiles.TryGetValue(parentKey, out var dirFiles) && dirFiles.Length > 0)
+            {
+                var targetName = key[(lastSlash + 1)..];
+                var updated = dirFiles
+                    .Where(f => !Path.GetFileName(f).Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                if (updated.Length != dirFiles.Length)
+                {
+                    _directoryFiles[parentKey] = updated;
+                }
+            }
         }
     }
 
@@ -338,7 +374,14 @@ public static class PhysicalFileStore
         }
 
         if (!File.Exists(fullPath)) return string.Empty;
-        return await File.ReadAllTextAsync(fullPath, cancellationToken);
+        try
+        {
+            return await File.ReadAllTextAsync(fullPath, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return string.Empty;
+        }
     }
 
     public static IEnumerable<string> ReadLines(string fullPath)
@@ -373,6 +416,27 @@ public static class PhysicalFileStore
     {
         var key = NormalizePath(directoryPath);
         return !string.IsNullOrEmpty(key) && _directoryFiles.ContainsKey(key);
+    }
+
+    public static List<(string DirectoryPath, string[] Files)> GetCachedDirectChildDirectories(string parentDirectoryPath)
+    {
+        var parentKey = NormalizePath(parentDirectoryPath);
+        if (string.IsNullOrEmpty(parentKey)) return [];
+
+        var prefix = parentKey + "/";
+        var result = new List<(string DirectoryPath, string[] Files)>();
+        foreach (var (k, arr) in _directoryFiles)
+        {
+            if (k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var remainder = k[prefix.Length..];
+                if (!remainder.Contains('/'))
+                {
+                    result.Add((k, arr));
+                }
+            }
+        }
+        return result;
     }
 
     public static IEnumerable<string> EnumerateCachedFilesInSubtree(string rootDirectoryPath)

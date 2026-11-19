@@ -63,6 +63,46 @@ public class PerlProjectParser : IProjectParser
                fileName.Equals(DistIniName, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static readonly HashSet<string> InternalPerlSubfolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "lib", "perllib", "blib", "t", "bin", "script", "scripts", "cron", "cronjobs",
+        "cronjobs_old", "tools", "tests", "test", "modules", "inc", "vendor"
+    };
+
+    private static readonly HashSet<string> PerlContainerFolderNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "lib", "perllib", "modules", "src", "app"
+    };
+
+    public bool CanContainNestedProject(
+        ParsedProjectDescriptor enclosingProject,
+        string childDirectoryPath,
+        string[] childFiles,
+        IProjectParser candidateChildParser)
+    {
+        if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
+        {
+            return false;
+        }
+
+        var hasExplicitManifest = HasPerlManifest(childFiles) ||
+                                  candidateChildParser.ManifestFileNames.Any(m =>
+                                      childFiles.Any(f => Path.GetFileName(f).Equals(m, StringComparison.OrdinalIgnoreCase)));
+        if (!hasExplicitManifest)
+        {
+            return false;
+        }
+
+        var relToParent = Path.GetRelativePath(enclosingProject.DirectoryPath, childDirectoryPath).Replace('\\', '/').Trim('/');
+        var firstSegment = relToParent.Split('/')[0];
+        if (InternalPerlSubfolders.Contains(firstSegment))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         if (HasPerlManifest(filesInDirectory))
@@ -70,7 +110,8 @@ public class PerlProjectParser : IProjectParser
             return true;
         }
 
-        if (!filesInDirectory.Any(IsPerlSourceFile))
+        if (!filesInDirectory.Any(IsPerlSourceFile) &&
+            !IsPerlContainerRoot(directoryPath, filesInDirectory))
         {
             return false;
         }
@@ -95,7 +136,7 @@ public class PerlProjectParser : IProjectParser
     {
         var packages = new List<ProducedPackageInfo>();
         var cpanfilePath = Path.Combine(projectDirectory, CpanfileName);
-        if (File.Exists(cpanfilePath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(cpanfilePath))
         {
             try
             {
@@ -161,31 +202,56 @@ public class PerlProjectParser : IProjectParser
                ext.Equals(PmExt, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool HasAncestorPerlProject(string directoryPath)
+    private static bool IsPerlContainerRoot(string directoryPath, string[] filesInDirectory)
     {
-        var current = Directory.GetParent(directoryPath);
-        var depth = 0;
-        while (current != null && depth < 5)
+        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
         {
-            depth++;
-            if (File.Exists(Path.Combine(current.FullName, CpanfileName)) ||
-                File.Exists(Path.Combine(current.FullName, MakefilePlName)) ||
-                File.Exists(Path.Combine(current.FullName, BuildPlName)))
-            {
-                return true;
-            }
+            return false;
+        }
 
-            try
+        var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
+        if (filesInDirectory.Length == 0 && !PerlContainerFolderNames.Contains(folderName))
+        {
+            return false;
+        }
+
+        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        var perlChildCount = 0;
+        for (var i = 0; i < childDirs.Count; i++)
+        {
+            if (childDirs[i].Files.Any(IsPerlSourceFile))
             {
-                var parentFiles = Directory.GetFiles(current.FullName);
-                if (parentFiles.Any(IsPerlSourceFile))
+                perlChildCount++;
+                if (perlChildCount >= 2)
                 {
                     return true;
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        }
+
+        return false;
+    }
+
+    private static bool HasAncestorPerlProject(string directoryPath)
+    {
+        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var current = Directory.GetParent(directoryPath);
+        var depth = 0;
+        while (current != null && depth < 16)
+        {
+            depth++;
+            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
             {
-                return false;
+                break;
+            }
+
+            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            if (HasPerlManifest(parentFiles) ||
+                parentFiles.Any(IsPerlSourceFile) ||
+                parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase)) ||
+                IsPerlContainerRoot(current.FullName, parentFiles))
+            {
+                return true;
             }
 
             current = current.Parent;

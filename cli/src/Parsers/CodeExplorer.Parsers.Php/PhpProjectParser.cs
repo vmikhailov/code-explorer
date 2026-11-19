@@ -93,6 +93,48 @@ public class PhpProjectParser : IProjectParser
                ext.Equals(IniExt, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static readonly HashSet<string> InternalPhpSubfolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application", "app", "src", "public", "www", "htdocs", "web", "html", "site", "kirby",
+        "views", "controllers", "models", "modules", "library", "lib", "libs", "includes", "inc",
+        "vendor", "node_modules", "assets", "static", "js", "scripts", "cron", "cronjobs",
+        "cronjobs_old", "tools", "tests", "test", "Oauth", "Retail", "WL"
+    };
+
+    private static readonly HashSet<string> PhpContainerFolderNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application", "app", "src", "library", "lib", "libs", "modules", "includes", "inc"
+    };
+
+    public bool CanContainNestedProject(
+        ParsedProjectDescriptor enclosingProject,
+        string childDirectoryPath,
+        string[] childFiles,
+        IProjectParser candidateChildParser)
+    {
+        if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
+        {
+            return false;
+        }
+
+        var hasExplicitManifest = HasComposerManifest(childFiles) ||
+                                  candidateChildParser.ManifestFileNames.Any(m =>
+                                      childFiles.Any(f => Path.GetFileName(f).Equals(m, StringComparison.OrdinalIgnoreCase)));
+        if (!hasExplicitManifest)
+        {
+            return false;
+        }
+
+        var relToParent = Path.GetRelativePath(enclosingProject.DirectoryPath, childDirectoryPath).Replace('\\', '/').Trim('/');
+        var firstSegment = relToParent.Split('/')[0];
+        if (InternalPhpSubfolders.Contains(firstSegment))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         if (HasComposerManifest(filesInDirectory))
@@ -100,7 +142,8 @@ public class PhpProjectParser : IProjectParser
             return true;
         }
 
-        var hasPhpFiles = filesInDirectory.Any(IsPhpSourceFile);
+        var hasPhpFiles = filesInDirectory.Any(IsPhpSourceFile) ||
+                          IsPhpApplicationOrContainerRoot(directoryPath, filesInDirectory);
         if (!hasPhpFiles)
         {
             return false;
@@ -112,7 +155,7 @@ public class PhpProjectParser : IProjectParser
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
         var composerPath = Path.Combine(directoryPath, ComposerJsonFile);
-        if (File.Exists(composerPath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
         {
             var composerName = TryReadComposerName(composerPath);
             if (!string.IsNullOrWhiteSpace(composerName))
@@ -128,7 +171,7 @@ public class PhpProjectParser : IProjectParser
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
         var composerPath = Path.Combine(projectDirectory, ComposerJsonFile);
-        if (File.Exists(composerPath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
         {
             var name = TryReadComposerName(composerPath);
             if (!string.IsNullOrWhiteSpace(name))
@@ -144,7 +187,7 @@ public class PhpProjectParser : IProjectParser
     {
         var packages = new List<ProducedPackageInfo>();
         var composerPath = Path.Combine(projectDirectory, ComposerJsonFile);
-        if (File.Exists(composerPath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
         {
             TryExtractComposerPackages(composerPath, packages);
         }
@@ -172,7 +215,7 @@ public class PhpProjectParser : IProjectParser
         };
 
         var composerPath = Path.Combine(directoryPath, ComposerJsonFile);
-        if (File.Exists(composerPath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
         {
             EnrichFromComposer(composerPath, props);
         }
@@ -202,30 +245,74 @@ public class PhpProjectParser : IProjectParser
                ext.Equals(IncExt, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool HasAncestorPhpProject(string directoryPath)
+    private static bool IsPhpApplicationOrContainerRoot(string directoryPath, string[] filesInDirectory)
     {
-        var current = Directory.GetParent(directoryPath);
-        var depth = 0;
-        while (current != null && depth < 5)
+        if (PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "www", "index.php")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "htdocs", "index.php")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "web", "index.php")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "html", "index.php")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "Bootstrap.php")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "configs", "application.ini")) ||
+            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "artisan")))
         {
-            depth++;
-            if (File.Exists(Path.Combine(current.FullName, ComposerJsonFile)) ||
-                File.Exists(Path.Combine(current.FullName, ComposerLockFile)))
-            {
-                return true;
-            }
+            return true;
+        }
 
-            try
+        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            return false;
+        }
+
+        var appDir = Path.Combine(directoryPath, "application");
+        var pubDir = Path.Combine(directoryPath, "public");
+        if ((PhysicalFileStore.HasCachedDirectory(appDir) && PhysicalFileStore.HasCachedDirectory(pubDir)) &&
+            PhysicalFileStore.EnumerateCachedFilesInSubtree(appDir).Any(IsPhpSourceFile))
+        {
+            return true;
+        }
+
+        var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
+        if (filesInDirectory.Length > 0 || PhpContainerFolderNames.Contains(folderName))
+        {
+            var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+            var phpChildCount = 0;
+            for (var i = 0; i < childDirs.Count; i++)
             {
-                var parentFiles = Directory.GetFiles(current.FullName);
-                if (parentFiles.Any(IsPhpSourceFile))
+                if (childDirs[i].Files.Any(IsPhpSourceFile))
                 {
-                    return true;
+                    phpChildCount++;
+                    if (phpChildCount >= 2)
+                    {
+                        return true;
+                    }
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        }
+
+        return false;
+    }
+
+    private static bool HasAncestorPhpProject(string directoryPath)
+    {
+        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var current = Directory.GetParent(directoryPath);
+        var depth = 0;
+        while (current != null && depth < 16)
+        {
+            depth++;
+            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
             {
-                return false;
+                break;
+            }
+
+            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            if (HasComposerManifest(parentFiles) ||
+                parentFiles.Any(IsPhpSourceFile) ||
+                parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".pm", StringComparison.OrdinalIgnoreCase)) ||
+                IsPhpApplicationOrContainerRoot(current.FullName, parentFiles))
+            {
+                return true;
             }
 
             current = current.Parent;

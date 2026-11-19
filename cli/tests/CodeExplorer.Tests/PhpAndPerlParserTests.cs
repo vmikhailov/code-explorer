@@ -405,4 +405,83 @@ public class PhpAndPerlParserTests
             .Select(t => t.Properties.GetValueOrDefault("name")?.ToString() ?? string.Empty).ToList();
         perlTables.Should().Contain(["billing_subscriptions", "mreg_audit_log"]);
     }
+
+    [Test]
+    public async Task DD24MonorepoLayout_CollapsesDeepMvcViewsPerlModulesAndRequirementsSubfolder_AndParsesCrOnlyPython()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "ce_dd24_monorepo_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            // 1. Zend Framework 1 / MVC service with public/index.php, Oauth/, and deep application/modules/v1/views/scripts/<ctrl>/*.phtml
+            var loginRoot = Path.Combine(tempRoot, "rtldev-dd24-login");
+            var loginPublic = Path.Combine(loginRoot, "public");
+            var loginOauth = Path.Combine(loginRoot, "Oauth");
+            var loginViews = Path.Combine(loginRoot, "application", "modules", "v1", "views", "scripts", "dnsrecords");
+            Directory.CreateDirectory(loginPublic);
+            Directory.CreateDirectory(loginOauth);
+            Directory.CreateDirectory(loginViews);
+            await File.WriteAllTextAsync(Path.Combine(loginPublic, "index.php"), "<?php echo 'login';");
+            await File.WriteAllTextAsync(Path.Combine(loginOauth, "Oauth.php"), "<?php class OauthClient {}");
+            await File.WriteAllTextAsync(Path.Combine(loginViews, "index.phtml"), "<?php echo $this->domain;");
+
+            // 2. Cron service with requirements/requirements.txt (0 .py files inside requirements/),
+            //    CR-only (\r) legacy Python file, and Perl module directories db/, billing/
+            var cronRoot = Path.Combine(tempRoot, "rtldev-dd24-cron-docker");
+            var cronReq = Path.Combine(cronRoot, "requirements");
+            var cronOldBilling = Path.Combine(cronRoot, "cronjobs_old", "billing");
+            var cronPerlDb = Path.Combine(cronRoot, "db");
+            var cronPerlBilling = Path.Combine(cronRoot, "billing");
+            Directory.CreateDirectory(cronReq);
+            Directory.CreateDirectory(cronOldBilling);
+            Directory.CreateDirectory(cronPerlDb);
+            Directory.CreateDirectory(cronPerlBilling);
+            await File.WriteAllTextAsync(Path.Combine(cronReq, "requirements.txt"), "requests==2.31.0\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(cronOldBilling, "maintain_pos_ek.py"),
+                "# -*- coding: ISO-8859-1 -*-\rfrom common.CMailHandler import CMailHandler\rfrom db.CDBHandle import CDBHandle\rdef run():\r    return 1\r");
+            await File.WriteAllTextAsync(Path.Combine(cronPerlDb, "CDBHandle.pm"), "package db::CDBHandle;\n1;\n");
+            await File.WriteAllTextAsync(Path.Combine(cronPerlBilling, "CBilling.pm"), "package billing::CBilling;\n1;\n");
+
+            // 3. Multi-folder Python backend without root manifest (only Dockerfile + Python package subdirectories)
+            var backendRoot = Path.Combine(tempRoot, "rtldev-dd24-backend");
+            var backendApi = Path.Combine(backendRoot, "api");
+            var backendWsb = Path.Combine(backendRoot, "wsb");
+            var backendOrder = Path.Combine(backendRoot, "order");
+            Directory.CreateDirectory(backendApi);
+            Directory.CreateDirectory(backendWsb);
+            Directory.CreateDirectory(backendOrder);
+            await File.WriteAllTextAsync(Path.Combine(backendRoot, "Dockerfile"), "FROM python:3.11\n");
+            await File.WriteAllTextAsync(Path.Combine(backendApi, "handler.py"), "def handle():\n    return True\n");
+            await File.WriteAllTextAsync(Path.Combine(backendWsb, "worker.py"), "def work():\n    return True\n");
+            await File.WriteAllTextAsync(Path.Combine(backendOrder, "process.py"), "def process():\n    return True\n");
+
+            WorkspaceIndexer.AutoRegisterParsers();
+            await using var client = new InMemoryGraphRepository();
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempRoot, clear: false);
+
+            var projectNames = client.UploadedNodes
+                .Where(n => n.Kind == NodeKind.Project)
+                .Select(n => n.Properties.GetValueOrDefault("name")?.ToString() ?? string.Empty)
+                .ToList();
+
+            projectNames.Should().Contain("rtldev-dd24-login");
+            projectNames.Should().Contain("rtldev-dd24-cron-docker");
+            projectNames.Should().Contain("rtldev-dd24-backend.Scripts");
+
+            projectNames.Should().NotContain(["Oauth", "public", "dnsrecords", "requirements", "db", "billing", "api.Scripts", "wsb.Scripts", "order.Scripts"]);
+
+            var syntaxErrors = client.UploadedNodes
+                .Where(n => n.Kind == NodeKind.ScanIssue &&
+                            string.Equals(n.Properties.GetValueOrDefault("category")?.ToString(), "syntax_error", StringComparison.Ordinal))
+                .ToList();
+            syntaxErrors.Should().BeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
 }

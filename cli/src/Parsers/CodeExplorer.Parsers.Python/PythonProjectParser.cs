@@ -20,17 +20,110 @@ public class PythonProjectParser : IProjectParser
 
     public IReadOnlyList<PackageDescriptor> Packages => PythonFileParser.DefaultPackages;
 
+    public bool CanContainNestedProject(
+        ParsedProjectDescriptor enclosingProject,
+        string childDirectoryPath,
+        string[] childFiles,
+        IProjectParser candidateChildParser)
+    {
+        if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
+        {
+            return false;
+        }
+
+        var hasExplicitManifest = candidateChildParser.ManifestFileNames.Any(m =>
+            childFiles.Any(f => Path.GetFileName(f).Equals(m, StringComparison.OrdinalIgnoreCase)));
+        if (!hasExplicitManifest)
+        {
+            return false;
+        }
+
+        var childFolderName = Path.GetFileName(childDirectoryPath.TrimEnd('/', '\\'));
+        if (childFolderName.Equals("requirements", StringComparison.OrdinalIgnoreCase) &&
+            !HasPythonFilesInSubtree(childDirectoryPath))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        var hasPrimaryManifest = false;
+        var hasRequirementsTxt = false;
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py" or "setup.cfg" or "pipfile" or "alembic.ini" or "manage.py")
+            if (fileName is "pyproject.toml" or "setup.py" or "setup.cfg" or "pipfile" or "alembic.ini" or "manage.py")
+            {
+                hasPrimaryManifest = true;
+                break;
+            }
+            if (fileName == "requirements.txt")
+            {
+                hasRequirementsTxt = true;
+            }
+        }
+
+        if (hasPrimaryManifest)
+        {
+            return true;
+        }
+
+        if (hasRequirementsTxt)
+        {
+            var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+            if (folderName.Equals("requirements", StringComparison.OrdinalIgnoreCase) &&
+                PhysicalFileStore.HasCachedDirectory(directoryPath) &&
+                !HasPythonFilesInSubtree(directoryPath))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        if (HasNestedRequirementsManifest(directoryPath) && HasPythonFilesInSubtree(directoryPath))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasNestedRequirementsManifest(string directoryPath)
+    {
+        var reqDir = Path.Combine(directoryPath, "requirements");
+        if (!PhysicalFileStore.TryGetCachedDirectoryFiles(reqDir, out var reqFiles) || reqFiles.Length == 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < reqFiles.Length; i++)
+        {
+            var fn = Path.GetFileName(reqFiles[i]);
+            if (fn.Equals("requirements.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("base.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("prod.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("production.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("common.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("main.txt", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
         }
         return false;
+    }
+
+    private static bool HasPythonFilesInSubtree(string directoryPath)
+    {
+        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            return false;
+        }
+
+        return PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath)
+            .Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase));
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
@@ -238,7 +331,11 @@ public class PythonProjectParser : IProjectParser
         if (externalPackages.Count == 0)
         {
             var reqPath = Path.Combine(projectDirectory, "requirements.txt");
-            if (File.Exists(reqPath))
+            if (!PhysicalFileStore.FileExistsInCachedDirectory(reqPath))
+            {
+                reqPath = Path.Combine(projectDirectory, "requirements", "requirements.txt");
+            }
+            if (PhysicalFileStore.FileExistsInCachedDirectory(reqPath))
             {
                 try
                 {

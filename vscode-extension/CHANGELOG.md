@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.12] - 2026-11-19
+
+### Fixed
+- **PHP, Perl, Python & Script Project Boundary Consolidation (`CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`, `CodeExplorer.Parsers.Python`, `CodeExplorer.Parsers.Script`, `CodeExplorer.Indexing`)**:
+  - Implemented `CanContainNestedProject(...)` and container-root detection in `PhpProjectParser` and `PerlProjectParser` (`IsPhpApplicationOrContainerRoot`, `IsPerlContainerRoot`), and removed the `depth < 5` ancestor cap in `HasAncestorPhpProject` / `HasAncestorPerlProject` so Zend Framework 1 / MVC view folders (`application/modules/v1..v10/views/scripts/<controller>/*.phtml`), bundled CMS folders (`kirby-*/site/accounts/*`), and Perl package subfolders (`db/`, `billing/`, `payment/`, `mreg/`, `tools/`, `promos/`, ...) are absorbed into their enclosing service project rather than spawning 190+ separate sub-projects.
+  - Updated `PythonProjectParser.IsProjectDirectory` and `ParseDependenciesAsync` to recognize `requirements/requirements.txt` at the parent service directory while rejecting `requirements/` folders that contain zero `.py` files in their subtree (`0 files` ghost project).
+  - Updated `ScriptProjectParser.IsScriptContainerRoot` and Pass 2 coverage tracking in `Layer2ProjectParser.ScanProjectsInDirectoriesAsync` so multi-folder Python/script services without a root manifest are consolidated into a single container project (`<service>.Scripts`) instead of creating separate `*.Scripts` projects for each module subdirectory.
+- **Dangling Symlink Handling & Classic Mac CR (`\r`) Line-Ending Normalization (`CodeExplorer.Core`, `CodeExplorer.Indexing`)**:
+  - Normalized bare `\r` (classic Mac CR not followed by `\n`) to `\n` in-place during `PhysicalFileStore.StreamAndAnalyzeFileAsync` so `tree-sitter-python` emits `NEWLINE` tokens between CR-delimited statements instead of reporting syntax errors on legacy `\r`-only Python files.
+  - Handled broken symlinks (`FileNotFoundException` / `DirectoryNotFoundException`) cleanly in `Layer1PhysicalParser.StreamCandidateFileAsync` with a single 1-line warning (`SkippingBrokenSymlink`) and evicted the dangling entry from `PhysicalFileStore` so no broken `FileNode` is passed to Layer 3.
+
+---
+
 ## [1.90.11] - 2026-11-19
 
 ### Fixed
