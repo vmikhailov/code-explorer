@@ -202,8 +202,9 @@ public partial class Layer2ProjectParser
         ".csproj", ".fsproj", ".vbproj", ".nuspec",
         ".tf", ".tofu",
         ".cfc", ".cfm", ".cfml",
-        ".php", ".phtml",
-        ".pl", ".pm", ".t", ".psgi"
+        ".php", ".phtml", ".inc",
+        ".pl", ".pm", ".t", ".psgi",
+        ".py"
     };
 
     private const string BuiltInParserNamespacePrefix = "CodeExplorer.Parsers";
@@ -245,52 +246,9 @@ public partial class Layer2ProjectParser
 
     private static bool HasChildContainerProjectTrigger(DirectoryTreeNode node)
     {
-        if (node.Children.Count == 0)
-        {
-            return false;
-        }
-
-        var phpChildren = 0;
-        var perlChildren = 0;
         for (var i = 0; i < node.Children.Count; i++)
         {
-            var child = node.Children[i];
-            var childName = Path.GetFileName(child.NormalizedPath);
-            if (childName.Equals("requirements", StringComparison.OrdinalIgnoreCase) ||
-                childName.Equals("public", StringComparison.OrdinalIgnoreCase) ||
-                childName.Equals("www", StringComparison.OrdinalIgnoreCase) ||
-                childName.Equals("htdocs", StringComparison.OrdinalIgnoreCase) ||
-                childName.Equals("web", StringComparison.OrdinalIgnoreCase) ||
-                childName.Equals("html", StringComparison.OrdinalIgnoreCase) ||
-                childName.Equals("application", StringComparison.OrdinalIgnoreCase))
-            {
-                if (child.SubtreeHasCandidateManifest)
-                {
-                    return true;
-                }
-            }
-
-            var hasPhp = false;
-            var hasPerl = false;
-            for (var f = 0; f < child.FilesInDir.Length; f++)
-            {
-                var ext = Path.GetExtension(child.FilesInDir[f]);
-                if (ext.Equals(".php", StringComparison.OrdinalIgnoreCase) ||
-                    ext.Equals(".phtml", StringComparison.OrdinalIgnoreCase) ||
-                    ext.Equals(".inc", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasPhp = true;
-                }
-                else if (ext.Equals(".pl", StringComparison.OrdinalIgnoreCase) ||
-                         ext.Equals(".pm", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasPerl = true;
-                }
-            }
-
-            if (hasPhp) phpChildren++;
-            if (hasPerl) perlChildren++;
-            if (phpChildren >= 2 || perlChildren >= 2)
+            if (node.Children[i].SubtreeHasCandidateManifest)
             {
                 return true;
             }

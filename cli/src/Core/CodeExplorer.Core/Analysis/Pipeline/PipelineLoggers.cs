@@ -287,10 +287,10 @@ public static partial class PipelineLogMessages
     [LoggerMessage(EventId = 6011, Level = LogLevel.Error, Message = "Consumer task finished with error: {ErrorMessage}")]
     public static partial void ConsumerTaskError(ILogger logger, string errorMessage, Exception? ex);
 
-    [LoggerMessage(EventId = 6012, Level = LogLevel.Information, Message = "[Database   ] Persisted {NodeCount:N0} nodes to database...")]
+    [LoggerMessage(EventId = 6012, Level = LogLevel.Debug, Message = "[Database   ] Persisted {NodeCount:N0} nodes to database...")]
     public static partial void PersistedNodesProgress(ILogger logger, int nodeCount);
 
-    [LoggerMessage(EventId = 6013, Level = LogLevel.Information, Message = "[Database   ] Persisted {RelationshipCount:N0} relationships to database...")]
+    [LoggerMessage(EventId = 6013, Level = LogLevel.Debug, Message = "[Database   ] Persisted {RelationshipCount:N0} relationships to database...")]
     public static partial void PersistedRelationshipsProgress(ILogger logger, int relationshipCount);
 
     [LoggerMessage(EventId = 6014, Level = LogLevel.Debug, Message = "[Database   ] Persisted {NodeCount:N0} nodes to database.")]

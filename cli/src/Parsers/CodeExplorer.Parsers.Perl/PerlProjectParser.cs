@@ -65,13 +65,12 @@ public class PerlProjectParser : IProjectParser
 
     private static readonly HashSet<string> InternalPerlSubfolders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "lib", "perllib", "blib", "t", "bin", "script", "scripts", "cron", "cronjobs",
-        "cronjobs_old", "tools", "tests", "test", "modules", "inc", "vendor"
-    };
-
-    private static readonly HashSet<string> PerlContainerFolderNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "lib", "perllib", "modules", "src", "app"
+        "lib", "libs", "perllib", "blib", "t", "bin", "script", "scripts", "cron", "cronjobs",
+        "cronjobs_old", "CronJobs", "tools", "tests", "test", "modules", "inc", "vendor",
+        "db", "date", "math", "mreg", "badman", "events", "promos", "socket", "billing",
+        "payment", "pricing", "renewals", "positions", "riskRating", "action_trigger",
+        "dd24_plausib_checks", "dd24Socket", "opmode", "logs-analyzer",
+        "common", "wlconfig", "configParser", "gunter"
     };
 
     public bool CanContainNestedProject(
@@ -85,6 +84,11 @@ public class PerlProjectParser : IProjectParser
             return false;
         }
 
+        if (candidateChildParser.ProjectType is "perl" or "php" or "python" or "script")
+        {
+            return false;
+        }
+
         var hasExplicitManifest = HasPerlManifest(childFiles) ||
                                   candidateChildParser.ManifestFileNames.Any(m =>
                                       childFiles.Any(f => Path.GetFileName(f).Equals(m, StringComparison.OrdinalIgnoreCase)));
@@ -94,10 +98,13 @@ public class PerlProjectParser : IProjectParser
         }
 
         var relToParent = Path.GetRelativePath(enclosingProject.DirectoryPath, childDirectoryPath).Replace('\\', '/').Trim('/');
-        var firstSegment = relToParent.Split('/')[0];
-        if (InternalPerlSubfolders.Contains(firstSegment))
+        var segments = relToParent.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length; i++)
         {
-            return false;
+            if (InternalPerlSubfolders.Contains(segments[i]))
+            {
+                return false;
+            }
         }
 
         return true;
@@ -107,7 +114,7 @@ public class PerlProjectParser : IProjectParser
     {
         if (HasPerlManifest(filesInDirectory))
         {
-            return true;
+            return !HasAncestorPerlProject(directoryPath);
         }
 
         if (!filesInDirectory.Any(IsPerlSourceFile) &&
@@ -202,6 +209,27 @@ public class PerlProjectParser : IProjectParser
                ext.Equals(PmExt, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasPythonOrPhpServiceManifest(string directoryPath, string[] filesInDirectory)
+    {
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var fn = Path.GetFileName(filesInDirectory[i]);
+            if (fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("composer.lock", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("pyproject.toml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("requirements.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("setup.py", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("Pipfile", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals(".coveragerc", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "requirements", "requirements.txt")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php"));
+    }
+
     private static bool IsPerlContainerRoot(string directoryPath, string[] filesInDirectory)
     {
         if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
@@ -210,7 +238,15 @@ public class PerlProjectParser : IProjectParser
         }
 
         var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
-        if (filesInDirectory.Length == 0 && !PerlContainerFolderNames.Contains(folderName))
+        var parentDir = Directory.GetParent(directoryPath);
+        if (parentDir != null &&
+            PhysicalFileStore.HasCachedDirectory(parentDir.FullName) &&
+            InternalPerlSubfolders.Contains(folderName))
+        {
+            return false;
+        }
+
+        if (HasPythonOrPhpServiceManifest(directoryPath, filesInDirectory))
         {
             return false;
         }
@@ -219,7 +255,13 @@ public class PerlProjectParser : IProjectParser
         var perlChildCount = 0;
         for (var i = 0; i < childDirs.Count; i++)
         {
-            if (childDirs[i].Files.Any(IsPerlSourceFile))
+            var childName = Path.GetFileName(childDirs[i].DirectoryPath.TrimEnd(PathTrimChars));
+            if (!InternalPerlSubfolders.Contains(childName))
+            {
+                continue;
+            }
+
+            if (PhysicalFileStore.EnumerateCachedFilesInSubtree(childDirs[i].DirectoryPath).Any(IsPerlSourceFile))
             {
                 perlChildCount++;
                 if (perlChildCount >= 2)
@@ -227,6 +269,18 @@ public class PerlProjectParser : IProjectParser
                     return true;
                 }
             }
+        }
+
+        if (perlChildCount == 1 &&
+            filesInDirectory.Any(f =>
+            {
+                var fn = Path.GetFileName(f);
+                return fn.Equals("Dockerfile", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals("docker-compose.yml", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals("docker-compose.yaml", StringComparison.OrdinalIgnoreCase);
+            }))
+        {
+            return true;
         }
 
         return false;
@@ -248,7 +302,8 @@ public class PerlProjectParser : IProjectParser
             var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
             if (HasPerlManifest(parentFiles) ||
                 parentFiles.Any(IsPerlSourceFile) ||
-                parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase)) ||
+                parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f).Equals("Dockerfile", StringComparison.OrdinalIgnoreCase)) ||
+                HasPythonOrPhpServiceManifest(current.FullName, parentFiles) ||
                 IsPerlContainerRoot(current.FullName, parentFiles))
             {
                 return true;

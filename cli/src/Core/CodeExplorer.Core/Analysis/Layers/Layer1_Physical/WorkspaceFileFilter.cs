@@ -135,8 +135,9 @@ public class WorkspaceFileFilter
     private static readonly HashSet<string> NonManifestProjectTriggerExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".cfc", ".cfm", ".cfml",
-        ".php", ".phtml",
-        ".pl", ".pm", ".t", ".psgi"
+        ".php", ".phtml", ".inc",
+        ".pl", ".pm", ".t", ".psgi",
+        ".py"
     };
 
     private List<IProjectParser>? MatchDirectoryProjectParsers(
@@ -145,7 +146,8 @@ public class WorkspaceFileFilter
         string[] dirFilePaths,
         bool includeFallback)
     {
-        if (!includeFallback && dirFiles.Count == 0)
+        var hasCachedChildDirs = PhysicalFileStore.GetCachedDirectChildDirectories(currentDir).Count > 0;
+        if (!includeFallback && dirFiles.Count == 0 && !hasCachedChildDirs)
         {
             var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
             var parentName = parentDir != null ? Path.GetFileName(parentDir) : string.Empty;
@@ -155,7 +157,7 @@ public class WorkspaceFileFilter
             }
         }
 
-        if (!includeFallback && dirFiles.Count > 0)
+        if (!includeFallback && dirFiles.Count > 0 && !hasCachedChildDirs)
         {
             var hasTrigger = false;
             for (int f = 0; f < dirFiles.Count; f++)
@@ -245,9 +247,16 @@ public class WorkspaceFileFilter
                               ext.Equals(".pm", StringComparison.OrdinalIgnoreCase) ||
                               ext.Equals(".t", StringComparison.OrdinalIgnoreCase) ||
                               ext.Equals(".psgi", StringComparison.OrdinalIgnoreCase),
+                    "python" => ext.Equals(".py", StringComparison.OrdinalIgnoreCase),
                     "coldfusion" => ext.Equals(".cfc", StringComparison.OrdinalIgnoreCase) ||
                                     ext.Equals(".cfm", StringComparison.OrdinalIgnoreCase) ||
                                     ext.Equals(".cfml", StringComparison.OrdinalIgnoreCase),
+                    "script" => ext.Equals(".sh", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".bash", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".zsh", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".ps1", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".bat", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase),
                     _ => false
                 };
 
@@ -454,7 +463,7 @@ public class WorkspaceFileFilter
         var newlines = 0;
         for (var i = 0; i < limit; i++)
         {
-            if (bytes[i] == (byte)'\n')
+            if (bytes[i] is (byte)'\n' or (byte)'\r')
             {
                 newlines++;
                 lineLen = 0;
@@ -489,7 +498,7 @@ public class WorkspaceFileFilter
         var newlines = 0;
         for (var i = 0; i < limit; i++)
         {
-            if (text[i] == '\n')
+            if (text[i] is '\n' or '\r')
             {
                 newlines++;
                 lineLen = 0;

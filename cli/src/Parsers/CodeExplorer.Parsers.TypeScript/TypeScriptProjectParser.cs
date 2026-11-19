@@ -72,7 +72,8 @@ public partial class TypeScriptProjectParser : IProjectParser
         {
             if (IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
                 IsInsideParentWebOrHybridProject(directoryPath) ||
-                IsAbsorbedWorkersSiteDirectory(directoryPath))
+                IsAbsorbedWorkersSiteDirectory(directoryPath) ||
+                IsVendoredFrontendAssetDirectory(directoryPath))
             {
                 return false;
             }
@@ -113,6 +114,19 @@ public partial class TypeScriptProjectParser : IProjectParser
                    fn.Equals("wrangler.jsonc", StringComparison.OrdinalIgnoreCase) ||
                    fn.Equals("wrangler.json", StringComparison.OrdinalIgnoreCase);
         });
+
+    public static bool IsVendoredFrontendAssetDirectory(string directoryPath)
+    {
+        var dirName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+        if (string.IsNullOrEmpty(dirName)) return false;
+
+        return dirName.StartsWith("jquery-ui", StringComparison.OrdinalIgnoreCase) ||
+               dirName.StartsWith("jquery.", StringComparison.OrdinalIgnoreCase) ||
+               dirName.StartsWith("Stuk-jszip", StringComparison.OrdinalIgnoreCase) ||
+               dirName.StartsWith("tinymce", StringComparison.OrdinalIgnoreCase) ||
+               dirName.StartsWith("ckeditor", StringComparison.OrdinalIgnoreCase) ||
+               dirName.EndsWith(".custom", StringComparison.OrdinalIgnoreCase);
+    }
 
     public static bool IsAbsorbedWorkersSiteDirectory(string directoryPath)
     {

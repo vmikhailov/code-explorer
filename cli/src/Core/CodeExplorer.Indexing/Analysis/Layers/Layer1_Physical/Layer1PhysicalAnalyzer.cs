@@ -87,6 +87,8 @@ public class Layer1PhysicalParser
             DiscoverDirectoryTree(ctx.ScanPath, currentParent, workspaceNode, gitignore, initialParsers, discoveredDirs, vscodeTaskDirs, ctx);
         }
 
+        RefreshContainerProjectParsers(discoveredDirs, ctx);
+
         foreach (var taskDir in vscodeTaskDirs)
         {
             await TryStreamVscodeTasksAsync(taskDir, ctx);
@@ -317,6 +319,65 @@ public class Layer1PhysicalParser
         for (int i = 0; i < subDirs.Length; i++)
         {
             DiscoverDirectoryTree(subDirs[i].FullName, currentParentNode, workspaceNode, gitignore, activeParsers, discoveredDirs, vscodeTaskDirs, ctx);
+        }
+    }
+
+    private static void RefreshContainerProjectParsers(
+        List<DiscoveredDirectoryEntry> discoveredDirs,
+        ParsingContext ctx)
+    {
+        if (discoveredDirs.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<IProjectParser>? rootParsers = null;
+        var parsersByFolderId = new Dictionary<string, IReadOnlyList<IProjectParser>>(discoveredDirs.Count, StringComparer.Ordinal);
+
+        for (int i = 0; i < discoveredDirs.Count; i++)
+        {
+            var entry = discoveredDirs[i];
+            IReadOnlyList<IProjectParser>? inherited = null;
+            if (entry.ParentNode is FolderNode pf && parsersByFolderId.TryGetValue(pf.Id, out var parentParsers))
+            {
+                inherited = parentParsers;
+            }
+            else if (!entry.IsRoot)
+            {
+                inherited = rootParsers;
+            }
+
+            if (!entry.IsProjectRoot)
+            {
+                var cachedPaths = PhysicalFileStore.GetDirectoryFiles(entry.CurrentDir);
+                var direct = ctx.FileFilter.MatchDirectProjectParsers(
+                    entry.CurrentDir,
+                    entry.DirFiles,
+                    cachedPaths,
+                    allowFallback: inherited is not { Count: > 0 });
+                if (direct is { Count: > 0 })
+                {
+                    entry = entry with { ActiveParsers = direct, IsProjectRoot = true };
+                    discoveredDirs[i] = entry;
+                }
+                else if (entry.ActiveParsers is not { Count: > 0 } && inherited is { Count: > 0 })
+                {
+                    entry = entry with { ActiveParsers = inherited };
+                    discoveredDirs[i] = entry;
+                }
+            }
+
+            if (entry.ActiveParsers is { Count: > 0 })
+            {
+                if (entry.IsRoot)
+                {
+                    rootParsers = entry.ActiveParsers;
+                }
+                else if (entry.FolderNode != null)
+                {
+                    parsersByFolderId[entry.FolderNode.Id] = entry.ActiveParsers;
+                }
+            }
         }
     }
 

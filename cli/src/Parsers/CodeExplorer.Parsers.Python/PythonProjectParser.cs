@@ -20,6 +20,23 @@ public class PythonProjectParser : IProjectParser
 
     public IReadOnlyList<PackageDescriptor> Packages => PythonFileParser.DefaultPackages;
 
+    private static readonly HashSet<string> InternalPythonSubfolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "requirements", "api", "wsb", "auth", "cron", "cronjobs", "cronjobs_old", "CronJobs",
+        "poyd", "sync", "cache", "homer", "order", "keydns", "rabbit", "bi_tool", "hubspot",
+        "request", "bulkmail", "deletions", "migration", "migrations", "titan_api", "deployment",
+        "monitoring", "newsletter", "two_factor", "aftermarket", "geolocation", "productinfo",
+        "smartsearch", "step_up_2fa", "dd24_sockets", "dd24Socket", "pdfGeneration", "minimonitoring",
+        "dd24_exceptions", "error_management", "notificationCenter", "premium", "bundling",
+        "controlling", "jirainterface", "activeCampaign",
+        "db", "date", "math", "mreg", "tools", "badman", "events", "promos", "socket", "billing",
+        "payment", "pricing", "external", "renewals", "positions", "riskRating", "action_trigger",
+        "dd24_plausib_checks", "opmode", "logs-analyzer", "common", "wlconfig", "configParser", "gunter",
+        "src", "app", "lib", "libs", "core", "utils", "helpers", "services", "models", "controllers",
+        "handlers", "workers", "tasks", "jobs", "scripts", "bin", "config", "configs", "settings",
+        "tests", "test", "html", "public", "www", "site", "vendor"
+    };
+
     public bool CanContainNestedProject(
         ParsedProjectDescriptor enclosingProject,
         string childDirectoryPath,
@@ -31,6 +48,11 @@ public class PythonProjectParser : IProjectParser
             return false;
         }
 
+        if (candidateChildParser.ProjectType is "php" or "perl" or "script")
+        {
+            return false;
+        }
+
         var hasExplicitManifest = candidateChildParser.ManifestFileNames.Any(m =>
             childFiles.Any(f => Path.GetFileName(f).Equals(m, StringComparison.OrdinalIgnoreCase)));
         if (!hasExplicitManifest)
@@ -38,11 +60,26 @@ public class PythonProjectParser : IProjectParser
             return false;
         }
 
+        if (!string.Equals(candidateChildParser.ProjectType, "python", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         var childFolderName = Path.GetFileName(childDirectoryPath.TrimEnd('/', '\\'));
         if (childFolderName.Equals("requirements", StringComparison.OrdinalIgnoreCase) &&
             !HasPythonFilesInSubtree(childDirectoryPath))
         {
             return false;
+        }
+
+        var relToParent = Path.GetRelativePath(enclosingProject.DirectoryPath, childDirectoryPath).Replace('\\', '/').Trim('/');
+        var segments = relToParent.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length; i++)
+        {
+            if (InternalPythonSubfolders.Contains(segments[i]))
+            {
+                return false;
+            }
         }
 
         return true;
@@ -85,9 +122,161 @@ public class PythonProjectParser : IProjectParser
 
         if (HasNestedRequirementsManifest(directoryPath) && HasPythonFilesInSubtree(directoryPath))
         {
+            return !HasAncestorPythonProject(directoryPath);
+        }
+
+        if (IsPythonContainerRoot(directoryPath, filesInDirectory))
+        {
+            return !HasAncestorPythonProject(directoryPath);
+        }
+
+        return false;
+    }
+
+    private static bool HasOtherPrimaryManifest(string directoryPath, string[] filesInDirectory)
+    {
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var fn = Path.GetFileName(filesInDirectory[i]);
+            if (fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("composer.lock", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("package.json", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("Makefile.PL", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("cpanfile", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("go.mod", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("pom.xml", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".php", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".pm", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "www", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "Bootstrap.php"));
+    }
+
+    private static bool SubtreeHasOtherEcosystemManifests(string directoryPath)
+    {
+        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+        {
+            var fn = Path.GetFileName(file);
+            if (fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                fn.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("go.mod", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("pom.xml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("build.gradle", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsPythonContainerRoot(string directoryPath, string[] filesInDirectory)
+    {
+        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            return false;
+        }
+
+        var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+        var parentDir = Directory.GetParent(directoryPath);
+        if (parentDir != null &&
+            PhysicalFileStore.HasCachedDirectory(parentDir.FullName) &&
+            InternalPythonSubfolders.Contains(folderName))
+        {
+            return false;
+        }
+
+        if (HasOtherPrimaryManifest(directoryPath, filesInDirectory) ||
+            SubtreeHasOtherEcosystemManifests(directoryPath))
+        {
+            return false;
+        }
+
+        var hasDockerOrCoverageMarker = filesInDirectory.Any(f =>
+        {
+            var fn = Path.GetFileName(f);
+            return fn.Equals("Dockerfile", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("docker-compose.yml", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("docker-compose.yaml", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals(".coveragerc", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("pytest.ini", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("tox.ini", StringComparison.OrdinalIgnoreCase);
+        });
+
+        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        var pyChildCount = 0;
+        for (var i = 0; i < childDirs.Count; i++)
+        {
+            var childName = Path.GetFileName(childDirs[i].DirectoryPath.TrimEnd('/', '\\'));
+            if (!InternalPythonSubfolders.Contains(childName))
+            {
+                continue;
+            }
+
+            if (PhysicalFileStore.EnumerateCachedFilesInSubtree(childDirs[i].DirectoryPath)
+                .Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase)))
+            {
+                pyChildCount++;
+                if (pyChildCount >= 2 || (hasDockerOrCoverageMarker && pyChildCount >= 1))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (hasDockerOrCoverageMarker &&
+            filesInDirectory.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase)))
+        {
             return true;
         }
 
+        return false;
+    }
+
+    private static bool HasAncestorPythonProject(string directoryPath)
+    {
+        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var current = Directory.GetParent(directoryPath);
+        var depth = 0;
+        while (current != null && depth < 16)
+        {
+            depth++;
+            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            {
+                break;
+            }
+
+            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            if (parentFiles.Any(f =>
+                {
+                    var fn = Path.GetFileName(f).ToLowerInvariant();
+                    return fn is "pyproject.toml" or "setup.py" or "setup.cfg" or "pipfile" or "alembic.ini" or "manage.py" or "requirements.txt" or ".coveragerc"
+                           || fn.EndsWith(".py", StringComparison.Ordinal);
+                }) ||
+                HasNestedRequirementsManifest(current.FullName) ||
+                IsPythonContainerRoot(current.FullName, parentFiles))
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
         return false;
     }
 

@@ -24,7 +24,8 @@ public class JavaScriptProjectParser : IProjectParser
         if (packageJson != null)
         {
             if (TypeScriptProjectParser.IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
-                TypeScriptProjectParser.IsAbsorbedWorkersSiteDirectory(directoryPath))
+                TypeScriptProjectParser.IsAbsorbedWorkersSiteDirectory(directoryPath) ||
+                TypeScriptProjectParser.IsVendoredFrontendAssetDirectory(directoryPath))
             {
                 return false;
             }

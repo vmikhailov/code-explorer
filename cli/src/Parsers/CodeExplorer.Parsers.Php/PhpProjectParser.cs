@@ -97,14 +97,34 @@ public class PhpProjectParser : IProjectParser
     {
         "application", "app", "src", "public", "www", "htdocs", "web", "html", "site", "kirby",
         "views", "controllers", "models", "modules", "library", "lib", "libs", "includes", "inc",
-        "vendor", "node_modules", "assets", "static", "js", "scripts", "cron", "cronjobs",
-        "cronjobs_old", "tools", "tests", "test", "Oauth", "Retail", "WL"
+        "vendor", "node_modules", "3rdParty", "3rdparty", "thirdparty", "third_party", "external",
+        "assets", "static", "js", "css", "skin", "skins", "themes", "tpl", "templates",
+        "scripts", "cron", "cronjobs", "cronjobs_old", "CronJobs", "tools", "tests", "test",
+        "Oauth", "Retail", "WL", "common", "wlconfig", "configParser",
+        "db", "date", "math", "mreg", "badman", "events", "promos", "socket", "billing",
+        "payment", "pricing", "renewals", "positions", "riskRating", "action_trigger",
+        "dd24_plausib_checks", "dd24Socket", "opmode", "logs-analyzer", "gunter",
+        "content", "media", "cache", "storage", "config", "configs", "data", "docs", "sql", "migrations"
     };
 
-    private static readonly HashSet<string> PhpContainerFolderNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> PhpPrimaryAppSubfolders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "application", "app", "src", "library", "lib", "libs", "modules", "includes", "inc"
+        "application", "public", "www", "htdocs", "web", "html", "site"
     };
+
+    private static bool IsVendoredSubfolderName(string folderName)
+    {
+        return folderName.StartsWith("kirby-", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("jquery-", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("jquery.", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("bootstrap-", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("Stuk-", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("tinymce", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("ckeditor", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("select2", StringComparison.OrdinalIgnoreCase) ||
+               folderName.StartsWith("datatables", StringComparison.OrdinalIgnoreCase) ||
+               folderName.EndsWith(".custom", StringComparison.OrdinalIgnoreCase);
+    }
 
     public bool CanContainNestedProject(
         ParsedProjectDescriptor enclosingProject,
@@ -113,6 +133,11 @@ public class PhpProjectParser : IProjectParser
         IProjectParser candidateChildParser)
     {
         if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
+        {
+            return false;
+        }
+
+        if (candidateChildParser.ProjectType is "php" or "perl" or "python" or "script")
         {
             return false;
         }
@@ -126,10 +151,13 @@ public class PhpProjectParser : IProjectParser
         }
 
         var relToParent = Path.GetRelativePath(enclosingProject.DirectoryPath, childDirectoryPath).Replace('\\', '/').Trim('/');
-        var firstSegment = relToParent.Split('/')[0];
-        if (InternalPhpSubfolders.Contains(firstSegment))
+        var segments = relToParent.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length; i++)
         {
-            return false;
+            if (InternalPhpSubfolders.Contains(segments[i]) || IsVendoredSubfolderName(segments[i]))
+            {
+                return false;
+            }
         }
 
         return true;
@@ -139,7 +167,7 @@ public class PhpProjectParser : IProjectParser
     {
         if (HasComposerManifest(filesInDirectory))
         {
-            return true;
+            return !HasAncestorPhpProject(directoryPath);
         }
 
         var hasPhpFiles = filesInDirectory.Any(IsPhpSourceFile) ||
@@ -245,16 +273,39 @@ public class PhpProjectParser : IProjectParser
                ext.Equals(IncExt, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasPhpWebEntrypoint(string directoryPath)
+    {
+        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "www", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "htdocs", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "web", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "html", "index.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "Bootstrap.php")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "configs", "application.ini")) ||
+               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "artisan"));
+    }
+
+    private static bool HasPythonServiceManifest(string directoryPath, string[] filesInDirectory)
+    {
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var fn = Path.GetFileName(filesInDirectory[i]);
+            if (fn.Equals("pyproject.toml", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("requirements.txt", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("setup.py", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("Pipfile", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals(".coveragerc", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "requirements", "requirements.txt"));
+    }
+
     private static bool IsPhpApplicationOrContainerRoot(string directoryPath, string[] filesInDirectory)
     {
-        if (PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "www", "index.php")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "htdocs", "index.php")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "web", "index.php")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "html", "index.php")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "Bootstrap.php")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "configs", "application.ini")) ||
-            PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "artisan")))
+        if (HasPhpWebEntrypoint(directoryPath))
         {
             return true;
         }
@@ -264,30 +315,62 @@ public class PhpProjectParser : IProjectParser
             return false;
         }
 
-        var appDir = Path.Combine(directoryPath, "application");
-        var pubDir = Path.Combine(directoryPath, "public");
-        if ((PhysicalFileStore.HasCachedDirectory(appDir) && PhysicalFileStore.HasCachedDirectory(pubDir)) &&
-            PhysicalFileStore.EnumerateCachedFilesInSubtree(appDir).Any(IsPhpSourceFile))
+        var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
+        var parentDir = Directory.GetParent(directoryPath);
+        if (parentDir != null &&
+            PhysicalFileStore.HasCachedDirectory(parentDir.FullName) &&
+            (InternalPhpSubfolders.Contains(folderName) || IsVendoredSubfolderName(folderName)))
+        {
+            return false;
+        }
+
+        if (HasPythonServiceManifest(directoryPath, filesInDirectory))
+        {
+            return false;
+        }
+
+        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        if (childDirs.Count == 0)
+        {
+            return false;
+        }
+
+        var internalPhpChildCount = 0;
+        var hasPrimaryAppChild = false;
+        for (var i = 0; i < childDirs.Count; i++)
+        {
+            var childName = Path.GetFileName(childDirs[i].DirectoryPath.TrimEnd(PathTrimChars));
+            if (!InternalPhpSubfolders.Contains(childName) && !IsVendoredSubfolderName(childName))
+            {
+                continue;
+            }
+
+            if (PhysicalFileStore.EnumerateCachedFilesInSubtree(childDirs[i].DirectoryPath).Any(IsPhpSourceFile))
+            {
+                internalPhpChildCount++;
+                if (PhpPrimaryAppSubfolders.Contains(childName))
+                {
+                    hasPrimaryAppChild = true;
+                }
+            }
+        }
+
+        if (hasPrimaryAppChild || internalPhpChildCount >= 2)
         {
             return true;
         }
 
-        var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
-        if (filesInDirectory.Length > 0 || PhpContainerFolderNames.Contains(folderName))
-        {
-            var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
-            var phpChildCount = 0;
-            for (var i = 0; i < childDirs.Count; i++)
+        if (internalPhpChildCount == 1 &&
+            filesInDirectory.Any(f =>
             {
-                if (childDirs[i].Files.Any(IsPhpSourceFile))
-                {
-                    phpChildCount++;
-                    if (phpChildCount >= 2)
-                    {
-                        return true;
-                    }
-                }
-            }
+                var fn = Path.GetFileName(f);
+                return fn.Equals("Dockerfile", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals("docker-compose.yml", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals("docker-compose.yaml", StringComparison.OrdinalIgnoreCase) ||
+                       fn.Equals(".htaccess", StringComparison.OrdinalIgnoreCase);
+            }))
+        {
+            return true;
         }
 
         return false;
@@ -310,6 +393,7 @@ public class PhpProjectParser : IProjectParser
             if (HasComposerManifest(parentFiles) ||
                 parentFiles.Any(IsPhpSourceFile) ||
                 parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".pm", StringComparison.OrdinalIgnoreCase)) ||
+                HasPythonServiceManifest(current.FullName, parentFiles) ||
                 IsPhpApplicationOrContainerRoot(current.FullName, parentFiles))
             {
                 return true;

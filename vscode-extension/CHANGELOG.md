@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.14] - 2026-11-19
+
+### Fixed
+- **Polyglot Monorepo Root Isolation, Container Project Detection & Vendored Bundle Absorption (`CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`, `CodeExplorer.Parsers.Python`, `CodeExplorer.Parsers.TypeScript`, `CodeExplorer.Core`, `CodeExplorer.Indexing`)**:
+  - Restricted `PhpProjectParser.IsPhpApplicationOrContainerRoot` and `PerlProjectParser.IsPerlContainerRoot` child-directory counting strictly to internal structure/module subdirectories (`InternalPhpSubfolders` / `InternalPerlSubfolders`) so multi-repository workspace roots containing root documentation files (`MANIFEST.md`, `.gitignore`) and 2+ sibling PHP/Perl repositories are never claimed as a single root project swallowing manifestless sibling repositories.
+  - Added `PythonProjectParser.IsPythonContainerRoot` (with `SubtreeHasOtherEcosystemManifests` guard) so Docker/coverage-rooted or multi-package Python repositories without `pyproject.toml` / `requirements.txt` are detected as first-class `Python` projects in Pass 1 and absorb nested Perl/PHP/Python module directories (`libs/*`, `cronjobs/*`, `api/*`).
+  - Absorbed nested PHP/Perl/Python/Script subdirectories (`3rdParty/Retail`, `kirby-*`) and vendored frontend asset directories (`jquery-ui-*.custom`, `Stuk-jszip`) into their enclosing repository project via full relative path segment checks in `CanContainNestedProject` and `TypeScriptProjectParser.IsVendoredFrontendAssetDirectory`.
+  - Added post-discovery `RefreshContainerProjectParsers` in `Layer1PhysicalParser` and included `python` / `script` in `WorkspaceFileFilter.MatchFileSupportedProjectParsers` so container projects whose manifests or source files reside in child directories propagate their `ActiveParsers` after `PhysicalFileStore` is fully populated.
+  - Demoted per-10,000 in-memory bulk-staging log messages (`PersistedNodesProgress` / `PersistedRelationshipsProgress`) to `LogLevel.Debug` so console logs report only the deduplicated `CommitBulkLoadAsync` database flush.
+
+---
+
 ## [1.90.13] - 2026-11-19
 
 ### Fixed

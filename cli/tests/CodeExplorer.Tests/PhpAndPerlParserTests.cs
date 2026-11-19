@@ -413,6 +413,10 @@ public class PhpAndPerlParserTests
         Directory.CreateDirectory(tempRoot);
         try
         {
+            // 0. Root monorepo files (MANIFEST.md, .gitignore) - must NOT cause tempRoot itself to become a root PHP/Perl project
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, "MANIFEST.md"), "# DD24 Repositories\n");
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, ".gitignore"), ".DS_Store\n");
+
             // 1. Zend Framework 1 / MVC service with public/index.php, Oauth/, and deep application/modules/v1/views/scripts/<ctrl>/*.phtml
             var loginRoot = Path.Combine(tempRoot, "rtldev-dd24-login");
             var loginPublic = Path.Combine(loginRoot, "public");
@@ -425,7 +429,35 @@ public class PhpAndPerlParserTests
             await File.WriteAllTextAsync(Path.Combine(loginOauth, "Oauth.php"), "<?php class OauthClient {}");
             await File.WriteAllTextAsync(Path.Combine(loginViews, "index.phtml"), "<?php echo $this->domain;");
 
-            // 2. Cron service with requirements/requirements.txt (0 .py files inside requirements/),
+            // 2. Manifestless PHP libraries with direct .php files, nested 3rdParty/Retail/composer.json, and jquery-ui-1.12.1.custom/package.json
+            var libWlRoot = Path.Combine(tempRoot, "rtldev-dd24-library-wl");
+            var retailNested = Path.Combine(libWlRoot, "3rdParty", "Retail");
+            Directory.CreateDirectory(retailNested);
+            await File.WriteAllTextAsync(Path.Combine(libWlRoot, "WlHelper.php"), "<?php class WlHelper {}");
+            await File.WriteAllTextAsync(Path.Combine(retailNested, "composer.json"), """{"name": "dd24/retail-sdk"}""");
+            await File.WriteAllTextAsync(Path.Combine(retailNested, "RetailClient.php"), "<?php class RetailClient {}");
+
+            var libWwwRoot = Path.Combine(tempRoot, "rtldev-dd24-library-www");
+            var jqueryUiDir = Path.Combine(libWwwRoot, "js", "jquery-ui-1.12.1.custom");
+            Directory.CreateDirectory(jqueryUiDir);
+            await File.WriteAllTextAsync(Path.Combine(libWwwRoot, "WwwRequest.php"), "<?php class WwwRequest {}");
+            await File.WriteAllTextAsync(Path.Combine(jqueryUiDir, "package.json"), """{"name": "jquery-ui", "version": "1.12.1"}""");
+            await File.WriteAllTextAsync(Path.Combine(jqueryUiDir, "jquery-ui.js"), "function initUi() {}");
+
+            // 3. Kirby CMS service with public/index.php, site/controllers, and bundled kirby-3.7.1/composer.json
+            var kirbyServiceRoot = Path.Combine(tempRoot, "rtldev-dd24-kirby-docker");
+            var kirbyPublic = Path.Combine(kirbyServiceRoot, "public");
+            var kirbySite = Path.Combine(kirbyServiceRoot, "site", "controllers");
+            var kirbyEngine = Path.Combine(kirbyServiceRoot, "kirby-3.7.1");
+            Directory.CreateDirectory(kirbyPublic);
+            Directory.CreateDirectory(kirbySite);
+            Directory.CreateDirectory(kirbyEngine);
+            await File.WriteAllTextAsync(Path.Combine(kirbyPublic, "index.php"), "<?php echo 'kirby';");
+            await File.WriteAllTextAsync(Path.Combine(kirbySite, "home.php"), "<?php return function () {};");
+            await File.WriteAllTextAsync(Path.Combine(kirbyEngine, "composer.json"), """{"name": "getkirby/cms"}""");
+            await File.WriteAllTextAsync(Path.Combine(kirbyEngine, "bootstrap.php"), "<?php class KirbyApp {}");
+
+            // 4. Cron service with requirements/requirements.txt (0 .py files inside requirements/),
             //    CR-only (\r) legacy Python file, and Perl module directories db/, billing/
             var cronRoot = Path.Combine(tempRoot, "rtldev-dd24-cron-docker");
             var cronReq = Path.Combine(cronRoot, "requirements");
@@ -439,22 +471,25 @@ public class PhpAndPerlParserTests
             await File.WriteAllTextAsync(Path.Combine(cronReq, "requirements.txt"), "requests==2.31.0\n");
             await File.WriteAllTextAsync(
                 Path.Combine(cronOldBilling, "maintain_pos_ek.py"),
-                "# -*- coding: ISO-8859-1 -*-\rfrom common.CMailHandler import CMailHandler\rfrom db.CDBHandle import CDBHandle\rdef run():\r    return 1\r");
+                "# -*- coding: ISO-8859-1 -*-\rfrom common.CMailHandler import CMailHandler\rfrom db.CDBHandle import CDBHandle\rdef run_pos_ek():\r    return 1\r");
             await File.WriteAllTextAsync(Path.Combine(cronPerlDb, "CDBHandle.pm"), "package db::CDBHandle;\n1;\n");
             await File.WriteAllTextAsync(Path.Combine(cronPerlBilling, "CBilling.pm"), "package billing::CBilling;\n1;\n");
 
-            // 3. Multi-folder Python backend without root manifest (only Dockerfile + Python package subdirectories)
+            // 5. Multi-folder Python backend without root manifest (only Dockerfile + Python package & Perl libs subdirectories)
             var backendRoot = Path.Combine(tempRoot, "rtldev-dd24-backend");
             var backendApi = Path.Combine(backendRoot, "api");
             var backendWsb = Path.Combine(backendRoot, "wsb");
             var backendOrder = Path.Combine(backendRoot, "order");
+            var backendPerlDb = Path.Combine(backendRoot, "libs", "db");
             Directory.CreateDirectory(backendApi);
             Directory.CreateDirectory(backendWsb);
             Directory.CreateDirectory(backendOrder);
+            Directory.CreateDirectory(backendPerlDb);
             await File.WriteAllTextAsync(Path.Combine(backendRoot, "Dockerfile"), "FROM python:3.11\n");
-            await File.WriteAllTextAsync(Path.Combine(backendApi, "handler.py"), "def handle():\n    return True\n");
+            await File.WriteAllTextAsync(Path.Combine(backendApi, "handler.py"), "def handle_backend_api():\n    return True\n");
             await File.WriteAllTextAsync(Path.Combine(backendWsb, "worker.py"), "def work():\n    return True\n");
             await File.WriteAllTextAsync(Path.Combine(backendOrder, "process.py"), "def process():\n    return True\n");
+            await File.WriteAllTextAsync(Path.Combine(backendPerlDb, "BackendDb.pm"), "package db::BackendDb;\n1;\n");
 
             WorkspaceIndexer.AutoRegisterParsers();
             await using var client = new InMemoryGraphRepository();
@@ -466,11 +501,29 @@ public class PhpAndPerlParserTests
                 .Select(n => n.Properties.GetValueOrDefault("name")?.ToString() ?? string.Empty)
                 .ToList();
 
-            projectNames.Should().Contain("rtldev-dd24-login");
-            projectNames.Should().Contain("rtldev-dd24-cron-docker");
-            projectNames.Should().Contain("rtldev-dd24-backend.Scripts");
+            var rootFolderName = Path.GetFileName(tempRoot);
+            projectNames.Should().NotContain(rootFolderName);
+            projectNames.Should().Contain([
+                "rtldev-dd24-login",
+                "rtldev-dd24-library-wl",
+                "rtldev-dd24-library-www",
+                "rtldev-dd24-kirby-docker",
+                "rtldev-dd24-cron-docker",
+                "rtldev-dd24-backend"
+            ]);
 
-            projectNames.Should().NotContain(["Oauth", "public", "dnsrecords", "requirements", "db", "billing", "api.Scripts", "wsb.Scripts", "order.Scripts"]);
+            projectNames.Should().NotContain([
+                "Oauth", "public", "dnsrecords", "requirements", "db", "billing",
+                "Retail", "dd24/retail-sdk", "kirby-3.7.1", "getkirby/cms", "site",
+                "jquery-ui-1.12.1.custom", "jquery-ui",
+                "api.Scripts", "wsb.Scripts", "order.Scripts"
+            ]);
+
+            var functionNames = client.UploadedNodes
+                .Where(n => n.Kind == NodeKind.Function)
+                .Select(n => n.Properties.GetValueOrDefault("name")?.ToString() ?? string.Empty)
+                .ToList();
+            functionNames.Should().Contain(["run_pos_ek", "handle_backend_api"]);
 
             var syntaxErrors = client.UploadedNodes
                 .Where(n => n.Kind == NodeKind.ScanIssue &&
