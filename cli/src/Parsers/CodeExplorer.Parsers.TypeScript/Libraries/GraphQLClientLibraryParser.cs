@@ -266,17 +266,25 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
         var valNode = declaratorNode.GetField(TreeSitterSyntax.Fields.Value);
         if (!valNode.IsValid()) return false;
 
+        const string nodeAsExpr = "as_expression";
+        const string nodeSatisfiesExpr = "satisfies_expression";
+        const string nodeParenExpr = "parenthesized_expression";
+        const string nodeTypeAssert = "type_assertion";
+        const string nodeTypeIdent = "type_identifier";
+        const string nodeGenericType = "generic_type";
+        const string nodePredefinedType = "predefined_type";
+
         // Unwrap TypeScript `as unknown as DocumentNode<...>` or `({...}) as const`
         var curr = valNode;
         for (var i = 0; i < 5 && curr.IsValid(); i++)
         {
-            if (curr.IsAny("as_expression", "satisfies_expression", "parenthesized_expression", "type_assertion"))
+            if (curr.IsAny(nodeAsExpr, nodeSatisfiesExpr, nodeParenExpr, nodeTypeAssert))
             {
                 var inner = curr.Children.FirstOrDefault(c =>
                     c.IsNamed &&
-                    !c.Is("type_identifier") &&
-                    !c.Is("generic_type") &&
-                    !c.Is("predefined_type"));
+                    !c.Is(nodeTypeIdent) &&
+                    !c.Is(nodeGenericType) &&
+                    !c.Is(nodePredefinedType));
                 if (inner.IsValid())
                 {
                     curr = inner;
@@ -312,14 +320,18 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
         Node node,
         out List<GraphQLParsedOperation> operations)
     {
+        const string nodeTaggedTemplate = "tagged_template_expression";
+        const string fieldFunction = "function";
+        const string fieldArguments = "arguments";
+
         operations = [];
         if (!node.IsValid()) return false;
 
         // 1. TaggedTemplateExpression: gql`...` or graphql`...`
-        if (node.Is("tagged_template_expression"))
+        if (node.Is(nodeTaggedTemplate))
         {
-            var tagNode = node.GetField("function") ?? node.Children.FirstOrDefault();
-            var tplNode = node.GetField("arguments") ?? node.FindChildOfType(TreeSitterSyntax.TypeScript.TemplateString);
+            var tagNode = node.GetField(fieldFunction) ?? node.Children.FirstOrDefault();
+            var tplNode = node.GetField(fieldArguments) ?? node.FindChildOfType(TreeSitterSyntax.TypeScript.TemplateString);
             if (tagNode.IsValid() && tplNode.IsValid())
             {
                 var tagText = tagNode.Text.Trim();

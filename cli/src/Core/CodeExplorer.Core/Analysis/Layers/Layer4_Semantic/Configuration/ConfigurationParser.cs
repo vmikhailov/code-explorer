@@ -109,24 +109,37 @@ public static class ConfigurationParser
                    lower.Contains("org.h2.driver") ||
                    lowerName.Contains("h2");
 
+        const string dbTypeRelational = "relational";
+        const string dbTypeDocument = "document";
+        const string dbTypeCache = "cache";
+        const string enginePostgres = "PostgreSQL";
+        const string engineMongo = "MongoDB";
+        const string engineRedis = "Redis";
+        const string engineMySql = "MySQL";
+        const string engineH2 = "H2";
+        const string engineSqlServer = "SQL Server";
+        const string engineSqlite = "SQLite";
+        const string brokerRabbitMq = "rabbitmq";
+        const string brokerKafka = "kafka";
+
         if (isPostgres)
         {
-            CreateDatabaseNode("PostgreSQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            CreateDatabaseNode(enginePostgres, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("mongodb://") || lower.StartsWith("mongodb+srv://") || lowerName.Contains("mongo"))
         {
-            CreateDatabaseNode("MongoDB", "document", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            CreateDatabaseNode(engineMongo, dbTypeDocument, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("redis://") || lower.StartsWith("valkey://") || lower.Contains("localhost:6379") || lowerName.Contains("redis") || lowerName.Contains("valkey"))
         {
-            CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            CreateDatabaseNode(engineRedis, dbTypeCache, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("amqp://") || lower.StartsWith("amqps://") || lowerName.Contains("rabbitmq"))
         {
             var ch = ExtractChannelName(connStr, name);
             if (!string.IsNullOrEmpty(ch))
             {
-                CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                CreateTopicNode(brokerRabbitMq, ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
             }
         }
         else if (lower.Contains(":9092") || lowerName.Contains("kafka"))
@@ -134,25 +147,23 @@ public static class ConfigurationParser
             var ch = ExtractChannelName(connStr, name);
             if (!string.IsNullOrEmpty(ch))
             {
-                CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                CreateTopicNode(brokerKafka, ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
             }
         }
         else if (isMySql)
         {
-            CreateDatabaseNode("MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            CreateDatabaseNode(engineMySql, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (isH2)
         {
-            CreateDatabaseNode("H2", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            CreateDatabaseNode(engineH2, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.Contains("data source=") || lower.Contains("server=") || lower.StartsWith("jdbc:sqlserver://") || lowerName.Contains("sqlserver") || lowerName.Contains("mssql"))
         {
-            CreateDatabaseNode("SQL Server", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+            CreateDatabaseNode(engineSqlServer, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (Regex.IsMatch(lower, @"\.(?:db|sqlite|sqlite3)(?:$|[\s;'""?])") || lowerName.Contains("sqlite"))
         {
-            const string engineSqlite = "SQLite";
-            const string dbTypeRelational = "relational";
             CreateDatabaseNode(engineSqlite, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
     }

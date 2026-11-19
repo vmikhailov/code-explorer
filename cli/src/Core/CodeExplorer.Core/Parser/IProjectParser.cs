@@ -280,6 +280,54 @@ public interface IProjectParser
     }
 
     /// <summary>
+    /// Determines whether a child directory <paramref name="childDirectoryPath"/> located inside an already-matched
+    /// <paramref name="enclosingProject"/> of this parser may be evaluated by <paramref name="candidateChildParser"/>
+    /// as a nested project boundary during top-down directory traversal.
+    /// </summary>
+    bool CanContainNestedProject(
+        ParsedProjectDescriptor enclosingProject,
+        string childDirectoryPath,
+        string[] childFiles,
+        IProjectParser candidateChildParser) =>
+        DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser);
+
+    public static bool DefaultCanContainNestedProject(
+        ParsedProjectDescriptor enclosingProject,
+        string childDirectoryPath,
+        IProjectParser candidateChildParser)
+    {
+        var normChild = Path.GetFullPath(childDirectoryPath).Replace('\\', '/').TrimEnd('/');
+
+        if (enclosingProject.AbsorbedSubpaths != null)
+        {
+            foreach (var sub in enclosingProject.AbsorbedSubpaths)
+            {
+                var fullAbs = Path.GetFullPath(Path.Combine(enclosingProject.DirectoryPath, sub)).Replace('\\', '/').TrimEnd('/');
+                if (normChild.Equals(fullAbs, StringComparison.OrdinalIgnoreCase) ||
+                    normChild.StartsWith(fullAbs + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (enclosingProject.ExcludedSubpaths != null)
+        {
+            foreach (var sub in enclosingProject.ExcludedSubpaths)
+            {
+                var fullExcl = Path.GetFullPath(Path.Combine(enclosingProject.DirectoryPath, sub)).Replace('\\', '/').TrimEnd('/');
+                if (normChild.Equals(fullExcl, StringComparison.OrdinalIgnoreCase) ||
+                    normChild.StartsWith(fullExcl + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Declarative package descriptors (frameworks, test runners, drivers) registered for this language dialect.
     /// </summary>
     IReadOnlyList<PackageDescriptor> Packages => [];

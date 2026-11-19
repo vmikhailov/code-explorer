@@ -546,7 +546,10 @@ public sealed class WorkerEvidenceClassifier : IProjectEntityClassifier
                     return ProjectClassification.Worker;
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // ignored: unreadable manifest file falls back to next classifier
+            }
         }
 
         return null;
@@ -666,7 +669,10 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
                     return ProjectClassification.Library;
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // ignored: unreadable manifest file falls back to next classifier
+            }
         }
 
         // 2. Standard source library directories (/src/lib/, /libs/, /lib/, /packages/)
@@ -730,7 +736,10 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
                     return ProjectClassification.Library;
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // ignored: unreadable manifest file falls back to next classifier
+            }
         }
 
         return null;

@@ -192,6 +192,71 @@ public class ProjectParserPrecedenceTests
         }
     }
 
+    [Test]
+    public void FindProjectForFilePath_RootBuildOrchestrator_DoesNotClaimOrphanSubdirectoryFiles()
+    {
+        var rootOrch = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+            "ws:project::",
+            "twenty",
+            "",
+            "typescript",
+            "SharedLibrary",
+            true)
+        {
+            IsBuildOrchestrator = true
+        };
+        var serverProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+            "ws:project:packages/twenty-server:",
+            "twenty-server",
+            "packages/twenty-server",
+            "typescript",
+            "Service",
+            false);
+
+        var projects = new List<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode> { rootOrch, serverProj };
+
+        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser
+            .FindProjectForFilePath("packages/twenty-server/src/main.ts", projects)
+            .Should().BeSameAs(serverProj);
+
+        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser
+            .FindProjectForFilePath("packages/twenty-docker/podman/podman-compose.yml", projects)
+            .Should().BeNull("a root build orchestrator must not swallow files in unclaimed subdirectories");
+
+        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser
+            .FindProjectForFilePath("package.json", projects)
+            .Should().BeSameAs(rootOrch);
+    }
+
+    [Test]
+    public void TypeScriptCanContainNestedProject_BlocksSrcNestedManifestInLeafProject_AllowsInOrchestrator()
+    {
+        var tsParser = new TypeScriptProjectParser();
+        var leafDescriptor = new ParsedProjectDescriptor(
+            Name: "twenty-server",
+            DirectoryPath: "/repo/packages/twenty-server",
+            ProjectType: "typescript",
+            ManifestProperties: new Dictionary<string, string> { ["manifest_type"] = "application" });
+
+        tsParser.CanContainNestedProject(
+            leafDescriptor,
+            "/repo/packages/twenty-server/src/engine/workspace-manager/package-template",
+            ["/repo/packages/twenty-server/src/engine/workspace-manager/package-template/package.json"],
+            tsParser).Should().BeFalse();
+
+        var orchDescriptor = new ParsedProjectDescriptor(
+            Name: "twenty",
+            DirectoryPath: "/repo",
+            ProjectType: "typescript",
+            ManifestProperties: new Dictionary<string, string> { ["is_build_orchestrator"] = "true" });
+
+        tsParser.CanContainNestedProject(
+            orchDescriptor,
+            "/repo/packages/twenty-server",
+            ["/repo/packages/twenty-server/package.json"],
+            tsParser).Should().BeTrue();
+    }
+
     private abstract class FakeParser : IProjectParser
     {
         public abstract string ProjectType { get; }

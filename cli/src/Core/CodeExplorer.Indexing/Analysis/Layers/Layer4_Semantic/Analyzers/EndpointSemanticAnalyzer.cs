@@ -779,11 +779,12 @@ public static class EndpointSemanticAnalyzer
             path = domainOrService;
             var segments = domainOrService.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
             string? candidate = null;
+            const string versionPrefix = "v";
             for (var i = 0; i < segments.Length; i++)
             {
                 var seg = segments[i];
                 if (seg.Equals("api", StringComparison.OrdinalIgnoreCase)) continue;
-                if (seg.StartWithIC("v") && seg.Length <= 6 && seg.Skip(1).All(c => char.IsDigit(c) || c == '.')) continue;
+                if (seg.StartWithIC(versionPrefix) && seg.Length <= 6 && seg.Skip(1).All(c => char.IsDigit(c) || c == '.')) continue;
                 if (seg.Equals("assets", StringComparison.OrdinalIgnoreCase) || seg.Equals("static", StringComparison.OrdinalIgnoreCase) || seg.Equals("public", StringComparison.OrdinalIgnoreCase))
                 {
                     candidate = null;

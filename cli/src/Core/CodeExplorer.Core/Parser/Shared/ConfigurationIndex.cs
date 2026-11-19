@@ -405,12 +405,13 @@ public static class ConfigurationIndex
         // If an internal gateway/localhost URL has a path (e.g. https://localhost:3001/spa-bff), check if path points to a downstream service
         if (!isExternal && uri.AbsolutePath.Length > 1)
         {
+            const string versionPrefix = "v";
             var firstSeg = uri.AbsolutePath.Trim('/').Split('/')[0];
             if (!string.IsNullOrWhiteSpace(firstSeg) &&
                 firstSeg.Length >= 2 &&
                 !firstSeg.All(char.IsDigit) &&
                 !firstSeg.Equals("api", StringComparison.OrdinalIgnoreCase) &&
-                !firstSeg.StartWithIC("v") &&
+                !firstSeg.StartWithIC(versionPrefix) &&
                 !firstSeg.Equals(serviceName, StringComparison.OrdinalIgnoreCase))
             {
                 var pathEndpoint = new DiscoveredServiceUrl(

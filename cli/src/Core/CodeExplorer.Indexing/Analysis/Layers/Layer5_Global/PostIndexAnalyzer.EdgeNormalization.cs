@@ -545,15 +545,16 @@ public partial class PostIndexAnalyzer
 
     public static void DeduplicateProjectNodes(List<Node> nodes, List<Relationship> relationships)
     {
+        const string propPath = "path";
         var canonicalPaths = new HashSet<string>(
             nodes.Where(n => n.NodeKind == NodeKind.Project && n.Id.Contains(":p:"))
-                 .Select(n => n.Properties.TryGetValue("path", out var p) ? p?.ToString() ?? "" : "")
+                 .Select(n => n.Properties.TryGetValue(propPath, out var p) ? p?.ToString() ?? "" : "")
                  .Where(p => !string.IsNullOrEmpty(p))
         );
 
         var removedIds = new HashSet<string>(
             nodes.Where(n => n.NodeKind == NodeKind.Project && (n.Id.Contains(":project:") || n.Id.EndsWith(":project"))
-                             && n.Properties.TryGetValue("path", out var p) && canonicalPaths.Contains(p?.ToString() ?? ""))
+                             && n.Properties.TryGetValue(propPath, out var p) && canonicalPaths.Contains(p?.ToString() ?? ""))
                  .Select(n => n.Id)
         );
 

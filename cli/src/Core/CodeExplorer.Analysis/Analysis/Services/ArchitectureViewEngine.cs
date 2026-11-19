@@ -215,49 +215,45 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         return new SystemContextDiscoveryState(internalProjectsLookup, projectCandidates, endpointCandidates, primaryRelationalEngine);
     }
 
+    private static readonly string[] BaseNodePropertyKeys =
+    [
+        "role", "is_library", "db_type", "project_type", "framework",
+        "package_count", "primary_role", "secondary_roles", "all_roles",
+        "is_build_orchestrator", "member_count", "protocols"
+    ];
+
+    private static readonly string[] LayerNodePropertyKeys =
+    [
+        "layerName", "layerOrder", "layerColor", "layerIcon"
+    ];
+
     private static Dictionary<string, string> ExtractBaseNodeProperties(CypherRow elem)
     {
+        const string propPath = "path";
+        const string propFilePath = "file_path";
+        const string propLayer = "layer";
+        const string propLayerId = "layerId";
+
         var props = elem.ExtractProperties();
-        var role = elem.GetStringProp("role", props.GetValueOrDefault("role", ""));
-        if (!string.IsNullOrEmpty(role)) props["role"] = role;
-        var isLib = elem.GetStringProp("is_library", props.GetValueOrDefault("is_library", ""));
-        if (!string.IsNullOrEmpty(isLib)) props["is_library"] = isLib;
-        var dbType = elem.GetStringProp("db_type", props.GetValueOrDefault("db_type", ""));
-        if (!string.IsNullOrEmpty(dbType)) props["db_type"] = dbType;
-        var projType = elem.GetStringProp("project_type", props.GetValueOrDefault("project_type", ""));
-        if (!string.IsNullOrEmpty(projType)) props["project_type"] = projType;
-        var framework = elem.GetStringProp("framework", props.GetValueOrDefault("framework", ""));
-        if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
-        var path = elem.GetStringProp("path", props.GetValueOrDefault("path", props.GetValueOrDefault("file_path", "")));
-        if (!string.IsNullOrEmpty(path)) props["path"] = path;
-        var layer = elem.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
+        foreach (var key in BaseNodePropertyKeys)
+        {
+            var val = elem.GetStringProp(key, props.GetValueOrDefault(key, string.Empty));
+            if (!string.IsNullOrEmpty(val)) props[key] = val;
+        }
+
+        var path = elem.GetStringProp(propPath, props.GetValueOrDefault(propPath, props.GetValueOrDefault(propFilePath, string.Empty)));
+        if (!string.IsNullOrEmpty(path)) props[propPath] = path;
+        var layer = elem.GetStringProp(propLayer, props.GetValueOrDefault(propLayer, string.Empty));
 
         if (!string.IsNullOrEmpty(layer))
         {
-            props["layer"] = layer;
-            props["layerId"] = elem.GetStringProp("layerId", props.GetValueOrDefault("layerId", layer));
-            props["layerName"] = elem.GetStringProp("layerName", props.GetValueOrDefault("layerName", ""));
-            props["layerOrder"] = elem.GetStringProp("layerOrder", props.GetValueOrDefault("layerOrder", ""));
-            props["layerColor"] = elem.GetStringProp("layerColor", props.GetValueOrDefault("layerColor", ""));
-            props["layerIcon"] = elem.GetStringProp("layerIcon", props.GetValueOrDefault("layerIcon", ""));
+            props[propLayer] = layer;
+            props[propLayerId] = elem.GetStringProp(propLayerId, props.GetValueOrDefault(propLayerId, layer));
+            foreach (var lKey in LayerNodePropertyKeys)
+            {
+                props[lKey] = elem.GetStringProp(lKey, props.GetValueOrDefault(lKey, string.Empty));
+            }
         }
-
-        var pkgCount = elem.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
-        if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
-
-        var primaryRole = elem.GetStringProp("primary_role", props.GetValueOrDefault("primary_role", ""));
-        if (!string.IsNullOrEmpty(primaryRole)) props["primary_role"] = primaryRole;
-        var secondaryRoles = elem.GetStringProp("secondary_roles", props.GetValueOrDefault("secondary_roles", ""));
-        if (!string.IsNullOrEmpty(secondaryRoles)) props["secondary_roles"] = secondaryRoles;
-        var allRoles = elem.GetStringProp("all_roles", props.GetValueOrDefault("all_roles", ""));
-        if (!string.IsNullOrEmpty(allRoles)) props["all_roles"] = allRoles;
-        var isBuildOrch = elem.GetStringProp("is_build_orchestrator", props.GetValueOrDefault("is_build_orchestrator", ""));
-        if (!string.IsNullOrEmpty(isBuildOrch)) props["is_build_orchestrator"] = isBuildOrch;
-
-        var memberCount = elem.GetStringProp("member_count", props.GetValueOrDefault("member_count", ""));
-        if (!string.IsNullOrEmpty(memberCount)) props["member_count"] = memberCount;
-        var protocols = elem.GetStringProp("protocols", props.GetValueOrDefault("protocols", ""));
-        if (!string.IsNullOrEmpty(protocols)) props["protocols"] = protocols;
 
         return props;
     }

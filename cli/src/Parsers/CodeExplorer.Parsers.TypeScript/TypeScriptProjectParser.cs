@@ -442,6 +442,54 @@ public partial class TypeScriptProjectParser : IProjectParser
         return true;
     }
 
+    private const string PropIsBuildOrchestrator = "is_build_orchestrator";
+    private const string PropIsOrchestrator = "is_orchestrator";
+
+    public bool CanContainNestedProject(
+        ParsedProjectDescriptor enclosingProject,
+        string childDirectoryPath,
+        string[] childFiles,
+        IProjectParser candidateChildParser)
+    {
+        if (!IProjectParser.DefaultCanContainNestedProject(enclosingProject, childDirectoryPath, candidateChildParser))
+        {
+            return false;
+        }
+
+        if (string.Equals(enclosingProject.ManifestProperties.GetValueOrDefault(PropIsBuildOrchestrator), "true", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(enclosingProject.ManifestProperties.GetValueOrDefault(PropIsOrchestrator), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var normChild = Path.GetFullPath(childDirectoryPath).Replace('\\', '/').TrimEnd('/');
+        if (enclosingProject.SubProjects != null)
+        {
+            foreach (var sub in enclosingProject.SubProjects)
+            {
+                var fullSub = Path.GetFullPath(sub.DirectoryPath).Replace('\\', '/').TrimEnd('/');
+                if (normChild.Equals(fullSub, StringComparison.OrdinalIgnoreCase) ||
+                    normChild.StartsWith(fullSub + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (candidateChildParser.ProjectType is "typescript" or "javascript")
+        {
+            var relToParent = Path.GetRelativePath(enclosingProject.DirectoryPath, childDirectoryPath).Replace('\\', '/').Trim('/');
+            var firstSegment = relToParent.Split('/')[0];
+            if (firstSegment.Equals("src", StringComparison.OrdinalIgnoreCase) ||
+                firstSegment.Equals("templates", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
         var packageJsonPath = Path.Combine(projectDirectory, "package.json");

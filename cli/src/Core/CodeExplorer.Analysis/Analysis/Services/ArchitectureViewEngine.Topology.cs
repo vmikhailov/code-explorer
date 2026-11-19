@@ -43,8 +43,9 @@ public partial class ArchitectureViewEngine
 
         LiftTransitiveSemanticRelations(graph);
 
+        const string propIsBuildOrchestrator = "is_build_orchestrator";
         var orchestratorIds = graph.Nodes
-            .Where(n => string.Equals(n.Properties?.GetValueOrDefault("is_build_orchestrator"), "true", StringComparison.OrdinalIgnoreCase))
+            .Where(n => string.Equals(n.Properties?.GetValueOrDefault(propIsBuildOrchestrator), "true", StringComparison.OrdinalIgnoreCase))
             .Select(n => n.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

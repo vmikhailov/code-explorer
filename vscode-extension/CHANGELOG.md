@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.5] - 2026-11-18
+
+### Changed
+- **Hierarchical Top-Down Directory Traversal & Nested Project Scoping in Layer 2 (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.TypeScript`)**:
+  - Replaced flat directory iteration in `Layer2ProjectParser.ScanProjectsInDirectoriesAsync` with a recursive top-down directory tree walker (`Layer2BoundariesAnalyzer.TreeWalker.cs`) that evaluates project parsers before entering a directory, descends into unmatched directories as plain folders, and transitions into an `EnclosingProjectScope` once a project boundary is matched.
+  - Added `IProjectParser.CanContainNestedProject` (`DefaultCanContainNestedProject` and `TypeScriptProjectParser.CanContainNestedProject`) so an enclosing leaf project blocks nested manifests inside `src/`, `templates/`, or absorbed subpaths (merging their dependencies into the enclosing project) while allowing workspace/build orchestrators and explicit `SubProjects` (`angular.json`, `nest-cli.json`) to descend into child projects.
+  - Updated `Layer2ProjectParser.FindProjectForFilePath` so a root build orchestrator (`IsBuildOrchestrator == true`, `Path == ""`) never acts as a fallback owner for files in unclaimed subdirectories.
+
+---
+
 ## [1.90.4] - 2026-11-18
 
 ### Fixed

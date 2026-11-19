@@ -113,7 +113,8 @@ public partial class Layer2ProjectParser
             {
                 var isRootScriptFallback = p.EntityKind == ProjectEntityKind.ScriptProject ||
                                            p.ProjectType is ProjectLanguage.Script or ProjectLanguage.Batch or ProjectLanguage.PowerShell or ProjectLanguage.Shell;
-                if (isRootScriptFallback && cleanPath.Contains('/'))
+                var isRootBuildOrchestrator = p.IsBuildOrchestrator == true;
+                if ((isRootScriptFallback || isRootBuildOrchestrator) && cleanPath.Contains('/'))
                 {
                     continue;
                 }
