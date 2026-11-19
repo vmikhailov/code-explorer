@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.91.2] - 2026-11-20
+
+### Fixed
+- **Prevent Manifestless `.git` Root Detection from Shadowing Terraform/Terragrunt and Typed Ecosystem Repositories (`CodeExplorer.Parsers.Python`, `CodeExplorer.Parsers.Php`, `CodeExplorer.Parsers.Perl`)**:
+  - Added `.tf`, `.tofu`, `terragrunt.hcl`, `root.hcl`, and ColdFusion/JVM manifests (`box.json`, `Application.cfc`, `Application.cfm`) plus non-scripting source file counts (`otherCodeCount`) to `IsPythonContainerRoot`, `IsPhpApplicationOrContainerRoot`, and `IsPerlContainerRoot` so git repositories belonging to Terraform/Terragrunt or other ecosystems with auxiliary `.py`/`.php`/`.pl` scripts are never claimed by a manifestless Python/PHP/Perl root project.
+- **Next.js App Router Conventions Excluded from `find_refactor_dead_code` (`CodeExplorer.Analysis`)**:
+  - Excluded Next.js App Router HTTP route handlers (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` in `route.ts`/`route.tsx`/`route.js`/`route.jsx`), lifecycle/metadata hooks (`generateMetadata`, `generateStaticParams`, `generateViewport`, `middleware`, `proxy`, `register`, `onRequestError`), and exported page/layout/error/loading/robots/sitemap/manifest convention functions from `find_refactor_dead_code`.
+- **Incremental Indexing Snapshot & Stale Node Purge for `CatchClauseNode` (`CodeExplorer.Indexing`, `CodeExplorer.Storage`)**:
+  - Added `CatchClauseNode` to `FileSnapshotBuilder` and `SqliteGraphClient.Schema` incremental file-purge cleanup so editing comments or statements inside a `catch` block triggers incremental re-indexing and removes stale `CatchClause` nodes.
+
+---
+
 ## [1.91.1] - 2026-11-19
 
 ### Changed

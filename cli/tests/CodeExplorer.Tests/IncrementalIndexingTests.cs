@@ -683,5 +683,106 @@ public class IncrementalIndexingTests
             }
         }
     }
+
+    [Test]
+    public async Task Test_IncrementalIndexing_CatchClauseEdit_ReindexesAndRemovesStaleNode()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ce_inc_catch_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var dbFile = Path.Combine(tempDir, "graph.db");
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{\"name\": \"test-app\"}");
+            var srcDir = Path.Combine(tempDir, "src");
+            Directory.CreateDirectory(srcDir);
+            var tsFile = Path.Combine(srcDir, "fallback.ts");
+
+            // Phase 1: Empty catch without comment
+            await File.WriteAllTextAsync(tsFile, """
+                export function loadValue(): string | null {
+                    try {
+                        return "ok";
+                    } catch {
+                    }
+                    return null;
+                }
+                """);
+
+            await using (var client1 = new Core.Database.SqliteGraphClient(dbFile))
+            {
+                var indexer1 = new WorkspaceIndexer(client1);
+                await indexer1.IndexAsync(tempDir, clear: false);
+
+                var res1 = await client1.ExecuteCypherAsync(
+                    "MATCH (c:CatchClause) RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
+                res1.Rows.Should().ContainSingle("Initial scan should index 1 CatchClause");
+                res1.Rows[0]["is_empty"].AsBool().Should().BeTrue();
+                res1.Rows[0]["has_comment"].AsBool().Should().BeFalse();
+            }
+
+            // Phase 2: Add explanatory comment AND shift catch down by 1 line (no new calls/types)
+            await Task.Delay(50);
+            await File.WriteAllTextAsync(tsFile, """
+                export function loadValue(): string | null {
+                    const fallback = null;
+                    try {
+                        return "ok";
+                    } catch {
+                        // Intentional fallback
+                    }
+                    return fallback;
+                }
+                """);
+
+            await using (var client2 = new Core.Database.SqliteGraphClient(dbFile))
+            {
+                var indexer2 = new WorkspaceIndexer(client2);
+                var changed = await indexer2.IndexIncrementalAsync(tempDir);
+                changed.Should().BeTrue("Editing a catch clause must trigger incremental re-index");
+
+                var res2 = await client2.ExecuteCypherAsync(
+                    "MATCH (c:CatchClause) RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
+                res2.Rows.Should().ContainSingle("Incremental re-index must purge stale CatchClause node");
+                res2.Rows[0]["is_empty"].AsBool().Should().BeTrue();
+                res2.Rows[0]["has_comment"].AsBool().Should().BeTrue("Updated has_comment must be reflected in graph");
+            }
+
+            // Phase 3: Add non-call statement inside catch (still no new calls/types)
+            await Task.Delay(50);
+            await File.WriteAllTextAsync(tsFile, """
+                export function loadValue(): string | null {
+                    const fallback = null;
+                    try {
+                        return "ok";
+                    } catch {
+                        return fallback;
+                    }
+                }
+                """);
+
+            await using (var client3 = new Core.Database.SqliteGraphClient(dbFile))
+            {
+                var indexer3 = new WorkspaceIndexer(client3);
+                var changed = await indexer3.IndexIncrementalAsync(tempDir);
+                changed.Should().BeTrue("Adding a statement to a catch clause must trigger incremental re-index");
+
+                var res3 = await client3.ExecuteCypherAsync(
+                    "MATCH (c:CatchClause) RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
+                res3.Rows.Should().ContainSingle("Incremental re-index must not leave duplicate CatchClause nodes");
+                res3.Rows[0]["is_empty"].AsBool().Should().BeFalse();
+                res3.Rows[0]["statement_count"].AsInt32().Should().BeGreaterThan(0);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
 }
 

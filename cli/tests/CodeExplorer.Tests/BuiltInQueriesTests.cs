@@ -294,4 +294,62 @@ export class OrdersController {
         deadNames.Should().NotContain("<module_init>");
         deadNames.Should().NotContain("Jest:Suite:BigComponent");
     }
+
+    [Test]
+    public async Task Test_FindRefactorDeadCode_ExcludesNextJsAppRouterConventions()
+    {
+        var psId = "ws:ps:NextApp";
+        var nodes = new List<Node>
+        {
+            new("ws:proj:NextApp", "Project", new Dictionary<string, object> { ["name"] = "NextApp" }),
+            new(psId, "ProjectSyntax", new Dictionary<string, object> { ["name"] = "NextApp" }),
+            new("ws:file:NextApp:route.ts", "File", new Dictionary<string, object> { ["path"] = "apps/web/src/app/api/health/route.ts", ["artifact_role"] = "source" }),
+            new("ws:file:NextApp:page.tsx", "File", new Dictionary<string, object> { ["path"] = "apps/web/src/app/[lang]/page.tsx", ["artifact_role"] = "source" }),
+            new("ws:file:NextApp:not-found.tsx", "File", new Dictionary<string, object> { ["path"] = "apps/web/src/app/not-found.tsx", ["artifact_role"] = "source" }),
+            new("ws:file:NextApp:robots.ts", "File", new Dictionary<string, object> { ["path"] = "apps/web/src/app/robots.ts", ["artifact_role"] = "source" }),
+            new("ws:file:NextApp:dead.ts", "File", new Dictionary<string, object> { ["path"] = "apps/web/src/lib/dead.ts", ["artifact_role"] = "source" }),
+            new("ws:fn:NextApp:GET", "Function", new Dictionary<string, object> { ["name"] = "GET", ["is_exported"] = true, ["is_test"] = false }),
+            new("ws:fn:NextApp:POST", "Function", new Dictionary<string, object> { ["name"] = "POST", ["is_exported"] = true, ["is_test"] = false }),
+            new("ws:fn:NextApp:HomePage", "Function", new Dictionary<string, object> { ["name"] = "HomePage", ["is_exported"] = true, ["is_test"] = false }),
+            new("ws:fn:NextApp:generateMetadata", "Function", new Dictionary<string, object> { ["name"] = "generateMetadata", ["is_exported"] = true, ["is_test"] = false }),
+            new("ws:fn:NextApp:NotFound", "Function", new Dictionary<string, object> { ["name"] = "NotFound", ["is_exported"] = true, ["is_test"] = false }),
+            new("ws:fn:NextApp:unusedPageHelper", "Function", new Dictionary<string, object> { ["name"] = "unusedPageHelper", ["is_exported"] = false, ["is_test"] = false }),
+            new("ws:fn:NextApp:robots", "Function", new Dictionary<string, object> { ["name"] = "robots", ["is_exported"] = true, ["is_test"] = false }),
+            new("ws:fn:NextApp:trulyDeadFn", "Function", new Dictionary<string, object> { ["name"] = "trulyDeadFn", ["is_exported"] = true, ["is_test"] = false })
+        };
+        var rels = new List<Relationship>
+        {
+            new(psId, "ws:proj:NextApp", "BELONGS_TO"),
+            new(psId, "ws:fn:NextApp:GET", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:POST", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:HomePage", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:generateMetadata", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:NotFound", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:unusedPageHelper", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:robots", "CONTAINS"),
+            new(psId, "ws:fn:NextApp:trulyDeadFn", "CONTAINS"),
+            new("ws:fn:NextApp:GET", "ws:file:NextApp:route.ts", "DECLARED_IN"),
+            new("ws:fn:NextApp:POST", "ws:file:NextApp:route.ts", "DECLARED_IN"),
+            new("ws:fn:NextApp:HomePage", "ws:file:NextApp:page.tsx", "DECLARED_IN"),
+            new("ws:fn:NextApp:generateMetadata", "ws:file:NextApp:page.tsx", "DECLARED_IN"),
+            new("ws:fn:NextApp:NotFound", "ws:file:NextApp:not-found.tsx", "DECLARED_IN"),
+            new("ws:fn:NextApp:unusedPageHelper", "ws:file:NextApp:not-found.tsx", "DECLARED_IN"),
+            new("ws:fn:NextApp:robots", "ws:file:NextApp:robots.ts", "DECLARED_IN"),
+            new("ws:fn:NextApp:trulyDeadFn", "ws:file:NextApp:dead.ts", "DECLARED_IN")
+        };
+        await _client.UploadNodesAsync(nodes);
+        await _client.UploadRelationshipsAsync(rels);
+
+        var deadRes = await _client.ExecuteCypherAsync(Queries.Get("find_refactor_dead_code"), new { projectName = "NextApp" });
+        var deadNames = deadRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+
+        deadNames.Should().NotContain("GET");
+        deadNames.Should().NotContain("POST");
+        deadNames.Should().NotContain("HomePage");
+        deadNames.Should().NotContain("generateMetadata");
+        deadNames.Should().NotContain("NotFound");
+        deadNames.Should().NotContain("robots");
+        deadNames.Should().Contain("unusedPageHelper");
+        deadNames.Should().Contain("trulyDeadFn");
+    }
 }

@@ -269,11 +269,16 @@ public class PerlProjectParser : IProjectParser
             var phpCount = 0;
             var pyCount = 0;
             var perlCount = 0;
+            var otherCodeCount = 0;
             var hasOtherManifest = false;
             foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
             {
                 var fn = Path.GetFileName(file);
-                if (fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                var lowerFn = fn.ToLowerInvariant();
+                var lowerExt = Path.GetExtension(lowerFn);
+                if (lowerFn is "terragrunt.hcl" or "root.hcl" or "box.json" or "application.cfc" or "application.cfm" or "pom.xml" or "build.gradle" or "build.gradle.kts" ||
+                    lowerExt is ".tf" or ".tofu" ||
+                    fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
                     fn.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
                     fn.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
                     fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
@@ -287,8 +292,12 @@ public class PerlProjectParser : IProjectParser
                 if (IsPerlSourceFile(file)) perlCount++;
                 else if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
                 else if (file.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".inc", StringComparison.OrdinalIgnoreCase)) phpCount++;
+                else if (lowerExt is ".cs" or ".ts" or ".tsx" or ".go" or ".rs" or ".java" or ".kt" or ".cfc" or ".cfm")
+                {
+                    otherCodeCount++;
+                }
             }
-            if (!hasOtherManifest && perlCount > 0 && perlCount > phpCount && perlCount > pyCount)
+            if (!hasOtherManifest && perlCount > 0 && perlCount > phpCount && perlCount > pyCount && perlCount >= otherCodeCount)
             {
                 return true;
             }

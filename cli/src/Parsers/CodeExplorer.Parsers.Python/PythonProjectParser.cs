@@ -150,7 +150,11 @@ public class PythonProjectParser : IProjectParser
         for (var i = 0; i < filesInDirectory.Length; i++)
         {
             var fn = Path.GetFileName(filesInDirectory[i]);
-            if (fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
+            var lowerFn = fn.ToLowerInvariant();
+            var lowerExt = Path.GetExtension(lowerFn);
+            if (lowerFn is "terragrunt.hcl" or "root.hcl" ||
+                lowerExt is ".tf" or ".tofu" ||
+                fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("composer.lock", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("package.json", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("Makefile.PL", StringComparison.OrdinalIgnoreCase) ||
@@ -179,7 +183,11 @@ public class PythonProjectParser : IProjectParser
         foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
         {
             var fn = Path.GetFileName(file);
-            if (fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+            var lowerFn = fn.ToLowerInvariant();
+            var lowerExt = Path.GetExtension(lowerFn);
+            if (lowerFn is "terragrunt.hcl" or "root.hcl" or "box.json" or "application.cfc" or "application.cfm" ||
+                lowerExt is ".tf" or ".tofu" ||
+                fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
                 fn.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
                 fn.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
                 fn.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
@@ -197,6 +205,10 @@ public class PythonProjectParser : IProjectParser
 
         return false;
     }
+
+    private static bool IsOtherCompiledOrTypedSourceFile(string file) =>
+        Path.GetExtension(file).ToLowerInvariant() is
+            ".cs" or ".ts" or ".tsx" or ".go" or ".rs" or ".java" or ".kt" or ".tf" or ".tofu" or ".cfc" or ".cfm";
 
     private static bool IsPythonContainerRoot(string directoryPath, string[] filesInDirectory)
     {
@@ -239,13 +251,15 @@ public class PythonProjectParser : IProjectParser
             var phpCount = 0;
             var pyCount = 0;
             var perlCount = 0;
+            var otherCodeCount = 0;
             foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
             {
                 if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
                 else if (file.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".inc", StringComparison.OrdinalIgnoreCase)) phpCount++;
                 else if (file.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".pm", StringComparison.OrdinalIgnoreCase)) perlCount++;
+                else if (IsOtherCompiledOrTypedSourceFile(file)) otherCodeCount++;
             }
-            if (pyCount > 0 && pyCount > phpCount && pyCount >= perlCount)
+            if (pyCount > 0 && pyCount > phpCount && pyCount >= perlCount && pyCount >= otherCodeCount)
             {
                 return true;
             }
