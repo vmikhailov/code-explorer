@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.11] - 2026-11-19
+
+### Fixed
+- **ExternalService Deduplication & SQLite Boolean Purge Parity (`CodeExplorer.Indexing`)**:
+  - Canonicalized cloud SDK `ExternalService` node IDs in `ResourceSemanticAnalyzer` from per-project `{projectId}es:cloud:{parserId}` to workspace-scoped `{workspaceId}:es:cloud:{normalizedSlug}`, eliminating duplicate cloud `ExternalService` nodes across multi-project monorepos and matching `ConfigurationParser`.
+  - Updated `PostIndexAnalyzer.IdentifyPhantomExternalServicesToPurge` to recognize SQLite `json_extract` numeric boolean flags (`"1"`) alongside `"true"` for `inferred_from_identifier`, `is_external`, `inferred_from_path`, and `is_relative_path`, and to unconditionally purge `inferred_from_identifier` carrier nodes after Layer 5 endpoint binding.
+
+---
+
 ## [1.90.10] - 2026-11-19
 
 ### Fixed

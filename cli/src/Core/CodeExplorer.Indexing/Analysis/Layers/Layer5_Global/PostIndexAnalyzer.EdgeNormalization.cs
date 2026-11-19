@@ -464,16 +464,16 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            if (inferredFromIdent == "true" && !servicesCallingEndpoints.Contains(id))
+            if (IsTrueFlag(inferredFromIdent))
             {
                 idsToDelete.Add(id);
                 continue;
             }
 
-            if (isExt is "true" or "1") continue;
+            if (IsTrueFlag(isExt)) continue;
 
-            var isRelative = inferredFromPath == "true" ||
-                             isRelativePath == "true" ||
+            var isRelative = IsTrueFlag(inferredFromPath) ||
+                             IsTrueFlag(isRelativePath) ||
                              cand.StartsWith('/') ||
                              (!string.IsNullOrEmpty(path) && path.StartsWith('/') &&
                               (cand.Equals(path.Trim('/').Split('/', 2)[0], StringComparison.OrdinalIgnoreCase) || cand == "unknown-service"));
@@ -487,6 +487,10 @@ public partial class PostIndexAnalyzer
 
         return idsToDelete;
     }
+
+    private static bool IsTrueFlag(string? value) =>
+        string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "1", StringComparison.Ordinal);
 
     public static async Task PurgePhantomExternalServicesAsync(
         IGraphClient db,

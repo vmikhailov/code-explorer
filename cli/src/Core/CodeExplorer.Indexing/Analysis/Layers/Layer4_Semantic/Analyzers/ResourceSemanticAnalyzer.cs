@@ -582,8 +582,9 @@ public partial class ResourceSemanticAnalyzer
             else if (parser.Type == SemanticExtensionType.Cloud)
             {
                 var cloudService = parser.Name;
-                var extId = $"{projectNode.Id}es:cloud:{parser.Id}";
                 var cloudMatch = CloudProviderHelper.ResolveOrFallback(cloudService, parser.Id);
+                var cloudSlug = CloudProviderHelper.NormalizeSlug(cloudMatch.ProviderId);
+                var extId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:cloud:{cloudSlug}";
                 var cloudId = CloudProviderHelper.BuildCloudNodeId(ctx.WorkspaceId, cloudMatch.ProviderId);
                 var semanticNodeForCloud = ctx.SemanticStructure;
                 if (semanticNodeForCloud != null)

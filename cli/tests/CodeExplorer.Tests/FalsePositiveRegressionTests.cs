@@ -554,4 +554,23 @@ public class ServiceAndEndpointIdentificationRegressionTests
         var dbRes = await _client.ExecuteCypherAsync("MATCH (d:Database) RETURN d.name AS name");
         dbRes.Rows.Should().BeEmpty("Salesforce SOQL against Knowledge__kav must not fabricate a relational Database.dbo node");
     }
+
+    [Test]
+    public void IdentifyPhantomExternalServicesToPurge_RecognizesSqliteNumericBooleanFlags()
+    {
+        var snapshot = new ExternalServicePurgeSnapshot(
+            [],
+            [],
+            [],
+            [
+                new("ws:es:http:profile#app#/api/profile", "profile", "profile", "/api/profile", "1", "1", "0", ""),
+                new("ws:es:http:getproductbyid#shared#/*", "getproductbyid", "getproductbyid", "/*", "", "", "0", "1"),
+                new("ws:es:https:api.stripe.com", "api.stripe.com", "api.stripe.com", "/v1/charges", "", "", "1", "")
+            ]);
+
+        var toPurge = PostIndexAnalyzer.IdentifyPhantomExternalServicesToPurge(snapshot);
+        toPurge.Should().Contain("ws:es:http:profile#app#/api/profile");
+        toPurge.Should().Contain("ws:es:http:getproductbyid#shared#/*");
+        toPurge.Should().NotContain("ws:es:https:api.stripe.com");
+    }
 }

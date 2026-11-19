@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble
 
 ARG TARGETARCH
-ARG CE_VERSION=1.90.10
+ARG CE_VERSION=1.90.11
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl tar \
