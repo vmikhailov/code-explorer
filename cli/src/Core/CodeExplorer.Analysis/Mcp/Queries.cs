@@ -62,6 +62,8 @@ public static class Queries
 
         ["find_refactor_dead_code"] = ("Detect unreferenced/dead functions, classes, and types", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
         ["find_refactor_god_objects"] = ("Detect classes with excessive coupling and complexity", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
+        ["find_refactor_god_functions"] = ("Detect oversized production functions, hooks, components, and route handlers", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
+        ["find_refactor_empty_catches"] = ("Detect empty production catch blocks that silently swallow errors", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
         ["analyze_code_impact"] = ("Analyze downstream blast radius / impact of changing a symbol or file", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
         ["get_callers"] = ("Find all callers, inbound service consumers, callers of functions, and table/topic accessors", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
         ["get_affected_tests"] = ("Find test cases affected by a changed file or symbol via static call graph traversal", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Testing),

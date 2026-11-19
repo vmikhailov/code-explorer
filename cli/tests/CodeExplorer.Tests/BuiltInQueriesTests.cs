@@ -213,4 +213,85 @@ export class OrdersController {
         rootOutline.Should().Contain("ProjectA");
         rootOutline.Should().Contain("ProjectB");
     }
+
+    [Test]
+    public async Task Test_FindRefactorGodFunctions_EmptyCatches_And_NoiseFiltering()
+    {
+        var psRes = await _client.ExecuteCypherAsync("MATCH (p:Project {name: 'ProjectA'})<-[:BELONGS_TO]-(ps:ProjectSyntax) RETURN ps.id AS id");
+        psRes.Rows.Should().NotBeEmpty();
+        var psId = psRes.Rows[0].GetStringProp("id");
+
+        var nodes = new List<Node>
+        {
+            new("ws:file:ProjectA:BigComponent.tsx", "File", new Dictionary<string, object> { ["path"] = "ProjectA/BigComponent.tsx" }),
+            new("ws:file:ProjectA:app.config.ts", "File", new Dictionary<string, object> { ["path"] = "ProjectA/app.config.ts" }),
+            new("ws:fn:ProjectA:BigComponent", "Function", new Dictionary<string, object>
+            {
+                ["name"] = "BigComponent",
+                ["file_path"] = "ProjectA/BigComponent.tsx",
+                ["start_line"] = 1,
+                ["end_line"] = 240,
+                ["is_test"] = false,
+                ["symbol"] = "ws:sym:ProjectA/BigComponent.tsx:Function:BigComponent"
+            }),
+            new("ws:fn:ProjectA:module_init", "Function", new Dictionary<string, object>
+            {
+                ["name"] = "<module_init>",
+                ["file_path"] = "ProjectA/app.config.ts",
+                ["start_line"] = 1,
+                ["end_line"] = 300,
+                ["is_test"] = false
+            }),
+            new("ws:fn:ProjectA:JestSuite", "Function", new Dictionary<string, object>
+            {
+                ["name"] = "Jest:Suite:BigComponent",
+                ["file_path"] = "ProjectA/BigComponent.test.tsx",
+                ["start_line"] = 1,
+                ["end_line"] = 280,
+                ["is_test"] = true
+            }),
+            new("ws:cc:ProjectA:BigComponent:42", "CatchClause", new Dictionary<string, object>
+            {
+                ["name"] = "catch",
+                ["file_path"] = "ProjectA/BigComponent.tsx",
+                ["line"] = 42,
+                ["is_empty"] = true,
+                ["is_test"] = false,
+                ["project_name"] = "ProjectA"
+            }),
+            new("ws:cc:ProjectA:TestCatch:12", "CatchClause", new Dictionary<string, object>
+            {
+                ["name"] = "catch",
+                ["file_path"] = "ProjectA/BigComponent.test.tsx",
+                ["line"] = 12,
+                ["is_empty"] = true,
+                ["is_test"] = true,
+                ["project_name"] = "ProjectA"
+            })
+        };
+        var rels = new List<Relationship>
+        {
+            new(psId, "ws:fn:ProjectA:BigComponent", "CONTAINS"),
+            new(psId, "ws:fn:ProjectA:module_init", "CONTAINS"),
+            new(psId, "ws:fn:ProjectA:JestSuite", "CONTAINS"),
+            new("ws:fn:ProjectA:BigComponent", "ws:file:ProjectA:BigComponent.tsx", "DECLARED_IN"),
+            new("ws:fn:ProjectA:module_init", "ws:file:ProjectA:app.config.ts", "DECLARED_IN")
+        };
+        await _client.UploadNodesAsync(nodes);
+        await _client.UploadRelationshipsAsync(rels);
+
+        var godFnRes = await _client.ExecuteCypherAsync(Queries.Get("find_refactor_god_functions"), new { projectName = "ProjectA" });
+        var godFnNames = godFnRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+        godFnNames.Should().Contain("BigComponent");
+        godFnNames.Should().NotContain("<module_init>");
+        godFnNames.Should().NotContain("Jest:Suite:BigComponent");
+
+        var catchRes = await _client.ExecuteCypherAsync(Queries.Get("find_refactor_empty_catches"), new { projectName = "ProjectA" });
+        catchRes.Rows.Should().ContainSingle(r => r.GetStringProp("filePath") == "ProjectA/BigComponent.tsx");
+
+        var deadRes = await _client.ExecuteCypherAsync(Queries.Get("find_refactor_dead_code"), new { projectName = "ProjectA" });
+        var deadNames = deadRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+        deadNames.Should().NotContain("<module_init>");
+        deadNames.Should().NotContain("Jest:Suite:BigComponent");
+    }
 }

@@ -419,8 +419,8 @@ public partial class McpGraphHandler
         [AllowedValues("file", "symbol", "callee")]
         [Description("Optional aggregation dimension for grouping violations: 'file', 'symbol', or 'callee'. Omit for flat violation records.")] string? groupBy = null,
         [Description("When true, returns the catalog of configured gate definitions, FOIM coordinates, and baseline metadata without evaluating gate queries. Default: false.")] bool listOnly = false,
-        [AllowedValues("all", "dead_code", "god_objects")]
-        [Description("Optional structural anomaly detection mode: 'dead_code' (unreferenced classes/functions), 'god_objects' (oversized/high-coupling classes), or 'all' (requires projectName).")] string? anomalies = null,
+        [AllowedValues("all", "dead_code", "god_objects", "empty_catches")]
+        [Description("Optional structural anomaly detection mode: 'dead_code' (unreferenced production classes/functions), 'god_objects' (oversized production classes and functions/components/hooks), 'empty_catches' (empty production catch blocks), or 'all' (requires projectName).")] string? anomalies = null,
         [Description("Target project name required when anomalies is specified (case-insensitive match).")] string? projectName = null,
         [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)

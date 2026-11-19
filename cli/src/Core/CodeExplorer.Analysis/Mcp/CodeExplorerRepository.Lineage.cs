@@ -294,6 +294,8 @@ public partial class CodeExplorerRepository
     {
         const string queryDeadCode = "find_refactor_dead_code";
         const string queryGodObjects = "find_refactor_god_objects";
+        const string queryGodFunctions = "find_refactor_god_functions";
+        const string queryEmptyCatches = "find_refactor_empty_catches";
         var results = new List<CypherRow>();
         var parameters = new Dictionary<string, string> { ["projectName"] = projectName };
 
@@ -301,7 +303,13 @@ public partial class CodeExplorerRepository
             await AppendMetricResultsAsync(results, queryDeadCode, parameters, workspacePath, cancellationToken);
 
         if (metricType is "god_objects" or "all")
+        {
             await AppendMetricResultsAsync(results, queryGodObjects, parameters, workspacePath, cancellationToken);
+            await AppendMetricResultsAsync(results, queryGodFunctions, parameters, workspacePath, cancellationToken);
+        }
+
+        if (metricType is "empty_catches" or "all")
+            await AppendMetricResultsAsync(results, queryEmptyCatches, parameters, workspacePath, cancellationToken);
 
         return ToonYamlSerializer.SerializeObject(new { results });
     }

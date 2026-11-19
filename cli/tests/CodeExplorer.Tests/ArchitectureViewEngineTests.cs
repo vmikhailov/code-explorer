@@ -261,6 +261,37 @@ public class ArchitectureViewEngineTests
     }
 
     [Test]
+    public async Task GetComponentView_ReturnsComponentsViaProjectSyntaxAndFileDeclarations()
+    {
+        var nodes = new List<Node>
+        {
+            new("ws:project:web-app:", "Project", new Dictionary<string, object> { ["name"] = "web-app" }),
+            new("ws:ps:web-app", "ProjectSyntax", new Dictionary<string, object> { ["name"] = "web-app" }),
+            new("ws:file:web-app:route.ts", "File", new Dictionary<string, object> { ["path"] = "apps/web-app/route.ts" }),
+            new("ws:type:web-app:CheckoutState", "Type", new Dictionary<string, object> { ["name"] = "CheckoutState", ["kind"] = "interface", ["file_path"] = "apps/web-app/checkout.ts", ["is_test"] = false }),
+            new("ws:type:web-app:CheckoutPageObject", "Type", new Dictionary<string, object> { ["name"] = "CheckoutPageObject", ["kind"] = "class", ["file_path"] = "apps/web-app/e2e/checkout.ts", ["is_test"] = true }),
+            new("ws:ep:web-app:POST:/api/checkout", "Endpoint", new Dictionary<string, object> { ["name"] = "POST:/api/checkout", ["path"] = "/api/checkout", ["is_test"] = false })
+        };
+        var rels = new List<Relationship>
+        {
+            new("ws:ps:web-app", "ws:project:web-app:", "BELONGS_TO"),
+            new("ws:ps:web-app", "ws:type:web-app:CheckoutState", "CONTAINS"),
+            new("ws:ps:web-app", "ws:type:web-app:CheckoutPageObject", "CONTAINS"),
+            new("ws:project:web-app:", "ws:file:web-app:route.ts", "CONTAINS"),
+            new("ws:ep:web-app:POST:/api/checkout", "ws:file:web-app:route.ts", "DECLARED_IN")
+        };
+        await _db.UploadNodesAsync(nodes);
+        await _db.UploadRelationshipsAsync(rels);
+
+        var view = await _engine.GetComponentViewAsync("web-app");
+
+        var compIds = view.Nodes.Select(n => n.Id).ToList();
+        compIds.Should().Contain("ws:type:web-app:CheckoutState");
+        compIds.Should().Contain("ws:ep:web-app:POST:/api/checkout");
+        compIds.Should().NotContain("ws:type:web-app:CheckoutPageObject");
+    }
+
+    [Test]
     public async Task GetOntologyLayers_FiltersOutSystemNodes()
     {
         // Add system nodes to graph

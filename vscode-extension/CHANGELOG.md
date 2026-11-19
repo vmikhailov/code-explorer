@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.13] - 2026-11-19
+
+### Fixed
+- **C3 Component View Discovery (`CodeExplorer.Analysis`)**:
+  - Updated `ArchitectureViewEngine.GetComponentViewAsync` to traverse `ProjectSyntax -> CONTAINS -> Type` and `Project -> CONTAINS -> File <- DECLARED_IN <- Endpoint/EntryPoint/Query/Table` alongside direct containment, resolving empty `c3` views on real indexed workspaces while preserving `is_test = false` filtering and `file_path` metadata.
+- **Structural Anomaly Detection: Noise Filtering, God Functions & Empty Catch Blocks (`CodeExplorer.Analysis`, `CodeExplorer.Server`, `CodeExplorer`)**:
+  - Filtered `is_test = true`, `<module_init>`, `Jest:*` suites, `.config.*`, `jest.setup`, `jest.env`, and `.d.ts` files from `find_refactor_dead_code.cypher`, and excluded test classes from `find_refactor_god_objects.cypher`.
+  - Added built-in `find_refactor_god_functions.cypher` (oversized production functions, React components, hooks, and route handlers >150 LOC) and `find_refactor_empty_catches.cypher` (production empty `CatchClause` blocks with exact line numbers), wired into `check_semantic_gates(anomalies=...)` and `ce gate check --anomalies all|dead_code|god_objects|empty_catches`.
+
+---
+
 ## [1.90.12] - 2026-11-19
 
 ### Fixed

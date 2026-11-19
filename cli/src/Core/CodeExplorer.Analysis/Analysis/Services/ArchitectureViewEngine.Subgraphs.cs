@@ -601,20 +601,31 @@ public partial class ArchitectureViewEngine
 
         if (string.IsNullOrWhiteSpace(projectScope)) return graph;
 
-        // Query all components declared in or persisted in this project (excluding unit tests)
-        var query = "MATCH (p)-[:CONTAINS*1..3]->(c) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) AND (p.id = $scope OR p.name = $scope) AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, c.path AS path";
-        var resRows = await db.QueryAsync<(string Id, string Kind, string Name, string? Path)>(query, new { scope = projectScope }, ct);
+        // Query all components declared in or persisted in this project (excluding unit tests).
+        // Support direct containment (legacy/synthetic fixtures), ProjectSyntax->Type, and File<-DECLARED_IN->Endpoint/Query/EntryPoint/Table.
+        var projectMatch = "(p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) AND (p.id = $scope OR p.name = $scope)";
+        var componentQueries = new[]
+        {
+            $"MATCH (p)-[:CONTAINS*1..3]->(c) WHERE {projectMatch} AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path) AS path",
+            $"MATCH (p)<-[:BELONGS_TO]-(ps:ProjectSyntax)-[:CONTAINS]->(c:Type) WHERE {projectMatch} AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path) AS path",
+            $"MATCH (p)-[:CONTAINS]->(f:File)<-[:DECLARED_IN]-(c) WHERE {projectMatch} AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Query', 'Table'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path, f.path) AS path"
+        };
 
         var compIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (id, kind, rawName, path) in resRows)
+        foreach (var query in componentQueries)
         {
-            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(kind)) continue;
-            var name = string.IsNullOrEmpty(rawName) ? id : rawName;
+            var resRows = await db.QueryAsync<(string Id, string Kind, string Name, string? Path)>(query, new { scope = projectScope }, ct);
 
-            if (compIds.Add(id))
+            foreach (var (id, kind, rawName, path) in resRows)
             {
-                graph.Nodes.Add(new GraphNodeDto { Id = id, Name = name, Kind = EnumExtensions.ParseNodeKind(kind), FilePath = path });
+                if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(kind)) continue;
+                var name = string.IsNullOrEmpty(rawName) ? id : rawName;
+
+                if (compIds.Add(id))
+                {
+                    graph.Nodes.Add(new GraphNodeDto { Id = id, Name = name, Kind = EnumExtensions.ParseNodeKind(kind), FilePath = path });
+                }
             }
         }
 

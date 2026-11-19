@@ -116,7 +116,7 @@ public class GateOptions : ITargetOption
     [Option("clear", Required = false, Default = false, HelpText = "When used with --scan, perform a clean rescan before evaluating gates.")]
     public bool Clear { get; set; }
 
-    [Option("anomalies", Required = false, HelpText = "Structural anomaly detection mode: 'all', 'dead_code', or 'god_objects' (requires --project).")]
+    [Option("anomalies", Required = false, HelpText = "Structural anomaly detection mode: 'all', 'dead_code', 'god_objects', or 'empty_catches' (requires --project).")]
     public string? Anomalies { get; set; }
 
     [Option("project", Required = false, HelpText = "Target project name when running structural anomaly detection ('ce gate anomalies --project <name>').")]
