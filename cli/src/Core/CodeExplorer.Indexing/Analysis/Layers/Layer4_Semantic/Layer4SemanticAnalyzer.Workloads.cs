@@ -393,9 +393,13 @@ public partial class Layer4SemanticParser
                 {
                     CollectSemanticNodes(syntaxTree.FileNode, projectSemanticNodes);
                 }
-                if (!ctx.LightweightAstScanMode && syntaxTree.FileParser.UsesTreeSitter)
+                if (!ctx.LightweightAstScanMode &&
+                    (syntaxTree.FileParser.UsesTreeSitter ||
+                     syntaxTree.FileParser.LanguageName.ToLowerInvariant() is not "terraform"))
                 {
                     syntaxTree.Dispose();
+                    syntaxTree.RawImports.Clear();
+                    syntaxTree.RawImports.TrimExcess();
                 }
             }
 

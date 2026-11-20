@@ -166,6 +166,8 @@ public partial class Layer4SemanticParser
             foreach (var tree in l3Result.SyntaxTrees)
             {
                 tree.Dispose();
+                tree.RawImports.Clear();
+                tree.RawImports.TrimExcess();
             }
         }
 

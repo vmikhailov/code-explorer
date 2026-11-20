@@ -176,7 +176,47 @@ public class ParsingContext
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
     public List<RawTypeBinding> RawTypeBindings { get; } = [];
+    public HashSet<string> KnownFunctionIds { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, int> NodesByKind { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public void EvictLayer3ResolutionBuffers()
+    {
+        if (LightweightAstScanMode) return;
+
+        GlobalReferences.Clear();
+        GlobalReferences.TrimExcess();
+        RawImports.Clear();
+        RawImports.TrimExcess();
+        RawVariables.Clear();
+        RawVariables.TrimExcess();
+        RawTypeBindings.Clear();
+        RawTypeBindings.TrimExcess();
+        FileScopedSymbols.Clear();
+        FileScopedSymbols.TrimExcess();
+        OverloadedFileScopedSymbols.Clear();
+        OverloadedFileScopedSymbols.TrimExcess();
+        SymbolScopes.Clear();
+        FileNamespaces.Clear();
+        FileImportedNamespaces.Clear();
+        KnownWorkspaceCallableNames.Clear();
+        KnownWorkspaceTypeNames.Clear();
+        GlobalSymbolKeys.Clear();
+        GlobalSymbolKeys.TrimExcess();
+    }
+
+    public void EvictPostIndexBuffers()
+    {
+        if (LightweightAstScanMode) return;
+
+        TreeRelationships.Clear();
+        TreeRelationships.TrimExcess();
+        GlobalProjectDependencies.Clear();
+        GlobalProjectDependencies.TrimExcess();
+        GlobalSymbols.Clear();
+        GlobalSymbols.TrimExcess();
+        KnownFunctionIds.Clear();
+        KnownFunctionIds.TrimExcess();
+    }
 
     private int _totalNodesCount;
     private int _totalRelsCount;

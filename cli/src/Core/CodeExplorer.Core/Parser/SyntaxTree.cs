@@ -118,6 +118,19 @@ public class SyntaxTree : IDisposable
     {
     }
 
+    public void Compact()
+    {
+        Document?.Compact();
+        RootSymbol = null;
+    }
+
+    public void ReleaseDocument()
+    {
+        Document?.Dispose();
+        Document = null;
+        RootSymbol = null;
+    }
+
     public void Dispose()
     {
         Document?.Dispose();

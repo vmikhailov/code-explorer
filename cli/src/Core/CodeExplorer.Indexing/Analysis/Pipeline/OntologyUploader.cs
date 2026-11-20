@@ -9,6 +9,16 @@ namespace CodeExplorer.Core.Parser;
 
 public static class OntologyUploader
 {
+    private const string FolderIdMarker = ":folder:";
+    private const string FilesStructureMarker = ":files_structure";
+    private const string ProjectsStructureMarker = ":projects_structure";
+    private const string SyntaxStructureMarker = ":syntax_structure";
+    private const string SemanticStructureMarker = ":semantic_structure";
+    private const string CallLiteralMarker = ":call_lit:";
+    private const string CatchClauseMarker = ":catch:";
+    private const string ScanIssueMarker = ":scan_issue:";
+    private const string MemberMarker = ":Member:";
+
     public static async Task UploadNodeTreeAsync(IOntologyNode node, string? parentId, ParsingContext ctx)
     {
         var collectedNodes = new List<Node>();
@@ -37,10 +47,29 @@ public static class OntologyUploader
                 }
                 ctx.GlobalReferences.Add(refItem);
             }
-        }
 
-        // Store all tree relationships in ctx for post-indexing and layer 5 analysis
-        ctx.TreeRelationships.AddRange(collectedRelationships);
+            if (!ctx.LightweightAstScanMode)
+            {
+                refList.Clear();
+                refList.TrimExcess();
+            }
+        }
+        nodesWithRefs.Clear();
+        nodesWithRefs.TrimExcess();
+        visitedNodeIds.Clear();
+        visitedNodeIds.TrimExcess();
+        visitedRelKeys.Clear();
+        visitedRelKeys.TrimExcess();
+
+        // Store only PostIndex/Layer5-relevant tree relationships in ctx to minimize retained heap memory
+        for (var i = 0; i < collectedRelationships.Count; i++)
+        {
+            var rel = collectedRelationships[i];
+            if (IsPostIndexRelevantRelationship(rel))
+            {
+                ctx.TreeRelationships.Add(rel);
+            }
+        }
 
         ctx.PipelineLog.QueuedToPersistencePipeline(collectedNodes.Count, collectedRelationships.Count);
 
@@ -50,6 +79,8 @@ public static class OntologyUploader
             var chunk = collectedNodes.GetRange(i, Math.Min(10000, collectedNodes.Count - i));
             await ctx.EnqueueUploadNodesAsync(chunk);
         }
+        collectedNodes.Clear();
+        collectedNodes.TrimExcess();
 
         // Upload relationships in chunks of 10000
         for (var i = 0; i < collectedRelationships.Count; i += 10000)
@@ -57,9 +88,49 @@ public static class OntologyUploader
             var chunk = collectedRelationships.GetRange(i, Math.Min(10000, collectedRelationships.Count - i));
             await ctx.EnqueueUploadRelationshipsAsync(chunk);
         }
+        collectedRelationships.Clear();
+        collectedRelationships.TrimExcess();
+
         await ctx.FlushScanIssuesAsync();
+    }
+
+    private static bool IsPostIndexRelevantRelationship(Relationship rel)
+    {
+        if (rel.Kind is RelationshipKind.LocatedIn or RelationshipKind.UsesGit)
         {
+            return false;
         }
+
+        if (rel.From.Contains(CallLiteralMarker, StringComparison.Ordinal) ||
+            rel.To.Contains(CallLiteralMarker, StringComparison.Ordinal) ||
+            rel.From.Contains(CatchClauseMarker, StringComparison.Ordinal) ||
+            rel.To.Contains(CatchClauseMarker, StringComparison.Ordinal) ||
+            rel.From.Contains(ScanIssueMarker, StringComparison.Ordinal) ||
+            rel.To.Contains(ScanIssueMarker, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (rel.Kind == RelationshipKind.Contains)
+        {
+            if (rel.From.Contains(FolderIdMarker, StringComparison.OrdinalIgnoreCase) ||
+                rel.From.Contains(FilesStructureMarker, StringComparison.OrdinalIgnoreCase) ||
+                rel.From.Contains(ProjectsStructureMarker, StringComparison.OrdinalIgnoreCase) ||
+                rel.From.Contains(SyntaxStructureMarker, StringComparison.OrdinalIgnoreCase) ||
+                rel.From.Contains(SemanticStructureMarker, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+        else if (rel.Kind == RelationshipKind.DeclaredIn)
+        {
+            if (rel.From.Contains(MemberMarker, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void CollectTreeElements(

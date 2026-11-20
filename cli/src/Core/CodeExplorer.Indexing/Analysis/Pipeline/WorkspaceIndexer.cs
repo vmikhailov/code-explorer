@@ -204,6 +204,8 @@ public class WorkspaceIndexer
         List<FileNode> indexedFiles;
         IReadOnlyList<ProjectNode> projects;
         IReadOnlyList<SyntaxTree> syntaxTrees;
+        Dictionary<string, Incremental.FileGraphSnapshot> precomputedSnapshots;
+        int parsedTreeCount;
         try
         {
             await using (new DatabasePersistenceWriter(ctx))
@@ -220,13 +222,15 @@ public class WorkspaceIndexer
 
                 var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
                 syntaxTrees = l3.SyntaxTrees;
-                ctx.ReportProgress(52, Layer4SemanticProgressTitle, $"Parsed {syntaxTrees.Count} syntax trees. Analyzing semantics...", syntaxTrees.Count, indexedFiles.Count);
+                parsedTreeCount = syntaxTrees.Count;
+                precomputedSnapshots = PrecomputeFileSnapshots(syntaxTrees);
+                ctx.ReportProgress(52, Layer4SemanticProgressTitle, $"Parsed {parsedTreeCount} syntax trees. Analyzing semantics...", parsedTreeCount, indexedFiles.Count);
 
                 if (PostSyntacticPipelineHook != null) await PostSyntacticPipelineHook(l3, ctx);
-                ctx.ReportProgress(68, Layer5GlobalProgressTitle, Layer5GlobalProgressMessage, syntaxTrees.Count, indexedFiles.Count);
+                ctx.ReportProgress(68, Layer5GlobalProgressTitle, Layer5GlobalProgressMessage, parsedTreeCount, indexedFiles.Count);
 
                 
-                ctx.ReportProgress(86, FinalizingProgressTitle, PostIndexingCompleteProgressMessage, syntaxTrees.Count, indexedFiles.Count);
+                ctx.ReportProgress(86, FinalizingProgressTitle, PostIndexingCompleteProgressMessage, parsedTreeCount, indexedFiles.Count);
             }
         }
         finally
@@ -237,12 +241,13 @@ public class WorkspaceIndexer
         await CodeIntentAnalyzer.EnrichAsync(ctx, ctx.CancellationToken);
 
         LogPersistenceSummary(ctx);
-        ctx.ReportProgress(88, FinalizingProgressTitle, $"Synchronizing file registry for {indexedFiles.Count} files...", syntaxTrees.Count, indexedFiles.Count);
-        await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
-        ctx.ReportProgress(94, FinalizingProgressTitle, RebuildingIndicesProgressMessage, syntaxTrees.Count, indexedFiles.Count);
+        ctx.ReportProgress(88, FinalizingProgressTitle, $"Synchronizing file registry for {indexedFiles.Count} files...", parsedTreeCount, indexedFiles.Count);
+        await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, precomputedSnapshots, ctx);
+        precomputedSnapshots.Clear();
+        ctx.ReportProgress(94, FinalizingProgressTitle, RebuildingIndicesProgressMessage, parsedTreeCount, indexedFiles.Count);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
         await _dbClient.CreateIndicesAsync();
-        ctx.ReportProgress(99, FinalizingProgressTitle, InvalidatingViewCacheProgressMessage, syntaxTrees.Count, indexedFiles.Count);
+        ctx.ReportProgress(99, FinalizingProgressTitle, InvalidatingViewCacheProgressMessage, parsedTreeCount, indexedFiles.Count);
         OnIndexCompletedHook?.Invoke();
         if (!ctx.ScanIssues.IsEmpty)
         {
@@ -254,10 +259,35 @@ public class WorkspaceIndexer
     }
 
 
+    private static Dictionary<string, Incremental.FileGraphSnapshot> PrecomputeFileSnapshots(
+        IReadOnlyList<SyntaxTree> syntaxTrees)
+    {
+        var snapshots = new Dictionary<string, Incremental.FileGraphSnapshot>(syntaxTrees.Count, StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < syntaxTrees.Count; i++)
+        {
+            var st = syntaxTrees[i];
+            if (st.FileNode == null) continue;
+            var normPath = st.FilePath.NormalizeSlashes();
+            if (snapshots.ContainsKey(normPath)) continue;
+
+            var relPath = !string.IsNullOrEmpty(st.FileNode.Path) ? st.FileNode.Path : st.RelativePath;
+            var hash = st.FileNode.ContentHash ?? string.Empty;
+            var lastMod = st.FileNode.LastModifiedUtc ?? DateTime.MinValue;
+            snapshots[normPath] = Incremental.FileSnapshotBuilder.BuildFromSyntaxTree(
+                st,
+                relPath,
+                hash,
+                lastMod,
+                includeSemanticFootprint: false);
+        }
+        return snapshots;
+    }
+
     private async Task SyncFileRegistryAsync(
         List<FileNode> files,
         IReadOnlyList<ProjectNode> projects,
         IReadOnlyList<SyntaxTree> syntaxTrees,
+        Dictionary<string, Incremental.FileGraphSnapshot> precomputedSnapshots,
         ParsingContext ctx)
     {
         var regSw = System.Diagnostics.Stopwatch.StartNew();
@@ -269,9 +299,11 @@ public class WorkspaceIndexer
             MaxDegreeOfParallelism = Environment.ProcessorCount
         };
 
-        var treesByFullPath = syntaxTrees
-            .GroupBy(t => t.FilePath.NormalizeSlashes(), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var treesByFullPath = syntaxTrees.Count > 0
+            ? syntaxTrees
+                .GroupBy(t => t.FilePath.NormalizeSlashes(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, SyntaxTree>(StringComparer.OrdinalIgnoreCase);
 
         var entries = new System.Collections.Concurrent.ConcurrentBag<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)>();
         var seen = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
@@ -308,7 +340,14 @@ public class WorkspaceIndexer
             Incremental.FileGraphSnapshot? snapshot = null;
 
             var normalizedFullPath = file.FullPath.Replace('\\', '/');
-            if (treesByFullPath.TryGetValue(normalizedFullPath, out var syntaxTree) && syntaxTree.FileNode != null)
+            if (precomputedSnapshots.TryGetValue(normalizedFullPath, out var precomputed))
+            {
+                snapshot = (precomputed.ContentHash == hash && precomputed.LastModifiedUtc == lastMod)
+                    ? precomputed
+                    : precomputed with { ContentHash = hash, LastModifiedUtc = lastMod };
+                snapshotJson = snapshot.ComputeStructuralHash();
+            }
+            else if (treesByFullPath.TryGetValue(normalizedFullPath, out var syntaxTree) && syntaxTree.FileNode != null)
             {
                 snapshot = Incremental.FileSnapshotBuilder.BuildFromSyntaxTree(
                     syntaxTree,

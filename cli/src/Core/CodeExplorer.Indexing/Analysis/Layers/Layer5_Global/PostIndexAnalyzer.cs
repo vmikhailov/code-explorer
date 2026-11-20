@@ -88,7 +88,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var sinks = new Dictionary<string, string>();
         var sinkDomains = new Dictionary<string, string?>();
         var entryPointIds = new HashSet<string>();
-        var functionIds = new HashSet<string>();
+        var functionIds = new HashSet<string>(ctx.KnownFunctionIds, StringComparer.Ordinal);
 
         var visitedCollectNodes = new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance);
         void CollectNodes(IOntologyNode? node)
@@ -138,6 +138,10 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         if (l4Result.SemanticStructure != null)
         {
             CollectNodes(l4Result.SemanticStructure);
+        }
+        foreach (var file in l4Result.Prev.Prev.Prev.Files)
+        {
+            CollectNodes(file);
         }
 
         foreach (var (key, id) in ctx.GlobalSymbols)

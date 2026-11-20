@@ -111,6 +111,12 @@ public static class AnalysisSignalStore
         _functionById.Clear();
     }
 
+    public static void ClearFunctionSignals()
+    {
+        _functionTable = new ConditionalWeakTable<FunctionNode, FunctionAnalysisSignals>();
+        _functionById.Clear();
+    }
+
     public static WorkspaceAnalysisSignals Signals(this WorkspaceNode node)
     {
         if (_workspaceTable.TryGetValue(node, out var existing)) return existing;

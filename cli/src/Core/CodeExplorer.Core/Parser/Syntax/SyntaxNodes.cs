@@ -780,6 +780,32 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
             ? SourceText.Substring(startIndex, endIndex - startIndex)
             : string.Empty;
 
+    public void Compact()
+    {
+        for (int i = 0; i < AllFunctions.Count; i++)
+        {
+            var fn = AllFunctions[i];
+            fn.Body = null;
+            if (fn.Children.Count > 0)
+            {
+                var retained = new List<SyntaxNode>(4);
+                for (int c = 0; c < fn.Children.Count; c++)
+                {
+                    if (fn.Children[c] is not BlockStmtSyntax)
+                    {
+                        retained.Add(fn.Children[c]);
+                    }
+                }
+                fn.Children = retained;
+            }
+        }
+
+        TopLevelStatements = [];
+        AllVariables = [];
+        AllCalls = [];
+        Diagnostics = [];
+    }
+
     public void Dispose()
     {
         Children = [];

@@ -53,12 +53,15 @@ public partial class Layer5AnalysisParser
 
         // 3. Resolve and upload global cross-references (like function CALLS)
         var referenceRelationships = await ResolveAndUploadGlobalReferencesAsync(ctx);
+        ctx.EvictLayer3ResolutionBuffers();
+        PipelineMemoryEvictor.EvictPostResolutionLeafNodes(l4Result, ctx);
 
         // 4. Perform Late Binding
         var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx, referenceRelationships);
 
         // 4b. Propagate Semantic Arguments & Ground Downward Target Relationships
         await SemanticArgumentPropagator.PropagateAndGroundAsync(l4Result, ctx, referenceRelationships, lateBoundRels);
+        PipelineMemoryEvictor.EvictNonPostIndexLayersBeforePostIndex(l4Result, ctx);
 
         // 5. Run PostIndexAnalyzer
         await ctx.FlushScanIssuesAsync();
@@ -81,6 +84,7 @@ public partial class Layer5AnalysisParser
         // 6. Materialize Layer 5 Logical Structure (LogicalStructure, Domain, BoundedContext)
         if (ctx.IncrementalChangedFiles == null) await MaterializeLogicalStructureAsync(l4Result, ctx);
 
+        ctx.EvictPostIndexBuffers();
         ctx.Layer5Log.ScanCompleted(sw.ElapsedMilliseconds);
         return new Layer5Result(l4Result, lateBoundRels);
     }

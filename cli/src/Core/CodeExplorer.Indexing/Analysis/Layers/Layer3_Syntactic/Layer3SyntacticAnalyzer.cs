@@ -25,9 +25,6 @@ public partial class Layer3SyntacticParser
         ctx.SyntaxStructure = syntaxStructureNode;
 
         var syntaxTrees = new List<SyntaxTree>();
-        var rawImports = new List<RawImport>();
-        var rawVariables = new List<RawVariable>();
-        var rawTypeBindings = new List<RawTypeBinding>();
         var globalReferences = new List<Reference>();
         var globalSymbols = new Dictionary<(string Kind, string Name), string>();
 
@@ -249,14 +246,10 @@ public partial class Layer3SyntacticParser
             }
 
             syntaxTrees.Add(syntaxTree);
-            rawImports.AddRange(syntaxTree.RawImports);
-            rawVariables.AddRange(syntaxTree.RawVariables);
-            rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
-
-            // Add to global lists in context for late binding / indexing compatibility
             ctx.RawImports.AddRange(syntaxTree.RawImports);
             ctx.RawVariables.AddRange(syntaxTree.RawVariables);
             ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+            PipelineMemoryEvictor.ReleaseSyntaxTreeBuffersAfterLayer3(syntaxTree, ctx);
         }
 
         if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null)
@@ -265,7 +258,7 @@ public partial class Layer3SyntacticParser
         }
 
         // Link shared files reused across projects via relative imports when no explicit Library project owns the target file
-        var sharedContainsRels = ResolveCrossProjectSharedFileContains(rawImports, primaryOwnerByFilePath, fileNodeByPath, projectRels);
+        var sharedContainsRels = ResolveCrossProjectSharedFileContains(ctx.RawImports, primaryOwnerByFilePath, fileNodeByPath, projectRels);
         if (sharedContainsRels.Count > 0)
         {
             await ctx.EnqueueUploadRelationshipsAsync(sharedContainsRels);
@@ -278,9 +271,9 @@ public partial class Layer3SyntacticParser
             l2Result,
             syntaxStructureNode,
             syntaxTrees,
-            rawImports,
-            rawVariables,
-            rawTypeBindings,
+            ctx.RawImports,
+            ctx.RawVariables,
+            ctx.RawTypeBindings,
             globalReferences,
             globalSymbols
         );
@@ -474,6 +467,7 @@ public partial class Layer3SyntacticParser
                         }
 
                         Layer3ScopeVisibilityPass.RegisterSyntaxTreeWorkspaceSymbols(syntaxTree, ctx);
+                        PipelineMemoryEvictor.TryReleaseDocumentEarlyInLayer3(syntaxTree, ctx);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {

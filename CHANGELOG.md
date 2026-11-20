@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.91.3] - 2026-11-20
+
+### Fixed
+- **Staged Indexing Pipeline Memory Compaction & Pre-PostIndex Layer Eviction (`CodeExplorer.Core`, `CodeExplorer.Indexing`)**:
+  - Added `SyntaxDocument.Compact()`, `SyntaxTree.Compact()`, `SyntaxTree.ReleaseDocument()`, and `PipelineMemoryEvictor` to release UAST `SyntaxDocument` trees and file `SourceText` strings immediately in Layer 3 for files without deferred Layer 4 AST schema/endpoint requirements, and eliminated duplicate `RawImports` / `RawVariables` / `RawTypeBindings` buffers across `Layer3SyntacticParser` and `SyntaxTree`.
+  - Precomputed incremental `FileGraphSnapshot` footprints prior to Layer 4 persistence so `OntologyUploader` immediately clears per-node `References` lists after transferring them to `GlobalReferences` and filters `TreeRelationships` to retain only PostIndex-relevant edges in memory.
+  - Evicted non-PostIndex layers and buffers in `Layer5AnalysisParser` prior to `PostIndexAnalyzer.RunInMemoryAsync` (releasing `GlobalReferences`, `RawImports`, `RawVariables`, `RawTypeBindings`, `FileScopedSymbols`, `SymbolScopes`, `FunctionAnalysisSignals`, Layer 1 `FolderNode` trees, Layer 3 `SyntaxStructure` / `ProjectSyntaxNode` containers, `TypeNode` / `FunctionNode` / `MemberNode` / `CallLiteralNode` / `CatchClauseNode` instances, and `SyntaxTrees` while preserving `KnownFunctionIds` and hoisted Layer 4 semantic nodes).
+
+---
+
 ## [1.91.2] - 2026-11-20
 
 ### Fixed

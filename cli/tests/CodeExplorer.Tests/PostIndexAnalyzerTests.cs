@@ -349,6 +349,77 @@ public class PostIndexAnalyzerTests
         (nodes.Any(n => n.Id == "ws:project:api:")).Should().BeFalse();
         (edges.Any(e => e.From == "ws:project:api:")).Should().BeFalse();
     }
+
+    [Test]
+    public async Task Layer5Pipeline_EvictsNonPostIndexLayersAndBuffers_WhilePreservingGraphAndSnapshots()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_mem_evict_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), """{"name": "evict-app"}""");
+            var srcDir = Path.Combine(tempDir, "src");
+            Directory.CreateDirectory(srcDir);
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "service.ts"), """
+                export class OrderService {
+                    private readonly prefix = "ORD";
+                    public processOrder(id: string): string {
+                        return this.formatId(id);
+                    }
+                    private formatId(id: string): string {
+                        return this.prefix + id;
+                    }
+                }
+                """);
+
+            using var scanResult = await WorkspaceIndexer.ScanInMemoryAsync(
+                tempDir,
+                new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer5_Global });
+
+            scanResult.Graph.Should().NotBeNull();
+            scanResult.Layer3.Should().NotBeNull();
+            scanResult.Layer4.Should().NotBeNull();
+
+            // Verify non-PostIndex layers were evicted from RAM during Layer 5
+            scanResult.Layer3!.SyntaxTrees.Should().BeEmpty("SyntaxTrees list should be cleared before PostIndex");
+            scanResult.Layer3.SyntaxStructure.Children.Should().BeEmpty("Layer 3 SyntaxStructure should be evicted before PostIndex");
+            scanResult.Layer3.RawImports.Should().BeEmpty("RawImports buffer should be evicted after global reference resolution");
+            scanResult.Layer3.RawVariables.Should().BeEmpty("RawVariables buffer should be evicted after global reference resolution");
+            scanResult.Layer3.RawTypeBindings.Should().BeEmpty("RawTypeBindings buffer should be evicted after global reference resolution");
+
+            var filesStructure = scanResult.Layer1.Workspace.Children
+                .OfType<CodeExplorer.Core.Common.Nodes.Layer1_Physical.FilesStructureNode>()
+                .FirstOrDefault();
+            filesStructure.Should().NotBeNull();
+            filesStructure!.Children.Should().BeEmpty("Layer 1 FolderNode hierarchy should be evicted before PostIndex");
+
+            foreach (var file in scanResult.Layer1.Files)
+            {
+                file.References.Should().BeEmpty("FileNode.References should be cleared after OntologyUploader");
+                file.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>().Should().BeEmpty("Layer 3 TypeNodes should be evicted from FileNode before PostIndex");
+                file.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().BeEmpty("Layer 3 FunctionNodes should be evicted from FileNode before PostIndex");
+                file.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.MemberNode>().Should().BeEmpty("Layer 3 MemberNodes should be evicted from FileNode before PostIndex");
+            }
+
+            // Verify all nodes and CALLS relationships were persisted prior to eviction
+            var uploadedNodes = scanResult.Graph!.UploadedNodes;
+            var uploadedRels = scanResult.Graph.UploadedRelationships;
+            uploadedNodes.Should().Contain(n => n.Kind == NodeKind.Type && n.Properties["name"].ToString() == "OrderService");
+            uploadedNodes.Should().Contain(n => n.Kind == NodeKind.Function && n.Properties["name"].ToString() == "processOrder");
+            uploadedNodes.Should().Contain(n => n.Kind == NodeKind.Function && n.Properties["name"].ToString() == "formatId");
+            uploadedNodes.Should().Contain(n => n.Kind == NodeKind.Member && n.Properties["name"].ToString() == "prefix");
+            uploadedRels.Should().Contain(r => r.Kind == RelationshipKind.Calls);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
 }
 
 
