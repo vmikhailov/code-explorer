@@ -871,6 +871,7 @@ graph TD
 | `VariableClassification` | `string?` | Variable classification tags (e.g. parameter, config, etl, constant, global, property, field). |
 | `InitializerExpression` | `string?` | Bounded initializer expression text. |
 | `IsConstant` | `bool?` | Indicates whether the member is a compile-time or immutable constant. |
+| `IsStatic` | `bool?` | Indicates whether the member is declared static or module-global (shared across instances). |
 | `Attributes` | `string?` | Comma-separated annotations, attributes, or decorators applied to this member. |
 
 ---

@@ -362,4 +362,68 @@ public class GateCommandTests
         incompleteScalarResult.MissingColumns.Should().Contain("file");
         incompleteScalarResult.MissingColumns.Should().Contain("line");
     }
+
+    [Test]
+    public async Task TwelveFactorBasis_ExtractsMutableStaticMembers_FileLogSinks_AndStarterTemplates()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempWorkspace, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempWorkspace, "OrderProcessor.cs"),
+            """
+            using System.Collections.Generic;
+
+            namespace SampleApp;
+
+            public class OrderProcessor
+            {
+                public static Dictionary<string, string> StickyCache = new();
+                public static readonly string ImmutableVersion = "1.0";
+                public const int MaxBatchSize = 50;
+
+                public void ConfigureLogging(dynamic loggerConfig)
+                {
+                    loggerConfig.WriteTo.File("logs/order-service.log");
+                }
+            }
+            """);
+
+        var ws = WorkspaceLocator.Initialize(_tempWorkspace, "TwelveFactorApp");
+        using var client = new SqliteGraphClient(ws.DbPath);
+        await client.CreateIndicesAsync();
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, clear: true, enableIntentAnalysis: false);
+
+        var gateRepo = new CodeExplorer.Core.Gates.Storage.FileGateRepository(_tempWorkspace);
+        await gateRepo.InitStarterGatesAsync(overwrite: true);
+
+        var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
+        File.Exists(Path.Combine(gatesDir, "12factor-dependencies-no-unpinned-packages.yaml.example")).Should().BeTrue();
+        File.Exists(Path.Combine(gatesDir, "12factor-config-no-hardcoded-connections.yaml.example")).Should().BeTrue();
+        File.Exists(Path.Combine(gatesDir, "12factor-processes-no-mutable-static-state.yaml.example")).Should().BeTrue();
+        File.Exists(Path.Combine(gatesDir, "12factor-logs-no-file-log-sinks.yaml.example")).Should().BeTrue();
+
+        // Activate 12-Factor VI (Mutable Static State) and XI (File Log Sinks) gates
+        File.Move(
+            Path.Combine(gatesDir, "12factor-processes-no-mutable-static-state.yaml.example"),
+            Path.Combine(gatesDir, "12factor-processes-no-mutable-static-state.yaml"));
+        File.Move(
+            Path.Combine(gatesDir, "12factor-logs-no-file-log-sinks.yaml.example"),
+            Path.Combine(gatesDir, "12factor-logs-no-file-log-sinks.yaml"));
+
+        var evaluator = new CodeExplorer.Core.Gates.Engine.GateExecutionEngine(client, gateRepo);
+        var processGate = await gateRepo.GetGateByIdAsync("SIG-12F-006");
+        processGate.Should().NotBeNull();
+        var processResult = await evaluator.CheckGateAsync(processGate!);
+        processResult.Violations.Select(v => v.Target).Should().Contain("OrderProcessor.StickyCache");
+        processResult.Violations.Select(v => v.Target).Should().NotContain("OrderProcessor.ImmutableVersion");
+        processResult.Violations.Select(v => v.Target).Should().NotContain("OrderProcessor.MaxBatchSize");
+
+        var logsGate = await gateRepo.GetGateByIdAsync("SIG-12F-011");
+        logsGate.Should().NotBeNull();
+        var logsResult = await evaluator.CheckGateAsync(logsGate!);
+        logsResult.Violations.Should().ContainSingle(v => (v.Message ?? "").Contains("WriteTo.File") && (v.Message ?? "").Contains("logs/order-service.log"));
+    }
 }

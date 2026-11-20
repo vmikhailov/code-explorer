@@ -60,6 +60,9 @@ public record MemberNode(
     [JsonPropertyName("is_constant"), OntologyProperty("Indicates whether the member is a compile-time or immutable constant.")]
     public bool? IsConstant { get; set; }
 
+    [JsonPropertyName("is_static"), OntologyProperty("Indicates whether the member is declared static or module-global (shared across instances).")]
+    public bool? IsStatic { get; set; }
+
     [JsonPropertyName("attributes"), OntologyProperty("Comma-separated annotations, attributes, or decorators applied to this member.")]
     public string? Attributes { get; set; }
 

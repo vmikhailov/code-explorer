@@ -690,51 +690,7 @@ public partial class Layer3SyntacticParser
             }
         }
         IndexOntologyTree(fileNode, null);
-
-        foreach (var memDecl in doc.AllMembers)
-        {
-            if (memDecl.Annotations.Count == 0) continue;
-            var attrNames = new List<string>(memDecl.Annotations.Count);
-            for (var i = 0; i < memDecl.Annotations.Count; i++)
-            {
-                var aName = memDecl.Annotations[i].Name.Trim().TrimStart('@', '#', '[').TrimEnd(']');
-                var pIdx = aName.IndexOf('(');
-                if (pIdx > 0) aName = aName[..pIdx].Trim();
-                if (!string.IsNullOrEmpty(aName) && !attrNames.Contains(aName, StringComparer.Ordinal))
-                {
-                    attrNames.Add(aName);
-                }
-            }
-            if (attrNames.Count == 0) continue;
-            var attrsStr = string.Join(", ", attrNames);
-
-            var startLine = memDecl.Span.StartLine + 1;
-            if (!string.IsNullOrEmpty(memDecl.Name) && membersByLineAndName.TryGetValue((startLine, memDecl.Name), out var directMem))
-            {
-                directMem.Attributes ??= attrsStr;
-            }
-            else
-            {
-                foreach (var child in memDecl.Children)
-                {
-                    if (child is VariableDeclSyntax vd)
-                    {
-                        if (!string.IsNullOrEmpty(vd.Name) && membersByLineAndName.TryGetValue((vd.Span.StartLine + 1, vd.Name), out var vdMem))
-                        {
-                            vdMem.Attributes ??= attrsStr;
-                        }
-                        foreach (var sub in vd.Children)
-                        {
-                            if (sub is VariableDeclSyntax subVd && !string.IsNullOrEmpty(subVd.Name) &&
-                                membersByLineAndName.TryGetValue((subVd.Span.StartLine + 1, subVd.Name), out var subMem))
-                            {
-                                subMem.Attributes ??= attrsStr;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        Layer3ScopeVisibilityPass.EnrichMemberDeclarationsFromDocument(doc, membersByLineAndName);
 
         var hasLateExportMarkers = doc.SourceText.Contains("module.exports", StringComparison.Ordinal) ||
                                    doc.SourceText.Contains("exports.", StringComparison.Ordinal) ||

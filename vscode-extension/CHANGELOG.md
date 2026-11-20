@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.92.0] - 2026-11-20
+
+### Added
+- **Twelve-Factor App (`12-Factor`) Ontology Basis & Starter Gate Templates (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Gates`)**:
+  - Added `is_static` (`MemberNode.IsStatic`) to `:Member` ontology nodes and enriched `is_static` / `is_constant` extraction across Tree-sitter UAST declarations (`SyntaxModifiers.Static`, `Const`, `ReadOnly`, and source modifier keyword inspection) and non-Tree-sitter `RawVariable` symbols so mutable static process state (`m.is_static = true AND coalesce(m.is_constant, false) = false`) can be queried directly in Cypher (Factor VI: *Processes*).
+  - Extended `PlatformParameterCatalog` with file-logging sink signatures (`WriteTo.File`, `AddFile`, `FileAppender`, `RollingFileAppender`, `FileHandler`, `RotatingFileHandler`, `TimedRotatingFileHandler`, `transports.File`, `winston.transports.File`, `pino.destination`, `error_log`), options-object property keys (`filename`, `filePath`), and dotted receiver suffix matching so file-based log sinks are classified as `CallArgument {nature: 'FilePath'}` (Factor XI: *Logs*).
+  - Added four starter Twelve-Factor Semantic Invariant Gate templates (`12factor-dependencies-no-unpinned-packages.yaml.example` / `SIG-12F-002`, `12factor-config-no-hardcoded-connections.yaml.example` / `SIG-12F-003`, `12factor-processes-no-mutable-static-state.yaml.example` / `SIG-12F-006`, and `12factor-logs-no-file-log-sinks.yaml.example` / `SIG-12F-011`) to `ce gate init`.
+
+---
+
 ## [1.91.3] - 2026-11-20
 
 ### Fixed

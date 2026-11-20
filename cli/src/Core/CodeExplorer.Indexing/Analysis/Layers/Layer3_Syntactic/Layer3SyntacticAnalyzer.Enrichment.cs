@@ -394,7 +394,8 @@ public partial class Layer3SyntacticParser
                 {
                     VariableClassification = varType,
                     InitializerExpression = rawVar.InitializerText,
-                    IsConstant = isConstant
+                    IsConstant = isConstant,
+                    IsStatic = isGlobal ? true : null
                 };
 
                 TryInsertVariable(fileNode, varNode, rawVar.StartLine);
@@ -478,9 +479,15 @@ public partial class Layer3SyntacticParser
         {
             var memberKind = syntactic.TryGetProperty(OntologyConstants.PropertyNames.MemberKind, out var mk) ? mk : "field";
             var dataType = syntactic.TryGetProperty(OntologyConstants.PropertyNames.DataType, out var dt) ? dt : null;
-            typedNode = new MemberNode(symbolId, name, symbolId, relativePath, relativePath,
+            var memNode = new MemberNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
                 memberKind, dataType);
+            if (node is DeclarationSyntax memDeclSyntax)
+            {
+                if ((memDeclSyntax.Modifiers & SyntaxModifiers.Static) != 0) memNode.IsStatic = true;
+                if ((memDeclSyntax.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly)) != 0) memNode.IsConstant = true;
+            }
+            typedNode = memNode;
         }
         else if (kind == OntologyConstants.NodeLabels.CallLiteral)
         {
@@ -956,6 +963,109 @@ public partial class Layer3SyntacticParser
 
 internal static class Layer3ScopeVisibilityPass
 {
+    internal static void EnrichMemberDeclarationsFromDocument(
+        SyntaxDocument doc,
+        Dictionary<(int Line, string Name), MemberNode> membersByLineAndName)
+    {
+        if (membersByLineAndName.Count == 0) return;
+
+        foreach (var memDecl in doc.AllMembers)
+        {
+            string? attrsStr = null;
+            if (memDecl.Annotations.Count > 0)
+            {
+                var attrNames = new List<string>(memDecl.Annotations.Count);
+                for (var i = 0; i < memDecl.Annotations.Count; i++)
+                {
+                    var aName = memDecl.Annotations[i].Name.Trim().TrimStart('@', '#', '[').TrimEnd(']');
+                    var pIdx = aName.IndexOf('(');
+                    if (pIdx > 0) aName = aName[..pIdx].Trim();
+                    if (!string.IsNullOrEmpty(aName) && !attrNames.Contains(aName, StringComparer.Ordinal))
+                    {
+                        attrNames.Add(aName);
+                    }
+                }
+                if (attrNames.Count > 0)
+                {
+                    attrsStr = string.Join(", ", attrNames);
+                }
+            }
+
+            var isStatic = (memDecl.Modifiers & SyntaxModifiers.Static) != 0 ||
+                           HasDeclarationModifierKeyword(memDecl, isStaticCheck: true);
+            var isConstOrReadOnly = (memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly)) != 0 ||
+                                    memDecl.Kind == MemberSyntaxKind.Constant ||
+                                    HasDeclarationModifierKeyword(memDecl, isStaticCheck: false);
+
+            void ApplyToMember(MemberNode target)
+            {
+                if (attrsStr != null) target.Attributes ??= attrsStr;
+                if (isStatic) target.IsStatic = true;
+                if (isConstOrReadOnly) target.IsConstant = true;
+            }
+
+            var startLine = memDecl.Span.StartLine + 1;
+            if (!string.IsNullOrEmpty(memDecl.Name) && membersByLineAndName.TryGetValue((startLine, memDecl.Name), out var directMem))
+            {
+                ApplyToMember(directMem);
+            }
+            else
+            {
+                foreach (var child in memDecl.Children)
+                {
+                    if (child is VariableDeclSyntax vd)
+                    {
+                        if (!string.IsNullOrEmpty(vd.Name) && membersByLineAndName.TryGetValue((vd.Span.StartLine + 1, vd.Name), out var vdMem))
+                        {
+                            ApplyToMember(vdMem);
+                        }
+                        foreach (var sub in vd.Children)
+                        {
+                            if (sub is VariableDeclSyntax subVd && !string.IsNullOrEmpty(subVd.Name) &&
+                                membersByLineAndName.TryGetValue((subVd.Span.StartLine + 1, subVd.Name), out var subMem))
+                            {
+                                ApplyToMember(subMem);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool HasDeclarationModifierKeyword(SyntaxNode decl, bool isStaticCheck)
+    {
+        var span = decl.AsSpan();
+        var eqIdx = span.IndexOf('=');
+        if (eqIdx > 0) span = span[..eqIdx];
+        var braceIdx = span.IndexOf('{');
+        if (braceIdx > 0) span = span[..braceIdx];
+
+        while (!span.IsEmpty)
+        {
+            span = span.TrimStart();
+            if (span.IsEmpty) break;
+            var idx = 0;
+            while (idx < span.Length && (char.IsLetterOrDigit(span[idx]) || span[idx] == '_')) idx++;
+            if (idx == 0)
+            {
+                span = span[1..];
+                continue;
+            }
+            var token = span[..idx];
+            if (isStaticCheck)
+            {
+                if (token is "static") return true;
+            }
+            else
+            {
+                if (token is "const" or "readonly" or "final") return true;
+            }
+            span = span[idx..];
+        }
+        return false;
+    }
+
     internal static void EnrichNonTreeSitterTree(SyntaxTree syntaxTree, string? projectName, bool isTest, ParsingContext? ctx)
     {
         if (syntaxTree.RawImports.Count > 0)

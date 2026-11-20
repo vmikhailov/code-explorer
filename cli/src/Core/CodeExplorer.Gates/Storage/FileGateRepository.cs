@@ -208,6 +208,113 @@ public class FileGateRepository : IGateRepository
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-D-B-002.json
+                """),
+            ("12factor-dependencies-no-unpinned-packages.yaml.example", """
+                # Starter Gate: Twelve-Factor II (Dependencies) - Explicit & Pinned Dependencies
+                # Ensure all external package dependencies declare an explicit pinned version.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-12F-002
+                category: Architectural
+                platform: agnostic
+                scope: Project
+                dimension: Boundaries
+                name: Twelve-Factor II - No Unpinned Package Dependencies
+                severity: Warning
+                description: Package dependencies must specify an explicit version rather than wildcard ('*', 'latest') or empty version specifiers.
+                remediation: Pin the dependency in the project manifest to an explicit semantic version or lockfile version.
+                target: "{p.name} -> {pkg.name}"
+                message: "Project '{p.name}' depends on unpinned package '{pkg.name}' (version: '{pkg.version}')"
+                query: |
+                  MATCH (p:Project)-[:DEPENDS_ON]->(pkg:Package)
+                  WHERE coalesce(pkg.version, '') IN ['', '*', 'latest', 'LATEST']
+                  RETURN p, pkg
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-12F-002.json
+                """),
+            ("12factor-config-no-hardcoded-connections.yaml.example", """
+                # Starter Gate: Twelve-Factor III & IV (Config & Backing Services) - Externalized Config
+                # Ensure connection strings, secrets, and service URLs come from environment/config rather than literals.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-12F-003
+                category: Implementation
+                platform: agnostic
+                scope: Method
+                dimension: Implementation
+                name: Twelve-Factor III - No Hardcoded Connection Strings or Secrets
+                severity: Error
+                description: Backing service connection strings, credentials, and URLs must be injected via environment variables or configuration, never hardcoded as string literals.
+                remediation: Load the connection string or secret from environment variables or a bound configuration provider.
+                target: "{fn.name} -> {ca.callee}"
+                message: "Function '{fn.name}' passes hardcoded {ca.nature} '{ca.resolved_value}' to '{ca.callee}' in '{fn.file_path}'"
+                query: |
+                  MATCH (fn:Function)-[:PASSES_ARGUMENT]->(ca:CallArgument)
+                  WHERE NOT coalesce(fn.is_test, false)
+                    AND ca.nature IN ['ConnectionString', 'SecretOrHeader']
+                    AND ca.provenance IN ['Literal', 'InternalConstant']
+                  RETURN fn, ca
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-12F-003.json
+                """),
+            ("12factor-processes-no-mutable-static-state.yaml.example", """
+                # Starter Gate: Twelve-Factor VI (Processes) - Stateless Share-Nothing Processes
+                # Detect mutable static/module-global fields and properties that hold in-process state across requests.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-12F-006
+                category: Architectural
+                platform: agnostic
+                scope: Class
+                dimension: Responsibility
+                name: Twelve-Factor VI - No Mutable Static Process State
+                severity: Warning
+                description: Twelve-factor processes are stateless and share-nothing; mutable static fields or properties retain sticky state across requests in a single process.
+                remediation: Make the static member immutable (const / static readonly / final) or move shared state to an external backing service (e.g. Redis, database).
+                target: "{t.name}.{m.name}"
+                message: "Type '{t.name}' declares mutable static member '{m.name}' in '{t.file_path}'"
+                query: |
+                  MATCH (t:Type)-[:HAS_MEMBER]->(m:Member)
+                  WHERE NOT coalesce(t.is_test, false)
+                    AND m.is_static = true
+                    AND coalesce(m.is_constant, false) = false
+                  RETURN t, m
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-12F-006.json
+                """),
+            ("12factor-logs-no-file-log-sinks.yaml.example", """
+                # Starter Gate: Twelve-Factor XI (Logs) - Treat Logs as Event Streams
+                # Ensure application code does not configure local log file sinks or rolling file appenders directly.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-12F-011
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Boundaries
+                name: Twelve-Factor XI - No Direct File Log Sinks
+                severity: Warning
+                description: Twelve-factor apps write logs unbuffered to stdout/stderr and let the execution environment route and archive streams, rather than managing local log files.
+                remediation: Replace file-based logging sinks (WriteTo.File, FileAppender, FileHandler, winston.transports.File) with stdout/console output.
+                target: "{fn.name} -> {ca.callee}"
+                message: "Function '{fn.name}' configures file log sink '{ca.callee}' ({ca.resolved_value}) in '{fn.file_path}'"
+                query: |
+                  MATCH (fn:Function)-[:PASSES_ARGUMENT]->(ca:CallArgument)
+                  WHERE NOT coalesce(fn.is_test, false)
+                    AND ca.nature = 'FilePath'
+                    AND (ca.callee IN ['WriteTo.File', 'AddFile', 'FileAppender', 'RollingFileAppender', 'FileHandler', 'RotatingFileHandler', 'TimedRotatingFileHandler', 'transports.File', 'winston.transports.File', 'pino.destination', 'error_log']
+                      OR ca.callee ENDS WITH '.WriteTo.File'
+                      OR ca.callee ENDS WITH '.AddFile'
+                      OR ca.callee ENDS WITH '.FileAppender'
+                      OR ca.callee ENDS WITH '.RollingFileAppender'
+                      OR ca.callee ENDS WITH '.FileHandler'
+                      OR ca.callee ENDS WITH '.RotatingFileHandler'
+                      OR ca.callee ENDS WITH '.TimedRotatingFileHandler'
+                      OR ca.callee ENDS WITH '.transports.File'
+                      OR ca.callee ENDS WITH 'pino.destination')
+                  RETURN fn, ca
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-12F-011.json
                 """)
         };
 

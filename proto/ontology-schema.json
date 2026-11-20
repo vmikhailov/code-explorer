@@ -3284,6 +3284,12 @@
           "description": "Indicates whether the member is a compile-time or immutable constant."
         },
         {
+          "name": "is_static",
+          "sourceName": "IsStatic",
+          "type": "boolean",
+          "description": "Indicates whether the member is declared static or module-global (shared across instances)."
+        },
+        {
           "name": "attributes",
           "sourceName": "Attributes",
           "type": "string",

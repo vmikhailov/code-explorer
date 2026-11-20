@@ -151,7 +151,7 @@ public static class PlatformParameterCatalog
             ["createConnection"] = [(0, ParameterNature.ConnectionString)],
             ["createPool"] = [(0, ParameterNature.ConnectionString)],
 
-            // --- 4. File Path Sinks ---
+            // --- 4. File Path Sinks (including 12-Factor XI file-logging sinks) ---
             ["ReadAllText"] = [(0, ParameterNature.FilePath)],
             ["ReadAllTextAsync"] = [(0, ParameterNature.FilePath)],
             ["ReadAllLines"] = [(0, ParameterNature.FilePath)],
@@ -166,6 +166,17 @@ public static class PlatformParameterCatalog
             ["readFileSync"] = [(0, ParameterNature.FilePath)],
             ["writeFile"] = [(0, ParameterNature.FilePath)],
             ["writeFileSync"] = [(0, ParameterNature.FilePath)],
+            ["WriteTo.File"] = [(0, ParameterNature.FilePath)],
+            ["AddFile"] = [(0, ParameterNature.FilePath)],
+            ["FileAppender"] = [(0, ParameterNature.FilePath)],
+            ["RollingFileAppender"] = [(0, ParameterNature.FilePath)],
+            ["FileHandler"] = [(0, ParameterNature.FilePath)],
+            ["RotatingFileHandler"] = [(0, ParameterNature.FilePath)],
+            ["TimedRotatingFileHandler"] = [(0, ParameterNature.FilePath)],
+            ["transports.File"] = [(0, ParameterNature.FilePath)],
+            ["winston.transports.File"] = [(0, ParameterNature.FilePath)],
+            ["pino.destination"] = [(0, ParameterNature.FilePath)],
+            ["error_log"] = [(2, ParameterNature.FilePath)],
 
             // --- 5. Command / Process Sinks ---
             ["Process.Start"] = [(0, ParameterNature.CommandOrScript)],
@@ -210,7 +221,9 @@ public static class PlatformParameterCatalog
             ["TopicArn"] = ParameterNature.TopicOrQueue,
             ["headers"] = ParameterNature.SecretOrHeader,
             ["authorization"] = ParameterNature.SecretOrHeader,
-            ["apiKey"] = ParameterNature.SecretOrHeader
+            ["apiKey"] = ParameterNature.SecretOrHeader,
+            ["filename"] = ParameterNature.FilePath,
+            ["filePath"] = ParameterNature.FilePath
         };
 
     private static readonly HashSet<string> SqlOptionCallees = new(StringComparer.OrdinalIgnoreCase)
@@ -241,16 +254,21 @@ public static class PlatformParameterCatalog
             }
         }
 
-        var methodName = ExtractShortMethodName(callee);
-        if (!ReferenceEquals(methodName, callee) && MethodRegistry.TryGetValue(methodName, out var shortMappings))
+        var dotIdx = callee.IndexOf(DotSeparator);
+        while (dotIdx >= 0 && dotIdx + 1 < callee.Length)
         {
-            for (var i = 0; i < shortMappings.Length; i++)
+            var suffix = callee[(dotIdx + 1)..];
+            if (MethodRegistry.TryGetValue(suffix, out var suffixMappings))
             {
-                if (shortMappings[i].ArgIndex == argIndex)
+                for (var i = 0; i < suffixMappings.Length; i++)
                 {
-                    return shortMappings[i].Nature;
+                    if (suffixMappings[i].ArgIndex == argIndex)
+                    {
+                        return suffixMappings[i].Nature;
+                    }
                 }
             }
+            dotIdx = callee.IndexOf(DotSeparator, dotIdx + 1);
         }
 
         return ParameterNature.Unspecified;
