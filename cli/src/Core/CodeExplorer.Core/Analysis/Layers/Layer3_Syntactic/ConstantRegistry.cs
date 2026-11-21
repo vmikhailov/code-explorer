@@ -384,10 +384,22 @@ public static class ConstantRegistry
             {
                 if (parts[i].Equals("src", StringComparison.OrdinalIgnoreCase))
                 {
-                    // If "src" is followed by a monorepo container (e.g. "src/services/fe/..."), keep scanning
+                    // If "src" is followed by a monorepo container AND another "src" exists later (e.g. "repo/src/services/fe/src/app/..."), keep scanning
                     if (i + 1 < parts.Length && MonorepoContainers.Contains(parts[i + 1]))
                     {
-                        continue;
+                        var hasLaterSrc = false;
+                        for (var j = i + 2; j < parts.Length; j++)
+                        {
+                            if (parts[j].Equals("src", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasLaterSrc = true;
+                                break;
+                            }
+                        }
+                        if (hasLaterSrc)
+                        {
+                            continue;
+                        }
                     }
 
                     var prev = parts[i - 1];

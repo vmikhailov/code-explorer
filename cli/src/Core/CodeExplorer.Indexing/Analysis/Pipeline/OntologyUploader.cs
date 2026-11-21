@@ -96,7 +96,7 @@ public static class OntologyUploader
 
     private static bool IsPostIndexRelevantRelationship(Relationship rel)
     {
-        if (rel.Kind is RelationshipKind.LocatedIn or RelationshipKind.UsesGit)
+        if (rel.Kind == RelationshipKind.LocatedIn)
         {
             return false;
         }
