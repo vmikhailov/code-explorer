@@ -172,6 +172,9 @@ graph TD
     Procedure -->|CONTAINS| Query
     Procedure -->|ACCESSED_BY| Function
     Procedure -->|TARGETED_BY| CallArgument
+    Procedure -->|READS_FROM| Table
+    Procedure -->|WRITES_TO| Table
+    Procedure -->|CALLS| Procedure
     Project -->|LOCATED_IN| Folder
     Project -->|LOCATED_IN| Workspace
     Project -->|CONTAINS| Project
@@ -219,6 +222,9 @@ graph TD
     Table -->|ACCESSED_BY| Type
     Table -->|ACCESSED_BY| Query
     Table -->|TARGETED_BY| CallArgument
+    Table -->|REFERENCES| Table
+    Table -->|READS_FROM| Table
+    Table -->|TRIGGERS| Procedure
     TestSuite -->|TESTS| Module
     Topic -->|HOSTED_IN| Cloud
     Topic -->|IMPLEMENTED_BY| CloudResource
@@ -1493,13 +1499,28 @@ graph TD
 | `CONTAINS` | `Query` |
 | `ACCESSED_BY` | `Function` |
 | `TARGETED_BY` | `CallArgument` |
+| `READS_FROM` | `Table` |
+| `WRITES_TO` | `Table` |
+| `CALLS` | `Procedure` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `DbSchema` | `CONTAINS` |
+| `Procedure` | `CALLS` |
 | `SemanticStructure` | `CONTAINS` |
+| `Table` | `TRIGGERS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Engine` | `string?` | Database engine hosting this routine (e.g. postgresql, sqlserver, mysql). |
+| `Schema` | `string?` | Database schema qualifying this routine (e.g. dbo, public). |
+| `SubKind` | `string?` | Specific database routine kind (procedure, function, trigger). |
+| `TriggerTable` | `string?` | Target table name that fires this trigger, if sub_kind is trigger. |
+| `TriggerEvent` | `string?` | Trigger timing and event (e.g. AFTER INSERT, BEFORE UPDATE). |
 
 ---
 
@@ -1627,6 +1648,9 @@ graph TD
 | `ACCESSED_BY` | `Type` |
 | `ACCESSED_BY` | `Query` |
 | `TARGETED_BY` | `CallArgument` |
+| `REFERENCES` | `Table` |
+| `READS_FROM` | `Table` |
+| `TRIGGERS` | `Procedure` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1634,10 +1658,14 @@ graph TD
 | :--- | :--- |
 | `DataSet` | `CONTAINS` |
 | `DbSchema` | `CONTAINS` |
+| `Procedure` | `READS_FROM` |
+| `Procedure` | `WRITES_TO` |
 | `Query` | `READS_FROM` |
 | `Query` | `WRITES_TO` |
 | `Query` | `DEPENDS_ON` |
 | `SemanticStructure` | `CONTAINS` |
+| `Table` | `REFERENCES` |
+| `Table` | `READS_FROM` |
 
 **Properties:**
 
@@ -1648,6 +1676,8 @@ graph TD
 | `Engine` | `string?` | Database engine hosting this table (e.g. postgresql, sqlserver, sqlite). |
 | `Schema` | `string?` | Database schema qualifying this table (e.g. dbo, public, core). |
 | `EntityName` | `string?` | Mapped ORM entity or domain model type name, if applicable. |
+| `SubKind` | `string?` | Specific relational object kind (e.g. table, view, materialized_view). |
+| `ColumnsJson` | `string?` | Compact JSON array describing table columns (name, type, pk, nullable, unique, fk). |
 
 ---
 
@@ -1919,6 +1949,7 @@ graph TD
 | `PUBLISHES_TO` | Links a service or function to a message queue or topic it publishes messages or events to. |
 | `QUERIED_BY` | Links a database or table to the function or query that accesses it. |
 | `READS_FROM` | Links a query or workload to the table or cloud resource it reads from. |
+| `REFERENCES` | Links a child database table to a parent table via a foreign key constraint. |
 | `SERVICE_CALL` | Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API. |
 | `SUBSCRIBED_BY` | Links a topic to the function that subscribes to it. |
 | `SUBSCRIBES_TO` | Links a service or handler function to a message queue or topic it listens to or consumes events from. |

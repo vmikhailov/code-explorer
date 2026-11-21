@@ -16,6 +16,7 @@ public class SqlFileParser : IFileParser
     public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
     private const string RelationalEngine = "relational";
+    private static readonly string TableSubKind = "table";
 
     public bool CanParse(string fileExtension)
     {
@@ -113,35 +114,97 @@ public class SqlFileParser : IFileParser
         }
 
         // 3. Process statements from dialect AST
+        var engineName = dialect.ToString().ToLowerInvariant();
         var queryCounter = 0;
         var sqlChildren = new List<SyntaxNode>();
 
-        void ProcessCreateTable(SqlCreateTableStatementAst createTable)
+        TableNode GetOrCreateTableNode(string tableName, string schema, string? subKind = null)
+        {
+            var resolvedSubKind = string.IsNullOrEmpty(subKind) ? TableSubKind : subKind;
+            var ds = GetOrCreateDataSet(schema);
+            var tableNodeId = $"{ds.Id}:table:{tableName.ToLowerInvariant()}";
+            if (!tables.TryGetValue(tableName, out var tableNode))
+            {
+                tableNode = new TableNode(tableNodeId, tableName, relativePath)
+                {
+                    Engine = engineName,
+                    Schema = schema,
+                    SubKind = resolvedSubKind
+                };
+                tables[tableName] = tableNode;
+                ds.Children.Add(tableNode);
+            }
+            else if (string.IsNullOrEmpty(tableNode.SubKind))
+            {
+                tableNode.SubKind = resolvedSubKind;
+            }
+            return tableNode;
+        }
+
+        void AddForeignKeyReferences(TableNode sourceTable, IReadOnlyList<SqlForeignKeyAst>? foreignKeys, IReadOnlyList<SqlTableRefAst>? fallbackRefs)
+        {
+            var emitted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (foreignKeys is { Count: > 0 })
+            {
+                foreach (var fk in foreignKeys)
+                {
+                    var target = fk.TargetTable.TableName;
+                    if (string.IsNullOrWhiteSpace(target) || IsDisallowedIdentifier(target)) continue;
+                    var ctx = !string.IsNullOrWhiteSpace(fk.FromColumn)
+                        ? $"{fk.FromColumn}->{SqlSchemaHelper.FormatFk(fk)}"
+                        : SqlSchemaHelper.FormatFk(fk);
+                    if (emitted.Add($"{target}:{ctx}"))
+                    {
+                        sourceTable.References.Add(new Reference(sourceTable.Id, target, OntologyConstants.Relationships.References, argFlow: ctx));
+                    }
+                }
+            }
+            else if (fallbackRefs is { Count: > 0 })
+            {
+                foreach (var refTbl in fallbackRefs)
+                {
+                    if (string.IsNullOrWhiteSpace(refTbl.TableName) || IsDisallowedIdentifier(refTbl.TableName)) continue;
+                    if (emitted.Add(refTbl.TableName))
+                    {
+                        sourceTable.References.Add(new Reference(sourceTable.Id, refTbl.TableName, OntologyConstants.Relationships.References));
+                    }
+                }
+            }
+        }
+
+        void ProcessCreateTable(SqlCreateTableStatementAst createTable, string subKind = "table")
         {
             var tableName = createTable.Table.TableName;
             var schema = createTable.Table.Schema ?? "dbo";
             if (string.IsNullOrWhiteSpace(tableName) || IsDisallowedIdentifier(tableName)) return;
 
-            var ds = GetOrCreateDataSet(schema);
-            var tableNodeId = $"{ds.Id}:table:{tableName.ToLowerInvariant()}";
-            if (!tables.TryGetValue(tableName, out var tableNode))
-            {
-                tableNode = new TableNode(tableNodeId, tableName, relativePath);
-                tables[tableName] = tableNode;
-                ds.Children.Add(tableNode);
-            }
+            var tableNode = GetOrCreateTableNode(tableName, schema, subKind);
             tables[createTable.Table.CanonicalName] = tableNode;
+
+            SqlSchemaHelper.MergeColumnsIntoTable(tableNode, createTable.Columns, createTable.ForeignKeys);
+            AddForeignKeyReferences(tableNode, createTable.ForeignKeys, createTable.ReferencedTables);
 
             sqlChildren.Add(new SqlStmtSyntax
             {
                 Operation = SqlOperationKind.CreateTable,
-                OperationVerb = "CREATE TABLE",
+                OperationVerb = subKind == "table" ? "CREATE TABLE" : "CREATE VIEW",
                 Tables = [new SqlTableRefSyntax(tableName, IsWriteTarget: true)],
                 RawSql = tableName
             });
 
             if (createTable.AsSelectQuery != null)
             {
+                var readTables = new List<SqlTableRefAst>();
+                var writeTables = new List<SqlTableRefAst>();
+                var calledProcs = new List<SqlProcRefAst>();
+                SqlSchemaHelper.CollectStatementTableAccess(createTable.AsSelectQuery, readTables, writeTables, calledProcs);
+                foreach (var src in readTables.DistinctBy(t => t.TableName, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(src.TableName) && !IsDisallowedIdentifier(src.TableName))
+                    {
+                        tableNode.References.Add(new Reference(tableNode.Id, src.TableName, OntologyConstants.Relationships.ReadsFrom));
+                    }
+                }
                 AddQueryNode(createTable.AsSelectQuery, fileNode, fileNodeId);
             }
         }
@@ -156,9 +219,22 @@ public class SqlFileParser : IFileParser
                     break;
                 }
 
+                case SqlAlterTableStatementAst alterTable:
+                {
+                    var tableName = alterTable.TargetTable.TableName;
+                    var schema = alterTable.TargetTable.Schema ?? "dbo";
+                    if (string.IsNullOrWhiteSpace(tableName) || IsDisallowedIdentifier(tableName)) break;
+
+                    var tableNode = GetOrCreateTableNode(tableName, schema);
+                    SqlSchemaHelper.MergeColumnsIntoTable(tableNode, alterTable.AddedColumns, alterTable.ForeignKeys);
+                    AddForeignKeyReferences(tableNode, alterTable.ForeignKeys, alterTable.ReferencedTables);
+                    break;
+                }
+
                 case SqlCreateViewStatementAst createView:
                 {
-                    ProcessCreateTable(new SqlCreateTableStatementAst(createView.View, false, createView.AsSelectQuery));
+                    var viewKind = createView.IsMaterialized ? "materialized_view" : "view";
+                    ProcessCreateTable(new SqlCreateTableStatementAst(createView.View, false, createView.AsSelectQuery), viewKind);
                     break;
                 }
 
@@ -168,11 +244,25 @@ public class SqlFileParser : IFileParser
                     var schema = createProc.Procedure.Schema ?? "dbo";
                     if (string.IsNullOrWhiteSpace(procName) || IsDisallowedIdentifier(procName)) continue;
 
+                    var routineSubKind = createProc.RoutineKind switch
+                    {
+                        SqlRoutineKind.Function => "function",
+                        SqlRoutineKind.Trigger => "trigger",
+                        _ => "procedure"
+                    };
+
                     var ds = GetOrCreateDataSet(schema);
                     var procNodeId = $"{ds.Id}:procedure:{procName.ToLowerInvariant()}";
                     if (!procedures.TryGetValue(procName, out var procNode))
                     {
-                        procNode = new ProcedureNode(procNodeId, procName, relativePath);
+                        procNode = new ProcedureNode(procNodeId, procName, relativePath)
+                        {
+                            Engine = engineName,
+                            Schema = schema,
+                            SubKind = routineSubKind,
+                            TriggerTable = createProc.TriggerTable?.TableName,
+                            TriggerEvent = createProc.TriggerEvent
+                        };
                         procedures[procName] = procNode;
                         ds.Children.Add(procNode);
                     }
@@ -180,13 +270,44 @@ public class SqlFileParser : IFileParser
                     sqlChildren.Add(new SqlStmtSyntax
                     {
                         Operation = SqlOperationKind.CreateProcedure,
-                        OperationVerb = "CREATE PROCEDURE",
+                        OperationVerb = $"CREATE {routineSubKind.ToUpperInvariant()}",
                         Procedures = [procName],
                         RawSql = createProc.RawBody
                     });
 
+                    var procReads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var procWrites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var procCalls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                     foreach (var bodyStmt in createProc.BodyStatements)
                     {
+                        var rList = new List<SqlTableRefAst>();
+                        var wList = new List<SqlTableRefAst>();
+                        var cList = new List<SqlProcRefAst>();
+                        SqlSchemaHelper.CollectStatementTableAccess(bodyStmt, rList, wList, cList);
+
+                        foreach (var r in rList)
+                        {
+                            if (!string.IsNullOrEmpty(r.TableName) && !IsDisallowedIdentifier(r.TableName) && procReads.Add(r.TableName))
+                            {
+                                procNode.References.Add(new Reference(procNode.Id, r.TableName, OntologyConstants.Relationships.ReadsFrom));
+                            }
+                        }
+                        foreach (var w in wList)
+                        {
+                            if (!string.IsNullOrEmpty(w.TableName) && !IsDisallowedIdentifier(w.TableName) && procWrites.Add(w.TableName))
+                            {
+                                procNode.References.Add(new Reference(procNode.Id, w.TableName, OntologyConstants.Relationships.WritesTo));
+                            }
+                        }
+                        foreach (var c in cList)
+                        {
+                            if (!string.IsNullOrEmpty(c.ProcedureName) && !IsDisallowedIdentifier(c.ProcedureName) && procCalls.Add(c.ProcedureName))
+                            {
+                                procNode.References.Add(new Reference(procNode.Id, c.ProcedureName, OntologyConstants.Relationships.Calls));
+                            }
+                        }
+
                         if (bodyStmt is SqlCreateTableStatementAst innerTable)
                         {
                             ProcessCreateTable(innerTable);

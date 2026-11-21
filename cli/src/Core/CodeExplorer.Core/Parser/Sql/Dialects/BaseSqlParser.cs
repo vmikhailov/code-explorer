@@ -6,7 +6,7 @@ using Superpower.Model;
 
 namespace CodeExplorer.Core.Parser.Sql.Dialects;
 
-public abstract class BaseSqlParser : ISqlDialectParser
+public abstract partial class BaseSqlParser : ISqlDialectParser
 {
     public abstract SqlDialect Dialect { get; }
 
@@ -480,7 +480,7 @@ public abstract class BaseSqlParser : ISqlDialectParser
 
         var isTemp = reader.MatchAny(SqlToken.Temporary, SqlToken.Temp);
         reader.Match(SqlToken.External);
-        reader.Match(SqlToken.Materialized);
+        var isMaterialized = reader.Match(SqlToken.Materialized);
 
         if (reader.Match(SqlToken.Table))
         {
@@ -497,10 +497,10 @@ public abstract class BaseSqlParser : ISqlDialectParser
             var table = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
             if (table == null) return null;
 
-            List<SqlTableRefAst>? refTables = null;
+            CreateTableBodyParseResult? bodyResult = null;
             if (reader.Match(SqlToken.LParen))
             {
-                refTables = ScanReferencedTablesUntilRightParen(reader, cteNames);
+                bodyResult = ParseCreateTableBody(reader, cteNames);
             }
 
             SqlStatementAst? asSelect = null;
@@ -509,7 +509,13 @@ public abstract class BaseSqlParser : ISqlDialectParser
                 asSelect = TryParseNextStatement(reader);
             }
 
-            return new SqlCreateTableStatementAst(table, isTemp, asSelect, refTables) { Ctes = ctes };
+            return new SqlCreateTableStatementAst(
+                table,
+                isTemp,
+                asSelect,
+                bodyResult?.ReferencedTables,
+                bodyResult?.Columns,
+                bodyResult?.ForeignKeys) { Ctes = ctes };
         }
         else if (reader.Match(SqlToken.View))
         {
@@ -523,8 +529,11 @@ public abstract class BaseSqlParser : ISqlDialectParser
                 }
             }
 
-            var view = ParseSingleTableReference(reader, cteNames, isWriteTarget: true);
-            if (view == null) return null;
+            var rawView = reader.ReadMultipartIdentifier();
+            if (string.IsNullOrWhiteSpace(rawView)) return null;
+            var (vDb, vSchema, vName) = ParseTableIdentifier(rawView);
+            if (string.IsNullOrWhiteSpace(vName)) return null;
+            var view = new SqlTableRefAst(vDb, vSchema, vName, null, IsTemporaryTable(vName), false, false, true);
 
             SqlStatementAst? viewSelect = null;
             while (!reader.IsAtEnd && reader.Current.Kind != SqlToken.Semicolon)
@@ -537,10 +546,13 @@ public abstract class BaseSqlParser : ISqlDialectParser
                 reader.Advance();
             }
 
-            return new SqlCreateViewStatementAst(view, viewSelect) { Ctes = ctes };
+            return new SqlCreateViewStatementAst(view, viewSelect, isMaterialized) { Ctes = ctes };
         }
-        else if (reader.MatchAny(SqlToken.Procedure, SqlToken.Proc, SqlToken.Function))
+        else if (reader.Current.Kind is SqlToken.Procedure or SqlToken.Proc or SqlToken.Function)
         {
+            var routineKind = reader.Current.Kind == SqlToken.Function ? SqlRoutineKind.Function : SqlRoutineKind.Procedure;
+            reader.Advance();
+
             if (reader.Match(SqlToken.If))
             {
                 reader.Match(SqlToken.Not);
@@ -561,138 +573,35 @@ public abstract class BaseSqlParser : ISqlDialectParser
                 reader.SkipToMatchingRightParen();
             }
 
-            if (reader.Current.ToStringValue().Equals("RETURNS", StringComparison.OrdinalIgnoreCase))
+            // Skip optional RETURNS <type> / RETURNS TABLE (...) / LANGUAGE plpgsql before AS/IS/BEGIN
+            while (!reader.IsAtEnd &&
+                   reader.Current.Kind != SqlToken.As &&
+                   reader.Current.Kind != SqlToken.Is &&
+                   reader.Current.Kind != SqlToken.Semicolon &&
+                   !IsBeginToken(reader))
             {
-                reader.Advance();
-                reader.ReadMultipartIdentifier();
-            }
-
-            if (reader.Match(SqlToken.As) || reader.Match(SqlToken.Is))
-            {
-            }
-
-            var bodyStatements = new List<SqlStatementAst>();
-            var hasBegin = false;
-            var beginDepth = 0;
-
-            while (!reader.IsAtEnd)
-            {
-                reader.SkipSemicolons();
-                if (reader.IsAtEnd) break;
-
-                if (reader.Current.ToStringValue().Equals("GO", StringComparison.OrdinalIgnoreCase))
+                if (reader.Match(SqlToken.LParen))
                 {
-                    reader.Advance();
-                    break;
-                }
-
-                if (reader.Current.ToStringValue().Equals("BEGIN", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasBegin = true;
-                    beginDepth++;
-                    reader.Advance();
+                    reader.SkipToMatchingRightParen();
                     continue;
                 }
-
-                if (reader.Current.ToStringValue().Equals("END", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (beginDepth > 0)
-                    {
-                        beginDepth--;
-                        reader.Advance();
-                        if (!reader.IsAtEnd && reader.Current.Kind == SqlToken.Identifier)
-                        {
-                            reader.Advance();
-                        }
-                        if (beginDepth == 0)
-                        {
-                            break;
-                        }
-                        continue;
-                    }
-                    else if (hasBegin)
-                    {
-                        reader.Advance();
-                        break;
-                    }
-                    else
-                    {
-                        reader.Advance();
-                        break;
-                    }
-                }
-
-                var stmt = TryParseNextStatement(reader);
-                if (stmt != null)
-                {
-                    bodyStatements.Add(stmt);
-                }
-                else
-                {
-                    reader.SkipToNextStatement();
-                }
+                reader.Advance();
             }
 
-            return new SqlCreateProcedureStatementAst(procRef, string.Empty, bodyStatements) { Ctes = ctes };
+            reader.MatchAny(SqlToken.As, SqlToken.Is);
+
+            var bodyStatements = ParseRoutineBodyStatements(reader);
+            return new SqlCreateProcedureStatementAst(procRef, string.Empty, bodyStatements, routineKind) { Ctes = ctes };
+        }
+        else if (reader.Match(SqlToken.Trigger))
+        {
+            return ParseCreateTrigger(reader, ctes);
         }
 
         return null;
     }
 
-    private List<SqlTableRefAst> ScanReferencedTablesUntilRightParen(SqlTokenReader reader, HashSet<string> cteNames)
-    {
-        var refs = new List<SqlTableRefAst>();
-        var depth = 1;
-        while (!reader.IsAtEnd && depth > 0)
-        {
-            if (reader.Match(SqlToken.LParen))
-            {
-                depth++;
-                continue;
-            }
-            if (reader.Match(SqlToken.RParen))
-            {
-                depth--;
-                continue;
-            }
-            if (reader.Match(SqlToken.References))
-            {
-                var fkTable = ParseSingleTableReference(reader, cteNames, isWriteTarget: false);
-                if (fkTable != null) refs.Add(fkTable);
-                continue;
-            }
-            reader.Advance();
-        }
-        return refs;
-    }
-
-    private SqlAlterTableStatementAst? ParseAlter(SqlTokenReader reader)
-    {
-        reader.Match(SqlToken.Alter);
-        if (!reader.MatchAny(SqlToken.Table, SqlToken.View)) return null;
-        if (reader.Match(SqlToken.If))
-        {
-            reader.Match(SqlToken.Exists);
-        }
-
-        var emptyCtes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var target = ParseSingleTableReference(reader, emptyCtes, isWriteTarget: true);
-        if (target == null) return null;
-
-        var refs = new List<SqlTableRefAst>();
-        while (!reader.IsAtEnd && reader.Current.Kind != SqlToken.Semicolon)
-        {
-            if (reader.Match(SqlToken.References))
-            {
-                var fk = ParseSingleTableReference(reader, emptyCtes, isWriteTarget: false);
-                if (fk != null) refs.Add(fk);
-                continue;
-            }
-            reader.Advance();
-        }
-
-        return new SqlAlterTableStatementAst(target, refs);
-    }
+    private SqlAlterTableStatementAst? ParseAlter(SqlTokenReader reader) => ParseAlterTableExtended(reader);
 
     private SqlDropStatementAst? ParseDrop(SqlTokenReader reader)
     {

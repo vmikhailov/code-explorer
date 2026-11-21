@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.95.0] - 2026-11-21
+
+### Added
+- **Data Schema (ERD), Views, Stored Procedures, DB Functions & Triggers (`CodeExplorer.Core`, `CodeExplorer.Parsers.Sql`, `CodeExplorer.Indexing`, `CodeExplorer.Analysis`, `CodeExplorer.Cypher`)**:
+  - **Foreign Key & Column Schema Extraction**: Added `REFERENCES` relationship (`Table -[:REFERENCES]-> Table`), `sub_kind` (`table`, `view`, `materialized_view`), and compact `columns` JSON metadata (`name`, `type`, `pk`, `nullable`, `unique`, `fk`) on `TableNode`. Extended `BaseSqlParser` (`BaseSqlParser.Schema.cs`) and `SqlFileParser` (`SqlSchemaHelper`) to parse `CREATE TABLE` column definitions, primary/foreign key constraints, and `ALTER TABLE ADD COLUMN` / `ADD CONSTRAINT ... FOREIGN KEY` migrations.
+  - **Views, Stored Procedures, DB Functions & Triggers**: Extended `ProcedureNode` with `sub_kind` (`procedure`, `function`, `trigger`), `trigger_table`, and `trigger_event`. Added parsing for `CREATE [MATERIALIZED] VIEW`, PostgreSQL dollar-quoted (`$$...$$` / `$tag$...$tag$`) functions/procedures, and `CREATE TRIGGER` (PostgreSQL `EXECUTE FUNCTION` and T-SQL/MySQL/SQLite inline bodies). Emits direct `View -[:READS_FROM]-> Table`, `Procedure -[:READS_FROM|WRITES_TO]-> Table`, `Procedure -[:CALLS]-> Procedure`, and cross-file `Table -[:TRIGGERS]-> Procedure` edges.
+  - **Universal ORM Schema & Foreign-Key Enrichment (`OrmSchemaEnricher`)**: Automatically populates `Table.columns` and `Table -[:REFERENCES]-> Table` edges from mapped ORM entities (`IMPLEMENTED_BY`) across EF Core, TypeORM, JPA, and Python ORMs when SQL DDL files are not present.
+  - **Mermaid `erDiagram` Export & Expanded `inspect_data_lineage`**: Added `DiagramExporter.GenerateErDiagramAsync` wired to `--type er|erd|schema|data_schema`, and extended `inspect_data_lineage` (`McpLineageFormatter`) to surface `subKind`, `columns`, `referencesTables`, `referencedByTables`, `dependentViews`, `procedures`, and `triggers`.
+
+---
+
 ## [1.94.0] - 2026-11-21
 
 ### Added

@@ -15,6 +15,7 @@ public static class DiagramExporter
         return type.ToLowerInvariant() switch
         {
             "lineage" or "data_lineage" => await GenerateDataLineageDiagramAsync(client, cancellationToken),
+            "er" or "erd" or "schema" or "data_schema" => await GenerateErDiagramAsync(client, cancellationToken),
             "cqrs" or "saga" or "events" => await GenerateCqrsPipelineDiagramAsync(client, cancellationToken),
             "context" or "contexts" or "bounded-context" or "bounded-contexts" or "context-map" or "contextmap" => await GenerateBoundedContextDiagramAsync(client, format, cancellationToken),
             "domain" or "domains" or "domain-services" => await GenerateDomainDiagramAsync(client, format, includeLibraries, cancellationToken),
@@ -385,6 +386,84 @@ public static class DiagramExporter
         foreach (var (from, to) in edges)
         {
             sb.AppendLine($"  {from} -->|PERSISTED_IN| {to}");
+        }
+
+        return sb.ToString();
+    }
+
+    private sealed record ErColumnDto(
+        [property: System.Text.Json.Serialization.JsonPropertyName("name")] string? Name,
+        [property: System.Text.Json.Serialization.JsonPropertyName("type")] string? SqlFormat,
+        [property: System.Text.Json.Serialization.JsonPropertyName("pk")] bool? IsPrimaryKey,
+        [property: System.Text.Json.Serialization.JsonPropertyName("fk")] string? ForeignKey);
+
+    public static async Task<string> GenerateErDiagramAsync(
+        IGraphClient client,
+        CancellationToken cancellationToken = default)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("erDiagram");
+
+        const string tableQuery = """
+        MATCH (t:Table)
+        RETURN t.id AS id, t.name AS name, t.sub_kind AS sub_kind, t.columns AS columns
+        """;
+        var tableRows = await client.QueryAsync<(string Id, string Name, string? SubKind, string? Columns)>(tableQuery, null, cancellationToken);
+
+        var nameById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in tableRows.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var safeName = SanitizeId(!string.IsNullOrWhiteSpace(row.Name) ? row.Name : row.Id);
+            nameById[row.Id] = safeName;
+
+            if (string.IsNullOrWhiteSpace(row.Columns))
+            {
+                sb.AppendLine($"  {safeName} {{}}");
+                continue;
+            }
+
+            sb.AppendLine($"  {safeName} {{");
+            try
+            {
+                var cols = System.Text.Json.JsonSerializer.Deserialize<List<ErColumnDto>>(row.Columns) ?? [];
+                foreach (var col in cols)
+                {
+                    if (string.IsNullOrWhiteSpace(col.Name)) continue;
+                    var safeType = string.IsNullOrWhiteSpace(col.SqlFormat) ? "unknown" : col.SqlFormat.Replace(' ', '_');
+                    var isPk = col.IsPrimaryKey == true;
+                    var hasFk = !string.IsNullOrEmpty(col.ForeignKey);
+                    var keyTag = (isPk, hasFk) switch
+                    {
+                        (true, true) => " PK,FK",
+                        (true, false) => " PK",
+                        (false, true) => " FK",
+                        _ => string.Empty
+                    };
+                    sb.AppendLine($"    {safeType} {col.Name}{keyTag}");
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Skip malformed column JSON gracefully
+            }
+            sb.AppendLine("  }");
+        }
+
+        const string fkQuery = """
+        MATCH (child:Table)-[r:REFERENCES]->(parent:Table)
+        RETURN child.id AS child_id, child.name AS child_name, parent.id AS parent_id, parent.name AS parent_name
+        """;
+        var fkRows = await client.QueryAsync<(string ChildId, string ChildName, string ParentId, string ParentName)>(fkQuery, null, cancellationToken);
+        var seenEdges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in fkRows)
+        {
+            var childName = nameById.GetValueOrDefault(row.ChildId) ?? SanitizeId(row.ChildName);
+            var parentName = nameById.GetValueOrDefault(row.ParentId) ?? SanitizeId(row.ParentName);
+            if (seenEdges.Add($"{parentName}->{childName}"))
+            {
+                sb.AppendLine($"  {parentName} ||--o{{ {childName} : references");
+            }
         }
 
         return sb.ToString();

@@ -501,6 +501,18 @@ function ingestRawSources(data) {
     }
   }
 
+  if (data.cs10 && data.cs10.source_metrics) {
+    const abs10 = path.join(ROOT, data.cs10.source_metrics);
+    if (fs.existsSync(abs10)) {
+      const m10 = JSON.parse(fs.readFileSync(abs10, 'utf8'));
+      if (m10.summary) {
+        data.cs10.status = 'ready';
+        if (m10.ce_version) data.cs10.ce_version = m10.ce_version;
+        data.cs10.telemetry = m10.summary;
+      }
+    }
+  }
+
   return rawMilestones01;
 }
 
@@ -1243,6 +1255,40 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${ce.behavioral_passed}/${ce.behavioral_total} Jest specs &amp; ${ce.gates_passed}/${ce.gates_total} SIG gates pass</strong> (0 rg calls needed in Task 2)`;
   }
 
+  if (data.cs10 && data.cs10.status === 'ready' && data.cs10.telemetry) {
+    const c10 = data.cs10;
+    const t10 = c10.telemetry;
+    b['cs10.meta_desc'] =
+      `Case Study 10: Verifying CQRS read/write separation across ${t10.repos_evaluated} open-source codebases (${t10.total_query_handlers_traced_to_storage} query handlers traced to SQL/ORM across ${t10.repos_reaching_storage} repos, 0 LLM tokens, $0.00) using CodeExplorer Semantic Invariant Gates (SIG-CQRS-001 to 003).`;
+    b['cs10.crumb_scale'] = `${t10.repos_reaching_storage} storage-traced repos (${t10.repos_evaluated} scanned), ${t10.total_query_handlers_traced_to_storage} query handlers`;
+    b['cs10.card_handlers'] = `${t10.total_query_handlers_traced_to_storage}`;
+    b['cs10.card_handlers_copy'] =
+      `Contract-identified QueryHandlers traced through DI and mediator dispatch down to SQL and ORM table operations across ${t10.repos_reaching_storage} repositories.`;
+    b['cs10.card_handlers_footer'] = `${t10.repos_reaching_storage} of ${t10.repos_evaluated} repos reached SQL/ORM edges`;
+    b['cs10.card_clean'] = `29 / 29`;
+    b['cs10.card_clean_copy'] =
+      `In kgrzybek/modular-monolith-with-ddd, all 29 SQL-traced IQueryHandler classes resolved strictly to READS_FROM with 0 write paths.`;
+    b['cs10.card_clean_footer'] = `4 of 6 storage-traced repos had 0 read writes`;
+    b['cs10.card_findings'] = `${t10.sig_cqrs_001_findings} + ${t10.sig_cqrs_003_findings}`;
+    b['cs10.card_findings_copy'] =
+      `Surfaced ${t10.sig_cqrs_001_findings} QueryHandler write paths (SIG-CQRS-001) and ${t10.sig_cqrs_003_findings} HTTP GET write paths (SIG-CQRS-003) invisible to ArchUnit and linters.`;
+    b['cs10.card_findings_footer'] = `dotnet-starter-kit &amp; ever-gauzy verified in source`;
+    b['cs10.card_tokens'] = `0`;
+    b['cs10.card_tokens_copy'] =
+      `0 LLM tokens ($0.00 cost). Evaluates 3 built-in declarative Cypher gates locally against SQLite graph.db in milliseconds.`;
+    b['cs10.card_tokens_footer'] = `Deterministic CI exit codes + SHA-256 ratchet`;
+    b['cs10.participants_html'] = [
+      `Evaluated system &amp; corpus configuration:<br>`,
+      `          1. CodeExplorer (ce): ${c10.ce_version} (.NET 11, SQLite + Cypher, built-in SIG-CQRS-001, SIG-CQRS-002 &amp; SIG-CQRS-003 starter gates, 0 tokens, $0.00)<br>`,
+      `          2. Storage-Traced Corpus (6 repos): kgrzybek/modular-monolith-with-ddd @ 91c8ef2, fullstackhero/dotnet-starter-kit @ 2f5989b, ever-co/ever-gauzy @ 0dc826c7, jasontaylordev/CleanArchitecture @ 9e1042b, Sairyss/domain-driven-hexagon @ 5c2d15a, asc-lab/dotnetcore-microservices-poc @ 6500daa<br>`,
+      `          3. Uncovered Driver / Non-Mediator Corpus (7 repos, reported transparently as vacuous): dotnet/eShop @ ab10e4c, Squidex/squidex @ 1c8a367, simplcommerce/SimplCommerce @ 3472ba0, BottegaIT/ddd-leaven-v2 @ 5225ff7, AleksK1NG/Go-CQRS-Microservices @ 70cda28, ThreeDotsLabs/wild-workouts-go-ddd-example @ 8ecfcdf, CodelyTV/php-ddd-example @ 9271c46`,
+    ].join('\n');
+    b['catalog.cs10_outcome'] =
+      `<strong class="tone-ok">${t10.total_query_handlers_traced_to_storage} QueryHandlers traced to SQL/ORM</strong> across ${t10.repos_reaching_storage} polyglot repos (29/29 clean in modular-monolith-with-ddd)<br>` +
+      `<strong class="tone-ok">Surfaced ${t10.sig_cqrs_001_findings} QueryBus &amp; ${t10.sig_cqrs_003_findings} GET write paths</strong> missed by NetArchTest &amp; linters<br>` +
+      `<strong>0 tokens ($0.00)</strong> via 3 built-in Cypher gates (SIG-CQRS-001 to 003)`;
+  }
+
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
   {
     const c1 = data.cs01;
@@ -1316,9 +1362,15 @@ function buildBindings(data, rawMilestones01) {
     const cs09Row =
       `| **[Case Study 09: Zero-Spoiler Coding Benchmark (One-Shot Context Pack vs Bare Agent)](./09-zero-spoiler-context-pack-vs-bare-agent/README.md)**<br>3 zero-spoiler bug & feature tickets (6 paired runs: \`apiKey\` revocation lifecycle, \`application\` public-domain DNS teardown, \`subdomain\` collision guard) with 100% symmetric architectural rules, comparing **\`Bare Agent\` (\`rg\` + \`read_file\`)** vs **\`CodeExplorer\` (One-Shot Context Pack + Gates)** | \`${c9.repo.name}\`<br>\`${c9.repo.packages}\` packages, \`${fmtInt(c9.repo.files)}\` indexed files (TS, NestJS, GraphQL, TypeORM) | \`CodeExplorer\`<br>vs<br>\`ripgrep\` | **\`${sp9}×\` faster**<br>\`${fmtDurShort(ce9.wall_clock_seconds, true)}\` vs \`${fmtDurShort(bare9.wall_clock_seconds, true)}\`<br>\`${ce9.llm_turns}\` turns vs \`${bare9.llm_turns}\` turns | **\`${tk9}×\` fewer tokens**<br>\`${fmtInt(ce9.api_total_input_tokens)}\` vs \`${fmtInt(bare9.api_total_input_tokens)}\`<br>(\`${ce9.read_file_calls}\` vs \`${bare9.read_file_calls}\` file reads, \`${ce9.run_command_calls}\` vs \`${bare9.run_command_calls}\` cmds) | **\`${ce9.behavioral_passed}/${ce9.behavioral_total}\` Jest specs & \`${ce9.gates_passed}/${ce9.gates_total}\` SIG gates (\`0\` new)**<br>Turn-1 context pack resolved table owners, cache/DNS side-effects & legacy traps upfront (\`0\` \`rg\` calls in Task 2) |`;
 
+    const c10 = data.cs10;
+    const t10 = c10.telemetry;
+    const cs10Row =
+      `| **[Case Study 10: CQRS Read/Write Separation Across Open-Source Codebases](./10-cqrs-read-write-invariants/README.md)**<br>3 built-in CQRS gates (\`SIG-CQRS-001..003\`) tracing framework \`QueryHandler\` contracts & \`HTTP GET\` routes across DI and mediator dispatch down to SQL/ORM writes | \`6\` storage-traced CQRS repos (\`${t10.repos_evaluated}\` scanned: .NET MediatR/Dapper/EF Core & TS NestJS \`@nestjs/cqrs\`/TypeORM) | \`CodeExplorer\` (\`ce gate check\`)<br>vs<br>\`ArchUnit\` / \`NetArchTest\` & linters | **\`2.1–24.8 s\`** cold scan (.NET/TS)<br>Sub-second Cypher gate checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **\`${t10.total_query_handlers_traced_to_storage}\` QueryHandlers traced to SQL/ORM**<br>\`29/29\` read-only in \`modular-monolith-with-ddd\`; surfaced deliberate read-path writes in \`dotnet-starter-kit\` (\`GET /wallet/me\` -> \`Wallets.Add\`) & \`ever-gauzy\` (\`FindPublicInvoiceQuery\` -> \`markViewed\`) |`;
+
     b['md.catalog_reallife_table'] = [
       `| Case Study & Task | Repository Under Test | Compared Tools | Time & LLM Turns | Cumulative Input Tokens | Architectural Compliance & Outcome |`,
       `| :--- | :--- | :--- | :--- | :--- | :--- |`,
+      cs10Row,
       cs09Row,
       cs08Row,
       cs07Row,

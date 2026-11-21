@@ -98,12 +98,12 @@ const html = `<!DOCTYPE html>
   <meta name="twitter:description" content="${escapeAttr(meta.twitterDescription || meta.ogDescription || meta.description)}">
   <meta name="twitter:image" content="https://code-explorer.app/all_services.png">
 
-  <link rel="stylesheet" href="fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="assets/${cssFile}">
+  <link rel="stylesheet" href="/fonts/fonts.css?v=1">
+  <link rel="stylesheet" href="/assets/${cssFile}">
 </head>
 <body>
   <div id="root">${appHtml}</div>
-  <script type="module" src="assets/${jsFile}"></script>
+  <script type="module" src="/assets/${jsFile}"></script>
 </body>
 </html>
 `;
