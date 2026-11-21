@@ -91,7 +91,7 @@ In addition, `SIG-CQRS-003` surfaced five `GET` endpoints in `ever-gauzy` perfor
    ```
 2. Activate the three built-in CQRS gates in `.codeexplorer/gates/`:
    ```bash
-   mv .codeexplorer/gates/cqrs-query-handler-no-writes.yaml.example .codeexplorer/gates/cqrs-query-handler-no-writes.yaml
+   mv .codeexplorer/gates/cqrs-query-no-writes.yaml.example .codeexplorer/gates/cqrs-query-no-writes.yaml
    mv .codeexplorer/gates/cqrs-no-query-to-command-calls.yaml.example .codeexplorer/gates/cqrs-no-query-to-command-calls.yaml
    mv .codeexplorer/gates/cqrs-http-get-read-only.yaml.example .codeexplorer/gates/cqrs-http-get-read-only.yaml
    ```

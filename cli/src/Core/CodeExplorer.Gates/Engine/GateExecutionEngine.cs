@@ -266,7 +266,8 @@ public class GateExecutionEngine
                     relEdge = graphEdges[0];
                 }
 
-                if (relEdge.Properties.Kind == CypherValueKind.Object)
+                if (relEdge.Properties.Kind == CypherValueKind.Object &&
+                    DoesEdgeBelongToSourceLocation(relEdge.FromId, nodeId, file, graphNodes))
                 {
                     ExtractEdgeCallSites(relEdge.Properties, callSiteLocations);
                 }
@@ -320,6 +321,34 @@ public class GateExecutionEngine
         }
 
         return violations;
+    }
+
+    private const string PropFilePathSnake = "file_path";
+    private const string PropPath = "path";
+    private const string PropFilePathCamel = "filePath";
+
+    private static bool DoesEdgeBelongToSourceLocation(
+        string? edgeFromId,
+        string? sourceNodeId,
+        string? sourceFile,
+        List<(string PropName, string? Id, CodeExplorer.Cypher.Common.NodeKind Kind, CypherValue Properties)> graphNodes)
+    {
+        if (string.IsNullOrEmpty(edgeFromId) || string.Equals(edgeFromId, sourceNodeId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var originNode = graphNodes.FirstOrDefault(n => string.Equals(n.Id, edgeFromId, StringComparison.Ordinal));
+        if (originNode.Properties.Kind == CypherValueKind.Object && !string.IsNullOrEmpty(sourceFile))
+        {
+            var originFile = ExtractStringProperty(originNode.Properties, PropFilePathSnake, PropPath, PropFilePathCamel);
+            return string.Equals(
+                GateFingerprintGenerator.NormalizeFilePath(originFile),
+                GateFingerprintGenerator.NormalizeFilePath(sourceFile),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        return graphNodes.Count <= 2;
     }
 
     private static void ExtractEdgeCallSites(CypherValue edgeProps, List<(int Line, int Column)> destinations)
