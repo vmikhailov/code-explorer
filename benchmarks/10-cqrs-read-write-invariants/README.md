@@ -15,12 +15,12 @@ Those checks verify **how types are named and packaged**, not **whether a read p
 
 ### The 3 Behavioral CQRS Invariant Gates
 
-CodeExplorer ships three declarative `Cypher` starter templates in `.codeexplorer/gates/` that identify the query and command sides by **framework contracts first** (`IQueryHandler`, MediatR `IRequestHandler<*Query, ...>`, NestJS/Axon `@QueryHandler` decorators/annotations, with a `/queries/` folder fallback for languages without interface markers) and follow the resolved call graph down to `WRITES_TO` and `PUBLISHES` edges:
+CodeExplorer extracts CQRS contracts into Layer 4 **`Message`** nodes (`sub_kind`: `query`, `command`, `event`) and connects handler functions via typed **`HANDLES_QUERY`**, **`HANDLES_COMMAND`**, and **`HANDLES_EVENT`** edges across .NET (MediatR, `IQueryHandler`, Wolverine), TypeScript (`@nestjs/cqrs`), Java (Axon `@QueryHandler` / `@CommandHandler`, Spring), PHP (Symfony Messenger), Python, Go, and Rust:
 
 | Gate ID | Invariant Rule | Graph Path Checked | Severity |
 | :--- | :--- | :--- | :---: |
-| **`SIG-CQRS-001`** | **Query Handlers Must Be Side-Effect Free** | `(t:Type)-[:HAS_METHOD]->(q:Function)-[:CALLS*0..4]->(w:Function)-[:WRITES_TO\|PUBLISHES]->(target)` | `Error` |
-| **`SIG-CQRS-002`** | **Queries Must Not Invoke Command Handlers** | `(t:Type)-[:HAS_METHOD]->(q:Function)-[:CALLS]->(c:Function)<-[:HAS_METHOD]-(ct:Type)` | `Error` |
+| **`SIG-CQRS-001`** | **Query Handlers Must Be Side-Effect Free** | `(q:Function)-[:HANDLES_QUERY]->(msg:Message), (q)-[:CALLS*0..4]->(w:Function)-[:WRITES_TO\|PUBLISHES]->(target)` | `Error` |
+| **`SIG-CQRS-002`** | **Queries Must Not Invoke Command Handlers** | `(q:Function)-[:HANDLES_QUERY]->(:Message), (q)-[:CALLS*1..3]->(c:Function)-[:HANDLES_COMMAND]->(cmd:Message)` | `Error` |
 | **`SIG-CQRS-003`** | **HTTP GET Endpoints Must Be Read-Only** | `(ep:Endpoint {http_method: 'GET'})-[:EXPOSED_BY\|TRIGGERS]->(fn)-[:CALLS*0..5]->(w)-[:WRITES_TO\|PUBLISHES]->(target)` | `Error` |
 
 ---

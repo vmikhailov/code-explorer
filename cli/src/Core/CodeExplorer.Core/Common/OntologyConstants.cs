@@ -51,6 +51,7 @@ public static class OntologyConstants
         public const string Module = "Module";
         public const string Workload = "Workload";
         public const string CloudResource = "CloudResource";
+        public const string Message = "Message";
     }
 
     public static class IdPrefixes
@@ -95,6 +96,7 @@ public static class OntologyConstants
         public const string Cloud = "cloud";
         public const string DbSchema = "schema";
         public const string CloudResource = "cr";
+        public const string Message = "msg";
     }
 
     public static class Layers
@@ -176,6 +178,9 @@ public static class OntologyConstants
         public const string TargetedBy = "TARGETED_BY";
         public const string HostedIn = "HOSTED_IN";
         public const string References = "REFERENCES";
+        public const string HandlesQuery = "HANDLES_QUERY";
+        public const string HandlesCommand = "HANDLES_COMMAND";
+        public const string HandlesEvent = "HANDLES_EVENT";
     }
 
     public static class EvidenceKinds

@@ -47,4 +47,9 @@ public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
     {
         SpringDataRepositoryHelper.DiscoverEntityTables(content, _entityToTable);
     }
+
+    public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        SpringDataRepositoryHelper.DiscoverEntityTables(rootNode.Text, _entityToTable);
+    }
 }

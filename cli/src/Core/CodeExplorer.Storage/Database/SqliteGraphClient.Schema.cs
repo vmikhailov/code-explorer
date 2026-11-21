@@ -664,7 +664,7 @@ public partial class SqliteGraphClient
         {
             var containerKindsSql = GraphKindCodec.NodeKindsInSql(
                 NodeKind.File, NodeKind.Folder, NodeKind.Project,
-                NodeKind.Endpoint, NodeKind.EntryPoint, NodeKind.ScanIssue, NodeKind.CatchClause);
+                NodeKind.Endpoint, NodeKind.EntryPoint, NodeKind.Message, NodeKind.ScanIssue, NodeKind.CatchClause);
             var relContainsId = GraphKindCodec.EncodeRelKind(RelationshipKind.Contains);
             await _conn.ExecuteAsync($"""
                 CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id INTEGER PRIMARY KEY, is_container INTEGER DEFAULT 0);

@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.96.0] - 2026-11-22
+
+### Added
+- **CQRS & Domain Message Ontology (`CodeExplorer.Core`, `CodeExplorer.Cypher`, `CodeExplorer.Indexing`, `CodeExplorer.Gates`)**:
+  - **Layer 4 `Message` Entity & Typed Handler Edges**: Added first-class `Message` node (`NodeKind.Message`, `MessageNode`, `sub_kind: query | command | event | notification`, `framework`) in Layer 4 (`Layer4_Semantic`) with strict downward provenance (`TRIGGERS -> Function`, `IMPLEMENTED_BY -> Type`, `DECLARED_IN -> File`, `Module -[:CONTAINS]-> Message`) and typed Layer 5 handler relationships (`HANDLES_QUERY`, `HANDLES_COMMAND`, `HANDLES_EVENT`).
+  - **Polyglot `CqrsMessageEnricher`**: Extracts `Message` contracts and typed handler relationships across C# (MediatR `IRequestHandler`, `IQueryHandler`, `ICommandHandler`, `INotificationHandler`, MassTransit `IConsumer`), TypeScript (`@nestjs/cqrs` `@QueryHandler`/`@CommandHandler`/`@EventsHandler` and interface-based `implements IQueryHandler<T>`), Java (Axon `@QueryHandler`/`@CommandHandler`/`@EventSourcingHandler`/`@SagaEventHandler`, Spring `@EventListener`, `QueryHandler` interfaces), PHP (Symfony Messenger `#[AsMessageHandler]`, DDD `QueryHandler`/`CommandHandler`/`DomainEventSubscriber`), Python, Go, and Rust, and bridges dispatcher calls (`Send`, `Publish`, `execute`) to resolved handler functions.
+  - **Language-Agnostic CQRS Starter Gates & Multi-Document YAML Gate Packs (`SIG-CQRS-001..003`, `GateSerializer`)**: Simplified built-in CQRS starter templates in `FileGateRepository` to traverse `[:HANDLES_QUERY]->(:Message)` without language-specific generic string filters or `coalesce` boilerplate, and added multi-document YAML (`---`) support in `GateSerializer.DeserializeGates` so gate packs can bundle multiple rules in a single `.yaml` file.
+
+### Fixed
+- **TypeScript `implements` Extraction & Multi-Extension Declaration Discovery (`CodeExplorer.Core`, `CodeExplorer.Parsers.Java`)**:
+  - Fixed `BaseParserVisitor` unwrapping nested TypeScript `class_heritage -> implements_clause` nodes and removed an obsolete `InterfaceClauseNodeTypes` guard so `Type.implements` and `IMPLEMENTS` edges are populated in TypeScript and Rust.
+  - Fixed `CompiledDeclarativeRuleIndex.CreateFusedExtension` forwarding `DiscoverDeclarations` across all active declarative extensions in a project, and added AST-level `DiscoverDeclarations` + repository receiver call-site lineage (`repo.save*` / `repo.delete*` / `repo.find*`) to `JpaLibraryParser` and `SpringDataMongoLibraryParser`.
+
+---
+
 ## [1.95.1] - 2026-11-21
 
 ### Fixed

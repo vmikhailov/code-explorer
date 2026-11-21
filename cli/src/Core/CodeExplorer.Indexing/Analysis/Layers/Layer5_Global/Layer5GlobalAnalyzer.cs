@@ -147,6 +147,18 @@ public partial class Layer5AnalysisParser
             await ctx.EnqueueUploadNodesAsync(enrichedOrmTables);
         }
 
+        var cqrsEnrichment = CqrsMessageEnricher.EnrichCqrsMessages(_currentL4Result, ctx, symbols, bindings.MessageHandlersByType, existingRefRels);
+        if (cqrsEnrichment.Messages.Count > 0)
+        {
+            var msgNodes = cqrsEnrichment.Messages.Select(Node.FromNode).ToList();
+            await ctx.EnqueueUploadNodesAsync(msgNodes);
+            ctx.AddNodesCount(msgNodes.Count);
+        }
+        if (cqrsEnrichment.Relationships.Count > 0)
+        {
+            referenceRelationships.AddRange(cqrsEnrichment.Relationships);
+        }
+
         ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count, sw.ElapsedMilliseconds);
 
         if (newTopicNodes.Count > 0)

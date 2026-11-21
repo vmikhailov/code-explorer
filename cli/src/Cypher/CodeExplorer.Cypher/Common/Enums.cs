@@ -57,7 +57,8 @@ public enum NodeKind : byte
     DbSchema = 47,
     Module = 48,
     Workload = 49,
-    CloudResource = 50
+    CloudResource = 50,
+    Message = 51
 }
 
 [JsonConverter(typeof(RelationshipKindJsonConverter))]
@@ -134,7 +135,10 @@ public enum RelationshipKind : byte
     FlowsTo = 68,
     TargetedBy = 69,
     HostedIn = 70,
-    References = 71
+    References = 71,
+    HandlesQuery = 72,
+    HandlesCommand = 73,
+    HandlesEvent = 74
 }
 
 /// <summary>
@@ -195,6 +199,8 @@ public static class OntologyEnumMaps
         nodeByName["databaseschema"] = NodeKind.DbSchema;
         nodeByName["cloud_resource"] = NodeKind.CloudResource;
         nodeByName["cloudresource"] = NodeKind.CloudResource;
+        nodeByName["cqrs_message"] = NodeKind.Message;
+        nodeByName["cqrscontract"] = NodeKind.Message;
 
         NodeKindByName = nodeByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByNodeKind = nameByNode.ToFrozenDictionary();

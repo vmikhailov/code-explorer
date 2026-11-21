@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.93.0",
+      "ce_suite_versions": "v1.75.0 to v1.96.0",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
