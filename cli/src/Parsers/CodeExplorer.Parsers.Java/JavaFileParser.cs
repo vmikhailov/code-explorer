@@ -45,9 +45,12 @@ public class JavaFileParser : IFileParser
         new Libraries.PanacheOrmLibraryParser(),
         new Libraries.SpringDataMongoLibraryParser(),
         new Libraries.SpringEventsLibraryParser(),
+        new Libraries.SpringJmsLibraryParser(),
         new Libraries.SpringKafkaLibraryParser(),
         new Libraries.SpringMvcLibraryParser(),
         new Libraries.SpringRabbitMqLibraryParser(),
+        new Libraries.SpringRuntimeLibraryParser(),
+        new Libraries.SoapJaxWsLibraryParser(),
         new Libraries.SpringGraphQlLibraryParser(),
         Libraries.JavaTestLibraryParser.Instance
     ];

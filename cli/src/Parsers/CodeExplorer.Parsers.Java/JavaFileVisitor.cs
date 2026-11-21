@@ -22,5 +22,22 @@ public class JavaFileVisitor : BaseParserVisitor
             }
         }
     }
+
+    protected override void VisitParameter(Node node, int depth)
+    {
+        var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+        if (typeNode.IsValid() && nameNode.IsValid() && SymbolStack.Count > 0)
+        {
+            var typeName = typeNode.Text.Trim();
+            var paramName = nameNode.Text.Trim();
+            if (!string.IsNullOrEmpty(typeName) && !string.IsNullOrEmpty(paramName))
+            {
+                RawTypeBindings.Add(new RawTypeBinding(paramName, typeName, string.Empty, SymbolStack.Peek().Name));
+            }
+        }
+
+        base.VisitParameter(node, depth);
+    }
 }
 

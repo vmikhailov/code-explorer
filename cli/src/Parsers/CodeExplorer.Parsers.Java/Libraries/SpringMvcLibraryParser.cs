@@ -13,6 +13,7 @@ public class SpringMvcLibraryParser : DeclarativeSemanticExtension
         SupportedPatterns =
         [
             "org.springframework.web",
+            "org.springframework.web.reactive.function.server*",
             "org.springframework.boot.autoconfigure",
             "org.springframework.stereotype.Controller",
             "org.springframework.web.bind.annotation"
@@ -30,6 +31,41 @@ public class SpringMvcLibraryParser : DeclarativeSemanticExtension
                     ["PatchMapping"] = "PATCH",
                     ["RequestMapping"] = "ALL"
                 }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase)
+            }
+        ];
+        InboundRouteCallRules =
+        [
+            new InboundRouteCallRule
+            {
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["GET"] = "GET",
+                    ["POST"] = "POST",
+                    ["PUT"] = "PUT",
+                    ["DELETE"] = "DELETE",
+                    ["PATCH"] = "PATCH",
+                    ["HEAD"] = "HEAD",
+                    ["OPTIONS"] = "OPTIONS"
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                EmitEntryPointNode = true,
+                RequireLeadingSlashOnPath = true,
+                EmitHandlerTriggers = true
+            },
+            new InboundRouteCallRule
+            {
+                MethodToHttpVerb = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["GET"] = "GET",
+                    ["POST"] = "POST",
+                    ["PUT"] = "PUT",
+                    ["DELETE"] = "DELETE",
+                    ["PATCH"] = "PATCH",
+                    ["HEAD"] = "HEAD",
+                    ["OPTIONS"] = "OPTIONS"
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "RequestPredicates" }.ToFrozenSet(StringComparer.Ordinal),
+                EmitEntryPointNode = true,
+                RequireLeadingSlashOnPath = false
             }
         ];
     }

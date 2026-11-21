@@ -198,7 +198,7 @@ internal static class DeclarativeUniversalRuleEvaluator
 
     private static int CountCallArguments(Node callNode)
     {
-        if (callNode is CallExprSyntax callExpr) return callExpr.Arguments.Count;
+        if (callNode is CallExprSyntax { Arguments.Count: > 0 } callExpr) return callExpr.Arguments.Count;
         var argList = DeclarativeSemanticExtension.FindArgumentsNode(callNode);
         if (!argList.IsValid()) return 0;
         var count = 0;
