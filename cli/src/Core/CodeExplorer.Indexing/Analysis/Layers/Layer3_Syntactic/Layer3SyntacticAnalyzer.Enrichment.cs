@@ -1068,6 +1068,22 @@ internal static class Layer3ScopeVisibilityPass
 
     internal static void EnrichNonTreeSitterTree(SyntaxTree syntaxTree, string? projectName, bool isTest, ParsingContext? ctx)
     {
+        var effectiveIsTest = isTest || (syntaxTree.FileNode?.IsTest ?? false) || WorkspaceConventions.IsTestFilePath(syntaxTree.RelativePath);
+        if (effectiveIsTest && syntaxTree.FileNode != null)
+        {
+            static void PropagateTestFlag(IOntologyNode parent)
+            {
+                for (var i = 0; i < parent.Children.Count; i++)
+                {
+                    var child = parent.Children[i];
+                    if (child is TypeNode tn) tn.IsTest = true;
+                    else if (child is FunctionNode fn) fn.IsTest = true;
+                    if (child.Children.Count > 0) PropagateTestFlag(child);
+                }
+            }
+            syntaxTree.FileNode.IsTest = true;
+            PropagateTestFlag(syntaxTree.FileNode);
+        }
         if (syntaxTree.RawImports.Count > 0)
         {
             RegisterFileRawImports(ctx, syntaxTree.RelativePath, syntaxTree.RawImports);
@@ -1079,7 +1095,7 @@ internal static class Layer3ScopeVisibilityPass
                 syntaxTree.Document,
                 syntaxTree.RelativePath,
                 projectName ?? syntaxTree.FileNode.ProjectName,
-                isTest || syntaxTree.FileNode.IsTest,
+                effectiveIsTest,
                 ctx);
         }
     }

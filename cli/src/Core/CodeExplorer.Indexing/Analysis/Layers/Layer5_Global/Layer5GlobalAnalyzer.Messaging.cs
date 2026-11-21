@@ -233,15 +233,20 @@ public partial class Layer5AnalysisParser
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
-        // 3. Same project fallback (when function is defined in caller's project and visible; skipped for callback_arg)
-        else if (!callAdded && !isCallbackArg && normCallerFile != null &&
-                 (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, refItem.ScopeSymbolId, hasExplicitReceiver, targetTypeName, symbols, ctx)) != null)
+        var isShadowedByLocalBinding = !hasExplicitReceiver &&
+                                       !targetName.Contains('.') &&
+                                       normCallerFile != null &&
+                                       bindings.BindingsLookup.ContainsKey((normCallerFile, targetName));
+
+        // 3. Same project fallback (when function is defined in caller's project and visible; skipped for callback_arg and shadowed local bindings)
+        if (!callAdded && !isCallbackArg && !isShadowedByLocalBinding && normCallerFile != null &&
+            (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, refItem.ScopeSymbolId, hasExplicitReceiver, targetTypeName, symbols, ctx)) != null)
         {
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
         // 4. Globally unambiguous visible function across reachable workspace projects
-        else if (!callAdded && !isCallbackArg &&
+        else if (!callAdded && !isCallbackArg && !isShadowedByLocalBinding &&
                  symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) &&
                  Layer5SymbolVisibilityResolver.SelectVisibleSymbolCandidate(uniqueCandidates, refItem.ScopeSymbolId, normCallerFile, hasExplicitReceiver, targetTypeName, symbols, ctx) is { } candidateId)
         {
@@ -254,6 +259,17 @@ public partial class Layer5AnalysisParser
                  !IsFileNodeScope(refItem.ScopeSymbolId) &&
                  symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
+            if (refItem.ScopeSymbolId != targetProcId)
+            {
+                referenceRelationships.Add(Relationship.CreateWithCallSite(
+                    refItem.ScopeSymbolId,
+                    targetProcId,
+                    CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+                    refItem.Line,
+                    refItem.Column,
+                    refItem.Context,
+                    refItem.ArgFlow));
+            }
             referenceRelationships.Add(Relationship.CreateWithCallSite(
                 targetProcId,
                 refItem.ScopeSymbolId,
@@ -935,8 +951,12 @@ public partial class Layer5AnalysisParser
     }
 
     private static bool IsFileNodeScope(string scopeId) =>
-        scopeId.Contains($":{OntologyConstants.IdPrefixes.File}:", StringComparison.Ordinal) ||
-        scopeId.Contains(":file:", StringComparison.Ordinal);
+        (scopeId.Contains($":{OntologyConstants.IdPrefixes.File}:", StringComparison.Ordinal) ||
+         scopeId.Contains(":file:", StringComparison.Ordinal)) &&
+        !scopeId.Contains(":procedure:", StringComparison.Ordinal) &&
+        !scopeId.Contains($":{OntologyConstants.IdPrefixes.Procedure}:", StringComparison.Ordinal) &&
+        !scopeId.Contains(":query:", StringComparison.Ordinal) &&
+        !scopeId.Contains($":{OntologyConstants.IdPrefixes.Query}:", StringComparison.Ordinal);
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
 

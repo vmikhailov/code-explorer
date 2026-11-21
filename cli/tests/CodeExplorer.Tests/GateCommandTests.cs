@@ -582,4 +582,161 @@ public class GateCommandTests
         var res3 = await evaluator.CheckGateAsync(gate3!);
         res3.Violations.Should().Contain(v => (v.Target ?? "").Contains("Orders"));
     }
+
+    private async Task<(SqliteGraphClient Client, CodeExplorer.Core.Gates.Storage.FileGateRepository Repo, CodeExplorer.Core.Gates.Engine.GateExecutionEngine Engine)> IndexAndActivateCqrsGatesAsync()
+    {
+        var ws = WorkspaceLocator.Initialize(_tempWorkspace, "CqrsGateApp");
+        var client = new SqliteGraphClient(ws.DbPath);
+        await client.CreateIndicesAsync();
+        await new WorkspaceIndexer(client).IndexAsync(_tempWorkspace, clear: true, enableIntentAnalysis: false);
+
+        var repo = new CodeExplorer.Core.Gates.Storage.FileGateRepository(_tempWorkspace);
+        await repo.InitStarterGatesAsync(overwrite: true);
+        var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
+        foreach (var name in new[] { "cqrs-query-no-writes", "cqrs-no-query-to-command-calls", "cqrs-http-get-read-only" })
+        {
+            File.Move(Path.Combine(gatesDir, name + ".yaml.example"), Path.Combine(gatesDir, name + ".yaml"));
+        }
+        return (client, repo, new CodeExplorer.Core.Gates.Engine.GateExecutionEngine(client, repo));
+    }
+
+    [Test]
+    public async Task CqrsGates_ReadOnlyQueryHandler_ProducesNoViolations()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempWorkspace, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include=\"Dapper\" Version=\"2.1.35\" /><PackageReference Include=\"MediatR\" Version=\"12.4.1\" /></ItemGroup></Project>");
+        var dir = Path.Combine(_tempWorkspace, "Application", "Orders");
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(
+            Path.Combine(dir, "GetOrderQueryHandler.cs"),
+            """"
+            using System.Data;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Dapper;
+            using MediatR;
+
+            namespace SampleApp.Application.Orders;
+
+            public record GetOrderQuery(int OrderId) : IRequest<OrderDto>;
+            public class OrderDto { public int Id { get; set; } }
+
+            public class GetOrderQueryHandler : IQueryHandler<GetOrderQuery, OrderDto>
+            {
+                private readonly IDbConnection _connection;
+                public GetOrderQueryHandler(IDbConnection connection) => _connection = connection;
+
+                public async Task<OrderDto> Handle(GetOrderQuery query, CancellationToken ct)
+                {
+                    const string sql = "SELECT [Id] FROM [Orders] WHERE [Id] = @OrderId";
+                    return await _connection.QuerySingleAsync<OrderDto>(sql, new { query.OrderId });
+                }
+            }
+            """");
+
+        var (client, repo, engine) = await IndexAndActivateCqrsGatesAsync();
+        using (client)
+        {
+            (await client.ExecuteCypherAsync("MATCH (t:Type {name: 'GetOrderQueryHandler'}) WHERE t.implements CONTAINS 'QueryHandler' RETURN t.name AS n", null))
+                .Rows.Count.Should().BeGreaterThan(0, "the query side must be recognised by its IQueryHandler contract, not by folder name");
+            foreach (var id in new[] { "SIG-CQRS-001", "SIG-CQRS-002", "SIG-CQRS-003" })
+            {
+                var res = await engine.CheckGateAsync((await repo.GetGateByIdAsync(id))!);
+                res.Violations.Should().BeEmpty($"{id} must not flag a read-only query handler");
+            }
+        }
+    }
+
+    [Test]
+    public async Task CqrsGates_NestJsQueryBusHandler_WithHiddenTypeOrmUpdate_IsDetected()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempWorkspace, "package.json"),
+            """{ "name": "cqrs-nest", "dependencies": { "@nestjs/common": "^10.0.0", "@nestjs/cqrs": "^10.0.0", "@nestjs/typeorm": "^10.0.0", "typeorm": "^0.3.20" } }""");
+        var src = Path.Combine(_tempWorkspace, "src", "invoice");
+        Directory.CreateDirectory(Path.Combine(src, "handlers"));
+
+        await File.WriteAllTextAsync(Path.Combine(src, "invoice.entity.ts"),
+            """
+            import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+
+            @Entity('invoice')
+            export class Invoice {
+                @PrimaryGeneratedColumn('uuid') id: string;
+                @Column() status: string;
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(src, "find-invoice.query.ts"),
+            """
+            export class FindInvoiceQuery {
+                constructor(public readonly id: string) {}
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(src, "invoice.service.ts"),
+            """
+            import { Injectable } from '@nestjs/common';
+            import { InjectRepository } from '@nestjs/typeorm';
+            import { Repository } from 'typeorm';
+            import { Invoice } from './invoice.entity';
+
+            @Injectable()
+            export class InvoiceService {
+                constructor(@InjectRepository(Invoice) private readonly invoiceRepository: Repository<Invoice>) {}
+
+                async findOne(id: string): Promise<Invoice> {
+                    const invoice = await this.invoiceRepository.findOneOrFail({ where: { id } });
+                    return await this.markViewed(invoice);
+                }
+
+                private async markViewed(invoice: Invoice): Promise<Invoice> {
+                    await this.invoiceRepository.update({ id: invoice.id }, { status: 'VIEWED' });
+                    return invoice;
+                }
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(src, "handlers", "find-invoice.handler.ts"),
+            """
+            import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+            import { FindInvoiceQuery } from '../find-invoice.query';
+            import { InvoiceService } from '../invoice.service';
+
+            @QueryHandler(FindInvoiceQuery)
+            export class FindInvoiceHandler implements IQueryHandler<FindInvoiceQuery> {
+                constructor(private readonly invoiceService: InvoiceService) {}
+
+                async execute(query: FindInvoiceQuery) {
+                    return await this.invoiceService.findOne(query.id);
+                }
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(src, "invoice.controller.ts"),
+            """
+            import { Controller, Get, Param } from '@nestjs/common';
+            import { QueryBus } from '@nestjs/cqrs';
+            import { FindInvoiceQuery } from './find-invoice.query';
+
+            @Controller('/invoice')
+            export class InvoiceController {
+                constructor(private readonly queryBus: QueryBus) {}
+
+                @Get(':id')
+                async findOne(@Param('id') id: string) {
+                    return await this.queryBus.execute(new FindInvoiceQuery(id));
+                }
+            }
+            """);
+
+        var (client, repo, engine) = await IndexAndActivateCqrsGatesAsync();
+        using (client)
+        {
+            var res1 = await engine.CheckGateAsync((await repo.GetGateByIdAsync("SIG-CQRS-001"))!);
+            res1.Violations.Should().Contain(v => (v.Message ?? "").Contains("FindInvoiceHandler") && (v.Target ?? "").Contains("invoice"),
+                "the @QueryHandler must be linked through the service to the TypeORM update on 'invoice'");
+
+            var res3 = await engine.CheckGateAsync((await repo.GetGateByIdAsync("SIG-CQRS-003"))!);
+            res3.Violations.Should().Contain(v => (v.Target ?? "").Contains("invoice"),
+                "GET -> queryBus.execute(new FindInvoiceQuery) -> @QueryHandler -> update must be traced end to end");
+        }
+    }
 }

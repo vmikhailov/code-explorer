@@ -330,21 +330,28 @@ public class FileGateRepository : IGateRepository
                 description: In Command Query Responsibility Segregation (CQRS), queries must only return data and never mutate database tables or publish events.
                 remediation: Move database writes and event publishing out of the query path into an explicit Command Handler.
                 target: "{q.name} -> {target.name}"
-                message: "Query function '{q.name}' in '{q.file_path}' triggers state mutation on '{target.name}' via '{w.name}'"
+                message: "Query handler '{t.name}.{q.name}' in '{q.file_path}' triggers state mutation on '{target.name}' via '{w.name}'"
+                # Query side is identified by framework semantics first (implements IQueryHandler / QueryHandler,
+                # @QueryHandler decorator or annotation), with a folder convention fallback for languages
+                # without interface or decorator markers (e.g. Go packages named query/queries).
                 query: |
-                  MATCH (q:Function)-[:CALLS*0..4]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
-                  WHERE NOT coalesce(q.is_test, false)
-                    AND (q.file_path CONTAINS '/Queries/'
-                      OR q.file_path CONTAINS 'QueryHandler'
-                      OR q.file_path ENDS WITH 'Queries.cs')
-                  RETURN q, w, r, target
+                  MATCH (t:Type)-[:HAS_METHOD]->(q:Function)-[:CALLS*0..4]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
+                  WHERE NOT coalesce(t.is_test, false)
+                    AND NOT coalesce(q.is_test, false)
+                    AND NOT coalesce(w.is_test, false)
+                    AND (coalesce(t.implements, '') CONTAINS 'QueryHandler'
+                      OR coalesce(t.attributes, '') CONTAINS 'QueryHandler'
+                      OR (coalesce(t.implements, '') CONTAINS 'RequestHandler<' AND (t.implements CONTAINS 'Query,' OR t.implements CONTAINS 'Query>'))
+                      OR ((toLower(t.file_path) CONTAINS '/queries/' OR toLower(t.file_path) CONTAINS '/query/')
+                        AND t.name ENDS WITH 'Handler'))
+                  RETURN t, q, w, r, target
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-001.json
                 """),
             ("cqrs-no-query-to-command-calls.yaml.example", """
                 # Starter Gate: CQRS - Queries Must Not Invoke Command Handlers
-                # Ensure query handlers and query services never dispatch or call command handlers.
+                # Ensure query handlers never dispatch or call command handlers.
                 # Rename to .yaml to activate for your workspace.
                 id: SIG-CQRS-002
                 category: Architectural
@@ -353,19 +360,25 @@ public class FileGateRepository : IGateRepository
                 dimension: Boundaries
                 name: CQRS - Queries Must Not Invoke Command Handlers
                 severity: Error
-                description: Query handlers and query services must remain strictly separated from command execution paths and never dispatch or invoke command handlers.
+                description: Query handlers must remain strictly separated from command execution paths and never dispatch or invoke command handlers.
                 remediation: Decouple the read model from command execution; execute commands explicitly from the caller or application workflow.
                 target: "{q.name} -> {c.name}"
-                message: "Query function '{q.name}' in '{q.file_path}' invokes command handler '{c.name}' in '{c.file_path}'"
+                message: "Query handler '{t.name}.{q.name}' in '{q.file_path}' invokes command handler '{ct.name}.{c.name}' in '{c.file_path}'"
                 query: |
-                  MATCH (q:Function)-[r:CALLS]->(c:Function)
-                  WHERE NOT coalesce(q.is_test, false)
-                    AND (q.file_path CONTAINS '/Queries/'
-                      OR q.file_path CONTAINS 'QueryHandler'
-                      OR q.file_path ENDS WITH 'Queries.cs')
-                    AND (c.file_path CONTAINS '/Commands/'
-                      OR c.file_path CONTAINS 'CommandHandler')
-                  RETURN q, r, c
+                  MATCH (t:Type)-[:HAS_METHOD]->(q:Function)-[r:CALLS]->(c:Function)<-[:HAS_METHOD]-(ct:Type)
+                  WHERE NOT coalesce(t.is_test, false)
+                    AND NOT coalesce(ct.is_test, false)
+                    AND (coalesce(t.implements, '') CONTAINS 'QueryHandler'
+                      OR coalesce(t.attributes, '') CONTAINS 'QueryHandler'
+                      OR (coalesce(t.implements, '') CONTAINS 'RequestHandler<' AND (t.implements CONTAINS 'Query,' OR t.implements CONTAINS 'Query>'))
+                      OR ((toLower(t.file_path) CONTAINS '/queries/' OR toLower(t.file_path) CONTAINS '/query/')
+                        AND t.name ENDS WITH 'Handler'))
+                    AND (coalesce(ct.implements, '') CONTAINS 'CommandHandler'
+                      OR coalesce(ct.attributes, '') CONTAINS 'CommandHandler'
+                      OR (coalesce(ct.implements, '') CONTAINS 'RequestHandler<' AND (ct.implements CONTAINS 'Command,' OR ct.implements CONTAINS 'Command>'))
+                      OR ((toLower(ct.file_path) CONTAINS '/commands/' OR toLower(ct.file_path) CONTAINS '/command/')
+                        AND ct.name ENDS WITH 'Handler'))
+                  RETURN t, q, r, c, ct
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-002.json
@@ -389,6 +402,7 @@ public class FileGateRepository : IGateRepository
                   MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)-[:CALLS*0..5]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
                   WHERE ep.http_method = 'GET'
                     AND NOT coalesce(fn.is_test, false)
+                    AND NOT coalesce(w.is_test, false)
                   RETURN fn, ep, w, r, target
                 ratchet:
                   enabled: true

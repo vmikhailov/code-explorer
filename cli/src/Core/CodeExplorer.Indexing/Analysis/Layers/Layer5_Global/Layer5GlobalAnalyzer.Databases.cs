@@ -195,7 +195,7 @@ public partial class Layer5AnalysisParser
         var functionsByProject = new Dictionary<string, Dictionary<string, List<string>>>(StringComparer.OrdinalIgnoreCase);
         var knownFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var filesByProject = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var procedureSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var procedureSymbols = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var tableSymbols = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var endpointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var entryPointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -404,12 +404,16 @@ public partial class Layer5AnalysisParser
 
         if (l4Result != null)
         {
-            CollectTableSymbols(l4Result.SemanticStructure, tableSymbols);
+            CollectTableAndProcedureSymbols(l4Result.SemanticStructure, tableSymbols, procedureSymbols);
+            if (l4Result.Prev?.Prev?.Prev?.FilesStructure != null)
+            {
+                CollectTableAndProcedureSymbols(l4Result.Prev.Prev.Prev.FilesStructure, tableSymbols, procedureSymbols);
+            }
         }
 
         var membersByType = new Dictionary<(string FilePath, string TypeName, string MemberName), string>();
         var memberTypeCandidates = new List<(string MemberId, string TypeId, string DataType)>();
-        var syntaxStruct = l4Result?.Prev.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = l4Result?.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
         if (syntaxStruct != null)
         {
             CollectMemberSymbols(syntaxStruct, null, membersByType, memberTypeCandidates);
@@ -468,15 +472,30 @@ public partial class Layer5AnalysisParser
         }
     }
 
-    private static void CollectTableSymbols(IOntologyNode node, Dictionary<string, string> tableSymbols)
+    private static void CollectTableAndProcedureSymbols(
+        IOntologyNode node,
+        Dictionary<string, string> tableSymbols,
+        Dictionary<string, string> procedureSymbols)
     {
-        if (node is TableNode tbl && !string.IsNullOrEmpty(tbl.Name) && !tableSymbols.ContainsKey(tbl.Name))
+        if (node is TableNode tbl && !string.IsNullOrEmpty(tbl.Name))
         {
-            tableSymbols[tbl.Name] = tbl.Id;
+            tableSymbols.TryAdd(tbl.Name, tbl.Id);
+            if (!string.IsNullOrEmpty(tbl.Schema))
+            {
+                tableSymbols.TryAdd($"{tbl.Schema}.{tbl.Name}", tbl.Id);
+            }
+        }
+        else if (node is ProcedureNode proc && !string.IsNullOrEmpty(proc.Name))
+        {
+            procedureSymbols.TryAdd(proc.Name, proc.Id);
+            if (!string.IsNullOrEmpty(proc.Schema))
+            {
+                procedureSymbols.TryAdd($"{proc.Schema}.{proc.Name}", proc.Id);
+            }
         }
         foreach (var child in node.Children)
         {
-            CollectTableSymbols(child, tableSymbols);
+            CollectTableAndProcedureSymbols(child, tableSymbols, procedureSymbols);
         }
     }
 
@@ -708,13 +727,17 @@ public partial class Layer5AnalysisParser
             }
         }
 
+        static bool IsHandlerMethodName(string methodName) =>
+            methodName is "Handle" or "HandleAsync" or "Execute" or "ExecuteAsync" or "Consume" or "ConsumeAsync"
+                or "handle" or "execute" or "consume" or "__invoke";
+
         if (symbols != null)
         {
             foreach (var (fnName, fnIds) in symbols.FunctionsByName)
             {
                 var dotIdx = fnName.LastIndexOf('.');
                 var mName = dotIdx > 0 ? fnName[(dotIdx + 1)..] : fnName;
-                if (mName is not ("Handle" or "HandleAsync" or "Execute" or "ExecuteAsync" or "Consume" or "ConsumeAsync"))
+                if (!IsHandlerMethodName(mName))
                     continue;
                 for (var i = 0; i < fnIds.Count; i++)
                 {
@@ -755,9 +778,13 @@ public partial class Layer5AnalysisParser
 
             if (symbols != null &&
                 !string.IsNullOrEmpty(normPath) &&
-                b.ScopeId is "Handle" or "HandleAsync" or "Execute" or "ExecuteAsync" or "Consume" or "ConsumeAsync" &&
+                IsHandlerMethodName(b.ScopeId) &&
                 (normPath.Contains("Handler", StringComparison.OrdinalIgnoreCase) ||
-                 normPath.Contains("Consumer", StringComparison.OrdinalIgnoreCase)) &&
+                 normPath.Contains("Consumer", StringComparison.OrdinalIgnoreCase) ||
+                 normPath.Contains("/commands/", StringComparison.OrdinalIgnoreCase) ||
+                 normPath.Contains("/queries/", StringComparison.OrdinalIgnoreCase) ||
+                 normPath.Contains("/command/", StringComparison.OrdinalIgnoreCase) ||
+                 normPath.Contains("/query/", StringComparison.OrdinalIgnoreCase)) &&
                 symbols.FunctionSymbolsByFile.TryGetValue((normPath, b.ScopeId), out var hFnId))
             {
                 RegisterMessageHandler(b.TypeName, hFnId);
@@ -1238,6 +1265,74 @@ internal static partial class Layer5SymbolVisibilityResolver
         if (!string.IsNullOrEmpty(candidateTableId) && refItem.ScopeSymbolId != candidateTableId)
         {
             AddTableAccessRel(candidateTableId);
+        }
+    }
+
+    internal static void ResolveForeignKeyReference(
+        Reference refItem,
+        Layer5AnalysisParser.SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        var targetName = refItem.TargetName;
+        if (string.IsNullOrEmpty(targetName)) return;
+
+        var found = symbols.TableSymbols.TryGetValue(targetName, out var targetTableId);
+        if (!found && targetName.Contains('.'))
+        {
+            var dotIdx = targetName.LastIndexOf('.');
+            found = symbols.TableSymbols.TryGetValue(targetName[(dotIdx + 1)..], out targetTableId);
+        }
+
+        if (found && !string.IsNullOrEmpty(targetTableId) && refItem.ScopeSymbolId != targetTableId)
+        {
+            var rel = Relationship.FromRelationship(new ReferencesRelationship(refItem.ScopeSymbolId, targetTableId));
+            rel.Line = refItem.Line;
+            rel.Column = refItem.Column;
+            rel.CallContext = refItem.Context;
+            referenceRelationships.Add(rel);
+        }
+    }
+
+    internal static void ResolveSqlTriggerRelationships(
+        Layer4Result? l4Result,
+        Layer5AnalysisParser.SymbolLookups symbols,
+        List<Relationship> referenceRelationships,
+        HashSet<(string From, string To, string Kind)> existingRefRels)
+    {
+        if (l4Result == null) return;
+
+        void Walk(IOntologyNode node)
+        {
+            if (node is ProcedureNode proc && !string.IsNullOrWhiteSpace(proc.TriggerTable))
+            {
+                var targetName = proc.TriggerTable;
+                var found = symbols.TableSymbols.TryGetValue(targetName, out var tableId);
+                if (!found && targetName.Contains('.'))
+                {
+                    var dotIdx = targetName.LastIndexOf('.');
+                    found = symbols.TableSymbols.TryGetValue(targetName[(dotIdx + 1)..], out tableId);
+                }
+
+                if (found && !string.IsNullOrEmpty(tableId) && existingRefRels.Add((tableId, proc.Id, OntologyConstants.Relationships.Triggers)))
+                {
+                    referenceRelationships.Add(Relationship.FromRelationship(new TriggersRelationship(tableId, proc.Id)
+                    {
+                        Operation = proc.TriggerEvent,
+                        EvidenceKind = OntologyConstants.EvidenceKinds.Procedure
+                    }));
+                }
+            }
+
+            foreach (var child in node.Children)
+            {
+                Walk(child);
+            }
+        }
+
+        Walk(l4Result.SemanticStructure);
+        if (l4Result.Prev?.Prev?.Prev?.FilesStructure != null)
+        {
+            Walk(l4Result.Prev.Prev.Prev.FilesStructure);
         }
     }
     internal static string? ResolveVisibleTypeSymbol(

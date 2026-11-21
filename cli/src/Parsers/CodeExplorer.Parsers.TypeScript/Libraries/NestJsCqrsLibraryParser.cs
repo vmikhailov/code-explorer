@@ -45,12 +45,12 @@ public class NestJsCqrsLibraryParser : DeclarativeSemanticExtension
             }
         }
 
-        // 2. Egress: commandBus.execute(new CreateOrderCommand(...)) or eventBus.publish(new OrderCreatedEvent(...))
+        // 2. Egress: eventBus.publish(new OrderCreatedEvent(...)) / publishAll(...)
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
             if (AstHelper.TryGetMemberAccess(node, out _, out var memberName))
             {
-                if (memberName is "execute" or "publish")
+                if (memberName is "publish" or "publishAll")
                 {
                     var args = node.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
                     if (args.IsValid())
@@ -70,18 +70,28 @@ public class NestJsCqrsLibraryParser : DeclarativeSemanticExtension
         }
     }
 
+    private static IEnumerable<Node> GetClassDecorators(Node node)
+    {
+        foreach (var d in node.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator))
+            yield return d;
+        if (node.Parent.IsValid() && node.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+        {
+            foreach (var d in node.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator))
+                yield return d;
+        }
+    }
+
     private static bool IsCqrsHandlerClass(Node node)
     {
         if (!node.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
             return false;
 
-        var decorators = node.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator);
-        foreach (var dec in decorators)
+        foreach (var dec in GetClassDecorators(node))
         {
             var text = dec.Text;
             foreach (var h in HandlerDecorators)
             {
-                if (text.Contains(h)) return true;
+                if (text.Contains(h, StringComparison.Ordinal)) return true;
             }
         }
         return false;
@@ -89,12 +99,11 @@ public class NestJsCqrsLibraryParser : DeclarativeSemanticExtension
 
     private static (string HandlerType, string? MessageType) ExtractHandlerDecoratorInfo(Node classNode)
     {
-        var decorators = classNode.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator);
-        foreach (var dec in decorators)
+        foreach (var dec in GetClassDecorators(classNode))
         {
             foreach (var h in HandlerDecorators)
             {
-                if (dec.Text.Contains(h))
+                if (dec.Text.Contains(h, StringComparison.Ordinal))
                 {
                     var call = dec.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
                     if (call.IsValid())

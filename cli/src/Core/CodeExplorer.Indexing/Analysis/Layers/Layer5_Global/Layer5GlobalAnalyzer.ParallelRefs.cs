@@ -112,6 +112,9 @@ public partial class Layer5AnalysisParser
                 case RelationshipKind.WritesTo:
                     Layer5SymbolVisibilityResolver.ResolveReadsOrWritesReference(refItem, symbols, localRels);
                     break;
+                case RelationshipKind.References:
+                    Layer5SymbolVisibilityResolver.ResolveForeignKeyReference(refItem, symbols, localRels);
+                    break;
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -263,7 +266,8 @@ public partial class Layer5AnalysisParser
     {
         "Send", "SendAsync", "Publish", "PublishAsync",
         "ExecuteCommandAsync", "ExecuteQueryAsync",
-        "EnqueueAsync", "Dispatch", "DispatchAsync", "Execute", "ExecuteAsync"
+        "EnqueueAsync", "Dispatch", "DispatchAsync", "Execute", "ExecuteAsync",
+        "execute", "send", "publish", "dispatch", "ask", "query"
     };
 
     private static void TryResolveMediatorMessageDispatch(
