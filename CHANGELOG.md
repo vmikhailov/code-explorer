@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.94.0] - 2026-11-21
+
+### Added
+- **Enterprise Java / JVM Parser Expansion (`CodeExplorer.Parsers.Java`, `CodeExplorer.Core`, `CodeExplorer.Indexing`)**:
+  - **Spring Data Repository → Table / Collection Lineage**: Added `SpringDataRepositoryHelper` and extended `JpaLibraryParser` and `SpringDataMongoLibraryParser` to discover `@Table(name = ...)` / `@Document(collection = ...)` entity mappings and emit `ACCESSED_BY`, `READS_FROM` (`find*`, `get*`, `count*`, `exists*`, etc.), and `WRITES_TO` (`save*`, `delete*`, `remove*`, `update*`, etc.) lineage edges on `JpaRepository`, `CrudRepository`, `PagingAndSortingRepository`, `ReactiveCrudRepository`, `R2dbcRepository`, and `MongoRepository` interfaces and derived query methods.
+  - **JMS / ActiveMQ / Artemis / IBM MQ / Solace (`SpringJmsLibraryParser`)**: Added messaging listener and producer extraction for `@JmsListener`, `JmsTemplate.convertAndSend` / `send` / `receive*`, `MessageProducer.send`, and `MessageListener` across `jakarta.jms.*`, `javax.jms.*`, and `org.springframework.jms.*`, plus `JMS` endpoint recognition in `EndpointSemanticAnalyzer`.
+  - **SOAP / JAX-WS / Spring-WS / Apache CXF (`SoapJaxWsLibraryParser`)**: Added inbound SOAP endpoint extraction (`@WebService` + `@WebMethod`, Spring-WS `@Endpoint` + `@PayloadRoot` / `@SoapAction`) and outbound SOAP client detection (`WebServiceTemplate.marshalSendAndReceive` / `sendSourceAndReceiveToResult`, `@WebServiceRef` / `@WebServiceClient`).
+  - **Spring Background Scheduling, Async & Caching (`SpringRuntimeLibraryParser`)**: Emits `EntryPointNode`s for `@Scheduled` background workers (`cron`, `fixedRate`, `fixedDelay`) and records `@Async` and `@Cacheable` / `@CacheEvict` / `@CachePut` / `@Caching` references.
+  - **Spring 6 `RestClient` & WebFlux `RouterFunctions`**: Added `InboundRouteCallRules` for WebFlux `RouterFunctions.route().GET("/...", handler::list)` and `RequestPredicates` in `SpringMvcLibraryParser`, expanded `HttpClientJavaLibraryParser` with Spring 6 `RestClient` fluent methods, and prioritized `InboundRouteCallRules` before `OutboundHttpRules` in `DeclarativeSemanticExtension`.
+  - **Lombok / Field DI, Parameter Bindings & Method References**: Added `RawTypeBinding` extraction for Java formal parameters and record components in `JavaFileVisitor`, and mapped Java `method_reference` (`handler::list`) to `MemberAccessExprSyntax` in `JavaSyntaxConverter`.
+  - **Multi-module Maven & Gradle Resolution (`JavaBuildManifestHelper`)**: Added Maven parent POM property interpolation (`${project.groupId}`, `${project.version}`, `<properties>`), multi-argument & nested `:a:b` Gradle `settings.gradle(.kts)` `include(...)` parsing, sibling `project(":common")` resolution relative to the Gradle root, and `gradle/libs.versions.toml` Version Catalog dependency resolution.
+  - **Isolated Visualization 2.0 Phase 2 Core & Enterprise Audit Cypher Query Pack**: Added isolated `CallFlow`, `DatabaseMap`, and `DataFlow` backend projections with `/api/catalog/*` routes, isolated VS Code `DiagramRegistry`, `GraphSessionStore`, and `ViewPersistenceService`, and six enterprise architecture/performance audit Cypher queries under `docs/examples/audit-queries/`.
+
+---
+
 ## [1.93.0] - 2026-11-21
 
 ### Added
