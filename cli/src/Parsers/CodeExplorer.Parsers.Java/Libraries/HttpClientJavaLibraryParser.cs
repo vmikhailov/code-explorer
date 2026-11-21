@@ -33,8 +33,9 @@ public class HttpClientJavaLibraryParser : DeclarativeSemanticExtension
                 CallMethodNames = new[]
                 {
                     "send", "sendAsync", "execute", "newCall",
-                    "getForObject", "getForEntity", "postForObject", "postForEntity", "put", "delete", "exchange",
-                    "get", "post", "retrieve", "exchangeToMono", "exchangeToFlux",
+                    "getForObject", "getForEntity", "postForObject", "postForEntity", "put", "delete", "patch", "exchange",
+                    "get", "post", "head", "options", "retrieve", "toEntity", "toBodilessEntity",
+                    "exchangeToMono", "exchangeToFlux",
                     "uri", "url"
                 }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
                 ClientAnnotationSuffixes = new[] { "FeignClient", "RegisterRestClient", "RestClient" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase)

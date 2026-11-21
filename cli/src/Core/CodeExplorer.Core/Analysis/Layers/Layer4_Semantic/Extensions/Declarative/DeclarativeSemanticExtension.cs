@@ -217,6 +217,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
+        for (var i = 0; i < InboundRouteCallRules.Count; i++)
+        {
+            var rule = InboundRouteCallRules[i];
+            if (rule.EmitEntryPointNode && DeclarativeUniversalRuleEvaluator.TryMatchInboundRouteCall(node, rule, out _, out _))
+            {
+                return OntologyConstants.NodeLabels.EntryPoint;
+            }
+        }
+
         for (var i = 0; i < OutboundHttpRules.Count; i++)
         {
             if (MatchesOutboundHttp(node, OutboundHttpRules[i]))
@@ -259,15 +268,6 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
-        for (var i = 0; i < InboundRouteCallRules.Count; i++)
-        {
-            var rule = InboundRouteCallRules[i];
-            if (rule.EmitEntryPointNode && DeclarativeUniversalRuleEvaluator.TryMatchInboundRouteCall(node, rule, out _, out _))
-            {
-                return OntologyConstants.NodeLabels.EntryPoint;
-            }
-        }
-
         return null;
     }
 
@@ -296,6 +296,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             if (MatchesAnnotationEndpoint(node, rule, out var httpMethod))
             {
                 return ExtractAnnotationRoute(node, rule, httpMethod, projectName);
+            }
+        }
+
+        for (var i = 0; i < InboundRouteCallRules.Count; i++)
+        {
+            var rule = InboundRouteCallRules[i];
+            if (rule.EmitEntryPointNode && DeclarativeUniversalRuleEvaluator.TryMatchInboundRouteCall(node, rule, out var routeId, out _))
+            {
+                return routeId;
             }
         }
 
@@ -374,15 +383,6 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             {
                 var eventType = ExtractFirstParameterType(node);
                 return !string.IsNullOrEmpty(eventType) ? $"EventListener:{eventType}" : "EventListener";
-            }
-        }
-
-        for (var i = 0; i < InboundRouteCallRules.Count; i++)
-        {
-            var rule = InboundRouteCallRules[i];
-            if (rule.EmitEntryPointNode && DeclarativeUniversalRuleEvaluator.TryMatchInboundRouteCall(node, rule, out var routeId, out _))
-            {
-                return routeId;
             }
         }
 
@@ -687,7 +687,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return null;
     }
 
-    internal static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames)
+    public static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames)
     {
         Node? ifaces = null;
         for (var i = 0; i < node.Children.Count; i++)
@@ -717,6 +717,11 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                     var genericParam = afterMatch.Slice(open + 1, close - 1).Trim();
                     var comma = genericParam.IndexOf(',');
                     if (comma > 0) genericParam = genericParam[..comma].Trim();
+                    var lastDot = genericParam.LastIndexOf('.');
+                    if (lastDot >= 0 && lastDot + 1 < genericParam.Length)
+                    {
+                        genericParam = genericParam[(lastDot + 1)..].Trim();
+                    }
                     return genericParam.ToString();
                 }
             }

@@ -407,42 +407,9 @@ public class JavaProjectParser : IProjectParser
             try
             {
                 var doc = XDocument.Load(pomPath);
-                var root = doc.Root;
-                if (root != null)
+                if (doc.Root != null)
                 {
-                    var ns = root.GetDefaultNamespace();
-
-                    // Modules (child projects in Maven multi-module builds)
-                    var modulesElem = root.Element(ns + "modules");
-                    if (modulesElem != null)
-                    {
-                        foreach (var moduleElem in modulesElem.Elements(ns + "module"))
-                        {
-                            var moduleRelPath = moduleElem.Value?.Trim();
-                            if (!string.IsNullOrEmpty(moduleRelPath))
-                            {
-                                var fullModuleDir = Path.GetFullPath(Path.Combine(projectDirectory, moduleRelPath)).Replace('\\', '/');
-                                localProjects.Add(fullModuleDir);
-                            }
-                        }
-                    }
-
-                    // Dependencies
-                    var depsElem = root.Element(ns + "dependencies");
-                    if (depsElem != null)
-                    {
-                        foreach (var dep in depsElem.Elements(ns + "dependency"))
-                        {
-                            var g = dep.Element(ns + "groupId")?.Value?.Trim();
-                            var a = dep.Element(ns + "artifactId")?.Value?.Trim();
-                            var v = dep.Element(ns + "version")?.Value?.Trim() ?? "unknown";
-
-                            if (!string.IsNullOrEmpty(g) && !string.IsNullOrEmpty(a))
-                            {
-                                externalPackages.Add(new ProducedPackageInfo($"{g}:{a}", v, "maven"));
-                            }
-                        }
-                    }
+                    JavaBuildManifestHelper.ParseMavenPomDependencies(projectDirectory, doc.Root, localProjects, externalPackages);
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
@@ -457,23 +424,14 @@ public class JavaProjectParser : IProjectParser
         var settingsGradle = Path.Combine(projectDirectory, "settings.gradle");
         var settingsGradleKts = Path.Combine(projectDirectory, "settings.gradle.kts");
 
-        // Subproject discovery from settings.gradle
+        // Subproject discovery from settings.gradle(.kts)
         var settingsFile = File.Exists(settingsGradle) ? settingsGradle : (File.Exists(settingsGradleKts) ? settingsGradleKts : null);
         if (settingsFile != null)
         {
             try
             {
                 var settingsContent = PhysicalFileStore.ReadAllText(settingsFile);
-                var includeMatches = Regex.Matches(settingsContent, @"include\s+['"":]([a-zA-Z0-9_-]+)['""]");
-                foreach (Match match in includeMatches)
-                {
-                    var subName = match.Groups[1].Value.TrimStart(':');
-                    var subDir = Path.GetFullPath(Path.Combine(projectDirectory, subName)).Replace('\\', '/');
-                    if (Directory.Exists(subDir))
-                    {
-                        localProjects.Add(subDir);
-                    }
-                }
+                JavaBuildManifestHelper.ParseGradleSettingsIncludes(projectDirectory, settingsContent, localProjects);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -487,28 +445,7 @@ public class JavaProjectParser : IProjectParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(gradleFile);
-
-                // Project dependencies: project(':subproject') or project(":subproject")
-                var projectDepMatches = Regex.Matches(content, @"project\s*\(\s*['""]:?([a-zA-Z0-9_-]+)['""]\s*\)");
-                foreach (Match match in projectDepMatches)
-                {
-                    var subName = match.Groups[1].Value.TrimStart(':');
-                    var subDir = Path.GetFullPath(Path.Combine(projectDirectory, subName)).Replace('\\', '/');
-                    if (Directory.Exists(subDir))
-                    {
-                        localProjects.Add(subDir);
-                    }
-                }
-
-                // External dependencies: implementation 'group:artifact:version' or implementation("group:artifact:version")
-                var depMatches = Regex.Matches(content, @"(?:implementation|api|compileOnly|runtimeOnly|testImplementation)\s*[\('""\s]+([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)(?::([a-zA-Z0-9_.-]+))?['""\)]");
-                foreach (Match match in depMatches)
-                {
-                    var g = match.Groups[1].Value;
-                    var a = match.Groups[2].Value;
-                    var v = match.Groups[3].Success ? match.Groups[3].Value : "unknown";
-                    externalPackages.Add(new ProducedPackageInfo($"{g}:{a}", v, "gradle"));
-                }
+                JavaBuildManifestHelper.ParseGradleBuildDependencies(projectDirectory, content, localProjects, externalPackages);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

@@ -1,9 +1,12 @@
+using System.Collections.Concurrent;
 using System.Collections.Frozen;
 
 namespace CodeExplorer.Parsers.Java.Libraries;
 
 public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
 {
+    private readonly ConcurrentDictionary<string, string> _entityToTable = new(StringComparer.OrdinalIgnoreCase);
+
     public SpringDataMongoLibraryParser()
     {
         Id = "spring-data-mongo";
@@ -24,8 +27,24 @@ public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
             new OrmTableRule
             {
                 TableAnnotationNames = new[] { "Document" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
-                NameArgumentKeys = new[] { "collection", "value" }.ToFrozenSet()
+                NameArgumentKeys = new[] { "collection", "value" }.ToFrozenSet(),
+                ClassDeclarationNodeTypes = new[] { "class_declaration", "interface_declaration" }.ToFrozenSet(StringComparer.Ordinal),
+                RepositoryInterfaceNames = SpringDataRepositoryHelper.MongoRepositoryInterfaces
             }
         ];
+        CustomAstRules =
+        [
+            new CustomAstRule
+            {
+                NodeTypes = SpringDataRepositoryHelper.RepositoryNodeTypes,
+                EnrichSymbol = (node, symbol, _) => SpringDataRepositoryHelper.EnrichRepositorySymbol(
+                    node, symbol, SpringDataRepositoryHelper.MongoRepositoryInterfaces, _entityToTable)
+            }
+        ];
+    }
+
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    {
+        SpringDataRepositoryHelper.DiscoverEntityTables(content, _entityToTable);
     }
 }

@@ -125,11 +125,11 @@ public static class EndpointSemanticAnalyzer
                 var method = name[..colonIdx].ToUpperInvariant();
                 isEndpoint = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD" or "TRACE" or "ANY" or "ALL" or "API"
                     or "GRAPHQL" or "RPC" or "GRPC" or "QUERY" or "MUTATION" or "SUBSCRIPTION"
-                    or "WS" or "HUB" or "WCF" or "GRAIN"
+                    or "WS" or "HUB" or "WCF" or "SOAP" or "GRAIN"
                     or "MSG" or "CONSUMER" or "CONSUME" or "HANDLE" or "EVENT"
-                    or "KAFKA" or "RABBITMQ" or "GCP" or "SQS" or "SNS" or "NATS" or "ACTIVE-MQ" or "ACTIVEMQ" or "AZURE-SB" or "MQTT" or "REDIS" or "EVENTBUS" or "MASSTRANSIT";
+                    or "KAFKA" or "RABBITMQ" or "JMS" or "GCP" or "SQS" or "SNS" or "NATS" or "ACTIVE-MQ" or "ACTIVEMQ" or "AZURE-SB" or "MQTT" or "REDIS" or "EVENTBUS" or "MASSTRANSIT";
             }
-            if (syntactic.Protocol is "GraphQL" or "gRPC" or "REST" or "WS" or "WCF" or "MSG" or "RPC")
+            if (syntactic.Protocol is "GraphQL" or "gRPC" or "REST" or "WS" or "WCF" or "SOAP" or "MSG" or "RPC" or "jms")
             {
                 isEndpoint = true;
             }

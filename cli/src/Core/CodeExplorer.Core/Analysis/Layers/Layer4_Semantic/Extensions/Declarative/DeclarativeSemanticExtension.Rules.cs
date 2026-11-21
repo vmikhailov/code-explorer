@@ -668,6 +668,7 @@ public partial class DeclarativeSemanticExtension
     internal static Node? FindArgumentsNode(Node callNode)
     {
         return callNode.GetField(SyntaxFields.Arguments)
+               ?? callNode.Children.FirstOrDefault(c => c is SyntaxList { Kind: SyntaxListKind.Arguments })
                ?? callNode.FindChildOfType("argument_list")
                ?? callNode.FindChildOfType("arguments")
                ?? callNode.Children.FirstOrDefault(c => c.Type.Contains("argument", StringComparison.Ordinal));
