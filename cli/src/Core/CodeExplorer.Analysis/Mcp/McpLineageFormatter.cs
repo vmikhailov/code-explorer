@@ -38,6 +38,12 @@ internal static class McpLineageFormatter
     private const string KindReader = "READER";
     private const string KindCaller = "CALLER";
     private const string KindQuery = "QUERY";
+    private const string KindMeta = "META";
+    private const string KindFkOut = "FK_OUT";
+    private const string KindFkIn = "FK_IN";
+    private const string KindView = "VIEW";
+    private const string KindProc = "PROC";
+    private const string KindTrigger = "TRIGGER";
     private const string SingleQuote = "'";
     private const string EscapedSingleQuote = "''";
     private const string CommaSep = ", ";
@@ -86,7 +92,21 @@ internal static class McpLineageFormatter
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query) " +
-               "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, '') AS filePath, 0 AS startLine";
+               "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, '') AS filePath, 0 AS startLine UNION " +
+               anchor +
+               "RETURN t.name AS tableName, 'META' AS kind, coalesce(t.sub_kind, '') AS name, '' AS ownerName, coalesce(t.columns, '') AS extra, coalesce(t.path, '') AS filePath, 0 AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)-[r:REFERENCES]->(parent:Table) " +
+               "RETURN t.name AS tableName, 'FK_OUT' AS kind, coalesce(parent.name, '') AS name, '' AS ownerName, coalesce(r.operation, '') AS extra, '' AS filePath, 0 AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (child:Table)-[r:REFERENCES]->(t) " +
+               "RETURN t.name AS tableName, 'FK_IN' AS kind, coalesce(child.name, '') AS name, '' AS ownerName, coalesce(r.operation, '') AS extra, '' AS filePath, 0 AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (v:Table)-[:READS_FROM]->(t) " +
+               "RETURN t.name AS tableName, 'VIEW' AS kind, coalesce(v.name, '') AS name, coalesce(v.sub_kind, 'view') AS ownerName, '' AS extra, coalesce(v.path, '') AS filePath, 0 AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (p:Procedure)-[:READS_FROM]->(t) " +
+               "RETURN t.name AS tableName, 'PROC' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'procedure') AS ownerName, 'READ' AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (p:Procedure)-[:WRITES_TO]->(t) " +
+               "RETURN t.name AS tableName, 'PROC' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'procedure') AS ownerName, 'WRITE' AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)-[r:TRIGGERS]->(p:Procedure) " +
+               "RETURN t.name AS tableName, 'TRIGGER' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'trigger') AS ownerName, coalesce(r.operation, p.trigger_event, '') AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine";
     }
 
     private static readonly string[] DepEdgeColumns = ["project", "dependency", "dependencyType", "version", "scope"];
@@ -311,19 +331,93 @@ internal static class McpLineageFormatter
         var upstream = FormatAccessorList(rowList.Where(r => r.GetStringProp(ColKind) == KindCaller), workspaceRoot, includeOperation: false, MaxUpstreamCallersCap);
         var queries = FormatQueriesList(rowList.Where(r => r.GetStringProp(ColKind) == KindQuery), tableName, workspaceRoot);
 
-        return new
+        string? subKind = null;
+        string? columns = null;
+        foreach (var r in rowList)
         {
-            tableName,
-            entities,
-            writersCount = writers.TotalCount,
-            writers = writers.Items,
-            readersCount = readers.TotalCount,
-            readers = readers.Items,
-            upstreamCallersCount = upstream.TotalCount,
-            upstreamCallers = upstream.Items,
-            queries
+            if (r.GetStringProp(ColKind) == KindMeta)
+            {
+                subKind = r.GetStringProp(ColName);
+                columns = r.GetStringProp(ColExtra);
+                break;
+            }
+        }
+
+        var referencesTables = rowList
+            .Where(r => r.GetStringProp(ColKind) == KindFkOut)
+            .Select(r => FormatFkEntry(r.GetStringProp(ColName), r.GetStringProp(ColExtra)))
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var referencedByTables = rowList
+            .Where(r => r.GetStringProp(ColKind) == KindFkIn)
+            .Select(r => FormatFkEntry(r.GetStringProp(ColName), r.GetStringProp(ColExtra)))
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var dependentViews = rowList
+            .Where(r => r.GetStringProp(ColKind) == KindView)
+            .Select(r => r.GetStringProp(ColName))
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var procedures = rowList
+            .Where(r => r.GetStringProp(ColKind) == KindProc)
+            .Select(r =>
+            {
+                var name = r.GetStringProp(ColName);
+                if (string.IsNullOrEmpty(name)) return string.Empty;
+                var kind = r.GetStringProp(ColOwnerName);
+                var op = r.GetStringProp(ColExtra);
+                return $"{name} ({kind}, {op})";
+            })
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var triggers = rowList
+            .Where(r => r.GetStringProp(ColKind) == KindTrigger)
+            .Select(r =>
+            {
+                var name = r.GetStringProp(ColName);
+                if (string.IsNullOrEmpty(name)) return string.Empty;
+                var ev = r.GetStringProp(ColExtra);
+                return string.IsNullOrEmpty(ev) ? name : $"{name} ({ev})";
+            })
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var result = new Dictionary<string, object>
+        {
+            ["tableName"] = tableName,
+            ["entities"] = entities,
+            ["writersCount"] = writers.TotalCount,
+            ["writers"] = writers.Items,
+            ["readersCount"] = readers.TotalCount,
+            ["readers"] = readers.Items,
+            ["upstreamCallersCount"] = upstream.TotalCount,
+            ["upstreamCallers"] = upstream.Items,
+            ["queries"] = queries
         };
+
+        if (!string.IsNullOrEmpty(subKind)) result["subKind"] = subKind;
+        if (!string.IsNullOrEmpty(columns)) result["columns"] = columns;
+        if (referencesTables.Count > 0) result["referencesTables"] = referencesTables;
+        if (referencedByTables.Count > 0) result["referencedByTables"] = referencedByTables;
+        if (dependentViews.Count > 0) result["dependentViews"] = dependentViews;
+        if (procedures.Count > 0) result["procedures"] = procedures;
+        if (triggers.Count > 0) result["triggers"] = triggers;
+
+        return result;
     }
+
+    private static string FormatFkEntry(string targetName, string context) =>
+        string.IsNullOrEmpty(targetName) ? string.Empty :
+        string.IsNullOrEmpty(context) ? targetName : $"{targetName} ({context})";
 
     private static List<object> FormatQueriesList(IEnumerable<CypherRow> rows, string tableName, string? workspaceRoot) =>
         rows.Select(r =>

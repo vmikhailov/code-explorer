@@ -175,6 +175,7 @@ public static class OntologyConstants
         public const string FlowsTo = "FLOWS_TO";
         public const string TargetedBy = "TARGETED_BY";
         public const string HostedIn = "HOSTED_IN";
+        public const string References = "REFERENCES";
     }
 
     public static class EvidenceKinds

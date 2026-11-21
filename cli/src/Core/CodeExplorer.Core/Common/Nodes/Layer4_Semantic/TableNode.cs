@@ -17,6 +17,9 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.AccessedBy)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.TargetedBy)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.References)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.ReadsFrom)]
+[OntologyEdge<ProcedureNode>(OntologyConstants.Relationships.Triggers)]
 public record TableNode(
     string Id,
     [property: OntologyProperty("Physical database table or view name.")] string Name,
@@ -32,6 +35,12 @@ public record TableNode(
 
     [JsonPropertyName("entity"), OntologyProperty("Mapped ORM entity or domain model type name, if applicable.")]
     public string? EntityName { get; set; }
+
+    [JsonPropertyName("sub_kind"), OntologyProperty("Specific relational object kind (e.g. table, view, materialized_view).")]
+    public string? SubKind { get; set; }
+
+    [JsonPropertyName("columns"), OntologyProperty("Compact JSON array describing table columns (name, type, pk, nullable, unique, fk).")]
+    public string? ColumnsJson { get; set; }
 
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the table node uses an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }

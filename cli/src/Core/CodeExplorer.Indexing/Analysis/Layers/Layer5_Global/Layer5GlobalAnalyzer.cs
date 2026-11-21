@@ -139,6 +139,14 @@ public partial class Layer5AnalysisParser
             ResolveDeferredParamMessagingReferences(deferredParamMessagingRefs, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
         }
 
+        Layer5SymbolVisibilityResolver.ResolveSqlTriggerRelationships(_currentL4Result, symbols, referenceRelationships, existingRefRels);
+
+        var enrichedOrmTables = OrmSchemaEnricher.EnrichOrmTablesAndForeignKeys(_currentL4Result, ctx, referenceRelationships, existingRefRels);
+        if (enrichedOrmTables.Count > 0)
+        {
+            await ctx.EnqueueUploadNodesAsync(enrichedOrmTables);
+        }
+
         ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count, sw.ElapsedMilliseconds);
 
         if (newTopicNodes.Count > 0)

@@ -8,7 +8,7 @@ export function initHomeController(): () => void {
     // Showcase Switcher Data
     const showcaseSlides = [
       {
-        src: 'all_services.png?v=2',
+        src: '/all_services.png?v=2',
         label: 'all_services.png',
         description: '<strong>System Map:</strong> Services, HTTP/gRPC routes, queues, and SQL tables built straight from source code.',
         pills: [
@@ -18,7 +18,7 @@ export function initHomeController(): () => void {
         ]
       },
       {
-        src: 'selected_services.png?v=2',
+        src: '/selected_services.png?v=2',
         label: 'selected_services.png',
         description: '<strong>Focused Slice:</strong> Select the services you care about and hide surrounding noise while keeping indirect links.',
         pills: [
@@ -28,7 +28,7 @@ export function initHomeController(): () => void {
         ]
       },
       {
-        src: 'project_flow.png',
+        src: '/project_flow.png',
         label: 'project_flow.png',
         description: '<strong>Service Call Flow:</strong> Trace HTTP calls, broker events, and database reads and writes before editing code.',
         pills: [

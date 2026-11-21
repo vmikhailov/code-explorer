@@ -3,7 +3,7 @@
   "meta": {
     "llm_model": "Gemini 3.8 Flash",
     "tools": {
-      "ce_suite_versions": "v1.75.0 to v1.90.0",
+      "ce_suite_versions": "v1.75.0 to v1.93.0",
       "ce_mcp_tools": 36,
       "ce_framework_parsers": 250,
       "ce_languages": 8,
@@ -808,6 +808,25 @@
           }
         }
       }
+    }
+  },
+  "cs10": {
+    "id": "10-cqrs-read-write-invariants",
+    "status": "ready",
+    "source_metrics": "benchmarks/10-cqrs-read-write-invariants/results/metrics.json",
+    "ce_version": "v1.93.0",
+    "telemetry": {
+      "repos_evaluated": 13,
+      "repos_reaching_storage": 6,
+      "repos_vacuous_driver_gap": 7,
+      "total_query_handlers_traced_to_storage": 97,
+      "clean_repos_count": 4,
+      "repos_with_read_path_writes": 2,
+      "sig_cqrs_001_findings": 2,
+      "sig_cqrs_002_findings": 0,
+      "sig_cqrs_003_findings": 8,
+      "tokens_consumed": 0,
+      "cost_usd": 0
     }
   }
 }

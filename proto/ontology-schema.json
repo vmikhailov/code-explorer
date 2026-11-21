@@ -2394,9 +2394,27 @@
           "sourceName": "EntityName",
           "type": "string",
           "description": "Mapped ORM entity or domain model type name, if applicable."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "string",
+          "description": "Specific relational object kind (e.g. table, view, materialized_view)."
+        },
+        {
+          "name": "columns",
+          "sourceName": "ColumnsJson",
+          "type": "string",
+          "description": "Compact JSON array describing table columns (name, type, pk, nullable, unique, fk)."
         }
       ],
       "outEdges": [
+        {
+          "rel": "TRIGGERS",
+          "toKind": "Procedure",
+          "category": "control_flow",
+          "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
         {
           "rel": "ACCESSED_BY",
           "toKind": "Function",
@@ -2416,18 +2434,48 @@
           "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
+          "rel": "READS_FROM",
+          "toKind": "Table",
+          "category": "data_flow",
+          "description": "Links a query or workload to the table or cloud resource it reads from."
+        },
+        {
           "rel": "TARGETED_BY",
           "toKind": "CallArgument",
           "category": "data_flow",
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
+        },
+        {
+          "rel": "REFERENCES",
+          "toKind": "Table",
+          "category": "type_dependency",
+          "description": "Links a child database table to a parent table via a foreign key constraint."
         }
       ],
       "inEdges": [
         {
           "rel": "READS_FROM",
+          "fromKind": "Procedure",
+          "category": "data_flow",
+          "description": "Links a query or workload to the table or cloud resource it reads from."
+        },
+        {
+          "rel": "READS_FROM",
           "fromKind": "Query",
           "category": "data_flow",
           "description": "Links a query or workload to the table or cloud resource it reads from."
+        },
+        {
+          "rel": "READS_FROM",
+          "fromKind": "Table",
+          "category": "data_flow",
+          "description": "Links a query or workload to the table or cloud resource it reads from."
+        },
+        {
+          "rel": "WRITES_TO",
+          "fromKind": "Procedure",
+          "category": "data_flow",
+          "description": "Links a query or workload to the table or cloud resource it writes to."
         },
         {
           "rel": "WRITES_TO",
@@ -2442,13 +2490,19 @@
           "description": "Represents a dependency relationship between projects, packages, or other entities."
         },
         {
+          "rel": "REFERENCES",
+          "fromKind": "Table",
+          "category": "type_dependency",
+          "description": "Links a child database table to a parent table via a foreign key constraint."
+        },
+        {
           "rel": "CONTAINS",
           "fromKind": "DbSchema",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Table)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.engine, n.schema, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Table)-[:TRIGGERS]->(t:Procedure)\nRETURN n.name, n.engine, n.schema, t.name\nLIMIT 25"
     },
     {
       "kind": "Procedure",
@@ -2459,8 +2513,45 @@
       "order": 23,
       "idScheme": "{workspaceId}:proc:{procedureName}",
       "purpose": "Represents a stored procedure in a database.",
-      "properties": [],
+      "properties": [
+        {
+          "name": "engine",
+          "sourceName": "Engine",
+          "type": "string",
+          "description": "Database engine hosting this routine (e.g. postgresql, sqlserver, mysql)."
+        },
+        {
+          "name": "schema",
+          "sourceName": "Schema",
+          "type": "string",
+          "description": "Database schema qualifying this routine (e.g. dbo, public)."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "string",
+          "description": "Specific database routine kind (procedure, function, trigger)."
+        },
+        {
+          "name": "trigger_table",
+          "sourceName": "TriggerTable",
+          "type": "string",
+          "description": "Target table name that fires this trigger, if sub_kind is trigger."
+        },
+        {
+          "name": "trigger_event",
+          "sourceName": "TriggerEvent",
+          "type": "string",
+          "description": "Trigger timing and event (e.g. AFTER INSERT, BEFORE UPDATE)."
+        }
+      ],
       "outEdges": [
+        {
+          "rel": "CALLS",
+          "toKind": "Procedure",
+          "category": "control_flow",
+          "description": "Links a calling function to the function it directly invokes."
+        },
         {
           "rel": "ACCESSED_BY",
           "toKind": "Function",
@@ -2468,10 +2559,22 @@
           "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
+          "rel": "READS_FROM",
+          "toKind": "Table",
+          "category": "data_flow",
+          "description": "Links a query or workload to the table or cloud resource it reads from."
+        },
+        {
           "rel": "TARGETED_BY",
           "toKind": "CallArgument",
           "category": "data_flow",
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
+        },
+        {
+          "rel": "WRITES_TO",
+          "toKind": "Table",
+          "category": "data_flow",
+          "description": "Links a query or workload to the table or cloud resource it writes to."
         },
         {
           "rel": "CONTAINS",
@@ -2482,13 +2585,25 @@
       ],
       "inEdges": [
         {
+          "rel": "CALLS",
+          "fromKind": "Procedure",
+          "category": "control_flow",
+          "description": "Links a calling function to the function it directly invokes."
+        },
+        {
+          "rel": "TRIGGERS",
+          "fromKind": "Table",
+          "category": "control_flow",
+          "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
+        {
           "rel": "CONTAINS",
           "fromKind": "DbSchema",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Procedure)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.path, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Procedure)-[:CALLS]->(t:Procedure)\nRETURN n.name, n.engine, n.schema, t.name\nLIMIT 25"
     },
     {
       "kind": "Query",
@@ -4683,6 +4798,10 @@
           "toKind": "Type"
         },
         {
+          "fromKind": "Procedure",
+          "toKind": "Procedure"
+        },
+        {
           "fromKind": "Type",
           "toKind": "Function"
         }
@@ -4895,6 +5014,10 @@
         {
           "fromKind": "EntryPoint",
           "toKind": "File"
+        },
+        {
+          "fromKind": "Table",
+          "toKind": "Procedure"
         }
       ]
     },
@@ -5172,7 +5295,15 @@
       ],
       "pairs": [
         {
+          "fromKind": "Procedure",
+          "toKind": "Table"
+        },
+        {
           "fromKind": "Query",
+          "toKind": "Table"
+        },
+        {
+          "fromKind": "Table",
           "toKind": "Table"
         }
       ]
@@ -5340,6 +5471,10 @@
         }
       ],
       "pairs": [
+        {
+          "fromKind": "Procedure",
+          "toKind": "Table"
+        },
         {
           "fromKind": "Query",
           "toKind": "Table"
@@ -5589,6 +5724,24 @@
         {
           "fromKind": "Project",
           "toKind": "Package"
+        }
+      ]
+    },
+    {
+      "rel": "REFERENCES",
+      "category": "type_dependency",
+      "description": "Links a child database table to a parent table via a foreign key constraint.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Table",
+          "toKind": "Table"
         }
       ]
     },

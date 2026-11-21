@@ -133,7 +133,8 @@ public enum RelationshipKind : byte
     PassesArgument = 67,
     FlowsTo = 68,
     TargetedBy = 69,
-    HostedIn = 70
+    HostedIn = 70,
+    References = 71
 }
 
 /// <summary>

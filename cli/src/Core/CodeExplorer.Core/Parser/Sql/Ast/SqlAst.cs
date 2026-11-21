@@ -66,27 +66,57 @@ public sealed record SqlMergeStatementAst(
     SqlTableRefAst? UsingTable
 ) : SqlStatementAst;
 
+public sealed record SqlForeignKeyAst(
+    string? FromColumn,
+    SqlTableRefAst TargetTable,
+    string? ToColumn = null
+) : SqlNodeAst;
+
+public sealed record SqlColumnDefAst(
+    string Name,
+    string DataType,
+    bool IsPrimaryKey = false,
+    bool IsNullable = true,
+    bool IsUnique = false,
+    SqlForeignKeyAst? ForeignKey = null
+) : SqlNodeAst;
+
+public enum SqlRoutineKind : byte
+{
+    Procedure = 0,
+    Function = 1,
+    Trigger = 2
+}
+
 public sealed record SqlCreateTableStatementAst(
     SqlTableRefAst Table,
     bool IsTemporary,
     SqlStatementAst? AsSelectQuery,
-    IReadOnlyList<SqlTableRefAst>? ReferencedTables = null
+    IReadOnlyList<SqlTableRefAst>? ReferencedTables = null,
+    IReadOnlyList<SqlColumnDefAst>? Columns = null,
+    IReadOnlyList<SqlForeignKeyAst>? ForeignKeys = null
 ) : SqlStatementAst;
 
 public sealed record SqlAlterTableStatementAst(
     SqlTableRefAst TargetTable,
-    IReadOnlyList<SqlTableRefAst> ReferencedTables
+    IReadOnlyList<SqlTableRefAst> ReferencedTables,
+    IReadOnlyList<SqlColumnDefAst>? AddedColumns = null,
+    IReadOnlyList<SqlForeignKeyAst>? ForeignKeys = null
 ) : SqlStatementAst;
 
 public sealed record SqlCreateViewStatementAst(
     SqlTableRefAst View,
-    SqlStatementAst? AsSelectQuery
+    SqlStatementAst? AsSelectQuery,
+    bool IsMaterialized = false
 ) : SqlStatementAst;
 
 public sealed record SqlCreateProcedureStatementAst(
     SqlProcRefAst Procedure,
     string RawBody,
-    IReadOnlyList<SqlStatementAst> BodyStatements
+    IReadOnlyList<SqlStatementAst> BodyStatements,
+    SqlRoutineKind RoutineKind = SqlRoutineKind.Procedure,
+    SqlTableRefAst? TriggerTable = null,
+    string? TriggerEvent = null
 ) : SqlStatementAst;
 
 public enum SqlDropObjectType : byte
