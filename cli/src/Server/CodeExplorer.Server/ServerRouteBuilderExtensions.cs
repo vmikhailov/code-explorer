@@ -68,25 +68,30 @@ public static partial class ServerRouteBuilderExtensions
             }
         });
 
-        endpoints.MapGet("/api/view", async (IArchitectureQueryService archQueryService, string? view, string? scope, bool? includeLibraries) =>
+        endpoints.MapGet("/api/view", async (IArchitectureQueryService archQueryService, string? view, string? scope, bool? includeLibraries, bool? sharedDatabasesOnly) =>
         {
             try
             {
                 var viewType = (view?.ToLowerInvariant()) switch
                 {
-                    "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
-                    "component" or "c3" => ArchitectureViewType.Component,
-                    "projectmap" or "project-map" or "project" or "modules" => ArchitectureViewType.ProjectMap,
+                    "serviceflow" or "service-flow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
+                    "component" or "class-map" or "classmap" or "c3" => ArchitectureViewType.Component,
+                    "projectmap" or "project-map" or "module-map" or "modulemap" or "project" or "modules" => ArchitectureViewType.ProjectMap,
+                    "projectdependencies" or "project-dependencies" => ArchitectureViewType.ProjectDependencies,
+                    "callflow" or "call-flow" => ArchitectureViewType.CallFlow,
+                    "databasemap" or "database-map" => ArchitectureViewType.DatabaseMap,
+                    "dataflow" or "data-flow" => ArchitectureViewType.DataFlow,
                     "domain" or "domainmap" or "domain-map" => ArchitectureViewType.DomainMap,
                     "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
-                    "tiers" or "tiered" => ArchitectureViewType.Tiers,
+                    "tiers" or "tiered" or "layer-dependencies" or "layerdependencies" => ArchitectureViewType.Tiers,
                     _ => ArchitectureViewType.SystemContext
                 };
                 var graph = await archQueryService.GetViewAsync(new ArchitectureViewRequest
                 {
                     ViewType = viewType,
                     Scope = scope,
-                    IncludeLibraries = includeLibraries ?? (viewType is ArchitectureViewType.Tiers)
+                    IncludeLibraries = includeLibraries ?? (viewType is ArchitectureViewType.Tiers),
+                    SharedDatabasesOnly = sharedDatabasesOnly ?? false
                 });
                 return Results.Ok(graph);
             }
@@ -96,6 +101,8 @@ public static partial class ServerRouteBuilderExtensions
                 return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
             }
         });
+
+        MapCatalogApiRoutes(endpoints, logger);
 
         endpoints.MapGet("/api/ontology/bounded-contexts", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
         {

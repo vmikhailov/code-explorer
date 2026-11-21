@@ -19,6 +19,28 @@ public partial class ArchitectureViewEngine
     private const string DirectionWrite = "write";
     private const string DirectionRead = "read";
     private const string ParamScope = "scope";
+    private const string ColFlowKind = "kind";
+    private const string ColFlowFilePath = "filePath";
+    private const string ColFlowStartLine = "startLine";
+    private const string ColFlowTgtKind = "tgtKind";
+    private const string ColFlowTgtName = "tgtName";
+    private const string ColFlowRelLine = "relLine";
+    private const string ColFlowSrcKind = "srcKind";
+    private const string ColFlowSrcName = "srcName";
+    private const string ColFlowResId = "resId";
+    private const string ColFlowResKind = "resKind";
+    private const string ColFlowResName = "resName";
+    private const string ColFlowActorId = "actorId";
+    private const string ColFlowActorKind = "actorKind";
+    private const string ColFlowActorName = "actorName";
+    private const string ColFlowActorFile = "actorFile";
+    private const string ColFlowActorLine = "actorLine";
+    private const string ColFlowTargetId = "targetId";
+    private const string ColFlowTargetKind = "targetKind";
+    private const string ColFlowTargetName = "targetName";
+    private const string SqlVerbInsert = "INSERT";
+    private const string SqlVerbUpdate = "UPDATE";
+    private const string SqlVerbDelete = "DELETE";
     private const int MaxCallFlowHops = 5;
     private const int MaxCallFlowNodes = 120;
 
@@ -98,15 +120,15 @@ public partial class ArchitectureViewEngine
 
         foreach (var row in anchorRes.Rows)
         {
-            var id = row.GetStringProp("id");
+            var id = row.GetStringProp(ColId);
             if (string.IsNullOrEmpty(id) || nodesById.ContainsKey(id)) continue;
 
             nodesById[id] = CreateFlowNode(
                 id,
-                row.GetStringProp("kind"),
-                row.GetStringProp("name"),
-                row.GetStringProp("filePath"),
-                row.GetIntProp("startLine"));
+                row.GetStringProp(ColFlowKind),
+                row.GetStringProp(ColName),
+                row.GetStringProp(ColFlowFilePath),
+                row.GetIntProp(ColFlowStartLine));
             frontier.Enqueue((id, 0));
         }
 
@@ -117,30 +139,30 @@ public partial class ArchitectureViewEngine
 
             var stepRes = await db.ExecuteCypherAsync(
                 QueryCallFlowStep,
-                new Dictionary<string, string> { ["srcId"] = currentId },
+                new Dictionary<string, string> { [ColSrcId] = currentId },
                 ct);
 
             foreach (var row in stepRes.Rows)
             {
-                var tgtId = row.GetStringProp("tgtId");
+                var tgtId = row.GetStringProp(ColTgtId);
                 if (string.IsNullOrEmpty(tgtId)) continue;
 
-                var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp("relType"));
+                var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp(ColRelType));
                 if (!nodesById.ContainsKey(tgtId))
                 {
                     if (nodesById.Count >= MaxCallFlowNodes) break;
                     nodesById[tgtId] = CreateFlowNode(
                         tgtId,
-                        row.GetStringProp("tgtKind"),
-                        row.GetStringProp("tgtName"),
-                        row.GetStringProp("filePath"),
-                        row.GetIntProp("startLine"));
+                        row.GetStringProp(ColFlowTgtKind),
+                        row.GetStringProp(ColFlowTgtName),
+                        row.GetStringProp(ColFlowFilePath),
+                        row.GetIntProp(ColFlowStartLine));
                     frontier.Enqueue((tgtId, depth + 1));
                 }
 
                 if (edgeKeys.Add((currentId, tgtId, relKind)))
                 {
-                    var relLine = row.GetIntProp("relLine");
+                    var relLine = row.GetIntProp(ColFlowRelLine);
                     var props = relLine > 0
                         ? new Dictionary<string, string>(StringComparer.Ordinal) { ["line"] = relLine.ToString() }
                         : null;
@@ -183,18 +205,18 @@ public partial class ArchitectureViewEngine
 
         foreach (var row in res.Rows)
         {
-            var srcId = row.GetStringProp("srcId");
-            var resId = row.GetStringProp("resId");
+            var srcId = row.GetStringProp(ColSrcId);
+            var resId = row.GetStringProp(ColFlowResId);
             if (string.IsNullOrEmpty(srcId) || string.IsNullOrEmpty(resId)) continue;
 
             if (!nodesById.ContainsKey(srcId))
             {
-                nodesById[srcId] = CreateFlowNode(srcId, row.GetStringProp("srcKind"), row.GetStringProp("srcName"), null, 0);
+                nodesById[srcId] = CreateFlowNode(srcId, row.GetStringProp(ColFlowSrcKind), row.GetStringProp(ColFlowSrcName), null, 0);
             }
 
             if (!nodesById.ContainsKey(resId))
             {
-                var resNode = CreateFlowNode(resId, row.GetStringProp("resKind"), row.GetStringProp("resName"), null, 0);
+                var resNode = CreateFlowNode(resId, row.GetStringProp(ColFlowResKind), row.GetStringProp(ColFlowResName), null, 0);
                 var engine = row.GetStringProp(PropEngine);
                 if (!string.IsNullOrEmpty(engine))
                 {
@@ -211,7 +233,7 @@ public partial class ArchitectureViewEngine
             }
             consumers.Add(srcId);
 
-            var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp("relType"));
+            var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp(ColRelType));
             if (edgeKeys.Add((srcId, resId, relKind)))
             {
                 edges.Add(new GraphEdgeDto
@@ -285,36 +307,36 @@ public partial class ArchitectureViewEngine
 
         foreach (var row in res.Rows)
         {
-            var actorId = row.GetStringProp("actorId");
-            var targetId = row.GetStringProp("targetId");
+            var actorId = row.GetStringProp(ColFlowActorId);
+            var targetId = row.GetStringProp(ColFlowTargetId);
             if (string.IsNullOrEmpty(actorId) || string.IsNullOrEmpty(targetId)) continue;
 
             if (!nodesById.ContainsKey(actorId))
             {
                 nodesById[actorId] = CreateFlowNode(
                     actorId,
-                    row.GetStringProp("actorKind"),
-                    row.GetStringProp("actorName"),
-                    row.GetStringProp("actorFile"),
-                    row.GetIntProp("actorLine"));
+                    row.GetStringProp(ColFlowActorKind),
+                    row.GetStringProp(ColFlowActorName),
+                    row.GetStringProp(ColFlowActorFile),
+                    row.GetIntProp(ColFlowActorLine));
             }
 
             if (!nodesById.ContainsKey(targetId))
             {
                 nodesById[targetId] = CreateFlowNode(
                     targetId,
-                    row.GetStringProp("targetKind"),
-                    row.GetStringProp("targetName"),
+                    row.GetStringProp(ColFlowTargetKind),
+                    row.GetStringProp(ColFlowTargetName),
                     null,
                     0);
             }
 
-            var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp("relType"));
+            var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp(ColRelType));
             var operation = row.GetStringProp(PropOperation);
             var isWrite = relKind is RelationshipKind.WritesTo or RelationshipKind.PublishesTo ||
-                          operation.Contains("INSERT", StringComparison.OrdinalIgnoreCase) ||
-                          operation.Contains("UPDATE", StringComparison.OrdinalIgnoreCase) ||
-                          operation.Contains("DELETE", StringComparison.OrdinalIgnoreCase);
+                          operation.Contains(SqlVerbInsert, StringComparison.OrdinalIgnoreCase) ||
+                          operation.Contains(SqlVerbUpdate, StringComparison.OrdinalIgnoreCase) ||
+                          operation.Contains(SqlVerbDelete, StringComparison.OrdinalIgnoreCase);
 
             // Orient graph left-to-right: Writers -> DataAsset -> Readers
             var edgeSource = isWrite ? actorId : targetId;
@@ -360,11 +382,11 @@ public partial class ArchitectureViewEngine
         var res = await db.ExecuteCypherAsync(QueryCatalogEntryPoints, null, ct);
         return res.Rows
             .Select(r => CreateFlowNode(
-                r.GetStringProp("id"),
-                r.GetStringProp("kind"),
-                r.GetStringProp("name"),
-                r.GetStringProp("filePath"),
-                r.GetIntProp("startLine")))
+                r.GetStringProp(ColId),
+                r.GetStringProp(ColFlowKind),
+                r.GetStringProp(ColName),
+                r.GetStringProp(ColFlowFilePath),
+                r.GetIntProp(ColFlowStartLine)))
             .Where(n => !string.IsNullOrEmpty(n.Id))
             .ToList();
     }
@@ -375,9 +397,9 @@ public partial class ArchitectureViewEngine
         var list = new List<GraphNodeDto>(res.Count);
         foreach (var r in res.Rows)
         {
-            var id = r.GetStringProp("id");
+            var id = r.GetStringProp(ColId);
             if (string.IsNullOrEmpty(id)) continue;
-            var node = CreateFlowNode(id, r.GetStringProp("kind"), r.GetStringProp("name"), null, 0);
+            var node = CreateFlowNode(id, r.GetStringProp(ColFlowKind), r.GetStringProp(ColName), null, 0);
             var engine = r.GetStringProp(PropEngine);
             if (!string.IsNullOrEmpty(engine))
             {

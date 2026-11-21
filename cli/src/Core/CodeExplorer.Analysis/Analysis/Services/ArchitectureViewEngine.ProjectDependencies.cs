@@ -18,6 +18,20 @@ public partial class ArchitectureViewEngine
     private const string ProjDepsPropIsTest = "is_test";
     private const string ProjDepsPropVersion = "version";
     private const string ProjDepsPropEcosystem = "ecosystem";
+    private const string ColId = "id";
+    private const string ColName = "name";
+    private const string ColPath = "path";
+    private const string ColSrcId = "srcId";
+    private const string ColTgtId = "tgtId";
+    private const string ColRelType = "relType";
+    private const string ColPkgId = "pkgId";
+    private const string ColPkgName = "pkgName";
+    private const string EntityKindTest = "Test";
+    private const string EntityKindService = "Service";
+    private const string EntityKindApp = "App";
+    private const string EntityKindWorker = "Worker";
+    private const string EntityKindCliTool = "CliTool";
+    private const string EntityKindLibrary = "Library";
     private const string ProjDepsBoolTrue = "true";
     private const string ProjDepsBoolFalse = "false";
 
@@ -30,7 +44,7 @@ public partial class ArchitectureViewEngine
         "coalesce(p.is_test, false) AS is_test";
 
     private const string QueryProjectToProjectDeps =
-        "MATCH (src:Project)-[r:DEPENDS_ON|PROJECT_REFERENCE]->(tgt:Project) " +
+        "MATCH (src:Project)-[r:DEPENDS_ON]->(tgt:Project) " +
         "WHERE src.id <> tgt.id " +
         "RETURN src.id AS srcId, tgt.id AS tgtId, type(r) AS relType";
 
@@ -56,8 +70,8 @@ public partial class ArchitectureViewEngine
 
         foreach (var row in projRes.Rows)
         {
-            var id = row.GetStringProp("id");
-            var name = row.GetStringProp("name");
+            var id = row.GetStringProp(ColId);
+            var name = row.GetStringProp(ColName);
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name)) continue;
 
             var entityKind = row.GetStringProp(ProjDepsPropEntityKind);
@@ -71,7 +85,7 @@ public partial class ArchitectureViewEngine
                 Kind = nodeKind,
                 Name = name,
                 DisplayName = name,
-                FilePath = row.GetStringProp("path"),
+                FilePath = row.GetStringProp(ColPath),
                 Properties = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     [ProjDepsPropLanguage] = row.GetStringProp(ProjDepsPropLanguage),
@@ -88,11 +102,11 @@ public partial class ArchitectureViewEngine
 
         foreach (var row in relRes.Rows)
         {
-            var srcId = row.GetStringProp("srcId");
-            var tgtId = row.GetStringProp("tgtId");
+            var srcId = row.GetStringProp(ColSrcId);
+            var tgtId = row.GetStringProp(ColTgtId);
             if (!nodesById.ContainsKey(srcId) || !nodesById.ContainsKey(tgtId)) continue;
 
-            var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp("relType"));
+            var relKind = EnumExtensions.ParseRelationshipKind(row.GetStringProp(ColRelType));
             if (!edgeKeys.Add((srcId, tgtId, relKind))) continue;
 
             adjacency[srcId].Add(tgtId);
@@ -168,9 +182,9 @@ public partial class ArchitectureViewEngine
             var pkgRes = await db.ExecuteCypherAsync(QueryProjectToExternalPackages, null, ct);
             foreach (var row in pkgRes.Rows)
             {
-                var srcId = row.GetStringProp("srcId");
-                var pkgId = row.GetStringProp("pkgId");
-                var pkgName = row.GetStringProp("pkgName");
+                var srcId = row.GetStringProp(ColSrcId);
+                var pkgId = row.GetStringProp(ColPkgId);
+                var pkgName = row.GetStringProp(ColPkgName);
                 if (!nodesById.ContainsKey(srcId) || string.IsNullOrEmpty(pkgId) || string.IsNullOrEmpty(pkgName))
                 {
                     continue;
@@ -222,12 +236,12 @@ public partial class ArchitectureViewEngine
 
     private static NodeKind MapProjectEntityKindToNodeKind(string entityKind, bool isLibrary, bool isTest)
     {
-        if (isTest || string.Equals(entityKind, "Test", StringComparison.OrdinalIgnoreCase)) return NodeKind.TestSuite;
-        if (string.Equals(entityKind, "Service", StringComparison.OrdinalIgnoreCase)) return NodeKind.Service;
-        if (string.Equals(entityKind, "App", StringComparison.OrdinalIgnoreCase)) return NodeKind.App;
-        if (string.Equals(entityKind, "Worker", StringComparison.OrdinalIgnoreCase)) return NodeKind.Worker;
-        if (string.Equals(entityKind, "CliTool", StringComparison.OrdinalIgnoreCase)) return NodeKind.CliTool;
-        if (isLibrary || string.Equals(entityKind, "Library", StringComparison.OrdinalIgnoreCase)) return NodeKind.Library;
+        if (isTest || string.Equals(entityKind, EntityKindTest, StringComparison.OrdinalIgnoreCase)) return NodeKind.TestSuite;
+        if (string.Equals(entityKind, EntityKindService, StringComparison.OrdinalIgnoreCase)) return NodeKind.Service;
+        if (string.Equals(entityKind, EntityKindApp, StringComparison.OrdinalIgnoreCase)) return NodeKind.App;
+        if (string.Equals(entityKind, EntityKindWorker, StringComparison.OrdinalIgnoreCase)) return NodeKind.Worker;
+        if (string.Equals(entityKind, EntityKindCliTool, StringComparison.OrdinalIgnoreCase)) return NodeKind.CliTool;
+        if (isLibrary || string.Equals(entityKind, EntityKindLibrary, StringComparison.OrdinalIgnoreCase)) return NodeKind.Library;
         return NodeKind.Project;
     }
 
