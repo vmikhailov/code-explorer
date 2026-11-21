@@ -1272,7 +1272,7 @@ function buildBindings(data, rawMilestones01) {
     b['cs10.card_findings'] = `${t10.sig_cqrs_001_findings} + ${t10.sig_cqrs_003_findings}`;
     b['cs10.card_findings_copy'] =
       `Surfaced ${t10.sig_cqrs_001_findings} QueryHandler write paths (SIG-CQRS-001) and ${t10.sig_cqrs_003_findings} HTTP GET write paths (SIG-CQRS-003) invisible to ArchUnit and linters.`;
-    b['cs10.card_findings_footer'] = `dotnet-starter-kit &amp; ever-gauzy verified in source`;
+    b['cs10.card_findings_footer'] = `dotnet-starter-kit & ever-gauzy verified in source`;
     b['cs10.card_tokens'] = `0`;
     b['cs10.card_tokens_copy'] =
       `0 LLM tokens ($0.00 cost). Evaluates 3 built-in declarative Cypher gates locally against SQLite graph.db in milliseconds.`;
@@ -1284,9 +1284,9 @@ function buildBindings(data, rawMilestones01) {
       `          3. Uncovered Driver / Non-Mediator Corpus (7 repos, reported transparently as vacuous): dotnet/eShop @ ab10e4c, Squidex/squidex @ 1c8a367, simplcommerce/SimplCommerce @ 3472ba0, BottegaIT/ddd-leaven-v2 @ 5225ff7, AleksK1NG/Go-CQRS-Microservices @ 70cda28, ThreeDotsLabs/wild-workouts-go-ddd-example @ 8ecfcdf, CodelyTV/php-ddd-example @ 9271c46`,
     ].join('\n');
     b['catalog.cs10_outcome'] =
-      `<strong class="tone-ok">${t10.total_query_handlers_traced_to_storage} QueryHandlers traced to SQL/ORM</strong> across ${t10.repos_reaching_storage} polyglot repos (29/29 clean in modular-monolith-with-ddd)<br>` +
-      `<strong class="tone-ok">Surfaced ${t10.sig_cqrs_001_findings} QueryBus &amp; ${t10.sig_cqrs_003_findings} GET write paths</strong> missed by NetArchTest &amp; linters<br>` +
-      `<strong>0 tokens ($0.00)</strong> via 3 built-in Cypher gates (SIG-CQRS-001 to 003)`;
+      `<strong class="tone-ok">${t10.total_query_handlers_traced_to_storage} QueryHandlers traced</strong> across ${t10.repos_reaching_storage} repos (29/29 clean in modular-monolith)<br>` +
+      `<strong class="tone-ok">${t10.sig_cqrs_001_findings} QueryBus + ${t10.sig_cqrs_003_findings} GET write paths</strong> caught past DI interfaces<br>` +
+      `<strong>0 tokens ($0.00)</strong> · 3 built-in Cypher gates`;
   }
 
   // --- GitHub Markdown Blocks (README.md & benchmarks/README.md) ---
