@@ -427,7 +427,8 @@ public static class NestedSqlParser
         string cleanedSql,
         string rawText,
         HashSet<(string? Db, string? Schema, string Table)> tables,
-        HashSet<(string? Db, string? Schema, string Procedure)> procedures)
+        HashSet<(string? Db, string? Schema, string Procedure)> procedures,
+        HashSet<string>? writeTables = null)
     {
         cleanedSql = StripSqlComments(cleanedSql);
 
@@ -438,7 +439,7 @@ public static class NestedSqlParser
             foreach (Match extMatch in extMatches)
             {
                 var innerSql = extMatch.Groups["innerSql"].Value.Trim().Replace("\\\"", "\"").Replace("\\'", "'");
-                ExtractSqlDependencies(innerSql, rawText, tables, procedures);
+                ExtractSqlDependencies(innerSql, rawText, tables, procedures, writeTables);
             }
         }
 
@@ -476,42 +477,42 @@ public static class NestedSqlParser
                         stmtTables.AddRange(sel.Joins);
                         break;
                     case SqlInsertStatementAst ins:
-                        stmtTables.Add(ins.TargetTable);
+                        stmtTables.Add(ins.TargetTable with { IsWriteTarget = true });
                         if (ins.SourceQuery != null) CollectFromStatement(ins.SourceQuery);
                         break;
                     case SqlUpdateStatementAst upd:
-                        stmtTables.Add(upd.TargetTable);
+                        stmtTables.Add(upd.TargetTable with { IsWriteTarget = true });
                         stmtTables.AddRange(upd.FromTables);
                         break;
                     case SqlDeleteStatementAst del:
-                        stmtTables.Add(del.TargetTable);
+                        stmtTables.Add(del.TargetTable with { IsWriteTarget = true });
                         stmtTables.AddRange(del.UsingTables);
                         break;
                     case SqlMergeStatementAst mrg:
-                        stmtTables.Add(mrg.TargetTable);
+                        stmtTables.Add(mrg.TargetTable with { IsWriteTarget = true });
                         if (mrg.UsingTable != null) stmtTables.Add(mrg.UsingTable);
                         break;
                     case SqlExecStatementAst ex:
                         stmtProcs.Add(ex.Procedure);
                         break;
                     case SqlCreateTableStatementAst crt:
-                        stmtTables.Add(crt.Table);
+                        stmtTables.Add(crt.Table with { IsWriteTarget = true });
                         if (crt.ReferencedTables is { Count: > 0 }) stmtTables.AddRange(crt.ReferencedTables);
                         if (crt.AsSelectQuery != null) CollectFromStatement(crt.AsSelectQuery);
                         break;
                     case SqlCreateViewStatementAst crv:
-                        stmtTables.Add(crv.View);
+                        stmtTables.Add(crv.View with { IsWriteTarget = true });
                         if (crv.AsSelectQuery != null) CollectFromStatement(crv.AsSelectQuery);
                         break;
                     case SqlAlterTableStatementAst alt:
-                        stmtTables.Add(alt.TargetTable);
+                        stmtTables.Add(alt.TargetTable with { IsWriteTarget = true });
                         stmtTables.AddRange(alt.ReferencedTables);
                         break;
                     case SqlDropStatementAst drp when drp.DropType is SqlDropObjectType.Table or SqlDropObjectType.View:
-                        stmtTables.Add(drp.Target);
+                        stmtTables.Add(drp.Target with { IsWriteTarget = true });
                         break;
                     case SqlTruncateStatementAst trn:
-                        stmtTables.Add(trn.TargetTable);
+                        stmtTables.Add(trn.TargetTable with { IsWriteTarget = true });
                         break;
                     case SqlCreateProcedureStatementAst crp:
                         stmtProcs.Add(crp.Procedure);
@@ -538,6 +539,10 @@ public static class NestedSqlParser
                     IsUnresolvedVariable(db, rawText)) continue;
 
                 tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
+                if (t.IsWriteTarget)
+                {
+                    writeTables?.Add(table);
+                }
             }
 
             foreach (var p in stmtProcs)
@@ -573,8 +578,9 @@ public static class NestedSqlParser
 
         var tables = new HashSet<(string? Db, string? Schema, string Table)>();
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
+        var writeTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        ExtractSqlDependencies(cleanedSql, rawText, tables, procedures);
+        ExtractSqlDependencies(cleanedSql, rawText, tables, procedures, writeTables);
         if (IsSalesforceSoqlQuery(rawText, tables))
         {
             return;
@@ -727,7 +733,10 @@ public static class NestedSqlParser
 
             if (ctx != null)
             {
-                var relKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE"
+                var isWriteTable = writeTables.Count > 0
+                    ? writeTables.Contains(tableName)
+                    : verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE";
+                var relKind = isWriteTable
                     ? OntologyConstants.Relationships.WritesTo
                     : OntologyConstants.Relationships.ReadsFrom;
                 ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, tableNodeId, relKind)
@@ -831,22 +840,23 @@ public static class NestedSqlParser
 
         var tables = new HashSet<(string? Db, string? Schema, string Table)>();
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
+        var writeTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        ExtractSqlDependencies(cleanedSql, rawText, tables, procedures);
+        ExtractSqlDependencies(cleanedSql, rawText, tables, procedures, writeTables);
         if (IsSalesforceSoqlQuery(rawText, tables))
         {
             return;
         }
 
         var verb = (firstWord ?? "SELECT").ToUpperInvariant();
-        var accessKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "REPLACE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE"
-            ? OntologyConstants.Relationships.WritesTo
-            : OntologyConstants.Relationships.ReadsFrom;
+        var defaultIsWrite = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "REPLACE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE";
 
         var addedProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var procRef in procedures)
         {
-            if (addedProcs.Add(procRef.Procedure))
+            if (addedProcs.Add(procRef.Procedure) &&
+                !references.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.Calls &&
+                                     string.Equals(r.TargetName, procRef.Procedure, StringComparison.OrdinalIgnoreCase)))
             {
                 references.Add(new Reference(scopeSymbolId, procRef.Procedure, OntologyConstants.Relationships.Calls));
             }
@@ -857,13 +867,33 @@ public static class NestedSqlParser
         {
             if (addedTables.Add(tableRef.Table))
             {
-                references.Add(new Reference(scopeSymbolId, tableRef.Table, OntologyConstants.Relationships.DependsOn));
-                references.Add(new Reference(scopeSymbolId, tableRef.Table, accessKind));
+                var isWriteTable = writeTables.Count > 0
+                    ? writeTables.Contains(tableRef.Table)
+                    : defaultIsWrite;
+                var accessKind = isWriteTable
+                    ? OntologyConstants.Relationships.WritesTo
+                    : OntologyConstants.Relationships.ReadsFrom;
+                var accessRelKind = isWriteTable
+                    ? CodeExplorer.Cypher.Common.RelationshipKind.WritesTo
+                    : CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom;
+
+                if (!references.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn &&
+                                         string.Equals(r.TargetName, tableRef.Table, StringComparison.OrdinalIgnoreCase)))
+                {
+                    references.Add(new Reference(scopeSymbolId, tableRef.Table, OntologyConstants.Relationships.DependsOn));
+                }
+                if (!references.Any(r => r.Kind == accessRelKind &&
+                                         string.Equals(r.TargetName, tableRef.Table, StringComparison.OrdinalIgnoreCase)))
+                {
+                    references.Add(new Reference(scopeSymbolId, tableRef.Table, accessKind));
+                }
             }
             if (!string.IsNullOrEmpty(tableRef.Schema) &&
                 !tableRef.Schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
                 !tableRef.Schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
-                addedTables.Add(tableRef.Schema))
+                addedTables.Add(tableRef.Schema) &&
+                !references.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn &&
+                                     string.Equals(r.TargetName, tableRef.Schema, StringComparison.OrdinalIgnoreCase)))
             {
                 references.Add(new Reference(scopeSymbolId, tableRef.Schema, OntologyConstants.Relationships.DependsOn));
             }

@@ -236,13 +236,13 @@ internal static class Layer3ArgumentExpressionEvaluator
         {
             startOffset++;
         }
-        if (startOffset < rawSpan.Length && rawSpan[startOffset] is '"' or '\'' or '`')
+        while (startOffset < rawSpan.Length && rawSpan[startOffset] is '"' or '\'' or '`')
         {
             startOffset++;
         }
 
         var endOffset = rawSpan.Length;
-        if (endOffset > startOffset && rawSpan[endOffset - 1] is '"' or '\'' or '`')
+        while (endOffset > startOffset && rawSpan[endOffset - 1] is '"' or '\'' or '`')
         {
             endOffset--;
         }
@@ -485,11 +485,8 @@ internal static class Layer3ArgumentExpressionEvaluator
             for (var i = 0; i < vd.Children.Count; i++)
             {
                 if (vd.Children[i] is VariableDeclSyntax subVd &&
-                    subVd.Name.Equals(targetName, StringComparison.Ordinal) &&
-                    subVd.Initializer != null)
+                    TryExtractLocalDefinitionInStmt(subVd, targetName, beforeByte, out initExpr, out line))
                 {
-                    initExpr = subVd.Initializer;
-                    line = subVd.Span.StartLine + 1;
                     return true;
                 }
             }

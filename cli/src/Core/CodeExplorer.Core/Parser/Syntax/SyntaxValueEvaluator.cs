@@ -138,6 +138,10 @@ public static class SyntaxValueEvaluator
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in refs)
         {
+            if (r.Kind is not (CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom or CodeExplorer.Cypher.Common.RelationshipKind.WritesTo))
+            {
+                continue;
+            }
             if (!string.IsNullOrEmpty(r.TargetName) && seen.Add(r.TargetName))
             {
                 string? schema = null;
@@ -151,7 +155,7 @@ public static class SyntaxValueEvaluator
                 tables.Add(new SqlTableRefSyntax(
                     tableName,
                     schema,
-                    IsWriteTarget: opKind is SqlOperationKind.Insert or SqlOperationKind.Update or SqlOperationKind.Delete or SqlOperationKind.Merge));
+                    IsWriteTarget: r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.WritesTo));
             }
         }
 

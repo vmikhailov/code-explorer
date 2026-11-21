@@ -178,7 +178,11 @@ public partial class Layer5AnalysisParser
     private record BindingLookups(
         Dictionary<(string FilePath, string VarName), List<IndexedBinding>> BindingsLookup,
         Dictionary<string, List<IndexedBinding>> GlobalBindingsLookup,
-        Dictionary<string, string> ConstantLookup);
+        Dictionary<string, string> ConstantLookup,
+        Dictionary<string, List<string>>? MessageHandlersByType = null)
+    {
+        public Dictionary<string, List<string>> MessageHandlersByType { get; init; } = MessageHandlersByType ?? new(StringComparer.Ordinal);
+    }
 
     private static SymbolLookups BuildSymbolLookups(ParsingContext ctx, Layer4Result? l4Result = null)
     {
@@ -644,10 +648,92 @@ public partial class Layer5AnalysisParser
         }
     }
 
-    private static BindingLookups BuildBindingLookups(ParsingContext ctx)
+    private static BindingLookups BuildBindingLookups(ParsingContext ctx, SymbolLookups? symbols = null)
     {
         var bindingsLookup = new Dictionary<(string FilePath, string VarName), List<IndexedBinding>>(ctx.RawTypeBindings.Count);
         var globalBindingsLookup = new Dictionary<string, List<IndexedBinding>>(StringComparer.Ordinal);
+        var messageHandlersByType = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        static bool IsLikelyMessageTypeName(string typeName) =>
+            typeName.Length > 7 &&
+            typeName is not ("IntegrationEvent" or "DomainEvent" or "DomainEventBase" or "CommandBase" or "QueryBase" or "BaseCommand" or "BaseQuery" or "BaseEvent" or "BaseRequest") &&
+            !typeName.EndsWith("IntegrationEvent", StringComparison.Ordinal) &&
+            (typeName.EndsWith("Command", StringComparison.Ordinal) ||
+             typeName.EndsWith("Query", StringComparison.Ordinal) ||
+             typeName.EndsWith("DomainEvent", StringComparison.Ordinal) ||
+             typeName.EndsWith("Request", StringComparison.Ordinal) ||
+             typeName.EndsWith("Notification", StringComparison.Ordinal));
+
+        void RegisterMessageHandler(string msgType, string handlerFnId, bool fromHandlerClassName = false)
+        {
+            if (string.IsNullOrWhiteSpace(msgType) || string.IsNullOrWhiteSpace(handlerFnId)) return;
+            var cleanMsg = msgType.Trim().TrimEnd('?');
+            var lt = cleanMsg.IndexOf('<');
+            if (lt > 0)
+            {
+                var gt = cleanMsg.LastIndexOf('>');
+                if (gt > lt + 1 && (cleanMsg.StartsWith("ConsumeContext<", StringComparison.Ordinal) ||
+                                    cleanMsg.StartsWith("IRequest<", StringComparison.Ordinal) ||
+                                    cleanMsg.StartsWith("ICommand<", StringComparison.Ordinal) ||
+                                    cleanMsg.StartsWith("IQuery<", StringComparison.Ordinal) ||
+                                    cleanMsg.StartsWith("IdentifiedCommand<", StringComparison.Ordinal)))
+                {
+                    var inner = cleanMsg[(lt + 1)..gt];
+                    var comma = inner.IndexOf(',');
+                    cleanMsg = (comma > 0 ? inner[..comma] : inner).Trim();
+                }
+                else
+                {
+                    cleanMsg = cleanMsg[..lt].Trim();
+                }
+            }
+            if (cleanMsg.Contains('.'))
+            {
+                cleanMsg = cleanMsg[(cleanMsg.LastIndexOf('.') + 1)..];
+            }
+            if (string.IsNullOrEmpty(cleanMsg) ||
+                cleanMsg is "CancellationToken" or "Object" or "object" or "String" or "string" or "Guid" or "Int32" or "int" ||
+                (!fromHandlerClassName && !IsLikelyMessageTypeName(cleanMsg)))
+            {
+                return;
+            }
+            if (!messageHandlersByType.TryGetValue(cleanMsg, out var hList))
+            {
+                hList = [];
+                messageHandlersByType[cleanMsg] = hList;
+            }
+            if (!hList.Contains(handlerFnId))
+            {
+                hList.Add(handlerFnId);
+            }
+        }
+
+        if (symbols != null)
+        {
+            foreach (var (fnName, fnIds) in symbols.FunctionsByName)
+            {
+                var dotIdx = fnName.LastIndexOf('.');
+                var mName = dotIdx > 0 ? fnName[(dotIdx + 1)..] : fnName;
+                if (mName is not ("Handle" or "HandleAsync" or "Execute" or "ExecuteAsync" or "Consume" or "ConsumeAsync"))
+                    continue;
+                for (var i = 0; i < fnIds.Count; i++)
+                {
+                    var fnId = fnIds[i];
+                    var clsName = dotIdx > 0
+                        ? fnName[..dotIdx]
+                        : (ctx.SymbolScopes.TryGetValue(fnId, out var fnScope) ? fnScope.EnclosingTypeName : null);
+                    if (!string.IsNullOrEmpty(clsName) && clsName.EndsWith("Handler", StringComparison.Ordinal) && clsName.Length > 7)
+                    {
+                        var inferred = clsName[..^7];
+                        if (IsLikelyMessageTypeName(inferred))
+                        {
+                            RegisterMessageHandler(inferred, fnId, fromHandlerClassName: true);
+                        }
+                    }
+                }
+            }
+        }
+
         foreach (var b in ctx.RawTypeBindings)
         {
             var normPath = b.FilePath.Replace('\\', '/');
@@ -666,6 +752,16 @@ public partial class Layer5AnalysisParser
                 globalBindingsLookup[b.VariableName] = gList;
             }
             gList.Add(ib);
+
+            if (symbols != null &&
+                !string.IsNullOrEmpty(normPath) &&
+                b.ScopeId is "Handle" or "HandleAsync" or "Execute" or "ExecuteAsync" or "Consume" or "ConsumeAsync" &&
+                (normPath.Contains("Handler", StringComparison.OrdinalIgnoreCase) ||
+                 normPath.Contains("Consumer", StringComparison.OrdinalIgnoreCase)) &&
+                symbols.FunctionSymbolsByFile.TryGetValue((normPath, b.ScopeId), out var hFnId))
+            {
+                RegisterMessageHandler(b.TypeName, hFnId);
+            }
         }
 
         var constantLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -704,7 +800,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        return new BindingLookups(bindingsLookup, globalBindingsLookup, constantLookup);
+        return new BindingLookups(bindingsLookup, globalBindingsLookup, constantLookup, messageHandlersByType);
     }
 
     private static List<string> ResolveImportCandidateFiles(
@@ -839,90 +935,6 @@ public partial class Layer5AnalysisParser
                 results.Add(cand);
             }
         }
-    }
-
-    private static readonly JsonDocumentOptions PkgJsonOptions = new()
-    {
-        CommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
-    };
-
-    private static ImportLookups BuildImportLookups(ParsingContext ctx, Layer4Result? l4Result)
-    {
-        var fileImports = new Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry>();
-        var starImportsByFile = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var imp in ctx.RawImports)
-        {
-            if (string.IsNullOrEmpty(imp.FilePath) || string.IsNullOrEmpty(imp.Path)) continue;
-
-            var normFile = imp.FilePath.Replace('\\', '/');
-
-            if (imp.Specifiers != null && imp.Specifiers.Count > 0)
-            {
-                foreach (var spec in imp.Specifiers)
-                {
-                    if (spec.IsNamespace || spec.LocalName == "*")
-                    {
-                        if (!starImportsByFile.TryGetValue(normFile, out var starList))
-                        {
-                            starList = [];
-                            starImportsByFile[normFile] = starList;
-                        }
-                        starList.Add(imp.Path);
-
-                        if (!string.IsNullOrEmpty(spec.LocalName) && spec.LocalName != "*")
-                        {
-                            fileImports[(normFile, spec.LocalName)] = new ImportedSymbolEntry(
-                                imp.Path,
-                                "*",
-                                IsDefault: false,
-                                IsNamespace: true
-                            );
-                        }
-                    }
-                    else
-                    {
-                        fileImports[(normFile, spec.LocalName)] = new ImportedSymbolEntry(
-                            imp.Path,
-                            spec.ImportedName ?? spec.LocalName,
-                            spec.IsDefault,
-                            IsNamespace: false
-                        );
-                    }
-                }
-            }
-        }
-
-        var workspacePackages = new Dictionary<string, PackageTargetInfo>(StringComparer.OrdinalIgnoreCase);
-        var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
-        if (inMemoryProjects != null && inMemoryProjects.Count > 0)
-        {
-            foreach (var proj in inMemoryProjects)
-            {
-                var pkgName = proj.PackageName;
-                var mainFile = proj.MainFile ?? proj.ModuleFile;
-                var normProjPath = proj.Path.Replace('\\', '/');
-                if (!string.IsNullOrEmpty(pkgName))
-                {
-                    workspacePackages[pkgName] = new PackageTargetInfo(normProjPath, mainFile);
-                    if (pkgName.StartsWith('@') && pkgName.Contains('/'))
-                    {
-                        var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
-                        workspacePackages.TryAdd(unqualified, new PackageTargetInfo(normProjPath, mainFile));
-                    }
-                }
-                if (!string.IsNullOrEmpty(proj.Name))
-                {
-                    workspacePackages.TryAdd(proj.Name, new PackageTargetInfo(normProjPath, mainFile));
-                }
-            }
-        }
-
-        var tsConfigPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (k, v) in ctx.TsConfigPaths) tsConfigPaths[k] = v;
-
-        return new ImportLookups(fileImports, starImportsByFile, workspacePackages, tsConfigPaths);
     }
 }
 
@@ -1306,30 +1318,50 @@ internal static partial class Layer5SymbolVisibilityResolver
         }
 
         var projectKeysById = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var ambiguousKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
         if (inMemoryProjects != null)
         {
+            var keyFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var p in inMemoryProjects)
             {
-                var keys = new List<string>(2);
-                if (!string.IsNullOrWhiteSpace(p.Name)) keys.Add(p.Name);
+                if (!string.IsNullOrWhiteSpace(p.Name))
+                {
+                    keyFrequency[p.Name] = keyFrequency.TryGetValue(p.Name, out var c1) ? c1 + 1 : 1;
+                }
                 var extracted = ConstantRegistry.ExtractProjectName(p.Path);
-                if (!string.IsNullOrWhiteSpace(extracted) && !keys.Contains(extracted, StringComparer.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(extracted) && !string.Equals(extracted, p.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    keyFrequency[extracted] = keyFrequency.TryGetValue(extracted, out var c2) ? c2 + 1 : 1;
+                }
+            }
+            foreach (var (k, count) in keyFrequency)
+            {
+                if (count > 1) ambiguousKeys.Add(k);
+            }
+
+            foreach (var p in inMemoryProjects)
+            {
+                var keys = new List<string>(3);
+                var normPath = p.Path.Replace('\\', '/').Trim('/');
+                if (!string.IsNullOrWhiteSpace(normPath)) keys.Add(normPath);
+                if (!string.IsNullOrWhiteSpace(p.Name) && !ambiguousKeys.Contains(p.Name) && !keys.Contains(p.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    keys.Add(p.Name);
+                }
+                var extracted = ConstantRegistry.ExtractProjectName(p.Path);
+                if (!string.IsNullOrWhiteSpace(extracted) && !ambiguousKeys.Contains(extracted) && !keys.Contains(extracted, StringComparer.OrdinalIgnoreCase))
                 {
                     keys.Add(extracted);
                 }
                 if (keys.Count > 0)
                 {
                     projectKeysById[p.Id] = keys;
-                    foreach (var k in keys)
-                    {
-                        projectsInDepGraph.Add(k);
-                    }
                 }
             }
         }
 
-        static List<string>? ResolveProjectIdKeys(string nodeId, Dictionary<string, List<string>> map)
+        List<string>? ResolveProjectIdKeys(string nodeId, Dictionary<string, List<string>> map)
         {
             if (map.TryGetValue(nodeId, out var existing)) return existing;
             if (!Urn.TryParse(nodeId, out var urn) || !urn.IsProject)
@@ -1337,21 +1369,22 @@ internal static partial class Layer5SymbolVisibilityResolver
                 return null;
             }
 
-            var projName = !string.IsNullOrWhiteSpace(urn.Name) ? urn.Name : urn.Path;
-            if (string.IsNullOrWhiteSpace(projName))
-            {
-                return null;
-            }
-
-            var list = new List<string> { projName };
+            var list = new List<string>(3);
             if (!string.IsNullOrWhiteSpace(urn.Path))
             {
+                var normUrnPath = urn.Path.Replace('\\', '/').Trim('/');
+                if (!string.IsNullOrWhiteSpace(normUrnPath)) list.Add(normUrnPath);
                 var ext = ConstantRegistry.ExtractProjectName(urn.Path);
-                if (!string.IsNullOrWhiteSpace(ext) && !list.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(ext) && !ambiguousKeys.Contains(ext) && !list.Contains(ext, StringComparer.OrdinalIgnoreCase))
                 {
                     list.Add(ext);
                 }
             }
+            if (!string.IsNullOrWhiteSpace(urn.Name) && !ambiguousKeys.Contains(urn.Name) && !list.Contains(urn.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(urn.Name);
+            }
+            if (list.Count == 0) return null;
             map[nodeId] = list;
             return list;
         }

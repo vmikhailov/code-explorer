@@ -683,12 +683,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 return;
 
             case CallExprSyntax { CallKind: CallSyntaxKind.Method or CallSyntaxKind.Function or CallSyntaxKind.Macro }:
-            case CallExprSyntax { CallKind: CallSyntaxKind.Constructor, MethodNameSlice.Length: > 0 }
-                when Profile.Calls.Contains("new_expression") || Profile.Calls.Contains("object_creation_expression"):
-            case CallExprSyntax { CallKind: CallSyntaxKind.Constructor, Callee: not null }
-                when Profile.Calls.Contains("new_expression") || Profile.Calls.Contains("object_creation_expression"):
-            case CallExprSyntax { CallKind: CallSyntaxKind.SuperConstructor or CallSyntaxKind.ThisConstructor }
-                when Profile.Calls.Contains("new_expression") || Profile.Calls.Contains("object_creation_expression"):
+            case CallExprSyntax { CallKind: CallSyntaxKind.Constructor, MethodNameSlice.Length: > 0 }:
+            case CallExprSyntax { CallKind: CallSyntaxKind.Constructor, Callee: not null }:
+            case CallExprSyntax { CallKind: CallSyntaxKind.SuperConstructor or CallSyntaxKind.ThisConstructor }:
                 VisitCallExpression(node, depth);
                 return;
 

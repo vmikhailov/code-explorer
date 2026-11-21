@@ -357,6 +357,14 @@ internal sealed class SemanticTargetGrounder
             if (!callerFn.IsTest)
             {
                 addRelationship(new AccessedByRelationship(tableNode.Id, callerFn.Id), true);
+                if (tblRef.IsWriteTarget)
+                {
+                    addRelationship(new WritesToRelationship(callerFn.Id, tableNode.Id), false);
+                }
+                else
+                {
+                    addRelationship(new ReadsFromRelationship(callerFn.Id, tableNode.Id), false);
+                }
             }
         }
     }
@@ -433,27 +441,27 @@ internal sealed class SemanticTargetGrounder
                 tables.AddRange(sel.Joins);
                 break;
             case SqlInsertStatementAst ins:
-                tables.Add(ins.TargetTable);
+                tables.Add(ins.TargetTable with { IsWriteTarget = true });
                 CollectSqlTargetsFromStatement(ins.SourceQuery, tables, procs);
                 break;
             case SqlUpdateStatementAst upd:
-                tables.Add(upd.TargetTable);
+                tables.Add(upd.TargetTable with { IsWriteTarget = true });
                 tables.AddRange(upd.FromTables);
                 break;
             case SqlDeleteStatementAst del:
-                tables.Add(del.TargetTable);
+                tables.Add(del.TargetTable with { IsWriteTarget = true });
                 tables.AddRange(del.UsingTables);
                 break;
             case SqlMergeStatementAst mrg:
-                tables.Add(mrg.TargetTable);
+                tables.Add(mrg.TargetTable with { IsWriteTarget = true });
                 if (mrg.UsingTable != null) tables.Add(mrg.UsingTable);
                 break;
             case SqlCreateTableStatementAst ct:
-                tables.Add(ct.Table);
+                tables.Add(ct.Table with { IsWriteTarget = true });
                 CollectSqlTargetsFromStatement(ct.AsSelectQuery, tables, procs);
                 break;
             case SqlCreateViewStatementAst cv:
-                tables.Add(cv.View);
+                tables.Add(cv.View with { IsWriteTarget = true });
                 CollectSqlTargetsFromStatement(cv.AsSelectQuery, tables, procs);
                 break;
             case SqlCreateProcedureStatementAst cp:
@@ -466,7 +474,7 @@ internal sealed class SemanticTargetGrounder
             case SqlDropStatementAst drp:
                 if (drp.DropType is SqlDropObjectType.Table or SqlDropObjectType.View)
                 {
-                    tables.Add(drp.Target);
+                    tables.Add(drp.Target with { IsWriteTarget = true });
                 }
                 else if (drp.DropType == SqlDropObjectType.Procedure)
                 {
@@ -474,7 +482,7 @@ internal sealed class SemanticTargetGrounder
                 }
                 break;
             case SqlTruncateStatementAst tr:
-                tables.Add(tr.TargetTable);
+                tables.Add(tr.TargetTable with { IsWriteTarget = true });
                 break;
             case SqlExecStatementAst ex:
                 procs.Add(ex.Procedure);

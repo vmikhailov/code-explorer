@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.93.0] - 2026-11-21
+
+### Added
+- **CQRS Semantic Invariant Gate Starter Templates & End-to-End Mediator / ORM / SQL Data-Lineage Resolution (`CodeExplorer.Gates`, `CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.CSharp`)**:
+  - Added three CQRS starter Semantic Invariant Gate templates to `ce gate init`: `cqrs-query-no-writes.yaml.example` (`SIG-CQRS-001` — Query handlers and query services must be side-effect free), `cqrs-no-query-to-command-calls.yaml.example` (`SIG-CQRS-002` — Queries must not invoke Command handlers), and `cqrs-http-get-read-only.yaml.example` (`SIG-CQRS-003` — HTTP `GET` endpoints must be strictly read-only across the call chain).
+  - Added MediatR / CQRS command and query dispatch resolution (`Send`, `Publish`, `ExecuteCommandAsync`, `ExecuteQueryAsync`, and inline `new <TCommand|TQuery>(...)` constructor arguments) in `Layer5AnalysisParser` to link endpoints and callers directly to `<TMessage>Handler.Handle`, plus module/namespace affinity scoring (`ScoreScopeAffinity`) when resolving multi-module interface implementations.
+  - Extended `EfCoreLibraryParser` with `DbSet<T>` read/write lineage extraction (`WRITES_TO` on `Add`, `AddAsync`, `AddRange`, `Update`, `Remove`, `ExecuteUpdateAsync`, `ExecuteDeleteAsync`, and `EntityState.Modified`; `READS_FROM` on `FirstOrDefaultAsync`, `SingleOrDefaultAsync`, `ToListAsync`, `FindAsync`, `AnyAsync`, `CountAsync`) and pre-activated project-level `GlobalUsings.cs` / `global using` directives and package dependencies in `Layer3SyntacticParser`.
+  - Extended `DapperLibraryParser` with `QueryFirstAsync`, `QueryFirstOrDefaultAsync`, `QuerySingleAsync`, `QuerySingleOrDefaultAsync`, `ExecuteReaderAsync`, and `ExecuteScalarAsync`, added compile-time `nameof(...)` evaluation in `AstValueResolver` and raw triple-quoted interpolated string (`$"""..."""`) delimiter stripping in `Layer3ArgumentExpressionEvaluator`, and separated SQL `UPDATE` target tables (`WRITES_TO`) from subquery / `FROM` / `USING` read tables (`READS_FROM`) in `NestedSqlParser` and `SemanticTargetGrounder`.
+
+---
+
 ## [1.92.0] - 2026-11-20
 
 ### Added

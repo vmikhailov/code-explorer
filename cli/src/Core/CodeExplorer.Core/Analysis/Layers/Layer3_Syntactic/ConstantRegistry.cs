@@ -44,7 +44,8 @@ public static class ConstantRegistry
     private static readonly HashSet<string> TechSuffixes = new(StringComparer.OrdinalIgnoreCase)
     {
         "data", "logic", "graphql", "grapql", "contracts", "contract", "services", "service",
-        "host", "api", "client", "tests", "test", "grpc", "common", "infrastructure"
+        "host", "api", "client", "tests", "test", "grpc", "common", "infrastructure",
+        "application", "domain", "presentation", "web", "core", "shared", "buildingblocks", "modules"
     };
 
     public static string? ExtractDomainNameFromProject(string? projectName)
@@ -66,7 +67,7 @@ public static class ConstantRegistry
     {
         "topicNameOrId", "topicName", "subscriptionName", "subName", "queueName",
         "topic", "subscription", "queue", "url", "baseUrl", "apiUrl", "uri", "endpoint", "host", "path",
-        "name", "id", "key", "value",
+        "name", "id", "key", "value", "sql", "query", "commandText", "stmt", "cmd",
         "channel", "exchange", "routingKey", "receiveTopicName", "publishTopicName",
         "sendTopicName", "ruleTreeTopic", "ruleTreeSub", "kvTopic",
         "PUBSUB_TOPIC_NAME", "PUBSUB_SUBSCRIPTION_NAME", "TOPIC_NAME", "SUBSCRIPTION_NAME",
@@ -358,7 +359,7 @@ public static class ConstantRegistry
 
     private static readonly HashSet<string> MonorepoContainers = new(StringComparer.OrdinalIgnoreCase)
     {
-        "services", "service", "bin", "apps", "packages", "crates", "libs", "lib"
+        "services", "service", "bin", "apps", "packages", "crates", "libs", "lib", "modules", "buildingblocks"
     };
 
     public static string? ExtractProjectName(string? projectNameOrPath)

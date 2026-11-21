@@ -17,9 +17,14 @@ public sealed class DapperLibraryParser : DeclarativeSemanticExtension
             {
                 CallMethodNames = new[]
                 {
-                    "Query", "QueryAsync", "QueryFirst", "QueryFirstOrDefault",
-                    "QuerySingle", "QuerySingleOrDefault", "QueryMultiple", "QueryMultipleAsync",
-                    "Execute", "ExecuteAsync", "ExecuteReader", "ExecuteScalar"
+                    "Query", "QueryAsync", "QueryFirst", "QueryFirstAsync",
+                    "QueryFirstOrDefault", "QueryFirstOrDefaultAsync",
+                    "QuerySingle", "QuerySingleAsync",
+                    "QuerySingleOrDefault", "QuerySingleOrDefaultAsync",
+                    "QueryMultiple", "QueryMultipleAsync",
+                    "Execute", "ExecuteAsync",
+                    "ExecuteReader", "ExecuteReaderAsync",
+                    "ExecuteScalar", "ExecuteScalarAsync"
                 }.ToFrozenSet(),
                 RequireExtractableSqlOnCall = false,
                 FallbackQueryPrefix = "Dapper Query"

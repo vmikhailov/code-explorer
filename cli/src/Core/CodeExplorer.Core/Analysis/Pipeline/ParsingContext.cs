@@ -63,10 +63,18 @@ public static class WorkspaceSymbolScopeExtensions
         if (string.IsNullOrWhiteSpace(targetName)) return false;
         if (!ctx.HasWorkspaceSymbolFilter || ctx.IsSubtreeScan) return true;
         if (ctx.KnownWorkspaceCallableNames.ContainsKey(targetName)) return true;
-        var lastDot = targetName.LastIndexOf('.');
-        if (lastDot >= 0 && lastDot + 1 < targetName.Length)
+        var span = targetName.AsSpan();
+        if (span.StartsWith("new ", StringComparison.Ordinal))
         {
-            if (ctx.KnownWorkspaceCallableSpanLookup.ContainsKey(targetName.AsSpan(lastDot + 1))) return true;
+            span = span[4..].TrimStart();
+            var lt = span.IndexOf('<');
+            if (lt > 0) span = span[..lt].TrimEnd();
+            if (ctx.KnownWorkspaceCallableSpanLookup.ContainsKey(span)) return true;
+        }
+        var lastDot = span.LastIndexOf('.');
+        if (lastDot >= 0 && lastDot + 1 < span.Length)
+        {
+            if (ctx.KnownWorkspaceCallableSpanLookup.ContainsKey(span[(lastDot + 1)..])) return true;
         }
         return false;
     }

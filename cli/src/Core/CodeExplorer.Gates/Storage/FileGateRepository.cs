@@ -315,6 +315,84 @@ public class FileGateRepository : IGateRepository
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-12F-011.json
+                """),
+            ("cqrs-query-no-writes.yaml.example", """
+                # Starter Gate: CQRS - Query Handlers Must Be Side-Effect Free
+                # Ensure query handlers and query services never directly or transitively write to tables or publish events.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-CQRS-001
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Responsibility
+                name: CQRS - Query Handlers Must Be Side-Effect Free
+                severity: Error
+                description: In Command Query Responsibility Segregation (CQRS), queries must only return data and never mutate database tables or publish events.
+                remediation: Move database writes and event publishing out of the query path into an explicit Command Handler.
+                target: "{q.name} -> {target.name}"
+                message: "Query function '{q.name}' in '{q.file_path}' triggers state mutation on '{target.name}' via '{w.name}'"
+                query: |
+                  MATCH (q:Function)-[:CALLS*0..4]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
+                  WHERE NOT coalesce(q.is_test, false)
+                    AND (q.file_path CONTAINS '/Queries/'
+                      OR q.file_path CONTAINS 'QueryHandler'
+                      OR q.file_path ENDS WITH 'Queries.cs')
+                  RETURN q, w, r, target
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-CQRS-001.json
+                """),
+            ("cqrs-no-query-to-command-calls.yaml.example", """
+                # Starter Gate: CQRS - Queries Must Not Invoke Command Handlers
+                # Ensure query handlers and query services never dispatch or call command handlers.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-CQRS-002
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Boundaries
+                name: CQRS - Queries Must Not Invoke Command Handlers
+                severity: Error
+                description: Query handlers and query services must remain strictly separated from command execution paths and never dispatch or invoke command handlers.
+                remediation: Decouple the read model from command execution; execute commands explicitly from the caller or application workflow.
+                target: "{q.name} -> {c.name}"
+                message: "Query function '{q.name}' in '{q.file_path}' invokes command handler '{c.name}' in '{c.file_path}'"
+                query: |
+                  MATCH (q:Function)-[r:CALLS]->(c:Function)
+                  WHERE NOT coalesce(q.is_test, false)
+                    AND (q.file_path CONTAINS '/Queries/'
+                      OR q.file_path CONTAINS 'QueryHandler'
+                      OR q.file_path ENDS WITH 'Queries.cs')
+                    AND (c.file_path CONTAINS '/Commands/'
+                      OR c.file_path CONTAINS 'CommandHandler')
+                  RETURN q, r, c
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-CQRS-002.json
+                """),
+            ("cqrs-http-get-read-only.yaml.example", """
+                # Starter Gate: CQRS - HTTP GET Endpoints Must Be Read-Only
+                # Ensure HTTP GET endpoints never trigger database writes or event publications across the call chain.
+                # Rename to .yaml to activate for your workspace.
+                id: SIG-CQRS-003
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Boundaries
+                name: CQRS - HTTP GET Endpoints Must Be Read-Only
+                severity: Error
+                description: HTTP GET endpoints represent queries and must be safe and idempotent without mutating database tables or publishing domain/integration events.
+                remediation: Route state-changing operations through POST/PUT/PATCH/DELETE command endpoints and keep GET endpoints strictly read-only.
+                target: "{ep.name} -> {target.name}"
+                message: "HTTP GET endpoint '{ep.name}' handled by '{fn.name}' in '{fn.file_path}' mutates '{target.name}' via '{w.name}'"
+                query: |
+                  MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)-[:CALLS*0..5]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
+                  WHERE ep.http_method = 'GET'
+                    AND NOT coalesce(fn.is_test, false)
+                  RETURN fn, ep, w, r, target
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-CQRS-003.json
                 """)
         };
 

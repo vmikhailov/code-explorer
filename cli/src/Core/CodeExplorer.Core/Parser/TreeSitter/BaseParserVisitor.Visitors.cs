@@ -314,6 +314,15 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                         enclosingFunc.References.Add(callRef);
                     }
                 }
+
+                if (currentScope.Node.Id != node.Id)
+                {
+                    _fusedDeclarative?.CollectReferences(node, "", currentScope.References, Context!);
+                    for (var i = 0; i < _imperativeExtensions.Count; i++)
+                    {
+                        _imperativeExtensions[i].CollectReferences(node, "", currentScope.References, Context!);
+                    }
+                }
             }
 
 

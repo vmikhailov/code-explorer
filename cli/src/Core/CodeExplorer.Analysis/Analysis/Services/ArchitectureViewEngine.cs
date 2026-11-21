@@ -7,13 +7,17 @@ namespace CodeExplorer.Core.Analysis;
 
 public enum ArchitectureViewType
 {
-    SystemContext,  // C1: Macro System Context view (Services, Databases, Topics, ExternalServices)
-    ServiceFlow,    // C2: Container & Service Flow view (Interactions, Messaging, Shared Libraries)
-    Component,      // C3: Component Drill-down for a selected container/project
-    DomainMap,      // Bounded Contexts / Domain Microservices Map
-    Tiers,          // Layered Architecture Tiers (Ingress, Domain, Infra, Foundation, Tests)
-    BoundedContexts, // AI-Distilled Bounded Contexts Map (Logical DDD domains, entities, capabilities, CQRS, and cross-context links)
-    ProjectMap      // C3: Internal module map of a single project (view-only projection: folder modules, lifted calls, cycles)
+    SystemContext,       // C1: Macro System Context view (Services, Databases, Topics, ExternalServices)
+    ServiceFlow,         // C2: Container & Service Flow view (Interactions, Messaging, Shared Libraries)
+    Component,           // C3: Component Drill-down for a selected container/project
+    DomainMap,           // Bounded Contexts / Domain Microservices Map
+    Tiers,               // Layered Architecture Tiers (Ingress, Domain, Infra, Foundation, Tests)
+    BoundedContexts,     // AI-Distilled Bounded Contexts Map (Logical DDD domains, entities, capabilities, CQRS, and cross-context links)
+    ProjectMap,          // C3: Internal module map of a single project (view-only projection: folder modules, lifted calls, cycles)
+    ProjectDependencies, // Modules: Workspace project/package dependency graph with SCC cycle detection
+    CallFlow,            // Code: Directed call flow trace from entry points / endpoints / functions to data & egress
+    DatabaseMap,         // Data: Services/projects mapped to databases, schemas, and topics with shared-DB detection
+    DataFlow             // Data: Writers -> Table / Topic -> Readers lineage projection
 }
 
 public class ArchitectureViewRequest
@@ -90,6 +94,10 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
             ArchitectureViewType.Tiers => await GetTieredArchitectureGraphAsync(request.IncludeLibraries, ct),
             ArchitectureViewType.BoundedContexts => await GetBoundedContextGraphAsync(request.Scope, ct),
             ArchitectureViewType.ProjectMap => await GetProjectMapViewAsync(request.Scope, ct),
+            ArchitectureViewType.ProjectDependencies => await GetProjectDependenciesViewAsync(request.Scope, request.IncludeLibraries, ct),
+            ArchitectureViewType.CallFlow => await GetCallFlowViewAsync(request.Scope, ct),
+            ArchitectureViewType.DatabaseMap => await GetDatabaseMapViewAsync(request.SharedDatabasesOnly, ct),
+            ArchitectureViewType.DataFlow => await GetDataFlowViewAsync(request.Scope, ct),
             _ => await GetSystemContextViewAsync(request.IncludeLibraries, request.Scope, request.SharedDatabasesOnly, ct)
         };
     }

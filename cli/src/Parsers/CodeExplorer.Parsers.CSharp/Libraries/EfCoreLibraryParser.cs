@@ -91,6 +91,16 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
                 }
             }
         }
+        else if (node.Is(TreeSitterSyntax.CSharp.InvocationExpression) &&
+                 TryExtractEfCoreDbSetAccess(node, out var dbSetTarget, out var isWriteAccess))
+        {
+            var relKind = isWriteAccess ? OntologyConstants.Relationships.WritesTo : OntologyConstants.Relationships.ReadsFrom;
+            var relEnum = isWriteAccess ? CodeExplorer.Cypher.Common.RelationshipKind.WritesTo : CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom;
+            if (!references.Any(r => r.Kind == relEnum && string.Equals(r.TargetName, dbSetTarget, StringComparison.OrdinalIgnoreCase)))
+            {
+                references.Add(new Reference(scopeSymbolId, dbSetTarget, relKind, node.StartPosition.Row + 1, node.StartPosition.Column + 1));
+            }
+        }
     }
 
     private static void EnrichEfCoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
@@ -502,6 +512,194 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
             if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
                 return current;
             current = current.Parent;
+        }
+        return null;
+    }
+
+    private static readonly FrozenSet<string> EfCoreWriteMethods = new[]
+    {
+        "Add", "AddAsync", "AddRange", "AddRangeAsync",
+        "Update", "UpdateRange",
+        "Remove", "RemoveRange",
+        "ExecuteUpdate", "ExecuteUpdateAsync",
+        "ExecuteDelete", "ExecuteDeleteAsync"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> EfCoreReadMethods = new[]
+    {
+        "Find", "FindAsync",
+        "First", "FirstAsync", "FirstOrDefault", "FirstOrDefaultAsync",
+        "Single", "SingleAsync", "SingleOrDefault", "SingleOrDefaultAsync",
+        "Last", "LastAsync", "LastOrDefault", "LastOrDefaultAsync",
+        "ToList", "ToListAsync", "ToArray", "ToArrayAsync",
+        "ToDictionary", "ToDictionaryAsync", "ToHashSet", "ToHashSetAsync",
+        "Any", "AnyAsync", "All", "AllAsync",
+        "Count", "CountAsync", "LongCount", "LongCountAsync",
+        "Sum", "SumAsync", "Max", "MaxAsync", "Min", "MinAsync", "Average", "AverageAsync",
+        "AsNoTracking", "AsQueryable", "AsAsyncEnumerable", "Load", "LoadAsync"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> ExcludedDbContextMembers = new[]
+    {
+        "Database", "ChangeTracker", "Model", "ContextId", "Entry", "Set"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private static bool TryExtractEfCoreDbSetAccess(Node invocationNode, out string targetTableOrEntity, out bool isWrite)
+    {
+        targetTableOrEntity = string.Empty;
+        isWrite = false;
+
+        var func = invocationNode.GetFunctionNode();
+        if (!func.IsValid() || !func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+        {
+            return false;
+        }
+
+        var methodNode = func.GetField(TreeSitterSyntax.Fields.Name);
+        if (!methodNode.IsValid()) return false;
+        var methodName = methodNode.Text;
+        var ltIdx = methodName.IndexOf('<');
+        if (ltIdx > 0) methodName = methodName[..ltIdx].Trim();
+
+        if (methodName == "Entry")
+        {
+            var parentAssign = invocationNode.Parent?.Parent;
+            if (parentAssign.IsValid() &&
+                parentAssign.Text.Contains("EntityState.", StringComparison.Ordinal) &&
+                !parentAssign.Text.Contains("EntityState.Unchanged", StringComparison.Ordinal) &&
+                !parentAssign.Text.Contains("EntityState.Detached", StringComparison.Ordinal))
+            {
+                var entityType = TryResolveFirstArgParameterType(invocationNode);
+                if (!string.IsNullOrEmpty(entityType))
+                {
+                    targetTableOrEntity = entityType;
+                    isWrite = true;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        var isWriteMethod = EfCoreWriteMethods.Contains(methodName);
+        var isReadMethod = !isWriteMethod && EfCoreReadMethods.Contains(methodName);
+        if (!isWriteMethod && !isReadMethod)
+        {
+            return false;
+        }
+
+        isWrite = isWriteMethod;
+
+        var curr = func.GetField(TreeSitterSyntax.Fields.Expression);
+        for (var depth = 0; depth < 12 && curr.IsValid(); depth++)
+        {
+            if (curr.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+            {
+                var innerFunc = curr.GetFunctionNode();
+                if (innerFunc.IsValid() && innerFunc.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+                {
+                    var innerName = innerFunc.GetField(TreeSitterSyntax.Fields.Name);
+                    var innerReceiver = innerFunc.GetField(TreeSitterSyntax.Fields.Expression);
+                    if (innerName.IsValid() && innerName.Text.StartsWith("Set<", StringComparison.Ordinal) &&
+                        IsLikelyDbContextReceiver(innerReceiver))
+                    {
+                        var gStart = innerName.Text.IndexOf('<');
+                        var gEnd = innerName.Text.LastIndexOf('>');
+                        if (gEnd > gStart + 1)
+                        {
+                            targetTableOrEntity = innerName.Text[(gStart + 1)..gEnd].Trim();
+                            return !string.IsNullOrEmpty(targetTableOrEntity);
+                        }
+                    }
+                    curr = innerReceiver;
+                    continue;
+                }
+                break;
+            }
+
+            if (curr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+            {
+                var propNode = curr.GetField(TreeSitterSyntax.Fields.Name);
+                var objNode = curr.GetField(TreeSitterSyntax.Fields.Expression);
+                if (propNode.IsValid() && IsLikelyDbContextReceiver(objNode))
+                {
+                    var propName = propNode.Text;
+                    if (!ExcludedDbContextMembers.Contains(propName))
+                    {
+                        targetTableOrEntity = propName;
+                        return true;
+                    }
+                }
+                curr = objNode;
+                continue;
+            }
+
+            if (isWriteMethod && IsLikelyDbContextReceiver(curr))
+            {
+                var entityType = TryResolveFirstArgParameterType(invocationNode);
+                if (!string.IsNullOrEmpty(entityType))
+                {
+                    targetTableOrEntity = entityType;
+                    return true;
+                }
+            }
+
+            break;
+        }
+
+        return false;
+    }
+
+    private static bool IsLikelyDbContextReceiver(Node? receiverNode)
+    {
+        if (!receiverNode.IsValid()) return false;
+        var span = receiverNode.AsSpan().Trim();
+        if (span.StartsWith("this.", StringComparison.Ordinal))
+        {
+            span = span[5..].Trim();
+        }
+        if (span.IsEmpty || span.Contains('(') || span.Contains('.')) return false;
+
+        return span.Equals("context", StringComparison.OrdinalIgnoreCase) ||
+               span.Equals("_context", StringComparison.OrdinalIgnoreCase) ||
+               span.Equals("db", StringComparison.OrdinalIgnoreCase) ||
+               span.Equals("_db", StringComparison.OrdinalIgnoreCase) ||
+               span.Equals("dbContext", StringComparison.OrdinalIgnoreCase) ||
+               span.Equals("_dbContext", StringComparison.OrdinalIgnoreCase) ||
+               span.EndsWith("Context", StringComparison.OrdinalIgnoreCase) ||
+               span.EndsWith("DbContext", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryResolveFirstArgParameterType(Node invocationNode)
+    {
+        var argList = invocationNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+        if (!firstArg.IsValid()) return null;
+        var argIdent = firstArg.AsSpan().Trim();
+        if (argIdent.IsEmpty) return null;
+
+        var curr = invocationNode.Parent;
+        while (curr.IsValid())
+        {
+            if (curr.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.Common.FunctionDeclaration))
+            {
+                var paramList = curr.FindChildOfType(TreeSitterSyntax.CSharp.ParameterList);
+                if (paramList.IsValid())
+                {
+                    foreach (var p in paramList.FindChildrenOfType(TreeSitterSyntax.CSharp.Parameter))
+                    {
+                        var pName = p.GetField(TreeSitterSyntax.Fields.Name);
+                        var pType = p.GetField(TreeSitterSyntax.Fields.Type);
+                        if (pName.IsValid() && pType.IsValid() && pName.AsSpan().Trim().SequenceEqual(argIdent))
+                        {
+                            var tText = pType.Text.Trim().TrimEnd('?');
+                            var lt = tText.IndexOf('<');
+                            return lt > 0 ? tText[..lt].Trim() : tText;
+                        }
+                    }
+                }
+                break;
+            }
+            curr = curr.Parent;
         }
         return null;
     }

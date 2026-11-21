@@ -14,6 +14,11 @@ public static class CSharpDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
+        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax or CodeExplorer.Core.Parser.Syntax.BlockStmtSyntax)
+        {
+            return;
+        }
+
         if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Struct or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Record } typeDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);

@@ -566,6 +566,24 @@ public static partial class AstValueResolver
         var firstArg = argChildren.Count > 0 ? argChildren[0] : null;
         var semantics = callExpr?.ValueSemantics ?? CallValueSemantics.None;
 
+        // 0. Compile-time nameof(...) operator in C#
+        if ((callExpr?.MethodName == "nameof" || funcText == "nameof") && argChildren.Count == 1 && firstArg.IsValid())
+        {
+            var nameofTarget = firstArg is ArgumentSyntax { Value: { } argVal } ? argVal.AsSpan().Trim() : firstArg.AsSpan().Trim();
+            var ltIdx = nameofTarget.IndexOf('<');
+            if (ltIdx > 0) nameofTarget = nameofTarget[..ltIdx].Trim();
+            var lastDot = nameofTarget.LastIndexOf('.');
+            if (lastDot >= 0 && lastDot + 1 < nameofTarget.Length) nameofTarget = nameofTarget[(lastDot + 1)..];
+            var lastColon = nameofTarget.LastIndexOf(':');
+            if (lastColon >= 0 && lastColon + 1 < nameofTarget.Length) nameofTarget = nameofTarget[(lastColon + 1)..];
+            nameofTarget = nameofTarget.Trim().TrimStart('@');
+            if (!nameofTarget.IsEmpty)
+            {
+                result = nameofTarget.ToString();
+                return true;
+            }
+        }
+
         // 1. Byte / char / Base64 decoding
         if (semantics == CallValueSemantics.ByteOrBase64Decode &&
             TryDecodeConstantCall(func, funcText, argChildren, contextOrProject, depth, visitedVars, out result))

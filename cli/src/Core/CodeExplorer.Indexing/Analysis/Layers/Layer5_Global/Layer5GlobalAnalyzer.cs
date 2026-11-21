@@ -114,7 +114,7 @@ public partial class Layer5AnalysisParser
         var symbols = BuildSymbolLookups(ctx, _currentL4Result);
         ResolveInheritanceReferences(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
         Layer5SymbolVisibilityResolver.ResolveMemberOfTypeRelationships(ctx, symbols, referenceRelationships);
-        var bindings = BuildBindingLookups(ctx);
+        var bindings = BuildBindingLookups(ctx, symbols);
         var imports = BuildImportLookups(ctx, _currentL4Result);
 
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);

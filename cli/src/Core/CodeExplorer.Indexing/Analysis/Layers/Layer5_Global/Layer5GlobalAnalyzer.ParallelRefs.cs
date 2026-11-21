@@ -159,4 +159,287 @@ public partial class Layer5AnalysisParser
             ctx.RecordScanIssue(Layer5GlobalSource, ReferenceErrorCode, refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: ReferenceErrorName, exception: ex, isFileParent: false);
         }
     }
+
+    private static ImportLookups BuildImportLookups(ParsingContext ctx, Layer4Result? l4Result)
+    {
+        const string wildcardImportSymbol = "*";
+        var fileImports = new Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry>();
+        var starImportsByFile = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var imp in ctx.RawImports)
+        {
+            if (string.IsNullOrEmpty(imp.FilePath) || string.IsNullOrEmpty(imp.Path)) continue;
+
+            var normFile = imp.FilePath.Replace('\\', '/');
+
+            if (imp.Specifiers != null && imp.Specifiers.Count > 0)
+            {
+                foreach (var spec in imp.Specifiers)
+                {
+                    if (spec.IsNamespace || spec.LocalName == wildcardImportSymbol)
+                    {
+                        if (!starImportsByFile.TryGetValue(normFile, out var starList))
+                        {
+                            starList = [];
+                            starImportsByFile[normFile] = starList;
+                        }
+                        starList.Add(imp.Path);
+
+                        if (!string.IsNullOrEmpty(spec.LocalName) && spec.LocalName != wildcardImportSymbol)
+                        {
+                            fileImports[(normFile, spec.LocalName)] = new ImportedSymbolEntry(
+                                imp.Path,
+                                wildcardImportSymbol,
+                                IsDefault: false,
+                                IsNamespace: true
+                            );
+                        }
+                    }
+                    else
+                    {
+                        fileImports[(normFile, spec.LocalName)] = new ImportedSymbolEntry(
+                            imp.Path,
+                            spec.ImportedName ?? spec.LocalName,
+                            spec.IsDefault,
+                            IsNamespace: false
+                        );
+                    }
+                }
+            }
+        }
+
+        var workspacePackages = new Dictionary<string, PackageTargetInfo>(StringComparer.OrdinalIgnoreCase);
+        var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
+        if (inMemoryProjects != null && inMemoryProjects.Count > 0)
+        {
+            foreach (var proj in inMemoryProjects)
+            {
+                var pkgName = proj.PackageName;
+                var mainFile = proj.MainFile ?? proj.ModuleFile;
+                var normProjPath = proj.Path.Replace('\\', '/');
+                if (!string.IsNullOrEmpty(pkgName))
+                {
+                    workspacePackages[pkgName] = new PackageTargetInfo(normProjPath, mainFile);
+                    if (pkgName.StartsWith('@') && pkgName.Contains('/'))
+                    {
+                        var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
+                        workspacePackages.TryAdd(unqualified, new PackageTargetInfo(normProjPath, mainFile));
+                    }
+                }
+                if (!string.IsNullOrEmpty(proj.Name))
+                {
+                    workspacePackages.TryAdd(proj.Name, new PackageTargetInfo(normProjPath, mainFile));
+                }
+            }
+        }
+
+        var tsConfigPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (k, v) in ctx.TsConfigPaths) tsConfigPaths[k] = v;
+
+        return new ImportLookups(fileImports, starImportsByFile, workspacePackages, tsConfigPaths);
+    }
+
+    private static int ScoreScopeAffinity(in SymbolScopeInfo a, in SymbolScopeInfo b)
+    {
+        var score = 0;
+        if (!string.IsNullOrEmpty(a.Namespace) && !string.IsNullOrEmpty(b.Namespace))
+        {
+            var minLen = Math.Min(a.Namespace.Length, b.Namespace.Length);
+            var common = 0;
+            while (common < minLen && a.Namespace[common] == b.Namespace[common]) common++;
+            score += common * 2;
+        }
+        if (!string.IsNullOrEmpty(a.FilePath) && !string.IsNullOrEmpty(b.FilePath))
+        {
+            var minPath = Math.Min(a.FilePath.Length, b.FilePath.Length);
+            var commonPath = 0;
+            while (commonPath < minPath && char.ToLowerInvariant(a.FilePath[commonPath]) == char.ToLowerInvariant(b.FilePath[commonPath])) commonPath++;
+            score += commonPath;
+        }
+        return score;
+    }
+
+    private static readonly HashSet<string> MediatorDispatchMethodNames = new(StringComparer.Ordinal)
+    {
+        "Send", "SendAsync", "Publish", "PublishAsync",
+        "ExecuteCommandAsync", "ExecuteQueryAsync",
+        "EnqueueAsync", "Dispatch", "DispatchAsync", "Execute", "ExecuteAsync"
+    };
+
+    private static void TryResolveMediatorMessageDispatch(
+        Reference refItem,
+        string targetName,
+        string? methodName,
+        string? normCallerFile,
+        SymbolScopeInfo callerScope,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        BindingLookups bindings,
+        List<Relationship> referenceRelationships)
+    {
+        void DispatchMessageType(string rawMsgType)
+        {
+            if (string.IsNullOrWhiteSpace(rawMsgType)) return;
+            var clean = rawMsgType.Trim();
+            if (clean.StartsWith("new ", StringComparison.Ordinal)) clean = clean[4..].Trim();
+            var lt = clean.IndexOf('<');
+            if (lt > 0)
+            {
+                var gt = clean.LastIndexOf('>');
+                if (gt > lt + 1 && clean.StartsWith("IdentifiedCommand<", StringComparison.Ordinal))
+                {
+                    var inner = clean[(lt + 1)..gt];
+                    var comma = inner.IndexOf(',');
+                    clean = (comma > 0 ? inner[..comma] : inner).Trim();
+                }
+                else
+                {
+                    clean = clean[..lt].Trim();
+                }
+            }
+            if (clean.Contains('.')) clean = clean[(clean.LastIndexOf('.') + 1)..];
+            if (!bindings.MessageHandlersByType.TryGetValue(clean, out var handlerIds) || handlerIds.Count == 0)
+            {
+                return;
+            }
+
+            if (handlerIds.Count == 1)
+            {
+                var onlyHandler = handlerIds[0];
+                if (onlyHandler != refItem.ScopeSymbolId &&
+                    Layer5SymbolVisibilityResolver.IsImplementorVisibleToCaller(callerScope, onlyHandler, symbols, ctx))
+                {
+                    referenceRelationships.Add(CreateCallRel(refItem, onlyHandler));
+                }
+                return;
+            }
+
+            var bestScore = -1;
+            for (var i = 0; i < handlerIds.Count; i++)
+            {
+                var hid = handlerIds[i];
+                if (hid == refItem.ScopeSymbolId ||
+                    !Layer5SymbolVisibilityResolver.IsImplementorVisibleToCaller(callerScope, hid, symbols, ctx))
+                {
+                    continue;
+                }
+                var sc = ScoreScopeAffinity(callerScope, Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(hid, null, ctx));
+                if (sc > bestScore) bestScore = sc;
+            }
+            for (var i = 0; i < handlerIds.Count; i++)
+            {
+                var hid = handlerIds[i];
+                if (hid == refItem.ScopeSymbolId ||
+                    !Layer5SymbolVisibilityResolver.IsImplementorVisibleToCaller(callerScope, hid, symbols, ctx))
+                {
+                    continue;
+                }
+                var hScope = Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(hid, null, ctx);
+                if (bestScore <= 0 || ScoreScopeAffinity(callerScope, hScope) == bestScore)
+                {
+                    referenceRelationships.Add(CreateCallRel(refItem, hid));
+                }
+            }
+        }
+
+        if (refItem.TargetName.StartsWith("new ", StringComparison.Ordinal))
+        {
+            DispatchMessageType(refItem.TargetName);
+            return;
+        }
+
+        if (bindings.MessageHandlersByType.ContainsKey(targetName))
+        {
+            DispatchMessageType(targetName);
+            return;
+        }
+
+        var checkMethod = methodName ?? targetName;
+        if (checkMethod != null && MediatorDispatchMethodNames.Contains(checkMethod) && normCallerFile != null)
+        {
+            var callerFnName = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
+            foreach (var ((fp, _), bList) in bindings.BindingsLookup)
+            {
+                if (!string.Equals(fp, normCallerFile, StringComparison.OrdinalIgnoreCase)) continue;
+                for (var i = 0; i < bList.Count; i++)
+                {
+                    var ib = bList[i];
+                    if (!string.IsNullOrEmpty(callerFnName) &&
+                        !string.IsNullOrEmpty(ib.ScopeId) &&
+                        !string.Equals(ib.ScopeId, callerFnName, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+                    DispatchMessageType(ib.TypeName);
+                }
+            }
+        }
+    }
+
+    private static void ResolveDeferredParamMessagingReferences(
+        List<Reference> deferredRefs,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        BindingLookups bindings,
+        List<TopicNode> newTopicNodes,
+        HashSet<string> createdTopicIds,
+        List<Relationship> referenceRelationships)
+    {
+        var callsByTarget = new Dictionary<string, List<Relationship>>(StringComparer.Ordinal);
+        foreach (var rel in referenceRelationships)
+        {
+            if (rel.Kind == RelationshipKind.Calls && !string.IsNullOrEmpty(rel.ArgFlow))
+            {
+                if (!callsByTarget.TryGetValue(rel.To, out var list))
+                {
+                    list = [];
+                    callsByTarget[rel.To] = list;
+                }
+                list.Add(rel);
+            }
+        }
+
+        if (callsByTarget.Count == 0) return;
+
+        foreach (var defRef in deferredRefs)
+        {
+            var paramIdxPos = defRef.TargetName.IndexOf("$param:", StringComparison.Ordinal);
+            if (paramIdxPos < 0) continue;
+
+            var prefix = defRef.TargetName[..paramIdxPos];
+            var paramStr = defRef.TargetName[(paramIdxPos + 7)..];
+            if (!int.TryParse(paramStr, out var paramIdx)) continue;
+
+            if (!callsByTarget.TryGetValue(defRef.ScopeSymbolId, out var incomingCalls)) continue;
+
+            var matchPrefix = $"{paramIdx}<-";
+            foreach (var callRel in incomingCalls)
+            {
+                var argFlow = callRel.ArgFlow!;
+                foreach (var segment in argFlow.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (!segment.StartsWith(matchPrefix, StringComparison.Ordinal)) continue;
+                    var originsPart = segment[matchPrefix.Length..];
+                    foreach (var rawOrigin in originsPart.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var origin = rawOrigin.Trim();
+                        if (string.IsNullOrEmpty(origin) ||
+                            (origin.Length >= 2 && origin[0] == 'p' && char.IsDigit(origin[1])))
+                        {
+                            continue;
+                        }
+
+                        var concreteRef = defRef with
+                        {
+                            ScopeSymbolId = callRel.From,
+                            TargetName = $"{prefix}{origin}",
+                            Line = callRel.Line > 0 ? callRel.Line : defRef.Line,
+                            Column = callRel.Column > 0 ? callRel.Column : defRef.Column
+                        };
+                        ResolveMessagingReference(concreteRef, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
+                    }
+                }
+            }
+        }
+    }
 }

@@ -426,4 +426,160 @@ public class GateCommandTests
         var logsResult = await evaluator.CheckGateAsync(logsGate!);
         logsResult.Violations.Should().ContainSingle(v => (v.Message ?? "").Contains("WriteTo.File") && (v.Message ?? "").Contains("logs/order-service.log"));
     }
+
+    [Test]
+    public async Task CqrsBasis_DetectsQueryWrites_QueryToCommandCalls_HttpGetWrites_AndStarterTemplates()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempWorkspace, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include=\"Dapper\" Version=\"2.1.35\" /><PackageReference Include=\"Microsoft.EntityFrameworkCore\" Version=\"9.0.0\" /></ItemGroup></Project>");
+
+        var queriesDir = Path.Combine(_tempWorkspace, "Application", "Queries");
+        var commandsDir = Path.Combine(_tempWorkspace, "Application", "Commands");
+        var apiDir = Path.Combine(_tempWorkspace, "Api");
+        Directory.CreateDirectory(queriesDir);
+        Directory.CreateDirectory(commandsDir);
+        Directory.CreateDirectory(apiDir);
+
+        await File.WriteAllTextAsync(
+            Path.Combine(commandsDir, "CreateOrderCommandHandler.cs"),
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            namespace SampleApp.Application.Commands;
+
+            public record CreateOrderCommand(string CustomerId);
+
+            public class CreateOrderCommandHandler
+            {
+                private readonly dynamic _dbContext;
+
+                public CreateOrderCommandHandler(dynamic dbContext) => _dbContext = dbContext;
+
+                public async Task Handle(CreateOrderCommand command, CancellationToken ct)
+                {
+                    _dbContext.Orders.Add(command);
+                }
+            }
+            """);
+
+        await File.WriteAllTextAsync(
+            Path.Combine(queriesDir, "GetOrderQueryHandler.cs"),
+            """"
+            using System.Data;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Dapper;
+            using SampleApp.Application.Commands;
+
+            namespace SampleApp.Application.Queries;
+
+            public record GetOrderQuery(int OrderId);
+
+            public class OrderDto
+            {
+                public int Id { get; set; }
+            }
+
+            public class GetOrderQueryHandler
+            {
+                private readonly IDbConnection _connection;
+                private readonly dynamic _mediator;
+
+                public GetOrderQueryHandler(IDbConnection connection, dynamic mediator)
+                {
+                    _connection = connection;
+                    _mediator = mediator;
+                }
+
+                public async Task<OrderDto> Handle(GetOrderQuery query, CancellationToken ct)
+                {
+                    const string readSql = $"""
+                        SELECT [Id] AS [{nameof(OrderDto.Id)}]
+                        FROM [Orders]
+                        WHERE [Id] = @OrderId
+                        """;
+                    var dto = await _connection.QuerySingleAsync<OrderDto>(readSql, new { query.OrderId });
+
+                    // Violation 1 (SIG-CQRS-001): Query handler performs a write
+                    const string auditWriteSql = "INSERT INTO [OrderReadAudit] ([OrderId]) VALUES (@OrderId)";
+                    await _connection.ExecuteAsync(auditWriteSql, new { query.OrderId });
+
+                    // Violation 2 (SIG-CQRS-002): Query handler dispatches a command
+                    await _mediator.Send(new CreateOrderCommand("cust-1"));
+
+                    return dto;
+                }
+            }
+            """");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(apiDir, "OrdersController.cs"),
+            """
+            using System.Threading.Tasks;
+            using Microsoft.AspNetCore.Mvc;
+            using SampleApp.Application.Commands;
+
+            namespace SampleApp.Api;
+
+            [ApiController]
+            [Route("api/orders")]
+            public class OrdersController : ControllerBase
+            {
+                private readonly dynamic _mediator;
+
+                public OrdersController(dynamic mediator) => _mediator = mediator;
+
+                // Violation 3 (SIG-CQRS-003): HTTP GET endpoint dispatches a state-mutating Command
+                [HttpGet("{id}")]
+                public async Task<IActionResult> GetOrderWithSideEffect(int id)
+                {
+                    await _mediator.Send(new CreateOrderCommand("cust-1"));
+                    return Ok();
+                }
+            }
+            """);
+
+        var ws = WorkspaceLocator.Initialize(_tempWorkspace, "CqrsTestApp");
+        using var client = new SqliteGraphClient(ws.DbPath);
+        await client.CreateIndicesAsync();
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, clear: true, enableIntentAnalysis: false);
+
+        var gateRepo = new CodeExplorer.Core.Gates.Storage.FileGateRepository(_tempWorkspace);
+        await gateRepo.InitStarterGatesAsync(overwrite: true);
+
+        var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
+        File.Exists(Path.Combine(gatesDir, "cqrs-query-no-writes.yaml.example")).Should().BeTrue();
+        File.Exists(Path.Combine(gatesDir, "cqrs-no-query-to-command-calls.yaml.example")).Should().BeTrue();
+        File.Exists(Path.Combine(gatesDir, "cqrs-http-get-read-only.yaml.example")).Should().BeTrue();
+
+        File.Move(
+            Path.Combine(gatesDir, "cqrs-query-no-writes.yaml.example"),
+            Path.Combine(gatesDir, "cqrs-query-no-writes.yaml"));
+        File.Move(
+            Path.Combine(gatesDir, "cqrs-no-query-to-command-calls.yaml.example"),
+            Path.Combine(gatesDir, "cqrs-no-query-to-command-calls.yaml"));
+        File.Move(
+            Path.Combine(gatesDir, "cqrs-http-get-read-only.yaml.example"),
+            Path.Combine(gatesDir, "cqrs-http-get-read-only.yaml"));
+
+        var evaluator = new CodeExplorer.Core.Gates.Engine.GateExecutionEngine(client, gateRepo);
+
+        var gate1 = await gateRepo.GetGateByIdAsync("SIG-CQRS-001");
+        gate1.Should().NotBeNull();
+        var res1 = await evaluator.CheckGateAsync(gate1!);
+        res1.Violations.Select(v => v.Target).Should().Contain("Handle -> OrderReadAudit");
+
+        var gate2 = await gateRepo.GetGateByIdAsync("SIG-CQRS-002");
+        gate2.Should().NotBeNull();
+        var res2 = await evaluator.CheckGateAsync(gate2!);
+        res2.Violations.Select(v => v.Target).Should().Contain("Handle -> Handle");
+
+        var gate3 = await gateRepo.GetGateByIdAsync("SIG-CQRS-003");
+        gate3.Should().NotBeNull();
+        var res3 = await evaluator.CheckGateAsync(gate3!);
+        res3.Violations.Should().Contain(v => (v.Target ?? "").Contains("Orders"));
+    }
 }

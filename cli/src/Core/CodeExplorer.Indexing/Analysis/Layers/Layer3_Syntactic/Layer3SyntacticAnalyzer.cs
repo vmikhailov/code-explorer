@@ -434,6 +434,26 @@ public partial class Layer3SyntacticParser
                 ? []
                 : Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 
+            var projectGlobalImports = new List<string>(projectContext.Dependencies);
+            if (!ctx.LightweightAstScanMode)
+            {
+                for (var pi = 0; pi < projectFileCount; pi++)
+                {
+                    var pItem = parsedResults[pi];
+                    if (pItem?.SyntaxTree.Document is not { } pDoc || pDoc.Imports.Count == 0) continue;
+                    var isGlobalUsingsFile = pItem.Value.File.Name.Contains("GlobalUsings", StringComparison.OrdinalIgnoreCase);
+                    for (var im = 0; im < pDoc.Imports.Count; im++)
+                    {
+                        var impDecl = pDoc.Imports[im];
+                        if (!string.IsNullOrWhiteSpace(impDecl.ModulePath) &&
+                            (isGlobalUsingsFile || impDecl.AsSpan().TrimStart().StartsWith("global ", StringComparison.Ordinal)))
+                        {
+                            projectGlobalImports.Add(impDecl.ModulePath);
+                        }
+                    }
+                }
+            }
+
             await Parallel.ForAsync(0, projectFileCount, parallelOptions, (int slot, CancellationToken ct) =>
             {
                 var i = lptOrder[slot];
@@ -456,7 +476,7 @@ public partial class Layer3SyntacticParser
                             syntaxTree.FileNode.IsTest = true;
                         }
 
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, isTestFile, project.EntityKind != ProjectEntityKind.Unknown ? project.EntityKind : null);
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, isTestFile, project.EntityKind != ProjectEntityKind.Unknown ? project.EntityKind : null, projectGlobalImports);
 
                         if (componentParsers.Count > 0)
                         {
@@ -502,7 +522,8 @@ public partial class Layer3SyntacticParser
         ParsingContext? ctx = null,
         string? projectName = null,
         bool isTest = false,
-        ProjectEntityKind? projectKind = null)
+        ProjectEntityKind? projectKind = null,
+        IReadOnlyList<string>? projectGlobalImports = null)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -570,6 +591,14 @@ public partial class Layer3SyntacticParser
         mainVisitor.ProjectName = projectName;
         mainVisitor.Context = ctx;
         mainVisitor.IsTestFile = isTest || (syntaxTree.FileNode?.IsTest ?? false);
+
+        if (projectGlobalImports is { Count: > 0 })
+        {
+            for (var gi = 0; gi < projectGlobalImports.Count; gi++)
+            {
+                mainVisitor.ResolveAndInjectLibraryParser(projectGlobalImports[gi]);
+            }
+        }
 
         mainVisitor.Visit(syntaxTree.Tree.RootNode);
         syntaxTree.RootSymbol = mainVisitor.RootSymbol;
