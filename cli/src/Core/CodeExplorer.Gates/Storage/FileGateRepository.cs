@@ -329,7 +329,7 @@ public class FileGateRepository : IGateRepository
                 severity: Error
                 description: In Command Query Responsibility Segregation (CQRS), queries must only return data and never mutate database tables or publish events.
                 remediation: Move database writes and event publishing out of the query path into an explicit Command Handler.
-                target: "{q.name} -> {target.name}"
+                target: "{w.name} -> {target.name}"
                 message: "Query handler '{t.name}.{q.name}' in '{q.file_path}' triggers state mutation on '{target.name}' via '{w.name}'"
                 # Query side is identified by framework semantics first (implements IQueryHandler / QueryHandler,
                 # @QueryHandler decorator or annotation), with a folder convention fallback for languages
@@ -344,7 +344,7 @@ public class FileGateRepository : IGateRepository
                       OR (coalesce(t.implements, '') CONTAINS 'RequestHandler<' AND (t.implements CONTAINS 'Query,' OR t.implements CONTAINS 'Query>'))
                       OR ((toLower(t.file_path) CONTAINS '/queries/' OR toLower(t.file_path) CONTAINS '/query/')
                         AND t.name ENDS WITH 'Handler'))
-                  RETURN t, q, w, r, target
+                  RETURN DISTINCT t, q, w, r, target
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-001.json
@@ -378,7 +378,7 @@ public class FileGateRepository : IGateRepository
                       OR (coalesce(ct.implements, '') CONTAINS 'RequestHandler<' AND (ct.implements CONTAINS 'Command,' OR ct.implements CONTAINS 'Command>'))
                       OR ((toLower(ct.file_path) CONTAINS '/commands/' OR toLower(ct.file_path) CONTAINS '/command/')
                         AND ct.name ENDS WITH 'Handler'))
-                  RETURN t, q, r, c, ct
+                  RETURN DISTINCT t, q, r, c, ct
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-002.json
@@ -396,14 +396,14 @@ public class FileGateRepository : IGateRepository
                 severity: Error
                 description: HTTP GET endpoints represent queries and must be safe and idempotent without mutating database tables or publishing domain/integration events.
                 remediation: Route state-changing operations through POST/PUT/PATCH/DELETE command endpoints and keep GET endpoints strictly read-only.
-                target: "{ep.name} -> {target.name}"
+                target: "{ep.name} -> {w.name} -> {target.name}"
                 message: "HTTP GET endpoint '{ep.name}' handled by '{fn.name}' in '{fn.file_path}' mutates '{target.name}' via '{w.name}'"
                 query: |
                   MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)-[:CALLS*0..5]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
                   WHERE ep.http_method = 'GET'
                     AND NOT coalesce(fn.is_test, false)
                     AND NOT coalesce(w.is_test, false)
-                  RETURN fn, ep, w, r, target
+                  RETURN DISTINCT fn, ep, w, r, target
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-003.json

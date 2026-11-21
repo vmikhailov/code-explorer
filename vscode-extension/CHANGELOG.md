@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.95.1] - 2026-11-21
+
+### Fixed
+- **Multi-Hop Semantic Gate Location & Path Deduplication (`CodeExplorer.Gates`)**:
+  - Fixed `GateExecutionEngine` splicing downstream edge call-site line numbers onto upstream source files when evaluating multi-hop variable-length Cypher paths (`[:CALLS*0..4]`). Edge call-site coordinates now override `srcNode` coordinates only when the relationship originates in the same source file.
+  - Added `RETURN DISTINCT` and intermediate writer formatting (`{w.name} -> {target.name}`) to the three built-in CQRS starter templates (`SIG-CQRS-001`, `SIG-CQRS-002`, `SIG-CQRS-003`) to eliminate duplicate violation rows across multi-hop interface/implementation paths.
+
+---
+
 ## [1.95.0] - 2026-11-21
 
 ### Added
