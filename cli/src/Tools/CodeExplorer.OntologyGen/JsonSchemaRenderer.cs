@@ -54,7 +54,7 @@ public static class JsonSchemaRenderer
 
     private static readonly HashSet<string> ControlFlowRels = new(StringComparer.OrdinalIgnoreCase)
     {
-        "CALLS", "TRANSITIVELY_CALLS", "TRIGGERS", "HANDLES", "IMPLEMENTS",
+        "CALLS", "TRANSITIVELY_CALLS", "TRIGGERS", "HANDLES", "HANDLES_QUERY", "HANDLES_COMMAND", "HANDLES_EVENT", "IMPLEMENTS",
         "HAS_ENTRYPOINT", "SERVICE_CALL", "CALLS_ENDPOINT", "CALLED_BY",
         "EXPOSES", "EXPOSES_ENDPOINT", "EXPOSED_BY", "INSTANTIATES"
     };
@@ -165,6 +165,19 @@ public static class JsonSchemaRenderer
                 if (seen.Add((node.Label, edge.Rel, toKind)))
                 {
                     list.Add((node.Label, edge.Rel, toKind));
+                }
+            }
+        }
+
+        const string funcLabel = "Function";
+        const string msgLabel = "Message";
+        if (activeLabelSet.Contains(funcLabel) && activeLabelSet.Contains(msgLabel))
+        {
+            foreach (var cqrsRel in new[] { "HANDLES_QUERY", "HANDLES_COMMAND", "HANDLES_EVENT" })
+            {
+                if (seen.Add((funcLabel, cqrsRel, msgLabel)))
+                {
+                    list.Add((funcLabel, cqrsRel, msgLabel));
                 }
             }
         }

@@ -35,12 +35,14 @@ public class FileGateRepository : IGateRepository
                 try
                 {
                     var content = await File.ReadAllTextAsync(file, cancellationToken);
-                    var gate = GateSerializer.DeserializeGate(content, relFile);
-                    if (gatesById.TryGetValue(gate.Id, out var existing))
+                    foreach (var gate in GateSerializer.DeserializeGates(content, relFile))
                     {
-                        Console.Error.WriteLine($"[Gate Warning] Duplicate gate ID '{gate.Id}' found in '{relFile}' (overriding earlier gate from '{existing.Source}').");
+                        if (gatesById.TryGetValue(gate.Id, out var existing))
+                        {
+                            Console.Error.WriteLine($"[Gate Warning] Duplicate gate ID '{gate.Id}' found in '{relFile}' (overriding earlier gate from '{existing.Source}').");
+                        }
+                        gatesById[gate.Id] = gate;
                     }
-                    gatesById[gate.Id] = gate;
                 }
                 catch (Exception ex)
                 {
@@ -318,7 +320,7 @@ public class FileGateRepository : IGateRepository
                 """),
             ("cqrs-query-no-writes.yaml.example", """
                 # Starter Gate: CQRS - Query Handlers Must Be Side-Effect Free
-                # Ensure query handlers and query services never directly or transitively write to tables or publish events.
+                # Ensure query handlers never directly or transitively write to database tables or publish events.
                 # Rename to .yaml to activate for your workspace.
                 id: SIG-CQRS-001
                 category: Architectural
@@ -330,21 +332,12 @@ public class FileGateRepository : IGateRepository
                 description: In Command Query Responsibility Segregation (CQRS), queries must only return data and never mutate database tables or publish events.
                 remediation: Move database writes and event publishing out of the query path into an explicit Command Handler.
                 target: "{w.name} -> {target.name}"
-                message: "Query handler '{t.name}.{q.name}' in '{q.file_path}' triggers state mutation on '{target.name}' via '{w.name}'"
-                # Query side is identified by framework semantics first (implements IQueryHandler / QueryHandler,
-                # @QueryHandler decorator or annotation), with a folder convention fallback for languages
-                # without interface or decorator markers (e.g. Go packages named query/queries).
+                message: "Query handler '{q.name}' ({msg.name}) in '{q.file_path}' triggers state mutation on '{target.name}' via '{w.name}'"
                 query: |
-                  MATCH (t:Type)-[:HAS_METHOD]->(q:Function)-[:CALLS*0..4]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
-                  WHERE NOT coalesce(t.is_test, false)
-                    AND NOT coalesce(q.is_test, false)
-                    AND NOT coalesce(w.is_test, false)
-                    AND (coalesce(t.implements, '') CONTAINS 'QueryHandler'
-                      OR coalesce(t.attributes, '') CONTAINS 'QueryHandler'
-                      OR (coalesce(t.implements, '') CONTAINS 'RequestHandler<' AND (t.implements CONTAINS 'Query,' OR t.implements CONTAINS 'Query>'))
-                      OR ((toLower(t.file_path) CONTAINS '/queries/' OR toLower(t.file_path) CONTAINS '/query/')
-                        AND t.name ENDS WITH 'Handler'))
-                  RETURN DISTINCT t, q, w, r, target
+                  MATCH (q:Function)-[:HANDLES_QUERY]->(msg:Message),
+                        (q)-[:CALLS*0..4]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
+                  WHERE NOT q.is_test AND NOT w.is_test
+                  RETURN DISTINCT q, msg, w, r, target
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-001.json
@@ -363,22 +356,12 @@ public class FileGateRepository : IGateRepository
                 description: Query handlers must remain strictly separated from command execution paths and never dispatch or invoke command handlers.
                 remediation: Decouple the read model from command execution; execute commands explicitly from the caller or application workflow.
                 target: "{q.name} -> {c.name}"
-                message: "Query handler '{t.name}.{q.name}' in '{q.file_path}' invokes command handler '{ct.name}.{c.name}' in '{c.file_path}'"
+                message: "Query handler '{q.name}' ({qmsg.name}) in '{q.file_path}' invokes command handler '{c.name}' ({cmd.name}) in '{c.file_path}'"
                 query: |
-                  MATCH (t:Type)-[:HAS_METHOD]->(q:Function)-[r:CALLS]->(c:Function)<-[:HAS_METHOD]-(ct:Type)
-                  WHERE NOT coalesce(t.is_test, false)
-                    AND NOT coalesce(ct.is_test, false)
-                    AND (coalesce(t.implements, '') CONTAINS 'QueryHandler'
-                      OR coalesce(t.attributes, '') CONTAINS 'QueryHandler'
-                      OR (coalesce(t.implements, '') CONTAINS 'RequestHandler<' AND (t.implements CONTAINS 'Query,' OR t.implements CONTAINS 'Query>'))
-                      OR ((toLower(t.file_path) CONTAINS '/queries/' OR toLower(t.file_path) CONTAINS '/query/')
-                        AND t.name ENDS WITH 'Handler'))
-                    AND (coalesce(ct.implements, '') CONTAINS 'CommandHandler'
-                      OR coalesce(ct.attributes, '') CONTAINS 'CommandHandler'
-                      OR (coalesce(ct.implements, '') CONTAINS 'RequestHandler<' AND (ct.implements CONTAINS 'Command,' OR ct.implements CONTAINS 'Command>'))
-                      OR ((toLower(ct.file_path) CONTAINS '/commands/' OR toLower(ct.file_path) CONTAINS '/command/')
-                        AND ct.name ENDS WITH 'Handler'))
-                  RETURN DISTINCT t, q, r, c, ct
+                  MATCH (q:Function)-[:HANDLES_QUERY]->(qmsg:Message),
+                        (q)-[:CALLS*1..3]->(c:Function)-[:HANDLES_COMMAND]->(cmd:Message)
+                  WHERE NOT q.is_test AND NOT c.is_test
+                  RETURN DISTINCT q, qmsg, c, cmd
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-CQRS-002.json
@@ -399,10 +382,9 @@ public class FileGateRepository : IGateRepository
                 target: "{ep.name} -> {w.name} -> {target.name}"
                 message: "HTTP GET endpoint '{ep.name}' handled by '{fn.name}' in '{fn.file_path}' mutates '{target.name}' via '{w.name}'"
                 query: |
-                  MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)-[:CALLS*0..5]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
-                  WHERE ep.http_method = 'GET'
-                    AND NOT coalesce(fn.is_test, false)
-                    AND NOT coalesce(w.is_test, false)
+                  MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)
+                        -[:CALLS*0..5]->(w:Function)-[r:WRITES_TO|PUBLISHES]->(target)
+                  WHERE ep.http_method = 'GET' AND NOT fn.is_test AND NOT w.is_test
                   RETURN DISTINCT fn, ep, w, r, target
                 ratchet:
                   enabled: true

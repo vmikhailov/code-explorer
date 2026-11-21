@@ -54,6 +54,7 @@ graph TD
         Endpoint["Endpoint"]
         ExternalService["ExternalService"]
         Library["Library"]
+        Message["Message"]
         Module["Module"]
         PeerMesh["PeerMesh"]
         Procedure["Procedure"]
@@ -162,9 +163,13 @@ graph TD
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
     Member -->|ACCESSED_BY| Function
+    Message -->|TRIGGERS| Function
+    Message -->|IMPLEMENTED_BY| Type
+    Message -->|DECLARED_IN| File
     Module -->|IMPLEMENTED_BY| Project
     Module -->|DEPENDS_ON| Library
     Module -->|DEPENDS_ON| Package
+    Module -->|CONTAINS| Message
     Package -->|PRODUCES| Project
     Package -->|IMPLEMENTED_BY| Project
     Parameter -->|DECLARED_IN| File
@@ -341,6 +346,7 @@ graph TD
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
+| `Message` | `DECLARED_IN` |
 | `Parameter` | `DECLARED_IN` |
 | `Project` | `CONTAINS` |
 | `Query` | `DECLARED_IN` |
@@ -805,6 +811,7 @@ graph TD
 | `Function` | `INSTANTIATES` |
 | `Function` | `DECLARES` |
 | `Member` | `ACCESSED_BY` |
+| `Message` | `TRIGGERS` |
 | `Procedure` | `ACCESSED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
@@ -1003,6 +1010,7 @@ graph TD
 | `Function` | `INSTANTIATES` |
 | `Function` | `DECLARES` |
 | `Member` | `OF_TYPE` |
+| `Message` | `IMPLEMENTED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
 | `Table` | `ACCESSED_BY` |
@@ -1435,6 +1443,37 @@ graph TD
 
 ---
 
+#### `Message`
+
+> Represents a CQRS or application message contract (Query, Command, or Domain/Integration Event) handled via a mediator, bus, or domain dispatcher.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `TRIGGERS` | `Function` |
+| `IMPLEMENTED_BY` | `Type` |
+| `DECLARED_IN` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Module` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The message contract name (e.g. GetMyWalletQuery, CreateOrderCommand). |
+| `Path` | `string` | The workspace-relative path of the declaring file or handler file. |
+| `SubKind` | `OperationType` | The semantic message role (query, command, event, notification). |
+| `Framework` | `string?` | Detected CQRS or messaging framework (e.g. mediatr, nestjs-cqrs, axon, symfony-messenger, spring, cqrs). |
+| `FilePath` | `string?` | Workspace-relative source file declaring the message or handler. |
+| `StartLine` | `int?` | 1-indexed starting line number of the message declaration. |
+
+---
+
 #### `Module`
 
 > Abstract base software module encompassing executable workloads, shared libraries, and automated test suites.
@@ -1446,6 +1485,7 @@ graph TD
 | `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
+| `CONTAINS` | `Message` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1928,6 +1968,9 @@ graph TD
 | `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
 | `EXPOSES` | Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes. |
 | `FLOWS_TO` | Traces semantic dataflow between call arguments and parameters across intra- and inter-procedural hops. |
+| `HANDLES_COMMAND` | Links a command handler function to the Layer 4 CQRS Command message contract it executes. |
+| `HANDLES_EVENT` | Links an event or notification handler function to the Layer 4 Domain or Integration Event message contract it processes. |
+| `HANDLES_QUERY` | Links a query handler function to the Layer 4 CQRS Query message contract it executes. |
 | `HAS_ENTRYPOINT` | Links an executable ProjectNode to its binary or process EntryPointNode. |
 | `HAS_MEMBER` | Links a type declaration to its declared member variables or fields. |
 | `HAS_METHOD` | Links a type declaration to its declared methods or functions. |
@@ -2005,6 +2048,7 @@ graph TD
 | Layer 4: Semantic Structure | `Endpoint` | `{workspaceId}:ep:{httpMethod}:{routeTemplate}` |
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:es:{protocol}:{host}` |
 | Layer 4: Semantic Structure | `Library` | `{workspaceId}:lib:{libraryName}` |
+| Layer 4: Semantic Structure | `Message` | `{workspaceId}:msg:{subKind}:{messageName}` |
 | Layer 4: Semantic Structure | `Module` | `{workspaceId}:{kindPrefix}:{moduleName}` |
 | Layer 4: Semantic Structure | `PeerMesh` | `{workspaceId}:mesh:peer-network` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:proc:{procedureName}` |

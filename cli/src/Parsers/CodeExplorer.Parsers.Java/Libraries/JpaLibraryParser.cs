@@ -5,7 +5,8 @@ namespace CodeExplorer.Parsers.Java.Libraries;
 
 public class JpaLibraryParser : DeclarativeSemanticExtension
 {
-    private readonly ConcurrentDictionary<string, string> _entityToTable = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> _entityToTable = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> _repoToEntity = new(StringComparer.OrdinalIgnoreCase);
 
     public JpaLibraryParser()
     {
@@ -16,8 +17,11 @@ public class JpaLibraryParser : DeclarativeSemanticExtension
         SupportedPatterns =
         [
             "org.springframework.data.jpa*",
+            "org.springframework.data:spring-data-jpa*",
             "org.springframework.data.repository*",
             "org.springframework.boot.spring-boot-starter-data-jpa*",
+            "org.springframework.boot:spring-boot-starter-data-jpa*",
+            "*spring-boot-starter-data-jpa*",
             "jakarta.persistence*",
             "javax.persistence*",
             "org.hibernate*"
@@ -47,14 +51,21 @@ public class JpaLibraryParser : DeclarativeSemanticExtension
             {
                 NodeTypes = SpringDataRepositoryHelper.RepositoryNodeTypes,
                 EnrichSymbol = (node, symbol, _) => SpringDataRepositoryHelper.EnrichRepositorySymbol(
-                    node, symbol, SpringDataRepositoryHelper.JpaRepositoryInterfaces, _entityToTable)
+                    node, symbol, SpringDataRepositoryHelper.JpaRepositoryInterfaces, _entityToTable),
+                CollectReferences = (node, scopeId, refs, _) => SpringDataRepositoryHelper.CollectRepositoryCallReferences(
+                    node, scopeId, refs, _entityToTable, _repoToEntity)
             }
         ];
     }
 
     public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
     {
-        SpringDataRepositoryHelper.DiscoverEntityTables(content, _entityToTable);
+        SpringDataRepositoryHelper.DiscoverEntityTables(content, _entityToTable, _repoToEntity);
+    }
+
+    public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        SpringDataRepositoryHelper.DiscoverEntityTables(rootNode.Text, _entityToTable, _repoToEntity);
     }
 }
 

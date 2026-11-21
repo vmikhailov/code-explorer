@@ -428,14 +428,19 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         // 2. Class/Interface/Struct inheritance, implemented interfaces, and annotations
         if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
         {
-            foreach (var child in node.Children)
+            void ProcessBaseClause(BaseTypeClauseSyntax clause)
             {
-                if (!child.IsValid()) continue;
-                if (child is BaseTypeClauseSyntax { IsImplements: false } && Profile.SuperclassClauseNodeTypes.Count > 0)
+                if (!clause.IsImplements)
                 {
-                    foreach (var typeChild in child.Children)
+                    foreach (var typeChild in clause.Children)
                     {
-                        if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
+                        if (!typeChild.IsValid()) continue;
+                        if (typeChild is BaseTypeClauseSyntax nestedClause)
+                        {
+                            ProcessBaseClause(nestedClause);
+                            continue;
+                        }
+                        if (typeChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type))
                         {
                             var fullBaseText = typeChild.Text.Trim();
                             var baseName = fullBaseText;
@@ -443,16 +448,16 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                             if (ltIdx > 0) baseName = baseName[..ltIdx].Trim();
                             symbolNode.References.Add(new Reference("", baseName, CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom));
                             symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Extends, fullBaseText);
-                            break;
                         }
                     }
                 }
-                else if (child is BaseTypeClauseSyntax { IsImplements: true } && Profile.InterfaceClauseNodeTypes.Count > 0)
+                else
                 {
                     List<string>? implList = null;
-                    foreach (var typeChild in child.Children)
+                    foreach (var typeChild in clause.Children)
                     {
-                        if (typeChild.IsValid() && (typeChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type)))
+                        if (!typeChild.IsValid()) continue;
+                        if (typeChild is IdentifierExprSyntax or TypeRefSyntax or MemberAccessExprSyntax || Profile.IdentifierChildTypes.Contains(typeChild.Type))
                         {
                             var fullImplText = typeChild.Text.Trim();
                             var implName = fullImplText;
@@ -465,8 +470,17 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     }
                     if (implList is { Count: > 0 })
                     {
-                        symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Implements, string.Join(", ", implList));
+                        const string commaSep = ", ";
+                        symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Implements, string.Join(commaSep, implList));
                     }
+                }
+            }
+
+            foreach (var child in node.Children)
+            {
+                if (child.IsValid() && child is BaseTypeClauseSyntax baseClause)
+                {
+                    ProcessBaseClause(baseClause);
                 }
             }
 

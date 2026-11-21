@@ -311,6 +311,12 @@
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
       "inEdges": [
@@ -453,6 +459,13 @@
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
           "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
       "inheritedInEdges": [
@@ -588,6 +601,13 @@
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
           "inheritedFrom": "Module"
         }
       ],
@@ -758,6 +778,13 @@
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
           "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
       "inheritedInEdges": [
@@ -908,6 +935,13 @@
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
           "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
       "inheritedInEdges": [
@@ -1051,6 +1085,13 @@
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
           "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
       "inheritedInEdges": [
@@ -1158,6 +1199,13 @@
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
           "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
         }
       ],
       "inheritedInEdges": [
@@ -1257,6 +1305,13 @@
           "toKind": "Project",
           "category": "type_dependency",
           "description": "Links a library package to the project that implements or encapsulates it.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Message",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
           "inheritedFrom": "Module"
         }
       ],
@@ -1832,6 +1887,101 @@
         }
       ],
       "sampleCypher": "MATCH (n:ExternalService)-[:CALLED_BY]->(t:Function)\nRETURN n.name, n.protocol, n.domain_or_service, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Message",
+      "pluralLabel": "CQRS & Domain Messages",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "mail",
+      "order": 12,
+      "idScheme": "{workspaceId}:msg:{subKind}:{messageName}",
+      "purpose": "Represents a CQRS or application message contract (Query, Command, or Domain/Integration Event) handled via a mediator, bus, or domain dispatcher.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The message contract name (e.g. GetMyWalletQuery, CreateOrderCommand)."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The workspace-relative path of the declaring file or handler file."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "enum (OperationType)",
+          "description": "The semantic message role (query, command, event, notification)."
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "Detected CQRS or messaging framework (e.g. mediatr, nestjs-cqrs, axon, symfony-messenger, spring, cqrs)."
+        },
+        {
+          "name": "file_path",
+          "sourceName": "FilePath",
+          "type": "string",
+          "description": "Workspace-relative source file declaring the message or handler."
+        },
+        {
+          "name": "start_line",
+          "sourceName": "StartLine",
+          "type": "integer",
+          "description": "1-indexed starting line number of the message declaration."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "TRIGGERS",
+          "toKind": "Function",
+          "category": "control_flow",
+          "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "HANDLES_COMMAND",
+          "fromKind": "Function",
+          "category": "control_flow",
+          "description": "Links a command handler function to the Layer 4 CQRS Command message contract it executes."
+        },
+        {
+          "rel": "HANDLES_EVENT",
+          "fromKind": "Function",
+          "category": "control_flow",
+          "description": "Links an event or notification handler function to the Layer 4 Domain or Integration Event message contract it processes."
+        },
+        {
+          "rel": "HANDLES_QUERY",
+          "fromKind": "Function",
+          "category": "control_flow",
+          "description": "Links a query handler function to the Layer 4 CQRS Query message contract it executes."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Module",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Message)-[:TRIGGERS]->(t:Function)\nRETURN n.name, n.sub_kind, n.framework, t.name\nLIMIT 25"
     },
     {
       "kind": "Cloud",
@@ -2937,6 +3087,12 @@
           "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "Message",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
           "rel": "INHERITS_FROM",
           "fromKind": "Type",
           "category": "type_dependency",
@@ -3126,6 +3282,24 @@
           "description": "Links a calling function to the function it directly invokes."
         },
         {
+          "rel": "HANDLES_COMMAND",
+          "toKind": "Message",
+          "category": "control_flow",
+          "description": "Links a command handler function to the Layer 4 CQRS Command message contract it executes."
+        },
+        {
+          "rel": "HANDLES_EVENT",
+          "toKind": "Message",
+          "category": "control_flow",
+          "description": "Links an event or notification handler function to the Layer 4 Domain or Integration Event message contract it processes."
+        },
+        {
+          "rel": "HANDLES_QUERY",
+          "toKind": "Message",
+          "category": "control_flow",
+          "description": "Links a query handler function to the Layer 4 CQRS Query message contract it executes."
+        },
+        {
           "rel": "IMPLEMENTS",
           "toKind": "EntryPoint",
           "category": "control_flow",
@@ -3262,6 +3436,12 @@
         {
           "rel": "TRIGGERS",
           "fromKind": "Endpoint",
+          "category": "control_flow",
+          "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
+        {
+          "rel": "TRIGGERS",
+          "fromKind": "Message",
           "category": "control_flow",
           "description": "Links an entry point or API endpoint to the handler function it triggers."
         },
@@ -4553,6 +4733,12 @@
         },
         {
           "rel": "DECLARED_IN",
+          "fromKind": "Message",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
           "fromKind": "Parameter",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -4876,6 +5062,60 @@
       ]
     },
     {
+      "rel": "HANDLES_COMMAND",
+      "category": "control_flow",
+      "description": "Links a command handler function to the Layer 4 CQRS Command message contract it executes.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Message"
+        }
+      ]
+    },
+    {
+      "rel": "HANDLES_EVENT",
+      "category": "control_flow",
+      "description": "Links an event or notification handler function to the Layer 4 Domain or Integration Event message contract it processes.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Message"
+        }
+      ]
+    },
+    {
+      "rel": "HANDLES_QUERY",
+      "category": "control_flow",
+      "description": "Links a query handler function to the Layer 4 CQRS Query message contract it executes.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Message"
+        }
+      ]
+    },
+    {
       "rel": "HAS_ENTRYPOINT",
       "category": "control_flow",
       "description": "Links an executable ProjectNode to its binary or process EntryPointNode.",
@@ -5014,6 +5254,10 @@
         {
           "fromKind": "EntryPoint",
           "toKind": "File"
+        },
+        {
+          "fromKind": "Message",
+          "toKind": "Function"
         },
         {
           "fromKind": "Table",
@@ -5634,6 +5878,10 @@
           "toKind": "CloudResource"
         },
         {
+          "fromKind": "Message",
+          "toKind": "Type"
+        },
+        {
           "fromKind": "Module",
           "toKind": "Project"
         },
@@ -5874,6 +6122,10 @@
           "toKind": "GitSettings"
         },
         {
+          "fromKind": "Module",
+          "toKind": "Message"
+        },
+        {
           "fromKind": "Procedure",
           "toKind": "Query"
         },
@@ -5957,6 +6209,10 @@
         },
         {
           "fromKind": "Member",
+          "toKind": "File"
+        },
+        {
+          "fromKind": "Message",
           "toKind": "File"
         },
         {

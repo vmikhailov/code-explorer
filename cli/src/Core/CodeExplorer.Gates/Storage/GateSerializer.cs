@@ -32,6 +32,28 @@ public static class GateSerializer
     public static SemanticGate DeserializeGate(string yamlContent, string source = "Workspace")
     {
         var raw = YamlDeserializer.Deserialize<RawGateDefinition>(yamlContent);
+        return MapRawGate(raw, source);
+    }
+
+    public static IReadOnlyList<SemanticGate> DeserializeGates(string yamlContent, string source = "Workspace")
+    {
+        using var reader = new StringReader(yamlContent);
+        var parser = new YamlDotNet.Core.Parser(reader);
+        var gates = new List<SemanticGate>();
+        parser.Consume<YamlDotNet.Core.Events.StreamStart>();
+        while (!parser.Accept<YamlDotNet.Core.Events.StreamEnd>(out _))
+        {
+            var raw = YamlDeserializer.Deserialize<RawGateDefinition?>(parser);
+            if (raw != null)
+            {
+                gates.Add(MapRawGate(raw, source));
+            }
+        }
+        return gates;
+    }
+
+    private static SemanticGate MapRawGate(RawGateDefinition raw, string source)
+    {
         if (string.IsNullOrWhiteSpace(raw.Id))
         {
             throw new InvalidOperationException("Gate definition must contain an 'id' field.");

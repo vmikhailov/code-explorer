@@ -85,7 +85,7 @@ internal sealed class CompiledDeclarativeRuleIndex
             customAstRules.AddRange(ext.CustomAstRules);
         }
 
-        return new DeclarativeSemanticExtension
+        return new FusedDeclarativeSemanticExtension(extensions.ToArray())
         {
             Id = FusedIdPrefix + key,
             Name = FusedNameLabel,
@@ -101,6 +101,17 @@ internal sealed class CompiledDeclarativeRuleIndex
             ClassHierarchySinkRules = classHierarchySinks,
             CustomAstRules = customAstRules
         };
+    }
+
+    private sealed class FusedDeclarativeSemanticExtension(DeclarativeSemanticExtension[] children) : DeclarativeSemanticExtension
+    {
+        public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+        {
+            for (var i = 0; i < children.Length; i++)
+            {
+                children[i].DiscoverDeclarations(filePath, content, projectName, ctx);
+            }
+        }
     }
 
     internal static CompiledDeclarativeRuleIndex Build(DeclarativeSemanticExtension ext)

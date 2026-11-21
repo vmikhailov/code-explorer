@@ -17,6 +17,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<MessageNode>(OntologyConstants.Relationships.Contains)]
 public abstract record ModuleNode(
     string Id,
     [property: OntologyProperty("The module name.")] string Name,

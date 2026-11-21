@@ -169,6 +169,7 @@ internal static class PipelineMemoryEvictor
             or EntryPointNode
             or ExternalServiceNode
             or TopicNode
+            or MessageNode
             or CloudNode
             or CloudResourceNode
             or CloudServiceNode

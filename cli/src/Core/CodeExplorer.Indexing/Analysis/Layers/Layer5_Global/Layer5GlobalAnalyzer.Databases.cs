@@ -729,7 +729,7 @@ public partial class Layer5AnalysisParser
 
         static bool IsHandlerMethodName(string methodName) =>
             methodName is "Handle" or "HandleAsync" or "Execute" or "ExecuteAsync" or "Consume" or "ConsumeAsync"
-                or "handle" or "execute" or "consume" or "__invoke";
+                or "handle" or "execute" or "consume" or "__invoke" or "on" or "On";
 
         if (symbols != null)
         {
@@ -779,7 +779,8 @@ public partial class Layer5AnalysisParser
             if (symbols != null &&
                 !string.IsNullOrEmpty(normPath) &&
                 IsHandlerMethodName(b.ScopeId) &&
-                (normPath.Contains("Handler", StringComparison.OrdinalIgnoreCase) ||
+                (IsLikelyMessageTypeName(b.TypeName) ||
+                 normPath.Contains("Handler", StringComparison.OrdinalIgnoreCase) ||
                  normPath.Contains("Consumer", StringComparison.OrdinalIgnoreCase) ||
                  normPath.Contains("/commands/", StringComparison.OrdinalIgnoreCase) ||
                  normPath.Contains("/queries/", StringComparison.OrdinalIgnoreCase) ||

@@ -52,7 +52,7 @@ public partial class ArchitectureViewEngine
             }
             else if (attr.Layer == OntologyConstants.Layers.Semantic)
             {
-                if (kind is NodeKind.DataSet or NodeKind.CloudService || (kind is NodeKind.Procedure or NodeKind.Query or NodeKind.ApiInUse or NodeKind.Cloud or NodeKind.DbSchema && count == 0))
+                if (kind is NodeKind.DataSet or NodeKind.CloudService || (kind is NodeKind.Procedure or NodeKind.Query or NodeKind.ApiInUse or NodeKind.Cloud or NodeKind.DbSchema or NodeKind.Message && count == 0))
                 {
                     continue;
                 }

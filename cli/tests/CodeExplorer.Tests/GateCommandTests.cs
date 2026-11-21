@@ -731,12 +731,133 @@ public class GateCommandTests
         using (client)
         {
             var res1 = await engine.CheckGateAsync((await repo.GetGateByIdAsync("SIG-CQRS-001"))!);
-            res1.Violations.Should().Contain(v => (v.Message ?? "").Contains("FindInvoiceHandler") && (v.Target ?? "").Contains("invoice"),
-                "the @QueryHandler must be linked through the service to the TypeORM update on 'invoice'");
+            res1.Violations.Should().Contain(v => (v.Message ?? "").Contains("FindInvoiceQuery") && (v.Target ?? "").Contains("invoice"),
+                "the @QueryHandler must be linked via HANDLES_QUERY -> Message through the service to the TypeORM update on 'invoice'");
 
             var res3 = await engine.CheckGateAsync((await repo.GetGateByIdAsync("SIG-CQRS-003"))!);
             res3.Violations.Should().Contain(v => (v.Target ?? "").Contains("invoice"),
                 "GET -> queryBus.execute(new FindInvoiceQuery) -> @QueryHandler -> update must be traced end to end");
+        }
+    }
+
+    [Test]
+    public async Task CqrsMessageOntology_ExtractsHandlesQueryCommandEvent_AcrossJavaTsGoAndPhp()
+    {
+        // 1. Java Axon projection with method-level @QueryHandler, @CommandHandler, and @EventSourcingHandler + JPA write
+        var javaDir = Path.Combine(_tempWorkspace, "java-svc");
+        Directory.CreateDirectory(Path.Combine(javaDir, "src", "main", "java", "com", "app"));
+        await File.WriteAllTextAsync(Path.Combine(javaDir, "pom.xml"),
+            """
+            <project>
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>com.app</groupId><artifactId>java-svc</artifactId><version>1.0.0</version>
+              <dependencies>
+                <dependency><groupId>org.axonframework</groupId><artifactId>axon-messaging</artifactId><version>4.9.0</version></dependency>
+                <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId><version>3.2.0</version></dependency>
+              </dependencies>
+            </project>
+            """);
+        await File.WriteAllTextAsync(Path.Combine(javaDir, "src", "main", "java", "com", "app", "OrderEntity.java"),
+            """
+            package com.app;
+            import jakarta.persistence.*;
+            @Entity @Table(name = "orders")
+            public class OrderEntity { @Id public String id; }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(javaDir, "src", "main", "java", "com", "app", "OrderRepository.java"),
+            """
+            package com.app;
+            import org.springframework.data.jpa.repository.JpaRepository;
+            public interface OrderRepository extends JpaRepository<OrderEntity, String> {}
+            """);
+        await File.WriteAllTextAsync(Path.Combine(javaDir, "src", "main", "java", "com", "app", "OrderProjection.java"),
+            """
+            package com.app;
+            import org.axonframework.queryhandling.QueryHandler;
+            import org.axonframework.commandhandling.CommandHandler;
+            import org.axonframework.eventsourcing.EventSourcingHandler;
+
+            record FindOrderQuery(String id) {}
+            record PlaceOrderCommand(String id) {}
+            record OrderPlacedEvent(String id) {}
+
+            public class OrderProjection {
+                private final OrderRepository repo;
+                public OrderProjection(OrderRepository repo) { this.repo = repo; }
+
+                @QueryHandler
+                public OrderEntity handle(FindOrderQuery query) {
+                    return repo.save(new OrderEntity());
+                }
+
+                @CommandHandler
+                public void handleCommand(PlaceOrderCommand cmd) {}
+
+                @EventSourcingHandler
+                public void on(OrderPlacedEvent evt) {}
+            }
+            """);
+
+        // 2. TypeScript interface-only IQueryHandler (without @QueryHandler decorator)
+        var tsDir = Path.Combine(_tempWorkspace, "ts-svc");
+        Directory.CreateDirectory(Path.Combine(tsDir, "src"));
+        await File.WriteAllTextAsync(Path.Combine(tsDir, "package.json"), """{ "name": "ts-svc" }""");
+        await File.WriteAllTextAsync(Path.Combine(tsDir, "src", "get-profile.handler.ts"),
+            """
+            export class GetProfileQuery { constructor(public readonly id: string) {} }
+            export interface IQueryHandler<Q> { execute(query: Q): Promise<any>; }
+            export class GetProfileHandler implements IQueryHandler<GetProfileQuery> {
+                async execute(query: GetProfileQuery) { return { id: query.id }; }
+            }
+            """);
+
+        // 3. Go CQRS query handler struct in /query/ package
+        var goDir = Path.Combine(_tempWorkspace, "go-svc");
+        Directory.CreateDirectory(Path.Combine(goDir, "internal", "app", "query"));
+        await File.WriteAllTextAsync(Path.Combine(goDir, "go.mod"), "module example.com/gosvc\n\ngo 1.22\n");
+        await File.WriteAllTextAsync(Path.Combine(goDir, "internal", "app", "query", "available_hours.go"),
+            """
+            package query
+            import "context"
+            type AvailableHoursQuery struct { Date string }
+            type AvailableHoursHandler struct {}
+            func (h AvailableHoursHandler) Handle(ctx context.Context, q AvailableHoursQuery) error { return nil }
+            """);
+
+        // 4. PHP DDD QueryHandler implementing QueryHandler contract
+        var phpDir = Path.Combine(_tempWorkspace, "php-svc");
+        Directory.CreateDirectory(Path.Combine(phpDir, "src"));
+        await File.WriteAllTextAsync(Path.Combine(phpDir, "composer.json"), """{ "name": "demo/php-svc" }""");
+        await File.WriteAllTextAsync(Path.Combine(phpDir, "src", "FindStudentQueryHandler.php"),
+            """
+            <?php
+            namespace App;
+            interface QueryHandler {}
+            final class FindStudentQuery {}
+            final class FindStudentQueryHandler implements QueryHandler {
+                public function __invoke(FindStudentQuery $query): void {}
+            }
+            """);
+
+        var (client, repo, engine) = await IndexAndActivateCqrsGatesAsync();
+        using (client)
+        {
+            var qRes = await client.ExecuteCypherAsync(
+                "MATCH (fn:Function)-[:HANDLES_QUERY]->(m:Message) RETURN m.name AS msg, m.sub_kind AS kind", null);
+            var queryMsgs = qRes.Rows.Select(r => r.Values[0].AsString()).ToList();
+            queryMsgs.Should().Contain(new[] { "FindOrderQuery", "GetProfileQuery", "AvailableHoursQuery", "FindStudentQuery" });
+
+            var cRes = await client.ExecuteCypherAsync(
+                "MATCH (fn:Function)-[:HANDLES_COMMAND]->(m:Message) RETURN m.name AS msg", null);
+            cRes.Rows.Select(r => r.Values[0].AsString()).Should().Contain("PlaceOrderCommand");
+
+            var eRes = await client.ExecuteCypherAsync(
+                "MATCH (fn:Function)-[:HANDLES_EVENT]->(m:Message) RETURN m.name AS msg", null);
+            eRes.Rows.Select(r => r.Values[0].AsString()).Should().Contain("OrderPlacedEvent");
+
+            // Java Axon @QueryHandler calling JpaRepository.save must be flagged by SIG-CQRS-001
+            var sig1 = await engine.CheckGateAsync((await repo.GetGateByIdAsync("SIG-CQRS-001"))!);
+            sig1.Violations.Should().Contain(v => (v.Message ?? "").Contains("FindOrderQuery") && (v.Target ?? "").Contains("orders"));
         }
     }
 }
