@@ -456,7 +456,7 @@ public static class OntologyUploader
             }
             return new UsesDbRelationship(parentId, child.Id);
         }
-        if (child.Kind is NodeKind.Table or NodeKind.Procedure or NodeKind.DataSet or NodeKind.DbSchema or NodeKind.Query or NodeKind.Message)
+        if (child.Kind is NodeKind.Table or NodeKind.Procedure or NodeKind.DataSet or NodeKind.DbSchema or NodeKind.Query or NodeKind.Message or NodeKind.Cache or NodeKind.Transaction or NodeKind.Policy or NodeKind.Job)
         {
             if (IsFileNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
             if (IsProjectNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);

@@ -26,6 +26,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<MessageNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<CacheNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<TransactionNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<PolicyNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<JobNode>(OntologyConstants.Relationships.Contains)]
 public record SemanticStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

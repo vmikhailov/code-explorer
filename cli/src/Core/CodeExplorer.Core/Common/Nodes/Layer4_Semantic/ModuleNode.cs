@@ -18,6 +18,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<MessageNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<CacheNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<TransactionNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<PolicyNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<JobNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.Owns)]
 public abstract record ModuleNode(
     string Id,
     [property: OntologyProperty("The module name.")] string Name,

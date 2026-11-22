@@ -44,6 +44,7 @@ graph TD
     subgraph Layer4 ["Layer 4: Semantic Structure"]
         ApiInUse["ApiInUse"]
         App["App"]
+        Cache["Cache"]
         CliTool["CliTool"]
         Cloud["Cloud"]
         CloudResource["CloudResource"]
@@ -53,10 +54,12 @@ graph TD
         DbSchema["DbSchema"]
         Endpoint["Endpoint"]
         ExternalService["ExternalService"]
+        Job["Job"]
         Library["Library"]
         Message["Message"]
         Module["Module"]
         PeerMesh["PeerMesh"]
+        Policy["Policy"]
         Procedure["Procedure"]
         Query["Query"]
         SemanticStructure["SemanticStructure"]
@@ -64,6 +67,7 @@ graph TD
         Table["Table"]
         TestSuite["TestSuite"]
         Topic["Topic"]
+        Transaction["Transaction"]
         Worker["Worker"]
         Workload["Workload"]
     end
@@ -82,6 +86,9 @@ graph TD
     BoundedContext -->|CONTAINS| Database
     BoundedContext -->|CONTAINS| Topic
     BoundedContext -->|DEFINES| Type
+    BoundedContext -->|OWNS| Table
+    Cache -->|ACCESSED_BY| Function
+    Cache -->|DECLARED_IN| File
     CallArgument -->|DECLARED_IN| File
     CallArgument -->|FLOWS_TO| Parameter
     CallLiteral -->|DECLARED_IN| File
@@ -123,6 +130,7 @@ graph TD
     Endpoint -->|ATTRIBUTED_TO| Query
     Endpoint -->|ATTRIBUTED_TO| Database
     Endpoint -->|ATTRIBUTED_TO| ExternalService
+    Endpoint -->|GUARDED_BY| Policy
     EntryPoint -->|DECLARED_IN| File
     EntryPoint -->|TRIGGERS| File
     EntryPoint -->|BELONGS_TO| Project
@@ -159,6 +167,8 @@ graph TD
     Function -->|DECLARES| Function
     Function -->|DECLARES| Member
     Function -->|DECLARES| Type
+    Job -->|TRIGGERS| Function
+    Job -->|DECLARED_IN| File
     LogicalStructure -->|CONTAINS| Domain
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
@@ -166,14 +176,23 @@ graph TD
     Message -->|TRIGGERS| Function
     Message -->|IMPLEMENTED_BY| Type
     Message -->|DECLARED_IN| File
+    Message -->|GUARDED_BY| Policy
     Module -->|IMPLEMENTED_BY| Project
     Module -->|DEPENDS_ON| Library
     Module -->|DEPENDS_ON| Package
     Module -->|CONTAINS| Message
+    Module -->|CONTAINS| Cache
+    Module -->|CONTAINS| Transaction
+    Module -->|CONTAINS| Policy
+    Module -->|CONTAINS| Job
+    Module -->|OWNS| Table
     Package -->|PRODUCES| Project
     Package -->|IMPLEMENTED_BY| Project
     Parameter -->|DECLARED_IN| File
     Parameter -->|FLOWS_TO| CallArgument
+    Policy -->|ENFORCED_BY| Function
+    Policy -->|IMPLEMENTED_BY| Type
+    Policy -->|DECLARED_IN| File
     Procedure -->|CONTAINS| Query
     Procedure -->|ACCESSED_BY| Function
     Procedure -->|TARGETED_BY| CallArgument
@@ -219,6 +238,11 @@ graph TD
     SemanticStructure -->|CONTAINS| ApiInUse
     SemanticStructure -->|CONTAINS| Endpoint
     SemanticStructure -->|CONTAINS| PeerMesh
+    SemanticStructure -->|CONTAINS| Message
+    SemanticStructure -->|CONTAINS| Cache
+    SemanticStructure -->|CONTAINS| Transaction
+    SemanticStructure -->|CONTAINS| Policy
+    SemanticStructure -->|CONTAINS| Job
     Service -->|EXPOSES| Endpoint
     Service -->|COORDINATES_WITH| PeerMesh
     Service -->|CALLED_BY| Function
@@ -230,6 +254,7 @@ graph TD
     Table -->|REFERENCES| Table
     Table -->|READS_FROM| Table
     Table -->|TRIGGERS| Procedure
+    Table -->|IMPLEMENTED_BY| Type
     TestSuite -->|TESTS| Module
     Topic -->|HOSTED_IN| Cloud
     Topic -->|IMPLEMENTED_BY| CloudResource
@@ -237,6 +262,8 @@ graph TD
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
     Topic -->|TARGETED_BY| CallArgument
+    Transaction -->|WRAPS| Function
+    Transaction -->|DECLARED_IN| File
     Type -->|DECLARED_IN| File
     Type -->|USES_TYPE| Type
     Type -->|IMPLEMENTS| Type
@@ -254,6 +281,7 @@ graph TD
     Workload -->|SERVICE_CALL| ExternalService
     Workload -->|USES_DB| Database
     Workload -->|PUBLISHES_TO| Topic
+    Workload -->|EXPOSES| Job
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
     Workspace -->|CONTAINS| SyntaxStructure
@@ -330,6 +358,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `ApiInUse` | `DECLARED_IN` |
+| `Cache` | `DECLARED_IN` |
 | `CallArgument` | `DECLARED_IN` |
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
@@ -345,13 +374,16 @@ graph TD
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
+| `Job` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
 | `Message` | `DECLARED_IN` |
 | `Parameter` | `DECLARED_IN` |
+| `Policy` | `DECLARED_IN` |
 | `Project` | `CONTAINS` |
 | `Query` | `DECLARED_IN` |
 | `ScanIssue` | `DECLARED_IN` |
 | `Topic` | `DECLARED_IN` |
+| `Transaction` | `DECLARED_IN` |
 | `Type` | `DECLARED_IN` |
 
 **Properties:**
@@ -799,6 +831,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `ApiInUse` | `ACCESSED_BY` |
+| `Cache` | `ACCESSED_BY` |
 | `CloudService` | `ACCESSED_BY` |
 | `CloudService` | `TRANSITIVELY_CALLS` |
 | `Endpoint` | `TRIGGERS` |
@@ -810,8 +843,10 @@ graph TD
 | `Function` | `CALLS` |
 | `Function` | `INSTANTIATES` |
 | `Function` | `DECLARES` |
+| `Job` | `TRIGGERS` |
 | `Member` | `ACCESSED_BY` |
 | `Message` | `TRIGGERS` |
+| `Policy` | `ENFORCED_BY` |
 | `Procedure` | `ACCESSED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
@@ -820,6 +855,7 @@ graph TD
 | `Table` | `ACCESSED_BY` |
 | `Topic` | `PUBLISHED_BY` |
 | `Topic` | `SUBSCRIBED_BY` |
+| `Transaction` | `WRAPS` |
 | `Type` | `HAS_METHOD` |
 | `Type` | `CALLS` |
 
@@ -1011,9 +1047,11 @@ graph TD
 | `Function` | `DECLARES` |
 | `Member` | `OF_TYPE` |
 | `Message` | `IMPLEMENTED_BY` |
+| `Policy` | `IMPLEMENTED_BY` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
 | `Table` | `ACCESSED_BY` |
+| `Table` | `IMPLEMENTED_BY` |
 | `Type` | `USES_TYPE` |
 | `Type` | `IMPLEMENTS` |
 | `Type` | `INHERITS_FROM` |
@@ -1092,6 +1130,38 @@ graph TD
 | `ProjectType` | `ProjectLanguage` | The project type or language. |
 | `Role` | `string?` | The primary semantic role of the module. |
 | `Framework` | `string?` | The detected application, service, or test framework. |
+
+---
+
+#### `Cache`
+
+> Represents an in-memory, distributed, or HTTP cache region/key with distinct read, write, and invalidation semantics.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `ACCESSED_BY` | `Function` |
+| `DECLARED_IN` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Module` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The cache key prefix, region, or named cache store. |
+| `Path` | `string` | The workspace-relative path of the declaring or primary accessing file. |
+| `SubKind` | `CacheEngine` | The backing cache engine kind (memory, distributed, redis, memcached, hybrid, http_output). |
+| `KeyPattern` | `string?` | Extracted cache key template or region name. |
+| `Framework` | `string?` | Detected caching library or framework (e.g. stackexchange-redis, memory-cache, spring-cache, ioredis). |
+| `FilePath` | `string?` | Workspace-relative source file referencing or configuring the cache. |
+| `StartLine` | `int?` | 1-indexed starting line number of the primary cache declaration or call. |
 
 ---
 
@@ -1334,6 +1404,7 @@ graph TD
 | `ATTRIBUTED_TO` | `Query` |
 | `ATTRIBUTED_TO` | `Database` |
 | `ATTRIBUTED_TO` | `ExternalService` |
+| `GUARDED_BY` | `Policy` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1420,6 +1491,40 @@ graph TD
 
 ---
 
+#### `Job`
+
+> Represents a scheduled cron task, recurring background worker, queued job, or durable workflow/activity.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `TRIGGERS` | `Function` |
+| `DECLARED_IN` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Module` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
+| `Workload` | `EXPOSES` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The scheduled job, task, or workflow name. |
+| `Path` | `string` | The workspace-relative path of the declaring file. |
+| `SubKind` | `JobKind` | The execution model of the job (cron, recurring, fire_and_forget, workflow, activity, background_worker). |
+| `ScheduleExpr` | `string?` | Cron expression or fixed interval specification when applicable. |
+| `Queue` | `string?` | Target job queue or task routing key when applicable. |
+| `Framework` | `string?` | Detected scheduler or workflow framework (e.g. spring-scheduled, hangfire, quartz, nestjs-schedule, celery, temporal). |
+| `FilePath` | `string?` | Workspace-relative source file declaring the job. |
+| `StartLine` | `int?` | 1-indexed starting line number of the job handler. |
+
+---
+
 #### `Library`
 
 > Represents a shared library, utility module, DTO package, or domain contract reused across services.
@@ -1454,12 +1559,14 @@ graph TD
 | `TRIGGERS` | `Function` |
 | `IMPLEMENTED_BY` | `Type` |
 | `DECLARED_IN` | `File` |
+| `GUARDED_BY` | `Policy` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `Module` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
 
@@ -1486,6 +1593,11 @@ graph TD
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
 | `CONTAINS` | `Message` |
+| `CONTAINS` | `Cache` |
+| `CONTAINS` | `Transaction` |
+| `CONTAINS` | `Policy` |
+| `CONTAINS` | `Job` |
+| `OWNS` | `Table` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1525,6 +1637,41 @@ graph TD
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `MemberCount` | `int?` | The number of configured peer members, when known. |
 | `Protocols` | `string` | The detected communication protocols. |
+
+---
+
+#### `Policy`
+
+> Represents an authentication, role, permission, guard, or explicit public-access security policy protecting endpoints and CQRS messages.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `ENFORCED_BY` | `Function` |
+| `IMPLEMENTED_BY` | `Type` |
+| `DECLARED_IN` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Endpoint` | `GUARDED_BY` |
+| `Message` | `GUARDED_BY` |
+| `Module` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The policy, role, guard, or permission name (e.g. Authenticated, Admin, JwtAuthGuard, Anonymous). |
+| `Path` | `string` | The workspace-relative path of the declaring guard or endpoint file. |
+| `SubKind` | `PolicyKind` | The authorization policy classification (authenticated, role, permission, custom_guard, anonymous). |
+| `Requirement` | `string?` | Raw role, claim, SpEL expression, or permission requirement. |
+| `Framework` | `string?` | Detected security framework (e.g. aspnetcore-auth, nestjs-guards, spring-security, fastapi-security). |
+| `FilePath` | `string?` | Workspace-relative source file declaring or referencing the policy. |
+| `StartLine` | `int?` | 1-indexed starting line number of the policy declaration or guard. |
 
 ---
 
@@ -1629,6 +1776,11 @@ graph TD
 | `CONTAINS` | `ApiInUse` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `PeerMesh` |
+| `CONTAINS` | `Message` |
+| `CONTAINS` | `Cache` |
+| `CONTAINS` | `Transaction` |
+| `CONTAINS` | `Policy` |
+| `CONTAINS` | `Job` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1691,13 +1843,16 @@ graph TD
 | `REFERENCES` | `Table` |
 | `READS_FROM` | `Table` |
 | `TRIGGERS` | `Procedure` |
+| `IMPLEMENTED_BY` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `BoundedContext` | `OWNS` |
 | `DataSet` | `CONTAINS` |
 | `DbSchema` | `CONTAINS` |
+| `Module` | `OWNS` |
 | `Procedure` | `READS_FROM` |
 | `Procedure` | `WRITES_TO` |
 | `Query` | `READS_FROM` |
@@ -1792,6 +1947,39 @@ graph TD
 
 ---
 
+#### `Transaction`
+
+> Represents an explicit, declarative, ambient, or pipeline-behavior database transaction boundary.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `WRAPS` | `Function` |
+| `DECLARED_IN` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Module` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The transaction boundary name (e.g. enclosing function or pipeline behavior). |
+| `Path` | `string` | The workspace-relative path of the declaring file. |
+| `SubKind` | `TransactionKind` | How the transaction boundary is established (explicit, declarative, pipeline_behavior, ambient). |
+| `IsReadOnly` | `bool` | Indicates whether the transaction is explicitly configured as read-only. |
+| `IsolationLevel` | `string?` | Configured transaction isolation level when specified. |
+| `Framework` | `string?` | Detected transaction API or framework (e.g. efcore, spring-tx, typeorm, prisma, database-sql). |
+| `FilePath` | `string?` | Workspace-relative source file declaring the transaction boundary. |
+| `StartLine` | `int?` | 1-indexed starting line number of the transaction boundary. |
+
+---
+
 #### `Worker`
 
 > Represents a background job processor, queue consumer, or scheduled task (e.g. Hangfire, Celery, Worker Service).
@@ -1834,6 +2022,7 @@ graph TD
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
+| `EXPOSES` | `Job` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1868,6 +2057,7 @@ graph TD
 | `CONTAINS` | `Database` |
 | `CONTAINS` | `Topic` |
 | `DEFINES` | `Type` |
+| `OWNS` | `Table` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1965,9 +2155,12 @@ graph TD
 | `DEFINES` | Indicates that an entity defines a particular property or configuration. |
 | `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
 | `DEPLOYS` | Links a cloud infrastructure resource or deployment configuration to the semantic entity it provisions or deploys. |
+| `ENFORCED_BY` | Links a Layer 4 authorization Policy to the guard or middleware function enforcing it. |
+| `EXECUTES_IN_TX` | Links a function to an active Layer 4 database Transaction boundary under which it executes. |
 | `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
 | `EXPOSES` | Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes. |
 | `FLOWS_TO` | Traces semantic dataflow between call arguments and parameters across intra- and inter-procedural hops. |
+| `GUARDED_BY` | Links an Endpoint or CQRS Message contract to a Layer 4 authorization Policy or Guard. |
 | `HANDLES_COMMAND` | Links a command handler function to the Layer 4 CQRS Command message contract it executes. |
 | `HANDLES_EVENT` | Links an event or notification handler function to the Layer 4 Domain or Integration Event message contract it processes. |
 | `HANDLES_QUERY` | Links a query handler function to the Layer 4 CQRS Query message contract it executes. |
@@ -1981,8 +2174,10 @@ graph TD
 | `IMPLEMENTS` | Links a class/struct declaration to the interface it implements. |
 | `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
 | `INSTANTIATES` | Links a host component to a runtime UI or subsystem component it instantiates. |
+| `INVALIDATES_CACHE` | Links a function to a Layer 4 Cache region/key it evicts or deletes. |
 | `LOCATED_IN` | Links a project to the physical folder or files structure where it is located. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
+| `OWNS` | Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns. |
 | `PASSES_ARGUMENT` | Links a calling function or scope to a semantically colored call argument. |
 | `PASSES_LITERAL` | Links a calling function or scope to a literal argument passed directly into an invocation. |
 | `PERSISTED_IN` | Links an ORM entity or model class to its physical database table. |
@@ -1991,6 +2186,7 @@ graph TD
 | `PUBLISHED_BY` | Links a topic to the function that publishes to it. |
 | `PUBLISHES_TO` | Links a service or function to a message queue or topic it publishes messages or events to. |
 | `QUERIED_BY` | Links a database or table to the function or query that accesses it. |
+| `READS_CACHE` | Links a function to a Layer 4 Cache region/key it reads from. |
 | `READS_FROM` | Links a query or workload to the table or cloud resource it reads from. |
 | `REFERENCES` | Links a child database table to a parent table via a foreign key constraint. |
 | `SERVICE_CALL` | Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API. |
@@ -2006,6 +2202,8 @@ graph TD
 | `USES_DB` | Links a project to a database catalog or instance it utilizes. |
 | `USES_GIT` | Links the workspace to its repository configuration. |
 | `USES_TYPE` | Links a calling function or type reference to the type it instantiates or references. |
+| `WRAPS` | Links a Layer 4 Transaction boundary to the root function or handler it wraps. |
+| `WRITES_CACHE` | Links a function to a Layer 4 Cache region/key it populates or updates. |
 | `WRITES_TO` | Links a query or workload to the table or cloud resource it writes to. |
 
 ---
@@ -2038,6 +2236,7 @@ graph TD
 | Layer 3: Syntax Structure | `Type` | `{workspaceId}:sym:{filePath}:Type:{name}:{line}` |
 | Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:p:{relativeProjectDir}:api:{apiName}` |
 | Layer 4: Semantic Structure | `App` | `{workspaceId}:app:{appName}` |
+| Layer 4: Semantic Structure | `Cache` | `{workspaceId}:cache:{engine}:{regionOrKey}` |
 | Layer 4: Semantic Structure | `CliTool` | `{workspaceId}:cli:{toolName}` |
 | Layer 4: Semantic Structure | `Cloud` | `{workspaceId}:cloud:{provider}` |
 | Layer 4: Semantic Structure | `CloudResource` | `{workspaceId}:p:{relativeProjectDir}:cr:{resourceAddress}` |
@@ -2047,10 +2246,12 @@ graph TD
 | Layer 4: Semantic Structure | `DbSchema` | `{workspaceId}:db:{dbType}:{dbName}:schema:{schemaName}` |
 | Layer 4: Semantic Structure | `Endpoint` | `{workspaceId}:ep:{httpMethod}:{routeTemplate}` |
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:es:{protocol}:{host}` |
+| Layer 4: Semantic Structure | `Job` | `{workspaceId}:job:{subKind}:{jobName}` |
 | Layer 4: Semantic Structure | `Library` | `{workspaceId}:lib:{libraryName}` |
 | Layer 4: Semantic Structure | `Message` | `{workspaceId}:msg:{subKind}:{messageName}` |
 | Layer 4: Semantic Structure | `Module` | `{workspaceId}:{kindPrefix}:{moduleName}` |
 | Layer 4: Semantic Structure | `PeerMesh` | `{workspaceId}:mesh:peer-network` |
+| Layer 4: Semantic Structure | `Policy` | `{workspaceId}:pol:{subKind}:{policyName}` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:proc:{procedureName}` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:q:{queryHash}` |
 | Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:sem` |
@@ -2058,6 +2259,7 @@ graph TD
 | Layer 4: Semantic Structure | `Table` | `{workspaceId}:tbl:{tableName}` |
 | Layer 4: Semantic Structure | `TestSuite` | `{workspaceId}:suite:{suiteName}` |
 | Layer 4: Semantic Structure | `Topic` | `{workspaceId}:top:{brokerType}:{topicName}` |
+| Layer 4: Semantic Structure | `Transaction` | `{workspaceId}:tx:{subKind}:{scopeName}` |
 | Layer 4: Semantic Structure | `Worker` | `{workspaceId}:w:{workerName}` |
 | Layer 4: Semantic Structure | `Workload` | `{workspaceId}:{workloadPrefix}:{workloadName}` |
 | Layer 5: Logical Structure | `BoundedContext` | `{workspaceId}:bc:{contextKey}` |

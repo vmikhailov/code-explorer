@@ -58,7 +58,11 @@ public enum NodeKind : byte
     Module = 48,
     Workload = 49,
     CloudResource = 50,
-    Message = 51
+    Message = 51,
+    Cache = 52,
+    Transaction = 53,
+    Policy = 54,
+    Job = 55
 }
 
 [JsonConverter(typeof(RelationshipKindJsonConverter))]
@@ -138,7 +142,15 @@ public enum RelationshipKind : byte
     References = 71,
     HandlesQuery = 72,
     HandlesCommand = 73,
-    HandlesEvent = 74
+    HandlesEvent = 74,
+    ReadsCache = 75,
+    WritesCache = 76,
+    InvalidatesCache = 77,
+    Wraps = 78,
+    ExecutesInTx = 79,
+    GuardedBy = 80,
+    EnforcedBy = 81,
+    Owns = 82
 }
 
 /// <summary>
@@ -201,6 +213,13 @@ public static class OntologyEnumMaps
         nodeByName["cloudresource"] = NodeKind.CloudResource;
         nodeByName["cqrs_message"] = NodeKind.Message;
         nodeByName["cqrscontract"] = NodeKind.Message;
+        nodeByName["cache_region"] = NodeKind.Cache;
+        nodeByName["tx"] = NodeKind.Transaction;
+        nodeByName["transaction_scope"] = NodeKind.Transaction;
+        nodeByName["guard"] = NodeKind.Policy;
+        nodeByName["auth_policy"] = NodeKind.Policy;
+        nodeByName["scheduled_job"] = NodeKind.Job;
+        nodeByName["cron_job"] = NodeKind.Job;
 
         NodeKindByName = nodeByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         NameByNodeKind = nameByNode.ToFrozenDictionary();

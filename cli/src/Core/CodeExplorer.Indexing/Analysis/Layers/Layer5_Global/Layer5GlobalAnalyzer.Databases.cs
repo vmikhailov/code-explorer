@@ -848,7 +848,7 @@ public partial class Layer5AnalysisParser
         // Case A: Relative import (./ or ../ or /)
         if (importPath.StartsWith('.') || importPath.StartsWith('/'))
         {
-            var callerDir = Path.GetDirectoryName(callerFile)?.Replace('\\', '/') ?? "";
+            var callerDir = Path.GetDirectoryName(callerFile)?.NormalizeSlashes() ?? string.Empty;
             var combined = NormalizeRelativePath(string.IsNullOrEmpty(callerDir)
                 ? importPath.TrimStart('.', '/')
                 : $"{callerDir}/{importPath}");

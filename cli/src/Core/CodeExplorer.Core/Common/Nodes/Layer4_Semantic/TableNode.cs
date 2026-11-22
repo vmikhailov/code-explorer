@@ -20,6 +20,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.References)]
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.ReadsFrom)]
 [OntologyEdge<ProcedureNode>(OntologyConstants.Relationships.Triggers)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.ImplementedBy)]
 public record TableNode(
     string Id,
     [property: OntologyProperty("Physical database table or view name.")] string Name,

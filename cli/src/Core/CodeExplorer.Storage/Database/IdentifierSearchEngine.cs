@@ -115,7 +115,7 @@ public class IdentifierSearchEngine
         // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
         var candidateKindsSql = GraphKindCodec.NodeKindsInSql(
             NodeKind.Type, NodeKind.Function, NodeKind.Member, NodeKind.Endpoint,
-            NodeKind.Table, NodeKind.Topic, NodeKind.Message, NodeKind.Project, NodeKind.ExternalService);
+            NodeKind.Table, NodeKind.Topic, NodeKind.Message, NodeKind.Cache, NodeKind.Policy, NodeKind.Job, NodeKind.Project, NodeKind.ExternalService);
         var typeKindId = GraphKindCodec.EncodeNodeKind(NodeKind.Type);
         var hasMethodMemberRelsSql = GraphKindCodec.RelKindsInSql(RelationshipKind.HasMethod, RelationshipKind.HasMember);
         var candidateQuery = hasNativeColumns

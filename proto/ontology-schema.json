@@ -228,6 +228,12 @@
           "toKind": "Type",
           "category": "structural",
           "description": "Indicates that an entity defines a particular property or configuration."
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns."
         }
       ],
       "inEdges": [
@@ -314,9 +320,39 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns."
         }
       ],
       "inEdges": [
@@ -394,6 +430,12 @@
       ],
       "outEdges": [
         {
+          "rel": "EXPOSES",
+          "toKind": "Job",
+          "category": "control_flow",
+          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
+        },
+        {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
           "category": "control_flow",
@@ -462,9 +504,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -484,7 +561,7 @@
           "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:Workload)-[:SERVICE_CALL]->(t:ExternalService)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Workload)-[:EXPOSES]->(t:Job)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "App",
@@ -540,6 +617,13 @@
       "outEdges": [],
       "inEdges": [],
       "inheritedOutEdges": [
+        {
+          "rel": "EXPOSES",
+          "toKind": "Job",
+          "category": "control_flow",
+          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
@@ -605,9 +689,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -634,7 +753,7 @@
           "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:App)-[:SERVICE_CALL]->(t:ExternalService)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:App)-[:EXPOSES]->(t:Job)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "Service",
@@ -717,6 +836,13 @@
       ],
       "inheritedOutEdges": [
         {
+          "rel": "EXPOSES",
+          "toKind": "Job",
+          "category": "control_flow",
+          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
           "category": "control_flow",
@@ -781,9 +907,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -874,6 +1035,13 @@
       "inEdges": [],
       "inheritedOutEdges": [
         {
+          "rel": "EXPOSES",
+          "toKind": "Job",
+          "category": "control_flow",
+          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
           "category": "control_flow",
@@ -938,9 +1106,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -1024,6 +1227,13 @@
       "inEdges": [],
       "inheritedOutEdges": [
         {
+          "rel": "EXPOSES",
+          "toKind": "Job",
+          "category": "control_flow",
+          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "SERVICE_CALL",
           "toKind": "ExternalService",
           "category": "control_flow",
@@ -1088,9 +1298,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -1117,7 +1362,7 @@
           "inheritedFrom": "Module"
         }
       ],
-      "sampleCypher": "MATCH (n:CliTool)-[:SERVICE_CALL]->(t:ExternalService)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:CliTool)-[:EXPOSES]->(t:Job)\nRETURN n.name, n.project_type, n.role, t.name\nLIMIT 25"
     },
     {
       "kind": "Library",
@@ -1202,9 +1447,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -1309,9 +1589,44 @@
         },
         {
           "rel": "CONTAINS",
+          "toKind": "Cache",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Job",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
           "toKind": "Message",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Policy",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Transaction",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements.",
+          "inheritedFrom": "Module"
+        },
+        {
+          "rel": "OWNS",
+          "toKind": "Table",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
           "inheritedFrom": "Module"
         }
       ],
@@ -1482,6 +1797,12 @@
           "toKind": "Type",
           "category": "control_flow",
           "description": "Links an entrypoint or endpoint to the type or function that exposes it."
+        },
+        {
+          "rel": "GUARDED_BY",
+          "toKind": "Policy",
+          "category": "control_flow",
+          "description": "Links an Endpoint or CQRS Message contract to a Layer 4 authorization Policy or Guard."
         },
         {
           "rel": "TRIGGERS",
@@ -1937,6 +2258,12 @@
       ],
       "outEdges": [
         {
+          "rel": "GUARDED_BY",
+          "toKind": "Policy",
+          "category": "control_flow",
+          "description": "Links an Endpoint or CQRS Message contract to a Layer 4 authorization Policy or Guard."
+        },
+        {
           "rel": "TRIGGERS",
           "toKind": "Function",
           "category": "control_flow",
@@ -1981,7 +2308,7 @@
           "description": "Represents directory structure containment or syntactic scoping of elements."
         }
       ],
-      "sampleCypher": "MATCH (n:Message)-[:TRIGGERS]->(t:Function)\nRETURN n.name, n.sub_kind, n.framework, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Message)-[:GUARDED_BY]->(t:Policy)\nRETURN n.name, n.sub_kind, n.framework, t.name\nLIMIT 25"
     },
     {
       "kind": "Cloud",
@@ -2065,6 +2392,101 @@
         }
       ],
       "sampleCypher": "MATCH (n:Cloud)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.provider, n.region, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Policy",
+      "pluralLabel": "Authorization Policies & Guards",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "lock",
+      "order": 13,
+      "idScheme": "{workspaceId}:pol:{subKind}:{policyName}",
+      "purpose": "Represents an authentication, role, permission, guard, or explicit public-access security policy protecting endpoints and CQRS messages.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The policy, role, guard, or permission name (e.g. Authenticated, Admin, JwtAuthGuard, Anonymous)."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The workspace-relative path of the declaring guard or endpoint file."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "enum (PolicyKind)",
+          "description": "The authorization policy classification (authenticated, role, permission, custom_guard, anonymous)."
+        },
+        {
+          "name": "requirement",
+          "sourceName": "Requirement",
+          "type": "string",
+          "description": "Raw role, claim, SpEL expression, or permission requirement."
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "Detected security framework (e.g. aspnetcore-auth, nestjs-guards, spring-security, fastapi-security)."
+        },
+        {
+          "name": "file_path",
+          "sourceName": "FilePath",
+          "type": "string",
+          "description": "Workspace-relative source file declaring or referencing the policy."
+        },
+        {
+          "name": "start_line",
+          "sourceName": "StartLine",
+          "type": "integer",
+          "description": "1-indexed starting line number of the policy declaration or guard."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "ENFORCED_BY",
+          "toKind": "Function",
+          "category": "control_flow",
+          "description": "Links a Layer 4 authorization Policy to the guard or middleware function enforcing it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "GUARDED_BY",
+          "fromKind": "Endpoint",
+          "category": "control_flow",
+          "description": "Links an Endpoint or CQRS Message contract to a Layer 4 authorization Policy or Guard."
+        },
+        {
+          "rel": "GUARDED_BY",
+          "fromKind": "Message",
+          "category": "control_flow",
+          "description": "Links an Endpoint or CQRS Message contract to a Layer 4 authorization Policy or Guard."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Module",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Policy)-[:ENFORCED_BY]->(t:Function)\nRETURN n.name, n.sub_kind, n.requirement, t.name\nLIMIT 25"
     },
     {
       "kind": "CloudResource",
@@ -2226,6 +2648,95 @@
         }
       ],
       "sampleCypher": "MATCH (n:CloudResource)-[:DEPENDS_ON]->(t:CloudResource)\nRETURN n.name, n.resource_type, n.provider, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Job",
+      "pluralLabel": "Scheduled Jobs & Workflows",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "clock",
+      "order": 14,
+      "idScheme": "{workspaceId}:job:{subKind}:{jobName}",
+      "purpose": "Represents a scheduled cron task, recurring background worker, queued job, or durable workflow/activity.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The scheduled job, task, or workflow name."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The workspace-relative path of the declaring file."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "enum (JobKind)",
+          "description": "The execution model of the job (cron, recurring, fire_and_forget, workflow, activity, background_worker)."
+        },
+        {
+          "name": "schedule_expr",
+          "sourceName": "ScheduleExpr",
+          "type": "string",
+          "description": "Cron expression or fixed interval specification when applicable."
+        },
+        {
+          "name": "queue",
+          "sourceName": "Queue",
+          "type": "string",
+          "description": "Target job queue or task routing key when applicable."
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "Detected scheduler or workflow framework (e.g. spring-scheduled, hangfire, quartz, nestjs-schedule, celery, temporal)."
+        },
+        {
+          "name": "file_path",
+          "sourceName": "FilePath",
+          "type": "string",
+          "description": "Workspace-relative source file declaring the job."
+        },
+        {
+          "name": "start_line",
+          "sourceName": "StartLine",
+          "type": "integer",
+          "description": "1-indexed starting line number of the job handler."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "TRIGGERS",
+          "toKind": "Function",
+          "category": "control_flow",
+          "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "EXPOSES",
+          "fromKind": "Workload",
+          "category": "control_flow",
+          "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Module",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Job)-[:TRIGGERS]->(t:Function)\nRETURN n.name, n.sub_kind, n.schedule_expr, t.name\nLIMIT 25"
     },
     {
       "kind": "PeerMesh",
@@ -2596,6 +3107,12 @@
           "description": "Grounds a Layer 4 semantic resource (Table, Procedure, Endpoint, ExternalService, Topic, Database) downward to a Layer 3 CallArgument that targets it."
         },
         {
+          "rel": "IMPLEMENTED_BY",
+          "toKind": "Type",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
           "rel": "REFERENCES",
           "toKind": "Table",
           "category": "type_dependency",
@@ -2650,6 +3167,18 @@
           "fromKind": "DbSchema",
           "category": "structural",
           "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
+          "rel": "OWNS",
+          "fromKind": "BoundedContext",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns."
+        },
+        {
+          "rel": "OWNS",
+          "fromKind": "Module",
+          "category": "structural",
+          "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns."
         }
       ],
       "sampleCypher": "MATCH (n:Table)-[:TRIGGERS]->(t:Procedure)\nRETURN n.name, n.engine, n.schema, t.name\nLIMIT 25"
@@ -2754,6 +3283,190 @@
         }
       ],
       "sampleCypher": "MATCH (n:Procedure)-[:CALLS]->(t:Procedure)\nRETURN n.name, n.engine, n.schema, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Cache",
+      "pluralLabel": "Caches & Regions",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "zap",
+      "order": 24,
+      "idScheme": "{workspaceId}:cache:{engine}:{regionOrKey}",
+      "purpose": "Represents an in-memory, distributed, or HTTP cache region/key with distinct read, write, and invalidation semantics.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The cache key prefix, region, or named cache store."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The workspace-relative path of the declaring or primary accessing file."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "enum (CacheEngine)",
+          "description": "The backing cache engine kind (memory, distributed, redis, memcached, hybrid, http_output)."
+        },
+        {
+          "name": "key_pattern",
+          "sourceName": "KeyPattern",
+          "type": "string",
+          "description": "Extracted cache key template or region name."
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "Detected caching library or framework (e.g. stackexchange-redis, memory-cache, spring-cache, ioredis)."
+        },
+        {
+          "name": "file_path",
+          "sourceName": "FilePath",
+          "type": "string",
+          "description": "Workspace-relative source file referencing or configuring the cache."
+        },
+        {
+          "name": "start_line",
+          "sourceName": "StartLine",
+          "type": "integer",
+          "description": "1-indexed starting line number of the primary cache declaration or call."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "ACCESSED_BY",
+          "toKind": "Function",
+          "category": "data_flow",
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "INVALIDATES_CACHE",
+          "fromKind": "Function",
+          "category": "data_flow",
+          "description": "Links a function to a Layer 4 Cache region/key it evicts or deletes."
+        },
+        {
+          "rel": "READS_CACHE",
+          "fromKind": "Function",
+          "category": "data_flow",
+          "description": "Links a function to a Layer 4 Cache region/key it reads from."
+        },
+        {
+          "rel": "WRITES_CACHE",
+          "fromKind": "Function",
+          "category": "data_flow",
+          "description": "Links a function to a Layer 4 Cache region/key it populates or updates."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Module",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Cache)-[:ACCESSED_BY]->(t:Function)\nRETURN n.name, n.sub_kind, n.key_pattern, t.name\nLIMIT 25"
+    },
+    {
+      "kind": "Transaction",
+      "pluralLabel": "Transaction Boundaries",
+      "layerId": 4,
+      "layerKey": "L4_semantic",
+      "icon": "shield-check",
+      "order": 25,
+      "idScheme": "{workspaceId}:tx:{subKind}:{scopeName}",
+      "purpose": "Represents an explicit, declarative, ambient, or pipeline-behavior database transaction boundary.",
+      "properties": [
+        {
+          "name": "name",
+          "sourceName": "Name",
+          "type": "string",
+          "description": "The transaction boundary name (e.g. enclosing function or pipeline behavior)."
+        },
+        {
+          "name": "path",
+          "sourceName": "Path",
+          "type": "string",
+          "description": "The workspace-relative path of the declaring file."
+        },
+        {
+          "name": "sub_kind",
+          "sourceName": "SubKind",
+          "type": "enum (TransactionKind)",
+          "description": "How the transaction boundary is established (explicit, declarative, pipeline_behavior, ambient)."
+        },
+        {
+          "name": "is_read_only",
+          "sourceName": "IsReadOnly",
+          "type": "boolean",
+          "description": "Indicates whether the transaction is explicitly configured as read-only."
+        },
+        {
+          "name": "isolation_level",
+          "sourceName": "IsolationLevel",
+          "type": "string",
+          "description": "Configured transaction isolation level when specified."
+        },
+        {
+          "name": "framework",
+          "sourceName": "Framework",
+          "type": "string",
+          "description": "Detected transaction API or framework (e.g. efcore, spring-tx, typeorm, prisma, database-sql)."
+        },
+        {
+          "name": "file_path",
+          "sourceName": "FilePath",
+          "type": "string",
+          "description": "Workspace-relative source file declaring the transaction boundary."
+        },
+        {
+          "name": "start_line",
+          "sourceName": "StartLine",
+          "type": "integer",
+          "description": "1-indexed starting line number of the transaction boundary."
+        }
+      ],
+      "outEdges": [
+        {
+          "rel": "WRAPS",
+          "toKind": "Function",
+          "category": "control_flow",
+          "description": "Links a Layer 4 Transaction boundary to the root function or handler it wraps."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "toKind": "File",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        }
+      ],
+      "inEdges": [
+        {
+          "rel": "EXECUTES_IN_TX",
+          "fromKind": "Function",
+          "category": "control_flow",
+          "description": "Links a function to an active Layer 4 database Transaction boundary under which it executes."
+        },
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Module",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        }
+      ],
+      "sampleCypher": "MATCH (n:Transaction)-[:WRAPS]->(t:Function)\nRETURN n.name, n.sub_kind, n.is_read_only, t.name\nLIMIT 25"
     },
     {
       "kind": "Query",
@@ -3093,6 +3806,18 @@
           "description": "Links a library package to the project that implements or encapsulates it."
         },
         {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "Policy",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
+          "rel": "IMPLEMENTED_BY",
+          "fromKind": "Table",
+          "category": "type_dependency",
+          "description": "Links a library package to the project that implements or encapsulates it."
+        },
+        {
           "rel": "INHERITS_FROM",
           "fromKind": "Type",
           "category": "type_dependency",
@@ -3282,6 +4007,12 @@
           "description": "Links a calling function to the function it directly invokes."
         },
         {
+          "rel": "EXECUTES_IN_TX",
+          "toKind": "Transaction",
+          "category": "control_flow",
+          "description": "Links a function to an active Layer 4 database Transaction boundary under which it executes."
+        },
+        {
           "rel": "HANDLES_COMMAND",
           "toKind": "Message",
           "category": "control_flow",
@@ -3330,6 +4061,12 @@
           "description": "Links a function or method to one of its semantically colored parameters."
         },
         {
+          "rel": "INVALIDATES_CACHE",
+          "toKind": "Cache",
+          "category": "data_flow",
+          "description": "Links a function to a Layer 4 Cache region/key it evicts or deletes."
+        },
+        {
           "rel": "PASSES_ARGUMENT",
           "toKind": "CallArgument",
           "category": "data_flow",
@@ -3340,6 +4077,18 @@
           "toKind": "CallLiteral",
           "category": "data_flow",
           "description": "Links a calling function or scope to a literal argument passed directly into an invocation."
+        },
+        {
+          "rel": "READS_CACHE",
+          "toKind": "Cache",
+          "category": "data_flow",
+          "description": "Links a function to a Layer 4 Cache region/key it reads from."
+        },
+        {
+          "rel": "WRITES_CACHE",
+          "toKind": "Cache",
+          "category": "data_flow",
+          "description": "Links a function to a Layer 4 Cache region/key it populates or updates."
         },
         {
           "rel": "USES_TYPE",
@@ -3410,6 +4159,12 @@
           "description": "Links a calling function to the function it directly invokes."
         },
         {
+          "rel": "ENFORCED_BY",
+          "fromKind": "Policy",
+          "category": "control_flow",
+          "description": "Links a Layer 4 authorization Policy to the guard or middleware function enforcing it."
+        },
+        {
           "rel": "EXPOSED_BY",
           "fromKind": "Endpoint",
           "category": "control_flow",
@@ -3441,9 +4196,27 @@
         },
         {
           "rel": "TRIGGERS",
+          "fromKind": "Job",
+          "category": "control_flow",
+          "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
+        {
+          "rel": "TRIGGERS",
           "fromKind": "Message",
           "category": "control_flow",
           "description": "Links an entry point or API endpoint to the handler function it triggers."
+        },
+        {
+          "rel": "WRAPS",
+          "fromKind": "Transaction",
+          "category": "control_flow",
+          "description": "Links a Layer 4 Transaction boundary to the root function or handler it wraps."
+        },
+        {
+          "rel": "ACCESSED_BY",
+          "fromKind": "Cache",
+          "category": "data_flow",
+          "description": "Links a Layer 4 resource (Database, Table, Query, ExternalService) downward to the Layer 3 function or type that accesses it."
         },
         {
           "rel": "ACCESSED_BY",
@@ -4661,6 +5434,12 @@
         },
         {
           "rel": "DECLARED_IN",
+          "fromKind": "Cache",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
           "fromKind": "CallArgument",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -4727,6 +5506,12 @@
         },
         {
           "rel": "DECLARED_IN",
+          "fromKind": "Job",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
           "fromKind": "Member",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -4745,6 +5530,12 @@
         },
         {
           "rel": "DECLARED_IN",
+          "fromKind": "Policy",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
           "fromKind": "Query",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -4752,6 +5543,12 @@
         {
           "rel": "DECLARED_IN",
           "fromKind": "Topic",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "fromKind": "Transaction",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
         },
@@ -5022,6 +5819,42 @@
       ]
     },
     {
+      "rel": "ENFORCED_BY",
+      "category": "control_flow",
+      "description": "Links a Layer 4 authorization Policy to the guard or middleware function enforcing it.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Policy",
+          "toKind": "Function"
+        }
+      ]
+    },
+    {
+      "rel": "EXECUTES_IN_TX",
+      "category": "control_flow",
+      "description": "Links a function to an active Layer 4 database Transaction boundary under which it executes.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Transaction"
+        }
+      ]
+    },
+    {
       "rel": "EXPOSED_BY",
       "category": "control_flow",
       "description": "Links an entrypoint or endpoint to the type or function that exposes it.",
@@ -5058,6 +5891,32 @@
         {
           "fromKind": "Service",
           "toKind": "Endpoint"
+        },
+        {
+          "fromKind": "Workload",
+          "toKind": "Job"
+        }
+      ]
+    },
+    {
+      "rel": "GUARDED_BY",
+      "category": "control_flow",
+      "description": "Links an Endpoint or CQRS Message contract to a Layer 4 authorization Policy or Guard.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Endpoint",
+          "toKind": "Policy"
+        },
+        {
+          "fromKind": "Message",
+          "toKind": "Policy"
         }
       ]
     },
@@ -5256,12 +6115,34 @@
           "toKind": "File"
         },
         {
+          "fromKind": "Job",
+          "toKind": "Function"
+        },
+        {
           "fromKind": "Message",
           "toKind": "Function"
         },
         {
           "fromKind": "Table",
           "toKind": "Procedure"
+        }
+      ]
+    },
+    {
+      "rel": "WRAPS",
+      "category": "control_flow",
+      "description": "Links a Layer 4 Transaction boundary to the root function or handler it wraps.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Transaction",
+          "toKind": "Function"
         }
       ]
     },
@@ -5292,6 +6173,10 @@
         }
       ],
       "pairs": [
+        {
+          "fromKind": "Cache",
+          "toKind": "Function"
+        },
         {
           "fromKind": "ExternalService",
           "toKind": "Function"
@@ -5407,6 +6292,24 @@
       ]
     },
     {
+      "rel": "INVALIDATES_CACHE",
+      "category": "data_flow",
+      "description": "Links a function to a Layer 4 Cache region/key it evicts or deletes.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Cache"
+        }
+      ]
+    },
+    {
       "rel": "PASSES_ARGUMENT",
       "category": "data_flow",
       "description": "Links a calling function or scope to a semantically colored call argument.",
@@ -5508,6 +6411,24 @@
         {
           "fromKind": "Workload",
           "toKind": "Topic"
+        }
+      ]
+    },
+    {
+      "rel": "READS_CACHE",
+      "category": "data_flow",
+      "description": "Links a function to a Layer 4 Cache region/key it reads from.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Cache"
         }
       ]
     },
@@ -5685,6 +6606,24 @@
         {
           "fromKind": "Workload",
           "toKind": "Database"
+        }
+      ]
+    },
+    {
+      "rel": "WRITES_CACHE",
+      "category": "data_flow",
+      "description": "Links a function to a Layer 4 Cache region/key it populates or updates.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "Function",
+          "toKind": "Cache"
         }
       ]
     },
@@ -5888,6 +6827,14 @@
         {
           "fromKind": "Package",
           "toKind": "Project"
+        },
+        {
+          "fromKind": "Policy",
+          "toKind": "Type"
+        },
+        {
+          "fromKind": "Table",
+          "toKind": "Type"
         },
         {
           "fromKind": "Topic",
@@ -6123,7 +7070,23 @@
         },
         {
           "fromKind": "Module",
+          "toKind": "Cache"
+        },
+        {
+          "fromKind": "Module",
+          "toKind": "Job"
+        },
+        {
+          "fromKind": "Module",
           "toKind": "Message"
+        },
+        {
+          "fromKind": "Module",
+          "toKind": "Policy"
+        },
+        {
+          "fromKind": "Module",
+          "toKind": "Transaction"
         },
         {
           "fromKind": "Procedure",
@@ -6155,6 +7118,10 @@
         }
       ],
       "pairs": [
+        {
+          "fromKind": "Cache",
+          "toKind": "File"
+        },
         {
           "fromKind": "CallArgument",
           "toKind": "File"
@@ -6208,6 +7175,10 @@
           "toKind": "File"
         },
         {
+          "fromKind": "Job",
+          "toKind": "File"
+        },
+        {
           "fromKind": "Member",
           "toKind": "File"
         },
@@ -6220,11 +7191,19 @@
           "toKind": "File"
         },
         {
+          "fromKind": "Policy",
+          "toKind": "File"
+        },
+        {
           "fromKind": "Query",
           "toKind": "File"
         },
         {
           "fromKind": "Topic",
+          "toKind": "File"
+        },
+        {
+          "fromKind": "Transaction",
           "toKind": "File"
         },
         {
@@ -6340,6 +7319,28 @@
         {
           "fromKind": "Project",
           "toKind": "Folder"
+        }
+      ]
+    },
+    {
+      "rel": "OWNS",
+      "category": "structural",
+      "description": "Links a Module or BoundedContext to a database Table whose schema or write lifecycle it owns.",
+      "properties": [
+        {
+          "name": "line",
+          "type": "integer",
+          "description": "Optional 1-indexed source line where the relationship is declared."
+        }
+      ],
+      "pairs": [
+        {
+          "fromKind": "BoundedContext",
+          "toKind": "Table"
+        },
+        {
+          "fromKind": "Module",
+          "toKind": "Table"
         }
       ]
     }

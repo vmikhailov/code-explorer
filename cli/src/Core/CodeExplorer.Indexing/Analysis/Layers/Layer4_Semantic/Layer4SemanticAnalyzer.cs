@@ -182,7 +182,7 @@ public partial class Layer4SemanticParser
     {
         foreach (var child in node.Children)
         {
-            if (child is ModuleNode or DatabaseNode or DbSchemaNode or EndpointNode or QueryNode or ExternalServiceNode or TopicNode or MessageNode or CloudNode or CloudResourceNode or CloudServiceNode or PeerMeshNode or ApiInUseNode or TableNode or DataSetNode)
+            if (child is ModuleNode or DatabaseNode or DbSchemaNode or EndpointNode or QueryNode or ExternalServiceNode or TopicNode or MessageNode or CacheNode or TransactionNode or PolicyNode or JobNode or CloudNode or CloudResourceNode or CloudServiceNode or PeerMeshNode or ApiInUseNode or TableNode or DataSetNode)
             {
                 semanticNodes.Add(child);
             }

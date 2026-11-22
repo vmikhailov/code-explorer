@@ -89,8 +89,24 @@ internal static class OrmSchemaEnricher
         {
             if (!tablesById.TryGetValue(tableId, out var tableNode)) continue;
 
+            SemanticEnrichmentHelpers.AddUniqueRel(
+                new ImplementedByRelationship(tableNode.Id, entity.Id),
+                referenceRelationships,
+                existingRefRels);
+
+            var entityNameUpdated = false;
+            if (string.IsNullOrWhiteSpace(tableNode.EntityName))
+            {
+                tableNode.EntityName = entity.Name;
+                entityNameUpdated = true;
+            }
+
             var members = entity.Children.OfType<MemberNode>().Where(m => m.IsConstant != true).ToList();
-            if (members.Count == 0) continue;
+            if (members.Count == 0)
+            {
+                if (entityNameUpdated) updatedNodes.Add(Node.FromNode(tableNode));
+                continue;
+            }
 
             var cols = new List<OrmColumnDto>();
             foreach (var member in members)
@@ -138,6 +154,10 @@ internal static class OrmSchemaEnricher
             {
                 tableNode.ColumnsJson = JsonSerializer.Serialize(cols, JsonOptions);
                 tableNode.SubKind ??= TableSubKindValue;
+                updatedNodes.Add(Node.FromNode(tableNode));
+            }
+            else if (entityNameUpdated)
+            {
                 updatedNodes.Add(Node.FromNode(tableNode));
             }
         }
