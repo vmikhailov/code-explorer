@@ -9,6 +9,12 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer5AnalysisParser
 {
+    private const string Layer5GlobalStageName = "Layer 5: Global";
+    private const string MaterializeLogicalProgressMsg = "Materializing logical architecture structure...";
+    private const string LogicalStructureName = "LogicalStructure";
+    private const string DefaultCoreDomainKind = "Core";
+    private const string RootWorkspacePath = ".";
+
     private Layer4Result? _currentL4Result;
 
     public async Task<Layer5Result> ParseAsync(Layer4Result l4Result, ParsingContext ctx)
@@ -141,23 +147,7 @@ public partial class Layer5AnalysisParser
 
         Layer5SymbolVisibilityResolver.ResolveSqlTriggerRelationships(_currentL4Result, symbols, referenceRelationships, existingRefRels);
 
-        var enrichedOrmTables = OrmSchemaEnricher.EnrichOrmTablesAndForeignKeys(_currentL4Result, ctx, referenceRelationships, existingRefRels);
-        if (enrichedOrmTables.Count > 0)
-        {
-            await ctx.EnqueueUploadNodesAsync(enrichedOrmTables);
-        }
-
-        var cqrsEnrichment = CqrsMessageEnricher.EnrichCqrsMessages(_currentL4Result, ctx, symbols, bindings.MessageHandlersByType, existingRefRels);
-        if (cqrsEnrichment.Messages.Count > 0)
-        {
-            var msgNodes = cqrsEnrichment.Messages.Select(Node.FromNode).ToList();
-            await ctx.EnqueueUploadNodesAsync(msgNodes);
-            ctx.AddNodesCount(msgNodes.Count);
-        }
-        if (cqrsEnrichment.Relationships.Count > 0)
-        {
-            referenceRelationships.AddRange(cqrsEnrichment.Relationships);
-        }
+        await RunSemanticLayerEnrichersAsync(ctx, symbols, bindings, referenceRelationships, existingRefRels);
 
         ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count, sw.ElapsedMilliseconds);
 
@@ -360,7 +350,7 @@ public partial class Layer5AnalysisParser
             prepExtServices.Add(PrepareExternalService(es, callerProj));
         }
 
-        ctx.ReportProgress(77, "Layer 5: Global", $"Late-binding {prepExtServices.Count} external service calls...");
+        ctx.ReportProgress(77, Layer5GlobalStageName, $"Late-binding {prepExtServices.Count} external service calls...");
         ctx.Layer5Log.LateBindingStarted(prepExtServices.Count, prepEndpoints.Count, prepEntryPoints.Count);
 
         var lateBoundRels = new List<Relationship>();
@@ -585,7 +575,7 @@ public partial class Layer5AnalysisParser
                 var pctInt = (int)Math.Round(pct);
                 var globalPct = totalExt > 0 ? 77 + (int)(7.0 * processedExt / totalExt) : 84;
                 ctx.Layer5Log.LateBindingProgress(processedExt, totalExt, pctInt);
-                ctx.ReportProgress(globalPct, "Layer 5: Global", $"Late-binding external services: {processedExt}/{totalExt} ({pctInt}%)...");
+                ctx.ReportProgress(globalPct, Layer5GlobalStageName, $"Late-binding external services: {processedExt}/{totalExt} ({pctInt}%)...");
             }
         }
 
@@ -814,11 +804,11 @@ public partial class Layer5AnalysisParser
     private async Task MaterializeLogicalStructureAsync(Layer4Result l4Result, ParsingContext ctx)
     {
         if (!WorkspaceConventions.DomainDetectionEnabled || l4Result.SemanticStructure == null) return;
-        ctx.ReportProgress(86, "Layer 5: Global", "Materializing logical architecture structure...");
+        ctx.ReportProgress(86, Layer5GlobalStageName, MaterializeLogicalProgressMsg);
 
         var workspace = l4Result.Prev.Prev.Prev.Workspace;
         var logicalNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.LogicalStructure}";
-        var logicalStructureNode = new LogicalStructureNode(logicalNodeId, "LogicalStructure", workspace.Path);
+        var logicalStructureNode = new LogicalStructureNode(logicalNodeId, LogicalStructureName, workspace.Path);
 
         var nodesToUpload = new List<Node> { Node.FromNode(logicalStructureNode) };
         var relsToUpload = new List<Relationship>
@@ -867,8 +857,8 @@ public partial class Layer5AnalysisParser
             domainIdByKey[domainKey] = domainId;
             bcIdByKey[domainKey] = bcId;
 
-            var domainNode = new DomainNode(domainId, domainKey, domainKey, "Core", Path: ".");
-            var bcNode = new BoundedContextNode(bcId, $"{domainKey} Context", $"{domainKey} Context", domainId, Path: ".");
+            var domainNode = new DomainNode(domainId, domainKey, domainKey, DefaultCoreDomainKind, Path: RootWorkspacePath);
+            var bcNode = new BoundedContextNode(bcId, $"{domainKey} Context", $"{domainKey} Context", domainId, Path: RootWorkspacePath);
 
             nodesToUpload.Add(Node.FromNode(domainNode));
             nodesToUpload.Add(Node.FromNode(bcNode));
@@ -880,6 +870,18 @@ public partial class Layer5AnalysisParser
             {
                 relsToUpload.Add(Relationship.FromRelationship(new ContainsRelationship(bcId, wl.Id)));
                 relsToUpload.Add(Relationship.FromRelationship(new ContainsRelationship(domainId, wl.Id)));
+            }
+        }
+
+        if (_tableOwnerModuleIds is { Count: > 0 })
+        {
+            foreach (var (tableId, ownerModId) in _tableOwnerModuleIds)
+            {
+                if (workloadToDomainKey.TryGetValue(ownerModId, out var ownerDomain) &&
+                    bcIdByKey.TryGetValue(ownerDomain, out var ownerBcId))
+                {
+                    relsToUpload.Add(Relationship.FromRelationship(new OwnsRelationship(ownerBcId, tableId)));
+                }
             }
         }
 

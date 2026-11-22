@@ -52,6 +52,10 @@ public static class OntologyConstants
         public const string Workload = "Workload";
         public const string CloudResource = "CloudResource";
         public const string Message = "Message";
+        public const string Cache = "Cache";
+        public const string Transaction = "Transaction";
+        public const string Policy = "Policy";
+        public const string Job = "Job";
     }
 
     public static class IdPrefixes
@@ -97,6 +101,10 @@ public static class OntologyConstants
         public const string DbSchema = "schema";
         public const string CloudResource = "cr";
         public const string Message = "msg";
+        public const string Cache = "cache";
+        public const string Transaction = "tx";
+        public const string Policy = "pol";
+        public const string Job = "job";
     }
 
     public static class Layers
@@ -181,6 +189,14 @@ public static class OntologyConstants
         public const string HandlesQuery = "HANDLES_QUERY";
         public const string HandlesCommand = "HANDLES_COMMAND";
         public const string HandlesEvent = "HANDLES_EVENT";
+        public const string ReadsCache = "READS_CACHE";
+        public const string WritesCache = "WRITES_CACHE";
+        public const string InvalidatesCache = "INVALIDATES_CACHE";
+        public const string Wraps = "WRAPS";
+        public const string ExecutesInTx = "EXECUTES_IN_TX";
+        public const string GuardedBy = "GUARDED_BY";
+        public const string EnforcedBy = "ENFORCED_BY";
+        public const string Owns = "OWNS";
     }
 
     public static class EvidenceKinds

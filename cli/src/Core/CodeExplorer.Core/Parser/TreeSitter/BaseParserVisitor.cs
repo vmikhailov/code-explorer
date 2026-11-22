@@ -937,7 +937,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (kind == OntologyConstants.NodeLabels.Query)
         {
-            NestedSqlParser.TryDetectSqlDependencies(syntacticNode.Text ?? node.Text, "", syntacticNode.References);
+            var rawQueryText = (syntacticNode.Text ?? node.Text).Trim().Trim('"', '\'', '`');
+            NestedSqlParser.TryDetectSqlDependencies(rawQueryText, "", syntacticNode.References);
             var enclosingTarget = SymbolStack.FirstOrDefault(s => s != syntacticNode && s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
                                   ?? SymbolStack.FirstOrDefault(s => s != syntacticNode && s.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class
                                       or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct

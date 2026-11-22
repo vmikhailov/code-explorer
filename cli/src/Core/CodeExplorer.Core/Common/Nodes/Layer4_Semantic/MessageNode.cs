@@ -17,6 +17,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
+[OntologyEdge<PolicyNode>(OntologyConstants.Relationships.GuardedBy)]
 public record MessageNode(
     string Id,
     [property: OntologyProperty("The message contract name (e.g. GetMyWalletQuery, CreateOrderCommand).")] string Name,

@@ -56,7 +56,8 @@ public static class JsonSchemaRenderer
     {
         "CALLS", "TRANSITIVELY_CALLS", "TRIGGERS", "HANDLES", "HANDLES_QUERY", "HANDLES_COMMAND", "HANDLES_EVENT", "IMPLEMENTS",
         "HAS_ENTRYPOINT", "SERVICE_CALL", "CALLS_ENDPOINT", "CALLED_BY",
-        "EXPOSES", "EXPOSES_ENDPOINT", "EXPOSED_BY", "INSTANTIATES"
+        "EXPOSES", "EXPOSES_ENDPOINT", "EXPOSED_BY", "INSTANTIATES",
+        "WRAPS", "EXECUTES_IN_TX", "GUARDED_BY", "ENFORCED_BY"
     };
 
     private static readonly HashSet<string> DataFlowRels = new(StringComparer.OrdinalIgnoreCase)
@@ -64,13 +65,14 @@ public static class JsonSchemaRenderer
         "FLOWS_TO", "HAS_PARAMETER", "PASSES_ARGUMENT", "PASSES_LITERAL",
         "TARGETED_BY", "ATTRIBUTED_TO", "USES_DB", "QUERIES_DB", "QUERIED_BY", "READS_FROM",
         "WRITES_TO", "ACCESSED_BY", "PUBLISHES_TO", "SUBSCRIBES_TO",
-        "PUBLISHED_BY", "SUBSCRIBED_BY", "PERSISTED_IN", "TRANSFORMS_TO"
+        "PUBLISHED_BY", "SUBSCRIBED_BY", "PERSISTED_IN", "TRANSFORMS_TO",
+        "READS_CACHE", "WRITES_CACHE", "INVALIDATES_CACHE"
     };
 
     private static readonly HashSet<string> StructuralRels = new(StringComparer.OrdinalIgnoreCase)
     {
         "CONTAINS", "DECLARED_IN", "BELONGS_TO", "LOCATED_IN", "DEFINES",
-        "DECLARES", "DECLARES_TYPE", "HAS_METHOD", "HAS_MEMBER", "HAS_VARIABLE"
+        "DECLARES", "DECLARES_TYPE", "HAS_METHOD", "HAS_MEMBER", "HAS_VARIABLE", "OWNS"
     };
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -180,6 +182,24 @@ public static class JsonSchemaRenderer
                     list.Add((funcLabel, cqrsRel, msgLabel));
                 }
             }
+        }
+
+        const string cacheLabel = "Cache";
+        if (activeLabelSet.Contains(funcLabel) && activeLabelSet.Contains(cacheLabel))
+        {
+            foreach (var cacheRel in new[] { "READS_CACHE", "WRITES_CACHE", "INVALIDATES_CACHE" })
+            {
+                if (seen.Add((funcLabel, cacheRel, cacheLabel)))
+                {
+                    list.Add((funcLabel, cacheRel, cacheLabel));
+                }
+            }
+        }
+
+        const string txLabel = "Transaction";
+        if (activeLabelSet.Contains(funcLabel) && activeLabelSet.Contains(txLabel) && seen.Add((funcLabel, "EXECUTES_IN_TX", txLabel)))
+        {
+            list.Add((funcLabel, "EXECUTES_IN_TX", txLabel));
         }
 
         return list;

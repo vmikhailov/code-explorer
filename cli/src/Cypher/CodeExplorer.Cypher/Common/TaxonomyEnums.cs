@@ -504,3 +504,48 @@ public enum EvidenceKind : byte
     TestCall = 15,
     TypeReference = 16
 }
+
+[JsonConverter(typeof(CacheEngineJsonConverter))]
+public enum CacheEngine : byte
+{
+    Unspecified = 0,
+    Memory = 1,
+    Distributed = 2,
+    Redis = 3,
+    Memcached = 4,
+    Hybrid = 5,
+    HttpOutput = 6
+}
+
+[JsonConverter(typeof(TransactionKindJsonConverter))]
+public enum TransactionKind : byte
+{
+    Unspecified = 0,
+    Explicit = 1,
+    Declarative = 2,
+    PipelineBehavior = 3,
+    Ambient = 4
+}
+
+[JsonConverter(typeof(PolicyKindJsonConverter))]
+public enum PolicyKind : byte
+{
+    Unspecified = 0,
+    Authenticated = 1,
+    Role = 2,
+    Permission = 3,
+    CustomGuard = 4,
+    Anonymous = 5
+}
+
+[JsonConverter(typeof(JobKindJsonConverter))]
+public enum JobKind : byte
+{
+    Unspecified = 0,
+    Cron = 1,
+    Recurring = 2,
+    FireAndForget = 3,
+    Workflow = 4,
+    Activity = 5,
+    BackgroundWorker = 6
+}

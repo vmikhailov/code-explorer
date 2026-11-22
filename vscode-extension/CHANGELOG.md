@@ -5,6 +5,23 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.97.0] - 2026-11-22
+
+### Added
+- **Layer 4 Behavioral Ontology Expansion — Cache, Transactions, Policies, Jobs & Table Ownership (`CodeExplorer.Core`, `CodeExplorer.Cypher`, `CodeExplorer.Indexing`, `CodeExplorer.Gates`)**:
+  - **Phase 1 — Cache Regions & Invalidation Lineage (`CacheNode`, `CacheLineageEnricher`)**: Added Layer 4 `Cache` entity (`sub_kind: memory | distributed | redis | memcached | hybrid | http_output`, `key_pattern`, `framework`) and typed Layer 5 edges `READS_CACHE`, `WRITES_CACHE`, and `INVALIDATES_CACHE` across .NET (`IMemoryCache`, `IDistributedCache`, `HybridCache`, `StackExchange.Redis`, `[OutputCache]`), Java (`@Cacheable`, `@CachePut`, `@CacheEvict`, `RedisTemplate`, `Redisson`), TypeScript, Python, Go, and PHP, plus starter gate `SIG-CACHE-001` (write without cache invalidation).
+  - **Phase 2 — Database Transaction Boundaries (`TransactionNode`, `TransactionBoundaryEnricher`)**: Added Layer 4 `Transaction` entity (`sub_kind: explicit | declarative | pipeline_behavior | ambient`, `is_read_only`), `WRAPS -> Function`, and downstream call-stack propagation of `EXECUTES_IN_TX -> Transaction` across `@Transactional`, `TransactionScope`, `BeginTransaction*`, MediatR `IPipelineBehavior`, TypeORM/Prisma/Sequelize transactions, Go `BeginTx`, Python `transaction.atomic`, and PHP `DB::transaction`, plus starter gates `SIG-TX-001` (outbound HTTP inside DB transaction), `SIG-TX-002` (multi-table write command outside transaction), and `SIG-TX-003` (dual DB + broker write without Outbox).
+  - **Phase 3 — Authorization Policies & Guards (`PolicyNode`, `PolicyAuthorizationEnricher`)**: Added Layer 4 `Policy` entity (`sub_kind: authenticated | role | permission | custom_guard | anonymous`), `Endpoint|Message -[:GUARDED_BY]-> Policy`, `Policy -[:ENFORCED_BY]-> Function`, and `Policy -[:IMPLEMENTED_BY]-> Type` across ASP.NET `[Authorize]`/`RequireAuthorization`, NestJS `@UseGuards`/`@Public`, Spring Security `@PreAuthorize`/`@Secured`/`@RolesAllowed`, FastAPI `Depends(get_current_user*)`, and Symfony `#[IsGranted]`, plus starter gate `SIG-SEC-001` (unguarded state-mutating endpoints).
+  - **Phase 4 — Scheduled Jobs & Workflows (`JobNode`, `ScheduledJobEnricher`)**: Added Layer 4 `Job` entity (`sub_kind: cron | recurring | fire_and_forget | workflow | activity | background_worker`), `Workload -[:EXPOSES]-> Job`, and `Job -[:TRIGGERS]-> Function` across Spring `@Scheduled`, Quartz, Hangfire, `BackgroundService`, NestJS `@Cron`/`@Interval`/BullMQ, Celery, Temporal, Go `cron`, and Symfony Scheduler, plus starter gate `SIG-JOB-001` (scheduled cron state mutations).
+  - **Phase 5 — ORM Entity Mapping & Module/Context Table Ownership (`TableOwnershipEnricher`, `OrmSchemaEnricher`)**: Formalized `Table -[:IMPLEMENTED_BY]-> Type` and added `Module -[:OWNS]-> Table` and `BoundedContext -[:OWNS]-> Table` ownership inference, unlocking starter gates `SIG-DDD-001` (shared table writes across Services) and `SIG-DDD-002` (cross-module direct table bypass).
+
+### Fixed
+- **SQL Receiver Disambiguation in Mediator Dispatch & Raw SQL Quote Stripping (`CodeExplorer.Indexing`, `CodeExplorer.Core`)**:
+  - Guarded `TryResolveMediatorMessageDispatch` against treating database/ORM execution calls (`_db.ExecuteAsync`, `conn.Execute`, `jdbcTemplate.query`) as in-process mediator command dispatches when multiple handlers coexist in the same file.
+  - Stripped enclosing string quotes on `SyntacticSymbolKind.Query` symbols in `BaseParserVisitor` so raw SQL read/write statements consistently emit `READS_FROM` and `WRITES_TO` lineage across languages.
+
+---
+
 ## [1.96.0] - 2026-11-22
 
 ### Added

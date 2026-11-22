@@ -19,6 +19,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer5_Logical;
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Defines)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.Owns)]
 public record BoundedContextNode(
     string Id,
     [property: OntologyProperty("The canonical bounded context name.")] string Name,

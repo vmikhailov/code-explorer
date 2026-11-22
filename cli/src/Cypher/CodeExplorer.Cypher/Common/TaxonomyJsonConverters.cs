@@ -410,6 +410,10 @@ public static class TaxonomyViewEnumExtensions
             BoundedContextInteractionType bc => bc.ToCanonicalString(),
             GraphEdgeCategory ge => ge.ToCanonicalString(),
             EvidenceKind ek => ek.ToCanonicalString(),
+            CacheEngine ce => ce.ToCanonicalString(),
+            TransactionKind tk => tk.ToCanonicalString(),
+            PolicyKind pk => pk.ToCanonicalString(),
+            JobKind jk => jk.ToCanonicalString(),
             _ => value.ToString()
         };
     }
@@ -438,6 +442,10 @@ public static class TaxonomyViewEnumExtensions
         BoundedContextInteractionType bcit => bcit.ToCanonicalString(),
         GraphEdgeCategory gec => gec.ToCanonicalString(),
         EvidenceKind ek => ek.ToCanonicalString(),
+        CacheEngine ce => ce.ToCanonicalString(),
+        TransactionKind tk => tk.ToCanonicalString(),
+        PolicyKind pk => pk.ToCanonicalString(),
+        JobKind jk => jk.ToCanonicalString(),
         _ => e.ToString()
     };
 }

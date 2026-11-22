@@ -18,6 +18,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
+[OntologyEdge<JobNode>(OntologyConstants.Relationships.Exposes)]
 public abstract record WorkloadNode(
     string Id,
     string Name,

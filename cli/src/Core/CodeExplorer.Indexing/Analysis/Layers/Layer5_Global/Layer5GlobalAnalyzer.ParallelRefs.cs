@@ -270,6 +270,44 @@ public partial class Layer5AnalysisParser
         "execute", "send", "publish", "dispatch", "ask", "query"
     };
 
+    private static readonly HashSet<string> AmbiguousExecutionMethodNames = new(StringComparer.Ordinal)
+    {
+        "Execute", "ExecuteAsync", "execute", "query"
+    };
+
+    private static readonly HashSet<string> NonMediatorReceiverNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "db", "_db", "conn", "_conn", "connection", "_connection", "sqlConnection", "_sqlConnection",
+        "cmd", "_cmd", "command", "_command", "jdbcTemplate", "namedParameterJdbcTemplate",
+        "entityManager", "session", "_session", "prisma", "knex", "pdo"
+    };
+
+    private static readonly string[] NonMediatorTypeTokens =
+    [
+        "DbConnection", "SqlConnection", "NpgsqlConnection", "SqliteConnection", "MySqlConnection",
+        "DbCommand", "SqlCommand", "JdbcTemplate", "EntityManager", "DataSource"
+    ];
+
+    private static bool IsNonMediatorExecutionReceiver(string? receiverName, string? normCallerFile, BindingLookups bindings)
+    {
+        if (string.IsNullOrEmpty(receiverName)) return false;
+        var shortRecv = receiverName.Contains('.') ? receiverName[(receiverName.LastIndexOf('.') + 1)..] : receiverName;
+        if (NonMediatorReceiverNames.Contains(shortRecv)) return true;
+        if (normCallerFile != null && bindings.BindingsLookup.TryGetValue((normCallerFile, shortRecv), out var bList))
+        {
+            for (var i = 0; i < bList.Count; i++)
+            {
+                var tName = bList[i].TypeName;
+                if (string.IsNullOrEmpty(tName)) continue;
+                for (var k = 0; k < NonMediatorTypeTokens.Length; k++)
+                {
+                    if (tName.Contains(NonMediatorTypeTokens[k], StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static void TryResolveMediatorMessageDispatch(
         Reference refItem,
         string targetName,
@@ -361,6 +399,11 @@ public partial class Layer5AnalysisParser
         var checkMethod = methodName ?? targetName;
         if (checkMethod != null && MediatorDispatchMethodNames.Contains(checkMethod) && normCallerFile != null)
         {
+            if (AmbiguousExecutionMethodNames.Contains(checkMethod) &&
+                IsNonMediatorExecutionReceiver(refItem.ReceiverName, normCallerFile, bindings))
+            {
+                return;
+            }
             var callerFnName = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
             foreach (var ((fp, _), bList) in bindings.BindingsLookup)
             {
