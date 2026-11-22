@@ -350,7 +350,8 @@ public partial class Layer3SyntacticParser
             // ConfigInitializerRegex and EtlRegex handled above
             // SqlQueryRegex handled above
             var isConstant = rawVar.IsConstant;
-            var isGlobal = rawVar.Scope == "global";
+            var isParameter = rawVar.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Parameter;
+            var isGlobal = rawVar.Scope == "global" && !isParameter;
             var isProperty = rawVar.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Property;
             var isField = rawVar.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Field;
 
@@ -409,6 +410,12 @@ public partial class Layer3SyntacticParser
         {
             if (child is TypeNode cn && line >= cn.StartLine && line <= cn.EndLine)
             {
+                // Variables/parameters declared inside a Type declaration (e.g. C# primary constructor or record parameters)
+                // are scoped to the type, not module-level globals; PopulateSymbolScopeMetadata sets explicit static modifiers later.
+                if (varNode.IsStatic == true)
+                {
+                    varNode.IsStatic = null;
+                }
                 if (TryInsertVariable(cn, varNode, line)) return true;
             }
 
@@ -995,13 +1002,21 @@ internal static class Layer3ScopeVisibilityPass
                            HasDeclarationModifierKeyword(memDecl, isStaticCheck: true);
             var isConstOrReadOnly = (memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly)) != 0 ||
                                     memDecl.Kind == MemberSyntaxKind.Constant ||
-                                    HasDeclarationModifierKeyword(memDecl, isStaticCheck: false);
+                                    HasDeclarationModifierKeyword(memDecl, isStaticCheck: false) ||
+                                    IsGetOnlyPropertyDeclaration(memDecl);
 
             void ApplyToMember(MemberNode target)
             {
                 if (attrsStr != null) target.Attributes ??= attrsStr;
-                if (isStatic) target.IsStatic = true;
-                if (isConstOrReadOnly) target.IsConstant = true;
+                if (isStatic && target.MemberKind != CodeExplorer.Cypher.Common.MemberKind.Parameter) target.IsStatic = true;
+                if (IsMutableCollectionMember(target, memDecl))
+                {
+                    target.IsConstant = false;
+                }
+                else if (isConstOrReadOnly)
+                {
+                    target.IsConstant = true;
+                }
             }
 
             var startLine = memDecl.Span.StartLine + 1;
@@ -1062,6 +1077,45 @@ internal static class Layer3ScopeVisibilityPass
                 if (token is "const" or "readonly" or "final") return true;
             }
             span = span[idx..];
+        }
+        return false;
+    }
+
+    private const string ExprArrow = "=>";
+    private const string GetterToken = "get;";
+    private const string SetterToken = "set;";
+    private static readonly string[] MutableCollectionTypeTokens =
+    [
+        "ConcurrentDictionary", "Dictionary<", "List<", "HashSet<",
+        "ConcurrentQueue", "ConcurrentBag", "ConcurrentStack",
+        "Queue<", "Stack<", "LinkedList<",
+        "Map<", "Set<", "new Map(", "new Set("
+    ];
+
+    private static bool IsGetOnlyPropertyDeclaration(MemberDeclSyntax memDecl)
+    {
+        if (memDecl.Kind != MemberSyntaxKind.Property) return false;
+        var span = memDecl.AsSpan();
+        if (span.Contains(ExprArrow.AsSpan(), StringComparison.Ordinal)) return true;
+        return span.Contains(GetterToken.AsSpan(), StringComparison.Ordinal) &&
+               !span.Contains(SetterToken.AsSpan(), StringComparison.Ordinal);
+    }
+
+    private static bool IsMutableCollectionMember(MemberNode target, MemberDeclSyntax memDecl)
+    {
+        var dt = target.DataType;
+        var init = target.InitializerExpression;
+        var declSpan = memDecl.AsSpan();
+
+        for (var i = 0; i < MutableCollectionTypeTokens.Length; i++)
+        {
+            var token = MutableCollectionTypeTokens[i].AsSpan();
+            if ((!string.IsNullOrEmpty(dt) && dt.AsSpan().Contains(token, StringComparison.Ordinal)) ||
+                (!string.IsNullOrEmpty(init) && init.AsSpan().Contains(token, StringComparison.Ordinal)) ||
+                declSpan.Contains(token, StringComparison.Ordinal))
+            {
+                return true;
+            }
         }
         return false;
     }

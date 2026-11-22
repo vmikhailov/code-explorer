@@ -143,6 +143,7 @@ public class GateExecutionEngine
         if (result.Count == 0) return violations;
 
         var occurrenceCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var seenExactLocations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in result.Rows)
         {
@@ -298,7 +299,14 @@ public class GateExecutionEngine
                         : $"Invariant violation in {symbol ?? file ?? "element"}";
                 }
 
-                var tupleKey = $"{GateFingerprintGenerator.NormalizeFilePath(file)}|{(symbol ?? "").Trim()}|{(resolvedTarget ?? "").Trim()}";
+                var normalizedFile = GateFingerprintGenerator.NormalizeFilePath(file);
+                var exactLocationKey = $"{normalizedFile}|{siteLine}|{siteCol}|{(symbol ?? "").Trim()}|{(resolvedTarget ?? "").Trim()}|{(resolvedMessage ?? "").Trim()}";
+                if (!seenExactLocations.Add(exactLocationKey))
+                {
+                    continue;
+                }
+
+                var tupleKey = $"{normalizedFile}|{(symbol ?? "").Trim()}|{(resolvedTarget ?? "").Trim()}";
                 var occurrence = occurrenceCounts.GetValueOrDefault(tupleKey, 0) + 1;
                 occurrenceCounts[tupleKey] = occurrence;
 

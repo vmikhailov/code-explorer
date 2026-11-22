@@ -551,4 +551,188 @@ public class JavaEnterpriseCoverageTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task EndToEnd_SpringDataJpa_IndexesFullLayer1To5TableLineageInSqlite()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+        var tempDir = CreateTempDir();
+        var srcDir = Path.Combine(tempDir, "src", "main", "java", "com", "enterprise", "orders");
+        Directory.CreateDirectory(srcDir);
+        var dbPath = Path.Combine(tempDir, "graph.db");
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "pom.xml"), """
+                <project xmlns="http://maven.apache.org/POM/4.0.0">
+                    <groupId>com.enterprise</groupId>
+                    <artifactId>orders-service</artifactId>
+                    <version>1.0.0</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-starter-data-jpa</artifactId>
+                            <version>3.3.0</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "OrderEntity.java"), """
+                package com.enterprise.orders;
+
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+
+                @Entity
+                @Table(name = "orders")
+                public class OrderEntity {
+                    private Long id;
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "OrderRepository.java"), """
+                package com.enterprise.orders;
+
+                import org.springframework.data.jpa.repository.JpaRepository;
+                import java.util.List;
+
+                public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
+                    List<OrderEntity> findByStatus(String status);
+                    void deleteByCustomerId(Long customerId);
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "OrderService.java"), """
+                package com.enterprise.orders;
+
+                import java.util.List;
+
+                public class OrderService {
+                    private final OrderRepository orderRepository;
+
+                    public OrderService(OrderRepository orderRepository) {
+                        this.orderRepository = orderRepository;
+                    }
+
+                    public List<OrderEntity> loadOpenOrders() {
+                        return orderRepository.findByStatus("OPEN");
+                    }
+
+                    public void purgeCustomer(Long id) {
+                        orderRepository.deleteByCustomerId(id);
+                    }
+                }
+                """);
+
+            await using var client = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var readRes = await client.ExecuteCypherAsync(
+                "MATCH (fn:Function)-[:READS_FROM]->(t:Table {name: 'orders'}) RETURN fn.name AS name");
+            var readNames = readRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+            readNames.Should().Contain("loadOpenOrders");
+
+            var writeRes = await client.ExecuteCypherAsync(
+                "MATCH (fn:Function)-[:WRITES_TO]->(t:Table {name: 'orders'}) RETURN fn.name AS name");
+            var writeNames = writeRes.Rows.Select(r => r.GetStringProp("name")).ToList();
+            writeNames.Should().Contain("purgeCustomer");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { /* SQLite file release race on Windows */ }
+            }
+        }
+    }
+
+    [Test]
+    public async Task EndToEnd_RedisReceiverScoping_CSharpRepoWrites_AndMutableStaticPrecision()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+        var tempDir = CreateTempDir();
+        var tsDir = Path.Combine(tempDir, "ts-service");
+        var csDir = Path.Combine(tempDir, "cs-service");
+        Directory.CreateDirectory(Path.Combine(tsDir, "src"));
+        Directory.CreateDirectory(csDir);
+        var dbPath = Path.Combine(tempDir, "graph.db");
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tsDir, "package.json"), """
+                {
+                  "name": "ts-service",
+                  "dependencies": { "redis": "^4.0.0" }
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(tsDir, "src", "postSlug.ts"), """
+                export interface IPostRepo {
+                  exists(slug: string): Promise<boolean>;
+                }
+                export async function checkSlug(postRepo: IPostRepo, redisClient: any, slug: string) {
+                  const inRedis = await redisClient.exists(slug);
+                  if (inRedis) return true;
+                  return await postRepo.exists(slug);
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(csDir, "Service.csproj"), """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+                  <ItemGroup><PackageReference Include="Ardalis.Specification" Version="8.0.0" /></ItemGroup>
+                </Project>
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(csDir, "Contributor.cs"), """
+                using System.Collections.Concurrent;
+
+                namespace Sample;
+
+                public class Contributor { public int Id { get; set; } }
+                public interface IRepository<T> { Task UpdateAsync(T entity); }
+
+                public class GetContributorHandler(IRepository<Contributor> _repository)
+                {
+                    private static readonly ConcurrentDictionary<int, int> _fetchCounts = new();
+                    public static string HandlerName => "GetContributor";
+
+                    public async Task Handle(Contributor entity)
+                    {
+                        await _repository.UpdateAsync(entity);
+                    }
+                }
+                """);
+
+            await using var client = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            // 1. Redis TS: redisClient.exists IS a Redis query, postRepo.exists is NOT
+            var queries = await client.ExecuteCypherAsync("MATCH (q:Query) RETURN q.name AS name");
+            var queryNames = queries.Rows.Select(r => r.GetStringProp("name")).ToList();
+            queryNames.Should().NotContain(n => n.Contains("postRepo.exists"));
+            queryNames.Should().Contain(n => n.Contains("redisClient.exists"));
+
+            // 2. C# static readonly ConcurrentDictionary is mutable (is_constant = false), get-only property is constant (is_constant = true)
+            var members = await client.ExecuteCypherAsync(
+                "MATCH (m:Member) WHERE m.name IN ['_fetchCounts', 'HandlerName'] RETURN m.name AS name, m.is_static AS isStatic, m.is_constant AS isConst");
+            var fetchRow = members.Rows.First(r => r.GetStringProp("name") == "_fetchCounts");
+            fetchRow.GetBoolProp("isStatic").Should().BeTrue();
+            fetchRow.GetBoolProp("isConst").Should().BeFalse();
+
+            var propRow = members.Rows.First(r => r.GetStringProp("name") == "HandlerName");
+            propRow.GetBoolProp("isStatic").Should().BeTrue();
+            propRow.GetBoolProp("isConst").Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { /* SQLite file release race on Windows */ }
+            }
+        }
+    }
 }

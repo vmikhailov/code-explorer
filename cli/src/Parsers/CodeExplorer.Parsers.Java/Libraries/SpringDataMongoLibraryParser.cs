@@ -5,7 +5,8 @@ namespace CodeExplorer.Parsers.Java.Libraries;
 
 public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
 {
-    private readonly ConcurrentDictionary<string, string> _entityToTable = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, (ConcurrentDictionary<string, string> EntityToTable, ConcurrentDictionary<string, string> RepoToEntity)> _workspaceMaps =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public SpringDataMongoLibraryParser()
     {
@@ -37,19 +38,29 @@ public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
             new CustomAstRule
             {
                 NodeTypes = SpringDataRepositoryHelper.RepositoryNodeTypes,
-                EnrichSymbol = (node, symbol, _) => SpringDataRepositoryHelper.EnrichRepositorySymbol(
-                    node, symbol, SpringDataRepositoryHelper.MongoRepositoryInterfaces, _entityToTable)
+                EnrichSymbol = (node, symbol, ctx) =>
+                {
+                    var maps = SpringDataRepositoryHelper.GetOrCreateWorkspaceMaps(ctx?.WorkspaceId, _workspaceMaps);
+                    SpringDataRepositoryHelper.EnrichRepositorySymbol(node, symbol, SpringDataRepositoryHelper.MongoRepositoryInterfaces, maps.EntityToTable);
+                },
+                CollectReferences = (node, scopeId, refs, ctx) =>
+                {
+                    var maps = SpringDataRepositoryHelper.GetOrCreateWorkspaceMaps(ctx?.WorkspaceId, _workspaceMaps);
+                    SpringDataRepositoryHelper.CollectRepositoryCallReferences(node, scopeId, refs, maps.EntityToTable, maps.RepoToEntity);
+                }
             }
         ];
     }
 
     public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
     {
-        SpringDataRepositoryHelper.DiscoverEntityTables(content, _entityToTable);
+        var maps = SpringDataRepositoryHelper.GetOrCreateWorkspaceMaps(ctx?.WorkspaceId, _workspaceMaps);
+        SpringDataRepositoryHelper.DiscoverEntityTables(content, maps.EntityToTable, maps.RepoToEntity);
     }
 
     public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
-        SpringDataRepositoryHelper.DiscoverEntityTables(rootNode.Text, _entityToTable);
+        var maps = SpringDataRepositoryHelper.GetOrCreateWorkspaceMaps(ctx?.WorkspaceId, _workspaceMaps);
+        SpringDataRepositoryHelper.DiscoverEntityTables(rootNode.Text, maps.EntityToTable, maps.RepoToEntity);
     }
 }

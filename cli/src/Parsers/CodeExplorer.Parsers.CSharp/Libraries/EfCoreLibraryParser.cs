@@ -14,6 +14,8 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
         [
             "Microsoft.EntityFrameworkCore",
             "Microsoft.EntityFrameworkCore.*",
+            "Ardalis.Specification",
+            "Ardalis.Specification.*",
             "System.Data.Entity",
             "System.Data.Entity.*",
             "EntityFramework",
@@ -519,15 +521,17 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
     private static readonly FrozenSet<string> EfCoreWriteMethods = new[]
     {
         "Add", "AddAsync", "AddRange", "AddRangeAsync",
-        "Update", "UpdateRange",
+        "Update", "UpdateAsync", "UpdateRange", "UpdateRangeAsync",
         "Remove", "RemoveRange",
+        "Delete", "DeleteAsync", "DeleteRange", "DeleteRangeAsync",
+        "SaveChanges", "SaveChangesAsync",
         "ExecuteUpdate", "ExecuteUpdateAsync",
         "ExecuteDelete", "ExecuteDeleteAsync"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     private static readonly FrozenSet<string> EfCoreReadMethods = new[]
     {
-        "Find", "FindAsync",
+        "Find", "FindAsync", "GetByIdAsync", "GetBySpecAsync", "ListAsync",
         "First", "FirstAsync", "FirstOrDefault", "FirstOrDefaultAsync",
         "Single", "SingleAsync", "SingleOrDefault", "SingleOrDefaultAsync",
         "Last", "LastAsync", "LastOrDefault", "LastOrDefaultAsync",
@@ -643,6 +647,17 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
                 }
             }
 
+            if (IsLikelyRepositoryReceiver(curr))
+            {
+                var repoEntity = TryResolveEnclosingRepositoryEntityType(invocationNode, curr)
+                                 ?? (isWriteMethod ? TryResolveFirstArgParameterType(invocationNode) : null);
+                if (!string.IsNullOrEmpty(repoEntity))
+                {
+                    targetTableOrEntity = repoEntity;
+                    return true;
+                }
+            }
+
             break;
         }
 
@@ -667,6 +682,64 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
                span.Equals("_dbContext", StringComparison.OrdinalIgnoreCase) ||
                span.EndsWith("Context", StringComparison.OrdinalIgnoreCase) ||
                span.EndsWith("DbContext", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private const string ThisDotPrefix = "this.";
+    private const string RepoSuffix = "Repo";
+    private const string RepositorySuffix = "Repository";
+    private const char OpenAngle = '<';
+    private const char CloseAngle = '>';
+    private const char CommaChar = ',';
+
+    private static bool IsLikelyRepositoryReceiver(Node? receiverNode)
+    {
+        if (!receiverNode.IsValid()) return false;
+        var span = receiverNode.AsSpan().Trim();
+        if (span.StartsWith(ThisDotPrefix, StringComparison.Ordinal))
+        {
+            span = span[ThisDotPrefix.Length..].Trim();
+        }
+        if (span.IsEmpty || span.Contains('(') || span.Contains('.')) return false;
+
+        return span.EndsWith(RepositorySuffix, StringComparison.OrdinalIgnoreCase) ||
+               span.EndsWith(RepoSuffix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryResolveEnclosingRepositoryEntityType(Node invocationNode, Node receiverNode)
+    {
+        var recvSpan = receiverNode.AsSpan().Trim();
+        if (recvSpan.StartsWith(ThisDotPrefix, StringComparison.Ordinal))
+        {
+            recvSpan = recvSpan[ThisDotPrefix.Length..].Trim();
+        }
+        if (recvSpan.IsEmpty) return null;
+
+        var classDecl = GetParentClass(invocationNode);
+        if (!classDecl.IsValid()) return null;
+
+        // Check primary constructor parameters, constructor parameters, and fields for matching identifier or generic Repository<T>
+        var headerSpan = classDecl.AsSpan();
+        var recvName = recvSpan.ToString();
+        var pattern = $@"(?:IRepository|IReadRepository|IAsyncRepository|RepositoryBase|Repository)\s*<\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(?:,|>)\s*[^>]*?\b{System.Text.RegularExpressions.Regex.Escape(recvName)}\b";
+        var match = System.Text.RegularExpressions.Regex.Match(headerSpan.ToString(), pattern);
+        if (match.Success)
+        {
+            var entity = match.Groups[1].Value.Trim();
+            var dot = entity.LastIndexOf('.');
+            return dot >= 0 && dot + 1 < entity.Length ? entity[(dot + 1)..] : entity;
+        }
+
+        var fallbackMatch = System.Text.RegularExpressions.Regex.Match(
+            headerSpan.ToString(),
+            @"(?:IRepository|IReadRepository|IAsyncRepository|RepositoryBase)\s*<\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(?:,|>)");
+        if (fallbackMatch.Success)
+        {
+            var entity = fallbackMatch.Groups[1].Value.Trim();
+            var dot = entity.LastIndexOf('.');
+            return dot >= 0 && dot + 1 < entity.Length ? entity[(dot + 1)..] : entity;
+        }
+
+        return null;
     }
 
     private static string? TryResolveFirstArgParameterType(Node invocationNode)

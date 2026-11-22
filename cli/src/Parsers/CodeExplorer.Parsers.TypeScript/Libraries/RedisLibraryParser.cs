@@ -37,6 +37,23 @@ public class RedisLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
+    private static readonly FrozenSet<string> UnambiguousRedisMethods = new[]
+    {
+        "hget", "hset", "hdel", "hmget", "hmset", "hgetall",
+        "sadd", "srem", "sismember", "smembers",
+        "lpush", "rpush", "lpop", "rpop", "lrange",
+        "zadd", "zrem", "zrange",
+        "incr", "decr", "incrby", "decrby",
+        "setex", "psetex", "setnx", "mget", "mset"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> ReceiverScopedRedisMethods = new[]
+    {
+        "get", "set", "del", "exists", "expire", "ttl", "publish", "subscribe"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly string[] RedisReceiverTokens = ["redis", "cache", "ioredis", "valkey", "kv"];
+
     private static bool IsRedisCall(Node node)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
@@ -50,9 +67,27 @@ public class RedisLibraryParser : DeclarativeSemanticExtension
             if (prop.IsValid())
             {
                 var propName = prop.Text;
-                return propName is "get" or "set" or "del" or "exists" or "incr" or "decr"
-                                   or "hget" or "hset" or "hdel" or "sadd" or "srem" or "sismember"
-                                   or "lpush" or "rpush" or "lpop" or "rpop" or "publish" or "subscribe";
+                if (UnambiguousRedisMethods.Contains(propName))
+                {
+                    return true;
+                }
+                if (ReceiverScopedRedisMethods.Contains(propName))
+                {
+                    var obj = func.GetField(TreeSitterSyntax.Fields.Object);
+                    return obj.IsValid() && IsLikelyRedisReceiver(obj.AsSpan());
+                }
+            }
+        }
+        return false;
+    }
+
+    private static bool IsLikelyRedisReceiver(ReadOnlySpan<char> receiverSpan)
+    {
+        for (var i = 0; i < RedisReceiverTokens.Length; i++)
+        {
+            if (receiverSpan.Contains(RedisReceiverTokens[i].AsSpan(), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
             }
         }
         return false;
