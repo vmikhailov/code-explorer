@@ -66,6 +66,16 @@ public class TypeScriptFileParser : IFileParser
         CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText)
     {
+        var directive = ExtractLeadingDirective(sourceText);
+        if (!string.IsNullOrEmpty(directive))
+        {
+            fileNode.Directive = directive;
+            if (syntaxTree.FileNode != null)
+            {
+                syntaxTree.FileNode.Directive = directive;
+            }
+        }
+
         if (project == null ||
             (!fileNode.Name.Contains("config", StringComparison.OrdinalIgnoreCase) &&
              !fileNode.Name.Contains("datasource", StringComparison.OrdinalIgnoreCase)))
@@ -96,6 +106,52 @@ public class TypeScriptFileParser : IFileParser
             projSignals.DbDriverEngine = "SQLite";
             projSignals.DbDriverFamily = FamilyRelational;
         }
+    }
+
+    internal static string? ExtractLeadingDirective(string sourceText)
+    {
+        if (string.IsNullOrWhiteSpace(sourceText)) return null;
+
+        var inBlockComment = false;
+        using var reader = new StringReader(sourceText);
+        string? rawLine;
+        while ((rawLine = reader.ReadLine()) != null)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            if (inBlockComment)
+            {
+                var endIdx = line.IndexOf("*/", StringComparison.Ordinal);
+                if (endIdx < 0) continue;
+                inBlockComment = false;
+                line = line[(endIdx + 2)..].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+            }
+
+            if (line.StartsWith("//", StringComparison.Ordinal)) continue;
+            if (line.StartsWith("/*", StringComparison.Ordinal))
+            {
+                var endIdx = line.IndexOf("*/", 2, StringComparison.Ordinal);
+                if (endIdx < 0)
+                {
+                    inBlockComment = true;
+                    continue;
+                }
+                line = line[(endIdx + 2)..].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+            }
+
+            if (line is "'use server'" or "'use server';" or "\"use server\"" or "\"use server\";")
+                return "use server";
+            if (line is "'use client'" or "'use client';" or "\"use client\"" or "\"use client\";")
+                return "use client";
+
+            // Directives are only valid in the module prologue before any other statement
+            return null;
+        }
+
+        return null;
     }
 
     internal static readonly IReadOnlyList<ISemanticExtension> DefaultExtensions =

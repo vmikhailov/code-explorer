@@ -398,6 +398,7 @@ graph TD
 | `LineCount` | `int?` | Total lines of code in this file. |
 | `SizeBytes` | `long?` | Size of the file in bytes. |
 | `ArtifactRole` | `string?` | The physical artifact role of the file (source, dist, minified, declaration, script). |
+| `Directive` | `string?` | Leading module directive pragma when present (e.g., 'use client', 'use server'). |
 
 ---
 
@@ -1873,6 +1874,7 @@ graph TD
 | `EntityName` | `string?` | Mapped ORM entity or domain model type name, if applicable. |
 | `SubKind` | `string?` | Specific relational object kind (e.g. table, view, materialized_view). |
 | `ColumnsJson` | `string?` | Compact JSON array describing table columns (name, type, pk, nullable, unique, fk). |
+| `Sensitivity` | `DataSensitivity?` | Data sensitivity classification (public, internal, pii, pci, secret). |
 
 ---
 

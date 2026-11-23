@@ -784,5 +784,57 @@ public class IncrementalIndexingTests
             }
         }
     }
+
+    [Test]
+    public async Task Test_TypeScriptFileParser_ExtractsDirectives()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ce_ts_directives_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var dbFile = Path.Combine(tempDir, "graph.db");
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{\"name\": \"next-directive-test\"}");
+            var srcDir = Path.Combine(tempDir, "src");
+            Directory.CreateDirectory(srcDir);
+
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "cookies.ts"), """
+                'use server';
+                export async function setAction(name: string) {
+                    return name;
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "clientBanner.tsx"), """
+                'use client';
+                export function Banner() {
+                    return <div />;
+                }
+                """);
+
+            await using var client = new Core.Database.SqliteGraphClient(dbFile);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, clear: false);
+
+            var serverRes = await client.ExecuteCypherAsync(
+                "MATCH (f:File) WHERE f.directive = 'use server' RETURN f.path AS path");
+            serverRes.Rows.Should().ContainSingle();
+            serverRes.Rows[0]["path"].AsNullableString().Should().Be("src/cookies.ts");
+
+            var clientRes = await client.ExecuteCypherAsync(
+                "MATCH (f:File) WHERE f.directive = 'use client' RETURN f.path AS path");
+            clientRes.Rows.Should().ContainSingle();
+            clientRes.Rows[0]["path"].AsNullableString().Should().Be("src/clientBanner.tsx");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
 }
 

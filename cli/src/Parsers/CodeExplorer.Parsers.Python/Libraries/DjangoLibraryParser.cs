@@ -5,12 +5,14 @@ namespace CodeExplorer.Parsers.Python.Libraries;
 
 public class DjangoLibraryParser : DeclarativeSemanticExtension
 {
+    private const string PermissionClassesAttr = "permission_classes";
+
     public DjangoLibraryParser()
     {
         Name = "Django";
         Id = "django";
         Type = SemanticExtensionType.Framework;
-        SupportedPatterns = ["django", "django.*"];
+        SupportedPatterns = ["django", "django.*", "rest_framework", "rest_framework.*"];
         LibraryRole = LibraryRole.WebService;
         CustomAstRules =
         [
@@ -32,6 +34,26 @@ public class DjangoLibraryParser : DeclarativeSemanticExtension
                 {
                     if (!IsDjangoPathCall(node)) return;
                     symbol.Protocol = "REST";
+                }
+            },
+            new CustomAstRule
+            {
+                NodeTypes = new[] { TreeSitterSyntax.Python.ClassDefinition }.ToFrozenSet(),
+                EnrichSymbol = static (node, symbol, ctx) =>
+                {
+                    var perms = ExtractDrfPermissionClasses(node);
+                    if (perms.Count == 0) return;
+
+                    var joined = string.Join(", ", perms);
+                    if (symbol.Properties.TryGetValue(OntologyConstants.PropertyNames.Attributes, out var existingObj) &&
+                        existingObj is string existing && !string.IsNullOrWhiteSpace(existing))
+                    {
+                        symbol.Properties[OntologyConstants.PropertyNames.Attributes] = $"{existing}, {joined}";
+                    }
+                    else
+                    {
+                        symbol.Properties[OntologyConstants.PropertyNames.Attributes] = joined;
+                    }
                 }
             }
         ];
@@ -101,5 +123,64 @@ public class DjangoLibraryParser : DeclarativeSemanticExtension
         }
 
         return null;
+    }
+
+    private static List<string> ExtractDrfPermissionClasses(Node classNode)
+    {
+        var result = new List<string>();
+        var body = classNode.GetChildForField(TreeSitterSyntax.Fields.Body)
+            ?? classNode.FindChildOfType(TreeSitterSyntax.Python.Block);
+        if (!body.IsValid()) return result;
+
+        for (var i = 0; i < body.Children.Count; i++)
+        {
+            var stmt = body.Children[i];
+            var assign = stmt.Is(TreeSitterSyntax.Python.Assignment)
+                ? stmt
+                : stmt.FindChildOfType(TreeSitterSyntax.Python.Assignment);
+            if (!assign.IsValid()) continue;
+
+            var left = assign.GetChildForField(TreeSitterSyntax.Fields.Left)
+                ?? (assign.Children.Count > 0 ? assign.Children[0] : null);
+            if (!left.IsValid() || !string.Equals(left.Text, PermissionClassesAttr, StringComparison.Ordinal))
+                continue;
+
+            var right = assign.GetChildForField(TreeSitterSyntax.Fields.Right)
+                ?? (assign.Children.Count > 2 ? assign.Children[^1] : null);
+            if (!right.IsValid()) continue;
+
+            CollectPermissionIdentifiers(right, result);
+        }
+
+        return result;
+    }
+
+    private static void CollectPermissionIdentifiers(Node node, List<string> result)
+    {
+        if (node.Is(TreeSitterSyntax.Python.Identifier))
+        {
+            var text = node.Text;
+            if (!string.IsNullOrWhiteSpace(text) && !result.Contains(text))
+            {
+                result.Add(text);
+            }
+            return;
+        }
+
+        if (node.Is(TreeSitterSyntax.Python.Attribute))
+        {
+            var attr = node.GetChildForField(TreeSitterSyntax.Python.Attribute);
+            var text = attr.IsValid() ? attr.Text : node.Text;
+            if (!string.IsNullOrWhiteSpace(text) && !result.Contains(text))
+            {
+                result.Add(text);
+            }
+            return;
+        }
+
+        for (var i = 0; i < node.Children.Count; i++)
+        {
+            CollectPermissionIdentifiers(node.Children[i], result);
+        }
     }
 }

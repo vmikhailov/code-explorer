@@ -3067,6 +3067,12 @@
           "sourceName": "ColumnsJson",
           "type": "string",
           "description": "Compact JSON array describing table columns (name, type, pk, nullable, unique, fk)."
+        },
+        {
+          "name": "sensitivity",
+          "sourceName": "Sensitivity",
+          "type": "enum (DataSensitivity)",
+          "description": "Data sensitivity classification (public, internal, pii, pci, secret)."
         }
       ],
       "outEdges": [
@@ -5410,6 +5416,12 @@
           "sourceName": "ArtifactRole",
           "type": "string",
           "description": "The physical artifact role of the file (source, dist, minified, declaration, script)."
+        },
+        {
+          "name": "directive",
+          "sourceName": "Directive",
+          "type": "string",
+          "description": "Leading module directive pragma when present (e.g., 'use client', 'use server')."
         }
       ],
       "outEdges": [],

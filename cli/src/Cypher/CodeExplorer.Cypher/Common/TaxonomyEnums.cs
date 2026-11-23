@@ -549,3 +549,14 @@ public enum JobKind : byte
     Activity = 5,
     BackgroundWorker = 6
 }
+
+[JsonConverter(typeof(DataSensitivityJsonConverter))]
+public enum DataSensitivity : byte
+{
+    Unspecified = 0,
+    Public = 1,
+    Internal = 2,
+    Pii = 3,
+    Pci = 4,
+    Secret = 5
+}

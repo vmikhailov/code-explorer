@@ -414,6 +414,7 @@ public static class TaxonomyViewEnumExtensions
             TransactionKind tk => tk.ToCanonicalString(),
             PolicyKind pk => pk.ToCanonicalString(),
             JobKind jk => jk.ToCanonicalString(),
+            DataSensitivity ds => ds.ToCanonicalString(),
             _ => value.ToString()
         };
     }

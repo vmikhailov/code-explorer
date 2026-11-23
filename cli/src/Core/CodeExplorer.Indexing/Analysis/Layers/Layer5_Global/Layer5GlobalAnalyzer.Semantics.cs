@@ -21,6 +21,12 @@ public partial class Layer5AnalysisParser
             await ctx.EnqueueUploadNodesAsync(enrichedOrmTables);
         }
 
+        var sensitivityTables = DataSensitivityEnricher.EnrichTableSensitivity(_currentL4Result);
+        if (sensitivityTables.Count > 0)
+        {
+            await ctx.EnqueueUploadNodesAsync(sensitivityTables);
+        }
+
         var cqrs = CqrsMessageEnricher.EnrichCqrsMessages(
             _currentL4Result, ctx, symbols, bindings.MessageHandlersByType, existingRefRels);
         if (cqrs.Relationships.Count > 0) referenceRelationships.AddRange(cqrs.Relationships);

@@ -11,6 +11,7 @@ namespace CodeExplorer.Core.Parser.Layers;
 internal static class PolicyAuthorizationEnricher
 {
     private const string AllowAnonymousToken = "AllowAnonymous";
+    private const string AllowAnyToken = "AllowAny";
     private const string PermitAllToken = "PermitAll";
     private const string PublicAttrToken = "Public";
     private const string AnonymousAllowedToken = "AnonymousAllowed";
@@ -20,9 +21,12 @@ internal static class PolicyAuthorizationEnricher
     private const string SecuredToken = "Secured";
     private const string RolesAllowedToken = "RolesAllowed";
     private const string RolesAttrToken = "Roles";
+    private const string IsAdminUserToken = "IsAdminUser";
     private const string IsGrantedToken = "IsGranted";
     private const string HasPermissionToken = "HasPermission";
     private const string PermissionsToken = "Permissions";
+    private const string PermissionSuffix = "Permission";
+    private const string PermissionsSuffix = "Permissions";
     private const string UseGuardsToken = "UseGuards";
     private const string LoginRequiredToken = "login_required";
     private const string PermissionRequiredToken = "permission_required";
@@ -33,13 +37,23 @@ internal static class PolicyAuthorizationEnricher
     private const string CanActivateMethod = "canActivate";
     private const string HandleRequirementMethod = "HandleRequirementAsync";
     private const string GuardSuffix = "Guard";
+    private const string AuthGuardSuffix = "AuthGuard";
+    private const string AdminToken = "Admin";
+    private const string RoleToken = "Role";
+    private const string SuperUserToken = "SuperUser";
     private const string DefaultAuthenticatedName = "Authenticated";
     private const string DefaultAnonymousName = "Anonymous";
     private const string FrameworkAspNetAuth = "aspnetcore-auth";
     private const string FrameworkNestGuards = "nestjs-guards";
     private const string FrameworkSpringSec = "spring-security";
+    private const string FrameworkDrfAuth = "drf-permissions";
     private const string FrameworkFastApiSec = "fastapi-security";
     private const string FrameworkGenericAuth = "auth-policy";
+
+    private static readonly string[] NonSecurityGuardTokens =
+    [
+        "Throttler", "RateLimit", "LogGuard", "LoggingGuard", "ValidationGuard", "CacheGuard", "FeatureFlagGuard"
+    ];
 
     internal sealed record PolicyEnrichmentOutput(List<PolicyNode> Policies, List<Relationship> Relationships);
 
@@ -64,8 +78,12 @@ internal static class PolicyAuthorizationEnricher
         var ownerTypeByFnId = BuildOwnerTypeByFnMap(index);
         var guardsByImportedFile = BuildGuardTypesByImportingFile(ctx, index);
 
-        var endpoints = CollectEndpoints(l4Result);
-        var epHandlers = MapEndpointHandlers(endpoints, referenceRelationships, ctx.TreeRelationships, index);
+        var (endpoints, treeParentHandlers) = CollectEndpoints(l4Result, syntaxStruct);
+        var (epHandlers, epOwnerTypes) = MapEndpointHandlers(endpoints, l4Result.SemanticRelationships, referenceRelationships, ctx.TreeRelationships, index);
+        foreach (var (epId, parentFn) in treeParentHandlers)
+        {
+            epHandlers.TryAdd(epId, parentFn);
+        }
 
         for (var i = 0; i < endpoints.Count; i++)
         {
@@ -73,6 +91,7 @@ internal static class PolicyAuthorizationEnricher
             epHandlers.TryGetValue(ep.Id, out var handlerFn);
             TypeNode? controllerType = null;
             if (handlerFn != null) ownerTypeByFnId.TryGetValue(handlerFn.Id, out controllerType);
+            if (controllerType == null) epOwnerTypes.TryGetValue(ep.Id, out controllerType);
 
             EnrichEndpointPolicy(
                 ctx, ep, handlerFn, controllerType, refsByScopeId, guardsByImportedFile, index, filesByPath, modules, policiesById, rels, existingRefRels);
@@ -108,27 +127,42 @@ internal static class PolicyAuthorizationEnricher
         return map;
     }
 
-    private static List<EndpointNode> CollectEndpoints(Layer4Result l4Result)
+    private static (List<EndpointNode> Endpoints, Dictionary<string, FunctionNode> ParentHandlers) CollectEndpoints(
+        Layer4Result l4Result,
+        IOntologyNode syntaxStruct)
     {
         var byId = new Dictionary<string, EndpointNode>(StringComparer.Ordinal);
-        void Walk(IOntologyNode? n)
+        var parentHandlers = new Dictionary<string, FunctionNode>(StringComparer.Ordinal);
+        void Walk(IOntologyNode? n, FunctionNode? currentFn)
         {
             if (n == null) return;
-            if (n is EndpointNode ep) byId.TryAdd(ep.Id, ep);
-            for (var i = 0; i < n.Children.Count; i++) Walk(n.Children[i]);
+            var nextFn = n is FunctionNode fn ? fn : currentFn;
+            if (n is EndpointNode ep)
+            {
+                byId.TryAdd(ep.Id, ep);
+                if (currentFn != null) parentHandlers.TryAdd(ep.Id, currentFn);
+            }
+            for (var i = 0; i < n.Children.Count; i++) Walk(n.Children[i], nextFn);
         }
-        Walk(l4Result.SemanticStructure);
-        Walk(l4Result.Prev?.Prev?.Prev?.FilesStructure);
-        return byId.Values.ToList();
+        Walk(l4Result.Prev?.Prev?.Prev?.Workspace, null);
+        Walk(syntaxStruct, null);
+        Walk(l4Result.SemanticStructure, null);
+        for (var i = 0; i < l4Result.SemanticNodes.Count; i++)
+        {
+            if (l4Result.SemanticNodes[i] is EndpointNode ep) byId.TryAdd(ep.Id, ep);
+        }
+        return (byId.Values.ToList(), parentHandlers);
     }
 
-    private static Dictionary<string, FunctionNode> MapEndpointHandlers(
+    private static (Dictionary<string, FunctionNode> Handlers, Dictionary<string, TypeNode> OwnerTypes) MapEndpointHandlers(
         List<EndpointNode> endpoints,
+        List<Relationship> semanticRels,
         List<Relationship> refRels,
         List<Relationship> treeRels,
         SemanticEnrichmentHelpers.SyntaxTypeMethodIndex index)
     {
         var map = new Dictionary<string, FunctionNode>(StringComparer.Ordinal);
+        var ownerTypes = new Dictionary<string, TypeNode>(StringComparer.Ordinal);
         var epSet = endpoints.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         void Scan(List<Relationship> list)
@@ -136,16 +170,23 @@ internal static class PolicyAuthorizationEnricher
             for (var i = 0; i < list.Count; i++)
             {
                 var r = list[i];
-                if (r.Kind is RelationshipKind.Triggers or RelationshipKind.ExposedBy &&
-                    epSet.Contains(r.From) && index.FunctionsById.TryGetValue(r.To, out var fn))
+                if (r.Kind is RelationshipKind.Triggers or RelationshipKind.ExposedBy && epSet.Contains(r.From))
                 {
-                    map.TryAdd(r.From, fn);
+                    if (index.FunctionsById.TryGetValue(r.To, out var fn))
+                    {
+                        map.TryAdd(r.From, fn);
+                    }
+                    else if (index.TypesById.TryGetValue(r.To, out var tn))
+                    {
+                        ownerTypes.TryAdd(r.From, tn);
+                    }
                 }
             }
         }
+        Scan(semanticRels);
         Scan(refRels);
         Scan(treeRels);
-        return map;
+        return (map, ownerTypes);
     }
 
     private static Dictionary<string, FunctionNode> MapMessageHandlers(
@@ -192,14 +233,12 @@ internal static class PolicyAuthorizationEnricher
             return;
         }
 
-        var attachedAny = false;
         if (!string.IsNullOrWhiteSpace(ep.RequiredRoles))
         {
             foreach (var role in SplitTokens(ep.RequiredRoles))
             {
                 var p = GetOrCreatePolicy(ctx, role, PolicyKind.Role, role, FrameworkGenericAuth, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
                 SemanticEnrichmentHelpers.AddUniqueRel(new GuardedByRelationship(ep.Id, p.Id), rels, existingRefRels);
-                attachedAny = true;
             }
         }
 
@@ -209,14 +248,11 @@ internal static class PolicyAuthorizationEnricher
             {
                 var p = GetOrCreatePolicy(ctx, pol, PolicyKind.Permission, pol, FrameworkGenericAuth, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
                 SemanticEnrichmentHelpers.AddUniqueRel(new GuardedByRelationship(ep.Id, p.Id), rels, existingRefRels);
-                attachedAny = true;
             }
         }
 
-        attachedAny |= AttachPoliciesFromAttributesAndCalls(
+        AttachPoliciesFromAttributesAndCalls(
             ctx, ep.Id, fnAttrs, clsAttrs, handlerFn, controllerType, fileNorm, line, refsByScopeId, guardsByImportedFile, index, filesByPath, modules, policiesById, rels, existingRefRels);
-
-        _ = attachedAny;
     }
 
     private static void EnrichMessagePolicy(
@@ -274,18 +310,29 @@ internal static class PolicyAuthorizationEnricher
         if (attrs.Contains(UseGuardsToken, StringComparison.Ordinal))
         {
             var guards = ExtractGuardNames(handlerFn, ownerType, fileNorm, refsByScopeId, guardsByImportedFile, index);
-            if (guards.Count == 0) guards.Add(UseGuardsToken);
-            for (var i = 0; i < guards.Count; i++)
+            if (guards.Count == 0)
             {
-                var p = GetOrCreatePolicy(ctx, guards[i], PolicyKind.CustomGuard, guards[i], FrameworkNestGuards, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
+                var p = GetOrCreatePolicy(ctx, UseGuardsToken, PolicyKind.Authenticated, UseGuardsToken, FrameworkNestGuards, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
                 SemanticEnrichmentHelpers.AddUniqueRel(new GuardedByRelationship(targetNodeId, p.Id), rels, existingRefRels);
                 attached = true;
+            }
+            else
+            {
+                for (var i = 0; i < guards.Count; i++)
+                {
+                    var gName = guards[i];
+                    if (IsNonSecurityGuard(gName)) continue;
+                    var gKind = ClassifyGuardSubKind(gName);
+                    var p = GetOrCreatePolicy(ctx, gName, gKind, gName, FrameworkNestGuards, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
+                    SemanticEnrichmentHelpers.AddUniqueRel(new GuardedByRelationship(targetNodeId, p.Id), rels, existingRefRels);
+                    attached = true;
+                }
             }
         }
 
         if (attrs.Contains(PreAuthorizeToken, StringComparison.Ordinal) ||
             attrs.Contains(HasPermissionToken, StringComparison.Ordinal) ||
-            attrs.Contains(PermissionsToken, StringComparison.Ordinal) ||
+            HasStandaloneWord(attrs, PermissionsToken) ||
             attrs.Contains(IsGrantedToken, StringComparison.Ordinal) ||
             attrs.Contains(PermissionRequiredToken, StringComparison.OrdinalIgnoreCase))
         {
@@ -324,12 +371,34 @@ internal static class PolicyAuthorizationEnricher
             attached = true;
         }
 
+        if (!string.IsNullOrWhiteSpace(attrs))
+        {
+            foreach (var tok in SplitTokens(attrs))
+            {
+                if (string.Equals(tok, IsAdminUserToken, StringComparison.Ordinal))
+                {
+                    var p = GetOrCreatePolicy(ctx, IsAdminUserToken, PolicyKind.Role, IsAdminUserToken, FrameworkDrfAuth, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
+                    SemanticEnrichmentHelpers.AddUniqueRel(new GuardedByRelationship(targetNodeId, p.Id), rels, existingRefRels);
+                    attached = true;
+                }
+                else if (tok.Length > PermissionsSuffix.Length &&
+                         (tok.EndsWith(PermissionsSuffix, StringComparison.Ordinal) || tok.EndsWith(PermissionSuffix, StringComparison.Ordinal)) &&
+                         !string.Equals(tok, HasPermissionToken, StringComparison.Ordinal))
+                {
+                    var p = GetOrCreatePolicy(ctx, tok, PolicyKind.Permission, tok, FrameworkDrfAuth, fileNorm, line, index, filesByPath, modules, policiesById, rels, existingRefRels);
+                    SemanticEnrichmentHelpers.AddUniqueRel(new GuardedByRelationship(targetNodeId, p.Id), rels, existingRefRels);
+                    attached = true;
+                }
+            }
+        }
+
         return attached;
     }
 
     private static bool HasAnonymousMarker(string? attrs) =>
         !string.IsNullOrEmpty(attrs) &&
         (attrs.Contains(AllowAnonymousToken, StringComparison.Ordinal) ||
+         attrs.Contains(AllowAnyToken, StringComparison.Ordinal) ||
          attrs.Contains(PermitAllToken, StringComparison.Ordinal) ||
          attrs.Contains(AnonymousAllowedToken, StringComparison.Ordinal) ||
          HasStandaloneWord(attrs, PublicAttrToken));
@@ -571,5 +640,40 @@ internal static class PolicyAuthorizationEnricher
             }
         }
         return node;
+    }
+
+    private static bool IsNonSecurityGuard(string guardName)
+    {
+        for (var i = 0; i < NonSecurityGuardTokens.Length; i++)
+        {
+            if (guardName.Contains(NonSecurityGuardTokens[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static PolicyKind ClassifyGuardSubKind(string guardName)
+    {
+        if (guardName.Contains(AdminToken, StringComparison.OrdinalIgnoreCase) ||
+            guardName.Contains(RoleToken, StringComparison.OrdinalIgnoreCase) ||
+            guardName.Contains(SuperUserToken, StringComparison.OrdinalIgnoreCase))
+        {
+            return PolicyKind.Role;
+        }
+
+        if (guardName.Contains(PermissionSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return PolicyKind.Permission;
+        }
+
+        if (guardName.EndsWith(AuthGuardSuffix, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(guardName, GuardSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return PolicyKind.Authenticated;
+        }
+
+        return PolicyKind.CustomGuard;
     }
 }

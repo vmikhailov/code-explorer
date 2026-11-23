@@ -49,6 +49,9 @@ public record FileNode(
     [JsonPropertyName("artifact_role"), OntologyProperty("The physical artifact role of the file (source, dist, minified, declaration, script).")]
     public string? ArtifactRole { get; set; }
 
+    [JsonPropertyName("directive"), OntologyProperty("Leading module directive pragma when present (e.g., 'use client', 'use server').")]
+    public string? Directive { get; set; }
+
     [JsonIgnore]
     public string? ContentHash { get; set; }
 

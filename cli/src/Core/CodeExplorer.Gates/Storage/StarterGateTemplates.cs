@@ -417,6 +417,110 @@ internal static class StarterGateTemplates
               enabled: true
               baseline: baselines/SIG-SEC-001.json
             """),
+        ("sec-unprotected-pii-table-access.yaml.example", """
+            # Starter Gate: Security - Unprotected Access to PII / PCI / Secret Tables
+            # Ensure no anonymous or unguarded endpoint reads or writes tables classified as pii, pci, or secret.
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SEC-002
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Boundaries
+            name: Security - Unprotected Access to Sensitive (PII/PCI/Secret) Tables
+            severity: Warning
+            description: Endpoints accessing tables classified as pii, pci, or secret must be protected by a non-anonymous authorization Policy.
+            remediation: Protect the endpoint with an authenticated, role, permission, or custom_guard Policy, or verify the table classification.
+            target: "{ep.name} -> {tbl.name} ({tbl.sensitivity})"
+            message: "Unprotected or anonymous endpoint '{ep.name}' accesses sensitive table '{tbl.name}' ({tbl.sensitivity}) via '{fn.name}'"
+            query: |
+              MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)
+                    -[:CALLS*0..4]->(acc:Function)-[:READS_FROM|WRITES_TO]->(tbl:Table)
+              WHERE tbl.sensitivity IN ['pii', 'pci', 'secret']
+                AND NOT fn.is_test AND NOT acc.is_test
+                AND (NOT EXISTS((ep)-[:GUARDED_BY]->(:Policy))
+                     OR EXISTS((ep)-[:GUARDED_BY]->(:Policy {sub_kind: 'anonymous'})))
+              RETURN DISTINCT fn, ep, acc, tbl
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SEC-002.json
+            """),
+        ("sec-privileged-route-requires-role.yaml.example", """
+            # Starter Gate: Security - Privileged Routes Must Require Role or Permission Policy
+            # Ensure admin, internal, billing, and role-management endpoints require an explicit role, permission, or custom guard policy.
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SEC-003
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Boundaries
+            name: Security - Privileged Route Without Role or Permission Policy
+            severity: Error
+            description: Privileged routes (/admin, /internal, /billing, /roles, /permissions, /audit) must enforce role, permission, or custom_guard authorization rather than bare authentication or no guard.
+            remediation: Add a role or permission policy (e.g. [Authorize(Roles = "Admin")], @PreAuthorize, @Roles, or a dedicated custom guard) to the endpoint.
+            target: "{ep.name}"
+            message: "Privileged endpoint '{ep.name}' in '{ep.file_path}' lacks a role, permission, or custom_guard authorization Policy"
+            query: |
+              MATCH (ep:Endpoint)
+              WHERE (toLower(ep.route_template) CONTAINS '/admin'
+                  OR toLower(ep.route_template) CONTAINS '/internal'
+                  OR toLower(ep.route_template) CONTAINS '/billing'
+                  OR toLower(ep.route_template) CONTAINS '/roles'
+                  OR toLower(ep.route_template) CONTAINS '/permissions')
+                AND NOT EXISTS((ep)-[:GUARDED_BY]->(:Policy {sub_kind: 'role'}))
+                AND NOT EXISTS((ep)-[:GUARDED_BY]->(:Policy {sub_kind: 'permission'}))
+                AND NOT EXISTS((ep)-[:GUARDED_BY]->(:Policy {sub_kind: 'custom_guard'}))
+              RETURN DISTINCT ep
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SEC-003.json
+            """),
+        ("sec-anonymous-db-write.yaml.example", """
+            # Starter Gate: Security - Explicit Anonymous Endpoint Writes to Database
+            # Flag endpoints marked Anonymous/Public that mutate database tables so every unauthenticated write path is explicitly reviewed.
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SEC-004
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Boundaries
+            name: Security - Anonymous Endpoint Mutates Database
+            severity: Warning
+            description: Explicitly anonymous endpoints that write to database tables are prime targets for abuse, spam, and unauthorized state mutation.
+            remediation: Confirm the write is intentionally public (e.g. registration or webhook with signature verification) and ratchet it in the baseline, or require authentication.
+            target: "{ep.name} -> {tbl.name}"
+            message: "Anonymous endpoint '{ep.name}' writes to table '{tbl.name}' via '{w.name}'"
+            query: |
+              MATCH (ep:Endpoint)-[:GUARDED_BY]->(pol:Policy {sub_kind: 'anonymous'}),
+                    (ep)-[:EXPOSED_BY|TRIGGERS]->(fn:Function)-[:CALLS*0..4]->(w:Function)-[:WRITES_TO]->(tbl:Table)
+              WHERE NOT fn.is_test AND NOT w.is_test
+              RETURN DISTINCT fn, ep, pol, w, tbl
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SEC-004.json
+            """),
+        ("sec-auth-guard-empty-catch.yaml.example", """
+            # Starter Gate: Security - No Empty Catch Blocks Inside Authorization Guards
+            # Prevent fail-open authorization bypasses caused by silently swallowed exceptions inside Policy enforcement functions.
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SEC-005
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Implementation
+            name: Security - Silent Exception Swallowing in Auth Guard
+            severity: Error
+            description: Empty catch blocks inside authorization guard or requirement handler functions can silently fail open and bypass access control.
+            remediation: Explicitly deny access (return false / throw Unauthorized) and log the failure inside the catch block.
+            target: "{pol.name} -> {fn.name}"
+            message: "Authorization guard '{fn.name}' enforcing policy '{pol.name}' contains an empty catch block at line {c.line}"
+            query: |
+              MATCH (pol:Policy)-[:ENFORCED_BY]->(fn:Function)-[:DECLARES]->(c:CatchClause)
+              WHERE c.is_empty = true AND NOT fn.is_test
+              RETURN DISTINCT fn, pol, c
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SEC-005.json
+            """),
         ("job-cron-mutation-audit.yaml.example", """
             # Starter Gate: Background Jobs - Scheduled Cron State Mutations
             # Surface scheduled cron jobs that directly or transitively mutate database tables or publish events.

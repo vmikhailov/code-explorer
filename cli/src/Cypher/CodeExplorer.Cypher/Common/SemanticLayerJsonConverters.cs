@@ -102,6 +102,30 @@ public static class SemanticLayerEnumExtensions
             _ => JobKind.Recurring
         };
     }
+
+    public static string ToCanonicalString(this DataSensitivity val) => val switch
+    {
+        DataSensitivity.Public => "public",
+        DataSensitivity.Internal => "internal",
+        DataSensitivity.Pii => "pii",
+        DataSensitivity.Pci => "pci",
+        DataSensitivity.Secret => "secret",
+        _ => "unspecified"
+    };
+
+    public static DataSensitivity ParseDataSensitivity(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return DataSensitivity.Unspecified;
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "public" => DataSensitivity.Public,
+            "internal" => DataSensitivity.Internal,
+            "pii" or "personal" => DataSensitivity.Pii,
+            "pci" or "payment" or "financial" => DataSensitivity.Pci,
+            "secret" or "credentials" or "restricted" => DataSensitivity.Secret,
+            _ => DataSensitivity.Unspecified
+        };
+    }
 }
 
 public sealed class CacheEngineJsonConverter : JsonConverter<CacheEngine>
@@ -133,5 +157,13 @@ public sealed class JobKindJsonConverter : JsonConverter<JobKind>
     public override JobKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.String ? SemanticLayerEnumExtensions.ParseJobKind(reader.GetString()) : JobKind.Unspecified;
     public override void Write(Utf8JsonWriter writer, JobKind value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToCanonicalString());
+}
+
+public sealed class DataSensitivityJsonConverter : JsonConverter<DataSensitivity>
+{
+    public override DataSensitivity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.String ? SemanticLayerEnumExtensions.ParseDataSensitivity(reader.GetString()) : DataSensitivity.Unspecified;
+    public override void Write(Utf8JsonWriter writer, DataSensitivity value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToCanonicalString());
 }

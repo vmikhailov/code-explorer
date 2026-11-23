@@ -43,6 +43,9 @@ public record TableNode(
     [JsonPropertyName("columns"), OntologyProperty("Compact JSON array describing table columns (name, type, pk, nullable, unique, fk).")]
     public string? ColumnsJson { get; set; }
 
+    [JsonPropertyName("sensitivity"), OntologyProperty("Data sensitivity classification (public, internal, pii, pci, secret).")]
+    public DataSensitivity? Sensitivity { get; set; }
+
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the table node uses an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }
 
