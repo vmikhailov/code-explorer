@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeExplorer (ce) — Architecture Intelligence Compiled From Code</title>
+  <meta name="description" content="Compile 12 languages into one sub-10ms local SQLite architecture graph. Live maps in VS Code, instant MCP memory for AI agents, and deterministic CI gates.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#06090f">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/new/ver4/styles.css?v=2">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- Ambient Blueprint Grid & Top Studio Light -->
+  <div class="ambient" aria-hidden="true">
+    <div class="ambient-light"></div>
+    <div class="ambient-grid"></div>
+  </div>
+
+  <!-- Floating Glass Navbar -->
+  <header class="topbar-wrap" id="top">
+    <div class="topbar">
+      <a href="#top" class="brand" aria-label="CodeExplorer home">
+        <svg class="brand-glyph" viewBox="0 0 28 28" aria-hidden="true">
+          <rect x="1" y="1" width="26" height="26" rx="7" fill="#0d1422" stroke="rgba(255,255,255,0.16)"/>
+          <circle cx="14" cy="14" r="8.5" fill="none" stroke="rgba(255,255,255,0.22)" stroke-dasharray="2 2.5"/>
+          <line x1="14" y1="14" x2="20.5" y2="8.5" stroke="#38bdf8" stroke-width="1.4"/>
+          <line x1="14" y1="14" x2="8" y2="19" stroke="#a78bfa" stroke-width="1.4"/>
+          <line x1="14" y1="14" x2="20" y2="19.5" stroke="#f59e0b" stroke-width="1.4"/>
+          <circle cx="14" cy="14" r="2.8" fill="#2ee59d"/>
+          <circle cx="20.5" cy="8.5" r="2" fill="#38bdf8"/>
+          <circle cx="8" cy="19" r="2" fill="#a78bfa"/>
+          <circle cx="20" cy="19.5" r="1.8" fill="#f59e0b"/>
+        </svg>
+        <span class="brand-word">CodeExplorer</span>
+        <span class="brand-ver">v1.97.0</span>
+      </a>
+
+      <nav aria-label="Primary">
+        <ul class="nav-links">
+          <li><a href="#features">Capabilities</a></li>
+          <li><a href="#benchmarks">Benchmarks</a></li>
+          <li><a href="#workbench">Playground</a></li>
+          <li><a href="#ontology">Ontology</a></li>
+          <li><a href="/architectures">Gate Packs</a></li>
+        </ul>
+      </nav>
+
+      <div class="topbar-actions">
+        <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn btn--ghost btn--sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.38-3.88-1.38-.52-1.34-1.28-1.7-1.28-1.7-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.12 3.06.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.42.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+          <span>GitHub</span>
+        </a>
+        <a href="#install" class="btn btn--primary btn--sm">Install</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ==================== 1. HERO + INTERACTIVE COCKPIT ==================== -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container">
+        <div class="hero-head">
+          <div class="status-pill">
+            <span class="status-spark" aria-hidden="true"></span>
+            <span>100% Local SQLite Graph Engine</span>
+            <span class="status-sep" aria-hidden="true"></span>
+            <span class="status-accent">VS Code · MCP · CI Gates</span>
+          </div>
+
+          <h1 id="hero-title" class="hero-title">
+            Architecture intelligence,<br>
+            <span class="hero-title-dim">compiled straight from code.</span>
+          </h1>
+
+          <p class="hero-sub">
+            CodeExplorer indexes 12 languages into one sub-10ms local graph — giving engineers live system maps, AI coding agents exact blast-radius memory, and CI pipelines zero-regression guardrails.
+          </p>
+
+          <div class="hero-cta">
+            <a href="#install" class="btn btn--primary">Install CodeExplorer</a>
+            <button type="button" class="cmd-pill" data-copy="brew install vmikhailov/tap/ce" aria-label="Copy Homebrew install command">
+              <span class="cmd-dollar" aria-hidden="true">$</span>
+              <code>brew install vmikhailov/tap/ce</code>
+              <span class="cmd-badge">Copy</span>
+            </button>
+            <a href="#benchmarks" class="btn btn--ghost">See Benchmarks</a>
+          </div>
+        </div>
+
+        <!-- Double-Bezel Machined Studio Cockpit -->
+        <div class="studio-bezel">
+          <div class="studio-window">
+            <div class="studio-bar">
+              <div class="studio-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+
+              <div class="studio-tabs" role="tablist" aria-label="Architecture Cockpit views">
+                <button type="button" role="tab" class="studio-tab" aria-selected="true" data-stage="interactive">
+                  <span class="tab-led tab-led--live" aria-hidden="true"></span>
+                  Live Interactive Graph
+                </button>
+                <button type="button" role="tab" class="studio-tab" aria-selected="false" tabindex="-1" data-stage="orbits">
+                  VS Code · System Orbits
+                </button>
+                <button type="button" role="tab" class="studio-tab" aria-selected="false" tabindex="-1" data-stage="flow">
+                  VS Code · Project Flow (C2)
+                </button>
+              </div>
+
+              <div class="studio-meta">
+                <code>.codeexplorer/graph.db</code>
+              </div>
+            </div>
+
+            <!-- Stage 1: Interactive Live SVG Topology + Inspector -->
+            <div class="stage-pane" id="stage-interactive">
+              <div class="graph-arena">
+                <div class="graph-canvas-wrap">
+                  <div class="graph-hint">Click or hover any service, queue, or SQL table to trace blast radius</div>
+                  <svg class="graph-svg" id="heroGraph" viewBox="0 0 760 470" role="img" aria-label="Interactive architecture topology graph">
+                    <defs>
+                      <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#2ee59d" stop-opacity="0.22"/>
+                        <stop offset="100%" stop-color="#2ee59d" stop-opacity="0"/>
+                      </radialGradient>
+                      <marker id="arrowActive" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#2ee59d"/>
+                      </marker>
+                      <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                        <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(148,163,184,0.38)"/>
+                      </marker>
+                    </defs>
+
+                    <!-- Orbital coordinate rings -->
+                    <circle cx="380" cy="235" r="205" fill="none" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3 5"/>
+                    <circle cx="380" cy="235" r="128" fill="none" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2 4"/>
+                    <circle cx="380" cy="235" r="88" fill="url(#coreGlow)"/>
+
+                    <!-- Edges populated/wired & styled cleanly -->
+                    <g id="graphEdges">
+                      <line data-from="gateway" data-to="orders" data-label="HTTP POST" x1="155" y1="125" x2="345" y2="220" class="g-edge"/>
+                      <line data-from="gateway" data-to="billing" data-label="gRPC" x1="155" y1="125" x2="380" y2="102" class="g-edge"/>
+                      <line data-from="gateway" data-to="sessions" data-label="READS_FROM" x1="155" y1="125" x2="135" y2="310" class="g-edge"/>
+                      <line data-from="orders" data-to="billing" data-label="CALLS" x1="380" y1="235" x2="380" y2="102" class="g-edge"/>
+                      <line data-from="orders" data-to="q_orders" data-label="PUBLISHES" x1="380" y1="235" x2="545" y2="145" class="g-edge"/>
+                      <line data-from="orders" data-to="db_orders" data-label="WRITES_TO" x1="380" y1="235" x2="270" y2="375" class="g-edge"/>
+                      <line data-from="q_orders" data-to="fraud" data-label="CONSUMES" x1="545" y1="145" x2="625" y2="270" class="g-edge"/>
+                      <line data-from="q_orders" data-to="billing" data-label="CONSUMES" x1="545" y1="145" x2="380" y2="102" class="g-edge"/>
+                      <line data-from="billing" data-to="db_ledger" data-label="WRITES_TO" x1="380" y1="102" x2="505" y2="375" class="g-edge"/>
+                      <line data-from="billing" data-to="q_webhooks" data-label="PUBLISHES" x1="380" y1="102" x2="610" y2="92" class="g-edge"/>
+                      <line data-from="fraud" data-to="db_ledger" data-label="READS_FROM" x1="625" y1="270" x2="505" y2="375" class="g-edge"/>
+                      <line data-from="fraud" data-to="db_orders" data-label="READS_FROM" x1="625" y1="270" x2="270" y2="375" class="g-edge"/>
+                    </g>
+
+                    <!-- Nodes -->
+                    <g id="graphNodes">
+                      <g class="g-node g-node--svc" data-id="gateway" tabindex="0" role="button" aria-label="Inspect api-gateway">
+                        <rect x="88" y="101" width="134" height="46" rx="11"/>
+                        <circle cx="106" cy="124" r="4.5" class="n-dot"/>
+                        <text x="118" y="121" class="n-title">api-gateway</text>
+                        <text x="118" y="135" class="n-sub">TypeScript · BFF</text>
+                      </g>
+
+                      <g class="g-node g-node--svc" data-id="billing" tabindex="0" role="button" aria-label="Inspect billing-service">
+                        <rect x="308" y="68" width="144" height="48" rx="11"/>
+                        <circle cx="326" cy="92" r="4.5" class="n-dot"/>
+                        <text x="338" y="89" class="n-title">billing-service</text>
+                        <text x="338" y="103" class="n-sub">C# · ChargeAsync</text>
+                      </g>
+
+                      <g class="g-node g-node--svc is-selected" data-id="orders" tabindex="0" role="button" aria-label="Inspect orders-service">
+                        <rect x="306" y="210" width="148" height="50" rx="12"/>
+                        <circle cx="325" cy="235" r="5" class="n-dot"/>
+                        <text x="338" y="232" class="n-title">orders-service</text>
+                        <text x="338" y="246" class="n-sub">C# · Core Workload</text>
+                      </g>
+
+                      <g class="g-node g-node--svc" data-id="fraud" tabindex="0" role="button" aria-label="Inspect fraud-engine">
+                        <rect x="558" y="247" width="136" height="46" rx="11"/>
+                        <circle cx="576" cy="270" r="4.5" class="n-dot"/>
+                        <text x="588" y="267" class="n-title">fraud-engine</text>
+                        <text x="588" y="281" class="n-sub">Python · Worker</text>
+                      </g>
+
+                      <g class="g-node g-node--queue" data-id="q_orders" tabindex="0" role="button" aria-label="Inspect orders.events topic">
+                        <rect x="478" y="124" width="134" height="44" rx="10"/>
+                        <circle cx="496" cy="146" r="4.5" class="n-dot"/>
+                        <text x="508" y="143" class="n-title">orders.events</text>
+                        <text x="508" y="157" class="n-sub">Kafka Topic</text>
+                      </g>
+
+                      <g class="g-node g-node--queue" data-id="q_webhooks" tabindex="0" role="button" aria-label="Inspect stripe.webhooks queue">
+                        <rect x="542" y="62" width="144" height="44" rx="10"/>
+                        <circle cx="560" cy="84" r="4.5" class="n-dot"/>
+                        <text x="572" y="81" class="n-title">stripe.webhooks</text>
+                        <text x="572" y="95" class="n-sub">RabbitMQ Queue</text>
+                      </g>
+
+                      <g class="g-node g-node--db" data-id="sessions" tabindex="0" role="button" aria-label="Inspect redis.sessions">
+                        <rect x="68" y="290" width="134" height="44" rx="10"/>
+                        <circle cx="86" cy="312" r="4.5" class="n-dot"/>
+                        <text x="98" y="309" class="n-title">redis.sessions</text>
+                        <text x="98" y="323" class="n-sub">Redis Cache</text>
+                      </g>
+
+                      <g class="g-node g-node--db" data-id="db_orders" tabindex="0" role="button" aria-label="Inspect purchase_orders table">
+                        <rect x="192" y="356" width="156" height="46" rx="10"/>
+                        <circle cx="210" cy="379" r="4.5" class="n-dot"/>
+                        <text x="222" y="376" class="n-title">purchase_orders</text>
+                        <text x="222" y="390" class="n-sub">PostgreSQL Table</text>
+                      </g>
+
+                      <g class="g-node g-node--db" data-id="db_ledger" tabindex="0" role="button" aria-label="Inspect customer_ledgers table">
+                        <rect x="426" y="356" width="160" height="46" rx="10"/>
+                        <circle cx="444" cy="379" r="4.5" class="n-dot"/>
+                        <text x="456" y="376" class="n-title">customer_ledgers</text>
+                        <text x="456" y="390" class="n-sub">PostgreSQL Table</text>
+                      </g>
+                    </g>
+                  </svg>
+
+                  <div class="graph-legend">
+                    <span><i class="lg-dot lg-dot--svc"></i>Service / Workload</span>
+                    <span><i class="lg-dot lg-dot--queue"></i>Queue / Topic</span>
+                    <span><i class="lg-dot lg-dot--db"></i>SQL Table / Cache</span>
+                  </div>
+                </div>
+
+                <!-- Live Right-Hand Node Inspector -->
+                <aside class="inspector" aria-live="polite">
+                  <div class="insp-head">
+                    <div>
+                      <span class="insp-kind" id="inspKind">Layer 4 · Workload</span>
+                      <h2 class="insp-name" id="inspName">orders-service</h2>
+                    </div>
+                    <span class="insp-ms" id="inspMs">2.4 ms</span>
+                  </div>
+
+                  <p class="insp-summary" id="inspSummary">Core C# order orchestration service. Receives checkout traffic, invokes billing, emits domain events, and owns purchase_orders.</p>
+
+                  <div class="insp-block">
+                    <span class="insp-label">Connected Blast Radius</span>
+                    <ul class="insp-edges" id="inspEdges"></ul>
+                  </div>
+
+                  <div class="insp-block">
+                    <span class="insp-label">Agent MCP Tool Call</span>
+                    <pre class="insp-code" id="inspMcp">analyze_code_impact("orders-service")</pre>
+                  </div>
+                </aside>
+              </div>
+            </div>
+
+            <!-- Stage 2: VS Code System Orbits Screenshot -->
+            <div class="stage-pane stage-shot" id="stage-orbits" hidden>
+              <button type="button" class="shot-zoom" data-zoom="/all_services.png?v=2" aria-label="Enlarge System Orbits screenshot">
+                <img src="/all_services.png?v=2" width="1684" height="975" alt="CodeExplorer System Orbits view of twentyhq/twenty in VS Code">
+                <span class="zoom-pill">Click to inspect full 1684×975 capture</span>
+              </button>
+            </div>
+
+            <!-- Stage 3: VS Code Project Flow Screenshot -->
+            <div class="stage-pane stage-shot" id="stage-flow" hidden>
+              <button type="button" class="shot-zoom" data-zoom="/project_flow.png?v=2" aria-label="Enlarge Project Flow C2 screenshot">
+                <img src="/project_flow.png?v=2" width="2699" height="2033" loading="lazy" alt="CodeExplorer Project Flow C2 view in VS Code">
+                <span class="zoom-pill">Click to inspect full C2 flow capture</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 2. ASYMMETRIC BENTO GRID ==================== -->
+    <section class="section" id="features" aria-labelledby="features-title">
+      <div class="container">
+        <div class="sec-head">
+          <h2 id="features-title" class="sec-title">One local graph. Three unfair advantages.</h2>
+          <p class="sec-sub">Scan once into <code>.codeexplorer/graph.db</code>. Incremental file-hash caching updates changed files in milliseconds — powering your editor, your AI agent, and your CI pipeline simultaneously.</p>
+        </div>
+
+        <div class="bento">
+          <!-- Card 1 (7 col): VS Code Live Maps -->
+          <article class="bento-card bento-7">
+            <div class="bento-art bento-art--shot">
+              <img src="/project_flow.png?v=2" width="2699" height="2033" loading="lazy" alt="VS Code C2 Service Flow">
+              <div class="art-float">
+                <span class="float-dot"></span>
+                <span>Synced from AST · Never goes stale</span>
+              </div>
+            </div>
+            <div class="bento-body">
+              <div class="bento-tag">01 · Visual Cockpit in VS Code</div>
+              <h3 class="bento-title">Diagrams compiled from code, never drawn by hand.</h3>
+              <p class="bento-copy">Explore C1–C4 service maps, collapse intermediate pass-through nodes with transitive graph contraction, and drill straight into method call chains.</p>
+            </div>
+          </article>
+
+          <!-- Card 2 (5 col): AI Agent MCP -->
+          <article class="bento-card bento-5">
+            <div class="bento-art bento-art--mcp">
+              <div class="trace-bad">
+                <span class="trace-x" aria-hidden="true">×</span>
+                <span>Blind agent loop: 54 <code>grep</code> calls, 3 context compactions</span>
+              </div>
+              <div class="trace-good">
+                <div class="trace-top">
+                  <span class="trace-tool">ce mcp · get_task_context</span>
+                  <span class="trace-time">4.1 ms</span>
+                </div>
+                <div class="trace-pills">
+                  <span>Focal symbols</span>
+                  <span>SQL table owners</span>
+                  <span>Affected tests</span>
+                  <span>Active gates</span>
+                </div>
+              </div>
+            </div>
+            <div class="bento-body">
+              <div class="bento-tag">02 · 16-Tool stdio MCP Server</div>
+              <h3 class="bento-title">Instant architectural memory for Claude Code &amp; Cursor.</h3>
+              <p class="bento-copy">Attach <code>ce mcp</code> in one JSON block. Your agent queries exact callers, data lineage, and affected test commands instead of burning tokens in the dark.</p>
+            </div>
+          </article>
+
+          <!-- Card 3 (5 col): Baseline Ratchet SVG -->
+          <article class="bento-card bento-5">
+            <div class="bento-art bento-art--ratchet" aria-hidden="true">
+              <svg viewBox="0 0 430 175" class="ratchet-svg">
+                <line x1="28" y1="35" x2="405" y2="35" stroke="rgba(255,255,255,0.06)"/>
+                <line x1="28" y1="85" x2="405" y2="85" stroke="rgba(255,255,255,0.06)"/>
+                <line x1="28" y1="135" x2="405" y2="135" stroke="rgba(255,255,255,0.06)"/>
+                <!-- Step-down ratchet ceiling -->
+                <path d="M 35 45 L 125 45 L 125 78 L 220 78 L 220 112 L 400 112" fill="none" stroke="#2ee59d" stroke-width="2.2"/>
+                <circle cx="80" cy="45" r="4.5" fill="#2ee59d"/>
+                <circle cx="172" cy="78" r="4.5" fill="#2ee59d"/>
+                <circle cx="268" cy="112" r="4.5" fill="#2ee59d"/>
+                <!-- Blocked PR spike -->
+                <line x1="334" y1="112" x2="334" y2="54" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="3 3"/>
+                <circle cx="334" cy="54" r="5.5" fill="#ff6b6b"/>
+                <rect x="248" y="16" width="172" height="26" rx="6" fill="rgba(255,107,107,0.16)" stroke="rgba(255,107,107,0.45)"/>
+                <text x="334" y="33" text-anchor="middle" fill="#ff8f8f" font-size="10.5" font-family="Geist Mono, monospace">PR #418 blocked · Exit 1</text>
+                <text x="36" y="158" fill="#7c879c" font-size="10.5" font-family="Geist Mono, monospace">Baseline: 14 → 9 → 3 legacy debt ceiling</text>
+              </svg>
+            </div>
+            <div class="bento-body">
+              <div class="bento-tag">03 · Semantic Invariant Gates + Ratchet</div>
+              <h3 class="bento-title">Adopt strict CI architecture rules on brownfield codebases.</h3>
+              <p class="bento-copy">Fingerprint existing legacy violations with <code>ce gate baseline</code>. CI stays green today, blocks net-new agent regressions, and auto-tightens as debt heals.</p>
+            </div>
+          </article>
+
+          <!-- Card 4 (7 col): End-to-End Lineage -->
+          <article class="bento-card bento-7">
+            <div class="bento-art bento-art--lineage" aria-hidden="true">
+              <div class="lin-chain">
+                <div class="lin-node lin-node--ep">
+                  <span class="lin-k">HTTP Endpoint</span>
+                  <code>POST /v1/orders</code>
+                </div>
+                <span class="lin-edge">CALLS</span>
+                <div class="lin-node lin-node--fn">
+                  <span class="lin-k">CQRS Handler</span>
+                  <code>OrderHandler</code>
+                </div>
+                <span class="lin-edge">PUBLISHES</span>
+                <div class="lin-node lin-node--q">
+                  <span class="lin-k">Kafka Topic</span>
+                  <code>orders.events</code>
+                </div>
+                <span class="lin-edge">WRITES_TO</span>
+                <div class="lin-node lin-node--db">
+                  <span class="lin-k">PostgreSQL</span>
+                  <code>customer_ledgers</code>
+                </div>
+              </div>
+            </div>
+            <div class="bento-body">
+              <div class="bento-tag">04 · Cross-Service &amp; SQL Lineage</div>
+              <h3 class="bento-title">Trace HTTP, gRPC, message brokers, and SQL tables end to end.</h3>
+              <p class="bento-copy">Links <code>HttpClient</code>, <code>Feign</code>, <code>axios</code>, RabbitMQ/Kafka consumers, and EF Core, Hibernate, Prisma, Dapper, Doctrine, and raw SQL down to exact table columns.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 3. VISUAL BENCHMARK ARENA ==================== -->
+    <section class="section section--arena" id="benchmarks" aria-labelledby="bench-title">
+      <div class="container">
+        <div class="sec-head sec-head--split">
+          <div>
+            <h2 id="bench-title" class="sec-title">Stop paying agents to grep in the dark.</h2>
+            <p class="sec-sub">Symmetric A/B runs on real monorepos and enterprise microservice fleets using identical system prompts and the same model.</p>
+          </div>
+          <a href="/benchmarks" class="btn btn--ghost">Explore All Benchmark Reports</a>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <span class="kpi-num" data-bind="index.card_token_comp">~7.0×</span>
+            <span class="kpi-head">Fewer tokens on twentyhq/twenty</span>
+            <span class="kpi-detail">~242K vs ~1.68M cumulative input tokens</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-num kpi-num--emerald">100%</span>
+            <span class="kpi-head">Direct graph recall (381 / 381)</span>
+            <span class="kpi-detail">vs 3.4% (13 / 381) from codebase-memory-mcp</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-num">~25×</span>
+            <span class="kpi-head">Fewer tokens across 324 services</span>
+            <span class="kpi-detail">~686K ($0.10) vs ~17.2M ($1.15) with ripgrep</span>
+          </div>
+        </div>
+
+        <div class="duel-grid">
+          <article class="duel-card">
+            <div class="duel-top">
+              <h3 class="duel-title" data-bind-html="index.cs01_head_html">Case 01: <code>twentyhq/twenty</code> (24,527 files)</h3>
+              <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty" class="duel-link">Case 01 Report</a>
+            </div>
+
+            <div class="duel-bars">
+              <div class="duel-row">
+                <div class="duel-meta">
+                  <span><code>codebase-memory-mcp</code> + AST scripts</span>
+                  <span class="mono" data-bind="index.cs01_cbm_val">9m 15s, 28 turns, ~1.7M tokens</span>
+                </div>
+                <div class="meter"><span class="meter-fill meter-fill--muted" style="--w: 1"></span></div>
+              </div>
+
+              <div class="duel-row">
+                <div class="duel-meta">
+                  <span class="duel-ce">CodeExplorer MCP</span>
+                  <span class="mono duel-ce" data-bind="index.cs01_ce_val">1m 33s (~6.0× faster), 7 turns, ~242K tokens</span>
+                </div>
+                <div class="meter"><span class="meter-fill meter-fill--ce" style="--w: 0.168"></span></div>
+              </div>
+            </div>
+
+            <p class="duel-foot">Graph recall of 381 ground-truth facts: <strong>100% (381/381)</strong> from <code>graph.db</code> vs 3.4% (13/381).</p>
+          </article>
+
+          <article class="duel-card">
+            <div class="duel-top">
+              <h3 class="duel-title" data-bind-html="index.cs02_head_html">Case 02: 324-service workspace (13,782 files)</h3>
+              <a href="/benchmarks/02-enterprise-microservices-deep-audit" class="duel-link">Case 02 Report</a>
+            </div>
+
+            <div class="duel-bars">
+              <div class="duel-row">
+                <div class="duel-meta">
+                  <span><code>ripgrep</code> + custom Python scripts</span>
+                  <span class="mono" data-bind="index.cs02_rg_val">29m 52s, 285 turns, ~17.2M tokens ($1.15)</span>
+                </div>
+                <div class="meter"><span class="meter-fill meter-fill--muted" style="--w: 1"></span></div>
+              </div>
+
+              <div class="duel-row">
+                <div class="duel-meta">
+                  <span class="duel-ce">CodeExplorer CLI</span>
+                  <span class="mono duel-ce" data-bind="index.cs02_ce_val">4m 16s (~7.0× faster), 18 turns, ~686K tokens ($0.10)</span>
+                </div>
+                <div class="meter"><span class="meter-fill meter-fill--ce" style="--w: 0.143"></span></div>
+              </div>
+            </div>
+
+            <p class="duel-foot">Zero ad-hoc scripts, zero context compactions. The baseline grep agent missed 9 services completely.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 4. IDE CYPHER & GATE WORKBENCH ==================== -->
+    <section class="section" id="workbench" aria-labelledby="wb-title">
+      <div class="container">
+        <div class="sec-head">
+          <h2 id="wb-title" class="sec-title">Query in OpenCypher. Enforce in YAML.</h2>
+          <p class="sec-sub">Express multi-hop architectural questions and CI invariant rules against the exact same local SQLite graph.</p>
+        </div>
+
+        <div class="wb-bar">
+          <div class="seg-group" role="tablist" aria-label="Playground mode">
+            <button type="button" role="tab" class="seg-btn" aria-selected="true" data-wb-mode="cypher">OpenCypher Queries</button>
+            <button type="button" role="tab" class="seg-btn" aria-selected="false" tabindex="-1" data-wb-mode="gates">Semantic Invariant Gates</button>
+          </div>
+          <div class="preset-pills" id="wbPresets" role="tablist" aria-label="Query presets"></div>
+        </div>
+
+        <div class="ide-split">
+          <div class="ide-pane">
+            <div class="ide-head">
+              <span class="ide-file" id="wbFile">blast_radius.cypher</span>
+              <button type="button" class="btn btn--ghost btn--xs" id="wbCopy">Copy</button>
+            </div>
+            <div class="ide-code-wrap">
+              <div class="ide-gutter" id="wbLines" aria-hidden="true"></div>
+              <pre class="ide-pre" id="wbCode"></pre>
+            </div>
+            <div class="ide-foot" id="wbExplain"></div>
+          </div>
+
+          <div class="ide-pane">
+            <div class="ide-head">
+              <span id="wbOutTitle">SQLite Graph Execution</span>
+              <span class="mono" id="wbBadge"></span>
+            </div>
+            <div class="ide-out" id="wbOut"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 5. 5-LAYER STACK + 12 LANGUAGES ==================== -->
+    <section class="section" id="ontology" aria-labelledby="onto-title">
+      <div class="container">
+        <div class="sec-head sec-head--split">
+          <div>
+            <h2 id="onto-title" class="sec-title">Five-layer ontology across 12 languages.</h2>
+            <p class="sec-sub">Every repository compiles into one unified graph schema — bridging physical files and AST dataflow up to distributed services and cloud infrastructure.</p>
+          </div>
+          <a href="/ontology" class="btn btn--ghost">Explore Full Ontology</a>
+        </div>
+
+        <div class="onto-grid">
+          <!-- Interactive 5-Layer Stack -->
+          <div class="layer-stack" role="tablist" aria-label="Five graph layers" aria-orientation="vertical">
+            <button type="button" role="tab" class="layer-card" aria-selected="true" data-layer="5">
+              <span class="layer-badge layer-badge--5">L5</span>
+              <span class="layer-main">
+                <strong>Logical Structure</strong>
+                <span>Domains, DDD bounded contexts, cross-context boundaries</span>
+                <code>Domain · BoundedContext · DEPENDS_ON</code>
+              </span>
+            </button>
+            <button type="button" role="tab" class="layer-card" aria-selected="false" tabindex="-1" data-layer="4">
+              <span class="layer-badge layer-badge--4">L4</span>
+              <span class="layer-main">
+                <strong>Semantic Architecture</strong>
+                <span>Workloads, HTTP/gRPC endpoints, queues, caches, SQL tables</span>
+                <code>Workload · Endpoint · Table · Topic · CloudResource</code>
+              </span>
+            </button>
+            <button type="button" role="tab" class="layer-card" aria-selected="false" tabindex="-1" data-layer="3">
+              <span class="layer-badge layer-badge--3">L3</span>
+              <span class="layer-main">
+                <strong>Syntactic UAST &amp; Dataflow</strong>
+                <span>Types, methods, call graphs, catch blocks, parameter slicing</span>
+                <code>Type · Function · Parameter · CALLS</code>
+              </span>
+            </button>
+            <button type="button" role="tab" class="layer-card" aria-selected="false" tabindex="-1" data-layer="2">
+              <span class="layer-badge layer-badge--2">L2</span>
+              <span class="layer-main">
+                <strong>Project &amp; Package Boundaries</strong>
+                <span>Projects, NuGet/npm/Cargo/Maven packages, binary entrypoints</span>
+                <code>Project · Package · EntryPoint · PRODUCES</code>
+              </span>
+            </button>
+            <button type="button" role="tab" class="layer-card" aria-selected="false" tabindex="-1" data-layer="1">
+              <span class="layer-badge layer-badge--1">L1</span>
+              <span class="layer-main">
+                <strong>Physical File System</strong>
+                <span>Folders, source files, incremental SHA hashes, Git metadata</span>
+                <code>Folder · File · GitSettings · LOCATED_IN</code>
+              </span>
+            </button>
+          </div>
+
+          <!-- 12-Language Polyglot Matrix -->
+          <div class="poly-grid" aria-label="12 supported languages">
+            <div class="poly-tile"><span class="poly-code">CS</span><strong>C# / .NET</strong><span>ASP.NET, gRPC, Wolverine, MassTransit, EF Core, Dapper</span></div>
+            <div class="poly-tile"><span class="poly-code">JV</span><strong>Java</strong><span>Spring Boot, Quarkus, Micronaut, Hibernate, MyBatis, jOOQ</span></div>
+            <div class="poly-tile"><span class="poly-code">KT</span><strong>Kotlin</strong><span>Spring, Ktor, Exposed, Room, SQLDelight, Coroutines</span></div>
+            <div class="poly-tile"><span class="poly-code">TS</span><strong>TypeScript &amp; JS</strong><span>NestJS, Next.js, tRPC, Hono, Prisma, TypeORM, BullMQ</span></div>
+            <div class="poly-tile"><span class="poly-code">GO</span><strong>Go</strong><span>Gin, Fiber, gRPC-Gateway, Watermill, GORM, sqlx, Ent</span></div>
+            <div class="poly-tile"><span class="poly-code">PY</span><strong>Python</strong><span>FastAPI, Django, Litestar, Celery, SQLAlchemy, Temporal</span></div>
+            <div class="poly-tile"><span class="poly-code">RS</span><strong>Rust</strong><span>Axum, Actix Web, Tonic gRPC, SQLx, SeaORM, Diesel</span></div>
+            <div class="poly-tile"><span class="poly-code">PHP</span><strong>PHP</strong><span>Symfony, Laravel, Zend 1, Doctrine ORM, Nette DB, PDO</span></div>
+            <div class="poly-tile"><span class="poly-code">PL</span><strong>Perl</strong><span>CPAN, DBI / DBD::mysql, LWP::UserAgent, Cron CLI</span></div>
+            <div class="poly-tile"><span class="poly-code">CF</span><strong>ColdFusion</strong><span>CFML (.cfc/.cfm), cfquery SQL lineage, cfhttp, Stored Procs</span></div>
+            <div class="poly-tile"><span class="poly-code">SQL</span><strong>SQL Schemas</strong><span>PostgreSQL, T-SQL, MySQL, SQLite, ClickHouse, BigQuery</span></div>
+            <div class="poly-tile"><span class="poly-code">TF</span><strong>Terraform &amp; HCL</strong><span>Modules, Terragrunt units, AWS / GCP / Azure resources</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 6. INSTALL ==================== -->
+    <section class="section section--install" id="install" aria-labelledby="inst-title">
+      <div class="container">
+        <div class="install-card">
+          <div class="install-left">
+            <h2 id="inst-title" class="sec-title">Ready in 30 seconds.</h2>
+            <p class="sec-sub">100% local execution. Zero cloud uploads, zero telemetry, MIT licensed.</p>
+
+            <div class="cli-steps">
+              <div class="cli-step"><span class="step-idx">1</span><code>ce init &amp;&amp; ce scan</code><span>Index repository into SQLite</span></div>
+              <div class="cli-step"><span class="step-idx">2</span><code>ce mcp</code><span>Attach to Claude Code or Cursor</span></div>
+              <div class="cli-step"><span class="step-idx">3</span><code>ce gate check --ratchet</code><span>Enforce invariants on every PR</span></div>
+            </div>
+          </div>
+
+          <div class="install-right">
+            <div class="inst-tabs" role="tablist" aria-label="Installation platform">
+              <button type="button" role="tab" class="seg-btn" aria-selected="true" data-cmd="brew install vmikhailov/tap/ce" data-note="macOS (Apple Silicon &amp; Intel) and Linux via Homebrew.">Homebrew</button>
+              <button type="button" role="tab" class="seg-btn" aria-selected="false" tabindex="-1" data-cmd="code --install-extension vmikhailov.code-explorer-vscode" data-note="VS Code Marketplace &amp; Open VSX (manages the ce CLI automatically).">VS Code</button>
+              <button type="button" role="tab" class="seg-btn" aria-selected="false" tabindex="-1" data-cmd="Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\install.ps1" data-note="Standalone native Windows x64 binary via PowerShell.">Windows</button>
+              <button type="button" role="tab" class="seg-btn" aria-selected="false" tabindex="-1" data-cmd="curl -fsSL -O https://code-explorer.app/install.sh &amp;&amp; sh install.sh" data-note="Installs standalone binary directly to ~/.local/bin/ce.">curl</button>
+              <button type="button" role="tab" class="seg-btn" aria-selected="false" tabindex="-1" data-cmd="dotnet tool install -g codeexplorer.cli" data-note="Cross-platform .NET global tool package via NuGet.">.NET Tool</button>
+            </div>
+
+            <div class="inst-box">
+              <span class="cmd-dollar" aria-hidden="true">$</span>
+              <code id="instCmd">brew install vmikhailov/tap/ce</code>
+              <button type="button" class="btn btn--primary btn--sm" id="instCopy">Copy</button>
+            </div>
+            <p class="inst-note" id="instNote">macOS (Apple Silicon &amp; Intel) and Linux via Homebrew.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <span class="brand-word">CodeExplorer</span>
+        <p>Built by Viacheslav Mikhailov. 100% local architecture intelligence under the MIT License.</p>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <h3>Product</h3>
+          <ul>
+            <li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
+            <li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li>
+            <li><a href="https://github.com/vmikhailov/homebrew-tap" target="_blank" rel="noopener">Homebrew Tap</a></li>
+            <li><a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">NuGet Global Tool</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Documentation</h3>
+          <ul>
+            <li><a href="/architectures">Architecture Encyclopedia</a></li>
+            <li><a href="/ontology">Graph Ontology</a></li>
+            <li><a href="/benchmarks">Benchmarks</a></li>
+            <li><a href="/llms.txt">llms.txt for Agents</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Project</h3>
+          <ul>
+            <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub Repository</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release Notes</a></li>
+            <li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener">CodePassport</a></li>
+            <li><a href="/privacy">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lightbox Modal -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Full-screen architecture view" hidden>
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close preview">Close (Esc)</button>
+    <img id="lightboxImg" src="/all_services.png?v=2" alt="Enlarged CodeExplorer view">
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/new/ver4/app.js?v=1" defer></script>
+</body>
+</html>

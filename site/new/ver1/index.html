@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeExplorer: see the shape of your code</title>
+  <meta name="description" content="CodeExplorer turns your repositories into a local graph of services, queues and tables. Read it as a map, let your AI agent query it over MCP, enforce it in CI.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#090D18">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/fonts/fonts.css?v=1">
+  <link rel="stylesheet" href="/new/ver1/styles.css?v=1">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" id="top">
+    <div class="container nav-bar">
+      <a href="#top" class="wordmark" aria-label="CodeExplorer home">
+        <svg class="wordmark-glyph" viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 3"/>
+          <circle cx="16" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".55"/>
+          <circle cx="16" cy="16" r="3" fill="var(--signal)"/>
+          <circle cx="27.2" cy="9.5" r="2" fill="var(--svc)"/>
+          <circle cx="6" cy="22" r="2" fill="var(--db)"/>
+        </svg>
+        <span>CodeExplorer</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-links">
+          <li><a href="#readers">Product</a></li>
+          <li><a href="#proof">Benchmarks</a></li>
+          <li><a href="#gates">Gates</a></li>
+          <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+      </nav>
+      <a href="#install" class="btn btn--primary btn--sm">Install</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 1. Hero: the real orbit map is the signature -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <h1 id="hero-title" class="display">See the shape of your code.</h1>
+          <p class="hero-lede">A local graph of every service, queue and table in your repositories. For you, your AI agent, and your CI.</p>
+          <div class="hero-actions">
+            <a href="#install" class="btn btn--primary">Install CodeExplorer</a>
+            <button type="button" class="cmd-chip" data-copy="brew install vmikhailov/tap/ce" aria-label="Copy install command">
+              <span class="cmd-prompt" aria-hidden="true">$</span>
+              <code>brew install vmikhailov/tap/ce</code>
+              <span class="cmd-copy">Copy</span>
+            </button>
+          </div>
+          <ul class="hero-facts">
+            <li>Open source, MIT</li>
+            <li>Runs 100% locally</li>
+            <li>12 languages</li>
+          </ul>
+        </div>
+
+        <figure class="hero-map">
+          <img src="/all_services.png?v=2" width="1684" height="975" alt="CodeExplorer orbit map of the twentyhq/twenty repository: twenty-server at the centre, surrounded by its queues, services and databases on concentric orbits." fetchpriority="high">
+          <figcaption class="map-caption">
+            <span class="map-legend">
+              <span class="key key--svc">Services</span>
+              <span class="key key--queue">Queues</span>
+              <span class="key key--db">Databases</span>
+            </span>
+            <span class="map-source">twentyhq/twenty, mapped from code. Nothing drawn by hand.</span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 2. One graph, three readers -->
+    <section class="section" id="readers" aria-labelledby="readers-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="readers-title" class="h2">One graph. Three readers.</h2>
+          <p class="section-lede">CodeExplorer scans your code once into <code>.codeexplorer/graph.db</code>. Everyone who needs the architecture reads the same source of truth.</p>
+        </div>
+
+        <div class="readers" data-tabs>
+          <div class="reader-list" role="tablist" aria-label="Who reads the graph" aria-orientation="vertical">
+            <button type="button" role="tab" class="reader-tab" id="tab-you" aria-controls="panel-you" aria-selected="true">
+              <span class="reader-num">01</span>
+              <span class="reader-text">
+                <span class="reader-title">You, in VS Code</span>
+                <span class="reader-desc">Live diagrams of services, APIs, queues and tables that never go stale.</span>
+              </span>
+            </button>
+            <button type="button" role="tab" class="reader-tab" id="tab-agent" aria-controls="panel-agent" aria-selected="false" tabindex="-1">
+              <span class="reader-num">02</span>
+              <span class="reader-text">
+                <span class="reader-title">Your AI agent, over MCP</span>
+                <span class="reader-desc">Exact call chains and blast radius in one tool call, instead of fifty greps.</span>
+              </span>
+            </button>
+            <button type="button" role="tab" class="reader-tab" id="tab-ci" aria-controls="panel-ci" aria-selected="false" tabindex="-1">
+              <span class="reader-num">03</span>
+              <span class="reader-text">
+                <span class="reader-title">Your CI, on every PR</span>
+                <span class="reader-desc">Architecture rules that fail the build when someone, or something, breaks them.</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="reader-stage">
+            <div class="reader-panel" role="tabpanel" id="panel-you" aria-labelledby="tab-you">
+              <img class="shot" src="/project_flow.png?v=2" width="2699" height="2033" loading="lazy" alt="CodeExplorer Project Flow view in VS Code: the bundle-update-adapter NestJS service with its PostgreSQL tables, Pub/Sub topics, Redis cache and libraries.">
+            </div>
+
+            <div class="reader-panel" role="tabpanel" id="panel-agent" aria-labelledby="tab-agent" hidden>
+              <div class="transcript">
+                <p class="t-user">Who breaks if I change <code>PaymentProcessor.ChargeAsync</code>?</p>
+                <div class="t-call">
+                  <span class="t-label">tool call</span>
+                  <code>get_call_chain(symbol: "ChargeAsync", direction: "callers", depth: 4)</code>
+                </div>
+                <div class="t-result">
+                  <span class="t-label">result, 4 rows in 3.8 ms</span>
+                  <ol class="t-rows">
+                    <li><code>CaptureOrderHandler.Handle</code><span>1 hop</span></li>
+                    <li><code>CheckoutController.SubmitOrder</code><span>2 hops</span></li>
+                    <li><code>RenewalConsumer.Consume</code><span>2 hops</span></li>
+                    <li><code>MobileCheckoutEndpoint.Execute</code><span>3 hops</span></li>
+                  </ol>
+                </div>
+                <p class="t-agent">Four callers across Billing, Orders, Subscriptions and the mobile gateway. I will update the two direct ones and add tests for the renewal consumer.</p>
+              </div>
+            </div>
+
+            <div class="reader-panel" role="tabpanel" id="panel-ci" aria-labelledby="tab-ci" hidden>
+              <pre class="terminal"><span class="dim">$</span> ce scan
+<span class="ok">Indexed 452 modules, 18,420 types, 142,810 edges in 3.4s</span>
+
+<span class="dim">$</span> ce gate check --ratchet
+<span class="ok">pass</span>  ARCH-001  Domain must not reference Infrastructure
+<span class="ok">pass</span>  TOPO-004  One writer per SQL table
+<span class="bad">fail</span>  AST-012   No .Result inside async methods
+        Payments.Api.WebhookController.HandleStripeAsync
+        <span class="dim">src/Payments.Api/Controllers/WebhookController.cs:112</span>
+
+<span class="bad">1 new violation.</span> <span class="dim">3 legacy violations baselined. Exit 1.</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Proof: real benchmark numbers -->
+    <section class="section section--deep" id="proof" aria-labelledby="proof-title">
+      <div class="container">
+        <div class="proof-grid">
+          <div class="proof-lead">
+            <h2 id="proof-title" class="h2">Agents stop grepping in the dark.</h2>
+            <p class="big-number" data-bind="index.card_token_comp">~7.0×</p>
+            <p class="big-number-label">fewer input tokens for the same audit</p>
+            <p class="proof-note">Paired agent runs on real monorepos, same model, identical prompts. One agent had CodeExplorer, the other had everything else.</p>
+            <a href="/benchmarks" class="link-quiet">Read every benchmark report</a>
+          </div>
+
+          <div class="races">
+            <article class="race">
+              <h3 class="race-title" data-bind-html="index.cs01_head_html">Case 01: <code>twentyhq/twenty</code> (24,527 files)</h3>
+              <div class="race-row">
+                <div class="race-meta">
+                  <span class="race-who">codebase-memory-mcp and AST scripts</span>
+                  <span class="race-val" data-bind="index.cs01_cbm_val">9m 15s, 28 turns, ~1.7M tokens</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--other" style="--w: 1"></span></div>
+              </div>
+              <div class="race-row">
+                <div class="race-meta">
+                  <span class="race-who race-who--ce">CodeExplorer</span>
+                  <span class="race-val" data-bind="index.cs01_ce_val">1m 33s (~6.0× faster), 7 turns, ~242K tokens</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--ce" style="--w: 0.168"></span></div>
+              </div>
+              <p class="race-foot">Recall of the 381 expected facts: <span data-bind="index.cs01_cbm_rec">3.4% (13/381) from CBM graph</span> vs <strong data-bind="index.cs01_ce_rec">100% (381/381) directly from graph.db</strong>.</p>
+            </article>
+
+            <article class="race">
+              <h3 class="race-title" data-bind-html="index.cs02_head_html">Case 02: 324-service workspace (13,782 files)</h3>
+              <div class="race-row">
+                <div class="race-meta">
+                  <span class="race-who">ripgrep and Python scripts</span>
+                  <span class="race-val" data-bind="index.cs02_rg_val">29m 52s, 285 turns, ~17.2M tokens ($1.15)</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--other" style="--w: 1"></span></div>
+              </div>
+              <div class="race-row">
+                <div class="race-meta">
+                  <span class="race-who race-who--ce">CodeExplorer</span>
+                  <span class="race-val" data-bind="index.cs02_ce_val">4m 16s (~7.0× faster), 18 turns, ~686K tokens ($0.10)</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--ce" style="--w: 0.143"></span></div>
+              </div>
+              <p class="race-foot">The grep agent missed 9 services. Bars show wall-clock time.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Query -->
+    <section class="section" id="query" aria-labelledby="query-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="query-title" class="h2">Ask the graph anything.</h2>
+          <p class="section-lede">Structural questions that take an afternoon of grepping are one Cypher query, answered in milliseconds.</p>
+        </div>
+
+        <div class="bench" data-query>
+          <div class="chips" role="tablist" aria-label="Example queries">
+            <button type="button" role="tab" class="chip" data-preset="blast_radius" aria-selected="true">Blast radius</button>
+            <button type="button" role="tab" class="chip" data-preset="api_to_db" aria-selected="false" tabindex="-1">Who writes this table</button>
+            <button type="button" role="tab" class="chip" data-preset="cqrs_pipeline" aria-selected="false" tabindex="-1">Endpoint to table</button>
+            <button type="button" role="tab" class="chip" data-preset="cyclic_deps" aria-selected="false" tabindex="-1">Dependency cycles</button>
+          </div>
+          <div class="bench-split">
+            <div class="pane">
+              <div class="pane-head"><span id="q-file">blast_radius.cypher</span><button type="button" class="link-quiet" data-copy-query>Copy as CLI</button></div>
+              <pre class="code" id="q-code"><span class="k">MATCH</span> path = (caller:Method)-[:CALLS*<span class="n">1..4</span>]-&gt;
+      (target:Method {name: <span class="s">"ChargeAsync"</span>})
+<span class="k">RETURN</span> caller.fullName <span class="k">AS</span> UpstreamCaller,
+       <span class="f">length</span>(path) <span class="k">AS</span> Hops
+<span class="k">ORDER BY</span> Hops <span class="k">ASC</span>
+<span class="k">LIMIT</span> <span class="n">10</span></pre>
+              <p class="pane-foot" id="q-explain">Every upstream caller within four hops of ChargeAsync.</p>
+            </div>
+            <div class="pane">
+              <div class="pane-head"><span>Result</span><span class="ok" id="q-time">4 rows in 3.8 ms</span></div>
+              <div class="table-wrap" id="q-result">
+                <table class="table">
+                  <thead><tr><th>UpstreamCaller</th><th>Hops</th></tr></thead>
+                  <tbody>
+                    <tr><td>Billing.Application.Commands.CaptureOrderHandler.Handle</td><td>1</td></tr>
+                    <tr><td>Orders.Api.Controllers.CheckoutController.SubmitOrder</td><td>2</td></tr>
+                    <tr><td>Subscriptions.Worker.Consumers.RenewalConsumer.Consume</td><td>2</td></tr>
+                    <tr><td>Gateway.Bff.Endpoints.MobileCheckoutEndpoint.Execute</td><td>3</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Gates -->
+    <section class="section" id="gates" aria-labelledby="gates-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="gates-title" class="h2">Rules that fail the build, not the review.</h2>
+          <p class="section-lede">Write an architectural rule once as a Cypher query. CI checks it on every pull request, whoever wrote the code.</p>
+        </div>
+
+        <div class="gate-split">
+          <pre class="code code--panel"><span class="c"># .codeexplorer/gates/domain-purity.yaml</span>
+<span class="k">id:</span> <span class="s">ARCH-001</span>
+<span class="k">name:</span> <span class="s">Domain must not reference Infrastructure</span>
+<span class="k">severity:</span> <span class="f">error</span>
+<span class="k">query:</span> |
+  <span class="k">MATCH</span> (d:Class)-[:DEPENDS_ON|CALLS]-&gt;(inf:Class)
+  <span class="k">WHERE</span> d.namespace <span class="k">CONTAINS</span> <span class="s">".Domain"</span>
+    <span class="k">AND</span> inf.namespace <span class="k">CONTAINS</span> <span class="s">".Infrastructure"</span>
+  <span class="k">RETURN</span> d.fullName, inf.fullName</pre>
+
+          <div class="violations">
+            <p class="violations-head"><span class="bad">Exit 1</span> 2 violations</p>
+            <div class="violation">
+              <code>Orders.Domain.Aggregates.Order</code>
+              <span class="violation-arrow">depends on</span>
+              <code>Orders.Infrastructure.Persistence.OrderDbContext</code>
+              <span class="violation-loc">src/Orders.Domain/Aggregates/Order.cs:84</span>
+            </div>
+            <div class="violation">
+              <code>Billing.Domain.Services.InvoiceCalculator</code>
+              <span class="violation-arrow">depends on</span>
+              <code>Billing.Infrastructure.Http.TaxRateClient</code>
+              <span class="violation-loc">src/Billing.Domain/Services/InvoiceCalculator.cs:41</span>
+            </div>
+          </div>
+        </div>
+
+        <ol class="ratchet">
+          <li><span class="ratchet-step">Write the rule</span><span class="ratchet-copy">YAML in <code>.codeexplorer/gates</code>, or start from <code>ce gate init</code>.</span></li>
+          <li><span class="ratchet-step">Baseline the debt</span><span class="ratchet-copy">Existing violations are fingerprinted, so CI stays green on day one.</span></li>
+          <li><span class="ratchet-step">Block anything new</span><span class="ratchet-copy">A net-new violation fails the PR with exit code 1.</span></li>
+          <li><span class="ratchet-step">Tighten as it heals</span><span class="ratchet-copy">Fix a legacy violation and the ceiling drops for good.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 6. Languages -->
+    <section class="section" id="languages" aria-labelledby="languages-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="languages-title" class="h2">Twelve languages. One schema.</h2>
+          <p class="section-lede">Polyglot systems become one graph, from files and projects up to services, endpoints, queues and tables.</p>
+        </div>
+        <ul class="langs">
+          <li><span class="lang">C# and .NET</span><span class="fw">ASP.NET, EF Core, MassTransit</span></li>
+          <li><span class="lang">Java</span><span class="fw">Spring Boot, Quarkus, Hibernate</span></li>
+          <li><span class="lang">Kotlin</span><span class="fw">Spring, Ktor, Exposed</span></li>
+          <li><span class="lang">TypeScript</span><span class="fw">NestJS, Next.js, Prisma</span></li>
+          <li><span class="lang">Go</span><span class="fw">Gin, gRPC-Gateway, GORM</span></li>
+          <li><span class="lang">Python</span><span class="fw">FastAPI, Django, Celery</span></li>
+          <li><span class="lang">Rust</span><span class="fw">Axum, Tonic, SQLx</span></li>
+          <li><span class="lang">PHP</span><span class="fw">Symfony, Laravel, Doctrine</span></li>
+          <li><span class="lang">Perl</span><span class="fw">DBI, LWP, CPAN</span></li>
+          <li><span class="lang">ColdFusion</span><span class="fw">CFML, cfquery lineage</span></li>
+          <li><span class="lang">SQL</span><span class="fw">PostgreSQL, T-SQL, ClickHouse</span></li>
+          <li><span class="lang">Terraform</span><span class="fw">Modules, Terragrunt, cloud resources</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 7. Install -->
+    <section class="section section--install" id="install" aria-labelledby="install-title">
+      <div class="container install-grid">
+        <div>
+          <h2 id="install-title" class="h2">Install in thirty seconds.</h2>
+          <p class="section-lede">One native binary. No account, no cloud, no telemetry. Your code never leaves the machine.</p>
+        </div>
+
+        <div class="install" data-install>
+          <div class="chips" role="tablist" aria-label="Install method">
+            <button type="button" role="tab" class="chip" aria-selected="true" data-cmd="brew install vmikhailov/tap/ce" data-note="macOS and Linux, via Homebrew.">Homebrew</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="code --install-extension vmikhailov.code-explorer-vscode" data-note="VS Code extension. It installs and updates the ce CLI for you.">VS Code</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\install.ps1" data-note="Windows, in PowerShell.">Windows</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="curl -fsSL -O https://code-explorer.app/install.sh &amp;&amp; sh install.sh" data-note="Linux and macOS, installs to ~/.local/bin.">curl</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="dotnet tool install -g codeexplorer.cli" data-note="Any platform with the .NET SDK.">.NET tool</button>
+          </div>
+          <div class="install-cmd">
+            <code id="install-cmd">brew install vmikhailov/tap/ce</code>
+            <button type="button" class="btn btn--primary btn--sm" data-copy-install>Copy</button>
+          </div>
+          <p class="install-note" id="install-note">macOS and Linux, via Homebrew.</p>
+          <div class="next-steps">
+            <p><code>ce init &amp;&amp; ce scan</code> builds the graph.</p>
+            <p><code>ce mcp</code> hands it to your agent.</p>
+            <p><code>ce gate check</code> guards it in CI.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <span class="wordmark-text">CodeExplorer</span>
+        <p>Built by Viacheslav Mikhailov. Free and open source under the MIT license.</p>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
+        <li><a href="/benchmarks">Benchmarks</a></li>
+        <li><a href="/ontology">Graph ontology</a></li>
+        <li><a href="/architectures">Architecture gate packs</a></li>
+        <li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release notes</a></li>
+      </ul>
+      <p class="footer-version">v1.97.0</p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/new/ver1/app.js?v=1" defer></script>
+</body>
+</html>

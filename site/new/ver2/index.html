@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeExplorer: a healthy codebase today and tomorrow</title>
+  <meta name="description" content="CodeExplorer compiles your repositories into one local architecture graph: live maps in VS Code, memory for AI agents over MCP, and architecture rules in CI.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0b4a47">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/new/ver2/styles.css?v=1">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- Heat-sealed top of the bag, carries the nav -->
+  <header class="seal" id="top">
+    <div class="container seal-bar">
+      <a href="#top" class="seal-brand" aria-label="CodeExplorer home"><span class="seal-ce">ce</span> CodeExplorer</a>
+      <nav aria-label="Primary">
+        <ul class="seal-links">
+          <li><a href="#benefits">Benefits</a></li>
+          <li><a href="#composition">Composition</a></li>
+          <li><a href="#dose">Daily use</a></li>
+          <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+      </nav>
+      <a href="#prepare" class="btn btn--red btn--sm">Install</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Front of the label: logo lockup + headline + intro columns -->
+    <section class="label-top" aria-labelledby="hero-title">
+      <div class="container label-top-grid">
+        <div class="lockup">
+          <span class="lockup-over">CodeExplorer</span>
+          <span class="lockup-ce" aria-hidden="true">ce</span>
+          <span class="lockup-under">Live architecture for you, your agent and your CI</span>
+        </div>
+
+        <div class="label-copy">
+          <h1 id="hero-title" class="headline">A healthy codebase today and tomorrow</h1>
+          <p class="red-tag">CodeExplorer is formulated specially for monorepos and multi-service systems.</p>
+          <div class="intro-cols">
+            <p>Keeping a healthy architecture matters. The balance between services, queues and tables decides how fast your team, and your AI agent, can change the code safely.</p>
+            <p>CodeExplorer compiles your repositories into one local graph, so everyone reads the same map. It lives in <code>.codeexplorer/graph.db</code>, next to your code.</p>
+          </div>
+          <div class="hero-actions">
+            <a href="#prepare" class="btn btn--red">Install CodeExplorer</a>
+            <button type="button" class="cmd-chip" data-copy="brew install vmikhailov/tap/ce" aria-label="Copy install command">
+              <code>brew install vmikhailov/tap/ce</code><span class="cmd-copy">Copy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The medallion panel -->
+    <section class="panel-band" id="benefits" aria-labelledby="benefits-title">
+      <div class="container">
+        <div class="panel">
+          <h2 id="benefits-title" class="visually-hidden">Benefits and key ingredients</h2>
+
+          <ul class="benefits">
+            <li>
+              <span class="badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14"/></svg>
+              </span>
+              <p><strong>Formulated to keep you oriented.</strong> Live diagrams of services, APIs, queues and tables, rebuilt from code on every scan.</p>
+            </li>
+            <li>
+              <span class="badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M9 3h6v3h3v4h3v4h-3v4h-3v3H9v-3H6v-4H3v-4h3V6h3z M10 10h4v4h-4z"/></svg>
+              </span>
+              <p><strong>Supports your agent's memory</strong> with <span data-bind="index.card_token_comp">~7.0×</span> fewer input tokens per audit.*</p>
+              <p class="footnote">*Compared with codebase-memory-mcp on <code>twentyhq/twenty</code>, same model and prompt.</p>
+            </li>
+            <li>
+              <span class="badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z M8.5 12l2.5 2.5 4.5-5"/></svg>
+              </span>
+              <p><strong>Healthy CI</strong> thanks to a balance of architecture rules and a baseline ratchet that blocks only new violations.</p>
+            </li>
+          </ul>
+
+          <figure class="medallion">
+            <svg class="medallion-ring" viewBox="0 0 400 400" aria-hidden="true">
+              <defs><path id="arc" d="M 40 200 A 160 160 0 0 1 360 200"/></defs>
+              <text><textPath href="#arc" startOffset="50%" text-anchor="middle">Supports a healthy architecture of your codebase</textPath></text>
+            </svg>
+            <div class="medallion-disc">
+              <img src="/all_services.png?v=2" width="1684" height="975" alt="CodeExplorer orbit map of twentyhq/twenty: twenty-server at the centre with its queues, services and databases on concentric orbits.">
+            </div>
+            <figcaption class="medallion-cap">twentyhq/twenty, mapped from code</figcaption>
+          </figure>
+
+          <ul class="ingredients">
+            <li>
+              <span class="thumb thumb--graph" aria-hidden="true"></span>
+              <p><strong>Graph</strong> The number one ingredient. Five layers, from files and projects up to services and tables.</p>
+            </li>
+            <li>
+              <span class="thumb thumb--cypher" aria-hidden="true"><span>MATCH</span></span>
+              <p><strong>Cypher</strong> Structural questions in one query, answered in milliseconds.</p>
+            </li>
+            <li>
+              <span class="thumb thumb--mcp" aria-hidden="true"></span>
+              <p><strong>MCP</strong> 16 tools for Claude Code, Cursor, Copilot and Antigravity.</p>
+            </li>
+            <li>
+              <span class="thumb thumb--gates" aria-hidden="true"><span>exit 1</span></span>
+              <p><strong>Gates</strong> Architecture rules as YAML, checked on every pull request.</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- The "no added..." strip -->
+    <div class="strip" role="note">
+      <div class="container">No cloud, no telemetry, no account and no vendor lock-in</div>
+    </div>
+
+    <!-- Fine print: composition and analytical constituents -->
+    <section class="fine" id="composition" aria-labelledby="composition-title">
+      <div class="container">
+        <h2 id="composition-title" class="fine-title">CodeExplorer (ce). Complete local architecture graph for polyglot and multi-service repositories, with a high content of Cypher.</h2>
+
+        <div class="fine-grid">
+          <div class="fine-text">
+            <p><strong>Composition:</strong> C# and .NET (ASP.NET, gRPC, Wolverine, Hangfire, MassTransit, EF Core, Dapper), Java (Spring Boot, Quarkus, Micronaut, Dubbo, MyBatis, jOOQ, Hibernate), Kotlin (Spring, Ktor, Exposed, Room, SQLDelight, Retrofit), TypeScript and JavaScript (NestJS, Next.js, tRPC, Hono, Kysely, TypeORM, Prisma, BullMQ), Go (Gin, Fiber, gRPC-Gateway, Watermill, GORM, sqlx, Ent), Python (FastAPI, Litestar, Django, Celery, Dramatiq, SQLAlchemy, Temporal), Rust (Axum, Actix Web, Tonic, SQLx, SeaORM, Diesel), PHP (Symfony, Laravel, Zend Framework 1, Doctrine, Nette DB, PDO), Perl (DBI, LWP::UserAgent, CPAN), ColdFusion (CFML, cfquery lineage, cfhttp), SQL (PostgreSQL, T-SQL, MySQL, SQLite, ClickHouse, BigQuery), Terraform and HCL (modules, Terragrunt, AWS, GCP and Azure resources).</p>
+            <p><strong>Layers:</strong> physical files, projects and packages, syntax and dataflow, semantic architecture (workloads, endpoints, databases, tables, topics), logical domains and bounded contexts.</p>
+            <p><strong>Storage:</strong> keep <code>.codeexplorer/graph.db</code> in the repository root. Rescan after changes: only modified files are parsed again.</p>
+            <p><strong>Best before:</strong> never goes stale, rebuilt from code on every scan.</p>
+            <p><strong>Manufacturer:</strong> Viacheslav Mikhailov. Distributed through Homebrew, NuGet, the VS Code Marketplace and Open VSX under the MIT license.</p>
+          </div>
+
+          <div class="facts">
+            <h3 class="facts-title">Analytical constituents</h3>
+            <p class="facts-sub" data-bind-html="index.cs01_head_html">Case 01: <code>twentyhq/twenty</code> (24,527 files)</p>
+            <table class="facts-table">
+              <thead><tr><th scope="col">Per audit</th><th scope="col">CodeExplorer</th><th scope="col">codebase-memory-mcp</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Time to answer</th><td>1m 33s</td><td>9m 15s</td></tr>
+                <tr><th scope="row">Agent turns</th><td>7</td><td>28</td></tr>
+                <tr><th scope="row">Input tokens</th><td>~242K</td><td>~1.7M</td></tr>
+                <tr><th scope="row">Recall</th><td>100%</td><td>3.4%</td></tr>
+              </tbody>
+            </table>
+            <p class="facts-sub" data-bind-html="index.cs02_head_html">Case 02: 324-service workspace (13,782 files)</p>
+            <table class="facts-table">
+              <thead><tr><th scope="col">Per audit</th><th scope="col">CodeExplorer</th><th scope="col">ripgrep and scripts</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Time to answer</th><td>4m 16s</td><td>29m 52s</td></tr>
+                <tr><th scope="row">Agent turns</th><td>18</td><td>285</td></tr>
+                <tr><th scope="row">Input tokens</th><td>~686K</td><td>~17.2M</td></tr>
+                <tr><th scope="row">Cost</th><td>$0.10</td><td>$1.15</td></tr>
+              </tbody>
+            </table>
+            <a href="/benchmarks" class="link">Full benchmark reports</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom of the bag: daily use, preparation, barcode -->
+    <section class="bottom" id="dose" aria-labelledby="dose-title">
+      <div class="container bottom-grid">
+        <div class="dose">
+          <h2 id="dose-title" class="box-title">Recommended daily use</h2>
+          <table class="dose-table">
+            <thead><tr><th scope="col">Your codebase</th><th scope="col">Daily dose</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">One service</th><td><code>ce scan</code>, <code>ce query</code></td></tr>
+              <tr><th scope="row">A monorepo</th><td>add <code>ce mcp</code> for your agent</td></tr>
+              <tr><th scope="row">A fleet of services</th><td>add <code>ce gate check --ratchet</code> in CI</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="prepare" id="prepare">
+          <h2 class="box-title">Preparation</h2>
+          <div class="chips" role="tablist" aria-label="Install method">
+            <button type="button" role="tab" class="chip" aria-selected="true" data-cmd="brew install vmikhailov/tap/ce">Homebrew</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="code --install-extension vmikhailov.code-explorer-vscode">VS Code</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\install.ps1">Windows</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="curl -fsSL -O https://code-explorer.app/install.sh &amp;&amp; sh install.sh">curl</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="dotnet tool install -g codeexplorer.cli">.NET tool</button>
+          </div>
+          <div class="install-cmd">
+            <code id="install-cmd">brew install vmikhailov/tap/ce</code>
+            <button type="button" class="btn btn--red btn--sm" data-copy-install>Copy</button>
+          </div>
+          <ol class="steps">
+            <li><code>ce init &amp;&amp; ce scan</code> to build the graph</li>
+            <li><code>ce mcp</code> to hand it to your agent</li>
+            <li><code>ce gate check</code> to guard it in CI</li>
+          </ol>
+        </div>
+
+        <div class="barcode-box">
+          <svg class="barcode" id="barcode" viewBox="0 0 190 70" role="img" aria-label="Barcode, decorative"></svg>
+          <span class="barcode-digits">1 97 0 CODEEXPLORER</span>
+          <span class="weight">12<small>languages</small></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-bar">
+      <span>CodeExplorer v1.97.0. Free and open source, MIT.</span>
+      <ul class="footer-links">
+        <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
+        <li><a href="/ontology">Graph ontology</a></li>
+        <li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release notes</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/new/ver2/app.js?v=1" defer></script>
+</body>
+</html>

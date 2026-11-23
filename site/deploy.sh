@@ -18,6 +18,7 @@ tar -czf - \
   assets \
   index.html \
   fonts \
+  new \
   presentation.html \
   llms.txt \
   install.sh \
@@ -32,6 +33,6 @@ tar -czf - \
   sitemap.xml \
   CNAME | \
   ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${TARGET_USER}@${TARGET_HOST}" \
-    "rm -rf '${TARGET_DIR}/assets' '${TARGET_DIR}/architectures' '${TARGET_DIR}/ontology' '${TARGET_DIR}/benchmarks' '${TARGET_DIR}/architectures.html' '${TARGET_DIR}/ontology.html' '${TARGET_DIR}/benchmarks.html' '${TARGET_DIR}/privacy.html' '${TARGET_DIR}/01-agent-audit-ce-vs-cbm-on-twenty.html' && tar -xzf - -C '${TARGET_DIR}' && chown -R root:root '${TARGET_DIR}' && chmod -R u=rwX,go=rX '${TARGET_DIR}'"
+    "rm -rf '${TARGET_DIR}/assets' '${TARGET_DIR}/new' '${TARGET_DIR}/architectures' '${TARGET_DIR}/ontology' '${TARGET_DIR}/benchmarks' '${TARGET_DIR}/architectures.html' '${TARGET_DIR}/ontology.html' '${TARGET_DIR}/benchmarks.html' '${TARGET_DIR}/privacy.html' '${TARGET_DIR}/01-agent-audit-ce-vs-cbm-on-twenty.html' && tar -xzf - -C '${TARGET_DIR}' && chown -R root:root '${TARGET_DIR}' && chmod -R u=rwX,go=rX '${TARGET_DIR}'"
 
 echo "✅ Live deployment successful: https://code-explorer.app (mirror: https://code-explorer.mikhailov.cc)"
