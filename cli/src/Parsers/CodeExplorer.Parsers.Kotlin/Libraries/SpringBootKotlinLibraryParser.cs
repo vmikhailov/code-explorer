@@ -29,7 +29,15 @@ public sealed class SpringBootKotlinLibraryParser : DeclarativeSemanticExtension
             "org.springframework.boot*",
             "org.springframework.web*",
             "org.springframework.data*",
-            "org.springframework.security*"
+            "org.springframework.security*",
+            "io.projectreactor*",
+            "jakarta.persistence*",
+            "com.h2database*",
+            "org.flywaydb*",
+            "org.liquibase*",
+            "com.github.ben-manes.caffeine*",
+            "org.testcontainers*",
+            "com.ninja-squad:springmockk*"
         ];
     }
 

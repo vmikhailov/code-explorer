@@ -27,7 +27,8 @@ public sealed class GraphQlKotlinLibraryParser : DeclarativeSemanticExtension
         [
             "com.expediagroup.graphql.*",
             "com.expediagroup:graphql-kotlin*",
-            "com.netflix.graphql.dgs.*"
+            "com.netflix.graphql.dgs.*",
+            "com.graphql-java*"
         ];
     }
 

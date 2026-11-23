@@ -21,7 +21,17 @@ public sealed class ComposeNavigationKotlinLibraryParser : DeclarativeSemanticEx
         SupportedPatterns =
         [
             "cafe.adriel.voyager*",
-            "com.arkivanov.decompose*"
+            "com.arkivanov.decompose*",
+            "com.arkivanov.mvikotlin*",
+            "org.orbit-mvi*",
+            "com.slack.circuit*",
+            "androidx.compose*",
+            "androidx.navigation*",
+            "androidx.lifecycle*",
+            "androidx.work*",
+            "androidx.datastore*",
+            "com.russhwolf:multiplatform-settings*",
+            "io.coil-kt*"
         ];
     }
 

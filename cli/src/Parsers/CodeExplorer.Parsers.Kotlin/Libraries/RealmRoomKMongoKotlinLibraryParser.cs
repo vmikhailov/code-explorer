@@ -30,6 +30,8 @@ public sealed class RealmRoomKMongoKotlinLibraryParser : DeclarativeSemanticExte
             "io.objectbox*",
             "org.litote.kmongo*",
             "com.mongodb.kotlin*",
+            "org.mongodb*",
+            "com.github.jasync-sql*",
             "androidx.room*"
         ];
     }

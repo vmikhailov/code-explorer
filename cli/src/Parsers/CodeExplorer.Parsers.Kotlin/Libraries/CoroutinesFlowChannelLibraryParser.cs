@@ -26,7 +26,8 @@ public sealed class CoroutinesFlowChannelLibraryParser : DeclarativeSemanticExte
         SupportedPatterns =
         [
             "kotlinx.coroutines.flow*",
-            "kotlinx.coroutines.channels*"
+            "kotlinx.coroutines.channels*",
+            "io.reactivex*"
         ];
     }
 

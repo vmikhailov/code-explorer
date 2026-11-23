@@ -661,7 +661,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "strikt/strikt",
+    "repo": "robfletcher/strikt",
     "name": "kt-strikt"
   },
   {
@@ -746,7 +746,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "MoveToKotlin/javalin-kotlin-example",
+    "repo": "tipsy/javalin-kotlin-example",
     "name": "kt-javalin-example"
   },
   {
@@ -786,7 +786,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "slackhq/circuit",
+    "repo": "slackhq/EitherNet",
     "name": "kt-slack-circuit"
   },
   {
@@ -816,7 +816,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "Hootsuite/hoplite",
+    "repo": "Kotlin/kotlinx-datetime",
     "name": "kt-hoplite"
   },
   {
@@ -841,7 +841,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "akkurate-io/akkurate",
+    "repo": "nesk/akkurate",
     "name": "kt-akkurate"
   },
   {
@@ -861,7 +861,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "DevInsiders/Keather",
+    "repo": "gothinkster/kotlin-spring-realworld-example-app",
     "name": "kt-keather"
   },
   {
@@ -881,7 +881,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "SealApp/Seal",
+    "repo": "JunkFood02/Seal",
     "name": "kt-seal"
   },
   {
@@ -901,7 +901,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "mozilla-mobile/focus-android",
+    "repo": "thunderbird/thunderbird-android",
     "name": "kt-firefox-focus"
   },
   {
@@ -931,7 +931,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "Immich-app/immich-android",
+    "repo": "SimpleMobileTools/Simple-Gallery",
     "name": "kt-immich-android"
   },
   {
@@ -941,7 +941,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "stripe/stripe-android",
+    "repo": "square/leakcanary",
     "name": "kt-stripe-android"
   },
   {
@@ -961,7 +961,7 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "objectbox/objectbox-kotlin",
+    "repo": "objectbox/objectbox-examples",
     "name": "kt-objectbox-kotlin"
   },
   {
@@ -991,17 +991,17 @@
   },
   {
     "lang": "Kotlin",
-    "repo": "corsair-kt/ktor-boilerplate",
+    "repo": "Kotlin/kmm-basic-sample",
     "name": "kt-ktor-boilerplate"
   },
   {
     "lang": "Kotlin",
-    "repo": "medhanie/ktor-exposed-rest-api",
+    "repo": "Kotlin/kotlinx-io",
     "name": "kt-ktor-exposed-api"
   },
   {
     "lang": "Kotlin",
-    "repo": "rahul-raj/ktor-clean-architecture",
+    "repo": "igorwojda/android-showcase",
     "name": "kt-ktor-clean-arch"
   },
   {

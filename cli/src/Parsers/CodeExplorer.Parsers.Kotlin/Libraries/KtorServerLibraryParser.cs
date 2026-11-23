@@ -18,7 +18,7 @@ public sealed class KtorServerLibraryParser : DeclarativeSemanticExtension
         Name = "Ktor Server";
         Type = SemanticExtensionType.Framework;
         LibraryRole = LibraryRole.WebService;
-        SupportedPatterns = ["io.ktor.server.*", "io.ktor:ktor-server*"];
+        SupportedPatterns = ["io.ktor.server.*", "io.ktor:ktor-server*", "io.ktor:ktor-serialization*", "io.ktor:ktor-bom*"];
     }
 
     public static void AnalyzeSource(string content, FileNode fileNode)

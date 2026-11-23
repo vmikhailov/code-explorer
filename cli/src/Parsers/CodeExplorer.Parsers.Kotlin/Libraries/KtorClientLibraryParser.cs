@@ -19,7 +19,7 @@ public sealed class KtorClientLibraryParser : DeclarativeSemanticExtension
         Name = "Ktor Client & Ktorfit";
         Type = SemanticExtensionType.ApiClient;
         LibraryRole = LibraryRole.General;
-        SupportedPatterns = ["io.ktor.client.*", "io.ktor:ktor-client*", "de.jensklingenberg.ktorfit*"];
+        SupportedPatterns = ["io.ktor.client.*", "io.ktor:ktor-client*", "de.jensklingenberg.ktorfit*", "com.squareup.okhttp3*", "com.github.kittinunf.fuel*", "com.skydoves:sandwich*"];
     }
 
     public static void AnalyzeSource(string content, FileNode fileNode)
