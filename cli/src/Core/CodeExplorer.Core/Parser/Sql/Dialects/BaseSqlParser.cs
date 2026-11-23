@@ -156,13 +156,22 @@ public abstract partial class BaseSqlParser : ISqlDialectParser
                 continue;
             }
 
+            var posBefore = reader.Position;
             var stmt = TryParseNextStatement(reader);
             if (stmt != null)
             {
                 statements.Add(stmt);
+                if (reader.Position == posBefore)
+                {
+                    reader.Advance();
+                }
             }
             else
             {
+                if (reader.Position == posBefore)
+                {
+                    reader.Advance();
+                }
                 // Advance past next semicolon or delimiter
                 reader.SkipToNextStatement();
             }
@@ -248,9 +257,14 @@ public abstract partial class BaseSqlParser : ISqlDialectParser
         {
             while (!reader.IsAtEnd && !reader.Match(SqlToken.RParen))
             {
+                var posBefore = reader.Position;
                 var col = reader.ReadIdentifierOrString();
                 if (!string.IsNullOrEmpty(col)) columns.Add(CleanIdentifier(col));
                 reader.Match(SqlToken.Comma);
+                if (reader.Position == posBefore)
+                {
+                    reader.Advance();
+                }
             }
         }
 

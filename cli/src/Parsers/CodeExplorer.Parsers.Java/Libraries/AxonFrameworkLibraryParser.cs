@@ -10,7 +10,7 @@ public class AxonFrameworkLibraryParser : DeclarativeSemanticExtension
         Name = "Axon Framework";
         Type = SemanticExtensionType.Queue;
         LibraryRole = LibraryRole.MessageBroker;
-        SupportedPatterns = ["org.axonframework.*", "org.axonframework"];
+        SupportedPatterns = ["org.axonframework.*", "org.axonframework", "io.eventuate*"];
         MessagingBrokerRules =
         [
             new MessagingBrokerRule

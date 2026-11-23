@@ -48,17 +48,21 @@ public abstract partial class BaseSqlParser
                 continue;
             }
 
-            if (IsTableConstraintStart(reader))
+            if ( IsTableConstraintStart(reader))
             {
+                var posBefore = reader.Position;
                 ParseTableConstraint(reader, cteNames, refTables, foreignKeys, tableLevelPkCols);
+                if (reader.Position == posBefore) reader.Advance();
             }
             else
             {
+                var posBefore = reader.Position;
                 var col = ParseColumnDefinition(reader, cteNames, refTables, foreignKeys);
                 if (col != null)
                 {
                     columns.Add(col);
                 }
+                if (reader.Position == posBefore) reader.Advance();
             }
         }
 
@@ -617,13 +621,16 @@ public abstract partial class BaseSqlParser
                 break;
             }
 
+            var posBefore = reader.Position;
             var stmt = TryParseNextStatement(reader);
             if (stmt != null)
             {
                 bodyStatements.Add(stmt);
+                if (reader.Position == posBefore) reader.Advance();
             }
             else
             {
+                if (reader.Position == posBefore) reader.Advance();
                 reader.SkipToNextStatement();
             }
         }

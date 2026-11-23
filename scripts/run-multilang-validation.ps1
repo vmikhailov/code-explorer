@@ -7,6 +7,7 @@ param(
     [string]$ReposFile = "c:\Work\Personal\code-explorer\scripts\multilang-repositories.json",
     [string]$TestingDir = "C:\Work\Personal\code-explorer-testing",
     [string]$CeDll = "c:\Work\Personal\code-explorer\cli\.Build\bin_Release_AnyCPU\CodeExplorer\ce.dll",
+    [int]$ScanTimeoutSeconds = 120,
     [switch]$ForceRescan,
     [switch]$KeepClone
 )
@@ -185,7 +186,7 @@ function Update-ReportMarkdown {
     [void]$sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
 
     $idx = 1
-    foreach ($entry in ($allResults.Values | Sort-Object timestamp)) {
+    foreach ($entry in ($allResults.Values | Sort-Object { [string]$_.timestamp })) {
         $filesStr = if ($null -ne $entry.files) { $entry.files } else { "-" }
         $nodesStr = if ($null -ne $entry.nodes) { "{0:N0}" -f $entry.nodes } else { "-" }
         $relsStr = if ($null -ne $entry.relationships) { "{0:N0}" -f $entry.relationships } else { "-" }
@@ -277,13 +278,28 @@ foreach ($item in $reposJson) {
         $manifestDeps = Extract-ManifestDependencies -Lang $lang -RepoDir $targetDir
         $uncoveredDeps = @($manifestDeps | Where-Object { -not (Test-LibraryCovered -Lang $lang -Pkg $_) })
 
-        # 3. Init & Scan
+        # 3. Init & Scan (with hard per-repo timeout watchdog)
         & dotnet $CeDll init --dir $targetDir | Out-Null
-        Write-Host "  [CE] Scanning workspace..." -ForegroundColor Yellow
+        Write-Host "  [CE] Scanning workspace (timeout ${ScanTimeoutSeconds}s)..." -ForegroundColor Yellow
         $scanStart = Get-Date
-        $scanOutput = & dotnet $CeDll scan --clear $targetDir 2>&1
-        $scanExitCode = $LASTEXITCODE
+        $stdoutLog = Join-Path $TestingDir "$name.scan.out.log"
+        $stderrLog = Join-Path $TestingDir "$name.scan.err.log"
+        $scanProc = Start-Process -FilePath "dotnet" -ArgumentList @($CeDll, "scan", "--clear", $targetDir) -NoNewWindow -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+        $completedInTime = $scanProc.WaitForExit($ScanTimeoutSeconds * 1000)
         $scanDuration = [math]::Round(((Get-Date) - $scanStart).TotalSeconds, 1)
+
+        if (-not $completedInTime) {
+            Write-Warning "  [CE TIMEOUT] Scan exceeded ${ScanTimeoutSeconds}s on $repo (PID $($scanProc.Id)). Killing process..."
+            Stop-Process -Id $scanProc.Id -Force -ErrorAction SilentlyContinue
+            $scanExitCode = 124
+            $scanOutput = "Scan timed out after ${ScanTimeoutSeconds}s"
+        } else {
+            $scanExitCode = $scanProc.ExitCode
+            $outText = if (Test-Path $stdoutLog) { Get-Content $stdoutLog -Raw -ErrorAction SilentlyContinue } else { "" }
+            $errText = if (Test-Path $stderrLog) { Get-Content $stderrLog -Raw -ErrorAction SilentlyContinue } else { "" }
+            $scanOutput = "$outText`n$errText"
+        }
+        Remove-Item $stdoutLog, $stderrLog -Force -ErrorAction SilentlyContinue
 
         if ($scanExitCode -ne 0) {
             Write-Host "  [CE FAILED] Scan exited with code $scanExitCode in ${scanDuration}s" -ForegroundColor Red

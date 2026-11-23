@@ -22,6 +22,8 @@ public sealed class SqlTokenReader
 
     public bool IsAtEnd => _position >= _tokens.Length;
 
+    public int Position => _position;
+
     public Token<SqlToken> Current => _position < _tokens.Length ? _tokens[_position] : default;
 
     public bool CurrentEqualsIgnoreCase(string expected)

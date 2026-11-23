@@ -106,7 +106,7 @@
   },
   {
     "lang": "Java",
-    "repo": "AxonFramework/hotel-demo",
+    "repo": "AxonFramework/extension-kafka",
     "name": "java-axon-hotel-demo"
   },
   {
@@ -141,7 +141,7 @@
   },
   {
     "lang": "Java",
-    "repo": "armeria/armeria-examples",
+    "repo": "line/armeria",
     "name": "java-armeria-examples"
   },
   {
@@ -151,7 +151,7 @@
   },
   {
     "lang": "Java",
-    "repo": "blade-java/blade",
+    "repo": "lets-blade/blade",
     "name": "java-blade"
   },
   {
@@ -196,7 +196,7 @@
   },
   {
     "lang": "Java",
-    "repo": "Blaze-Persistence/blaze-persistence",
+    "repo": "Blazebit/blaze-persistence",
     "name": "java-blaze-persistence"
   },
   {
@@ -261,7 +261,7 @@
   },
   {
     "lang": "Java",
-    "repo": "spring-projects/spring-ai",
+    "repo": "spring-projects/spring-ai-examples",
     "name": "java-spring-ai"
   },
   {

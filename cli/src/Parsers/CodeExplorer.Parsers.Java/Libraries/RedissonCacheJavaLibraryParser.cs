@@ -14,6 +14,7 @@ public class RedissonCacheJavaLibraryParser : DeclarativeSemanticExtension
         [
             "org.redisson.*",
             "com.github.benmanes.caffeine.*",
+            "com.github.ben-manes.caffeine*",
             "org.springframework.cache.*"
         ];
         DataStoreAccessRules =
