@@ -213,6 +213,7 @@ public class Layer1PhysicalParser
 
         var dirInfo = new DirectoryInfo(currentDir);
         var dirFiles = dirInfo.GetFiles();
+        Array.Sort(dirFiles, static (a, b) => StringComparer.Ordinal.Compare(a.Name, b.Name));
 
         var hasGitPointerFile = false;
         string? gitIgnoreFilePath = null;
@@ -276,6 +277,7 @@ public class Layer1PhysicalParser
         }
 
         var subDirs = dirInfo.GetDirectories();
+        Array.Sort(subDirs, static (a, b) => StringComparer.Ordinal.Compare(a.Name, b.Name));
         var hasGitSubDir = false;
         var hasVscodeSubDir = false;
         for (int i = 0; i < subDirs.Length; i++)
