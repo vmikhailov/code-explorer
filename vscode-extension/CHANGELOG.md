@@ -5,6 +5,30 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.98.0] - 2026-11-23
+
+### Added
+- **313+ Multi-Language Library Parsers & 717-Repository Validation Corpus (`CodeExplorer.Parsers.*`, `scripts/`)**:
+  - **Java (`CodeExplorer.Parsers.Java`)**: Implemented full declarative lineage for `SpringDataRedis` and `SpringDataElasticsearch`, and added 9 new library parsers covering `Quartz / JobRunr / ShedLock`, `Camunda / Zeebe / Flowable / Temporal`, `Netflix DGS / GraphQL Java`, `Javalin / Helidon / Armeria / Ratpack`, `Cassandra / Neo4j / Couchbase`, `RocketMQ / NATS / ActiveMQ / JMS`, `MyBatis-Plus / QueryDSL / Blaze-Persistence`, `Spring Security / OAuth2 / Keycloak`, and `Micrometer / OpenTelemetry / HikariCP / Flyway / Liquibase / MapStruct`.
+  - **Kotlin (`CodeExplorer.Parsers.Kotlin`)**: Implemented full AST and declarative extraction across all 10 Kotlin library parsers (`KtorServer`, `KtorClient`, `Exposed`, `Ktorm`, `Koin`, `KotlinxSerialization`, `SpringCloudStreamKotlin`, `ArrowKotlin`, `GraphQlKotlin`, `MicronautKotlin`), and added `SpringBootKotlinLibraryParser`, `AiCloudSdkKotlinLibraryParser` (`Koog / LangChain4j / AWS / GCP SDK`), and `RealmRoomKMongoKotlinLibraryParser`.
+  - **C# (`CodeExplorer.Parsers.CSharp`)**: Implemented `StripeLibraryParser` and added `SqlKataRepoDbLibraryParser`, `FusionCacheDotNetLibraryParser`, `AkkaProtoActorBrighterLibraryParser`, `ElsaWorkflowCoreLibraryParser`, and `IdentityOpenIddictCasbinOcelotLibraryParser`.
+  - **TypeScript (`CodeExplorer.Parsers.TypeScript`)**: Added `ElysiaH3NitroAdonisTsLibraryParser` (`Elysia`, `H3`, `Nitro`, `AdonisJS`, `Feathers`) and `AgendaTriggerMastraDiTsLibraryParser` (`Agenda`, `Trigger.dev`, `Mastra`, `Inversify`, `TSyringe`).
+  - **Python (`CodeExplorer.Parsers.Python`)**: Added `DjangoNinjaBlackSheepRobynFalconLibraryParser`, `BeaniePiccoloPrismaDuckDbPythonLibraryParser`, and `TaskiqHueyFaustNatsGraphQlPythonLibraryParser`.
+  - **Go (`CodeExplorer.Parsers.Go`)**: Added `HertzGoFrameIrisHumaGoaLibraryParser`, `SquirrelBobSqlBoilerCacheKvGoLibraryParser`, and `FranzGoNsqPulsarCronAuthGoLibraryParser`.
+  - **Rust (`CodeExplorer.Parsers.Rust`)**: Added `PoemSalvoWarpLocoRustLibraryParser`, `RedisMongoNoSqlRustLibraryParser`, `GraphQlWebSocketRustLibraryParser`, and `JobsActorsAiRustLibraryParser`.
+  - **717-Repository Validation Corpus (`scripts/multilang-repositories.json`, `scripts/run-multilang-validation.ps1`)**: Validated 717 open-source repositories across Java, Kotlin, C#, TypeScript, Python, Go, and Rust (`100%` pass rate across `829,817` source files, `17.9M` nodes, and `43.2M` relationships).
+- **Layer 4 Data Sensitivity & Security Starter Gates (`CodeExplorer.Core`, `CodeExplorer.Gates`, `CodeExplorer.Indexing`)**:
+  - Added `DataSensitivity`, `FileNode` directive tracking, Django REST Framework authorization enrichment, and starter security gates `SIG-SEC-002..005`.
+
+### Fixed
+- **Core Parser & Layer 2/3/5 Performance and Reliability Fixes (`CodeExplorer.Core`, `CodeExplorer.Indexing`, `CodeExplorer.Parsers.CSharp`, `CodeExplorer.Parsers.Go`)**:
+  - Fixed an infinite token loop in `BaseSqlParser.ParseSingleCte` and `BaseSqlParser.Schema` when parsing malformed SQL CTE column lists by guaranteeing cursor advancement on unrecognized tokens.
+  - Fixed a `NullReferenceException` in `ConstantRegistry.ExtractProjectName` when `Urn.DeclaringFilePath` is whitespace, and fixed an `ArgumentException` in `Layer2BoundariesAnalyzer.RelativizeSourceReachability` when multiple absolute paths normalize to the same relative directory key.
+  - Eliminated `O(N^2)` full-file text scanning in `GrpcCSharpLibraryParser.IsGrpcClientCall` and `O(N^2)` AST `Descendants()` traversal in `GrpcGoLibraryParser` by short-circuiting on `O(1)` receiver/parameter checks first.
+  - Memoized `Layer5GlobalAnalyzer.TryResolveFunctionInCandidateFile` across all barrel re-export (`export * from`) depths with cycle detection, and replaced `O(M^2)` overload deduplication in `DeduplicateSameFileOverloads` with `O(M)` `HashSet` lookup.
+
+---
+
 ## [1.97.0] - 2026-11-22
 
 ### Added

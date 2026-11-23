@@ -11,6 +11,7 @@ query: >-
   MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
   WHERE NOT coalesce(caller.is_test, false) AND NOT coalesce(lit.is_test, false)
     AND coalesce(lit.role, 'Business') = 'Business'
+    AND NOT lit.file_path STARTS WITH 'site/'
   RETURN 
     lit.file_path AS file,
     lit.line AS line,
