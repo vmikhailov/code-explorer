@@ -648,10 +648,20 @@ public partial class Layer2ProjectParser
             string ToRelative(string path) =>
                 path.GetNormalizedRelativePath(workspaceRoot).TrimEnd('/');
 
-            var relative = absolute.ToDictionary(
-                entry => ToRelative(entry.Key),
-                entry => entry.Value.Select(ToRelative).ToArray(),
-                StringComparer.OrdinalIgnoreCase);
+            var relative = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in absolute)
+            {
+                var relKey = ToRelative(entry.Key);
+                var relVals = entry.Value.Select(ToRelative).ToArray();
+                if (relative.TryGetValue(relKey, out var existing))
+                {
+                    relative[relKey] = [.. existing.Union(relVals, StringComparer.OrdinalIgnoreCase)];
+                }
+                else
+                {
+                    relative[relKey] = relVals;
+                }
+            }
             return JsonSerializer.Serialize(relative);
         }
         catch (JsonException)

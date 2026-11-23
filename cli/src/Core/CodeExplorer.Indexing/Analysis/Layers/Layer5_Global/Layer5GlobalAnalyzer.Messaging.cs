@@ -1313,12 +1313,19 @@ internal static partial class Layer5SymbolVisibilityResolver
                 : null;
         }
 
+        // Cap candidate evaluation to prevent O(N^2) blowup on common method names (e.g. Build, String, Error) with hundreds of overloads
+        if (candidates.Count > 64)
+        {
+            return null;
+        }
+
         var visible = new List<string>(candidates.Count);
+        var seenVisible = new HashSet<string>(candidates.Count, StringComparer.Ordinal);
         for (var i = 0; i < candidates.Count; i++)
         {
             var id = candidates[i];
             if (Layer5AnalysisParser.IsGraphQLDocumentSymbolId(id)) continue;
-            if (!visible.Contains(id) &&
+            if (seenVisible.Add(id) &&
                 IsSymbolVisibleToCaller(callerSymbolId, normCallerFile, id, hasExplicitReceiver, receiverTypeName, symbols, ctx))
             {
                 visible.Add(id);
@@ -1330,7 +1337,7 @@ internal static partial class Layer5SymbolVisibilityResolver
             for (var i = 0; i < candidates.Count; i++)
             {
                 var id = candidates[i];
-                if (!visible.Contains(id) &&
+                if (seenVisible.Add(id) &&
                     IsSymbolVisibleToCaller(callerSymbolId, normCallerFile, id, hasExplicitReceiver, receiverTypeName, symbols, ctx))
                 {
                     visible.Add(id);
@@ -1480,6 +1487,20 @@ internal static partial class Layer5SymbolVisibilityResolver
         }
         if (visible.Count <= 1) return;
 
+        var seenFileAndType = new HashSet<(string FilePath, string EnclosingType)>();
+        for (var i = 0; i < visible.Count; i++)
+        {
+            var id = visible[i];
+            if (!id.Contains('#', StringComparison.Ordinal))
+            {
+                var scope = GetOrInferSymbolScope(id, null, ctx);
+                if (!string.IsNullOrEmpty(scope.FilePath))
+                {
+                    seenFileAndType.Add((scope.FilePath.ToLowerInvariant(), scope.EnclosingTypeName ?? ""));
+                }
+            }
+        }
+
         for (var i = visible.Count - 1; i >= 0; i--)
         {
             var idI = visible[i];
@@ -1487,18 +1508,10 @@ internal static partial class Layer5SymbolVisibilityResolver
             var scopeI = GetOrInferSymbolScope(idI, null, ctx);
             if (string.IsNullOrEmpty(scopeI.FilePath)) continue;
 
-            for (var j = 0; j < visible.Count; j++)
+            var key = (scopeI.FilePath.ToLowerInvariant(), scopeI.EnclosingTypeName ?? "");
+            if (!seenFileAndType.Add(key))
             {
-                if (i == j) continue;
-                var idJ = visible[j];
-                if (idJ.Contains('#', StringComparison.Ordinal) && j > i) continue;
-                var scopeJ = GetOrInferSymbolScope(idJ, null, ctx);
-                if (string.Equals(scopeI.FilePath, scopeJ.FilePath, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(scopeI.EnclosingTypeName ?? "", scopeJ.EnclosingTypeName ?? "", StringComparison.Ordinal))
-                {
-                    visible.RemoveAt(i);
-                    break;
-                }
+                visible.RemoveAt(i);
             }
         }
     }

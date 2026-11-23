@@ -150,6 +150,30 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
         var resultField = node.GetChildForField(ResultFieldName);
         if (resultField.IsValid() && !resultField.Text.Contains("error")) return false;
 
+        // Fast O(1) signature check BEFORE walking the entire file AST in BuildReceiverMap:
+        // A gRPC method must take either (ctx, req), a *Server stream, or HealthCheckRequest
+        var hasGrpcParamSignature = false;
+        if (paramTypes.Count >= 2 &&
+            (paramTypes[0].Contains("context", StringComparison.OrdinalIgnoreCase) || paramTypes[0].Contains("Context")))
+        {
+            var rawReqType = paramTypes[1].TrimStart('*', '&');
+            hasGrpcParamSignature = rawReqType.EndsWith("Request", StringComparison.OrdinalIgnoreCase) ||
+                                    rawReqType.EndsWith("Query", StringComparison.OrdinalIgnoreCase) ||
+                                    rawReqType.Contains("Empty", StringComparison.OrdinalIgnoreCase);
+        }
+        if (!hasGrpcParamSignature)
+        {
+            foreach (var pt in paramTypes)
+            {
+                if (pt.Contains("Server", StringComparison.Ordinal) || pt.Contains("HealthCheckRequest", StringComparison.Ordinal))
+                {
+                    hasGrpcParamSignature = true;
+                    break;
+                }
+            }
+        }
+        if (!hasGrpcParamSignature) return false;
+
         // Resolve receiver struct type
         var receiver = node.GetChildForField(ReceiverFieldName);
         var receiverTypeName = "";

@@ -228,7 +228,9 @@ public class TypeScriptFileParser : IFileParser
         new Libraries.JestVitestLibraryParser(),
         new Libraries.MochaLibraryParser(),
         new Libraries.CypressLibraryParser(),
-        new Libraries.PlaywrightLibraryParser()
+        new Libraries.PlaywrightLibraryParser(),
+        new Libraries.ElysiaH3NitroAdonisTsLibraryParser(),
+        new Libraries.AgendaTriggerMastraDiTsLibraryParser()
     ];
 
     internal static readonly IReadOnlyList<PackageDescriptor> DefaultPackages =

@@ -56,7 +56,18 @@ public class JobsActorsAiRustLibraryParser : DeclarativeSemanticExtension
             "garde*",
             "prost*",
             "rkyv*",
-            "serde*"
+            "serde*",
+            "rustls*",
+            "tokio-rustls*",
+            "tokio_rustls*",
+            "tokio-stream*",
+            "tokio_stream*",
+            "tokio-util*",
+            "tokio_util*",
+            "futures*",
+            "async-trait*",
+            "async_trait*",
+            "parking_lot*"
         ];
         MessagingBrokerRules =
         [

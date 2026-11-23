@@ -3116,7 +3116,7 @@
   },
   {
     "lang": "Rust",
-    "repo": "pavex/pavex",
+    "repo": "LukeMathWalker/pavex",
     "name": "rs-pavex"
   },
   {
@@ -3286,7 +3286,7 @@
   },
   {
     "lang": "Rust",
-    "repo": "gskew/amqprs",
+    "repo": "djc/tokio-imap",
     "name": "rs-amqprs"
   },
   {
@@ -3306,7 +3306,7 @@
   },
   {
     "lang": "Rust",
-    "repo": "rumqttc/rumqtt",
+    "repo": "bytebeamio/rumqtt",
     "name": "rs-rumqtt"
   },
   {
@@ -3321,7 +3321,7 @@
   },
   {
     "lang": "Rust",
-    "repo": "maxcountryman/fang",
+    "repo": "ayrat555/fang",
     "name": "rs-fang"
   },
   {
@@ -3476,7 +3476,7 @@
   },
   {
     "lang": "Rust",
-    "repo": "contextual/garde",
+    "repo": "jprochazk/garde",
     "name": "rs-garde"
   },
   {
@@ -3506,12 +3506,12 @@
   },
   {
     "lang": "Rust",
-    "repo": "awslabs/aws-sdk-rust",
+    "repo": "durch/rust-s3",
     "name": "rs-aws-sdk"
   },
   {
     "lang": "Rust",
-    "repo": "s3s-proj/s3s",
+    "repo": "Nugine/s3s",
     "name": "rs-s3s"
   },
   {
@@ -3571,7 +3571,7 @@
   },
   {
     "lang": "Rust",
-    "repo": "Vectorized/vector",
+    "repo": "vectordotdev/vector",
     "name": "rs-vector"
   },
   {
