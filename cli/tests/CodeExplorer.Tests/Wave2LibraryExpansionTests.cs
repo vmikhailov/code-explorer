@@ -397,7 +397,8 @@ public class Wave2LibraryExpansionTests
                 DataStoreAccessRules = declarative10.SelectMany(d => d.DataStoreAccessRules).ToList(),
                 ServiceCallSinkRules = declarative10.SelectMany(d => d.ServiceCallSinkRules).ToList(),
                 MessagingBrokerRules = declarative10.SelectMany(d => d.MessagingBrokerRules).ToList(),
-                OrmTableRules = declarative10.SelectMany(d => d.OrmTableRules).ToList()
+                OrmTableRules = declarative10.SelectMany(d => d.OrmTableRules).ToList(),
+                CustomAstRules = declarative10.SelectMany(d => d.CustomAstRules).ToList()
             };
 
             var mergedSingleRule = new DeclarativeSemanticExtension

@@ -52,7 +52,10 @@ public class RedisLibraryParser : DeclarativeSemanticExtension
         "get", "set", "del", "exists", "expire", "ttl", "publish", "subscribe"
     }.ToFrozenSet(StringComparer.Ordinal);
 
+    private const string ClientReceiverToken = "client";
+    private const string ImportStatementType = "import_statement";
     private static readonly string[] RedisReceiverTokens = ["redis", "cache", "ioredis", "valkey", "kv"];
+    private static readonly string[] RedisModuleTokens = ["'redis'", "\"redis\"", "'ioredis'", "\"ioredis\"", "/redis'", "/redis\""];
 
     private static bool IsRedisCall(Node node)
     {
@@ -74,7 +77,37 @@ public class RedisLibraryParser : DeclarativeSemanticExtension
                 if (ReceiverScopedRedisMethods.Contains(propName))
                 {
                     var obj = func.GetField(TreeSitterSyntax.Fields.Object);
-                    return obj.IsValid() && IsLikelyRedisReceiver(obj.AsSpan());
+                    if (!obj.IsValid()) return false;
+                    var recvSpan = obj.AsSpan();
+                    if (IsLikelyRedisReceiver(recvSpan)) return true;
+                    if (recvSpan.Contains(ClientReceiverToken.AsSpan(), StringComparison.OrdinalIgnoreCase) &&
+                        HasRedisImportInFile(node))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static bool HasRedisImportInFile(Node node)
+    {
+        var root = node;
+        while (root.Parent.IsValid())
+        {
+            root = root.Parent;
+        }
+        for (var i = 0; i < root.Children.Count; i++)
+        {
+            var child = root.Children[i];
+            if (!child.Is(ImportStatementType)) continue;
+            var span = child.AsSpan();
+            for (var k = 0; k < RedisModuleTokens.Length; k++)
+            {
+                if (span.Contains(RedisModuleTokens[k].AsSpan(), StringComparison.Ordinal))
+                {
+                    return true;
                 }
             }
         }

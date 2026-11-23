@@ -33,7 +33,17 @@ public class FastEndpointsLibraryParser : DeclarativeSemanticExtension
                 ExtractIdentifier = static (node, ctx, projectName, relPath) =>
                     TryMatchFastEndpointVerb(node, out var verb, out var routeExpr)
                         ? $"{verb}:{ResolveRouteArg(routeExpr, projectName)}"
-                        : null
+                        : null,
+                CollectReferences = static (node, scopeSymbolId, references, _) =>
+                {
+                    if (TryMatchFastEndpointVerb(node, out var verb, out var routeExpr))
+                    {
+                        references.Add(new Reference(
+                            scopeSymbolId,
+                            $"{verb}:{ResolveRouteArg(routeExpr, null)}",
+                            OntologyConstants.Relationships.Exposes));
+                    }
+                }
             }
         ];
     }
