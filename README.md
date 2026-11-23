@@ -7,6 +7,7 @@
 [![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
 [![VS Marketplace](https://vsmarketplacebadges.dev/version/vmikhailov.code-explorer-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
+[![vmikhailov/code-explorer MCP server](https://glama.ai/mcp/servers/vmikhailov/code-explorer/badges/score.svg)](https://glama.ai/mcp/servers/vmikhailov/code-explorer)
 
 </div>
 
