@@ -34,5 +34,17 @@ public class SpringDataElasticsearchLibraryParser : DeclarativeSemanticExtension
                 NameArgumentKeys = new[] { IndexNameKey, ValueKey }.ToFrozenSet()
             }
         ];
+        DataStoreAccessRules =
+        [
+            new DataStoreAccessRule
+            {
+                CallMethodNames = new[]
+                {
+                    "index", "search", "bulkIndex", "multiGet", "indexOps", "cluster"
+                }.ToFrozenSet(StringComparer.Ordinal),
+                ReceiverSubstrings = new[] { "elastic", "searchOperations", "esTemplate", "esClient" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                StaticTargetName = "elasticsearch"
+            }
+        ];
     }
 }

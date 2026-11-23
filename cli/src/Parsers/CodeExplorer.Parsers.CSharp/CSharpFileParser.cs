@@ -107,6 +107,11 @@ public class CSharpFileParser : IFileParser
         new Libraries.YarpReverseProxyLibraryParser(),
         new Libraries.Linq2DbNHibernateLibraryParser(),
         new Libraries.SemanticKernelAiDotNetLibraryParser(),
+        new Libraries.SqlKataRepoDbLibraryParser(),
+        new Libraries.FusionCacheDotNetLibraryParser(),
+        new Libraries.AkkaProtoActorBrighterLibraryParser(),
+        new Libraries.ElsaWorkflowCoreLibraryParser(),
+        new Libraries.IdentityOpenIddictCasbinOcelotLibraryParser(),
         Libraries.DotNetTestLibraryParser.Instance
     ];
 

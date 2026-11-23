@@ -1,583 +1,53 @@
 [
   {
-    "lang": "Go",
-    "repo": "gin-gonic/gin",
-    "name": "gin"
-  },
-  {
-    "lang": "Go",
-    "repo": "gofiber/fiber",
-    "name": "fiber"
-  },
-  {
-    "lang": "Go",
-    "repo": "pocketbase/pocketbase",
-    "name": "pocketbase"
-  },
-  {
-    "lang": "Go",
-    "repo": "charmbracelet/bubbletea",
-    "name": "bubbletea"
-  },
-  {
-    "lang": "Go",
-    "repo": "charmbracelet/lipgloss",
-    "name": "lipgloss"
-  },
-  {
-    "lang": "Go",
-    "repo": "jesseduffield/lazygit",
-    "name": "lazygit"
-  },
-  {
-    "lang": "Go",
-    "repo": "zyedidia/micro",
-    "name": "micro"
-  },
-  {
-    "lang": "Go",
-    "repo": "nektos/act",
-    "name": "act"
-  },
-  {
-    "lang": "Go",
-    "repo": "spf13/cobra",
-    "name": "cobra"
-  },
-  {
-    "lang": "Go",
-    "repo": "spf13/viper",
-    "name": "viper"
-  },
-  {
-    "lang": "Go",
-    "repo": "stretchr/testify",
-    "name": "testify"
-  },
-  {
-    "lang": "Go",
-    "repo": "dapr/dapr",
-    "name": "dapr"
-  },
-  {
-    "lang": "Go",
-    "repo": "caddyserver/caddy",
-    "name": "caddy"
-  },
-  {
-    "lang": "Go",
-    "repo": "gohugoio/hugo",
-    "name": "hugo"
-  },
-  {
-    "lang": "Go",
-    "repo": "junegunn/fzf",
-    "name": "fzf"
-  },
-  {
-    "lang": "Go",
-    "repo": "cli/cli",
-    "name": "gh-cli"
-  },
-  {
-    "lang": "Go",
-    "repo": "traefik/traefik",
-    "name": "traefik"
-  },
-  {
-    "lang": "Go",
-    "repo": "argoproj/argo-cd",
-    "name": "argo-cd"
-  },
-  {
-    "lang": "Go",
-    "repo": "syncthing/syncthing",
-    "name": "syncthing"
-  },
-  {
-    "lang": "Go",
-    "repo": "moby/buildkit",
-    "name": "buildkit"
-  },
-  {
-    "lang": "Python",
-    "repo": "tiangolo/fastapi",
-    "name": "fastapi"
-  },
-  {
-    "lang": "Python",
-    "repo": "pallets/flask",
-    "name": "flask"
-  },
-  {
-    "lang": "Python",
-    "repo": "pallets/click",
-    "name": "click"
-  },
-  {
-    "lang": "Python",
-    "repo": "pallets/jinja",
-    "name": "jinja"
-  },
-  {
-    "lang": "Python",
-    "repo": "psf/requests",
-    "name": "requests"
-  },
-  {
-    "lang": "Python",
-    "repo": "psf/black",
-    "name": "black"
-  },
-  {
-    "lang": "Python",
-    "repo": "pydantic/pydantic",
-    "name": "pydantic"
-  },
-  {
-    "lang": "Python",
-    "repo": "tiangolo/sqlmodel",
-    "name": "sqlmodel"
-  },
-  {
-    "lang": "Python",
-    "repo": "encode/httpx",
-    "name": "httpx"
-  },
-  {
-    "lang": "Python",
-    "repo": "encode/starlette",
-    "name": "starlette"
-  },
-  {
-    "lang": "Python",
-    "repo": "encode/django-rest-framework",
-    "name": "drf"
-  },
-  {
-    "lang": "Python",
-    "repo": "Textualize/rich",
-    "name": "rich"
-  },
-  {
-    "lang": "Python",
-    "repo": "Textualize/textual",
-    "name": "textual"
-  },
-  {
-    "lang": "Python",
-    "repo": "httpie/cli",
-    "name": "httpie"
-  },
-  {
-    "lang": "Python",
-    "repo": "python-poetry/poetry",
-    "name": "poetry"
-  },
-  {
-    "lang": "Python",
-    "repo": "tornadoweb/tornado",
-    "name": "tornado"
-  },
-  {
-    "lang": "Python",
-    "repo": "marshmallow-code/marshmallow",
-    "name": "marshmallow"
-  },
-  {
-    "lang": "Python",
-    "repo": "celery/celery",
-    "name": "celery"
-  },
-  {
-    "lang": "Python",
-    "repo": "mitmproxy/mitmproxy",
-    "name": "mitmproxy"
-  },
-  {
-    "lang": "Python",
-    "repo": "paperless-ngx/paperless-ngx",
-    "name": "paperless-ngx"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "trpc/trpc",
-    "name": "trpc"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "expressjs/express",
-    "name": "express"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "remix-run/remix",
-    "name": "remix"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "nestjs/nest",
-    "name": "nest"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "prisma/prisma",
-    "name": "prisma"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "vuejs/core",
-    "name": "vue"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "sveltejs/svelte",
-    "name": "svelte"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "formbricks/formbricks",
-    "name": "formbricks"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "shadcn-ui/ui",
-    "name": "shadcn-ui"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "excalidraw/excalidraw",
-    "name": "excalidraw"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "hoppscotch/hoppscotch",
-    "name": "hoppscotch"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "directus/directus",
-    "name": "directus"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "strapi/strapi",
-    "name": "strapi"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "nocodb/nocodb",
-    "name": "nocodb"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "facebook/docusaurus",
-    "name": "docusaurus"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "calcom/cal.com",
-    "name": "calcom"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "twentyhq/twenty",
-    "name": "twenty"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "payloadcms/payload",
-    "name": "payload"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "toeverything/AFFiNE",
-    "name": "affine"
-  },
-  {
-    "lang": "TypeScript",
-    "repo": "fastify/fastify",
-    "name": "fastify"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "dotnet/eShop",
-    "name": "eshop"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "jasontaylordev/CleanArchitecture",
-    "name": "clean-architecture"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "jbogard/MediatR",
-    "name": "mediatr"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "reactiveui/refit",
-    "name": "refit"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "App-vNext/Polly",
-    "name": "polly"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "CarterCommunity/Carter",
-    "name": "carter"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "AutoMapper/AutoMapper",
-    "name": "automapper"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "serilog/serilog",
-    "name": "serilog"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "DapperLib/Dapper",
-    "name": "dapper"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "FluentValidation/FluentValidation",
-    "name": "fluent-validation"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "HangfireIO/Hangfire",
-    "name": "hangfire"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "MassTransit/MassTransit",
-    "name": "masstransit"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "DuendeSoftware/IdentityServer",
-    "name": "identityserver"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "MudBlazor/MudBlazor",
-    "name": "mudblazor"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "dotnet/BenchmarkDotNet",
-    "name": "benchmarkdotnet"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "domaindrivendev/Swashbuckle.AspNetCore",
-    "name": "swashbuckle"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "dotnet-state-machine/stateless",
-    "name": "stateless"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "Humanizr/Humanizer",
-    "name": "humanizer"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "JamesNK/Newtonsoft.Json",
-    "name": "newtonsoft-json"
-  },
-  {
-    "lang": "CSharp",
-    "repo": "OrchardCMS/OrchardCore",
-    "name": "orchard-core"
-  },
-  {
-    "lang": "Rust",
-    "repo": "BurntSushi/ripgrep",
-    "name": "ripgrep"
-  },
-  {
-    "lang": "Rust",
-    "repo": "sharkdp/bat",
-    "name": "bat"
-  },
-  {
-    "lang": "Rust",
-    "repo": "sharkdp/fd",
-    "name": "fd"
-  },
-  {
-    "lang": "Rust",
-    "repo": "starship/starship",
-    "name": "starship"
-  },
-  {
-    "lang": "Rust",
-    "repo": "tokio-rs/tokio",
-    "name": "tokio"
-  },
-  {
-    "lang": "Rust",
-    "repo": "tokio-rs/axum",
-    "name": "axum"
-  },
-  {
-    "lang": "Rust",
-    "repo": "actix/actix-web",
-    "name": "actix-web"
-  },
-  {
-    "lang": "Rust",
-    "repo": "alacritty/alacritty",
-    "name": "alacritty"
-  },
-  {
-    "lang": "Rust",
-    "repo": "zellij-org/zellij",
-    "name": "zellij"
-  },
-  {
-    "lang": "Rust",
-    "repo": "ClementTsang/bottom",
-    "name": "bottom"
-  },
-  {
-    "lang": "Rust",
-    "repo": "dandavison/delta",
-    "name": "delta"
-  },
-  {
-    "lang": "Rust",
-    "repo": "helix-editor/helix",
-    "name": "helix"
-  },
-  {
-    "lang": "Rust",
-    "repo": "hyperium/hyper",
-    "name": "hyper"
-  },
-  {
-    "lang": "Rust",
-    "repo": "diesel-rs/diesel",
-    "name": "diesel"
-  },
-  {
-    "lang": "Rust",
-    "repo": "meilisearch/meilisearch",
-    "name": "meilisearch"
-  },
-  {
-    "lang": "Rust",
-    "repo": "astral-sh/ruff",
-    "name": "ruff"
-  },
-  {
-    "lang": "Rust",
-    "repo": "nushell/nushell",
-    "name": "nushell"
-  },
-  {
-    "lang": "Rust",
-    "repo": "rust-lang/cargo",
-    "name": "cargo"
-  },
-  {
-    "lang": "Rust",
-    "repo": "tauri-apps/tauri",
-    "name": "tauri"
-  },
-  {
-    "lang": "Rust",
-    "repo": "surrealdb/surrealdb",
-    "name": "surrealdb"
+    "lang": "Java",
+    "repo": "spring-projects/spring-petclinic",
+    "name": "java-spring-petclinic"
   },
   {
     "lang": "Java",
-    "repo": "spring-projects/spring-petclinic",
-    "name": "spring-petclinic"
+    "repo": "spring-petclinic/spring-petclinic-microservices",
+    "name": "java-petclinic-microservices"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-petclinic/spring-petclinic-rest",
+    "name": "java-petclinic-rest"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-petclinic/spring-petclinic-reactive",
+    "name": "java-petclinic-reactive"
   },
   {
     "lang": "Java",
     "repo": "quarkusio/quarkus-super-heroes",
-    "name": "quarkus-super-heroes"
+    "name": "java-quarkus-super-heroes"
   },
   {
     "lang": "Java",
     "repo": "micronaut-projects/micronaut-examples",
-    "name": "micronaut-examples"
+    "name": "java-micronaut-examples"
   },
   {
     "lang": "Java",
     "repo": "sqshq/piggymetrics",
-    "name": "piggymetrics"
+    "name": "java-piggymetrics"
   },
   {
     "lang": "Java",
     "repo": "macrozheng/mall-tiny",
-    "name": "mall-tiny"
+    "name": "java-mall-tiny"
   },
   {
     "lang": "Java",
     "repo": "apache/dubbo-samples",
-    "name": "dubbo-samples"
-  },
-  {
-    "lang": "Kotlin",
-    "repo": "android/nowinandroid",
-    "name": "nowinandroid"
-  },
-  {
-    "lang": "Kotlin",
-    "repo": "JetBrains/kotlinconf-app",
-    "name": "kotlinconf-app"
-  },
-  {
-    "lang": "Kotlin",
-    "repo": "ktorio/ktor",
-    "name": "ktor"
-  },
-  {
-    "lang": "Kotlin",
-    "repo": "mockk/mockk",
-    "name": "mockk"
-  },
-  {
-    "lang": "Java",
-    "repo": "square/retrofit",
-    "name": "retrofit"
-  },
-  {
-    "lang": "Java",
-    "repo": "square/okhttp",
-    "name": "okhttp"
-  },
-  {
-    "lang": "Java",
-    "repo": "google/guava",
-    "name": "guava"
+    "name": "java-dubbo-samples"
   },
   {
     "lang": "Java",
     "repo": "dropwizard/dropwizard",
-    "name": "dropwizard"
-  },
-  {
-    "lang": "Java",
-    "repo": "checkstyle/checkstyle",
-    "name": "checkstyle"
-  },
-  {
-    "lang": "Java",
-    "repo": "zxing/zxing",
-    "name": "zxing"
+    "name": "java-dropwizard"
   },
   {
     "lang": "Java",
@@ -587,16 +57,3531 @@
   {
     "lang": "Java",
     "repo": "alibaba/canal",
-    "name": "canal"
+    "name": "java-canal"
   },
   {
     "lang": "Java",
-    "repo": "OpenAPITools/openapi-generator",
-    "name": "openapi-generator"
+    "repo": "Netflix/dgs-examples-java",
+    "name": "java-netflix-dgs-examples"
   },
   {
     "lang": "Java",
-    "repo": "spring-projects/spring-boot",
-    "name": "spring-boot"
+    "repo": "Netflix/dgs-framework",
+    "name": "java-netflix-dgs-framework"
+  },
+  {
+    "lang": "Java",
+    "repo": "resilience4j/resilience4j-spring-boot2-demo",
+    "name": "java-resilience4j-demo"
+  },
+  {
+    "lang": "Java",
+    "repo": "resilience4j/resilience4j",
+    "name": "java-resilience4j"
+  },
+  {
+    "lang": "Java",
+    "repo": "temporalio/samples-java",
+    "name": "java-temporal-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "camunda-community-hub/spring-zeebe",
+    "name": "java-spring-zeebe"
+  },
+  {
+    "lang": "Java",
+    "repo": "jobrunr/JobRunr",
+    "name": "java-jobrunr"
+  },
+  {
+    "lang": "Java",
+    "repo": "quartz-scheduler/quartz",
+    "name": "java-quartz"
+  },
+  {
+    "lang": "Java",
+    "repo": "AxonFramework/AxonFramework",
+    "name": "java-axon-framework"
+  },
+  {
+    "lang": "Java",
+    "repo": "AxonFramework/hotel-demo",
+    "name": "java-axon-hotel-demo"
+  },
+  {
+    "lang": "Java",
+    "repo": "eventuate-tram/eventuate-tram-sagas",
+    "name": "java-eventuate-sagas"
+  },
+  {
+    "lang": "Java",
+    "repo": "eventuate-tram/eventuate-tram-core",
+    "name": "java-eventuate-tram-core"
+  },
+  {
+    "lang": "Java",
+    "repo": "helidon-io/helidon-examples",
+    "name": "java-helidon-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "javalin/javalin",
+    "name": "java-javalin"
+  },
+  {
+    "lang": "Java",
+    "repo": "javalin/javalin-samples",
+    "name": "java-javalin-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "perwendel/spark",
+    "name": "java-spark-framework"
+  },
+  {
+    "lang": "Java",
+    "repo": "armeria/armeria-examples",
+    "name": "java-armeria-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "ratpack/ratpack",
+    "name": "java-ratpack"
+  },
+  {
+    "lang": "Java",
+    "repo": "blade-java/blade",
+    "name": "java-blade"
+  },
+  {
+    "lang": "Java",
+    "repo": "mybatis/mybatis-3",
+    "name": "java-mybatis3"
+  },
+  {
+    "lang": "Java",
+    "repo": "mybatis/spring-boot-starter",
+    "name": "java-mybatis-spring-boot"
+  },
+  {
+    "lang": "Java",
+    "repo": "baomidou/mybatis-plus",
+    "name": "java-mybatis-plus"
+  },
+  {
+    "lang": "Java",
+    "repo": "baomidou/mybatis-plus-samples",
+    "name": "java-mybatis-plus-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "jOOQ/jOOQ",
+    "name": "java-jooq"
+  },
+  {
+    "lang": "Java",
+    "repo": "jdbi/jdbi",
+    "name": "java-jdbi"
+  },
+  {
+    "lang": "Java",
+    "repo": "querydsl/querydsl",
+    "name": "java-querydsl"
+  },
+  {
+    "lang": "Java",
+    "repo": "ebean-orm/ebean",
+    "name": "java-ebean"
+  },
+  {
+    "lang": "Java",
+    "repo": "Blaze-Persistence/blaze-persistence",
+    "name": "java-blaze-persistence"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-examples",
+    "name": "java-spring-data-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-redis",
+    "name": "java-spring-data-redis"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-elasticsearch",
+    "name": "java-spring-data-elasticsearch"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-cassandra",
+    "name": "java-spring-data-cassandra"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-neo4j",
+    "name": "java-spring-data-neo4j"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-mongodb",
+    "name": "java-spring-data-mongodb"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-data-jdbc",
+    "name": "java-spring-data-jdbc"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-kafka",
+    "name": "java-spring-kafka"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-amqp",
+    "name": "java-spring-amqp"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-integration-samples",
+    "name": "java-spring-integration-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-batch",
+    "name": "java-spring-batch"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-graphql",
+    "name": "java-spring-graphql"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-ai",
+    "name": "java-spring-ai"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-projects/spring-security-samples",
+    "name": "java-spring-security-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-cloud/spring-cloud-gateway",
+    "name": "java-spring-cloud-gateway"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-cloud/spring-cloud-openfeign",
+    "name": "java-spring-cloud-openfeign"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-cloud/spring-cloud-stream",
+    "name": "java-spring-cloud-stream"
+  },
+  {
+    "lang": "Java",
+    "repo": "spring-cloud/spring-cloud-function",
+    "name": "java-spring-cloud-function"
+  },
+  {
+    "lang": "Java",
+    "repo": "langchain4j/langchain4j-examples",
+    "name": "java-langchain4j-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "langchain4j/langchain4j",
+    "name": "java-langchain4j"
+  },
+  {
+    "lang": "Java",
+    "repo": "redisson/redisson",
+    "name": "java-redisson"
+  },
+  {
+    "lang": "Java",
+    "repo": "redis/jedis",
+    "name": "java-jedis"
+  },
+  {
+    "lang": "Java",
+    "repo": "lettuce-io/lettuce-core",
+    "name": "java-lettuce"
+  },
+  {
+    "lang": "Java",
+    "repo": "ben-manes/caffeine",
+    "name": "java-caffeine"
+  },
+  {
+    "lang": "Java",
+    "repo": "hazelcast/hazelcast-code-samples",
+    "name": "java-hazelcast-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "ehcache/ehcache3",
+    "name": "java-ehcache3"
+  },
+  {
+    "lang": "Java",
+    "repo": "OpenFeign/feign",
+    "name": "java-openfeign"
+  },
+  {
+    "lang": "Java",
+    "repo": "square/retrofit",
+    "name": "java-retrofit"
+  },
+  {
+    "lang": "Java",
+    "repo": "AsyncHttpClient/async-http-client",
+    "name": "java-async-http-client"
+  },
+  {
+    "lang": "Java",
+    "repo": "Kong/unirest-java",
+    "name": "java-unirest"
+  },
+  {
+    "lang": "Java",
+    "repo": "grpc/grpc-java",
+    "name": "java-grpc"
+  },
+  {
+    "lang": "Java",
+    "repo": "yidongnan/grpc-spring-boot-starter",
+    "name": "java-grpc-spring-boot"
+  },
+  {
+    "lang": "Java",
+    "repo": "graphql-java/graphql-java",
+    "name": "java-graphql-java"
+  },
+  {
+    "lang": "Java",
+    "repo": "graphql-java-kickstart/graphql-spring-boot",
+    "name": "java-graphql-kickstart"
+  },
+  {
+    "lang": "Java",
+    "repo": "apache/camel-examples",
+    "name": "java-camel-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "apache/rocketmq",
+    "name": "java-rocketmq"
+  },
+  {
+    "lang": "Java",
+    "repo": "nats-io/nats.java",
+    "name": "java-nats"
+  },
+  {
+    "lang": "Java",
+    "repo": "rabbitmq/rabbitmq-java-client",
+    "name": "java-rabbitmq-client"
+  },
+  {
+    "lang": "Java",
+    "repo": "vert-x3/vertx-examples",
+    "name": "java-vertx-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "eclipse-vertx/vert.x",
+    "name": "java-vertx-core"
+  },
+  {
+    "lang": "Java",
+    "repo": "apache/pekko-samples",
+    "name": "java-pekko-samples"
+  },
+  {
+    "lang": "Java",
+    "repo": "actor-framework/actor-framework",
+    "name": "java-orbit-actors"
+  },
+  {
+    "lang": "Java",
+    "repo": "mapstruct/mapstruct-examples",
+    "name": "java-mapstruct-examples"
+  },
+  {
+    "lang": "Java",
+    "repo": "mapstruct/mapstruct",
+    "name": "java-mapstruct"
+  },
+  {
+    "lang": "Java",
+    "repo": "flyway/flyway",
+    "name": "java-flyway"
+  },
+  {
+    "lang": "Java",
+    "repo": "liquibase/liquibase",
+    "name": "java-liquibase"
+  },
+  {
+    "lang": "Java",
+    "repo": "brettwooldridge/HikariCP",
+    "name": "java-hikaricp"
+  },
+  {
+    "lang": "Java",
+    "repo": "alibaba/druid",
+    "name": "java-druid"
+  },
+  {
+    "lang": "Java",
+    "repo": "testcontainers/testcontainers-java",
+    "name": "java-testcontainers"
+  },
+  {
+    "lang": "Java",
+    "repo": "wiremock/wiremock",
+    "name": "java-wiremock"
+  },
+  {
+    "lang": "Java",
+    "repo": "rest-assured/rest-assured",
+    "name": "java-rest-assured"
+  },
+  {
+    "lang": "Java",
+    "repo": "TNG/ArchUnit",
+    "name": "java-archunit"
+  },
+  {
+    "lang": "Java",
+    "repo": "jwtk/jjwt",
+    "name": "java-jjwt"
+  },
+  {
+    "lang": "Java",
+    "repo": "auth0/java-jwt",
+    "name": "java-auth0-jwt"
+  },
+  {
+    "lang": "Java",
+    "repo": "casbin/jcasbin",
+    "name": "java-jcasbin"
+  },
+  {
+    "lang": "Java",
+    "repo": "pac4j/pac4j",
+    "name": "java-pac4j"
+  },
+  {
+    "lang": "Java",
+    "repo": "dromara/Sa-Token",
+    "name": "java-sa-token"
+  },
+  {
+    "lang": "Java",
+    "repo": "dromara/hutool",
+    "name": "java-hutool"
+  },
+  {
+    "lang": "Java",
+    "repo": "elunez/eladmin",
+    "name": "java-eladmin"
+  },
+  {
+    "lang": "Java",
+    "repo": "lenve/vhr",
+    "name": "java-vhr"
+  },
+  {
+    "lang": "Java",
+    "repo": "YunaiV/ruoyi-vue-pro",
+    "name": "java-ruoyi-vue-pro"
+  },
+  {
+    "lang": "Java",
+    "repo": "jeecgboot/JeecgBoot",
+    "name": "java-jeecgboot"
+  },
+  {
+    "lang": "Java",
+    "repo": "apolloConfig/apollo",
+    "name": "java-ctrip-apollo"
+  },
+  {
+    "lang": "Java",
+    "repo": "alibaba/nacos",
+    "name": "java-nacos"
+  },
+  {
+    "lang": "Java",
+    "repo": "apache/skywalking-java",
+    "name": "java-skywalking-agent"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ktorio/ktor-samples",
+    "name": "kt-ktor-samples"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ktorio/ktor",
+    "name": "kt-ktor"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "JetBrains/kotlinconf-app",
+    "name": "kt-kotlinconf-app"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "JetBrains/Exposed",
+    "name": "kt-exposed"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "kotlin-orm/ktorm",
+    "name": "kt-ktorm"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "komapper/komapper",
+    "name": "kt-komapper"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "komapper/komapper-examples",
+    "name": "kt-komapper-examples"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "cashapp/sqldelight",
+    "name": "kt-sqldelight"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "InsertKoinIO/koin",
+    "name": "kt-koin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "kosi-libs/Kodein",
+    "name": "kt-kodein"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "evant/kotlin-inject",
+    "name": "kt-kotlin-inject"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "arrow-kt/arrow",
+    "name": "kt-arrow"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "http4k/http4k",
+    "name": "kt-http4k"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "http4k/http4k-by-example",
+    "name": "kt-http4k-examples"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ExpediaGroup/graphql-kotlin",
+    "name": "kt-graphql-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Netflix/dgs-examples-kotlin",
+    "name": "kt-netflix-dgs-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "apollographql/apollo-kotlin",
+    "name": "kt-apollo-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "grpc/grpc-kotlin",
+    "name": "kt-grpc-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "square/wire",
+    "name": "kt-square-wire"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "square/okhttp",
+    "name": "kt-okhttp"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "square/moshi",
+    "name": "kt-moshi"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Kotlin/kotlinx.serialization",
+    "name": "kt-kotlinx-serialization"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Kotlin/kotlinx.coroutines",
+    "name": "kt-kotlinx-coroutines"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Kotlin/kotlinx-rpc",
+    "name": "kt-kotlinx-rpc"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Kotest/kotest",
+    "name": "kt-kotest"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "mockk/mockk",
+    "name": "kt-mockk"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "cashapp/turbine",
+    "name": "kt-turbine"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "strikt/strikt",
+    "name": "kt-strikt"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "willowtreeapps/assertk",
+    "name": "kt-assertk"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "spring-petclinic/spring-petclinic-kotlin",
+    "name": "kt-spring-petclinic"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "sdeleuze/spring-boot-kotlin-demo",
+    "name": "kt-spring-boot-demo"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "spring-guides/tut-spring-boot-kotlin",
+    "name": "kt-tut-spring-boot"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "hantsy/spring-reactive-sample",
+    "name": "kt-spring-reactive-sample"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "hantsy/micronaut-sandbox",
+    "name": "kt-micronaut-sandbox"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "hantsy/quarkus-sandbox",
+    "name": "kt-quarkus-sandbox"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "supabase-community/supabase-kt",
+    "name": "kt-supabase-kt"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "GitLiveApp/firebase-kotlin-sdk",
+    "name": "kt-firebase-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "awslabs/aws-sdk-kotlin",
+    "name": "kt-aws-sdk-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "aallam/openai-kotlin",
+    "name": "kt-openai-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "xebia-functional/xef",
+    "name": "kt-xef-ai"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "JetBrains/koog",
+    "name": "kt-jetbrains-koog"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "kittinunf/fuel",
+    "name": "kt-fuel-http"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Foso/Ktorfit",
+    "name": "kt-ktorfit"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "skydoves/sandwich",
+    "name": "kt-sandwich"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "MoveToKotlin/javalin-kotlin-example",
+    "name": "kt-javalin-example"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "gotson/komga",
+    "name": "kt-komga"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ankidroid/Anki-Android",
+    "name": "kt-ankidroid"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "android/nowinandroid",
+    "name": "kt-nowinandroid"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "android/architecture-samples",
+    "name": "kt-android-arch-samples"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "chrisbanes/tivi",
+    "name": "kt-tivi"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "arkivanov/Decompose",
+    "name": "kt-decompose"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "adrielcafe/voyager",
+    "name": "kt-voyager"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "slackhq/circuit",
+    "name": "kt-slack-circuit"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Bumble-Tech/appyx",
+    "name": "kt-appyx"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "arkivanov/MVIKotlin",
+    "name": "kt-mvikotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "orbit-mvi/orbit-mvi",
+    "name": "kt-orbit-mvi"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "coil-kt/coil",
+    "name": "kt-coil"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "oshai/kotlin-logging",
+    "name": "kt-kotlin-logging"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Hootsuite/hoplite",
+    "name": "kt-hoplite"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "sksamuel/hoplite",
+    "name": "kt-sksamuel-hoplite"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "uchuhimo/konf",
+    "name": "kt-konf"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "konform-kt/konform",
+    "name": "kt-konform"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "valiktor/valiktor",
+    "name": "kt-valiktor"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "akkurate-io/akkurate",
+    "name": "kt-akkurate"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "michaelbull/kotlin-result",
+    "name": "kt-kotlin-result"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "kordlib/kord",
+    "name": "kt-kord"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "kotlin-telegram-bot/kotlin-telegram-bot",
+    "name": "kt-telegram-bot"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "DevInsiders/Keather",
+    "name": "kt-keather"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "PaulWoitaschek/Voice",
+    "name": "kt-voice-app"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "RetroMusicPlayer/RetroMusicPlayer",
+    "name": "kt-retromusic"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "LawnchairLauncher/lawnchair",
+    "name": "kt-lawnchair"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "SealApp/Seal",
+    "name": "kt-seal"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ReadYouApp/ReadYou",
+    "name": "kt-readyou"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "jellyfin/jellyfin-androidtv",
+    "name": "kt-jellyfin-androidtv"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "WordPress-Mobile/WordPress-Android",
+    "name": "kt-wordpress-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "mozilla-mobile/focus-android",
+    "name": "kt-firefox-focus"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "duckduckgo/Android",
+    "name": "kt-duckduckgo-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "bitwarden/android",
+    "name": "kt-bitwarden-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "protonmail/proton-mail-android",
+    "name": "kt-protonmail-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "nextcloud/android",
+    "name": "kt-nextcloud-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "home-assistant/android",
+    "name": "kt-home-assistant-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Immich-app/immich-android",
+    "name": "kt-immich-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Tailscale/tailscale-android",
+    "name": "kt-tailscale-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "stripe/stripe-android",
+    "name": "kt-stripe-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "GetStream/stream-chat-android",
+    "name": "kt-stream-chat-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "RevenueCat/purchases-android",
+    "name": "kt-revenuecat-android"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "realm/realm-kotlin",
+    "name": "kt-realm-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "objectbox/objectbox-kotlin",
+    "name": "kt-objectbox-kotlin"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "Litote/kmongo",
+    "name": "kt-kmongo"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "mongodb/mongo-java-driver",
+    "name": "kt-mongo-kotlin-driver"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "jasync-sql/jasync-sql",
+    "name": "kt-jasync-sql"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ufoscout/properlty",
+    "name": "kt-properlty"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "nomisRev/ktor-arrow-example",
+    "name": "kt-ktor-arrow-example"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "corsair-kt/ktor-boilerplate",
+    "name": "kt-ktor-boilerplate"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "medhanie/ktor-exposed-rest-api",
+    "name": "kt-ktor-exposed-api"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "rahul-raj/ktor-clean-architecture",
+    "name": "kt-ktor-clean-arch"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ajalt/clikt",
+    "name": "kt-clikt"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "ajalt/mordant",
+    "name": "kt-mordant"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "detekt/detekt",
+    "name": "kt-detekt"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "pinterest/ktlint",
+    "name": "kt-ktlint"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "icerockdev/moko-resources",
+    "name": "kt-moko-resources"
+  },
+  {
+    "lang": "Kotlin",
+    "repo": "russhwolf/multiplatform-settings",
+    "name": "kt-multiplatform-settings"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dotnet/eShop",
+    "name": "cs-eshop"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jasontaylordev/CleanArchitecture",
+    "name": "cs-clean-architecture"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "ardalis/CleanArchitecture",
+    "name": "cs-ardalis-clean-arch"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "SSWConsulting/SSW.CleanArchitecture",
+    "name": "cs-ssw-clean-arch"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "amantinband/clean-architecture",
+    "name": "cs-amantinband-clean-arch"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "kgrzybek/modular-monolith-with-ddd",
+    "name": "cs-modular-monolith-ddd"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jbogard/ContosoUniversityDotNetCore-Pages",
+    "name": "cs-contoso-pages"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "FastEndpoints/FastEndpoints",
+    "name": "cs-fastendpoints"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "CarterCommunity/Carter",
+    "name": "cs-carter"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jbogard/MediatR",
+    "name": "cs-mediatr"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "martinothamar/Mediator",
+    "name": "cs-martinothamar-mediator"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "MassTransit/MassTransit",
+    "name": "cs-masstransit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "JasperFx/wolverine",
+    "name": "cs-wolverine"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "JasperFx/marten",
+    "name": "cs-marten"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "Particular/NServiceBus",
+    "name": "cs-nservicebus"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "rebus-org/Rebus",
+    "name": "cs-rebus"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "BrighterCommand/Brighter",
+    "name": "cs-brighter"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dotnetcore/CAP",
+    "name": "cs-cap"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dapr/dotnet-sdk",
+    "name": "cs-dapr-dotnet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "DapperLib/Dapper",
+    "name": "cs-dapper"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "linq2db/linq2db",
+    "name": "cs-linq2db"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "nhibernate/nhibernate-core",
+    "name": "cs-nhibernate"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "SqlKata/querybuilder",
+    "name": "cs-sqlkata"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "RepoDb/RepoDb",
+    "name": "cs-repodb"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "npgsql/npgsql",
+    "name": "cs-npgsql"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "mysql-net/MySqlConnector",
+    "name": "cs-mysqlconnector"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "mongodb/mongo-csharp-driver",
+    "name": "cs-mongo-driver"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "StackExchange/StackExchange.Redis",
+    "name": "cs-stackexchange-redis"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "ZiggyCreatures/FusionCache",
+    "name": "cs-fusioncache"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "MichaCo/CacheManager",
+    "name": "cs-cachemanager"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "alastairtree/LazyCache",
+    "name": "cs-lazycache"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "ChilliCream/graphql-platform",
+    "name": "cs-hotchocolate"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "graphql-dotnet/graphql-dotnet",
+    "name": "cs-graphql-dotnet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "grpc/grpc-dotnet",
+    "name": "cs-grpc-dotnet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "protobuf-net/protobuf-net.Grpc",
+    "name": "cs-protobuf-net-grpc"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "CoreWCF/CoreWCF",
+    "name": "cs-corewcf"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "DigDes/SoapCore",
+    "name": "cs-soapcore"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "reactiveui/refit",
+    "name": "cs-refit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "restsharp/RestSharp",
+    "name": "cs-restsharp"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "tmenier/Flurl",
+    "name": "cs-flurl"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "App-vNext/Polly",
+    "name": "cs-polly"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "HangfireIO/Hangfire",
+    "name": "cs-hangfire"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "quartznet/quartznet",
+    "name": "cs-quartznet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jamesmh/coravel",
+    "name": "cs-coravel"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "TickerQ/TickerQ",
+    "name": "cs-tickerq"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "dotnet/orleans",
+    "name": "cs-orleans"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "akkadotnet/akka.net",
+    "name": "cs-akkanet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "asynkron/protoactor-dotnet",
+    "name": "cs-protoactor"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "elsa-workflows/elsa-core",
+    "name": "cs-elsa-workflows"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "danielgerlag/workflow-core",
+    "name": "cs-workflow-core"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "microsoft/semantic-kernel",
+    "name": "cs-semantic-kernel"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "tryagi/OllamaSharp",
+    "name": "cs-ollamasharp"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "betalgo/openai",
+    "name": "cs-betalgo-openai"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "microsoft/reverse-proxy",
+    "name": "cs-yarp"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "ThreeMammals/Ocelot",
+    "name": "cs-ocelot"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "DuendeSoftware/IdentityServer",
+    "name": "cs-identityserver"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "openiddict/openiddict-core",
+    "name": "cs-openiddict"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "casbin/Casbin.NET",
+    "name": "cs-casbin-net"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "AutoMapper/AutoMapper",
+    "name": "cs-automapper"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "MapsterMapper/Mapster",
+    "name": "cs-mapster"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "riok/mapperly",
+    "name": "cs-mapperly"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "FluentValidation/FluentValidation",
+    "name": "cs-fluentvalidation"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "ardalis/GuardClauses",
+    "name": "cs-guardclauses"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "ardalis/Result",
+    "name": "cs-ardalis-result"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "altmann/FluentResults",
+    "name": "cs-fluentresults"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "amantinband/error-or",
+    "name": "cs-error-or"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "mcintyre321/OneOf",
+    "name": "cs-oneof"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "louthy/language-ext",
+    "name": "cs-language-ext"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "serilog/serilog",
+    "name": "cs-serilog"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "NLog/NLog",
+    "name": "cs-nlog"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "open-telemetry/opentelemetry-dotnet",
+    "name": "cs-opentelemetry"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "Xabaril/AspNetCore.Diagnostics.HealthChecks",
+    "name": "cs-healthchecks"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "autofac/Autofac",
+    "name": "cs-autofac"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "khellang/Scrutor",
+    "name": "cs-scrutor"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "SimpleInjector/SimpleInjector",
+    "name": "cs-simpleinjector"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "xunit/xunit",
+    "name": "cs-xunit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "nunit/nunit",
+    "name": "cs-nunit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "thomhurst/TUnit",
+    "name": "cs-tunit"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "devlooped/moq",
+    "name": "cs-moq"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "nsubstitute/NSubstitute",
+    "name": "cs-nsubstitute"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "FakeItEasy/FakeItEasy",
+    "name": "cs-fakeiteasy"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "fluentassertions/fluentassertions",
+    "name": "cs-fluentassertions"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "shouldly/shouldly",
+    "name": "cs-shouldly"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "bchavez/Bogus",
+    "name": "cs-bogus"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "AutoFixture/AutoFixture",
+    "name": "cs-autofixture"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "testcontainers/testcontainers-dotnet",
+    "name": "cs-testcontainers"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "WireMock-Net/WireMock.Net",
+    "name": "cs-wiremock-net"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "BenMorris/NetArchTest",
+    "name": "cs-netarchtest"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "TNG/ArchUnitNET",
+    "name": "cs-archunitnet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "stripe/stripe-dotnet",
+    "name": "cs-stripe-dotnet"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "confluentinc/confluent-kafka-dotnet",
+    "name": "cs-confluent-kafka"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "rabbitmq/rabbitmq-dotnet-client",
+    "name": "cs-rabbitmq-client"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "nats-io/nats.net",
+    "name": "cs-nats-net"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "OrchardCMS/OrchardCore",
+    "name": "cs-orchardcore"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "nopSolutions/nopCommerce",
+    "name": "cs-nopcommerce"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "simplcommerce/SimplCommerce",
+    "name": "cs-simplcommerce"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "abpframework/abp",
+    "name": "cs-abp"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "fullstackhero/dotnet-starter-kit",
+    "name": "cs-fullstackhero"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "bitwarden/server",
+    "name": "cs-bitwarden-server"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "jellyfin/jellyfin",
+    "name": "cs-jellyfin"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "MudBlazor/MudBlazor",
+    "name": "cs-mudblazor"
+  },
+  {
+    "lang": "CSharp",
+    "repo": "domaindrivendev/Swashbuckle.AspNetCore",
+    "name": "cs-swashbuckle"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nestjs/nest",
+    "name": "ts-nest"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "trpc/trpc",
+    "name": "ts-trpc"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "fastify/fastify",
+    "name": "ts-fastify"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "honojs/hono",
+    "name": "ts-hono"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "elysiajs/elysia",
+    "name": "ts-elysia"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "koajs/koa",
+    "name": "ts-koa"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "unjs/nitro",
+    "name": "ts-unjs-nitro"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "unjs/h3",
+    "name": "ts-unjs-h3"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "adonisjs/core",
+    "name": "ts-adonisjs"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "feathersjs/feathers",
+    "name": "ts-feathersjs"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "LoopBackIo/loopback-next",
+    "name": "ts-loopback-next"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "tsedio/tsed",
+    "name": "ts-tsed"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "routing-controllers/routing-controllers",
+    "name": "ts-routing-controllers"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "lukeautry/tsoa",
+    "name": "ts-tsoa"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "ts-rest/ts-rest",
+    "name": "ts-ts-rest"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "Effect-TS/effect",
+    "name": "ts-effect"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "prisma/prisma",
+    "name": "ts-prisma"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "drizzle-team/drizzle-orm",
+    "name": "ts-drizzle-orm"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "typeorm/typeorm",
+    "name": "ts-typeorm"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "mikro-orm/mikro-orm",
+    "name": "ts-mikro-orm"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "kysely-org/kysely",
+    "name": "ts-kysely"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "sequelize/sequelize",
+    "name": "ts-sequelize"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "Vincit/objection.js",
+    "name": "ts-objectionjs"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "knex/knex",
+    "name": "ts-knex"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "Automattic/mongoose",
+    "name": "ts-mongoose"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "typegoose/typegoose",
+    "name": "ts-typegoose"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "porsager/postgres",
+    "name": "ts-postgresjs"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "brianc/node-postgres",
+    "name": "ts-node-postgres"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "sidorares/node-mysql2",
+    "name": "ts-node-mysql2"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "WiseLibs/better-sqlite3",
+    "name": "ts-better-sqlite3"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "redis/ioredis",
+    "name": "ts-ioredis"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "redis/node-redis",
+    "name": "ts-node-redis"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "upstash/redis-js",
+    "name": "ts-upstash-redis"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "taskforcesh/bullmq",
+    "name": "ts-bullmq"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "agenda/agenda",
+    "name": "ts-agenda"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "temporalio/sdk-typescript",
+    "name": "ts-temporal-sdk"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "inngest/inngest-js",
+    "name": "ts-inngest"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "triggerdotdev/trigger.dev",
+    "name": "ts-trigger-dev"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "tulios/kafkajs",
+    "name": "ts-kafkajs"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nats-io/nats.deno",
+    "name": "ts-nats-js"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "amqp-node/amqplib",
+    "name": "ts-amqplib"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "socketio/socket.io",
+    "name": "ts-socketio"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "websockets/ws",
+    "name": "ts-ws"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "apollographql/apollo-server",
+    "name": "ts-apollo-server"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "apollographql/apollo-client",
+    "name": "ts-apollo-client"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "dotansimha/graphql-yoga",
+    "name": "ts-graphql-yoga"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "mercurius-js/mercurius",
+    "name": "ts-mercurius"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "hayes/pothos",
+    "name": "ts-pothos"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "MichalLytek/type-graphql",
+    "name": "ts-type-graphql"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "jasonkuhrt/graphql-request",
+    "name": "ts-graphql-request"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "connectrpc/connect-es",
+    "name": "ts-connect-es"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "grpc/grpc-node",
+    "name": "ts-grpc-node"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "axios/axios",
+    "name": "ts-axios"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "sindresorhus/ky",
+    "name": "ts-ky"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "sindresorhus/got",
+    "name": "ts-got"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "unjs/ofetch",
+    "name": "ts-ofetch"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "TanStack/query",
+    "name": "ts-tanstack-query"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "vercel/swr",
+    "name": "ts-swr"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "TanStack/router",
+    "name": "ts-tanstack-router"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "remix-run/remix",
+    "name": "ts-remix"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "withastro/astro",
+    "name": "ts-astro"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "sveltejs/kit",
+    "name": "ts-sveltekit"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nuxt/nuxt",
+    "name": "ts-nuxt"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "better-auth/better-auth",
+    "name": "ts-better-auth"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nextauthjs/next-auth",
+    "name": "ts-next-auth"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "lucia-auth/lucia",
+    "name": "ts-lucia-auth"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "clerk/javascript",
+    "name": "ts-clerk-js"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "supabase/supabase-js",
+    "name": "ts-supabase-js"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "firebase/firebase-js-sdk",
+    "name": "ts-firebase-js"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "vercel/ai",
+    "name": "ts-vercel-ai"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "langchain-ai/langchainjs",
+    "name": "ts-langchainjs"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "openai/openai-node",
+    "name": "ts-openai-node"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "anthropics/anthropic-sdk-typescript",
+    "name": "ts-anthropic-sdk"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "mastra-ai/mastra",
+    "name": "ts-mastra-ai"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "stripe/stripe-node",
+    "name": "ts-stripe-node"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "resend/resend-node",
+    "name": "ts-resend-node"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nodemailer/nodemailer",
+    "name": "ts-nodemailer"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "inversify/InversifyJS",
+    "name": "ts-inversify"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "microsoft/tsyringe",
+    "name": "ts-tsyringe"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "typestack/typedi",
+    "name": "ts-typedi"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "jeffijoe/awilix",
+    "name": "ts-awilix"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "vitest-dev/vitest",
+    "name": "ts-vitest"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "microsoft/playwright",
+    "name": "ts-playwright"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "mswjs/msw",
+    "name": "ts-msw"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "ladjs/supertest",
+    "name": "ts-supertest"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "open-telemetry/opentelemetry-js",
+    "name": "ts-opentelemetry"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "getsentry/sentry-javascript",
+    "name": "ts-sentry-js"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "pinojs/pino",
+    "name": "ts-pino"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "winstonjs/winston",
+    "name": "ts-winston"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "directus/directus",
+    "name": "ts-directus"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "strapi/strapi",
+    "name": "ts-strapi"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "nocodb/nocodb",
+    "name": "ts-nocodb"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "payloadcms/payload",
+    "name": "ts-payload"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "medusajs/medusa",
+    "name": "ts-medusa"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "vendure-ecommerce/vendure",
+    "name": "ts-vendure"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "formbricks/formbricks",
+    "name": "ts-formbricks"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "hoppscotch/hoppscotch",
+    "name": "ts-hoppscotch"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "calcom/cal.com",
+    "name": "ts-calcom"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "twentyhq/twenty",
+    "name": "ts-twenty"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "immich-app/immich",
+    "name": "ts-immich"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "n8n-io/n8n",
+    "name": "ts-n8n"
+  },
+  {
+    "lang": "TypeScript",
+    "repo": "activepieces/activepieces",
+    "name": "ts-activepieces"
+  },
+  {
+    "lang": "Python",
+    "repo": "tiangolo/fastapi",
+    "name": "py-fastapi"
+  },
+  {
+    "lang": "Python",
+    "repo": "fastapi/full-stack-fastapi-template",
+    "name": "py-fastapi-fullstack"
+  },
+  {
+    "lang": "Python",
+    "repo": "zhanymkanov/fastapi-best-practices",
+    "name": "py-fastapi-best-practices"
+  },
+  {
+    "lang": "Python",
+    "repo": "litestar-org/litestar",
+    "name": "py-litestar"
+  },
+  {
+    "lang": "Python",
+    "repo": "litestar-org/litestar-fullstack",
+    "name": "py-litestar-fullstack"
+  },
+  {
+    "lang": "Python",
+    "repo": "encode/starlette",
+    "name": "py-starlette"
+  },
+  {
+    "lang": "Python",
+    "repo": "pallets/flask",
+    "name": "py-flask"
+  },
+  {
+    "lang": "Python",
+    "repo": "pallets/quart",
+    "name": "py-quart"
+  },
+  {
+    "lang": "Python",
+    "repo": "django/django",
+    "name": "py-django"
+  },
+  {
+    "lang": "Python",
+    "repo": "encode/django-rest-framework",
+    "name": "py-drf"
+  },
+  {
+    "lang": "Python",
+    "repo": "vitalik/django-ninja",
+    "name": "py-django-ninja"
+  },
+  {
+    "lang": "Python",
+    "repo": "sanic-org/sanic",
+    "name": "py-sanic"
+  },
+  {
+    "lang": "Python",
+    "repo": "aio-libs/aiohttp",
+    "name": "py-aiohttp"
+  },
+  {
+    "lang": "Python",
+    "repo": "tornadoweb/tornado",
+    "name": "py-tornado"
+  },
+  {
+    "lang": "Python",
+    "repo": "falconry/falcon",
+    "name": "py-falcon"
+  },
+  {
+    "lang": "Python",
+    "repo": "Neoteroi/BlackSheep",
+    "name": "py-blacksheep"
+  },
+  {
+    "lang": "Python",
+    "repo": "sparckles/Robyn",
+    "name": "py-robyn"
+  },
+  {
+    "lang": "Python",
+    "repo": "bottlepy/bottle",
+    "name": "py-bottle"
+  },
+  {
+    "lang": "Python",
+    "repo": "sqlalchemy/sqlalchemy",
+    "name": "py-sqlalchemy"
+  },
+  {
+    "lang": "Python",
+    "repo": "tiangolo/sqlmodel",
+    "name": "py-sqlmodel"
+  },
+  {
+    "lang": "Python",
+    "repo": "sqlalchemy/alembic",
+    "name": "py-alembic"
+  },
+  {
+    "lang": "Python",
+    "repo": "tortoise/tortoise-orm",
+    "name": "py-tortoise-orm"
+  },
+  {
+    "lang": "Python",
+    "repo": "coleifer/peewee",
+    "name": "py-peewee"
+  },
+  {
+    "lang": "Python",
+    "repo": "piccolo-orm/piccolo",
+    "name": "py-piccolo-orm"
+  },
+  {
+    "lang": "Python",
+    "repo": "RobertCraigie/prisma-client-py",
+    "name": "py-prisma-client"
+  },
+  {
+    "lang": "Python",
+    "repo": "MagicStack/asyncpg",
+    "name": "py-asyncpg"
+  },
+  {
+    "lang": "Python",
+    "repo": "psycopg/psycopg",
+    "name": "py-psycopg3"
+  },
+  {
+    "lang": "Python",
+    "repo": "mongodb/motor",
+    "name": "py-motor"
+  },
+  {
+    "lang": "Python",
+    "repo": "BeanieODM/beanie",
+    "name": "py-beanie"
+  },
+  {
+    "lang": "Python",
+    "repo": "MongoEngine/mongoengine",
+    "name": "py-mongoengine"
+  },
+  {
+    "lang": "Python",
+    "repo": "redis/redis-py",
+    "name": "py-redis-py"
+  },
+  {
+    "lang": "Python",
+    "repo": "ClickHouse/clickhouse-connect",
+    "name": "py-clickhouse-connect"
+  },
+  {
+    "lang": "Python",
+    "repo": "mymarilyn/clickhouse-driver",
+    "name": "py-clickhouse-driver"
+  },
+  {
+    "lang": "Python",
+    "repo": "duckdb/duckdb",
+    "name": "py-duckdb"
+  },
+  {
+    "lang": "Python",
+    "repo": "elastic/elasticsearch-py",
+    "name": "py-elasticsearch"
+  },
+  {
+    "lang": "Python",
+    "repo": "qdrant/qdrant-client",
+    "name": "py-qdrant-client"
+  },
+  {
+    "lang": "Python",
+    "repo": "chroma-core/chroma",
+    "name": "py-chromadb"
+  },
+  {
+    "lang": "Python",
+    "repo": "milvus-io/pymilvus",
+    "name": "py-pymilvus"
+  },
+  {
+    "lang": "Python",
+    "repo": "pinecone-io/pinecone-python-client",
+    "name": "py-pinecone"
+  },
+  {
+    "lang": "Python",
+    "repo": "weaviate/weaviate-python-client",
+    "name": "py-weaviate"
+  },
+  {
+    "lang": "Python",
+    "repo": "celery/celery",
+    "name": "py-celery"
+  },
+  {
+    "lang": "Python",
+    "repo": "Bogdanp/dramatiq",
+    "name": "py-dramatiq"
+  },
+  {
+    "lang": "Python",
+    "repo": "rq/rq",
+    "name": "py-rq"
+  },
+  {
+    "lang": "Python",
+    "repo": "coleifer/huey",
+    "name": "py-huey"
+  },
+  {
+    "lang": "Python",
+    "repo": "taskiq-python/taskiq",
+    "name": "py-taskiq"
+  },
+  {
+    "lang": "Python",
+    "repo": "Robinhood/faust",
+    "name": "py-faust"
+  },
+  {
+    "lang": "Python",
+    "repo": "ag2ai/faststream",
+    "name": "py-faststream"
+  },
+  {
+    "lang": "Python",
+    "repo": "temporalio/sdk-python",
+    "name": "py-temporal-sdk"
+  },
+  {
+    "lang": "Python",
+    "repo": "PrefectHQ/prefect",
+    "name": "py-prefect"
+  },
+  {
+    "lang": "Python",
+    "repo": "agronholm/apscheduler",
+    "name": "py-apscheduler"
+  },
+  {
+    "lang": "Python",
+    "repo": "aio-libs/aiokafka",
+    "name": "py-aiokafka"
+  },
+  {
+    "lang": "Python",
+    "repo": "dpkp/kafka-python",
+    "name": "py-kafka-python"
+  },
+  {
+    "lang": "Python",
+    "repo": "confluentinc/confluent-kafka-python",
+    "name": "py-confluent-kafka"
+  },
+  {
+    "lang": "Python",
+    "repo": "pika/pika",
+    "name": "py-pika"
+  },
+  {
+    "lang": "Python",
+    "repo": "mosquito/aio-pika",
+    "name": "py-aio-pika"
+  },
+  {
+    "lang": "Python",
+    "repo": "celery/kombu",
+    "name": "py-kombu"
+  },
+  {
+    "lang": "Python",
+    "repo": "nats-io/nats.py",
+    "name": "py-nats-py"
+  },
+  {
+    "lang": "Python",
+    "repo": "encode/httpx",
+    "name": "py-httpx"
+  },
+  {
+    "lang": "Python",
+    "repo": "psf/requests",
+    "name": "py-requests"
+  },
+  {
+    "lang": "Python",
+    "repo": "urllib3/urllib3",
+    "name": "py-urllib3"
+  },
+  {
+    "lang": "Python",
+    "repo": "strawberry-graphql/strawberry",
+    "name": "py-strawberry-graphql"
+  },
+  {
+    "lang": "Python",
+    "repo": "graphql-python/graphene",
+    "name": "py-graphene"
+  },
+  {
+    "lang": "Python",
+    "repo": "mirumee/ariadne",
+    "name": "py-ariadne"
+  },
+  {
+    "lang": "Python",
+    "repo": "grpc/grpc",
+    "name": "py-grpc"
+  },
+  {
+    "lang": "Python",
+    "repo": "vmagamedov/grpclib",
+    "name": "py-grpclib"
+  },
+  {
+    "lang": "Python",
+    "repo": "miguelgrinberg/python-socketio",
+    "name": "py-socketio"
+  },
+  {
+    "lang": "Python",
+    "repo": "python-websockets/websockets",
+    "name": "py-websockets"
+  },
+  {
+    "lang": "Python",
+    "repo": "boto/boto3",
+    "name": "py-boto3"
+  },
+  {
+    "lang": "Python",
+    "repo": "supabase/supabase-py",
+    "name": "py-supabase-py"
+  },
+  {
+    "lang": "Python",
+    "repo": "openai/openai-python",
+    "name": "py-openai"
+  },
+  {
+    "lang": "Python",
+    "repo": "anthropics/anthropic-sdk-python",
+    "name": "py-anthropic"
+  },
+  {
+    "lang": "Python",
+    "repo": "pydantic/pydantic-ai",
+    "name": "py-pydantic-ai"
+  },
+  {
+    "lang": "Python",
+    "repo": "langchain-ai/langchain",
+    "name": "py-langchain"
+  },
+  {
+    "lang": "Python",
+    "repo": "langchain-ai/langgraph",
+    "name": "py-langgraph"
+  },
+  {
+    "lang": "Python",
+    "repo": "run-llama/llama_index",
+    "name": "py-llamaindex"
+  },
+  {
+    "lang": "Python",
+    "repo": "stanfordnlp/dspy",
+    "name": "py-dspy"
+  },
+  {
+    "lang": "Python",
+    "repo": "crewAIInc/crewAI",
+    "name": "py-crewai"
+  },
+  {
+    "lang": "Python",
+    "repo": "BerriAI/litellm",
+    "name": "py-litellm"
+  },
+  {
+    "lang": "Python",
+    "repo": "567-labs/instructor",
+    "name": "py-instructor"
+  },
+  {
+    "lang": "Python",
+    "repo": "ets-labs/python-dependency-injector",
+    "name": "py-dependency-injector"
+  },
+  {
+    "lang": "Python",
+    "repo": "reagento/dishka",
+    "name": "py-dishka"
+  },
+  {
+    "lang": "Python",
+    "repo": "pydantic/pydantic",
+    "name": "py-pydantic"
+  },
+  {
+    "lang": "Python",
+    "repo": "marshmallow-code/marshmallow",
+    "name": "py-marshmallow"
+  },
+  {
+    "lang": "Python",
+    "repo": "python-attrs/attrs",
+    "name": "py-attrs"
+  },
+  {
+    "lang": "Python",
+    "repo": "jcrist/msgspec",
+    "name": "py-msgspec"
+  },
+  {
+    "lang": "Python",
+    "repo": "jd/tenacity",
+    "name": "py-tenacity"
+  },
+  {
+    "lang": "Python",
+    "repo": "litl/backoff",
+    "name": "py-backoff"
+  },
+  {
+    "lang": "Python",
+    "repo": "Delgan/loguru",
+    "name": "py-loguru"
+  },
+  {
+    "lang": "Python",
+    "repo": "hynek/structlog",
+    "name": "py-structlog"
+  },
+  {
+    "lang": "Python",
+    "repo": "getsentry/sentry-python",
+    "name": "py-sentry-python"
+  },
+  {
+    "lang": "Python",
+    "repo": "open-telemetry/opentelemetry-python",
+    "name": "py-opentelemetry"
+  },
+  {
+    "lang": "Python",
+    "repo": "pytest-dev/pytest",
+    "name": "py-pytest"
+  },
+  {
+    "lang": "Python",
+    "repo": "HypothesisWorks/hypothesis",
+    "name": "py-hypothesis"
+  },
+  {
+    "lang": "Python",
+    "repo": "FactoryBoy/factory_boy",
+    "name": "py-factory-boy"
+  },
+  {
+    "lang": "Python",
+    "repo": "lundberg/respx",
+    "name": "py-respx"
+  },
+  {
+    "lang": "Python",
+    "repo": "locustio/locust",
+    "name": "py-locust"
+  },
+  {
+    "lang": "Python",
+    "repo": "jpadilla/pyjwt",
+    "name": "py-pyjwt"
+  },
+  {
+    "lang": "Python",
+    "repo": "lepture/authlib",
+    "name": "py-authlib"
+  },
+  {
+    "lang": "Python",
+    "repo": "casbin/pycasbin",
+    "name": "py-pycasbin"
+  },
+  {
+    "lang": "Python",
+    "repo": "paperless-ngx/paperless-ngx",
+    "name": "py-paperless-ngx"
+  },
+  {
+    "lang": "Python",
+    "repo": "saleor/saleor",
+    "name": "py-saleor"
+  },
+  {
+    "lang": "Python",
+    "repo": "Netflix/dispatch",
+    "name": "py-netflix-dispatch"
+  },
+  {
+    "lang": "Go",
+    "repo": "gin-gonic/gin",
+    "name": "go-gin"
+  },
+  {
+    "lang": "Go",
+    "repo": "labstack/echo",
+    "name": "go-echo"
+  },
+  {
+    "lang": "Go",
+    "repo": "gofiber/fiber",
+    "name": "go-fiber"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-chi/chi",
+    "name": "go-chi"
+  },
+  {
+    "lang": "Go",
+    "repo": "gorilla/mux",
+    "name": "go-gorilla-mux"
+  },
+  {
+    "lang": "Go",
+    "repo": "julienschmidt/httprouter",
+    "name": "go-httprouter"
+  },
+  {
+    "lang": "Go",
+    "repo": "cloudwego/hertz",
+    "name": "go-hertz"
+  },
+  {
+    "lang": "Go",
+    "repo": "gogf/gf",
+    "name": "go-goframe"
+  },
+  {
+    "lang": "Go",
+    "repo": "beego/beego",
+    "name": "go-beego"
+  },
+  {
+    "lang": "Go",
+    "repo": "kataras/iris",
+    "name": "go-iris"
+  },
+  {
+    "lang": "Go",
+    "repo": "zeromicro/go-zero",
+    "name": "go-zero"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-kratos/kratos",
+    "name": "go-kratos"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-kit/kit",
+    "name": "go-kit"
+  },
+  {
+    "lang": "Go",
+    "repo": "goadesign/goa",
+    "name": "go-goa"
+  },
+  {
+    "lang": "Go",
+    "repo": "danielgtaylor/huma",
+    "name": "go-huma"
+  },
+  {
+    "lang": "Go",
+    "repo": "oapi-codegen/oapi-codegen",
+    "name": "go-oapi-codegen"
+  },
+  {
+    "lang": "Go",
+    "repo": "ogen-go/ogen",
+    "name": "go-ogen"
+  },
+  {
+    "lang": "Go",
+    "repo": "evrone/go-clean-template",
+    "name": "go-clean-template"
+  },
+  {
+    "lang": "Go",
+    "repo": "ThreeDotsLabs/wild-workouts-go-ddd-example",
+    "name": "go-wild-workouts"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-gorm/gorm",
+    "name": "go-gorm"
+  },
+  {
+    "lang": "Go",
+    "repo": "ent/ent",
+    "name": "go-ent"
+  },
+  {
+    "lang": "Go",
+    "repo": "uptrace/bun",
+    "name": "go-bun"
+  },
+  {
+    "lang": "Go",
+    "repo": "jmoiron/sqlx",
+    "name": "go-sqlx"
+  },
+  {
+    "lang": "Go",
+    "repo": "sqlc-dev/sqlc",
+    "name": "go-sqlc"
+  },
+  {
+    "lang": "Go",
+    "repo": "jackc/pgx",
+    "name": "go-pgx"
+  },
+  {
+    "lang": "Go",
+    "repo": "Masterminds/squirrel",
+    "name": "go-squirrel"
+  },
+  {
+    "lang": "Go",
+    "repo": "doug-martin/goqu",
+    "name": "go-goqu"
+  },
+  {
+    "lang": "Go",
+    "repo": "volatiletech/sqlboiler",
+    "name": "go-sqlboiler"
+  },
+  {
+    "lang": "Go",
+    "repo": "stephenafamo/bob",
+    "name": "go-bob-orm"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-jet/jet",
+    "name": "go-jet"
+  },
+  {
+    "lang": "Go",
+    "repo": "upper/db",
+    "name": "go-upper-db"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-xorm/xorm",
+    "name": "go-xorm"
+  },
+  {
+    "lang": "Go",
+    "repo": "mongodb/mongo-go-driver",
+    "name": "go-mongo-driver"
+  },
+  {
+    "lang": "Go",
+    "repo": "redis/go-redis",
+    "name": "go-redis"
+  },
+  {
+    "lang": "Go",
+    "repo": "redis/rueidis",
+    "name": "go-rueidis"
+  },
+  {
+    "lang": "Go",
+    "repo": "gomodule/redigo",
+    "name": "go-redigo"
+  },
+  {
+    "lang": "Go",
+    "repo": "allegro/bigcache",
+    "name": "go-bigcache"
+  },
+  {
+    "lang": "Go",
+    "repo": "dgraph-io/ristretto",
+    "name": "go-ristretto"
+  },
+  {
+    "lang": "Go",
+    "repo": "patrickmn/go-cache",
+    "name": "go-cache"
+  },
+  {
+    "lang": "Go",
+    "repo": "eko/gocache",
+    "name": "go-gocache"
+  },
+  {
+    "lang": "Go",
+    "repo": "etcd-io/bbolt",
+    "name": "go-bbolt"
+  },
+  {
+    "lang": "Go",
+    "repo": "dgraph-io/badger",
+    "name": "go-badger"
+  },
+  {
+    "lang": "Go",
+    "repo": "cockroachdb/pebble",
+    "name": "go-pebble"
+  },
+  {
+    "lang": "Go",
+    "repo": "ClickHouse/clickhouse-go",
+    "name": "go-clickhouse"
+  },
+  {
+    "lang": "Go",
+    "repo": "elastic/go-elasticsearch",
+    "name": "go-elasticsearch"
+  },
+  {
+    "lang": "Go",
+    "repo": "golang-migrate/migrate",
+    "name": "go-migrate"
+  },
+  {
+    "lang": "Go",
+    "repo": "pressly/goose",
+    "name": "go-goose"
+  },
+  {
+    "lang": "Go",
+    "repo": "hibiken/asynq",
+    "name": "go-asynq"
+  },
+  {
+    "lang": "Go",
+    "repo": "riverqueue/river",
+    "name": "go-riverqueue"
+  },
+  {
+    "lang": "Go",
+    "repo": "RichardKnop/machinery",
+    "name": "go-machinery"
+  },
+  {
+    "lang": "Go",
+    "repo": "ThreeDotsLabs/watermill",
+    "name": "go-watermill"
+  },
+  {
+    "lang": "Go",
+    "repo": "temporalio/sdk-go",
+    "name": "go-temporal-sdk"
+  },
+  {
+    "lang": "Go",
+    "repo": "robfig/cron",
+    "name": "go-cron"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-co-op/gocron",
+    "name": "go-gocron"
+  },
+  {
+    "lang": "Go",
+    "repo": "IBM/sarama",
+    "name": "go-sarama"
+  },
+  {
+    "lang": "Go",
+    "repo": "segmentio/kafka-go",
+    "name": "go-kafka-go"
+  },
+  {
+    "lang": "Go",
+    "repo": "twmb/franz-go",
+    "name": "go-franz-go"
+  },
+  {
+    "lang": "Go",
+    "repo": "confluentinc/confluent-kafka-go",
+    "name": "go-confluent-kafka"
+  },
+  {
+    "lang": "Go",
+    "repo": "nats-io/nats.go",
+    "name": "go-nats"
+  },
+  {
+    "lang": "Go",
+    "repo": "rabbitmq/amqp091-go",
+    "name": "go-amqp091"
+  },
+  {
+    "lang": "Go",
+    "repo": "wagslane/go-rabbitmq",
+    "name": "go-rabbitmq-wrapper"
+  },
+  {
+    "lang": "Go",
+    "repo": "nsqio/go-nsq",
+    "name": "go-nsq"
+  },
+  {
+    "lang": "Go",
+    "repo": "apache/pulsar-client-go",
+    "name": "go-pulsar-client"
+  },
+  {
+    "lang": "Go",
+    "repo": "centrifugal/centrifugo",
+    "name": "go-centrifugo"
+  },
+  {
+    "lang": "Go",
+    "repo": "olahol/melody",
+    "name": "go-melody"
+  },
+  {
+    "lang": "Go",
+    "repo": "gorilla/websocket",
+    "name": "go-gorilla-websocket"
+  },
+  {
+    "lang": "Go",
+    "repo": "coder/websocket",
+    "name": "go-coder-websocket"
+  },
+  {
+    "lang": "Go",
+    "repo": "grpc/grpc-go",
+    "name": "go-grpc"
+  },
+  {
+    "lang": "Go",
+    "repo": "grpc-ecosystem/grpc-gateway",
+    "name": "go-grpc-gateway"
+  },
+  {
+    "lang": "Go",
+    "repo": "connectrpc/connect-go",
+    "name": "go-connectrpc"
+  },
+  {
+    "lang": "Go",
+    "repo": "twitchtv/twirp",
+    "name": "go-twirp"
+  },
+  {
+    "lang": "Go",
+    "repo": "cloudwego/kitex",
+    "name": "go-kitex"
+  },
+  {
+    "lang": "Go",
+    "repo": "smallnest/rpcx",
+    "name": "go-rpcx"
+  },
+  {
+    "lang": "Go",
+    "repo": "99designs/gqlgen",
+    "name": "go-gqlgen"
+  },
+  {
+    "lang": "Go",
+    "repo": "graphql-go/graphql",
+    "name": "go-graphql"
+  },
+  {
+    "lang": "Go",
+    "repo": "graph-gophers/graphql-go",
+    "name": "go-graph-gophers"
+  },
+  {
+    "lang": "Go",
+    "repo": "go-resty/resty",
+    "name": "go-resty"
+  },
+  {
+    "lang": "Go",
+    "repo": "imroc/req",
+    "name": "go-imroc-req"
+  },
+  {
+    "lang": "Go",
+    "repo": "carlmjohnson/requests",
+    "name": "go-carlmjohnson-requests"
+  },
+  {
+    "lang": "Go",
+    "repo": "hashicorp/go-retryablehttp",
+    "name": "go-retryablehttp"
+  },
+  {
+    "lang": "Go",
+    "repo": "valyala/fasthttp",
+    "name": "go-fasthttp"
+  },
+  {
+    "lang": "Go",
+    "repo": "sony/gobreaker",
+    "name": "go-gobreaker"
+  },
+  {
+    "lang": "Go",
+    "repo": "failsafe-go/failsafe-go",
+    "name": "go-failsafe"
+  },
+  {
+    "lang": "Go",
+    "repo": "uber-go/fx",
+    "name": "go-uber-fx"
+  },
+  {
+    "lang": "Go",
+    "repo": "google/wire",
+    "name": "go-google-wire"
+  },
+  {
+    "lang": "Go",
+    "repo": "samber/do",
+    "name": "go-samber-do"
+  },
+  {
+    "lang": "Go",
+    "repo": "uber-go/dig",
+    "name": "go-uber-dig"
+  },
+  {
+    "lang": "Go",
+    "repo": "casbin/casbin",
+    "name": "go-casbin"
+  },
+  {
+    "lang": "Go",
+    "repo": "golang-jwt/jwt",
+    "name": "go-jwt"
+  },
+  {
+    "lang": "Go",
+    "repo": "coreos/go-oidc",
+    "name": "go-oidc"
+  },
+  {
+    "lang": "Go",
+    "repo": "ory/fosite",
+    "name": "go-ory-fosite"
+  },
+  {
+    "lang": "Go",
+    "repo": "uber-go/zap",
+    "name": "go-zap"
+  },
+  {
+    "lang": "Go",
+    "repo": "rs/zerolog",
+    "name": "go-zerolog"
+  },
+  {
+    "lang": "Go",
+    "repo": "sirupsen/logrus",
+    "name": "go-logrus"
+  },
+  {
+    "lang": "Go",
+    "repo": "open-telemetry/opentelemetry-go",
+    "name": "go-opentelemetry"
+  },
+  {
+    "lang": "Go",
+    "repo": "prometheus/client_golang",
+    "name": "go-prometheus-client"
+  },
+  {
+    "lang": "Go",
+    "repo": "stretchr/testify",
+    "name": "go-testify"
+  },
+  {
+    "lang": "Go",
+    "repo": "onsi/ginkgo",
+    "name": "go-ginkgo"
+  },
+  {
+    "lang": "Go",
+    "repo": "DATA-DOG/go-sqlmock",
+    "name": "go-sqlmock"
+  },
+  {
+    "lang": "Go",
+    "repo": "pocketbase/pocketbase",
+    "name": "go-pocketbase"
+  },
+  {
+    "lang": "Go",
+    "repo": "dapr/dapr",
+    "name": "go-dapr"
+  },
+  {
+    "lang": "Go",
+    "repo": "caddyserver/caddy",
+    "name": "go-caddy"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tokio-rs/axum",
+    "name": "rs-axum"
+  },
+  {
+    "lang": "Rust",
+    "repo": "actix/actix-web",
+    "name": "rs-actix-web"
+  },
+  {
+    "lang": "Rust",
+    "repo": "actix/examples",
+    "name": "rs-actix-examples"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rwf2/Rocket",
+    "name": "rs-rocket"
+  },
+  {
+    "lang": "Rust",
+    "repo": "seanmonstar/warp",
+    "name": "rs-warp"
+  },
+  {
+    "lang": "Rust",
+    "repo": "poem-web/poem",
+    "name": "rs-poem"
+  },
+  {
+    "lang": "Rust",
+    "repo": "salvo-rs/salvo",
+    "name": "rs-salvo"
+  },
+  {
+    "lang": "Rust",
+    "repo": "loco-rs/loco",
+    "name": "rs-loco"
+  },
+  {
+    "lang": "Rust",
+    "repo": "pavex/pavex",
+    "name": "rs-pavex"
+  },
+  {
+    "lang": "Rust",
+    "repo": "http-rs/tide",
+    "name": "rs-tide"
+  },
+  {
+    "lang": "Rust",
+    "repo": "gotham-rs/gotham",
+    "name": "rs-gotham"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Cot-rs/cot",
+    "name": "rs-cot"
+  },
+  {
+    "lang": "Rust",
+    "repo": "oxidecomputer/dropshot",
+    "name": "rs-dropshot"
+  },
+  {
+    "lang": "Rust",
+    "repo": "hyperium/hyper",
+    "name": "rs-hyper"
+  },
+  {
+    "lang": "Rust",
+    "repo": "hyperium/tonic",
+    "name": "rs-tonic"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tower-rs/tower",
+    "name": "rs-tower"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tower-rs/tower-http",
+    "name": "rs-tower-http"
+  },
+  {
+    "lang": "Rust",
+    "repo": "launchbadge/sqlx",
+    "name": "rs-sqlx"
+  },
+  {
+    "lang": "Rust",
+    "repo": "SeaQL/sea-orm",
+    "name": "rs-sea-orm"
+  },
+  {
+    "lang": "Rust",
+    "repo": "SeaQL/sea-query",
+    "name": "rs-sea-query"
+  },
+  {
+    "lang": "Rust",
+    "repo": "diesel-rs/diesel",
+    "name": "rs-diesel"
+  },
+  {
+    "lang": "Rust",
+    "repo": "weiznich/diesel_async",
+    "name": "rs-diesel-async"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rusqlite/rusqlite",
+    "name": "rs-rusqlite"
+  },
+  {
+    "lang": "Rust",
+    "repo": "sfackler/rust-postgres",
+    "name": "rs-rust-postgres"
+  },
+  {
+    "lang": "Rust",
+    "repo": "bikeshedder/deadpool",
+    "name": "rs-deadpool"
+  },
+  {
+    "lang": "Rust",
+    "repo": "djc/bb8",
+    "name": "rs-bb8"
+  },
+  {
+    "lang": "Rust",
+    "repo": "cornucopia-rs/cornucopia",
+    "name": "rs-cornucopia"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rbatis/rbatis",
+    "name": "rs-rbatis"
+  },
+  {
+    "lang": "Rust",
+    "repo": "mongodb/mongo-rust-driver",
+    "name": "rs-mongo-driver"
+  },
+  {
+    "lang": "Rust",
+    "repo": "redis-rs/redis-rs",
+    "name": "rs-redis"
+  },
+  {
+    "lang": "Rust",
+    "repo": "aembke/fred.rs",
+    "name": "rs-fred-redis"
+  },
+  {
+    "lang": "Rust",
+    "repo": "moka-rs/moka",
+    "name": "rs-moka-cache"
+  },
+  {
+    "lang": "Rust",
+    "repo": "foyer-rs/foyer",
+    "name": "rs-foyer-cache"
+  },
+  {
+    "lang": "Rust",
+    "repo": "cberner/redb",
+    "name": "rs-redb"
+  },
+  {
+    "lang": "Rust",
+    "repo": "spacejam/sled",
+    "name": "rs-sled"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rust-rocksdb/rust-rocksdb",
+    "name": "rs-rocksdb"
+  },
+  {
+    "lang": "Rust",
+    "repo": "ClickHouse/clickhouse-rs",
+    "name": "rs-clickhouse"
+  },
+  {
+    "lang": "Rust",
+    "repo": "scylladb/scylla-rust-driver",
+    "name": "rs-scylla-driver"
+  },
+  {
+    "lang": "Rust",
+    "repo": "qdrant/rust-client",
+    "name": "rs-qdrant-client"
+  },
+  {
+    "lang": "Rust",
+    "repo": "surrealdb/surrealdb",
+    "name": "rs-surrealdb"
+  },
+  {
+    "lang": "Rust",
+    "repo": "meilisearch/meilisearch",
+    "name": "rs-meilisearch"
+  },
+  {
+    "lang": "Rust",
+    "repo": "CleverCloud/lapin",
+    "name": "rs-lapin"
+  },
+  {
+    "lang": "Rust",
+    "repo": "gskew/amqprs",
+    "name": "rs-amqprs"
+  },
+  {
+    "lang": "Rust",
+    "repo": "fede1024/rust-rdkafka",
+    "name": "rs-rdkafka"
+  },
+  {
+    "lang": "Rust",
+    "repo": "nats-io/nats.rs",
+    "name": "rs-nats"
+  },
+  {
+    "lang": "Rust",
+    "repo": "SeaQL/sea-streamer",
+    "name": "rs-sea-streamer"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rumqttc/rumqtt",
+    "name": "rs-rumqtt"
+  },
+  {
+    "lang": "Rust",
+    "repo": "geofmureithi/apalis",
+    "name": "rs-apalis"
+  },
+  {
+    "lang": "Rust",
+    "repo": "mvniekerk/tokio-cron-scheduler",
+    "name": "rs-tokio-cron"
+  },
+  {
+    "lang": "Rust",
+    "repo": "maxcountryman/fang",
+    "name": "rs-fang"
+  },
+  {
+    "lang": "Rust",
+    "repo": "seanmonstar/reqwest",
+    "name": "rs-reqwest"
+  },
+  {
+    "lang": "Rust",
+    "repo": "algesten/ureq",
+    "name": "rs-ureq"
+  },
+  {
+    "lang": "Rust",
+    "repo": "sagebind/isahc",
+    "name": "rs-isahc"
+  },
+  {
+    "lang": "Rust",
+    "repo": "TrueLayer/reqwest-middleware",
+    "name": "rs-reqwest-middleware"
+  },
+  {
+    "lang": "Rust",
+    "repo": "async-graphql/async-graphql",
+    "name": "rs-async-graphql"
+  },
+  {
+    "lang": "Rust",
+    "repo": "graphql-rust/juniper",
+    "name": "rs-juniper"
+  },
+  {
+    "lang": "Rust",
+    "repo": "obmarg/cynic",
+    "name": "rs-cynic"
+  },
+  {
+    "lang": "Rust",
+    "repo": "graphql-rust/graphql-client",
+    "name": "rs-graphql-client"
+  },
+  {
+    "lang": "Rust",
+    "repo": "snapview/tungstenite-rs",
+    "name": "rs-tungstenite"
+  },
+  {
+    "lang": "Rust",
+    "repo": "sdroege/tokio-tungstenite",
+    "name": "rs-tokio-tungstenite"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Totodore/socketioxide",
+    "name": "rs-socketioxide"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tokio-rs/tokio",
+    "name": "rs-tokio"
+  },
+  {
+    "lang": "Rust",
+    "repo": "actix/actix",
+    "name": "rs-actix-actors"
+  },
+  {
+    "lang": "Rust",
+    "repo": "slawlor/ractor",
+    "name": "rs-ractor"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Bastion-rs/bastion",
+    "name": "rs-bastion"
+  },
+  {
+    "lang": "Rust",
+    "repo": "lunatic-solutions/lunatic",
+    "name": "rs-lunatic"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tokio-rs/tracing",
+    "name": "rs-tracing"
+  },
+  {
+    "lang": "Rust",
+    "repo": "open-telemetry/opentelemetry-rust",
+    "name": "rs-opentelemetry"
+  },
+  {
+    "lang": "Rust",
+    "repo": "metrics-rs/metrics",
+    "name": "rs-metrics"
+  },
+  {
+    "lang": "Rust",
+    "repo": "getsentry/sentry-rust",
+    "name": "rs-sentry"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Keats/jsonwebtoken",
+    "name": "rs-jsonwebtoken"
+  },
+  {
+    "lang": "Rust",
+    "repo": "ramosbugs/oauth2-rs",
+    "name": "rs-oauth2"
+  },
+  {
+    "lang": "Rust",
+    "repo": "casbin/casbin-rs",
+    "name": "rs-casbin"
+  },
+  {
+    "lang": "Rust",
+    "repo": "maxcountryman/axum-login",
+    "name": "rs-axum-login"
+  },
+  {
+    "lang": "Rust",
+    "repo": "RustCrypto/password-hashes",
+    "name": "rs-password-hashes"
+  },
+  {
+    "lang": "Rust",
+    "repo": "serde-rs/serde",
+    "name": "rs-serde"
+  },
+  {
+    "lang": "Rust",
+    "repo": "serde-rs/json",
+    "name": "rs-serde-json"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tokio-rs/prost",
+    "name": "rs-prost"
+  },
+  {
+    "lang": "Rust",
+    "repo": "rkyv/rkyv",
+    "name": "rs-rkyv"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Keats/validator",
+    "name": "rs-validator"
+  },
+  {
+    "lang": "Rust",
+    "repo": "contextual/garde",
+    "name": "rs-garde"
+  },
+  {
+    "lang": "Rust",
+    "repo": "juhaku/utoipa",
+    "name": "rs-utoipa"
+  },
+  {
+    "lang": "Rust",
+    "repo": "GREsau/schemars",
+    "name": "rs-schemars"
+  },
+  {
+    "lang": "Rust",
+    "repo": "0xPlaygrounds/rig",
+    "name": "rs-rig-ai"
+  },
+  {
+    "lang": "Rust",
+    "repo": "64bit/async-openai",
+    "name": "rs-async-openai"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Abraxas-365/langchain-rust",
+    "name": "rs-langchain"
+  },
+  {
+    "lang": "Rust",
+    "repo": "awslabs/aws-sdk-rust",
+    "name": "rs-aws-sdk"
+  },
+  {
+    "lang": "Rust",
+    "repo": "s3s-proj/s3s",
+    "name": "rs-s3s"
+  },
+  {
+    "lang": "Rust",
+    "repo": "lettre/lettre",
+    "name": "rs-lettre"
+  },
+  {
+    "lang": "Rust",
+    "repo": "LukeMathWalker/wiremock-rs",
+    "name": "rs-wiremock"
+  },
+  {
+    "lang": "Rust",
+    "repo": "asomers/mockall",
+    "name": "rs-mockall"
+  },
+  {
+    "lang": "Rust",
+    "repo": "la10736/rstest",
+    "name": "rs-rstest"
+  },
+  {
+    "lang": "Rust",
+    "repo": "proptest-rs/proptest",
+    "name": "rs-proptest"
+  },
+  {
+    "lang": "Rust",
+    "repo": "mitsuhiko/insta",
+    "name": "rs-insta"
+  },
+  {
+    "lang": "Rust",
+    "repo": "testcontainers/testcontainers-rs",
+    "name": "rs-testcontainers"
+  },
+  {
+    "lang": "Rust",
+    "repo": "LukeMathWalker/zero-to-production",
+    "name": "rs-zero-to-production"
+  },
+  {
+    "lang": "Rust",
+    "repo": "launchbadge/realworld-axum-sqlx",
+    "name": "rs-realworld-axum-sqlx"
+  },
+  {
+    "lang": "Rust",
+    "repo": "LemmyNet/lemmy",
+    "name": "rs-lemmy"
+  },
+  {
+    "lang": "Rust",
+    "repo": "dani-garcia/vaultwarden",
+    "name": "rs-vaultwarden"
+  },
+  {
+    "lang": "Rust",
+    "repo": "Vectorized/vector",
+    "name": "rs-vector"
+  },
+  {
+    "lang": "Rust",
+    "repo": "tauri-apps/tauri",
+    "name": "rs-tauri"
+  },
+  {
+    "lang": "Rust",
+    "repo": "BurntSushi/ripgrep",
+    "name": "rs-ripgrep"
   }
 ]

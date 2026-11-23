@@ -366,11 +366,12 @@ public static class ConstantRegistry
     {
         if (string.IsNullOrWhiteSpace(projectNameOrPath)) return null;
 
-        if (Urn.TryParse(projectNameOrPath, out var urn) && urn.HasDeclaringFilePath)
+        if (Urn.TryParse(projectNameOrPath, out var urn) && urn.HasDeclaringFilePath && !string.IsNullOrWhiteSpace(urn.DeclaringFilePath))
         {
-            projectNameOrPath = urn.DeclaringFilePath!;
+            projectNameOrPath = urn.DeclaringFilePath;
         }
 
+        if (string.IsNullOrWhiteSpace(projectNameOrPath)) return null;
         var s = projectNameOrPath.Replace('\\', '/').Trim();
         if (!s.Contains('/')) return s;
 

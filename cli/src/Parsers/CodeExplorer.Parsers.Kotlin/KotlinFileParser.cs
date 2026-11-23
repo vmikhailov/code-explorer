@@ -53,7 +53,10 @@ public partial class KotlinFileParser : IFileParser
         new Libraries.SupabaseFirebaseKotlinLibraryParser(),
         new Libraries.DaggerHiltKodeinLibraryParser(),
         new Libraries.KotestMockkLibraryParser(),
-        new Libraries.ComposeNavigationKotlinLibraryParser()
+        new Libraries.ComposeNavigationKotlinLibraryParser(),
+        new Libraries.SpringBootKotlinLibraryParser(),
+        new Libraries.AiCloudSdkKotlinLibraryParser(),
+        new Libraries.RealmRoomKMongoKotlinLibraryParser()
     ];
 
     internal static readonly IReadOnlyList<PackageDescriptor> DefaultPackages =
@@ -173,6 +176,16 @@ public partial class KotlinFileParser : IFileParser
         // 8. Relational database configuration detection (e.g. PostgreSQL driver)
         KotlinDatabaseSqlExtractor.DetectDatabaseConfiguration(content, fileNode, workspaceId, relativePath);
 
+        Libraries.KtorServerLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.KtorClientLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.MicronautKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.GraphQlKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.SpringCloudStreamKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.ExposedLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.KtormLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.KoinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.ArrowKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.KotlinxSerializationLibraryParser.AnalyzeSource(content, fileNode);
         Libraries.CoroutinesFlowChannelLibraryParser.AnalyzeSource(content, fileNode);
         Libraries.Http4kLibraryParser.AnalyzeSource(content, fileNode);
         Libraries.GrpcKotlinLibraryParser.AnalyzeSource(content, fileNode);
@@ -182,6 +195,9 @@ public partial class KotlinFileParser : IFileParser
         Libraries.DaggerHiltKodeinLibraryParser.AnalyzeSource(content, fileNode);
         Libraries.KotestMockkLibraryParser.AnalyzeSource(content, fileNode);
         Libraries.ComposeNavigationKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.SpringBootKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.AiCloudSdkKotlinLibraryParser.AnalyzeSource(content, fileNode);
+        Libraries.RealmRoomKMongoKotlinLibraryParser.AnalyzeSource(content, fileNode);
 
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         doc.PackageOrNamespace = packageName;

@@ -57,6 +57,9 @@ public class GoFileParser : IFileParser
         new Libraries.GrpcGatewayGoLibraryParser(),
         new Libraries.SaramaKafkaLibraryParser(),
         new Libraries.BeegoLibraryParser(),
+        new Libraries.HertzGoFrameIrisHumaGoaLibraryParser(),
+        new Libraries.SquirrelBobSqlBoilerCacheKvGoLibraryParser(),
+        new Libraries.FranzGoNsqPulsarCronAuthGoLibraryParser(),
         Libraries.GoTestLibraryParser.Instance
     ];
 

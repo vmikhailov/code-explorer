@@ -122,6 +122,10 @@ public class RustFileParser : IFileParser
         new Libraries.LapinLibraryParser(),
         new Libraries.AsyncNatsLibraryParser(),
         new Libraries.AwsSdkRustLibraryParser(),
+        new Libraries.PoemSalvoWarpLocoRustLibraryParser(),
+        new Libraries.RedisMongoNoSqlRustLibraryParser(),
+        new Libraries.GraphQlWebSocketRustLibraryParser(),
+        new Libraries.JobsActorsAiRustLibraryParser(),
         Libraries.RustTestLibraryParser.Instance
     ];
 

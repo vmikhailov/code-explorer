@@ -50,6 +50,9 @@ public class PythonFileParser : IFileParser
         new Libraries.VectorDbPythonLibraryParser(),
         new Libraries.AgenticAiPythonLibraryParser(),
         new Libraries.DiContainerPythonLibraryParser(),
+        new Libraries.DjangoNinjaBlackSheepRobynFalconLibraryParser(),
+        new Libraries.BeaniePiccoloPrismaDuckDbPythonLibraryParser(),
+        new Libraries.TaskiqHueyFaustNatsGraphQlPythonLibraryParser(),
         Libraries.PythonTestLibraryParser.Instance
     ];
 
