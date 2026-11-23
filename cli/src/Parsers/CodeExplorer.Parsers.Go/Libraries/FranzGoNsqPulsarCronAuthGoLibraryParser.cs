@@ -43,7 +43,17 @@ public class FranzGoNsqPulsarCronAuthGoLibraryParser : DeclarativeSemanticExtens
             "github.com/rs/zerolog*",
             "github.com/sirupsen/logrus*",
             "github.com/onsi/ginkgo*",
-            "github.com/DATA-DOG/go-sqlmock*"
+            "github.com/DATA-DOG/go-sqlmock*",
+            "golang.org/x/oauth2*",
+            "cloud.google.com/go/*",
+            "github.com/Azure/azure-sdk-for-go*",
+            "github.com/cloudevents/sdk-go*",
+            "github.com/pocketbase/dbx*",
+            "github.com/gocql/gocql*",
+            "github.com/cockroachdb/cockroach-go*",
+            "github.com/snowflakedb/gosnowflake*",
+            "github.com/ydb-platform/ydb-go-sdk*",
+            "github.com/go-redsync/redsync*"
         ];
         MessagingBrokerRules =
         [

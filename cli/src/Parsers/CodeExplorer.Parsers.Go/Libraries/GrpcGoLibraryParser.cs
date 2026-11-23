@@ -283,6 +283,9 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
             return false;
         }
 
+        // Check argument signature first (O(1)) before walking enclosing AST scopes
+        if (!VerifyGrpcCallArguments(node)) return false;
+
         var directMatch = NewClientRegex.Match(opText);
         if (directMatch.Success)
         {
@@ -290,7 +293,7 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
             var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
             serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
             methodName = method;
-            return VerifyGrpcCallArguments(node);
+            return true;
         }
 
         var leafOp = opText.Contains('.') ? opText.Split('.')[^1] : opText;
@@ -301,14 +304,14 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
             var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
             serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
             methodName = method;
-            return VerifyGrpcCallArguments(node);
+            return true;
         }
 
         if (TryResolveClientFromScope(node, opText, out var resolvedService))
         {
             serviceName = resolvedService;
             methodName = method;
-            return VerifyGrpcCallArguments(node);
+            return true;
         }
 
         return false;
@@ -317,7 +320,7 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
     private static bool VerifyGrpcCallArguments(Node node)
     {
         var args = GoAstHelper.GetCallArguments(node);
-        if (args.Count == 0) return true;
+        if (args.Count < 2) return false;
 
         var firstArg = args[0].Text;
         return firstArg.Contains("ctx", StringComparison.OrdinalIgnoreCase) ||
@@ -329,6 +332,13 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
     {
         serviceName = "";
         if (string.IsNullOrWhiteSpace(varName)) return false;
+
+        var rootNode = GetFileRoot(node);
+        var rootText = rootNode.Text;
+        if (!string.IsNullOrEmpty(rootText) && !rootText.Contains("Client", StringComparison.Ordinal))
+        {
+            return false;
+        }
 
         if (varName.Contains('.'))
         {
@@ -352,38 +362,44 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
 
                     if (!string.IsNullOrEmpty(structTypeName))
                     {
-                        var rootNode = GetFileRoot(node);
-                        foreach (var desc in rootNode.Descendants())
+                        foreach (var topChild in rootNode.Children)
                         {
-                            if (desc.Is(TreeSitterSyntax.Go.TypeSpec))
+                            if (!topChild.Is(TreeSitterSyntax.Go.TypeDeclaration) && !topChild.Is(TreeSitterSyntax.Go.TypeSpec))
                             {
-                                var nameNode = desc.GetChildForField(TreeSitterSyntax.Fields.Name);
-                                if (nameNode.IsValid() && nameNode.Text == structTypeName)
+                                continue;
+                            }
+                            foreach (var desc in topChild.DescendantsAndSelf())
+                            {
+                                if (desc.Is(TreeSitterSyntax.Go.TypeSpec))
                                 {
-                                    var structType = desc.GetChildForField(TreeSitterSyntax.Fields.Type);
-                                    if (structType.IsValid() && structType.Is(TreeSitterSyntax.Go.StructType))
+                                    var nameNode = desc.GetChildForField(TreeSitterSyntax.Fields.Name);
+                                    if (nameNode.IsValid() && nameNode.Text == structTypeName)
                                     {
-                                        foreach (var fieldDecl in structType.Descendants().Where(d => d.Is(TreeSitterSyntax.Go.FieldDeclaration)))
+                                        var structType = desc.GetChildForField(TreeSitterSyntax.Fields.Type);
+                                        if (structType.IsValid() && structType.Is(TreeSitterSyntax.Go.StructType))
                                         {
-                                            var fName = fieldDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
-                                            var fChild = fieldDecl.Children.FirstOrDefault(c => c.Type is "field_identifier" or "identifier" || c.Is(TreeSitterSyntax.Go.Identifier));
-                                            var nameText = fName.IsValid() ? fName.Text : (fChild.IsValid() ? fChild.Text : "");
-                                            if (string.IsNullOrEmpty(nameText) && fieldDecl.Text.TrimStart().StartsWith(fieldName))
+                                            foreach (var fieldDecl in structType.Descendants().Where(d => d.Is(TreeSitterSyntax.Go.FieldDeclaration)))
                                             {
-                                                nameText = fieldName;
-                                            }
-
-                                            if (nameText == fieldName)
-                                            {
-                                                var fType = fieldDecl.GetChildForField(TreeSitterSyntax.Fields.Type);
-                                                var fTypeText = fType.IsValid() ? fType.Text : fieldDecl.Text;
-                                                var cMatch = ClientTypeRegex.Match(fTypeText);
-                                                if (cMatch.Success)
+                                                var fName = fieldDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
+                                                var fChild = fieldDecl.Children.FirstOrDefault(c => c.Type is "field_identifier" or "identifier" || c.Is(TreeSitterSyntax.Go.Identifier));
+                                                var nameText = fName.IsValid() ? fName.Text : (fChild.IsValid() ? fChild.Text : "");
+                                                if (string.IsNullOrEmpty(nameText) && fieldDecl.Text.TrimStart().StartsWith(fieldName))
                                                 {
-                                                    var raw = cMatch.Groups[1].Value;
-                                                    if (raw.Contains('.')) raw = raw.Split('.')[^1];
-                                                    serviceName = CleanServiceName(raw);
-                                                    return true;
+                                                    nameText = fieldName;
+                                                }
+
+                                                if (nameText == fieldName)
+                                                {
+                                                    var fType = fieldDecl.GetChildForField(TreeSitterSyntax.Fields.Type);
+                                                    var fTypeText = fType.IsValid() ? fType.Text : fieldDecl.Text;
+                                                    var cMatch = ClientTypeRegex.Match(fTypeText);
+                                                    if (cMatch.Success)
+                                                    {
+                                                        var raw = cMatch.Groups[1].Value;
+                                                        if (raw.Contains('.')) raw = raw.Split('.')[^1];
+                                                        serviceName = CleanServiceName(raw);
+                                                        return true;
+                                                    }
                                                 }
                                             }
                                         }
@@ -424,7 +440,11 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
                     }
                 }
 
-                // Check local variable declarations
+                // Check local variable declarations only if enclosing function text actually references a Client type or constructor
+                if (!curr.Text.Contains("Client", StringComparison.Ordinal))
+                {
+                    break;
+                }
                 foreach (var desc in curr.Descendants())
                 {
                     if (desc.Is(TreeSitterSyntax.Go.ShortVarDeclaration) || desc.Is(TreeSitterSyntax.Go.AssignmentStatement))
