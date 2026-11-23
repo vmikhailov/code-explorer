@@ -2101,7 +2101,7 @@
   },
   {
     "lang": "Python",
-    "repo": "encode/django-rest-framework",
+    "repo": "jazzband/djangorestframework-simplejwt",
     "name": "py-drf"
   },
   {
@@ -2516,7 +2516,7 @@
   },
   {
     "lang": "Python",
-    "repo": "HypothesisWorks/hypothesis",
+    "repo": "polyfactory-org/polyfactory",
     "name": "py-hypothesis"
   },
   {

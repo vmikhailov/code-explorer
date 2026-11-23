@@ -61,7 +61,16 @@ public class TaskiqHueyFaustNatsGraphQlPythonLibraryParser : DeclarativeSemantic
             "msgspec*",
             "attrs*",
             "marshmallow*",
-            "urllib3*"
+            "urllib3*",
+            "drf-spectacular*",
+            "azure-storage*",
+            "azure-identity*",
+            "google-cloud-*",
+            "google-genai*",
+            "google-adk*",
+            "langsmith*",
+            "locust*",
+            "joserfc*"
         ];
         MessagingBrokerRules =
         [
