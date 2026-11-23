@@ -184,12 +184,12 @@ public class GrpcCSharpLibraryParser : DeclarativeSemanticExtension
     {
         if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
 
+        if (!TryExtractGrpcClientCall(node, out _, out _)) return false;
+
         var root = node;
         while (root.Parent.IsValid()) root = root.Parent;
         var rootText = root.Text;
-        if (!ContainsGrpcSignals(rootText)) return false;
-
-        return TryExtractGrpcClientCall(node, out _, out _);
+        return ContainsGrpcSignals(rootText);
     }
 
     private static bool ContainsGrpcSignals(string text)

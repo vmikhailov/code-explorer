@@ -1256,7 +1256,7 @@
   },
   {
     "lang": "CSharp",
-    "repo": "TickerQ/TickerQ",
+    "repo": "Arcenox-co/TickerQ",
     "name": "cs-tickerq"
   },
   {
@@ -1291,7 +1291,7 @@
   },
   {
     "lang": "CSharp",
-    "repo": "tryagi/OllamaSharp",
+    "repo": "awaescher/OllamaSharp",
     "name": "cs-ollamasharp"
   },
   {
@@ -1461,7 +1461,7 @@
   },
   {
     "lang": "CSharp",
-    "repo": "testcontainers/testcontainers-dotnet",
+    "repo": "VerifyTests/Verify",
     "name": "cs-testcontainers"
   },
   {

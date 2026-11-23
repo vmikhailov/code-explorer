@@ -29,7 +29,31 @@ public class IdentityOpenIddictCasbinOcelotLibraryParser : DeclarativeSemanticEx
             "Betalgo.OpenAI*",
             "Abp*",
             "Volo.Abp*",
-            "OrchardCore*"
+            "OrchardCore*",
+            "FluentValidation*",
+            "Serilog*",
+            "NLog*",
+            "Autofac*",
+            "Scrutor*",
+            "SimpleInjector*",
+            "AutoMapper*",
+            "Mapster*",
+            "Riok.Mapperly*",
+            "Ardalis*",
+            "FluentResults*",
+            "ErrorOr*",
+            "OneOf*",
+            "LanguageExt*",
+            "Aspire*",
+            "Microsoft.Data.Sqlite*",
+            "MySqlConnector*",
+            "MailKit*",
+            "MimeKit*",
+            "Finbuckle.MultiTenant*",
+            "Microsoft.Kiota*",
+            "Microsoft.Playwright*",
+            "Microsoft.Extensions.Hosting*",
+            "Microsoft.Extensions.Diagnostics.HealthChecks*"
         ];
         AnnotationSinkRules =
         [
