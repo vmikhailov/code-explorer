@@ -46,7 +46,31 @@ public class AgendaTriggerMastraDiTsLibraryParser : DeclarativeSemanticExtension
             "pino*",
             "winston*",
             "@sentry/*",
-            "@opentelemetry/*"
+            "@opentelemetry/*",
+            "rxjs*",
+            "jsonwebtoken*",
+            "passport*",
+            "cors*",
+            "body-parser*",
+            "cookie*",
+            "multer*",
+            "compression*",
+            "ajv*",
+            "tedious*",
+            "uWebSockets.js*",
+            "@envelop/*",
+            "@apollo/*",
+            "@pothos/*",
+            "@pulumi/*",
+            "jose*",
+            "sharp*",
+            "class-validator*",
+            "class-transformer*",
+            "bcrypt*",
+            "argon2*",
+            "helmet*",
+            "morgan*",
+            "@boxyhq/*"
         ];
         MessagingBrokerRules =
         [

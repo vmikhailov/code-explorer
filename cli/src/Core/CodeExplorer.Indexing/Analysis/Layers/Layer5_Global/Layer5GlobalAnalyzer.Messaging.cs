@@ -539,6 +539,31 @@ public partial class Layer5AnalysisParser
             return null;
         }
 
+        if (imports.FunctionResolutionCache.TryGetValue((cand, exportedName), out var cachedResult))
+        {
+            return cachedResult;
+        }
+
+        // Optimistically insert null before recursing to prevent cyclic barrel re-exports (A -> B -> A)
+        imports.FunctionResolutionCache.TryAdd((cand, exportedName), null);
+
+        var result = TryResolveFunctionInCandidateFileCore(cand, exportedName, symbols, imports, ctx, depth);
+        if (result != null)
+        {
+            imports.FunctionResolutionCache[(cand, exportedName)] = result;
+        }
+        return result;
+    }
+
+    private static string? TryResolveFunctionInCandidateFileCore(
+        string cand,
+        string exportedName,
+        SymbolLookups symbols,
+        ImportLookups imports,
+        ParsingContext ctx,
+        int depth)
+    {
+
         if (symbols.FunctionSymbolsByFile.TryGetValue((cand, exportedName), out var funcId))
         {
             return funcId;
