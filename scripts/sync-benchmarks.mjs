@@ -919,15 +919,15 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${c5.recall.ce_pct} vs ${c5.recall.rg_pct}</strong> (331/331 vs 307/331 items)`;
   }
 
-  // --- Case Study 06 (Pre-Commit Architectural Guard Showcase) ---
+  // --- Case Study 06 (Pre-Commit Architectural Guard Walkthrough) ---
   if (data.cs06 && data.cs06.status === 'ready' && data.cs06.telemetry) {
     const c6 = data.cs06;
     const t6 = c6.telemetry;
     const avgQueryMs = Math.round(t6.query_sum_ms / t6.total_gates);
 
     b['cs06.meta_desc'] =
-      `Pre-Commit Architectural Guard showcase on ${c6.repo.name} (${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files): ` +
-      `CodeExplorer evaluates ${t6.total_gates} production invariant rules in ${t6.duration_ms} ms with zero LLM tokens ($0.00) and deterministic binary exit code.`;
+      `Pre-Commit Architectural Guard walkthrough on ${c6.repo.name} (${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files): ` +
+      `CodeExplorer evaluates ${t6.total_gates} production invariant rules in ${t6.duration_ms} ms with zero LLM tokens ($0.00) and non-zero CI exit codes on violations.`;
 
     b['cs06.crumb_scale'] = `${c6.repo.projects} subsystems, ${fmtInt(c6.repo.files)} files`;
 
@@ -1343,7 +1343,7 @@ function buildBindings(data, rawMilestones01) {
       `| **[Case Study 07: Real-Life Feature Implementation & Self-Healing](./07-agent-feature-ce-vs-cbm-on-twenty/README.md)**<br>Implement \`suspendWorkspaceAdminPanel\` GraphQL mutation, service orchestration & unit tests on \`twentyhq/twenty\` (4 repo-wide architectural gates, zero rule hints) | \`${c7.repo.name}\`<br>\`${c7.repo.packages}\` packages, \`${fmtInt(c7.repo.files)}\` files, \`${c7.repo.loc}\` LOC (TS, NestJS, GraphQL, TypeORM, BullMQ) | \`CodeExplorer\`<br>vs<br>\`CBM\` | **\`${sp7}×\` faster end-to-end**<br>\`${fmtDurShort(ce7.wall_clock_s)}\` vs \`${fmtDurShort(cbm7.wall_clock_s)}\` (\`${fmtDurShort(ce7.init_impl_s)}\` vs \`${fmtDurShort(cbm7.init_impl_s)}\` initial draft, \`${sp7Init}×\` faster)<br>\`${ce7.turns}\` turns vs \`${cbm7.turns}\` turns | **\`${tk7}×\` fewer est. tokens**<br>\`${fmtInt(ce7.cum_input_tokens)}\` vs \`${fmtInt(cbm7.cum_input_tokens)}\`<br>(\`${ce7.read_file_calls}\` vs \`${cbm7.read_file_calls}\` file reads) | **\`4/4 PASS\` vs \`1 new\` violation (\`SIG-TWENTY-003\`)**<br>Both passed unit tests (\`4/4\` vs \`3/3\`) & \`oxlint\`; pre-configured gate caught copied legacy coupling from \`workspace.service.ts:989\` (\`[TOL]\` -> \`[NEW]\`) & \`ce\` refactored in \`1\` turn |`;
 
     const cs06Row =
-      `| **[Case Study 06: Pre-Commit Architectural Guard (Showcase)](./06-precommit-architectural-guard/README.md)**<br>6 invariant gates + 4-phase brownfield SHA-256 ratchet lifecycle (Day 0 audit, line-shift-immune baseline freeze, PR regression block & monotonic debt tightening) | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\` & \`ratchet\`) | **\`${t6.duration_ms} ms\`** Day 0 check<br>**\`183–356 ms\`** ratcheted checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **4-phase deterministic lifecycle**<br>Freezes \`${t6.blocking_errors}\` legacy errors + \`${t6.audited_warnings}\` warnings (\`Exit 0\`), blocks \`1 new\` PR leak (\`Exit 1\`), tightens ceiling |`;
+      `| **[Case Study 06: Pre-Commit Architectural Guard (Walkthrough)](./06-precommit-architectural-guard/README.md)**<br>6 invariant gates + 4-phase brownfield SHA-256 ratchet lifecycle (Day 0 audit, line-shift-immune baseline freeze, PR regression block & monotonic debt tightening) | \`${c6.repo.name}\`<br>\`${c6.repo.projects}\` subsystems, \`${fmtInt(c6.repo.files)}\` files (Go, TypeScript, K8s) | \`CodeExplorer\` (\`ce gate check\` & \`ratchet\`) | **\`${t6.duration_ms} ms\`** Day 0 check<br>**\`183–356 ms\`** ratcheted checks | **\`0\` tokens**<br>(**\`$0.00\`**) | **4-phase deterministic lifecycle**<br>Freezes \`${t6.blocking_errors}\` legacy errors + \`${t6.audited_warnings}\` warnings (\`Exit 0\`), blocks \`1 new\` PR leak (\`Exit 1\`), tightens ceiling |`;
 
     const c8 = data.cs08;
     const ce8 = c8.telemetry.ce;

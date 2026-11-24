@@ -1,7 +1,7 @@
 {
   "name": "code-explorer",
-  "title": "CodeExplorer (ce) — Make AI Coding Agents Production-Safe",
-  "description": "AI agents see files, not architecture. CodeExplorer gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI, backed by a 100% local SQLite OpenCypher graph.",
+  "title": "CodeExplorer (ce): Local Code Architecture Graph & CI Gates",
+  "description": "Indexes polyglot repositories into a single local SQLite graph (.codeexplorer/graph.db). Gives coding agents and engineers cross-service call chains, SQL table lineage, task context packs, and Cypher invariant gates over MCP and CLI.",
   "homepage": "https://code-explorer.app/",
   "repository": "https://github.com/vmikhailov/code-explorer",
   "documentation": "https://code-explorer.app/llms.txt",

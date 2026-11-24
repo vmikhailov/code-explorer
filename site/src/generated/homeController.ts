@@ -76,17 +76,17 @@ export function initHomeController(): () => void {
       if (e.key === 'Escape') closeLightbox();
     });
 
-    // OpenCypher Query Playground Presets
+    // Cypher Query Playground Presets
     const queryPresets = {
       blast_radius: {
         tag: 'blast_radius.cypher',
-        raw: 'MATCH path = (caller:Method)-[:CALLS*1..4]->(target:Method {name: "ChargeAsync"}) RETURN caller.fullName AS UpstreamCaller, length(path) AS Hops ORDER BY Hops ASC LIMIT 10',
-        codeHtml: `<span class="syn-kw">MATCH</span> path = (caller:Method)-[:CALLS*<span class="syn-num">1..4</span>]-&gt;(target:Method {name: <span class="syn-str">"ChargeAsync"</span>})
-<span class="syn-kw">RETURN</span> caller.fullName <span class="syn-kw">AS</span> UpstreamCaller,
+        raw: 'MATCH path = (caller:Function)-[:CALLS*1..4]->(target:Function {name: "ChargeAsync"}) RETURN caller.symbol AS UpstreamCaller, length(path) AS Hops ORDER BY Hops ASC LIMIT 10',
+        codeHtml: `<span class="syn-kw">MATCH</span> path = (caller:Function)-[:CALLS*<span class="syn-num">1..4</span>]-&gt;(target:Function {name: <span class="syn-str">"ChargeAsync"</span>})
+<span class="syn-kw">RETURN</span> caller.symbol <span class="syn-kw">AS</span> UpstreamCaller,
        <span class="syn-fn">length</span>(path) <span class="syn-kw">AS</span> Hops
 <span class="syn-kw">ORDER BY</span> Hops <span class="syn-kw">ASC</span>
 <span class="syn-kw">LIMIT</span> <span class="syn-num">10</span>`,
-        explanation: 'Finds all upstream callers within 4 hops that can impact PaymentProcessor.ChargeAsync.',
+        explanation: 'Finds upstream callers within 4 hops that reach PaymentProcessor.ChargeAsync.',
         timing: '4 rows in 3.8 ms',
         headers: ['UpstreamCaller', 'Hops'],
         rows: [
@@ -98,31 +98,34 @@ export function initHomeController(): () => void {
       },
       cqrs_pipeline: {
         tag: 'cqrs_pipeline.cypher',
-        raw: 'MATCH (ep:Endpoint)-[:CALLS*1..2]->(cmd:Class)-[:HANDLED_BY]->(h:Class)-[:WRITES_TO]->(t:SqlTable) RETURN ep.route AS Route, cmd.name AS Command, h.name AS Handler, t.name AS Table',
-        codeHtml: `<span class="syn-kw">MATCH</span> (ep:Endpoint)-[:CALLS*<span class="syn-num">1..2</span>]-&gt;(cmd:Class)-[:HANDLED_BY]-&gt;(h:Class)-[:WRITES_TO]-&gt;(t:SqlTable)
-<span class="syn-kw">RETURN</span> ep.route <span class="syn-kw">AS</span> Route,
+        raw: 'MATCH (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]->(:Function)-[:CALLS*1..3]->(h:Function)-[:HANDLES_COMMAND]->(cmd:Message), (h)-[:WRITES_TO]->(t:Table) RETURN ep.name AS Route, cmd.name AS Command, h.name AS Handler, t.name AS Table',
+        codeHtml: `<span class="syn-kw">MATCH</span> (ep:Endpoint)-[:EXPOSED_BY|TRIGGERS]-&gt;(:Function)-[:CALLS*<span class="syn-num">1..3</span>]-&gt;(h:Function)-[:HANDLES_COMMAND]-&gt;(cmd:Message),
+      (h)-[:WRITES_TO]-&gt;(t:Table)
+<span class="syn-kw">RETURN</span> ep.name <span class="syn-kw">AS</span> Route,
        cmd.name <span class="syn-kw">AS</span> Command,
        h.name <span class="syn-kw">AS</span> Handler,
        t.name <span class="syn-kw">AS</span> Table`,
-        explanation: 'Traces HTTP endpoints through MediatR/CQRS commands to handlers and mutated SQL tables.',
+        explanation: 'Traces HTTP endpoints through CQRS command contracts to handler functions and mutated SQL tables.',
         timing: '3 rows in 4.2 ms',
         headers: ['Route', 'Command', 'Handler', 'Table'],
         rows: [
-          ['POST /api/v1/orders', 'CreateOrderCommand', 'CreateOrderCommandHandler', 'orders.purchase_orders'],
-          ['POST /api/v1/refunds', 'IssueRefundCommand', 'IssueRefundCommandHandler', 'billing.ledger_entries'],
-          ['PUT /api/v1/inventory/reserve', 'ReserveStockCommand', 'ReserveStockHandler', 'warehouse.stock_reservations']
+          ['POST /api/v1/orders', 'CreateOrderCommand', 'CreateOrderCommandHandler.Handle', 'purchase_orders'],
+          ['POST /api/v1/refunds', 'IssueRefundCommand', 'IssueRefundCommandHandler.Handle', 'ledger_entries'],
+          ['PUT /api/v1/inventory/reserve', 'ReserveStockCommand', 'ReserveStockHandler.Handle', 'stock_reservations']
         ]
       },
       api_to_db: {
         tag: 'api_to_db.cypher',
-        raw: 'MATCH (s:Service)-[:CONTAINS*]->(m:Method)-[op:READS_FROM|WRITES_TO]->(tbl:SqlTable {name: "customer_ledgers"}) RETURN s.name AS Service, m.name AS Method, type(op) AS Operation',
-        codeHtml: `<span class="syn-kw">MATCH</span> (s:Service)-[:CONTAINS*]-&gt;(m:Method)-[op:READS_FROM|WRITES_TO]-&gt;(tbl:SqlTable {name: <span class="syn-str">"customer_ledgers"</span>})
+        raw: 'MATCH (s:Service)-[:IMPLEMENTED_BY]->(p:Project), (fn:Function)-[op:READS_FROM|WRITES_TO]->(tbl:Table {name: "customer_ledgers"}) WHERE fn.project_name = p.name RETURN s.name AS Service, fn.name AS Function, type(op) AS Operation',
+        codeHtml: `<span class="syn-kw">MATCH</span> (s:Service)-[:IMPLEMENTED_BY]-&gt;(p:Project),
+      (fn:Function)-[op:READS_FROM|WRITES_TO]-&gt;(tbl:Table {name: <span class="syn-str">"customer_ledgers"</span>})
+<span class="syn-kw">WHERE</span> fn.project_name = p.name
 <span class="syn-kw">RETURN</span> s.name <span class="syn-kw">AS</span> Service,
-       m.name <span class="syn-kw">AS</span> Method,
+       fn.name <span class="syn-kw">AS</span> Function,
        <span class="syn-fn">type</span>(op) <span class="syn-kw">AS</span> Operation`,
-        explanation: 'Discovers every microservice and repository method reading from or writing to a shared database table.',
+        explanation: 'Finds every service and function reading from or writing to a database table.',
         timing: '4 rows in 2.9 ms',
-        headers: ['Service', 'Method', 'Operation'],
+        headers: ['Service', 'Function', 'Operation'],
         rows: [
           ['Billing.Service', 'LedgerRepository.AppendEntryAsync', 'WRITES_TO'],
           ['Billing.Service', 'BalanceQueryService.GetBalanceAsync', 'READS_FROM'],
@@ -132,12 +135,12 @@ export function initHomeController(): () => void {
       },
       cyclic_deps: {
         tag: 'cyclic_deps.cypher',
-        raw: 'MATCH (a:Project)-[:DEPENDS_ON]->(b:Project)-[:DEPENDS_ON*1..3]->(a) WHERE a.name < b.name RETURN a.name AS ProjectA, b.name AS ProjectB',
+        raw: 'MATCH (a:Project)-[:DEPENDS_ON]->(b:Project)-[:DEPENDS_ON*1..3]->(a) WHERE a.name <> b.name RETURN DISTINCT a.name AS ProjectA, b.name AS ProjectB',
         codeHtml: `<span class="syn-kw">MATCH</span> (a:Project)-[:DEPENDS_ON]-&gt;(b:Project)-[:DEPENDS_ON*<span class="syn-num">1..3</span>]-&gt;(a)
-<span class="syn-kw">WHERE</span> a.name &lt; b.name
-<span class="syn-kw">RETURN</span> a.name <span class="syn-kw">AS</span> ProjectA,
-       b.name <span class="syn-kw">AS</span> ProjectB`,
-        explanation: 'Detects direct or multi-hop circular project dependencies across the solution.',
+<span class="syn-kw">WHERE</span> a.name &lt;&gt; b.name
+<span class="syn-kw">RETURN DISTINCT</span> a.name <span class="syn-kw">AS</span> ProjectA,
+                b.name <span class="syn-kw">AS</span> ProjectB`,
+        explanation: 'Finds direct or multi-hop circular project dependencies across the workspace.',
         timing: '2 rows in 1.9 ms',
         headers: ['ProjectA', 'ProjectB'],
         rows: [
@@ -182,7 +185,7 @@ export function initHomeController(): () => void {
     function copyCurrentQuery() {
       const preset = queryPresets[activeQueryKey];
       const cmd = `ce query '${preset.raw}'`;
-      copyText(cmd, 'Copied OpenCypher CLI command!');
+      copyText(cmd, 'Copied Cypher CLI command!');
     }
 
     // Semantic Invariant Gates (SIG) Presets
@@ -190,34 +193,34 @@ export function initHomeController(): () => void {
       boundaries: {
         file: '.codeexplorer/gates/domain-purity.yaml',
         dimension: 'Layer boundary',
-        description: 'Blocks any type inside a Domain module from depending on Infrastructure or EF Core types.',
+        description: 'Blocks any type inside a Domain module from referencing Infrastructure or EF Core types.',
         status: 'Exit 1 (2 violations)',
         statusOk: false,
-        rawYaml: `id: ARCH-001
+        rawYaml: `id: SIG-CA-B-001
 name: Domain Layer Must Not Reference Infrastructure
-severity: error
+severity: Error
 query: |
-  MATCH (d:Class)-[:DEPENDS_ON|CALLS]->(inf:Class)
-  WHERE d.namespace CONTAINS ".Domain"
-    AND (inf.namespace CONTAINS ".Infrastructure" OR inf.namespace CONTAINS "Microsoft.EntityFrameworkCore")
-  RETURN d.fullName AS Violator, inf.fullName AS ForbiddenTarget`,
-        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">ARCH-001</span>
+  MATCH (d:Type)-[:DEPENDS_ON|CALLS|USES_TYPE]->(inf:Type)
+  WHERE d.file_path CONTAINS "/Domain/"
+    AND (inf.file_path CONTAINS "/Infrastructure/" OR inf.name CONTAINS "DbContext")
+  RETURN d.file_path AS file, d.start_line AS line, d.name AS symbol, inf.name AS target`,
+        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-CA-B-001</span>
 <span class="syn-kw">name:</span> <span class="syn-str">Domain Layer Must Not Reference Infrastructure</span>
-<span class="syn-kw">severity:</span> <span class="syn-fn">error</span>
+<span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
 <span class="syn-kw">query:</span> |
-  <span class="syn-kw">MATCH</span> (d:Class)-[:DEPENDS_ON|CALLS]-&gt;(inf:Class)
-  <span class="syn-kw">WHERE</span> d.namespace <span class="syn-kw">CONTAINS</span> <span class="syn-str">".Domain"</span>
-    <span class="syn-kw">AND</span> (inf.namespace <span class="syn-kw">CONTAINS</span> <span class="syn-str">".Infrastructure"</span>
-      <span class="syn-kw">OR</span> inf.namespace <span class="syn-kw">CONTAINS</span> <span class="syn-str">"Microsoft.EntityFrameworkCore"</span>)
-  <span class="syn-kw">RETURN</span> d.fullName <span class="syn-kw">AS</span> Violator, inf.fullName <span class="syn-kw">AS</span> ForbiddenTarget`,
+  <span class="syn-kw">MATCH</span> (d:Type)-[:DEPENDS_ON|CALLS|USES_TYPE]-&gt;(inf:Type)
+  <span class="syn-kw">WHERE</span> d.file_path <span class="syn-kw">CONTAINS</span> <span class="syn-str">"/Domain/"</span>
+    <span class="syn-kw">AND</span> (inf.file_path <span class="syn-kw">CONTAINS</span> <span class="syn-str">"/Infrastructure/"</span>
+      <span class="syn-kw">OR</span> inf.name <span class="syn-kw">CONTAINS</span> <span class="syn-str">"DbContext"</span>)
+  <span class="syn-kw">RETURN</span> d.file_path <span class="syn-kw">AS</span> file, d.start_line <span class="syn-kw">AS</span> line, d.name <span class="syn-kw">AS</span> symbol, inf.name <span class="syn-kw">AS</span> target`,
         violations: [
           {
-            rule: 'ARCH-001 (error)',
+            rule: 'SIG-CA-B-001 (Error)',
             target: 'Orders.Domain.Aggregates.Order -> Orders.Infrastructure.Persistence.OrderDbContext',
             loc: 'src/Orders.Domain/Aggregates/Order.cs:84'
           },
           {
-            rule: 'ARCH-001 (error)',
+            rule: 'SIG-CA-B-001 (Error)',
             target: 'Billing.Domain.Services.InvoiceCalculator -> Billing.Infrastructure.Http.TaxRateClient',
             loc: 'src/Billing.Domain/Services/InvoiceCalculator.cs:41'
           }
@@ -226,28 +229,32 @@ query: |
       topology: {
         file: '.codeexplorer/gates/no-shared-database-writes.yaml',
         dimension: 'Table ownership',
-        description: 'Forbids two distinct microservices from writing to the same SQL table directly.',
+        description: 'Prevents two distinct services from writing directly to the same SQL table.',
         status: 'Exit 1 (1 violation)',
         statusOk: false,
-        rawYaml: `id: TOPO-004
-name: Single-Writer Microservice Table Ownership
-severity: error
+        rawYaml: `id: SIG-DDD-001
+name: No Shared Table Writes Across Services
+severity: Error
 query: |
-  MATCH (s1:Service)-[:CONTAINS*]->(:Method)-[:WRITES_TO]->(t:SqlTable)<-[:WRITES_TO]-(:Method)<-[:CONTAINS*]-(s2:Service)
-  WHERE s1.name < s2.name
-  RETURN t.name AS SharedTable, s1.name AS WriterA, s2.name AS WriterB`,
-        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">TOPO-004</span>
-<span class="syn-kw">name:</span> <span class="syn-str">Single-Writer Microservice Table Ownership</span>
-<span class="syn-kw">severity:</span> <span class="syn-fn">error</span>
+  MATCH (s1:Service)-[:IMPLEMENTED_BY]->(p1:Project),
+        (s2:Service)-[:IMPLEMENTED_BY]->(p2:Project),
+        (w1:Function)-[:WRITES_TO]->(t:Table)<-[:WRITES_TO]-(w2:Function)
+  WHERE s1.name <> s2.name AND w1.project_name = p1.name AND w2.project_name = p2.name
+  RETURN DISTINCT w1, t, s1, w2, s2`,
+        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-DDD-001</span>
+<span class="syn-kw">name:</span> <span class="syn-str">No Shared Table Writes Across Services</span>
+<span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
 <span class="syn-kw">query:</span> |
-  <span class="syn-kw">MATCH</span> (s1:Service)-[:CONTAINS*]-&gt;(:Method)-[:WRITES_TO]-&gt;(t:SqlTable)
-        &lt;-[:WRITES_TO]-(:Method)&lt;-[:CONTAINS*]-(s2:Service)
-  <span class="syn-kw">WHERE</span> s1.name &lt; s2.name
-  <span class="syn-kw">RETURN</span> t.name <span class="syn-kw">AS</span> SharedTable, s1.name <span class="syn-kw">AS</span> WriterA, s2.name <span class="syn-kw">AS</span> WriterB`,
+  <span class="syn-kw">MATCH</span> (s1:Service)-[:IMPLEMENTED_BY]-&gt;(p1:Project),
+        (s2:Service)-[:IMPLEMENTED_BY]-&gt;(p2:Project),
+        (w1:Function)-[:WRITES_TO]-&gt;(t:Table)&lt;-[:WRITES_TO]-(w2:Function)
+  <span class="syn-kw">WHERE</span> s1.name &lt;&gt; s2.name
+    <span class="syn-kw">AND</span> w1.project_name = p1.name <span class="syn-kw">AND</span> w2.project_name = p2.name
+  <span class="syn-kw">RETURN DISTINCT</span> w1, t, s1, w2, s2`,
         violations: [
           {
-            rule: 'TOPO-004 (error)',
-            target: 'Table "inventory.stock_items" written by both Checkout.Service and Warehouse.Service',
+            rule: 'SIG-DDD-001 (Error)',
+            target: 'Table "stock_items" written by both Checkout.Service and Warehouse.Service',
             loc: 'src/Checkout.Service/Repositories/StockWriter.cs:59'
           }
         ]
@@ -255,31 +262,31 @@ query: |
       visitor: {
         file: '.codeexplorer/gates/no-sync-over-async.yaml',
         dimension: 'Async safety',
-        description: 'Catches blocking .Result or .Wait() calls inside async methods that cause thread-pool starvation.',
+        description: 'Catches blocking .Result or .Wait() calls inside async functions that starve thread pools.',
         status: 'Exit 1 (2 violations)',
         statusOk: false,
-        rawYaml: `id: AST-012
-name: No Blocking .Result or .Wait() Inside Async Methods
-severity: error
+        rawYaml: `id: SIG-AST-012
+name: No Blocking .Result or .Wait() Inside Async Functions
+severity: Error
 query: |
-  MATCH (m:Method {isAsync: true})-[:CALLS]->(b:Method)
-  WHERE b.name IN ["get_Result", "Wait", "GetResult"]
-  RETURN m.fullName AS AsyncMethod, b.name AS BlockingCall, m.filePath AS File`,
-        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">AST-012</span>
-<span class="syn-kw">name:</span> <span class="syn-str">No Blocking .Result or .Wait() Inside Async Methods</span>
-<span class="syn-kw">severity:</span> <span class="syn-fn">error</span>
+  MATCH (fn:Function {is_async: true})-[:CALLS]->(b:Function)
+  WHERE b.name IN ["get_Result", "Wait", "GetResult"] AND NOT fn.is_test
+  RETURN fn.file_path AS file, fn.start_line AS line, fn.name AS symbol, b.name AS target`,
+        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-AST-012</span>
+<span class="syn-kw">name:</span> <span class="syn-str">No Blocking .Result or .Wait() Inside Async Functions</span>
+<span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
 <span class="syn-kw">query:</span> |
-  <span class="syn-kw">MATCH</span> (m:Method {isAsync: <span class="syn-num">true</span>})-[:CALLS]-&gt;(b:Method)
-  <span class="syn-kw">WHERE</span> b.name <span class="syn-kw">IN</span> [<span class="syn-str">"get_Result"</span>, <span class="syn-str">"Wait"</span>, <span class="syn-str">"GetResult"</span>]
-  <span class="syn-kw">RETURN</span> m.fullName <span class="syn-kw">AS</span> AsyncMethod, b.name <span class="syn-kw">AS</span> BlockingCall`,
+  <span class="syn-kw">MATCH</span> (fn:Function {is_async: <span class="syn-num">true</span>})-[:CALLS]-&gt;(b:Function)
+  <span class="syn-kw">WHERE</span> b.name <span class="syn-kw">IN</span> [<span class="syn-str">"get_Result"</span>, <span class="syn-str">"Wait"</span>, <span class="syn-str">"GetResult"</span>] <span class="syn-kw">AND NOT</span> fn.is_test
+  <span class="syn-kw">RETURN</span> fn.file_path <span class="syn-kw">AS</span> file, fn.start_line <span class="syn-kw">AS</span> line, fn.name <span class="syn-kw">AS</span> symbol, b.name <span class="syn-kw">AS</span> target`,
         violations: [
           {
-            rule: 'AST-012 (error)',
+            rule: 'SIG-AST-012 (Error)',
             target: 'Payments.Api.WebhookController.HandleStripeAsync calls Task.get_Result',
             loc: 'src/Payments.Api/Controllers/WebhookController.cs:112'
           },
           {
-            rule: 'AST-012 (error)',
+            rule: 'SIG-AST-012 (Error)',
             target: 'Notifications.Worker.EmailDispatcher.SendBatchAsync calls Task.Wait',
             loc: 'src/Notifications.Worker/EmailDispatcher.cs:67'
           }
@@ -288,61 +295,76 @@ query: |
       literal: {
         file: '.codeexplorer/gates/no-hardcoded-urls.yaml',
         dimension: 'Config hygiene',
-        description: 'Prevents AI agents from hardcoding internal service URLs or connection strings in production classes.',
+        description: 'Flags hardcoded internal service URLs or connection strings in non-test functions.',
         status: 'Exit 1 (1 violation)',
         statusOk: false,
-        rawYaml: `id: SEC-003
+        rawYaml: `id: SIG-SEC-003
 name: No Hardcoded Internal Service URLs Outside Config
-severity: error
+severity: Error
 query: |
-  MATCH (c:Class)-[:CONTAINS*]->(lit:Literal)
-  WHERE lit.value STARTS WITH "http://" AND NOT c.filePath CONTAINS "Tests"
-  RETURN c.fullName AS ClassName, lit.value AS HardcodedLiteral`,
-        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SEC-003</span>
+  MATCH (fn:Function)-[:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE lit.value STARTS WITH "http://" AND NOT fn.is_test
+  RETURN fn.file_path AS file, lit.line AS line, fn.name AS symbol, lit.value AS target`,
+        yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-SEC-003</span>
 <span class="syn-kw">name:</span> <span class="syn-str">No Hardcoded Internal Service URLs Outside Config</span>
-<span class="syn-kw">severity:</span> <span class="syn-fn">error</span>
+<span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
 <span class="syn-kw">query:</span> |
-  <span class="syn-kw">MATCH</span> (c:Class)-[:CONTAINS*]-&gt;(lit:Literal)
+  <span class="syn-kw">MATCH</span> (fn:Function)-[:PASSES_LITERAL]-&gt;(lit:CallLiteral)
   <span class="syn-kw">WHERE</span> lit.value <span class="syn-kw">STARTS WITH</span> <span class="syn-str">"http://"</span>
-    <span class="syn-kw">AND NOT</span> c.filePath <span class="syn-kw">CONTAINS</span> <span class="syn-str">"Tests"</span>
-  <span class="syn-kw">RETURN</span> c.fullName <span class="syn-kw">AS</span> ClassName, lit.value <span class="syn-kw">AS</span> HardcodedLiteral`,
+    <span class="syn-kw">AND NOT</span> fn.is_test
+  <span class="syn-kw">RETURN</span> fn.file_path <span class="syn-kw">AS</span> file, lit.line <span class="syn-kw">AS</span> line, fn.name <span class="syn-kw">AS</span> symbol, lit.value <span class="syn-kw">AS</span> target`,
         violations: [
           {
-            rule: 'SEC-003 (error)',
-            target: 'Shipping.Infrastructure.CarrierClient contains literal "http://carrier-internal.prod:8080/v2"',
+            rule: 'SIG-SEC-003 (Error)',
+            target: 'Shipping.Infrastructure.CarrierClient passes literal "http://carrier-internal.prod:8080/v2"',
             loc: 'src/Shipping.Infrastructure/Clients/CarrierClient.cs:29'
           }
         ]
       },
       ratchet: {
-        file: '.codeexplorer/gate-baseline.json',
+        file: '.codeexplorer/baselines/SIG-CA-B-001.json',
         dimension: 'Baseline ratchet',
-        description: 'Suppresses fingerprinted legacy debt while failing CI immediately on any net-new violation.',
-        status: 'Exit 0 (0 new, 3 baselined)',
+        description: 'Tolerates fingerprinted legacy violations while failing CI on any net-new violation.',
+        status: 'Exit 0 (0 new, 2 tolerated)',
         statusOk: true,
         rawYaml: `{
-  "schemaVersion": 1,
-  "ratchetMode": "strict",
-  "baselinedViolations": [
-    { "gateId": "ARCH-001", "fingerprint": "sha256:9f84c2e1a0b3", "owner": "legacy-orders" },
-    { "gateId": "TOPO-004", "fingerprint": "sha256:4d19b7c8e512", "owner": "legacy-warehouse" },
-    { "gateId": "AST-012",  "fingerprint": "sha256:7a31e0f4c920", "owner": "legacy-billing" }
+  "gateId": "SIG-CA-B-001",
+  "allowedViolations": 2,
+  "entries": [
+    {
+      "fingerprint": "a5d81e9467416901e0131d28a725dff8e4ce2c55ca78f70a27ecc0269eec5afb",
+      "file": "src/Orders.Domain/Aggregates/Order.cs",
+      "line": 84,
+      "symbol": "Order",
+      "target": "OrderDbContext"
+    },
+    {
+      "fingerprint": "15102b1a405cdd08a31e41205a2beabae835006a0a5eee9fd8be82de74409192",
+      "file": "src/Billing.Domain/Services/InvoiceCalculator.cs",
+      "line": 41,
+      "symbol": "InvoiceCalculator",
+      "target": "TaxRateClient"
+    }
   ]
 }`,
         yamlHtml: `{
-  <span class="syn-kw">"schemaVersion"</span>: <span class="syn-num">1</span>,
-  <span class="syn-kw">"ratchetMode"</span>: <span class="syn-str">"strict"</span>,
-  <span class="syn-kw">"baselinedViolations"</span>: [
-    { <span class="syn-kw">"gateId"</span>: <span class="syn-str">"ARCH-001"</span>, <span class="syn-kw">"fingerprint"</span>: <span class="syn-str">"sha256:9f84c2e1a0b3"</span> },
-    { <span class="syn-kw">"gateId"</span>: <span class="syn-str">"TOPO-004"</span>, <span class="syn-kw">"fingerprint"</span>: <span class="syn-str">"sha256:4d19b7c8e512"</span> },
-    { <span class="syn-kw">"gateId"</span>: <span class="syn-str">"AST-012"</span>,  <span class="syn-kw">"fingerprint"</span>: <span class="syn-str">"sha256:7a31e0f4c920"</span> }
+  <span class="syn-kw">"gateId"</span>: <span class="syn-str">"SIG-CA-B-001"</span>,
+  <span class="syn-kw">"allowedViolations"</span>: <span class="syn-num">2</span>,
+  <span class="syn-kw">"entries"</span>: [
+    {
+      <span class="syn-kw">"fingerprint"</span>: <span class="syn-str">"a5d81e9467416901..."</span>,
+      <span class="syn-kw">"file"</span>: <span class="syn-str">"src/Orders.Domain/Aggregates/Order.cs"</span>,
+      <span class="syn-kw">"line"</span>: <span class="syn-num">84</span>,
+      <span class="syn-kw">"symbol"</span>: <span class="syn-str">"Order"</span>,
+      <span class="syn-kw">"target"</span>: <span class="syn-str">"OrderDbContext"</span>
+    }
   ]
 }`,
         violations: [
           {
             rule: 'RATCHET PASS (0 net-new violations)',
-            target: '3 known legacy violations matched baseline fingerprints; 0 new violations introduced in PR.',
-            loc: '.codeexplorer/gate-baseline.json (verified in 6.4 ms)',
+            target: '2 existing legacy violations matched baseline fingerprints; 0 new violations introduced in PR.',
+            loc: '.codeexplorer/baselines/SIG-CA-B-001.json (verified in 6.4 ms)',
             ok: true
           }
         ]

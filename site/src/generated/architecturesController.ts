@@ -539,7 +539,9 @@ export function initArchitecturesController(): () => void {
         document.getElementById("bp-subtitle").textContent = pack.subtitle;
         document.getElementById("bp-note").innerHTML = "<strong>Architectural guard note:</strong> " + esc(pack.note);
         document.getElementById("pack-slug-badge").textContent = "pack: " + currentPack;
-        document.getElementById("cli-cmd").textContent = "ce gate install " + currentPack + " --stack " + currentStack;
+        document.getElementById("cli-cmd").textContent = currentStack === "agnostic"
+          ? "ce gate check --scan"
+          : "ce gate check -p " + currentStack + " --scan";
 
         var kvHtml = pack.kv.map(function (row) {
           return '<li class="kv-row"><span class="kv-label">' + esc(row[0]) + '</span><span class="kv-val">' + esc(row[1]) + '</span></li>';

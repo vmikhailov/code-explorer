@@ -152,7 +152,7 @@ ${inHtml}
 
                   <div class="ont-block">
                     <div class="ont-block-bar">
-                      <span class="ont-block-label">OpenCypher query</span>
+                      <span class="ont-block-label">Cypher query</span>
                       <button type="button" id="copy-cypher-btn" class="ont-copy-btn">Copy Query</button>
                     </div>
                     <pre id="insp-cypher" class="ont-cypher-box">${esc(node.sampleCypher)}</pre>
@@ -493,6 +493,14 @@ if (fs.existsSync(routesDataPath)) {
     const prefix = origRoutes.slice(0, idx + marker.length);
     const routesObj = JSON.parse(origRoutes.slice(idx + marker.length).replace(/;\s*$/, ''));
     if (routesObj['/ontology']) {
+      const totalProps = schema.nodes.reduce(
+        (acc, n) => acc + n.properties.filter((p) => !p.inheritedFrom).length,
+        0
+      );
+      routesObj['/ontology'].description =
+        `Interactive 5-layer ontology map of ${schema.nodes.length} entity kinds, ${totalProps} properties, and ${schema.relationships.length} typed relationships extracted by CodeExplorer across polyglot codebases.`;
+      routesObj['/ontology'].ogDescription =
+        `Explore all ${schema.nodes.length} entity kinds, ${totalProps} properties, and ${schema.relationships.length} typed relationships across 5 architectural layers, with live Cypher queries and URN schemes.`;
       routesObj['/ontology'].mainHtml = nextMainHtml;
     }
     nextRoutesContent = `${prefix}${JSON.stringify(routesObj, null, 2)};\n`;

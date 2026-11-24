@@ -1,20 +1,23 @@
 # CodeExplorer (ce)
 
-> Make AI coding agents production-safe. AI agents see files, not architecture. CodeExplorer gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI, powered by a 100% local SQLite OpenCypher graph.
+> Local code architecture graph, MCP server, and CI invariant gate runner backed by SQLite and Cypher. Maps APIs, message queues, caches, jobs, transactions, and SQL table lineage across polyglot repositories without Docker or external graph servers.
 
 ## Get started
 
-- Install (NuGet global tool): `dotnet tool install -g codeexplorer.cli`
 - Install (Homebrew): `brew install vmikhailov/tap/ce`
-- Index a repository: `ce scan --init`
+- Install (NuGet global tool): `dotnet tool install -g CodeExplorer.Cli`
+- Index a repository: `ce scan`
+- Build a task context pack: `ce context "<task>"`
 - Query the graph: `ce query "MATCH (p:Project) RETURN p.name"`
-- Run as an MCP server (stdio): `ce mcp` — see the [MCP server card](https://code-explorer.app/.well-known/mcp/server-card.json)
+- Check architectural gates: `ce gate check`
+- Run as an MCP server (stdio): `ce mcp` (see [MCP server card](https://code-explorer.app/.well-known/mcp/server-card.json))
 
 ## Docs
 
-- [Ontology (node and edge types)](https://github.com/vmikhailov/code-explorer/blob/main/docs/ontology.md)
-- [Sample projects](https://github.com/vmikhailov/code-explorer/blob/main/docs/sample-projects.md)
-- [README](https://github.com/vmikhailov/code-explorer#readme)
+- [Ontology reference](https://code-explorer.app/ontology)
+- [Architecture gate packs](https://code-explorer.app/architectures)
+- [Benchmarks](https://code-explorer.app/benchmarks)
+- [GitHub README](https://github.com/vmikhailov/code-explorer#readme)
 - [Releases](https://github.com/vmikhailov/code-explorer/releases)
 
 ## Distribution

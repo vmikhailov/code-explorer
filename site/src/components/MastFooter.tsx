@@ -18,7 +18,7 @@ export const MastFooter: React.FC<MastFooterProps> = ({
             <span>CodeExplorer</span>
           </a>
           <p className="panel-copy">
-            Live architecture maps in VS Code, graph memory for AI agents via MCP, and deterministic CI gates.
+            Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks.
           </p>
         </div>
 
