@@ -664,7 +664,7 @@ public partial class SqliteGraphClient
         {
             var containerKindsSql = GraphKindCodec.NodeKindsInSql(
                 NodeKind.File, NodeKind.Folder, NodeKind.Project,
-                NodeKind.Endpoint, NodeKind.EntryPoint, NodeKind.Message, NodeKind.Cache, NodeKind.Transaction, NodeKind.Policy, NodeKind.Job, NodeKind.ScanIssue, NodeKind.CatchClause);
+                NodeKind.Endpoint, NodeKind.EntryPoint, NodeKind.Message, NodeKind.Cache, NodeKind.Transaction, NodeKind.Policy, NodeKind.Job, NodeKind.ScanIssue, NodeKind.Scope);
             var relContainsId = GraphKindCodec.EncodeRelKind(RelationshipKind.Contains);
             await _conn.ExecuteAsync($"""
                 CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id INTEGER PRIMARY KEY, is_container INTEGER DEFAULT 0);
@@ -686,6 +686,8 @@ public partial class SqliteGraphClient
                        OR id LIKE @wsPrefix || 'symbol:' || @relPathColon
                        OR id LIKE @wsPrefix || 'lit:' || @relPathSlash
                        OR id LIKE @wsPrefix || 'lit:' || @relPathColon
+                       OR id LIKE @wsPrefix || 'scope:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'scope:' || @relPathColon
                        OR id LIKE @wsPrefix || 'catch:' || @relPathSlash
                        OR id LIKE @wsPrefix || 'catch:' || @relPathColon
                        OR id LIKE @wsPrefix || 'issue:' || @relPathSlash
@@ -708,6 +710,8 @@ public partial class SqliteGraphClient
                        OR id LIKE '%:symbol:' || @relPathColon
                        OR id LIKE '%:lit:' || @relPathSlash
                        OR id LIKE '%:lit:' || @relPathColon
+                       OR id LIKE '%:scope:' || @relPathSlash
+                       OR id LIKE '%:scope:' || @relPathColon
                        OR id LIKE '%:catch:' || @relPathSlash
                        OR id LIKE '%:catch:' || @relPathColon
                        OR id LIKE '%:issue:' || @relPathSlash

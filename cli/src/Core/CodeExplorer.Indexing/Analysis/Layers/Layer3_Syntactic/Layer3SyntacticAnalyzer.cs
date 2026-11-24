@@ -985,6 +985,16 @@ public partial class Layer3SyntacticParser
             relativePath,
             projectName);
 
+        Layer3ScopeTreeEnricher.EnrichFunctionsWithScopesAndComplexity(
+            doc,
+            fileNode,
+            functionsByLineAndName,
+            workspaceId,
+            relativePath,
+            isTest,
+            projectKind,
+            projectName);
+
         CallSiteReferenceEnricher.EnrichReferencesWithCallContextAndFlow(fileNode, doc);
     }
 }

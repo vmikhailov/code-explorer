@@ -57,7 +57,7 @@ internal static class PipelineMemoryEvictor
         if (parent.Children.Count == 0) return;
 
         parent.Children.RemoveAll(static c =>
-            c is MemberNode or CallLiteralNode or CatchClauseNode);
+            c is MemberNode or CallLiteralNode or ScopeNode);
 
         for (var i = 0; i < parent.Children.Count; i++)
         {

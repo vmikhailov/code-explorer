@@ -717,8 +717,8 @@ public class IncrementalIndexingTests
                 await indexer1.IndexAsync(tempDir, clear: false);
 
                 var res1 = await client1.ExecuteCypherAsync(
-                    "MATCH (c:CatchClause) RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
-                res1.Rows.Should().ContainSingle("Initial scan should index 1 CatchClause");
+                    "MATCH (c:Scope) WHERE c.kind = 'catch' RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
+                res1.Rows.Should().ContainSingle("Initial scan should index 1 Catch Scope");
                 res1.Rows[0]["is_empty"].AsBool().Should().BeTrue();
                 res1.Rows[0]["has_comment"].AsBool().Should().BeFalse();
             }
@@ -744,8 +744,8 @@ public class IncrementalIndexingTests
                 changed.Should().BeTrue("Editing a catch clause must trigger incremental re-index");
 
                 var res2 = await client2.ExecuteCypherAsync(
-                    "MATCH (c:CatchClause) RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
-                res2.Rows.Should().ContainSingle("Incremental re-index must purge stale CatchClause node");
+                    "MATCH (c:Scope) WHERE c.kind = 'catch' RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
+                res2.Rows.Should().ContainSingle("Incremental re-index must purge stale Catch Scope node");
                 res2.Rows[0]["is_empty"].AsBool().Should().BeTrue();
                 res2.Rows[0]["has_comment"].AsBool().Should().BeTrue("Updated has_comment must be reflected in graph");
             }
@@ -770,8 +770,8 @@ public class IncrementalIndexingTests
                 changed.Should().BeTrue("Adding a statement to a catch clause must trigger incremental re-index");
 
                 var res3 = await client3.ExecuteCypherAsync(
-                    "MATCH (c:CatchClause) RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
-                res3.Rows.Should().ContainSingle("Incremental re-index must not leave duplicate CatchClause nodes");
+                    "MATCH (c:Scope) WHERE c.kind = 'catch' RETURN c.id AS id, c.is_empty AS is_empty, c.has_comment AS has_comment, c.statement_count AS statement_count");
+                res3.Rows.Should().ContainSingle("Incremental re-index must not leave duplicate Catch Scope nodes");
                 res3.Rows[0]["is_empty"].AsBool().Should().BeFalse();
                 res3.Rows[0]["statement_count"].AsInt32().Should().BeGreaterThan(0);
             }

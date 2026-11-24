@@ -481,8 +481,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         var isEmpty = statementCount == 0;
         var currentScope = SymbolStack.Peek();
-        var catchSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.CatchClause, exType ?? "catch", node)
+        var catchSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.Scope, exType ?? "catch", node)
         {
+            ScopeKind = CodeExplorer.Cypher.Common.ScopeKind.Catch,
             RequestType = exType ?? "",
             IsEmptyCatch = isEmpty,
             HasCatchComment = hasComment,

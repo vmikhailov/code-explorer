@@ -381,6 +381,8 @@ public static class TaxonomyViewEnumExtensions
             return Unsafe.As<TEnum, GraphEdgeCategory>(ref value).ToCanonicalString();
         if (typeof(TEnum) == typeof(EvidenceKind))
             return Unsafe.As<TEnum, EvidenceKind>(ref value).ToCanonicalString();
+        if (typeof(TEnum) == typeof(ScopeKind))
+            return Unsafe.As<TEnum, ScopeKind>(ref value).ToCanonicalString();
         return value.ToString();
     }
 
@@ -393,6 +395,7 @@ public static class TaxonomyViewEnumExtensions
             DatabaseType dt => dt.ToCanonicalString(),
             MemberKind mk => mk.ToCanonicalString(),
             TypeKind tk => tk.ToCanonicalString(),
+            ScopeKind sk => sk.ToCanonicalString(),
             BrokerType bt => bt.ToCanonicalString(),
             EntryPointType ep => ep.ToCanonicalString(),
             DomainType dm => dm.ToCanonicalString(),
@@ -426,6 +429,7 @@ public static class TaxonomyViewEnumExtensions
         DatabaseType dt => dt.ToCanonicalString(),
         MemberKind mk => mk.ToCanonicalString(),
         TypeKind tk => tk.ToCanonicalString(),
+        ScopeKind sk => sk.ToCanonicalString(),
         BrokerType bt => bt.ToCanonicalString(),
         EntryPointType ept => ept.ToCanonicalString(),
         DomainType dom => dom.ToCanonicalString(),
@@ -480,6 +484,14 @@ public sealed class TypeKindJsonConverter : JsonConverter<TypeKind>
     public override TypeKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.String ? TaxonomyEnumExtensions.ParseTypeKind(reader.GetString()) : TypeKind.Class;
     public override void Write(Utf8JsonWriter writer, TypeKind value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToCanonicalString());
+}
+
+public sealed class ScopeKindJsonConverter : JsonConverter<ScopeKind>
+{
+    public override ScopeKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.String ? TaxonomyEnumExtensions.ParseScopeKind(reader.GetString()) : ScopeKind.Catch;
+    public override void Write(Utf8JsonWriter writer, ScopeKind value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToCanonicalString());
 }
 

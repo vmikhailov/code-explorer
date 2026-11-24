@@ -519,6 +519,7 @@ public partial class ArchitectureViewEngine
         }
         catch
         {
+            // ignored: best-effort ontology summary query when graph is empty
         }
 
         return list;
@@ -578,7 +579,10 @@ public partial class ArchitectureViewEngine
                 });
             }
         }
-        catch { }
+        catch
+        {
+            // ignored: best-effort endpoint capability query
+        }
 
         // 2. Downstream Services, Databases, Topics, and External Services from archGraph
         var projectNodes = archGraph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();

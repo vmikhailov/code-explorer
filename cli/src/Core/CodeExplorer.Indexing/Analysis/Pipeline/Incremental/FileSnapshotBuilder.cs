@@ -85,7 +85,7 @@ internal static class FileSnapshotBuilder
 
         return child is FunctionNode
             or TypeNode
-            or CatchClauseNode
+            or ScopeNode
             or MemberNode
             {
                 MemberKind: MemberKind.Field
@@ -105,7 +105,7 @@ internal static class FileSnapshotBuilder
             FunctionNode fn => (fn.Name, fn.StartLine, fn.EndLine, fn.StartCol, fn.EndCol),
             TypeNode tn => (tn.Name, tn.StartLine, tn.EndLine, tn.StartCol, tn.EndCol),
             MemberNode mn => (mn.Name, mn.StartLine, mn.EndLine, mn.StartCol, mn.EndCol),
-            CatchClauseNode cc => (cc.Name, cc.Line, cc.Line, cc.Column, cc.Column),
+            ScopeNode sn => (sn.Name, sn.Line, sn.EndLine, sn.Column, sn.Column),
             _ => (child.Id, 0, 0, 0, 0)
         };
 
@@ -126,8 +126,8 @@ internal static class FileSnapshotBuilder
             .Select(r => r.TargetName)
             .ToHashSet(StringComparer.Ordinal);
 
-        var sig = child is CatchClauseNode catchNode
-            ? $"{child.Kind.ToCypherLabel()}:{catchNode.ExceptionType}:{catchNode.IsEmpty}:{catchNode.HasComment}:{catchNode.StatementCount}"
+        var sig = child is ScopeNode scopeNode
+            ? $"{child.Kind.ToCypherLabel()}:{scopeNode.ScopeKind}:{scopeNode.TargetType}:{scopeNode.IsEmpty}:{scopeNode.HasComment}:{scopeNode.StatementCount}:{scopeNode.AwaitCount}:{scopeNode.LoopDepth}"
             : $"{child.Kind.ToCypherLabel()}:{name}";
         var sigHash = HashUtility.ComputeSha256(sig);
 

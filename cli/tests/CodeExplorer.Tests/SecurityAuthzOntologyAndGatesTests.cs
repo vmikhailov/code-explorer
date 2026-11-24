@@ -185,8 +185,8 @@ public class SecurityAuthzOntologyAndGatesTests
             // 6. Verify SIG-SEC-005 detects empty catch inside auth guard enforcing policy
             var sec005 = await db.QueryAsync<(string Pol, string Fn)>(
                 """
-                MATCH (pol:Policy)-[:ENFORCED_BY]->(fn:Function)-[:DECLARES]->(c:CatchClause)
-                WHERE c.is_empty = true AND NOT fn.is_test
+                MATCH (pol:Policy)-[:ENFORCED_BY]->(fn:Function)-[:DECLARES|CONTAINS*1..4]->(c:Scope)
+                WHERE coalesce(c.kind, 'catch') = 'catch' AND c.is_empty = true AND NOT fn.is_test
                 RETURN DISTINCT pol.name AS pol, fn.name AS fn
                 """);
             sec005.Should().Contain(r => r.Pol == "TenantOwnerGuard" && r.Fn.Contains("HandleRequirementAsync"));

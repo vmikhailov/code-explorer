@@ -109,6 +109,39 @@ public static class TaxonomyEnumExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string ToCanonicalString(this ScopeKind val) => val switch
+    {
+        ScopeKind.Try => "try",
+        ScopeKind.Catch => "catch",
+        ScopeKind.Finally => "finally",
+        ScopeKind.Loop => "loop",
+        ScopeKind.Branch => "branch",
+        ScopeKind.Resource => "resource",
+        ScopeKind.Lock => "lock",
+        ScopeKind.Unsafe => "unsafe",
+        ScopeKind.TaskSpawn => "task_spawn",
+        _ => "catch"
+    };
+
+    public static ScopeKind ParseScopeKind(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return ScopeKind.Catch;
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "try" => ScopeKind.Try,
+            "catch" or "except" or "catch_clause" or "catchclause" => ScopeKind.Catch,
+            "finally" => ScopeKind.Finally,
+            "loop" or "for" or "foreach" or "while" => ScopeKind.Loop,
+            "branch" or "if" or "switch" or "match" or "conditional" => ScopeKind.Branch,
+            "resource" or "using" or "defer" or "with" => ScopeKind.Resource,
+            "lock" or "synchronized" or "mutex" => ScopeKind.Lock,
+            "unsafe" => ScopeKind.Unsafe,
+            "task_spawn" or "taskspawn" or "goroutine" or "spawn" => ScopeKind.TaskSpawn,
+            _ => ScopeKind.Catch
+        };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string ToCanonicalString(this BrokerType val) => val switch
     {
         BrokerType.RabbitMq => "rabbitmq",

@@ -250,18 +250,20 @@ export class OrdersController {
                 ["end_line"] = 280,
                 ["is_test"] = true
             }),
-            new("ws:cc:ProjectA:BigComponent:42", "CatchClause", new Dictionary<string, object>
+            new("ws:cc:ProjectA:BigComponent:42", "Scope", new Dictionary<string, object>
             {
                 ["name"] = "catch",
+                ["kind"] = "catch",
                 ["file_path"] = "ProjectA/BigComponent.tsx",
                 ["line"] = 42,
                 ["is_empty"] = true,
                 ["is_test"] = false,
                 ["project_name"] = "ProjectA"
             }),
-            new("ws:cc:ProjectA:TestCatch:12", "CatchClause", new Dictionary<string, object>
+            new("ws:cc:ProjectA:TestCatch:12", "Scope", new Dictionary<string, object>
             {
                 ["name"] = "catch",
+                ["kind"] = "catch",
                 ["file_path"] = "ProjectA/BigComponent.test.tsx",
                 ["line"] = 12,
                 ["is_empty"] = true,

@@ -500,9 +500,9 @@ public partial class Layer3SyntacticParser
         {
             typedNode = CreateCallLiteralNode(name, node, relativePath, workspaceId, syntactic, symbolIsTest, projectKind, projectName);
         }
-        else if (kind == OntologyConstants.NodeLabels.CatchClause)
+        else if (kind == OntologyConstants.NodeLabels.Scope)
         {
-            typedNode = CreateCatchClauseNode(name, node, relativePath, workspaceId, syntactic, symbolIsTest, projectKind, projectName);
+            typedNode = CreateScopeNode(name, node, relativePath, workspaceId, syntactic, symbolIsTest, projectKind, projectName);
         }
         else
         {
@@ -602,7 +602,7 @@ public partial class Layer3SyntacticParser
         return new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator, nature);
     }
 
-    private static CatchClauseNode CreateCatchClauseNode(
+    private static ScopeNode CreateScopeNode(
         string name,
         SyntaxNode node,
         string relativePath,
@@ -612,15 +612,39 @@ public partial class Layer3SyntacticParser
         ProjectEntityKind? projectKind,
         string? projectName)
     {
-        var exType = syntactic.RequestType ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ExceptionType) ?? "";
+        var scopeKind = syntactic.ScopeKind ?? CodeExplorer.Cypher.Common.ScopeKind.Catch;
+        var targetType = syntactic.RequestType
+                         ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.TargetType)
+                         ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ExceptionType)
+                         ?? "";
         var isEmpty = syntactic.IsEmptyCatch || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.IsEmpty), out var ie) && ie);
         var hasComment = syntactic.HasCatchComment || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.HasComment), out var hc) && hc);
         var stmtCount = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.StatementCount), out var sc) ? sc : 0);
         var line = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Line), out var ln) ? ln : node.StartPosition.Row + 1;
+        var endLine = node.EndPosition.Row + 1;
         var col = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Column), out var cl) ? cl : node.StartPosition.Column + 1;
-        var catchId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CatchClause}:{relativePath}:{line}:{col}";
+        var kindSlug = CodeExplorer.Cypher.Common.TaxonomyEnumExtensions.ToCanonicalString(scopeKind);
+        var scopeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Scope}:{relativePath}:{kindSlug}:{line}:{col}";
 
-        return new CatchClauseNode(catchId, name, exType, relativePath, line, col, isEmpty, hasComment, stmtCount, symbolIsTest, projectKind, projectName);
+        return new ScopeNode(
+            scopeId,
+            name,
+            scopeKind,
+            targetType,
+            relativePath,
+            line,
+            col,
+            isEmpty,
+            hasComment,
+            stmtCount,
+            symbolIsTest,
+            projectKind,
+            projectName,
+            endLine,
+            Depth: 1,
+            LoopDepth: 0,
+            AwaitCount: 0,
+            BranchCount: scopeKind == CodeExplorer.Cypher.Common.ScopeKind.Catch ? 1 : 0);
     }
 
     public static bool IsRouteOrConfigCandidate(string path)

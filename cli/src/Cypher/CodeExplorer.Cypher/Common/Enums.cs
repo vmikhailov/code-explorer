@@ -48,7 +48,7 @@ public enum NodeKind : byte
     ProjectSemantic = 38,
     LogicalStructure = 39,
     CallLiteral = 40,
-    CatchClause = 41,
+    Scope = 41,
     Counter = 42,
     GitSettings = 43,
     Parameter = 44,
@@ -205,6 +205,8 @@ public static class OntologyEnumMaps
         nodeByName["parseissue"] = NodeKind.ScanIssue;
         nodeByName["call_argument"] = NodeKind.CallArgument;
         nodeByName["callargument"] = NodeKind.CallArgument;
+        nodeByName["catchclause"] = NodeKind.Scope;
+        nodeByName["catch_clause"] = NodeKind.Scope;
         nodeByName["db_schema"] = NodeKind.DbSchema;
         nodeByName["dbschema"] = NodeKind.DbSchema;
         nodeByName["database_schema"] = NodeKind.DbSchema;

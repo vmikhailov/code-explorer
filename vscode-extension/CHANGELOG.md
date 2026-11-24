@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.100.0] - 2026-11-24
+
+### Added
+- **Layer 3 Control & Resource `Scope` Ontology (`ScopeNode`, `ScopeKind`, `Layer3ScopeTreeEnricher`)**:
+  - **Replaced `CatchClause` with Generalized `Scope` Entity (`ScopeNode`, `ScopeKind`)**: Replaced the single-purpose `CatchClauseNode` in Layer 3 (`Syntax Structure`) with a strongly-typed `ScopeNode` (`{workspaceId}:scope:{filePath}:{kind}:{line}:{col}`) and `ScopeKind` enum (`try`, `catch`, `finally`, `loop`, `branch`, `resource`, `lock`, `unsafe`, `task_spawn`), preserving backward compatibility for `:CatchClause` queries via `OntologyEnumMaps`.
+  - **Hierarchical Scope Containment & Execution Cost Tracking (`Layer3ScopeTreeEnricher`)**: Builds nested `Function -[:DECLARES]-> Scope` and `Scope -[:CONTAINS]-> Scope` trees across control-flow and resource blocks (`try` / `catch` / `finally`, `for` / `foreach` / `while` / functional iteration loops, `if` / `switch` branches, `using` / `await using` / `defer` resources, `lock` / `synchronized` critical sections, and `goroutine` / `Task.Run` / `spawn` task spawns), tracking `depth`, `loop_depth`, `await_count`, `branch_count`, `target_type`, `is_async`, `is_empty`, `has_comment`, and `statement_count`.
+  - **Function-Level Complexity & Async-in-Loop Metrics (`FunctionNode`)**: Enriched `FunctionNode` with `cyclomatic_complexity`, depth-weighted `cognitive_complexity`, `max_nesting_depth`, `max_loop_depth`, and `loop_await_count`.
+  - **Scope Starter Gates (`StarterGateTemplates`)**: Added starter gates `SIG-SCOPE-001` (`scope-no-sequential-await-in-loop.yaml.example`), `SIG-SCOPE-002` (`scope-cognitive-complexity-ceiling.yaml.example`), and `SIG-SCOPE-003` (`scope-no-resource-or-await-inside-loop-or-lock.yaml.example`), and updated `SIG-M-I-005` (`No Empty Catch Blocks`), `SIG-SEC-005`, and `find_refactor_empty_catches.cypher` to query `Scope { kind: 'catch' }`.
+
+---
+
 ## [1.99.0] - 2026-11-24
 
 ### Added

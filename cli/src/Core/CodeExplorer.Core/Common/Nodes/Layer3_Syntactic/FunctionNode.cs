@@ -25,7 +25,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 [OntologyEdge<ParameterNode>(OntologyConstants.Relationships.HasParameter)]
 [OntologyEdge<CallArgumentNode>(OntologyConstants.Relationships.PassesArgument)]
 [OntologyEdge<CallLiteralNode>(OntologyConstants.Relationships.PassesLiteral)]
-[OntologyEdge<CatchClauseNode>(OntologyConstants.Relationships.Declares)]
+[OntologyEdge<ScopeNode>(OntologyConstants.Relationships.Declares)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Declares)]
 [OntologyEdge<MemberNode>(OntologyConstants.Relationships.Declares)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Declares)]
@@ -96,6 +96,21 @@ public record FunctionNode(
 
     [JsonPropertyName("attributes"), OntologyProperty("Comma-separated annotations, attributes, or decorators applied to this function.")]
     public string? Attributes { get; set; }
+
+    [JsonPropertyName("cyclomatic_complexity"), OntologyProperty("McCabe cyclomatic complexity of the function (1 + total decision points across nested scopes).")]
+    public int? CyclomaticComplexity { get; set; }
+
+    [JsonPropertyName("cognitive_complexity"), OntologyProperty("Depth-weighted cognitive complexity score across nested control-flow scopes.")]
+    public int? CognitiveComplexity { get; set; }
+
+    [JsonPropertyName("max_nesting_depth"), OntologyProperty("Maximum structural control-flow nesting depth inside the function.")]
+    public int? MaxNestingDepth { get; set; }
+
+    [JsonPropertyName("max_loop_depth"), OntologyProperty("Maximum loop nesting depth inside the function (0 = no loops, 1 = O(N), 2 = O(N^2)).")]
+    public int? MaxLoopDepth { get; set; }
+
+    [JsonPropertyName("loop_await_count"), OntologyProperty("Total number of await suspension points executed inside loop scopes of this function.")]
+    public int? LoopAwaitCount { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Function;

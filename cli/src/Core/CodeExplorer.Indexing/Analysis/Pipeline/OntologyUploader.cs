@@ -15,7 +15,7 @@ public static class OntologyUploader
     private const string SyntaxStructureMarker = ":syntax_structure";
     private const string SemanticStructureMarker = ":semantic_structure";
     private const string CallLiteralMarker = ":call_lit:";
-    private const string CatchClauseMarker = ":catch:";
+    private const string ScopeMarker = ":scope:";
     private const string ScanIssueMarker = ":scan_issue:";
     private const string MemberMarker = ":Member:";
 
@@ -103,8 +103,8 @@ public static class OntologyUploader
 
         if (rel.From.Contains(CallLiteralMarker, StringComparison.Ordinal) ||
             rel.To.Contains(CallLiteralMarker, StringComparison.Ordinal) ||
-            rel.From.Contains(CatchClauseMarker, StringComparison.Ordinal) ||
-            rel.To.Contains(CatchClauseMarker, StringComparison.Ordinal) ||
+            rel.From.Contains(ScopeMarker, StringComparison.Ordinal) ||
+            rel.To.Contains(ScopeMarker, StringComparison.Ordinal) ||
             rel.From.Contains(ScanIssueMarker, StringComparison.Ordinal) ||
             rel.To.Contains(ScanIssueMarker, StringComparison.Ordinal))
         {
@@ -305,8 +305,8 @@ public static class OntologyUploader
             }
         }
 
-        // Special: If CallLiteral, Parameter, CallArgument, CatchClause, or EntryPoint, link it to File via DECLARED_IN
-        if (node.Kind is NodeKind.CallLiteral or NodeKind.Parameter or NodeKind.CallArgument or NodeKind.CatchClause or NodeKind.EntryPoint or NodeKind.ScanIssue)
+        // Special: If CallLiteral, Parameter, CallArgument, Scope, or EntryPoint, link it to File via DECLARED_IN
+        if (node.Kind is NodeKind.CallLiteral or NodeKind.Parameter or NodeKind.CallArgument or NodeKind.Scope or NodeKind.EntryPoint or NodeKind.ScanIssue)
         {
             var filePath = node.Path;
             if (string.IsNullOrEmpty(filePath) && node is CallLiteralNode cln)
@@ -321,9 +321,9 @@ public static class OntologyUploader
             {
                 filePath = ca.FilePath;
             }
-            else if (string.IsNullOrEmpty(filePath) && node is CatchClauseNode ccn)
+            else if (string.IsNullOrEmpty(filePath) && node is ScopeNode sn)
             {
-                filePath = ccn.FilePath;
+                filePath = sn.FilePath;
             }
             if (!string.IsNullOrEmpty(filePath))
             {
@@ -589,11 +589,15 @@ public static class OntologyUploader
             return new PassesArgumentRelationship(parentId, child.Id);
         }
 
-        if (child.Kind == NodeKind.CatchClause)
+        if (child.Kind == NodeKind.Scope)
         {
             if (IsFileNodeId(parentId))
             {
                 return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (parentId.Contains(ScopeMarker, StringComparison.Ordinal))
+            {
+                return new ContainsRelationship(parentId, child.Id);
             }
             return new DeclaresRelationship(parentId, child.Id);
         }
@@ -660,7 +664,8 @@ public static class OntologyUploader
                lower.Contains(":lit:") ||
                lower.Contains($":{OntologyConstants.IdPrefixes.Parameter}:") ||
                lower.Contains($":{OntologyConstants.IdPrefixes.CallArgument}:") ||
-               lower.Contains($":{OntologyConstants.IdPrefixes.CatchClause}:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.Scope}:") ||
+               lower.Contains(":scope:") ||
                lower.Contains(":catch:");
     }
 
@@ -672,7 +677,7 @@ public static class OntologyUploader
                kind == NodeKind.CallLiteral ||
                kind == NodeKind.Parameter ||
                kind == NodeKind.CallArgument ||
-               kind == NodeKind.CatchClause;
+               kind == NodeKind.Scope;
     }
 
     private static bool IsProjectNodeId(string id)
@@ -699,7 +704,7 @@ public static class OntologyUploader
             var d = urn.Domain.ToLowerInvariant();
             return d is OntologyConstants.IdPrefixes.Symbol or "symbol"
                      or OntologyConstants.IdPrefixes.CallLiteral or "lit"
-                     or OntologyConstants.IdPrefixes.CatchClause or "catch"
+                     or OntologyConstants.IdPrefixes.Scope or "scope" or "catch"
                      || id.Contains(":function:") || id.Contains(":Function:");
         }
         return false;

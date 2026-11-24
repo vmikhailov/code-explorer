@@ -370,8 +370,8 @@ public static partial class BuiltInGateCatalog
             Target = "catch",
             Message = "Empty catch block without an explanatory comment suppresses errors silently",
             Query = """
-                MATCH (c:CatchClause)
-                WHERE c.is_empty = true AND c.has_comment = false AND NOT coalesce(c.is_test, false)
+                MATCH (c:Scope)
+                WHERE c.kind = 'catch' AND c.is_empty = true AND c.has_comment = false AND NOT coalesce(c.is_test, false)
                 RETURN c
                 """,
             Ratchet = new GateRatchetSettings

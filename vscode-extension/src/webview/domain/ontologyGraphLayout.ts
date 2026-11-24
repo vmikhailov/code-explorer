@@ -106,7 +106,7 @@ const NODE_STYLE_MAP: Record<string, OntologyGraphNodeStyle> = {
   Type: { fill: COLOR_SYNTAX, glyph: 'type', cluster: 4 },
   Function: { fill: COLOR_SYNTAX, glyph: 'function', cluster: 4 },
   Member: { fill: COLOR_SYNTAX, glyph: 'member', cluster: 4 },
-  CatchClause: { fill: COLOR_SYNTAX, glyph: 'catch', cluster: 4 },
+  Scope: { fill: COLOR_SYNTAX, glyph: 'catch', cluster: 4 },
 
   Parameter: { fill: COLOR_SLICING, glyph: 'param', cluster: 5 },
   CallArgument: { fill: COLOR_SLICING, glyph: 'arg', cluster: 5 },

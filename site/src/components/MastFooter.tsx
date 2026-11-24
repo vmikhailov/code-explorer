@@ -4,7 +4,7 @@ export interface MastFooterProps {
   versionLabel?: string;
 }
 
-const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v1.99.0';
+const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v1.100.0';
 
 export const MastFooter: React.FC<MastFooterProps> = ({
   versionLabel = DEFAULT_VERSION_LABEL,

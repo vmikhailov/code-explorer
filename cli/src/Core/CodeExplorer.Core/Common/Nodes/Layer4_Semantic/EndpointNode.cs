@@ -24,7 +24,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
 [OntologyEdge<CallLiteralNode>(OntologyConstants.Relationships.PassesLiteral)]
-[OntologyEdge<CatchClauseNode>(OntologyConstants.Relationships.Declares)]
+[OntologyEdge<ScopeNode>(OntologyConstants.Relationships.Declares)]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.AttributedTo)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.AttributedTo)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.AttributedTo)]

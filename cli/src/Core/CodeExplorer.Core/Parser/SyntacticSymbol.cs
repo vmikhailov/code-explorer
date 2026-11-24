@@ -39,6 +39,7 @@ public class SyntacticSymbol(SyntacticSymbolKind kind, string name, SyntaxNode n
     public int? StageOrder { get; set; }
     public TypeKind? TypeKind { get; set; }
     public MemberKind? MemberKind { get; set; }
+    public ScopeKind? ScopeKind { get; set; }
     public string? DataType { get; set; }
     public string? GraphqlField { get; set; }
     public string? GraphqlSchema { get; set; }

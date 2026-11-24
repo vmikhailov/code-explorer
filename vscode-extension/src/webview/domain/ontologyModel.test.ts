@@ -170,7 +170,7 @@ test('ontologyGraphLayout: formats compact counts and places non-overlapping cir
 
   // Verify Ontology v2.0 relationships and inheritance capsules
   assert.ok(edges.some((e) => e.fromKind === 'Function' && e.rel === 'PASSES_LITERAL' && e.toKind === 'CallLiteral'));
-  assert.ok(edges.some((e) => e.fromKind === 'Function' && e.rel === 'DECLARES' && e.toKind === 'CatchClause'));
+  assert.ok(edges.some((e) => e.fromKind === 'Function' && e.rel === 'DECLARES' && e.toKind === 'Scope'));
   assert.ok(edges.some((e) => e.fromKind === 'Project' && e.rel === 'USES_GIT' && e.toKind === 'GitSettings'));
   assert.ok(edges.some((e) => e.fromKind === 'TestSuite' && e.rel === 'TESTS' && e.toKind === 'Module'));
   assert.ok(edges.some((e) => e.fromKind === 'Database' && e.rel === 'CONTAINS' && e.toKind === 'DbSchema'));

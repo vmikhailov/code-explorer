@@ -514,8 +514,8 @@ internal static class StarterGateTemplates
             target: "{pol.name} -> {fn.name}"
             message: "Authorization guard '{fn.name}' enforcing policy '{pol.name}' contains an empty catch block at line {c.line}"
             query: |
-              MATCH (pol:Policy)-[:ENFORCED_BY]->(fn:Function)-[:DECLARES]->(c:CatchClause)
-              WHERE c.is_empty = true AND NOT fn.is_test
+              MATCH (pol:Policy)-[:ENFORCED_BY]->(fn:Function)-[:DECLARES|CONTAINS*1..4]->(c:Scope)
+              WHERE c.kind = 'catch' AND c.is_empty = true AND NOT fn.is_test
               RETURN DISTINCT fn, pol, c
             ratchet:
               enabled: true
@@ -603,6 +603,81 @@ internal static class StarterGateTemplates
             ratchet:
               enabled: true
               baseline: baselines/SIG-DDD-002.json
+            """),
+        ("scope-no-sequential-await-in-loop.yaml.example", """
+            # Starter Gate: Performance - No Sequential Await Inside Loops
+            # Detect functions that execute sequential await suspension points inside loop scopes (N+1 async waterfall).
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SCOPE-001
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Resources
+            name: Performance - No Sequential Await Inside Loops
+            severity: Warning
+            description: Sequential await expressions inside a loop execute I/O round-trips one-by-one (O(N) latency waterfall) instead of batching or running concurrently.
+            remediation: Batch the query/request outside the loop or schedule concurrent operations with bounded parallelism (e.g. Task.WhenAll / Promise.all / Parallel.ForEachAsync).
+            target: "loop@{s.line} (depth={s.loop_depth}, awaits={s.await_count})"
+            message: "Function '{fn.name}' executes {s.await_count} sequential await(s) inside a loop at line {s.line} (loop_depth={s.loop_depth}, total_loop_awaits={fn.loop_await_count})"
+            query: |
+              MATCH (fn:Function)-[:DECLARES|CONTAINS*1..6]->(s:Scope)
+              WHERE NOT coalesce(fn.is_test, false)
+                AND s.loop_depth > 0
+                AND s.await_count > 0
+              RETURN DISTINCT fn, s
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SCOPE-001.json
+            """),
+        ("scope-cognitive-complexity-ceiling.yaml.example", """
+            # Starter Gate: Maintainability - Function Cognitive & Cyclomatic Complexity Ceiling
+            # Prevent deeply nested control-flow pyramids (loops, branches, try/catch) from accumulating inside a single function.
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SCOPE-002
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Resources
+            name: Maintainability - Cognitive & Cyclomatic Complexity Ceiling
+            severity: Warning
+            description: Functions with high depth-weighted cognitive complexity (> 25) or cyclomatic complexity (> 15) are error-prone and difficult to reason about or test.
+            remediation: Extract nested loop/branch/try-catch scopes into focused helper methods or use early guard clauses to flatten nesting depth.
+            target: "cognitive={fn.cognitive_complexity}, cyclomatic={fn.cyclomatic_complexity}, depth={fn.max_nesting_depth}"
+            message: "Function '{fn.name}' exceeds complexity ceiling (cognitive={fn.cognitive_complexity}, cyclomatic={fn.cyclomatic_complexity}, max_depth={fn.max_nesting_depth})"
+            query: |
+              MATCH (fn:Function)
+              WHERE NOT coalesce(fn.is_test, false)
+                AND fn.name <> '<module_init>'
+                AND (coalesce(fn.cognitive_complexity, 0) > 25 OR coalesce(fn.cyclomatic_complexity, 0) > 15)
+              RETURN fn
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SCOPE-002.json
+            """),
+        ("scope-no-resource-or-await-inside-loop-or-lock.yaml.example", """
+            # Starter Gate: Reliability - No Deferred Resource Cleanup Inside Loops or Await Inside Locks
+            # Detect defer/using resource scopes allocated per loop iteration or async await inside lock scopes.
+            # Rename to .yaml to activate for your workspace.
+            id: SIG-SCOPE-003
+            category: Architectural
+            platform: agnostic
+            scope: Method
+            dimension: Resources
+            name: Reliability - No Resource Leak in Loop or Await in Lock
+            severity: Error
+            description: Allocating disposable/deferred resources inside a loop (especially Go defer) or awaiting inside a lock scope causes descriptor exhaustion, thread-pool starvation, or deadlocks.
+            remediation: Move resource acquisition outside the loop (or extract the loop body into a helper function for defer) and never await inside a lock block.
+            target: "{s.kind}@{s.line} ({s.target_type})"
+            message: "Function '{fn.name}' declares '{s.kind}' scope ({s.target_type}) at line {s.line} with loop_depth={s.loop_depth}, await_count={s.await_count}"
+            query: |
+              MATCH (fn:Function)-[:DECLARES|CONTAINS*1..6]->(s:Scope)
+              WHERE NOT coalesce(fn.is_test, false)
+                AND ((s.kind = 'resource' AND s.loop_depth > 0)
+                  OR (s.kind = 'lock' AND s.await_count > 0))
+              RETURN DISTINCT fn, s
+            ratchet:
+              enabled: true
+              baseline: baselines/SIG-SCOPE-003.json
             """)
     ];
 }

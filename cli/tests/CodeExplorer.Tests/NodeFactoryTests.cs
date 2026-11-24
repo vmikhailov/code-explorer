@@ -71,9 +71,11 @@ public class NodeFactoryTests
         createdBc.Kind.Should().Be(NodeKind.BoundedContext);
         createdBc.Properties["purity_percentage"].Should().Be(95.5);
 
-        var catchNode = new CatchClauseNode("catch:1", "catch", "ArgumentNullException", "src/user.cs", 30, 1, false, true, 2);
+        var catchNode = new ScopeNode("scope:1", "catch", "ArgumentNullException", "src/user.cs", 30, 1, false, true, 2);
         var createdCatch = NodeFactory.Create(catchNode);
-        createdCatch.Kind.Should().Be(NodeKind.CatchClause);
+        createdCatch.Kind.Should().Be(NodeKind.Scope);
+        createdCatch.Properties["kind"].Should().Be("catch");
+        createdCatch.Properties["target_type"].Should().Be("ArgumentNullException");
         createdCatch.Properties["exception_type"].Should().Be("ArgumentNullException");
         createdCatch.Properties["is_empty"].Should().Be(false);
         createdCatch.Properties["has_comment"].Should().Be(true);

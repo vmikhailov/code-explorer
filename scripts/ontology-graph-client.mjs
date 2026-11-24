@@ -103,7 +103,7 @@ function renderLayoutPart(safeJsonInline) {
         Type: { fill: PAL.syntax, glyph: "type", cluster: 4 },
         Function: { fill: PAL.syntax, glyph: "function", cluster: 4 },
         Member: { fill: PAL.syntax, glyph: "member", cluster: 4 },
-        CatchClause: { fill: PAL.syntax, glyph: "catch", cluster: 4 },
+        Scope: { fill: PAL.syntax, glyph: "catch", cluster: 4 },
         Parameter: { fill: PAL.slicing, glyph: "param", cluster: 5 },
         CallArgument: { fill: PAL.slicing, glyph: "arg", cluster: 5 },
         CallLiteral: { fill: PAL.slicing, glyph: "literal", cluster: 5 },

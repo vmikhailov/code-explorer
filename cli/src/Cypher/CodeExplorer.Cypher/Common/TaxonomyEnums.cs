@@ -325,13 +325,28 @@ public enum SyntacticSymbolKind : byte
     ExternalService = 33,
     CloudService = 34,
     CallLiteral = 35,
-    CatchClause = 36,
+    Scope = 36,
     Import = 37,
     Export = 38,
     Attribute = 39,
     Component = 40,
     Hook = 41,
     Unknown = 42
+}
+
+[JsonConverter(typeof(ScopeKindJsonConverter))]
+public enum ScopeKind : byte
+{
+    Unspecified = 0,
+    Try = 1,
+    Catch = 2,
+    Finally = 3,
+    Loop = 4,
+    Branch = 5,
+    Resource = 6,
+    Lock = 7,
+    Unsafe = 8,
+    TaskSpawn = 9
 }
 
 public enum BranchKind : byte

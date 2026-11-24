@@ -32,11 +32,11 @@ graph TD
     subgraph Layer3 ["Layer 3: Syntax Structure"]
         CallArgument["CallArgument"]
         CallLiteral["CallLiteral"]
-        CatchClause["CatchClause"]
         Function["Function"]
         Member["Member"]
         Parameter["Parameter"]
         ProjectSyntax["ProjectSyntax"]
+        Scope["Scope"]
         SyntaxStructure["SyntaxStructure"]
         Type["Type"]
     end
@@ -92,7 +92,6 @@ graph TD
     CallArgument -->|DECLARED_IN| File
     CallArgument -->|FLOWS_TO| Parameter
     CallLiteral -->|DECLARED_IN| File
-    CatchClause -->|DECLARED_IN| File
     Cloud -->|DECLARED_IN| File
     CloudResource -->|HOSTED_IN| Cloud
     CloudResource -->|DECLARED_IN| File
@@ -126,7 +125,7 @@ graph TD
     Endpoint -->|DECLARED_IN| Project
     Endpoint -->|CALLS| Function
     Endpoint -->|PASSES_LITERAL| CallLiteral
-    Endpoint -->|DECLARES| CatchClause
+    Endpoint -->|DECLARES| Scope
     Endpoint -->|ATTRIBUTED_TO| Query
     Endpoint -->|ATTRIBUTED_TO| Database
     Endpoint -->|ATTRIBUTED_TO| ExternalService
@@ -163,7 +162,7 @@ graph TD
     Function -->|HAS_PARAMETER| Parameter
     Function -->|PASSES_ARGUMENT| CallArgument
     Function -->|PASSES_LITERAL| CallLiteral
-    Function -->|DECLARES| CatchClause
+    Function -->|DECLARES| Scope
     Function -->|DECLARES| Function
     Function -->|DECLARES| Member
     Function -->|DECLARES| Type
@@ -222,6 +221,9 @@ graph TD
     Query -->|ACCESSED_BY| Type
     Query -->|TRANSITIVELY_CALLS| Function
     ScanIssue -->|DECLARED_IN| File
+    Scope -->|DECLARED_IN| File
+    Scope -->|CONTAINS| Scope
+    Scope -->|CALLS| Function
     SemanticStructure -->|CONTAINS| App
     SemanticStructure -->|CONTAINS| Service
     SemanticStructure -->|CONTAINS| Worker
@@ -361,7 +363,6 @@ graph TD
 | `Cache` | `DECLARED_IN` |
 | `CallArgument` | `DECLARED_IN` |
 | `CallLiteral` | `DECLARED_IN` |
-| `CatchClause` | `DECLARED_IN` |
 | `Cloud` | `DECLARED_IN` |
 | `CloudResource` | `DECLARED_IN` |
 | `CloudService` | `DECLARED_IN` |
@@ -382,6 +383,7 @@ graph TD
 | `Project` | `CONTAINS` |
 | `Query` | `DECLARED_IN` |
 | `ScanIssue` | `DECLARED_IN` |
+| `Scope` | `DECLARED_IN` |
 | `Topic` | `DECLARED_IN` |
 | `Transaction` | `DECLARED_IN` |
 | `Type` | `DECLARED_IN` |
@@ -769,40 +771,6 @@ graph TD
 
 ---
 
-#### `CatchClause`
-
-> Represents a catch or except block in structured exception handling.
-
-**Outbound edges:**
-
-| Relationship | To |
-| :--- | :--- |
-| `DECLARED_IN` | `File` |
-
-**Incoming edges** *(derived from other nodes' declarations)*:
-
-| From | Relationship |
-| :--- | :--- |
-| `Endpoint` | `DECLARES` |
-| `Function` | `DECLARES` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `Name` | `string` | The identifier or descriptor of the catch clause. |
-| `ExceptionType` | `string` | The declared exception type caught by this block, if specified. |
-| `FilePath` | `string` | The relative file path where the catch clause occurs. |
-| `Line` | `int` | The 1-indexed line number where the catch clause starts. |
-| `IsEmpty` | `bool` | Indicates whether the catch body contains no executable statements. |
-| `HasComment` | `bool` | Indicates whether an empty catch block contains an explanatory comment. |
-| `StatementCount` | `int` | The number of executable statements inside the catch body. |
-| `IsTest` | `bool` | Indicates whether the catch clause occurs within test code. |
-| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
-| `ProjectName` | `string?` | The name of the enclosing project. |
-
----
-
 #### `Function`
 
 > Represents a parsed method, function, subroutine, or procedure.
@@ -822,7 +790,7 @@ graph TD
 | `HAS_PARAMETER` | `Parameter` |
 | `PASSES_ARGUMENT` | `CallArgument` |
 | `PASSES_LITERAL` | `CallLiteral` |
-| `DECLARES` | `CatchClause` |
+| `DECLARES` | `Scope` |
 | `DECLARES` | `Function` |
 | `DECLARES` | `Member` |
 | `DECLARES` | `Type` |
@@ -852,6 +820,7 @@ graph TD
 | `ProjectSyntax` | `CONTAINS` |
 | `Query` | `ACCESSED_BY` |
 | `Query` | `TRANSITIVELY_CALLS` |
+| `Scope` | `CALLS` |
 | `Service` | `CALLED_BY` |
 | `Table` | `ACCESSED_BY` |
 | `Topic` | `PUBLISHED_BY` |
@@ -883,6 +852,11 @@ graph TD
 | `OperationType` | `string?` | Operation type for GraphQL or RPC operations. |
 | `GraphqlFields` | `string?` | Comma-separated GraphQL root selection fields. |
 | `Attributes` | `string?` | Comma-separated annotations, attributes, or decorators applied to this function. |
+| `CyclomaticComplexity` | `int?` | McCabe cyclomatic complexity of the function (1 + total decision points across nested scopes). |
+| `CognitiveComplexity` | `int?` | Depth-weighted cognitive complexity score across nested control-flow scopes. |
+| `MaxNestingDepth` | `int?` | Maximum structural control-flow nesting depth inside the function. |
+| `MaxLoopDepth` | `int?` | Maximum loop nesting depth inside the function (0 = no loops, 1 = O(N), 2 = O(N^2)). |
+| `LoopAwaitCount` | `int?` | Total number of await suspension points executed inside loop scopes of this function. |
 
 ---
 
@@ -986,6 +960,50 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `Scope`
+
+> Represents a lexical, control-flow, or resource-management scope block (try, catch, finally, loop, branch, resource/using/defer, lock, unsafe, task_spawn).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `CONTAINS` | `Scope` |
+| `CALLS` | `Function` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Endpoint` | `DECLARES` |
+| `Function` | `DECLARES` |
+| `Scope` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The identifier or descriptor of the scope. |
+| `ScopeKind` | `ScopeKind` | The strongly-typed kind of the scope (try, catch, finally, loop, branch, resource, lock, unsafe, task_spawn). |
+| `TargetType` | `string` | The declared exception type, resource type, or lock target associated with this scope, if specified. |
+| `FilePath` | `string` | The relative file path where the scope occurs. |
+| `Line` | `int` | The 1-indexed line number where the scope starts. |
+| `ExceptionType` | `string` | The declared exception type caught by a catch scope (alias of target_type). |
+| `Depth` | `int` | The 1-indexed structural nesting depth of the scope inside its enclosing function. |
+| `LoopDepth` | `int` | The nesting depth of enclosing loops at this scope (0 = outside loops, 1 = O(N), 2 = O(N^2)). |
+| `AwaitCount` | `int` | The number of await or asynchronous suspension points inside this scope. |
+| `BranchCount` | `int` | The number of branching predicates or decision points contributed by this scope. |
+| `IsAsync` | `bool` | Indicates whether the scope uses asynchronous iteration or disposal (e.g. await using, for await). |
+| `IsEmpty` | `bool` | Indicates whether the scope body contains no executable statements. |
+| `HasComment` | `bool` | Indicates whether an empty scope block contains an explanatory comment. |
+| `StatementCount` | `int` | The number of executable statements inside the scope body. |
+| `IsTest` | `bool` | Indicates whether the scope occurs within test code. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
 
 ---
 
@@ -1401,7 +1419,7 @@ graph TD
 | `DECLARED_IN` | `Project` |
 | `CALLS` | `Function` |
 | `PASSES_LITERAL` | `CallLiteral` |
-| `DECLARES` | `CatchClause` |
+| `DECLARES` | `Scope` |
 | `ATTRIBUTED_TO` | `Query` |
 | `ATTRIBUTED_TO` | `Database` |
 | `ATTRIBUTED_TO` | `ExternalService` |
@@ -2229,11 +2247,11 @@ graph TD
 | Layer 2: Project Structure | `ProjectsStructure` | `{workspaceId}:ps` |
 | Layer 3: Syntax Structure | `CallArgument` | `{workspaceId}:arg:{filePath}:{line}:{col}:{slot}` |
 | Layer 3: Syntax Structure | `CallLiteral` | `{workspaceId}:lit:{filePath}:{line}:{col}` |
-| Layer 3: Syntax Structure | `CatchClause` | `{workspaceId}:catch:{filePath}:{line}:{col}` |
 | Layer 3: Syntax Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntax Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
 | Layer 3: Syntax Structure | `Parameter` | `{workspaceId}:param:{functionSymbol}:{index}:{name}` |
 | Layer 3: Syntax Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |
+| Layer 3: Syntax Structure | `Scope` | `{workspaceId}:scope:{filePath}:{kind}:{line}:{col}` |
 | Layer 3: Syntax Structure | `SyntaxStructure` | `{workspaceId}:ss` |
 | Layer 3: Syntax Structure | `Type` | `{workspaceId}:sym:{filePath}:Type:{name}:{line}` |
 | Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:p:{relativeProjectDir}:api:{apiName}` |

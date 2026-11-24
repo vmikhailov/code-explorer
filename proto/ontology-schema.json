@@ -1860,7 +1860,7 @@
         },
         {
           "rel": "DECLARES",
-          "toKind": "CatchClause",
+          "toKind": "Scope",
           "category": "structural",
           "description": "Indicates that a container entity declares a sub-entity."
         }
@@ -3997,6 +3997,36 @@
           "sourceName": "Attributes",
           "type": "string",
           "description": "Comma-separated annotations, attributes, or decorators applied to this function."
+        },
+        {
+          "name": "cyclomatic_complexity",
+          "sourceName": "CyclomaticComplexity",
+          "type": "integer",
+          "description": "McCabe cyclomatic complexity of the function (1 + total decision points across nested scopes)."
+        },
+        {
+          "name": "cognitive_complexity",
+          "sourceName": "CognitiveComplexity",
+          "type": "integer",
+          "description": "Depth-weighted cognitive complexity score across nested control-flow scopes."
+        },
+        {
+          "name": "max_nesting_depth",
+          "sourceName": "MaxNestingDepth",
+          "type": "integer",
+          "description": "Maximum structural control-flow nesting depth inside the function."
+        },
+        {
+          "name": "max_loop_depth",
+          "sourceName": "MaxLoopDepth",
+          "type": "integer",
+          "description": "Maximum loop nesting depth inside the function (0 = no loops, 1 = O(N), 2 = O(N^2))."
+        },
+        {
+          "name": "loop_await_count",
+          "sourceName": "LoopAwaitCount",
+          "type": "integer",
+          "description": "Total number of await suspension points executed inside loop scopes of this function."
         }
       ],
       "outEdges": [
@@ -4110,12 +4140,6 @@
         },
         {
           "rel": "DECLARES",
-          "toKind": "CatchClause",
-          "category": "structural",
-          "description": "Indicates that a container entity declares a sub-entity."
-        },
-        {
-          "rel": "DECLARES",
           "toKind": "Function",
           "category": "structural",
           "description": "Indicates that a container entity declares a sub-entity."
@@ -4123,6 +4147,12 @@
         {
           "rel": "DECLARES",
           "toKind": "Member",
+          "category": "structural",
+          "description": "Indicates that a container entity declares a sub-entity."
+        },
+        {
+          "rel": "DECLARES",
+          "toKind": "Scope",
           "category": "structural",
           "description": "Indicates that a container entity declares a sub-entity."
         },
@@ -4155,6 +4185,12 @@
         {
           "rel": "CALLS",
           "fromKind": "Function",
+          "category": "control_flow",
+          "description": "Links a calling function to the function it directly invokes."
+        },
+        {
+          "rel": "CALLS",
+          "fromKind": "Scope",
           "category": "control_flow",
           "description": "Links a calling function to the function it directly invokes."
         },
@@ -4818,62 +4854,104 @@
       "sampleCypher": "MATCH (n:CallLiteral)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.value, n.callee, t.name\nLIMIT 25"
     },
     {
-      "kind": "CatchClause",
-      "pluralLabel": "Catch Clauses",
+      "kind": "Scope",
+      "pluralLabel": "Control & Resource Scopes",
       "layerId": 3,
       "layerKey": "L3_syntactic",
       "icon": "shield-alert",
       "order": 41,
-      "idScheme": "{workspaceId}:catch:{filePath}:{line}:{col}",
-      "purpose": "Represents a catch or except block in structured exception handling.",
+      "idScheme": "{workspaceId}:scope:{filePath}:{kind}:{line}:{col}",
+      "purpose": "Represents a lexical, control-flow, or resource-management scope block (try, catch, finally, loop, branch, resource/using/defer, lock, unsafe, task_spawn).",
       "properties": [
         {
           "name": "name",
           "sourceName": "Name",
           "type": "string",
-          "description": "The identifier or descriptor of the catch clause."
+          "description": "The identifier or descriptor of the scope."
         },
         {
-          "name": "exception_type",
-          "sourceName": "ExceptionType",
+          "name": "kind",
+          "sourceName": "ScopeKind",
+          "type": "enum (ScopeKind)",
+          "description": "The strongly-typed kind of the scope (try, catch, finally, loop, branch, resource, lock, unsafe, task_spawn)."
+        },
+        {
+          "name": "target_type",
+          "sourceName": "TargetType",
           "type": "string",
-          "description": "The declared exception type caught by this block, if specified."
+          "description": "The declared exception type, resource type, or lock target associated with this scope, if specified."
         },
         {
           "name": "file_path",
           "sourceName": "FilePath",
           "type": "string",
-          "description": "The relative file path where the catch clause occurs."
+          "description": "The relative file path where the scope occurs."
         },
         {
           "name": "line",
           "sourceName": "Line",
           "type": "integer",
-          "description": "The 1-indexed line number where the catch clause starts."
+          "description": "The 1-indexed line number where the scope starts."
+        },
+        {
+          "name": "exception_type",
+          "sourceName": "ExceptionType",
+          "type": "string",
+          "description": "The declared exception type caught by a catch scope (alias of target_type)."
+        },
+        {
+          "name": "depth",
+          "sourceName": "Depth",
+          "type": "integer",
+          "description": "The 1-indexed structural nesting depth of the scope inside its enclosing function."
+        },
+        {
+          "name": "loop_depth",
+          "sourceName": "LoopDepth",
+          "type": "integer",
+          "description": "The nesting depth of enclosing loops at this scope (0 = outside loops, 1 = O(N), 2 = O(N^2))."
+        },
+        {
+          "name": "await_count",
+          "sourceName": "AwaitCount",
+          "type": "integer",
+          "description": "The number of await or asynchronous suspension points inside this scope."
+        },
+        {
+          "name": "branch_count",
+          "sourceName": "BranchCount",
+          "type": "integer",
+          "description": "The number of branching predicates or decision points contributed by this scope."
+        },
+        {
+          "name": "is_async",
+          "sourceName": "IsAsync",
+          "type": "boolean",
+          "description": "Indicates whether the scope uses asynchronous iteration or disposal (e.g. await using, for await)."
         },
         {
           "name": "is_empty",
           "sourceName": "IsEmpty",
           "type": "boolean",
-          "description": "Indicates whether the catch body contains no executable statements."
+          "description": "Indicates whether the scope body contains no executable statements."
         },
         {
           "name": "has_comment",
           "sourceName": "HasComment",
           "type": "boolean",
-          "description": "Indicates whether an empty catch block contains an explanatory comment."
+          "description": "Indicates whether an empty scope block contains an explanatory comment."
         },
         {
           "name": "statement_count",
           "sourceName": "StatementCount",
           "type": "integer",
-          "description": "The number of executable statements inside the catch body."
+          "description": "The number of executable statements inside the scope body."
         },
         {
           "name": "is_test",
           "sourceName": "IsTest",
           "type": "boolean",
-          "description": "Indicates whether the catch clause occurs within test code."
+          "description": "Indicates whether the scope occurs within test code."
         },
         {
           "name": "project_kind",
@@ -4890,6 +4968,18 @@
       ],
       "outEdges": [
         {
+          "rel": "CALLS",
+          "toKind": "Function",
+          "category": "control_flow",
+          "description": "Links a calling function to the function it directly invokes."
+        },
+        {
+          "rel": "CONTAINS",
+          "toKind": "Scope",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
+        {
           "rel": "DECLARED_IN",
           "toKind": "File",
           "category": "structural",
@@ -4897,6 +4987,12 @@
         }
       ],
       "inEdges": [
+        {
+          "rel": "CONTAINS",
+          "fromKind": "Scope",
+          "category": "structural",
+          "description": "Represents directory structure containment or syntactic scoping of elements."
+        },
         {
           "rel": "DECLARES",
           "fromKind": "Endpoint",
@@ -4910,7 +5006,7 @@
           "description": "Indicates that a container entity declares a sub-entity."
         }
       ],
-      "sampleCypher": "MATCH (n:CatchClause)-[:DECLARED_IN]->(t:File)\nRETURN n.name, n.exception_type, n.file_path, t.name\nLIMIT 25"
+      "sampleCypher": "MATCH (n:Scope)-[:CALLS]->(t:Function)\nRETURN n.name, n.kind, n.target_type, t.name\nLIMIT 25"
     },
     {
       "kind": "Project",
@@ -5464,12 +5560,6 @@
         },
         {
           "rel": "DECLARED_IN",
-          "fromKind": "CatchClause",
-          "category": "structural",
-          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
-        },
-        {
-          "rel": "DECLARED_IN",
           "fromKind": "Cloud",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
@@ -5549,6 +5639,12 @@
         {
           "rel": "DECLARED_IN",
           "fromKind": "Query",
+          "category": "structural",
+          "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
+        },
+        {
+          "rel": "DECLARED_IN",
+          "fromKind": "Scope",
           "category": "structural",
           "description": "Links a syntactic type, function, or member declaration to its physical declaring source file."
         },
@@ -5795,6 +5891,10 @@
         {
           "fromKind": "Procedure",
           "toKind": "Procedure"
+        },
+        {
+          "fromKind": "Scope",
+          "toKind": "Function"
         },
         {
           "fromKind": "Type",
@@ -7115,6 +7215,10 @@
         {
           "fromKind": "Project",
           "toKind": "Project"
+        },
+        {
+          "fromKind": "Scope",
+          "toKind": "Scope"
         }
       ]
     },
@@ -7140,10 +7244,6 @@
         },
         {
           "fromKind": "CallLiteral",
-          "toKind": "File"
-        },
-        {
-          "fromKind": "CatchClause",
           "toKind": "File"
         },
         {
@@ -7211,6 +7311,10 @@
           "toKind": "File"
         },
         {
+          "fromKind": "Scope",
+          "toKind": "File"
+        },
+        {
           "fromKind": "Topic",
           "toKind": "File"
         },
@@ -7238,11 +7342,7 @@
       "pairs": [
         {
           "fromKind": "Endpoint",
-          "toKind": "CatchClause"
-        },
-        {
-          "fromKind": "Function",
-          "toKind": "CatchClause"
+          "toKind": "Scope"
         },
         {
           "fromKind": "Function",
@@ -7251,6 +7351,10 @@
         {
           "fromKind": "Function",
           "toKind": "Member"
+        },
+        {
+          "fromKind": "Function",
+          "toKind": "Scope"
         },
         {
           "fromKind": "Function",

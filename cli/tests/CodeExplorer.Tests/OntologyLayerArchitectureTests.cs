@@ -64,7 +64,7 @@ public class OntologyLayerArchitectureTests
         var prohibitedTokens = new[]
         {
             "ProjectNode", "PackageNode", "ProjectsStructureNode", "EntryPointNode",
-            "TypeNode", "FunctionNode", "MemberNode", "ParameterNode", "CallArgumentNode", "CallLiteralNode", "CatchClauseNode", "ProjectSyntaxNode",
+            "TypeNode", "FunctionNode", "MemberNode", "ParameterNode", "CallArgumentNode", "CallLiteralNode", "ScopeNode", "ProjectSyntaxNode",
             "ServiceNode", "AppNode", "WorkerNode", "LibraryNode", "CliToolNode",
             "EndpointNode", "DatabaseNode", "TableNode", "TopicNode", "ExternalServiceNode"
         };
@@ -113,7 +113,7 @@ public class OntologyLayerArchitectureTests
 
         var prohibitedTokens = new[]
         {
-            "TypeNode", "FunctionNode", "MemberNode", "ParameterNode", "CallArgumentNode", "CallLiteralNode", "CatchClauseNode", "ProjectSyntaxNode",
+            "TypeNode", "FunctionNode", "MemberNode", "ParameterNode", "CallArgumentNode", "CallLiteralNode", "ScopeNode", "ProjectSyntaxNode",
             "ServiceNode", "AppNode", "WorkerNode", "LibraryNode", "CliToolNode",
             "EndpointNode", "DatabaseNode", "TableNode", "TopicNode", "ExternalServiceNode"
         };

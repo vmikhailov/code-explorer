@@ -222,7 +222,7 @@ public static class OntologyNodeExtensions
         Layer3_Syntactic.CallLiteralNode cl => cl.Name,
         Layer3_Syntactic.ParameterNode prm => prm.Name,
         Layer3_Syntactic.CallArgumentNode ca => ca.Name,
-        Layer3_Syntactic.CatchClauseNode cc => cc.Name,
+        Layer3_Syntactic.ScopeNode sc => sc.Name,
         WorkspaceNode ws => ws.Name,
         _ => node.Id.Contains(':') ? node.Id[(node.Id.LastIndexOf(':') + 1)..] : node.Id
     };
