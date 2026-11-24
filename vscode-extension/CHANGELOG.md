@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.99.0] - 2026-11-24
+
+### Added
+- **Compiled Reverse Call-Chain Trie & `Superpower` Island-Grammar Call-Chain Combinators (`CodeExplorer.Core`, `CompiledCallChainTrie`, `DeclarativeCallChainCombinators`, `CompiledDeclarativeRuleIndex`)**:
+  - **Project-Compiled Call-Chain Reverse Trie (`CompiledCallChainTrie`)**: Compiles all declarative library rules (`InboundRouteCallRules`, `DataStoreAccessRules`, `MessagingBrokerRules`, `ServiceCallSinkRules`, `SqlSinkRules`, `OutboundHttpRules`) of a single extension or project-fused library bundle into a zero-allocation reverse call-chain tree automaton (`FrozenDictionary<string, TrieTerminalAction[]>.AlternateLookup<ReadOnlySpan<char>>` root terminals + `ulong` bitmask selector transitions).
+  - **Multi-Hop Fluent, Variable-Split & Nested Callback Chain Resolution**: Evaluates arbitrary-depth fluent database/ORM chains (`db.table("orders").where(...).andWhere(...).update(...)`), variable-split query/collection handles (`const q = db.table("invoices").where(...); await q.delete()` via `SyntaxDocument.AllVariables`), chained and nested callback HTTP route groups (`router.group("/api/v1").group("/orders").post("/cancel")`, `app.route("/api/v3", r => r.group("/users", u => u.delete("/purge")))`), fluent outbound HTTP client builders (`webClient.post().uri("...").header(...).retrieve()`), and nested messaging builders (`pulsar.newMessage().topic("...").sendAsync()`, `sns.publish(PublishRequest.builder().topicArn("...").build())`) in a single `O(L)` inward pass from the outermost call node.
+  - **Precise `READS_FROM` vs `WRITES_TO` Differentiation & Target Extraction**: Extended `DataStoreAccessRule`, `InboundRouteCallRule`, `OutboundHttpRule`, and `MessagingBrokerRule` with `TargetSelectorMethods`, `ReadMethodNames`, `WriteMethodNames`, `GroupMethodNames`, `ResolveFluentChains`, and `ResolveChainedRouteGroups`, plus generic type argument (`session.Query<Customer>()` -> `Customer`) and class literal (`mongo.find(q, Invoice.class)` -> `Invoice`) entity extraction.
+  - **`Superpower` Island-Grammar Combinator Engine (`DeclarativeCallChainCombinators`, `DeclarativeCallChainAstHelper`)**: Added zero-allocation `TokenListParser<CallChainTokenKind, T>` island-grammar combinators with thread-static step and token array pooling and `SyntaxStringPool.Intern` string deduplication.
+
+---
+
 ## [1.98.0] - 2026-11-23
 
 ### Added

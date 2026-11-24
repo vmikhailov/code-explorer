@@ -349,7 +349,8 @@ public partial class DeclarativeSemanticExtension
         if (rule.PublishReceiverSubstrings.Count > 0)
         {
             var objSpan = GetCallReceiverSpan(callNode);
-            if (!DeclarativeUniversalRuleEvaluator.SpanContainsAny(objSpan, rule.PublishReceiverSubstrings))
+            if (!DeclarativeUniversalRuleEvaluator.SpanContainsAny(objSpan, rule.PublishReceiverSubstrings) &&
+                (!rule.ResolveFluentChains || !DeclarativeCallChainCombinators.ChainMatchesReceiver(callNode, rule.PublishReceiverSubstrings)))
             {
                 return;
             }
@@ -369,14 +370,35 @@ public partial class DeclarativeSemanticExtension
             }
             else
             {
-                directTarget = CleanPublishTargetArg(callExpr.Arguments[0]);
+                Node firstArgNode = callExpr.Arguments[0];
+                if (firstArgNode is ArgumentSyntax { Value: { } v }) firstArgNode = v;
+                if (firstArgNode is IdentifierExprSyntax)
+                {
+                    directTarget = DeclarativeCallChainCombinators.TryExtractGenericTypeFromCall(callNode);
+                }
+                else if (rule.ResolveFluentChains && firstArgNode is CallExprSyntax && firstArgNode.Type != ObjectCreationExprKind)
+                {
+                    directTarget = DeclarativeCallChainCombinators.TryExtractMessagingTopicFromChainOrBuilder(callNode);
+                }
+                directTarget ??= CleanPublishTargetArg(callExpr.Arguments[0]);
             }
 
-            directTarget ??= rule.StaticPublishTopic;
+            directTarget ??= (rule.ResolveFluentChains ? DeclarativeCallChainCombinators.TryExtractMessagingTopicFromChainOrBuilder(callNode) : null)
+                             ?? DeclarativeCallChainCombinators.TryExtractGenericTypeFromCall(callNode)
+                             ?? rule.StaticPublishTopic;
             if (!string.IsNullOrEmpty(directTarget))
             {
                 references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, directTarget), OntologyConstants.Relationships.PublishesTo));
             }
+            return;
+        }
+
+        var chainedBuilderTopic = rule.ResolveFluentChains
+            ? DeclarativeCallChainCombinators.TryExtractMessagingTopicFromChainOrBuilder(callNode)
+            : null;
+        if (!string.IsNullOrEmpty(chainedBuilderTopic))
+        {
+            references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, chainedBuilderTopic), OntologyConstants.Relationships.PublishesTo));
             return;
         }
 
@@ -421,9 +443,10 @@ public partial class DeclarativeSemanticExtension
 
         if (argCount == 0)
         {
-            if (!string.IsNullOrEmpty(rule.StaticPublishTopic))
+            var genericTopic = DeclarativeCallChainCombinators.TryExtractGenericTypeFromCall(callNode) ?? rule.StaticPublishTopic;
+            if (!string.IsNullOrEmpty(genericTopic))
             {
-                references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, rule.StaticPublishTopic), OntologyConstants.Relationships.PublishesTo));
+                references.Add(new Reference(scopeSymbolId, DeclarativeUniversalRuleEvaluator.FormatBrokerTopic(rule.Protocol, genericTopic), OntologyConstants.Relationships.PublishesTo));
             }
             return;
         }
@@ -440,6 +463,15 @@ public partial class DeclarativeSemanticExtension
         else if (arg0 != null)
         {
             target = CleanPublishTargetArg(arg0);
+        }
+
+        if (string.IsNullOrEmpty(target) || (arg0 != null && target == arg0.Text))
+        {
+            var genericCandidate = DeclarativeCallChainCombinators.TryExtractGenericTypeFromCall(callNode);
+            if (!string.IsNullOrEmpty(genericCandidate))
+            {
+                target = genericCandidate;
+            }
         }
 
         target ??= rule.StaticPublishTopic;
@@ -667,20 +699,18 @@ public partial class DeclarativeSemanticExtension
 
     internal static Node? FindArgumentsNode(Node callNode)
     {
-        return callNode.GetField(SyntaxFields.Arguments)
-               ?? callNode.Children.FirstOrDefault(c => c is SyntaxList { Kind: SyntaxListKind.Arguments })
-               ?? callNode.FindChildOfType("argument_list")
-               ?? callNode.FindChildOfType("arguments")
-               ?? callNode.Children.FirstOrDefault(c => c.Type.Contains("argument", StringComparison.Ordinal));
+        for (var i = 0; i < callNode.Children.Count; i++)
+        {
+            if (callNode.Children[i] is SyntaxList { Kind: SyntaxListKind.Arguments } argSyntaxList)
+            {
+                return argSyntaxList;
+            }
+        }
+        return callNode.GetField(SyntaxFields.Arguments);
     }
 
-    internal static bool IsStringLiteral(Node node)
-    {
-        return node.IsValid() &&
-               (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
-                node.IsAny("string", "encapsed_string") ||
-                node.Type.Contains("string_literal", StringComparison.Ordinal));
-    }
+    internal static bool IsStringLiteral(Node node) =>
+        node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString };
 
     internal static List<Node> GetNodeAnnotations(Node declNode, FrozenSet<string> annotationNodeTypes)
     {
@@ -754,49 +784,8 @@ public partial class DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractHttpMethodFromAnnotation(Node annotNode)
-    {
-        foreach (var child in annotNode.Children)
-        {
-            if (child is SyntaxList { Kind: SyntaxListKind.Arguments } || child.Type is "annotation_argument_list" or "arguments")
-            {
-                foreach (var argChild in child.Children)
-                {
-                    if (argChild is KeyValueExprSyntax or ArgumentSyntax || argChild.Type is "element_value_pair" or "argument")
-                    {
-                        var key = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax) ?? argChild.GetField(SyntaxFields.Name);
-                        if (key.IsValid() && string.Equals(key.Text, "method", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var text = argChild.Text;
-                            if (text.Contains("GET", StringComparison.OrdinalIgnoreCase)) return "GET";
-                            if (text.Contains("POST", StringComparison.OrdinalIgnoreCase)) return "POST";
-                            if (text.Contains("PUT", StringComparison.OrdinalIgnoreCase)) return "PUT";
-                            if (text.Contains("DELETE", StringComparison.OrdinalIgnoreCase)) return "DELETE";
-                            if (text.Contains("PATCH", StringComparison.OrdinalIgnoreCase)) return "PATCH";
-                            if (text.Contains("HEAD", StringComparison.OrdinalIgnoreCase)) return "HEAD";
-                            if (text.Contains("OPTIONS", StringComparison.OrdinalIgnoreCase)) return "OPTIONS";
-                        }
-                    }
-                }
-            }
-            else if (child is KeyValueExprSyntax || child.Type == "element_value_pair")
-            {
-                var key = child.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
-                if (key.IsValid() && string.Equals(key.Text, "method", StringComparison.OrdinalIgnoreCase))
-                {
-                    var text = child.Text;
-                    if (text.Contains("GET", StringComparison.OrdinalIgnoreCase)) return "GET";
-                    if (text.Contains("POST", StringComparison.OrdinalIgnoreCase)) return "POST";
-                    if (text.Contains("PUT", StringComparison.OrdinalIgnoreCase)) return "PUT";
-                    if (text.Contains("DELETE", StringComparison.OrdinalIgnoreCase)) return "DELETE";
-                    if (text.Contains("PATCH", StringComparison.OrdinalIgnoreCase)) return "PATCH";
-                    if (text.Contains("HEAD", StringComparison.OrdinalIgnoreCase)) return "HEAD";
-                    if (text.Contains("OPTIONS", StringComparison.OrdinalIgnoreCase)) return "OPTIONS";
-                }
-            }
-        }
-        return null;
-    }
+    private static string? ExtractHttpMethodFromAnnotation(Node annotNode) =>
+        DeclarativeOutboundAndSecurityHelper.ExtractHttpMethodFromAnnotation(annotNode);
 
     private static void ExtractStringsFromSubtree(Node node, List<string> results)
     {
@@ -828,44 +817,11 @@ public partial class DeclarativeSemanticExtension
         }
     }
 
-    internal static string? FindEnclosingMethodName(Node annotNode)
-    {
-        var current = annotNode.Parent;
-        while (current.IsValid())
-        {
-            if (current is FunctionDeclSyntax fn)
-            {
-                if (!string.IsNullOrEmpty(fn.Name)) return fn.Name;
-                var nameField = current.GetField(SyntaxFields.Name);
-                if (nameField.IsValid()) return nameField.Text;
+    internal static string? FindEnclosingMethodName(Node annotNode) =>
+        DeclarativeOutboundAndSecurityHelper.FindEnclosingMethodName(annotNode);
 
-                foreach (var child in current.Children)
-                {
-                    if (child is IdentifierExprSyntax) return child.Text;
-                }
-            }
-            current = current.Parent;
-        }
-        return null;
-    }
-
-    internal static string? ExtractFirstParameterType(Node methodNode)
-    {
-        if (methodNode is FunctionDeclSyntax { Parameters.Count: > 0 } fn && fn.Parameters[0].ParameterType is { } pt)
-        {
-            return pt.Text;
-        }
-
-        var paramList = methodNode.GetField(SyntaxFields.Parameters)
-                        ?? methodNode.Children.FirstOrDefault(c => c.Type.Contains("parameters", StringComparison.Ordinal));
-        if (!paramList.IsValid()) return null;
-
-        var firstParam = paramList.Children.FirstOrDefault(c => c is ParameterDeclSyntax || c.Type.Contains("parameter", StringComparison.Ordinal));
-        if (!firstParam.IsValid()) return null;
-
-        var typeNode = firstParam.GetField(SyntaxFields.Type);
-        return typeNode.IsValid() ? typeNode.Text : null;
-    }
+    internal static string? ExtractFirstParameterType(Node methodNode) =>
+        DeclarativeOutboundAndSecurityHelper.ExtractFirstParameterType(methodNode);
 
     #endregion
 }

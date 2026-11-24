@@ -27,6 +27,7 @@ public sealed record OutboundHttpRule
     public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression", "invocation_expression", "call" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
     public string FallbackTarget { get; init; } = "http:unknown-service";
+    public bool ResolveFluentChains { get; init; } = true;
 }
 
 /// <summary>
@@ -79,6 +80,7 @@ public sealed record MessagingBrokerRule
     public FrozenSet<string> SubscribeMethodNames { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> SubscribeReceiverSubstrings { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> ConsumerInterfaceSubstrings { get; init; } = FrozenSet<string>.Empty;
+    public bool ResolveFluentChains { get; init; } = true;
 
     public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression", "invocation_expression", "call" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group", "decorator" }.ToFrozenSet();
@@ -93,6 +95,8 @@ public sealed record InboundRouteCallRule
     public required FrozenDictionary<string, string> MethodToHttpVerb { get; init; }
     public FrozenSet<string> ReceiverSubstrings { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> ExcludedReceivers { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> GroupMethodNames { get; init; } = FrozenSet<string>.Empty;
+    public bool ResolveChainedRouteGroups { get; init; } = true;
     public int PathArgumentIndex { get; init; }
     public string? StaticRoute { get; init; }
     public string RoutePrefix { get; init; } = "";
@@ -103,12 +107,17 @@ public sealed record InboundRouteCallRule
 }
 
 /// <summary>
-/// Declarative rule for mapping database, cache, state store, or vector store method calls (e.g., jOOQ, Redisson, Supabase, Qdrant, Cosmos DB) to USES_DB relationships.
+/// Declarative rule for mapping database, cache, state store, or vector store method calls (e.g., jOOQ, Redisson, Supabase, Qdrant, Cosmos DB) to USES_DB, READS_FROM, or WRITES_TO relationships.
 /// </summary>
 public sealed record DataStoreAccessRule
 {
     public required FrozenSet<string> CallMethodNames { get; init; }
     public FrozenSet<string> ReceiverSubstrings { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> TargetSelectorMethods { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> ReadMethodNames { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> WriteMethodNames { get; init; } = FrozenSet<string>.Empty;
+    public string DefaultTargetRelation { get; init; } = OntologyConstants.Relationships.UsesDb;
+    public bool ResolveFluentChains { get; init; } = true;
     public int TableArgumentIndex { get; init; }
     public string? StaticTargetName { get; init; }
     public bool ParseSqlFromTarget { get; init; }
@@ -672,78 +681,14 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
     }
 
-    private static string? ExtractBaseClassName(Node node)
-    {
-        var superclass = node.Children.FirstOrDefault(c => c is BaseTypeClauseSyntax { IsImplements: false });
-        if (superclass.IsValid())
-        {
-            var id = superclass.Children.FirstOrDefault(c => c is IdentifierExprSyntax or TypeRefSyntax);
-            if (id.IsValid()) return id.Text;
-            var text = superclass.Text.Replace("extends", "").Trim();
-            var angle = text.IndexOf('<');
-            if (angle > 0) text = text[..angle];
-            return text.Trim();
-        }
-        return null;
-    }
+    private static string? ExtractBaseClassName(Node node) =>
+        DeclarativeOutboundAndSecurityHelper.ExtractBaseClassName(node);
 
-    public static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames)
-    {
-        Node? ifaces = null;
-        for (var i = 0; i < node.Children.Count; i++)
-        {
-            var c = node.Children[i];
-            if (c is BaseTypeClauseSyntax { IsImplements: true } || c.Type == "base_list")
-            {
-                ifaces = c;
-                break;
-            }
-        }
+    public static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames) =>
+        DeclarativeOutboundAndSecurityHelper.ExtractGenericTypeFromInterfaces(node, repositoryInterfaceNames);
 
-        var span = ifaces != null && ifaces.IsValid() ? ifaces.AsSpan() : node.AsSpan();
-        var braceIdx = span.IndexOf('{');
-        if (braceIdx > 0) span = span[..braceIdx];
-
-        foreach (var rName in repositoryInterfaceNames)
-        {
-            var idx = span.IndexOf(rName.AsSpan(), StringComparison.OrdinalIgnoreCase);
-            if (idx >= 0)
-            {
-                var afterMatch = span[idx..];
-                var open = afterMatch.IndexOf('<');
-                var close = open > 0 ? afterMatch[open..].IndexOf('>') : -1;
-                if (open > 0 && close > 0)
-                {
-                    var genericParam = afterMatch.Slice(open + 1, close - 1).Trim();
-                    var comma = genericParam.IndexOf(',');
-                    if (comma > 0) genericParam = genericParam[..comma].Trim();
-                    var lastDot = genericParam.LastIndexOf('.');
-                    if (lastDot >= 0 && lastDot + 1 < genericParam.Length)
-                    {
-                        genericParam = genericParam[(lastDot + 1)..].Trim();
-                    }
-                    return genericParam.ToString();
-                }
-            }
-        }
-        return null;
-    }
-
-    internal static bool IsChannelEmitter(Node node)
-    {
-        var parent = node.Parent;
-        while (parent.IsValid())
-        {
-            var text = parent.Text;
-            if (text.Contains("Emitter", StringComparison.OrdinalIgnoreCase)) return true;
-            if (parent is FunctionDeclSyntax || parent.IsAny(FunctionNodeTypes) || parent is TypeDeclSyntax || parent.IsAny(TypeDeclNodeTypes))
-            {
-                break;
-            }
-            parent = parent.Parent;
-        }
-        return false;
-    }
+    internal static bool IsChannelEmitter(Node node) =>
+        DeclarativeOutboundAndSecurityHelper.IsChannelEmitter(node);
 
     internal static string CombineDeclarativeRoutes(string prefix, string path)
     {

@@ -15,6 +15,7 @@ internal sealed class CompiledDeclarativeRuleIndex
 
     internal required FrozenSet<string> AllTrackedCallMethods { get; init; }
     internal required FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> AllTrackedCallMethodsLookup { get; init; }
+    internal required CompiledCallChainTrie CallChainTrie { get; init; }
     internal required FrozenDictionary<string, InboundRouteCallRule[]> InboundRoutesByMethod { get; init; }
     internal required FrozenDictionary<string, InboundRouteCallRule[]>.AlternateLookup<ReadOnlySpan<char>> InboundRoutesLookup { get; init; }
     internal required FrozenDictionary<string, DataStoreAccessRule[]> DataStoresByMethod { get; init; }
@@ -163,7 +164,22 @@ internal sealed class CompiledDeclarativeRuleIndex
             foreach (var m in r.CallMethodNames)
             {
                 allMethods.Add(m);
-                AddRule(dataStoreMap, m, r);
+                AddRuleUnique(dataStoreMap, m, r);
+            }
+            foreach (var m in r.TargetSelectorMethods)
+            {
+                allMethods.Add(m);
+                AddRuleUnique(dataStoreMap, m, r);
+            }
+            foreach (var m in r.ReadMethodNames)
+            {
+                allMethods.Add(m);
+                AddRuleUnique(dataStoreMap, m, r);
+            }
+            foreach (var m in r.WriteMethodNames)
+            {
+                allMethods.Add(m);
+                AddRuleUnique(dataStoreMap, m, r);
             }
         }
 
@@ -230,6 +246,7 @@ internal sealed class CompiledDeclarativeRuleIndex
         {
             AllTrackedCallMethods = frozenAllMethods,
             AllTrackedCallMethodsLookup = frozenAllMethods.GetAlternateLookup<ReadOnlySpan<char>>(),
+            CallChainTrie = CompiledCallChainTrie.Build(ext),
             InboundRoutesByMethod = frozenInbound,
             InboundRoutesLookup = frozenInbound.GetAlternateLookup<ReadOnlySpan<char>>(),
             DataStoresByMethod = frozenDataStores,
@@ -338,6 +355,11 @@ internal sealed class CompiledDeclarativeRuleIndex
     }
 
     private void EvaluateCallNodeReferences(Node callNode, string scopeSymbolId, List<Reference> references)
+    {
+        CallChainTrie.EvaluateCallNode(callNode, scopeSymbolId, references);
+    }
+
+    internal void EvaluateCallNodeViaSuperpowerCombinators(Node callNode, string scopeSymbolId, List<Reference> references)
     {
         if (AllTrackedCallMethods.Count == 0) return;
 

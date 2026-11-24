@@ -187,16 +187,16 @@ internal static class DeclarativeOutboundAndSecurityHelper
 
     internal static bool MatchesOutboundHttp(Node node, OutboundHttpRule rule)
     {
-        if (rule.CallNodeTypes.Contains(node.Type))
+        if (DeclarativeUniversalRuleEvaluator.IsCallNode(node, rule.CallNodeTypes))
         {
-            var name = DeclarativeSemanticExtension.GetCallMethodName(node);
-            if (!string.IsNullOrEmpty(name) && rule.CallMethodNames.Contains(name))
+            var methodSpan = DeclarativeSemanticExtension.GetCallMethodSpan(node);
+            if (!methodSpan.IsEmpty && rule.CallMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
             {
                 return true;
             }
         }
 
-        if (rule.AnnotationNodeTypes.Contains(node.Type))
+        if (node is AnnotationSyntax || (node.SyntaxKind == SyntaxKind.Annotation && rule.AnnotationNodeTypes.Contains(node.Type)))
         {
             var annotName = DeclarativeSemanticExtension.GetShortAnnotationName(node);
             if (!string.IsNullOrEmpty(annotName) &&
@@ -241,7 +241,7 @@ internal static class DeclarativeOutboundAndSecurityHelper
             }
         }
 
-        if (rule.AnnotationNodeTypes.Contains(targetNode.Type))
+        if (targetNode is AnnotationSyntax || (targetNode.SyntaxKind == SyntaxKind.Annotation && rule.AnnotationNodeTypes.Contains(targetNode.Type)))
         {
             string? nameVal = null;
             string? pathVal = null;
@@ -304,7 +304,7 @@ internal static class DeclarativeOutboundAndSecurityHelper
             }
         }
 
-        if (rule.CallNodeTypes.Contains(targetNode.Type))
+        if (DeclarativeUniversalRuleEvaluator.IsCallNode(targetNode, rule.CallNodeTypes))
         {
             var argList = DeclarativeSemanticExtension.FindArgumentsNode(targetNode);
             if (argList.IsValid())
@@ -377,6 +377,15 @@ internal static class DeclarativeOutboundAndSecurityHelper
                             return RouteDictionaryRegistry.NormalizeResolvedUrl(rightText);
                         }
                     }
+                }
+            }
+
+            if (rule.ResolveFluentChains)
+            {
+                var trieUrl = CompiledCallChainTrie.TryExtractOutboundHttpTargetViaTrie(targetNode, rule);
+                if (!string.IsNullOrEmpty(trieUrl))
+                {
+                    return trieUrl;
                 }
             }
         }
@@ -460,5 +469,182 @@ internal static class DeclarativeOutboundAndSecurityHelper
             curr = curr.Parent;
         }
         return null;
+    }
+
+    private static readonly string[] FunctionNodeTypes = ["method_declaration", "constructor_declaration", "function_declaration", "arrow_function"];
+    private static readonly string[] TypeDeclNodeTypes = ["class_declaration", "interface_declaration", "record_declaration", "struct_declaration"];
+    private const string ExtendsKeyword = "extends";
+    private const string EmitterSub = "Emitter";
+    private const string BaseListKind = "base_list";
+    private const string MethodKey = "method";
+    private const string ParametersSub = "parameters";
+    private const string AnnotationArgListKind = "annotation_argument_list";
+    private const string ArgumentsKind = "arguments";
+    private const string ArgumentKind = "argument";
+    private const string GetMethod = "GET";
+    private const string PostMethod = "POST";
+    private const string PutMethod = "PUT";
+    private const string DeleteMethod = "DELETE";
+    private const string PatchMethod = "PATCH";
+    private const string HeadMethod = "HEAD";
+    private const string OptionsMethod = "OPTIONS";
+    private const char OpenBraceChar = '{';
+    private const char CommaChar = ',';
+    private const char DotChar = '.';
+
+    internal static string? ExtractBaseClassName(Node node)
+    {
+        var superclass = node.Children.FirstOrDefault(c => c is BaseTypeClauseSyntax { IsImplements: false });
+        if (superclass.IsValid())
+        {
+            var id = superclass.Children.FirstOrDefault(c => c is IdentifierExprSyntax or TypeRefSyntax);
+            if (id.IsValid()) return id.Text;
+            var text = superclass.Text.Replace(ExtendsKeyword, string.Empty).Trim();
+            var angle = text.IndexOf(OpenAngleChar);
+            if (angle > 0) text = text[..angle];
+            return text.Trim();
+        }
+        return null;
+    }
+
+    internal static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames)
+    {
+        Node? ifaces = null;
+        for (var i = 0; i < node.Children.Count; i++)
+        {
+            var c = node.Children[i];
+            if (c is BaseTypeClauseSyntax { IsImplements: true } || c.Type == BaseListKind)
+            {
+                ifaces = c;
+                break;
+            }
+        }
+
+        var span = ifaces != null && ifaces.IsValid() ? ifaces.AsSpan() : node.AsSpan();
+        var braceIdx = span.IndexOf(OpenBraceChar);
+        if (braceIdx > 0) span = span[..braceIdx];
+
+        foreach (var rName in repositoryInterfaceNames)
+        {
+            var idx = span.IndexOf(rName.AsSpan(), StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                var afterMatch = span[idx..];
+                var open = afterMatch.IndexOf(OpenAngleChar);
+                var close = open > 0 ? afterMatch[open..].IndexOf(CloseAngleChar) : -1;
+                if (open > 0 && close > 0)
+                {
+                    var genericParam = afterMatch.Slice(open + 1, close - 1).Trim();
+                    var comma = genericParam.IndexOf(CommaChar);
+                    if (comma > 0) genericParam = genericParam[..comma].Trim();
+                    var lastDot = genericParam.LastIndexOf(DotChar);
+                    if (lastDot >= 0 && lastDot + 1 < genericParam.Length)
+                    {
+                        genericParam = genericParam[(lastDot + 1)..].Trim();
+                    }
+                    return genericParam.ToString();
+                }
+            }
+        }
+        return null;
+    }
+
+    internal static bool IsChannelEmitter(Node node)
+    {
+        var parent = node.Parent;
+        while (parent.IsValid())
+        {
+            var text = parent.Text;
+            if (text.Contains(EmitterSub, StringComparison.OrdinalIgnoreCase)) return true;
+            if (parent is FunctionDeclSyntax || parent.IsAny(FunctionNodeTypes) || parent is TypeDeclSyntax || parent.IsAny(TypeDeclNodeTypes))
+            {
+                break;
+            }
+            parent = parent.Parent;
+        }
+        return false;
+    }
+
+    internal static string? ExtractHttpMethodFromAnnotation(Node annotNode)
+    {
+        foreach (var child in annotNode.Children)
+        {
+            if (child is SyntaxList { Kind: SyntaxListKind.Arguments } || child.Type is AnnotationArgListKind or ArgumentsKind)
+            {
+                foreach (var argChild in child.Children)
+                {
+                    if (argChild is KeyValueExprSyntax or ArgumentSyntax || argChild.Type is ElementValuePairType or ArgumentKind)
+                    {
+                        var key = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax) ?? argChild.GetField(SyntaxFields.Name);
+                        if (key.IsValid() && string.Equals(key.Text, MethodKey, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var matched = MatchHttpVerbInText(argChild.Text);
+                            if (matched != null) return matched;
+                        }
+                    }
+                }
+            }
+            else if (child is KeyValueExprSyntax || child.Type == ElementValuePairType)
+            {
+                var key = child.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                if (key.IsValid() && string.Equals(key.Text, MethodKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    var matched = MatchHttpVerbInText(child.Text);
+                    if (matched != null) return matched;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static string? MatchHttpVerbInText(string text)
+    {
+        if (text.Contains(GetMethod, StringComparison.OrdinalIgnoreCase)) return GetMethod;
+        if (text.Contains(PostMethod, StringComparison.OrdinalIgnoreCase)) return PostMethod;
+        if (text.Contains(PutMethod, StringComparison.OrdinalIgnoreCase)) return PutMethod;
+        if (text.Contains(DeleteMethod, StringComparison.OrdinalIgnoreCase)) return DeleteMethod;
+        if (text.Contains(PatchMethod, StringComparison.OrdinalIgnoreCase)) return PatchMethod;
+        if (text.Contains(HeadMethod, StringComparison.OrdinalIgnoreCase)) return HeadMethod;
+        if (text.Contains(OptionsMethod, StringComparison.OrdinalIgnoreCase)) return OptionsMethod;
+        return null;
+    }
+
+    internal static string? FindEnclosingMethodName(Node annotNode)
+    {
+        var current = annotNode.Parent;
+        while (current.IsValid())
+        {
+            if (current is FunctionDeclSyntax fn)
+            {
+                if (!string.IsNullOrEmpty(fn.Name)) return fn.Name;
+                var nameField = current.GetField(SyntaxFields.Name);
+                if (nameField.IsValid()) return nameField.Text;
+
+                foreach (var child in current.Children)
+                {
+                    if (child is IdentifierExprSyntax) return child.Text;
+                }
+            }
+            current = current.Parent;
+        }
+        return null;
+    }
+
+    internal static string? ExtractFirstParameterType(Node methodNode)
+    {
+        if (methodNode is FunctionDeclSyntax { Parameters.Count: > 0 } fn && fn.Parameters[0].ParameterType is { } pt)
+        {
+            return pt.Text;
+        }
+
+        var paramList = methodNode.GetField(SyntaxFields.Parameters)
+                        ?? methodNode.Children.FirstOrDefault(c => c.Type.Contains(ParametersSub, StringComparison.Ordinal));
+        if (!paramList.IsValid()) return null;
+
+        var firstParam = paramList.Children.FirstOrDefault(c => c is ParameterDeclSyntax || c.Type.Contains(ParameterSub, StringComparison.Ordinal));
+        if (!firstParam.IsValid()) return null;
+
+        var typeNode = firstParam.GetField(SyntaxFields.Type);
+        return typeNode.IsValid() ? typeNode.Text : null;
     }
 }

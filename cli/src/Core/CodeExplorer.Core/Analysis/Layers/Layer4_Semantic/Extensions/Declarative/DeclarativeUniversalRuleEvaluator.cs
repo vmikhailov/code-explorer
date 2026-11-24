@@ -147,12 +147,17 @@ internal static class DeclarativeUniversalRuleEvaluator
         if (methodSpan.IsEmpty || !rule.MethodToHttpVerb.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(methodSpan, out var verb))
             return false;
 
+        var matchesReceiverDirectly = true;
         if (rule.ReceiverSubstrings.Count > 0 || rule.ExcludedReceivers.Count > 0)
         {
             var objSpan = DeclarativeSemanticExtension.GetCallReceiverSpan(callNode);
             if (rule.ReceiverSubstrings.Count > 0 && !SpanContainsAny(objSpan, rule.ReceiverSubstrings))
             {
-                return false;
+                if (!rule.ResolveChainedRouteGroups || objSpan.IsEmpty)
+                {
+                    return false;
+                }
+                matchesReceiverDirectly = false;
             }
             if (rule.ExcludedReceivers.Count > 0 && !objSpan.IsEmpty && rule.ExcludedReceivers.GetAlternateLookup<ReadOnlySpan<char>>().Contains(objSpan))
             {
@@ -160,11 +165,28 @@ internal static class DeclarativeUniversalRuleEvaluator
             }
         }
 
+        var effectivePrefix = rule.RoutePrefix;
+        if (rule.ResolveChainedRouteGroups)
+        {
+            var chainedGroupPrefix = DeclarativeCallChainCombinators.TryResolveChainedRouteGroupPrefix(
+                callNode,
+                rule,
+                out var chainMatchedReceiver);
+            if (!matchesReceiverDirectly && !chainMatchedReceiver)
+            {
+                return false;
+            }
+            if (!string.IsNullOrEmpty(chainedGroupPrefix))
+            {
+                effectivePrefix = DeclarativeSemanticExtension.CombineDeclarativeRoutes(effectivePrefix, chainedGroupPrefix);
+            }
+        }
+
         if (!string.IsNullOrEmpty(rule.StaticRoute))
         {
             routeId = string.IsNullOrEmpty(verb)
                 ? rule.StaticRoute
-                : $"{verb}:{DeclarativeSemanticExtension.CombineDeclarativeRoutes(rule.RoutePrefix, DeclarativeSemanticExtension.NormalizeDeclarativeRoute(rule.StaticRoute))}";
+                : $"{verb}:{DeclarativeSemanticExtension.CombineDeclarativeRoutes(effectivePrefix, DeclarativeSemanticExtension.NormalizeDeclarativeRoute(rule.StaticRoute))}";
             return true;
         }
 
@@ -185,7 +207,7 @@ internal static class DeclarativeUniversalRuleEvaluator
             route = SlashPrefix;
         }
 
-        var combined = DeclarativeSemanticExtension.CombineDeclarativeRoutes(rule.RoutePrefix, DeclarativeSemanticExtension.NormalizeDeclarativeRoute(route));
+        var combined = DeclarativeSemanticExtension.CombineDeclarativeRoutes(effectivePrefix, DeclarativeSemanticExtension.NormalizeDeclarativeRoute(route));
         routeId = string.IsNullOrEmpty(verb) ? combined : $"{verb}:{combined}";
 
         if (rule.EmitHandlerTriggers)
@@ -196,7 +218,7 @@ internal static class DeclarativeUniversalRuleEvaluator
         return true;
     }
 
-    private static int CountCallArguments(Node callNode)
+    internal static int CountCallArguments(Node callNode)
     {
         if (callNode is CallExprSyntax { Arguments.Count: > 0 } callExpr) return callExpr.Arguments.Count;
         var argList = DeclarativeSemanticExtension.FindArgumentsNode(callNode);
@@ -209,7 +231,7 @@ internal static class DeclarativeUniversalRuleEvaluator
         return count;
     }
 
-    private static string? ExtractLastIdentifierArg(Node callNode)
+    internal static string? ExtractLastIdentifierArg(Node callNode)
     {
         if (callNode is CallExprSyntax { Arguments.Count: > 0 } callExpr)
         {
@@ -263,21 +285,41 @@ internal static class DeclarativeUniversalRuleEvaluator
         if (!IsCallNode(callNode, rule.CallNodeTypes)) return;
 
         var methodSpan = GetOrResolveCallMethodSpan(callNode, ref cachedMethodSpan, ref methodNameResolved);
-        if (methodSpan.IsEmpty || !rule.CallMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
-            return;
+        if (methodSpan.IsEmpty) return;
 
+        var matchesMethod =
+            rule.CallMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan) ||
+            (rule.TargetSelectorMethods.Count > 0 && rule.TargetSelectorMethods.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan)) ||
+            (rule.ReadMethodNames.Count > 0 && rule.ReadMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan)) ||
+            (rule.WriteMethodNames.Count > 0 && rule.WriteMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan));
+        if (!matchesMethod) return;
+
+        if (rule.ResolveFluentChains && DeclarativeCallChainCombinators.ShouldDeferToOutermostCallInChain(callNode, rule))
+        {
+            return;
+        }
+
+        var matchesReceiverDirectly = true;
         if (rule.ReceiverSubstrings.Count > 0)
         {
             var objSpan = DeclarativeSemanticExtension.GetCallReceiverSpan(callNode);
             if (!SpanContainsAny(objSpan, rule.ReceiverSubstrings))
             {
-                return;
+                if (!rule.ResolveFluentChains || objSpan.IsEmpty)
+                {
+                    return;
+                }
+                matchesReceiverDirectly = false;
             }
         }
 
         if (!string.IsNullOrEmpty(rule.StaticTargetName))
         {
-            references.Add(new Reference(scopeSymbolId, rule.StaticTargetName, OntologyConstants.Relationships.UsesDb));
+            if (!matchesReceiverDirectly && !DeclarativeCallChainCombinators.ChainMatchesReceiver(callNode, rule.ReceiverSubstrings))
+            {
+                return;
+            }
+            references.Add(new Reference(scopeSymbolId, rule.StaticTargetName, rule.DefaultTargetRelation));
             if (rule.ParseSqlFromTarget)
             {
                 var sql = ExtractStringArgAtOrFirst(callNode, 0);
@@ -290,10 +332,56 @@ internal static class DeclarativeUniversalRuleEvaluator
         }
 
         var target = ExtractStringArgAtOrFirst(callNode, rule.TableArgumentIndex);
+        if (rule.ResolveFluentChains &&
+            (string.IsNullOrEmpty(target) ||
+             !matchesReceiverDirectly ||
+             (rule.ReadMethodNames.Count > 0 || rule.WriteMethodNames.Count > 0) ||
+             DeclarativeCallChainCombinators.HasOuterOrInnerFluentChain(callNode)))
+        {
+            if (DeclarativeCallChainCombinators.TryMatchDataStoreChain(callNode, rule, !matchesReceiverDirectly, out var chainMatch))
+            {
+                AddDataStoreReferenceDeduplicated(references, scopeSymbolId, chainMatch.TargetTable, chainMatch.TargetRelation);
+                return;
+            }
+            if (!matchesReceiverDirectly)
+            {
+                return;
+            }
+        }
+
         if (!string.IsNullOrEmpty(target))
         {
-            references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.UsesDb));
+            AddDataStoreReferenceDeduplicated(references, scopeSymbolId, target, rule.DefaultTargetRelation);
         }
+    }
+
+    internal static void AddDataStoreReferenceDeduplicated(
+        List<Reference> references,
+        string scopeSymbolId,
+        string targetTable,
+        string relationshipKind)
+    {
+        for (var i = references.Count - 1; i >= Math.Max(0, references.Count - 8); i--)
+        {
+            var existing = references[i];
+            if (existing.ScopeSymbolId == scopeSymbolId &&
+                string.Equals(existing.TargetName, targetTable, StringComparison.OrdinalIgnoreCase))
+            {
+                // Upgrade generic USES_DB to more specific READS_FROM / WRITES_TO when discovered by outer chain
+                if (existing.Kind == RelationshipKind.UsesDb &&
+                    relationshipKind != OntologyConstants.Relationships.UsesDb)
+                {
+                    references[i] = new Reference(scopeSymbolId, targetTable, relationshipKind);
+                    return;
+                }
+                if (existing.Kind.ToCypherType() == relationshipKind)
+                {
+                    return;
+                }
+            }
+        }
+
+        references.Add(new Reference(scopeSymbolId, targetTable, relationshipKind));
     }
 
     internal static void TryCollectServiceCallSinkReferences(
@@ -368,8 +456,9 @@ internal static class DeclarativeUniversalRuleEvaluator
 
     internal static string? ExtractStringArgAtOrFirst(Node callNode, int index)
     {
-        if (callNode is CallExprSyntax { Arguments.Count: > 0 } callExpr)
+        if (callNode is CallExprSyntax callExpr)
         {
+            if (callExpr.Arguments.Count == 0) return null;
             string? firstDirect = null;
             for (var i = 0; i < callExpr.Arguments.Count; i++)
             {
@@ -380,7 +469,7 @@ internal static class DeclarativeUniversalRuleEvaluator
                     firstDirect ??= str;
                 }
             }
-            if (firstDirect != null) return firstDirect;
+            return firstDirect;
         }
 
         var argList = DeclarativeSemanticExtension.FindArgumentsNode(callNode);
@@ -391,7 +480,6 @@ internal static class DeclarativeUniversalRuleEvaluator
         for (var i = 0; i < argList.Children.Count; i++)
         {
             var child = argList.Children[i];
-            if (child.Type is "(" or ")" or ",") continue;
             var str = ExtractSingleStringFromArg(child);
             if (!string.IsNullOrEmpty(str))
             {
@@ -417,7 +505,7 @@ internal static class DeclarativeUniversalRuleEvaluator
 
         if (DeclarativeSemanticExtension.IsStringLiteral(argNode))
         {
-            return argNode.AsSpan().Trim(QuoteChars).ToString();
+            return SyntaxStringPool.Intern(argNode.AsSpan().Trim(QuoteChars));
         }
 
         for (var i = 0; i < argNode.Children.Count; i++)
@@ -425,7 +513,7 @@ internal static class DeclarativeUniversalRuleEvaluator
             var c = argNode.Children[i];
             if (DeclarativeSemanticExtension.IsStringLiteral(c))
             {
-                return c.AsSpan().Trim(QuoteChars).ToString();
+                return SyntaxStringPool.Intern(c.AsSpan().Trim(QuoteChars));
             }
         }
         return null;
