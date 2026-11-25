@@ -311,7 +311,7 @@ public class GoProjectParser : IProjectParser
                     if (seenNames.Add(name))
                     {
                         var props = BuildAdditionalProjectProperties(name, sub, entryPoint);
-                        results.Add(new AdditionalProjectDescriptor(name, entryPoint, props));
+                        results.Add(new AdditionalProjectDescriptor(name, entryPoint, props, [directoryPath]));
                     }
                 }
             }
@@ -332,9 +332,16 @@ public class GoProjectParser : IProjectParser
                 if (seenNames.Add(name))
                 {
                     var props = BuildAdditionalProjectProperties(name, sub, entryPoint);
-                    results.Add(new AdditionalProjectDescriptor(name, entryPoint, props));
+                    results.Add(new AdditionalProjectDescriptor(name, entryPoint, props, [directoryPath]));
                 }
             }
+        }
+
+        // Standard single-binary Go module layout (go.mod + cmd/<app>/main.go + internal/*, with no root main.go):
+        // keep as one unified module project rather than detaching cmd/<app>/main.go from internal/*.
+        if (results.Count == 1 && FindMainGoFile(directoryPath) == null)
+        {
+            return [];
         }
 
         return results;

@@ -14,7 +14,7 @@ public static class DiagramExporter
     {
         return type.ToLowerInvariant() switch
         {
-            "lineage" or "data_lineage" => await GenerateDataLineageDiagramAsync(client, cancellationToken),
+            "lineage" or "data_lineage" => await GenerateDataLineageDiagramAsync(client, projectFilter, cancellationToken),
             "er" or "erd" or "schema" or "data_schema" => await GenerateErDiagramAsync(client, cancellationToken),
             "cqrs" or "saga" or "events" => await GenerateCqrsPipelineDiagramAsync(client, cancellationToken),
             "context" or "contexts" or "bounded-context" or "bounded-contexts" or "context-map" or "contextmap" => await GenerateBoundedContextDiagramAsync(client, format, cancellationToken),
@@ -337,35 +337,117 @@ public static class DiagramExporter
         return sb.ToString();
     }
 
+    public static Task<string> GenerateDataLineageDiagramAsync(
+        IGraphClient client,
+        CancellationToken cancellationToken = default) =>
+        GenerateDataLineageDiagramAsync(client, null, cancellationToken);
+
     public static async Task<string> GenerateDataLineageDiagramAsync(
         IGraphClient client,
+        string? projectFilter,
         CancellationToken cancellationToken = default)
     {
+        const string defaultEntityLabel = "Entity";
+        const string defaultAccessorLabel = "Accessor";
+        const string defaultTableLabel = "Table";
+        const string persistedInEdge = "PERSISTED_IN";
+        const string readsFromEdge = "READS_FROM";
+        const string writesToEdge = "WRITES_TO";
+        const string definesEdge = "DEFINES";
+
         var sb = new StringBuilder();
         sb.AppendLine("flowchart LR");
-        sb.AppendLine("  subgraph Entities [ORM Entities & Models]");
 
-        var lineageQuery = """
-        MATCH (t:Table)-[:IMPLEMENTED_BY]->(entity:Type)
-        RETURN entity.id AS entity_id, entity.name AS entity_name, t.id AS table_id, t.name AS table_name
-        """;
-        var lineageRows = await client.QueryAsync<(string EntityId, string EntityName, string TableId, string TableName)>(lineageQuery, null, cancellationToken);
+        var tables = new Dictionary<string, string>(StringComparer.Ordinal);
+        var entities = new Dictionary<string, string>(StringComparer.Ordinal);
+        var edges = new List<(string From, string To, string Label)>();
+        var seenEdges = new HashSet<(string From, string To, string Label)>();
 
-        var tables = new Dictionary<string, string>();
-        var entities = new Dictionary<string, string>();
-        var edges = new List<(string From, string To)>();
+        void AddLineageEdge(string rawFromId, string rawFromName, string fallbackFromLabel, string rawTableId, string rawTableName, string edgeLabel)
+        {
+            var fromId = SanitizeId(rawFromId);
+            var fromName = !string.IsNullOrEmpty(rawFromName) ? rawFromName : fallbackFromLabel;
+            var tableId = SanitizeId(rawTableId);
+            var tableName = !string.IsNullOrEmpty(rawTableName) ? rawTableName : defaultTableLabel;
+
+            entities[fromId] = fromName;
+            tables[tableId] = tableName;
+            if (seenEdges.Add((fromId, tableId, edgeLabel)))
+            {
+                edges.Add((fromId, tableId, edgeLabel));
+            }
+        }
+
+        var hasFilter = !string.IsNullOrWhiteSpace(projectFilter);
+        var ormQuery = hasFilter
+            ? """
+              MATCH (p)<-[:BELONGS_TO]-(:ProjectSyntax)-[:CONTAINS]->(entity:Type)<-[:IMPLEMENTED_BY]-(t:Table)
+              WHERE p.id = $proj OR p.name = $proj
+              RETURN entity.id AS entity_id, entity.name AS entity_name, t.id AS table_id, t.name AS table_name
+              """
+            : """
+              MATCH (t:Table)-[:IMPLEMENTED_BY]->(entity:Type)
+              RETURN entity.id AS entity_id, entity.name AS entity_name, t.id AS table_id, t.name AS table_name
+              """;
+        var lineageRows = await client.QueryAsync<(string EntityId, string EntityName, string TableId, string TableName)>(
+            ormQuery,
+            hasFilter ? new { proj = projectFilter } : null,
+            cancellationToken);
 
         foreach (var row in lineageRows)
         {
-            var entityId = SanitizeId(row.EntityId);
-            var entityName = !string.IsNullOrEmpty(row.EntityName) ? row.EntityName : "Entity";
-            var tableId = SanitizeId(row.TableId);
-            var tableName = !string.IsNullOrEmpty(row.TableName) ? row.TableName : "Table";
-
-            entities[entityId] = entityName;
-            tables[tableId] = tableName;
-            edges.Add((entityId, tableId));
+            AddLineageEdge(row.EntityId, row.EntityName, defaultEntityLabel, row.TableId, row.TableName, persistedInEdge);
         }
+
+        // Also include raw-SQL and direct Function/Type table accessors (pgx, database/sql, Dapper, psycopg, sqlite3)
+        var directAccessQuery = hasFilter
+            ? """
+              MATCH (p)<-[:BELONGS_TO]-(:ProjectSyntax)-[:CONTAINS]->(fn)-[r:READS_FROM|WRITES_TO]->(t:Table)
+              WHERE (p.id = $proj OR p.name = $proj) AND (fn:Function OR fn:Type) AND (fn.is_test IS NULL OR fn.is_test = false)
+              RETURN fn.id AS fn_id, fn.name AS fn_name, t.id AS table_id, t.name AS table_name, type(r) AS rel_kind
+              """
+            : """
+              MATCH (fn)-[r:READS_FROM|WRITES_TO]->(t:Table)
+              WHERE (fn:Function OR fn:Type) AND (fn.is_test IS NULL OR fn.is_test = false)
+              RETURN fn.id AS fn_id, fn.name AS fn_name, t.id AS table_id, t.name AS table_name, type(r) AS rel_kind
+              """;
+        var directRows = await client.QueryAsync<(string FnId, string FnName, string TableId, string TableName, string RelKind)>(
+            directAccessQuery,
+            hasFilter ? new { proj = projectFilter } : null,
+            cancellationToken);
+
+        foreach (var row in directRows)
+        {
+            var label = string.Equals(row.RelKind, writesToEdge, StringComparison.OrdinalIgnoreCase) ? writesToEdge : readsFromEdge;
+            AddLineageEdge(row.FnId, row.FnName, defaultAccessorLabel, row.TableId, row.TableName, label);
+        }
+
+        var queryAccessCypher = hasFilter
+            ? """
+              MATCH (p)-[:CONTAINS]->(:File)<-[:DECLARED_IN]-(q:Query)-[:ACCESSED_BY]->(fn:Function), (q)-[r:READS_FROM|WRITES_TO|DEPENDS_ON]->(t:Table)
+              WHERE (p.id = $proj OR p.name = $proj) AND (fn.is_test IS NULL OR fn.is_test = false)
+              RETURN fn.id AS fn_id, fn.name AS fn_name, t.id AS table_id, t.name AS table_name, type(r) AS rel_kind, q.name AS query_name
+              """
+            : """
+              MATCH (q:Query)-[:ACCESSED_BY]->(fn:Function), (q)-[r:READS_FROM|WRITES_TO|DEPENDS_ON]->(t:Table)
+              WHERE fn.is_test IS NULL OR fn.is_test = false
+              RETURN fn.id AS fn_id, fn.name AS fn_name, t.id AS table_id, t.name AS table_name, type(r) AS rel_kind, q.name AS query_name
+              """;
+        var queryRows = await client.QueryAsync<(string FnId, string FnName, string TableId, string TableName, string RelKind, string QueryName)>(
+            queryAccessCypher,
+            hasFilter ? new { proj = projectFilter } : null,
+            cancellationToken);
+
+        foreach (var row in queryRows)
+        {
+            var label = ClassifyQueryLineageEdge(row.RelKind, row.QueryName, readsFromEdge, writesToEdge, definesEdge);
+            AddLineageEdge(row.FnId, row.FnName, defaultAccessorLabel, row.TableId, row.TableName, label);
+        }
+
+        var subgraphTitle = lineageRows.Count > 0 && directRows.Count == 0 && queryRows.Count == 0
+            ? "ORM Entities & Models"
+            : "Entities & Data Accessors";
+        sb.AppendLine($"  subgraph Entities [{subgraphTitle}]");
 
         foreach (var (id, name) in entities)
         {
@@ -373,7 +455,6 @@ public static class DiagramExporter
         }
 
         sb.AppendLine("  end");
-
         sb.AppendLine("  subgraph Tables [Database Tables]");
 
         foreach (var (id, name) in tables)
@@ -383,12 +464,41 @@ public static class DiagramExporter
 
         sb.AppendLine("  end");
 
-        foreach (var (from, to) in edges)
+        foreach (var (from, to, edgeLabel) in edges)
         {
-            sb.AppendLine($"  {from} -->|PERSISTED_IN| {to}");
+            sb.AppendLine($"  {from} -->|{edgeLabel}| {to}");
         }
 
         return sb.ToString();
+    }
+
+    private static string ClassifyQueryLineageEdge(
+        string? relKind,
+        string? queryName,
+        string readsLabel,
+        string writesLabel,
+        string definesLabel)
+    {
+        if (string.Equals(relKind, writesLabel, StringComparison.OrdinalIgnoreCase)) return writesLabel;
+        if (string.Equals(relKind, readsLabel, StringComparison.OrdinalIgnoreCase)) return readsLabel;
+
+        var qUpper = (queryName ?? string.Empty).Trim().ToUpperInvariant();
+        if (qUpper.StartsWith("INSERT", StringComparison.Ordinal) ||
+            qUpper.StartsWith("UPDATE", StringComparison.Ordinal) ||
+            qUpper.StartsWith("DELETE", StringComparison.Ordinal) ||
+            qUpper.StartsWith("UPSERT", StringComparison.Ordinal) ||
+            qUpper.StartsWith("MERGE", StringComparison.Ordinal) ||
+            qUpper.StartsWith("REPLACE", StringComparison.Ordinal))
+        {
+            return writesLabel;
+        }
+        if (qUpper.StartsWith("CREATE", StringComparison.Ordinal) ||
+            qUpper.StartsWith("ALTER", StringComparison.Ordinal) ||
+            qUpper.StartsWith("DROP", StringComparison.Ordinal))
+        {
+            return definesLabel;
+        }
+        return readsLabel;
     }
 
     private sealed record ErColumnDto(

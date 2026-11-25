@@ -46,7 +46,7 @@ public partial class ResourceSemanticAnalyzer
         foreach (var pkg in projectNode.Children.OfType<PackageNode>())
         {
             var pLower = pkg.Name.ToLowerInvariant();
-            if (pLower.Contains("npgsql") || pLower is "pg" or "pg-promise" or "@types/pg" or "postgres" or "tokio-postgres" || pLower.Contains("psycopg") || pLower.Contains("asyncpg"))
+            if (pLower.Contains("npgsql") || pLower is "pg" or "pg-promise" or "@types/pg" or "postgres" or "tokio-postgres" || pLower.Contains("psycopg") || pLower.Contains("asyncpg") || pLower.Contains("pgx") || pLower.Contains("lib/pq") || pLower.Contains("pgdriver") || pLower.Contains("postgres"))
             {
                 var res = ("PostgreSQL", "relational");
                 _projectDriverCache[cacheKey] = res;

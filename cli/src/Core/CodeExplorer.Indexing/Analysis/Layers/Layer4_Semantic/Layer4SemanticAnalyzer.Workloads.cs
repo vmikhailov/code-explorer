@@ -515,6 +515,29 @@ public partial class Layer4SemanticParser
             }
 
             if (!project.IsLibrary && projectSemanticNodes.OfType<EndpointNode>().Any() &&
+                string.IsNullOrWhiteSpace(project.Framework) &&
+                string.Equals(project.ProjectType.ToCanonicalString(), "go", StringComparison.OrdinalIgnoreCase))
+            {
+                const string goStdHttpFramework = "net/http";
+                project.Framework = goStdHttpFramework;
+                switch (workloadNode)
+                {
+                    case ServiceNode svc when string.IsNullOrWhiteSpace(svc.Framework):
+                        svc.Framework = goStdHttpFramework;
+                        break;
+                    case AppNode app when string.IsNullOrWhiteSpace(app.Framework):
+                        app.Framework = goStdHttpFramework;
+                        break;
+                    case WorkerNode wrk when string.IsNullOrWhiteSpace(wrk.Framework):
+                        wrk.Framework = goStdHttpFramework;
+                        break;
+                    case CliToolNode cli when string.IsNullOrWhiteSpace(cli.Framework):
+                        cli.Framework = goStdHttpFramework;
+                        break;
+                }
+            }
+
+            if (!project.IsLibrary && projectSemanticNodes.OfType<EndpointNode>().Any() &&
                 project.PrimaryRole is "App" or "Worker" or "CliTool")
             {
                 var primRole = project.PrimaryRole;

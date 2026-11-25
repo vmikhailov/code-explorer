@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.101.1] - 2026-11-25
+
+### Fixed
+- **Go Standard `cmd/<bin>/main.go` Module Layout & Cross-Package Symbol Resolution (`GoProjectParser`, `GoFileVisitor`, `Layer5GlobalAnalyzer`)**:
+  - Kept single-binary Go modules (`go.mod` + `cmd/<app>/main.go` + `internal/*` without a root `main.go`) as one unified `Project` instead of splitting `cmd/<app>/main.go` into an isolated binary project, while linking `LocalDependencyPaths` from multi-binary `cmd/*` subprojects back to the parent module.
+  - Added Go UAST package-import namespace specifiers, struct field/method-receiver/parameter/short-var (`:=`) type bindings, chained field receiver resolution (`s.store.SaveHistory`), sibling package file method resolution, and `USES_TYPE` extraction across struct fields, signatures, and composite literals, eliminating false-positive `dead_code` findings on live exported Go constructors, structs, and route handlers.
+- **`get_service_contracts` Ingress Endpoint Discovery & Multi-Database Go Driver Canonicalization (`ArchitectureViewEngine`, `ResourceSemanticAnalyzer`, `ResourceNamingHelper`, `GoSqlite3LibraryParser`)**:
+  - Expanded `GetServiceContractsAsync` to resolve `Endpoint` nodes across `EXPOSES`, `DECLARED_IN`, and `IMPLEMENTED_BY -> Project` paths, and inferred `net/http` framework metadata for Go standard-library HTTP services.
+  - Added `pgx`, `lib/pq`, `pgdriver`, and `modernc.org/sqlite` / `glebarez/sqlite` / `zombiezen.com/go/sqlite` driver matching, normalized `PostgreSQL (pgx)` engine names in `ResourceNamingHelper.NormalizeEngineName`, and resolved file-scoped drivers for `database/sql` so services combining `pgx` and `SQLite` retain both databases.
+- **C3 Endpoint-to-DDL Over-Approximation & Raw-SQL Data Lineage (`GoFileVisitor`, `EndpointSemanticAnalyzer`, `DiagramExporter`)**:
+  - Fixed `GoFileVisitor` route handler `ImplementedBy` references (including middleware-wrapped handlers like `mux.HandleFunc("POST /api/...", s.withAuth(s.handleAsk))`) and suppressed fallback `ExposedBy` edges from `EndpointNode` to the enclosing route-registration constructor (`NewServer`), preventing unrelated endpoints (e.g. `POST /api/auth/logout`) from inheriting `CREATE TABLE` schema-init queries in C3 views.
+  - Extended `DiagramExporter.GenerateDataLineageDiagramAsync` (`view: "lineage"`) with `projectFilter` scoping and raw-SQL `Function` / `Type` / `Query` (`READS_FROM`, `WRITES_TO`, `DEFINES`) table lineage alongside ORM `PERSISTED_IN` mappings.
+
+---
+
 ## [1.101.0] - 2026-11-25
 
 ### Added

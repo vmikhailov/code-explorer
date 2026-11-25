@@ -5,9 +5,10 @@ WHERE ($projectName IS NULL OR $projectName = '' OR p.name = $projectName)
   AND item.name <> '<module_init>'
   AND NOT item.name STARTS WITH 'Jest:'
 OPTIONAL MATCH (item)-[:DECLARED_IN]->(f:File)
-OPTIONAL MATCH (caller)-[:CALLS|USES_TYPE]->(item)
+OPTIONAL MATCH (caller)-[:CALLS|USES_TYPE|INSTANTIATES|IMPLEMENTS|INHERITS_FROM|EXPOSED_BY|IMPLEMENTED_BY|OF_TYPE]->(item)
 WITH f, item, caller
 WHERE caller IS NULL
+  AND NOT (item:Function AND item.name IN ['main', 'init'] AND coalesce(f.path, '') ENDS WITH '.go')
   AND (f IS NULL OR coalesce(f.artifact_role, 'source') <> 'vendor')
   AND NOT coalesce(f.path, '') CONTAINS '.config.'
   AND NOT coalesce(f.path, '') CONTAINS 'jest.setup'

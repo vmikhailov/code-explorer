@@ -663,4 +663,15 @@ public partial class Layer5AnalysisParser
 
         return normalized.Trim('/');
     }
+
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
+
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
+    {
+        var prepExt = PrepareExternalService(extService, null);
+        var prepEp = PrepareEntryPoint(entryPoint, targetProj);
+        return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
+    }
+
+    private static string NormalizeGcpTopicName(string raw) => WorkspaceConventions.NormalizeTopicName(raw);
 }

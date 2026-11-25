@@ -150,7 +150,7 @@ public partial class PostIndexAnalyzer
                 foreach (var pkg in proj.Children.OfType<PackageNode>())
                 {
                     var pkgLower = pkg.Name.ToLowerInvariant();
-                    if (pkgLower.Contains("npgsql") || pkgLower.Contains("postgres"))
+                    if (pkgLower.Contains("npgsql") || pkgLower.Contains("postgres") || pkgLower.Contains("pgx") || pkgLower.Contains("lib/pq") || pkgLower.Contains("pgdriver"))
                     {
                         vEngines.Add("PostgreSQL");
                         vDbTypes.Add("relational");

@@ -654,7 +654,7 @@ public partial class Layer2ProjectParser
         foreach (var pkg in projectNode.Children.OfType<PackageNode>())
         {
             var pLower = pkg.Name.ToLowerInvariant();
-            if (pLower.Contains("npgsql") || pLower is "pg" or "pg-promise" or "@types/pg" or "postgres" or "tokio-postgres" || pLower.Contains("psycopg") || pLower.Contains("asyncpg"))
+            if (pLower.Contains("npgsql") || pLower is "pg" or "pg-promise" or "@types/pg" or "postgres" or "tokio-postgres" || pLower.Contains("psycopg") || pLower.Contains("asyncpg") || pLower.Contains("pgx") || pLower.Contains("lib/pq") || pLower.Contains("pgdriver") || pLower.Contains("postgres"))
                 return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
             if (pLower.Contains("sqlclient") || pLower.Contains("entityframeworkcore.sqlserver") || pLower is "mssql" or "tedious" || pLower.Equals("entityframework") || pLower.Equals("system.data.entity"))
                 return memoizedByProjectId[projectNode.Id] = ("SQL Server", "relational");

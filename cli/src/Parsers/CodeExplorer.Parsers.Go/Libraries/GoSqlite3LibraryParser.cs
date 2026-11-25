@@ -16,7 +16,14 @@ public class GoSqlite3LibraryParser : DeclarativeSemanticExtension
         Name = "SQLite3";
         Type = SemanticExtensionType.RelationalDb;
         LibraryRole = LibraryRole.OrmOrDatabase;
-        SupportedPatterns = ["github.com/mattn/go-sqlite3*"];
+        SupportedPatterns =
+        [
+            "github.com/mattn/go-sqlite3*",
+            "modernc.org/sqlite*",
+            "zombiezen.com/go/sqlite*",
+            "github.com/glebarez/sqlite*",
+            "github.com/glebarez/go-sqlite*"
+        ];
         SqlSinkRules =
         [
             new SqlSinkRule

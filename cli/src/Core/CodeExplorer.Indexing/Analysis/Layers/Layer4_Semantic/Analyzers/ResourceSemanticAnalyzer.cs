@@ -30,6 +30,8 @@ public partial class ResourceSemanticAnalyzer
     private const string EngineSqlite = "SQLite";
     private const string EngineClickHouse = "ClickHouse";
     private const string SoqlWithDataCategory = "WITH DATA CATEGORY";
+    private const string PropSchemaKey = "schema";
+    private const string DefaultSqliteSchema = "main";
 
     private static readonly ConcurrentDictionary<IFileParser, (IReadOnlyList<ISemanticExtension> Extensions, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
     private static readonly ConcurrentDictionary<string, string?> _projectFrameworkCache = new(StringComparer.OrdinalIgnoreCase);
@@ -309,19 +311,25 @@ public partial class ResourceSemanticAnalyzer
                 };
 
                     var isOrm = IsOrmLibrary(parser.Id);
+                    var isGenericSqlApi = parser.Id is "sql" or "jdbc" or "ado-net" or "dbapi" ||
+                                          dbEngine.Equals("SQL", StringComparison.OrdinalIgnoreCase);
 
-                    var (detectedEngine, detectedType) = isOrm
-                        ? DetectProjectDatabaseDriver(projectNode, ctx)
-                        : (null, null);
+                    var (detectedEngine, detectedType) = isGenericSqlApi
+                        ? DetectFileDatabaseDriver(fileNode, _syntaxTree)
+                        : (isOrm ? DetectProjectDatabaseDriver(projectNode, ctx) : (null, null));
 
-                    if (isOrm && string.IsNullOrEmpty(detectedEngine))
+                    if ((isOrm || isGenericSqlApi) && string.IsNullOrEmpty(detectedEngine))
                     {
-                        (detectedEngine, detectedType) = DetectFileDatabaseDriver(fileNode, _syntaxTree);
+                        (detectedEngine, detectedType) = isGenericSqlApi
+                            ? DetectProjectDatabaseDriver(projectNode, ctx)
+                            : DetectFileDatabaseDriver(fileNode, _syntaxTree);
                     }
 
                     var targetEngine = !string.IsNullOrEmpty(detectedEngine)
                         ? detectedEngine
-                        : (!string.IsNullOrEmpty(dbEngine) && !dbEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
+                        : (!string.IsNullOrEmpty(dbEngine) &&
+                           !dbEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                           !dbEngine.Equals("SQL", StringComparison.OrdinalIgnoreCase)
                             ? ResourceNamingHelper.NormalizeEngineName(dbEngine)
                             : null);
 
@@ -380,7 +388,7 @@ public partial class ResourceSemanticAnalyzer
                                 targetEngine = projRes.Engine;
                             }
 
-                            var cfgSchema = projRes.Properties.TryGetValue("schema", out var s) ? s : null;
+                            var cfgSchema = projRes.Properties.TryGetValue(PropSchemaKey, out var s) ? s : null;
                             if (string.IsNullOrEmpty(cfgSchema) && projRes.Name.Contains('.'))
                             {
                                 cfgSchema = projRes.Name.Split('.', 2)[1];
@@ -420,7 +428,7 @@ public partial class ResourceSemanticAnalyzer
 
                             if (matchedCtxRes != null)
                             {
-                                var cfgSchema = matchedCtxRes.Properties.TryGetValue("schema", out var s) ? s : matchedCtxRes.Name;
+                                var cfgSchema = matchedCtxRes.Properties.TryGetValue(PropSchemaKey, out var s) ? s : matchedCtxRes.Name;
                                 if (IsValidSchemaName(cfgSchema) && !string.IsNullOrEmpty(cfgSchema))
                                 {
                                     declaredSchemas.Add(cfgSchema);
@@ -448,8 +456,8 @@ public partial class ResourceSemanticAnalyzer
                         (declaredSchemas.Count == 0 || declaredSchema == null || declaredSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) || declaredSchema.Equals("default", StringComparison.OrdinalIgnoreCase)))
                     {
                         declaredSchemas.Clear();
-                        declaredSchemas.Add("main");
-                        declaredSchema = "main";
+                        declaredSchemas.Add(DefaultSqliteSchema);
+                        declaredSchema = DefaultSqliteSchema;
                     }
 
                     if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary &&
@@ -466,6 +474,14 @@ public partial class ResourceSemanticAnalyzer
                         }
                     }
 
+                    if (isRelational && !isOrm && !synthesizedDatabaseWrapper &&
+                        declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary &&
+                        !string.IsNullOrEmpty(targetEngine) &&
+                        HasRawSqlOrDriverUsage(fileNode, _syntaxTree, projectNode))
+                    {
+                        declaredSchemas.Add(GetDefaultSchemaForEngine(targetEngine, dbType));
+                    }
+
                     var explicitSchemas = new HashSet<string>(declaredSchemas, StringComparer.OrdinalIgnoreCase);
 
                     if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null)
@@ -480,7 +496,7 @@ public partial class ResourceSemanticAnalyzer
                     // Step C: Strict Evidence Gate
                     if (string.IsNullOrEmpty(targetEngine) || (isRelational && declaredSchemas.Count == 0 && canonicalRes == null))
                     {
-                        break;
+                        continue;
                     }
 
                     IEnumerable<string?> schemasToProcess = declaredSchemas.Count > 0 ? (IEnumerable<string?>)declaredSchemas : new string?[] { null };
@@ -898,6 +914,35 @@ public partial class ResourceSemanticAnalyzer
     /// driver/engine names only (architecture-neutral: no project or package specifics).
     /// Defaults to PostgreSQL, mirroring <see cref="ResourceNamingHelper.NormalizeEngineName"/>.
     /// </summary>
+    private static bool HasRawSqlOrDriverUsage(FileNode fileNode, SyntaxTree syntaxTree, ProjectNode projectNode)
+    {
+        if (fileNode.TryGetSignals()?.HasSqlLiteralEvidence == true ||
+            projectNode.TryGetSignals()?.HasSqlLiteralEvidence == true)
+        {
+            return true;
+        }
+
+        static bool HasQueryOrDbRef(IOntologyNode node)
+        {
+            if (node is QueryNode) return true;
+            for (var r = 0; r < node.References.Count; r++)
+            {
+                if (node.References[r].Kind is RelationshipKind.UsesDb or RelationshipKind.ReadsFrom or RelationshipKind.WritesTo or RelationshipKind.QueriesDb)
+                {
+                    return true;
+                }
+            }
+            for (var c = 0; c < node.Children.Count; c++)
+            {
+                if (HasQueryOrDbRef(node.Children[c])) return true;
+            }
+            return false;
+        }
+
+        return HasQueryOrDbRef(fileNode) ||
+               CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.HasSqlShapedStringLiterals(syntaxTree);
+    }
+
     private static string InferRelationalEngineName(IEnumerable<RawImport> imports)
     {
         foreach (var import in imports)

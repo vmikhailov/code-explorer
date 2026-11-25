@@ -731,12 +731,12 @@ public class ParserValidationTests
         goEndpoints[0].RouteTemplate.Should().Be("/api/v1/users");
         goEndpoints[0].HttpMethod.Should().Be("GET");
 
-        // Verify Go references
+        // Verify Go references bind the EndpointNode URN to the GetUsers handler via ImplementedBy
         var goRefs = FindReferences(goNode.Children);
 
         (goRefs.Any(r =>
-                r.TargetName == "GET /api/v1/users" && r.Kind == RelationshipKind.Implements &&
-                r.ScopeSymbolId == "GetUsers")).Should().BeTrue();
+                r.TargetName == "GetUsers" && r.Kind == RelationshipKind.ImplementedBy &&
+                r.ScopeSymbolId == goEndpoints[0].Id)).Should().BeTrue();
 
         // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
         var sqlParser = new Parsers.Sql.SqlFileParser();

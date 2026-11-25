@@ -524,15 +524,28 @@ internal static class CqrsMessageEnricher
         FunctionNode fn,
         Dictionary<(string FilePath, string FnName), List<string>> paramTypesByFn)
     {
+        static string PickNonHandler(List<string> candidates)
+        {
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                if (!candidates[i].EndsWith(HandlerSuffix, StringComparison.Ordinal))
+                {
+                    return candidates[i];
+                }
+            }
+            return string.Empty;
+        }
+
         var normFile = fn.FilePath.Replace('\\', '/');
         if (paramTypesByFn.TryGetValue((normFile, fn.Name), out var list) && list.Count > 0)
         {
-            return list[0];
+            var picked = PickNonHandler(list);
+            if (!string.IsNullOrEmpty(picked)) return picked;
         }
         var shortName = fn.Name.Contains('.') ? fn.Name[(fn.Name.LastIndexOf('.') + 1)..] : fn.Name;
         if (shortName != fn.Name && paramTypesByFn.TryGetValue((normFile, shortName), out var shortList) && shortList.Count > 0)
         {
-            return shortList[0];
+            return PickNonHandler(shortList);
         }
         return string.Empty;
     }

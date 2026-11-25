@@ -169,23 +169,54 @@ public static class ResourceNamingHelper
     public static string NormalizeEngineName(string? engine)
     {
         var lower = (engine ?? "").Trim().ToLowerInvariant();
-        return lower switch
+        switch (lower)
         {
-            "postgres" or "postgresql" or "npgsql" or "pg" => "PostgreSQL",
-            "mysql" or "mysql2" => "MySQL",
-            "mariadb" => "MariaDB",
-            "sqlite" or "sqlite3" => "SQLite",
-            "mssql" or "sqlserver" or "sql server" or "tedious" => "SQL Server",
-            "oracle" or "oracledb" => "Oracle",
-            "mongodb" or "mongo" => "MongoDB",
-            "redis" or "ioredis" => "Redis",
-            "clickhouse" => "ClickHouse",
-            "bigquery" => "BigQuery",
-            "cassandra" => "Cassandra",
-            "elasticsearch" => "Elasticsearch",
-            "neo4j" => "Neo4j",
-            _ => string.IsNullOrWhiteSpace(engine) || IsGenericConfigKey(lower) ? "PostgreSQL" : engine.Trim()
-        };
+            case "postgres" or "postgresql" or "npgsql" or "pg":
+                return "PostgreSQL";
+            case "mysql" or "mysql2":
+                return "MySQL";
+            case "mariadb":
+                return "MariaDB";
+            case "sqlite" or "sqlite3":
+                return "SQLite";
+            case "mssql" or "sqlserver" or "sql server" or "tedious":
+                return "SQL Server";
+            case "oracle" or "oracledb":
+                return "Oracle";
+            case "mongodb" or "mongo":
+                return "MongoDB";
+            case "redis" or "ioredis":
+                return "Redis";
+            case "clickhouse":
+                return "ClickHouse";
+            case "bigquery":
+                return "BigQuery";
+            case "cassandra":
+                return "Cassandra";
+            case "elasticsearch":
+                return "Elasticsearch";
+            case "neo4j":
+                return "Neo4j";
+        }
+
+        if (lower.StartsWith("postgres", StringComparison.Ordinal) || lower.Contains("pgx", StringComparison.Ordinal) || lower.Contains("npgsql", StringComparison.Ordinal) || lower.Contains("lib/pq", StringComparison.Ordinal))
+            return "PostgreSQL";
+        if (lower.Contains("sqlite", StringComparison.Ordinal))
+            return "SQLite";
+        if (lower.StartsWith("mariadb", StringComparison.Ordinal))
+            return "MariaDB";
+        if (lower.StartsWith("mysql", StringComparison.Ordinal))
+            return "MySQL";
+        if (lower.StartsWith("sql server", StringComparison.Ordinal) || lower.StartsWith("mssql", StringComparison.Ordinal) || lower.Contains("sqlclient", StringComparison.Ordinal))
+            return "SQL Server";
+        if (lower.StartsWith("clickhouse", StringComparison.Ordinal))
+            return "ClickHouse";
+        if (lower.StartsWith("mongodb", StringComparison.Ordinal))
+            return "MongoDB";
+        if (lower.StartsWith("redis", StringComparison.Ordinal))
+            return "Redis";
+
+        return string.IsNullOrWhiteSpace(engine) || IsGenericConfigKey(lower) ? "PostgreSQL" : engine.Trim();
     }
 
     public static bool IsGenericConfigKey(string key)

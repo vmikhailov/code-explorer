@@ -144,6 +144,11 @@ public partial class Layer5AnalysisParser
                 }
             }
 
+            if (targetTypeName == null && varName.Contains('.'))
+            {
+                targetTypeName = Layer5GoSymbolHelper.TryResolveChainedFieldReceiverType(varName, normCallerFile, refItem.ScopeSymbolId, scopeForFile.EnclosingTypeName, bindings);
+            }
+
             if (targetTypeName != null)
             {
                 targetName = $"{targetTypeName}.{methodName}";
@@ -347,7 +352,7 @@ public partial class Layer5AnalysisParser
             TryResolveMediatorMessageDispatch(refItem, targetName, methodName, normCallerFile, callerScope, ctx, symbols, bindings, referenceRelationships);
         }
 
-        // If receiver was bound to a known workspace TypeSymbol, check if the method is registered under short name in that type's canonical file
+        // If receiver was bound to a known workspace TypeSymbol, check if the method is registered under short name in that type's canonical file (or sibling Go package files)
         if (!callAdded && hasExplicitReceiver && targetTypeName != null && methodName != null &&
             Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(targetTypeName, refItem.ScopeSymbolId, ctx, symbols) is { } resolvedTypeId)
         {
@@ -357,6 +362,12 @@ public partial class Layer5AnalysisParser
                 Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, typeMethodId, hasExplicitReceiver, targetTypeName, symbols, ctx))
             {
                 referenceRelationships.Add(CreateCallRel(refItem, typeMethodId));
+                callAdded = true;
+            }
+            else if (typeFile != null &&
+                     Layer5GoSymbolHelper.TryResolveGoSiblingPackageMethod(typeFile, targetTypeName, methodName, refItem.ScopeSymbolId, normCallerFile, symbols, ctx) is { } goSiblingMethodId)
+            {
+                referenceRelationships.Add(CreateCallRel(refItem, goSiblingMethodId));
                 callAdded = true;
             }
         }
@@ -982,17 +993,6 @@ public partial class Layer5AnalysisParser
         !scopeId.Contains($":{OntologyConstants.IdPrefixes.Procedure}:", StringComparison.Ordinal) &&
         !scopeId.Contains(":query:", StringComparison.Ordinal) &&
         !scopeId.Contains($":{OntologyConstants.IdPrefixes.Query}:", StringComparison.Ordinal);
-
-    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
-
-    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
-    {
-        var prepExt = PrepareExternalService(extService, null);
-        var prepEp = PrepareEntryPoint(entryPoint, targetProj);
-        return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
-    }
-
-    private static string NormalizeGcpTopicName(string raw) => WorkspaceConventions.NormalizeTopicName(raw);
 }
 
 internal static partial class Layer5SymbolVisibilityResolver

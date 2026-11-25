@@ -142,7 +142,10 @@ public static class EndpointSemanticAnalyzer
                 }
                 var epNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic, projectName);
                 typedNode = epNode;
-                if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
+                var hasExplicitHandlerRef = syntactic.References.Any(r =>
+                    r.Kind is RelationshipKind.ImplementedBy or RelationshipKind.ExposedBy ||
+                    (r.Kind == RelationshipKind.Implements && !string.IsNullOrEmpty(r.TargetName)));
+                if (!hasExplicitHandlerRef && !string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
                 {
                     var expRel = Relationship.FromRelationship(new ExposedByRelationship(typedNode.Id, parentScopeId)
                     {

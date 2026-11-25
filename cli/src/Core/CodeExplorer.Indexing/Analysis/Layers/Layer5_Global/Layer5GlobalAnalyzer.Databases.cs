@@ -7,7 +7,7 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer5AnalysisParser
 {
-    private readonly struct IndexedBinding
+    internal readonly struct IndexedBinding
     {
         public readonly string TypeName;
         public readonly string? ScopeMarker;
@@ -155,17 +155,17 @@ public partial class Layer5AnalysisParser
         public HashSet<(string DerivedName, string BaseName)> InheritedTypeNames { get; init; } = InheritedTypeNames ?? [];
     }
 
-    private record ImportedSymbolEntry(
+    internal record ImportedSymbolEntry(
         string ImportPath,
         string ImportedName,
         bool IsDefault,
         bool IsNamespace);
 
-    private record PackageTargetInfo(
+    internal record PackageTargetInfo(
         string ProjectPath,
         string? MainFile);
 
-    private record ImportLookups(
+    internal record ImportLookups(
         Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry> FileImports,
         Dictionary<string, List<string>> StarImportsByFile,
         Dictionary<string, PackageTargetInfo> WorkspacePackages,
@@ -177,7 +177,7 @@ public partial class Layer5AnalysisParser
         public System.Collections.Concurrent.ConcurrentDictionary<(string CandFile, string ExportedName), string?> FunctionResolutionCache { get; init; } = FunctionResolutionCache ?? new();
     }
 
-    private record BindingLookups(
+    internal record BindingLookups(
         Dictionary<(string FilePath, string VarName), List<IndexedBinding>> BindingsLookup,
         Dictionary<string, List<IndexedBinding>> GlobalBindingsLookup,
         Dictionary<string, string> ConstantLookup,
@@ -885,11 +885,23 @@ public partial class Layer5AnalysisParser
             return results;
         }
 
-        // Case C: Workspace packages (monorepos)
-        // Check exact package name
+        // Case C: Workspace packages (monorepos & Go modules)
         if (imports.WorkspacePackages.TryGetValue(importPath, out var pkgInfo))
         {
             AddPackageEntryCandidates(pkgInfo, results, symbols);
+            Layer5GoSymbolHelper.AddGoPackageDirectoryCandidates(NormalizeRelativePath(pkgInfo.ProjectPath), results, symbols);
+            imports.CandidateCache?[(callerFile, importPath)] = results;
+            return results;
+        }
+
+        var (matchedPkgKey, matchedPkgInfo) = Layer5GoSymbolHelper.FindLongestWorkspaceModuleMatch(importPath, imports.WorkspacePackages);
+        if (matchedPkgKey != null && matchedPkgInfo != null)
+        {
+            var subPath = importPath[(matchedPkgKey.Length + 1)..];
+            var subCombined = NormalizeRelativePath($"{matchedPkgInfo.ProjectPath}/{subPath}");
+            AddFileCandidates(subCombined, results, symbols);
+            Layer5GoSymbolHelper.AddGoPackageDirectoryCandidates(subCombined, results, symbols);
+            AddFileCandidates(NormalizeRelativePath($"{matchedPkgInfo.ProjectPath}/src/{subPath}"), results, symbols);
             imports.CandidateCache?[(callerFile, importPath)] = results;
             return results;
         }
@@ -912,8 +924,8 @@ public partial class Layer5AnalysisParser
             {
                 var subCombined = NormalizeRelativePath($"{subPkgInfo.ProjectPath}/{subPath}");
                 AddFileCandidates(subCombined, results, symbols);
-                var srcCombined = NormalizeRelativePath($"{subPkgInfo.ProjectPath}/src/{subPath}");
-                AddFileCandidates(srcCombined, results, symbols);
+                Layer5GoSymbolHelper.AddGoPackageDirectoryCandidates(subCombined, results, symbols);
+                AddFileCandidates(NormalizeRelativePath($"{subPkgInfo.ProjectPath}/src/{subPath}"), results, symbols);
                 imports.CandidateCache?[(callerFile, importPath)] = results;
                 return results;
             }
@@ -1186,13 +1198,7 @@ internal static partial class Layer5SymbolVisibilityResolver
             return;
         }
 
-        if (symbols.FunctionsByName.TryGetValue(targetName, out var singleFns) && singleFns.Count == 1 && refItem.ScopeSymbolId != singleFns[0])
-        {
-            var rel = isImpl
-                ? Relationship.FromRelationship(new ImplementedByRelationship(refItem.ScopeSymbolId, singleFns[0]))
-                : Relationship.FromRelationship(new AccessedByRelationship(refItem.ScopeSymbolId, singleFns[0]));
-            referenceRelationships.Add(rel);
-        }
+        Layer5GoSymbolHelper.ResolveUnqualifiedHandlerOrAccessorFallback(refItem, targetName, isImpl, symbols, referenceRelationships);
     }
 
     internal static void ResolveReadsOrWritesReference(

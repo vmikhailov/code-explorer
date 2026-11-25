@@ -75,6 +75,15 @@ public partial class GoFileVisitor : BaseParserVisitor
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
+        if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
+        {
+            GoBindingExtractor.CollectGoStructFields(node, symbolNode, RawTypeBindings);
+        }
+        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+        {
+            GoBindingExtractor.CollectGoFunctionSignature(node, symbolNode, RawTypeBindings);
+        }
+
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
             symbolNode.Name == "main" &&
             !WorkspaceConventions.IsTestFilePath(RelativePath))
@@ -113,7 +122,7 @@ public partial class GoFileVisitor : BaseParserVisitor
 
                 if (!string.IsNullOrEmpty(epHandler))
                 {
-                    symbolNode.References.Add(new Reference(epHandler, epRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    symbolNode.References.Add(new Reference(string.Empty, epHandler, OntologyConstants.Relationships.ImplementedBy));
                 }
 
                 for (var i = 1; i < epMethods.Count; i++)
@@ -128,7 +137,7 @@ public partial class GoFileVisitor : BaseParserVisitor
                     secSymbol.Properties["routeTemplate"] = epRoute;
                     if (!string.IsNullOrEmpty(epHandler))
                     {
-                        secSymbol.References.Add(new Reference(epHandler, epRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                        secSymbol.References.Add(new Reference(string.Empty, epHandler, OntologyConstants.Relationships.ImplementedBy));
                     }
                     symbolNode.Children.Add(secSymbol);
                 }
@@ -138,32 +147,42 @@ public partial class GoFileVisitor : BaseParserVisitor
                 var routeVal = ExtractGoEntryPointRoute(node, RelativePath);
                 if (!string.IsNullOrEmpty(routeVal))
                 {
-                    var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
-                    if (args.IsValid() && args.Children.Count > 0)
+                    var callArgs = GoAstHelper.GetCallArguments(node);
+                    var nonStringArgs = callArgs.Where(c =>
+                        c is not CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax &&
+                        !c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.StringLiteral)).ToList();
+                    var handlerArg = nonStringArgs.Count > 1 ? nonStringArgs[^1] : nonStringArgs.FirstOrDefault();
+                    if (handlerArg != null && handlerArg.IsValid())
                     {
-                        var nonStringArgs = args.Children.Where(c => !c.Type.Equals("(") && !c.Type.Equals(")") && !c.Type.Equals(",") &&
-                            !c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.StringLiteral)).ToList();
-                        var handlerArg = nonStringArgs.Count > 1 ? nonStringArgs[1] : nonStringArgs.FirstOrDefault();
-                        if (handlerArg.IsValid())
+                        var handlerName = GoBindingExtractor.ExtractGoRouteHandlerTarget(handlerArg);
+                        if (!string.IsNullOrEmpty(handlerName) && !handlerName.StartsWith(SlashChar))
                         {
-                            var handlerName = handlerArg.Text;
-                            if (handlerName.Contains('('))
-                            {
-                                handlerName = handlerName[..handlerName.IndexOf('(')].Trim();
-                            }
-                            if (handlerName.Contains('.'))
-                            {
-                                handlerName = handlerName.Split('.').Last();
-                            }
-                            if (!string.IsNullOrEmpty(handlerName) && !handlerName.StartsWith('/'))
-                            {
-                                symbolNode.References.Add(new Reference(handlerName, routeVal.Replace(":", " "), OntologyConstants.Relationships.Implements));
-                            }
+                            symbolNode.References.Add(new Reference(string.Empty, handlerName, OntologyConstants.Relationships.ImplementedBy));
                         }
                     }
                 }
             }
         }
+    }
+
+    protected override void CollectProfileImport(Node node) =>
+        GoBindingExtractor.CollectGoImport(
+            node,
+            Profile,
+            FileParser,
+            RelativePath,
+            AbsoluteWorkspacePath,
+            CleanStringLiteral,
+            ResolveAndInjectLibraryParser,
+            RawImports);
+
+    protected override void VisitDefault(Node node, int depth)
+    {
+        if (node is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax { Kind: CodeExplorer.Core.Parser.Syntax.CollectionSyntaxKind.Initializer })
+        {
+            GoBindingExtractor.CollectGoCompositeLiteralTypeReference(node, SymbolStack.Peek());
+        }
+        base.VisitDefault(node, depth);
     }
 
     protected override void VisitVariableDeclaration(Node node, int depth)
@@ -223,7 +242,8 @@ public partial class GoFileVisitor : BaseParserVisitor
                 ));
             }
         }
-        else if (node.Is(TreeSitterSyntax.Go.ShortVarDeclaration))
+        else if (node is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false, IsConstant: false } &&
+                 !node.Children.Any(c => c is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: true }))
         {
             var leftNode = node.Children.FirstOrDefault();
             var rightNode = node.Children.LastOrDefault();
@@ -231,17 +251,17 @@ public partial class GoFileVisitor : BaseParserVisitor
             if (leftNode.IsValid() && rightNode.IsValid() && leftNode.Id != rightNode.Id)
             {
                 var names = new List<string>();
-                if (leftNode.Is(TreeSitterSyntax.Go.ExpressionList))
+                if (leftNode is CodeExplorer.Core.Parser.Syntax.SyntaxList { Kind: CodeExplorer.Core.Parser.Syntax.SyntaxListKind.Expressions })
                 {
-                    names.AddRange(leftNode.Children.Where(c => c.Is(TreeSitterSyntax.Go.Identifier)).Select(c => c.Text));
+                    names.AddRange(leftNode.Children.OfType<CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax>().Select(c => c.Text.Trim()));
                 }
-                else if (leftNode.Is(TreeSitterSyntax.Go.Identifier))
+                else if (leftNode is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax)
                 {
-                    names.Add(leftNode.Text);
+                    names.Add(leftNode.Text.Trim());
                 }
 
                 var values = new List<string>();
-                if (rightNode.Is(TreeSitterSyntax.Go.ExpressionList))
+                if (rightNode is CodeExplorer.Core.Parser.Syntax.SyntaxList { Kind: CodeExplorer.Core.Parser.Syntax.SyntaxListKind.Expressions })
                 {
                     values.AddRange(rightNode.Children.Select(c => c.Text));
                 }
@@ -268,6 +288,8 @@ public partial class GoFileVisitor : BaseParserVisitor
                         node.EndPosition.Column + 1
                     ));
                 }
+
+                GoBindingExtractor.TryCollectGoShortVarBindings(names, rightNode, SymbolStack.Peek().Name, RawTypeBindings);
             }
         }
     }
