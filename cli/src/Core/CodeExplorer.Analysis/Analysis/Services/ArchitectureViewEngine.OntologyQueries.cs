@@ -631,7 +631,7 @@ public partial class ArchitectureViewEngine
         }
         catch { }
 
-        var dataQuery = $"{matchClause} {whereClause}RETURN DISTINCT n.id AS id, n.name AS name, n.file_path AS file_path, n.path AS path, n.line AS line, labels(n) AS lbl, n.framework AS framework, n.method AS method, n.route AS route, n.protocol AS protocol, json_extract(n.properties, '$.role') AS role ORDER BY n.name ASC SKIP {offset} LIMIT {limit}";
+        var dataQuery = $"{matchClause} {whereClause}RETURN DISTINCT n.id AS id, n.name AS name, n.file_path AS file_path, n.path AS path, n.line AS line, labels(n) AS lbl, n.framework AS framework, coalesce(n.http_method, n.method) AS method, coalesce(n.route_template, n.route) AS route, n.protocol AS protocol, json_extract(n.properties, '$.role') AS role ORDER BY n.name ASC SKIP {offset} LIMIT {limit}";
 
 
         try

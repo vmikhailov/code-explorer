@@ -489,13 +489,10 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
                             {
                                 importPath = ip;
                             }
-                            else if (arg1.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                            else if (arg1.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
+                                     TryResolveFactoryImportPath(arg1, imports, out var factoryImport))
                             {
-                                var subFunc = arg1.GetFunctionNode();
-                                if (subFunc.IsValid() && subFunc.Text == "require")
-                                {
-                                    importPath = AstHelper.ExtractFirstStringArgument(arg1);
-                                }
+                                importPath = factoryImport;
                             }
 
                             if (!string.IsNullOrEmpty(importPath))
@@ -512,13 +509,10 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
                         {
                             importPath = ip;
                         }
-                        else if (arg0.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                        else if (arg0.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
+                                 TryResolveFactoryImportPath(arg0, imports, out var factoryImport))
                         {
-                            var subFunc = arg0.GetFunctionNode();
-                            if (subFunc.IsValid() && subFunc.Text == "require")
-                            {
-                                importPath = AstHelper.ExtractFirstStringArgument(arg0);
-                            }
+                            importPath = factoryImport;
                         }
 
                         if (!string.IsNullOrEmpty(importPath))
@@ -534,6 +528,58 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
         {
             TraverseForExpressMounts(child, relativePath, projectName, ctx, imports);
         }
+    }
+
+    /// <summary>
+    /// Resolves the import path behind a factory-style mount target such as
+    /// <c>app.use('/data/', serve_data.init(options, ...))</c> or <c>app.use(mount, serve_font(options))</c>.
+    /// The callee's receiver (or the callee itself for plain function factories) must be a name
+    /// imported from a local module; package imports (e.g. express.static) are ignored.
+    /// </summary>
+    private static bool TryResolveFactoryImportPath(Node arg, Dictionary<string, string> imports, out string? importPath)
+    {
+        importPath = null;
+        if (!arg.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
+
+        var subFunc = arg.GetFunctionNode();
+        if (!subFunc.IsValid()) return false;
+
+        // require('...') — direct module path
+        if (subFunc.Text == "require")
+        {
+            importPath = AstHelper.ExtractFirstStringArgument(arg);
+            return importPath != null;
+        }
+
+        // Factory call: serve_data.init(...) → receiver serve_data; serve_font(...) → callee serve_font.
+        string? receiverName = null;
+        if (subFunc.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var objNode = subFunc.GetChildForField(TreeSitterSyntax.Fields.Object);
+            if (objNode.IsValid() && objNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+            {
+                receiverName = objNode.Text;
+            }
+        }
+        else if (subFunc.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            receiverName = subFunc.Text;
+        }
+
+        if (string.IsNullOrEmpty(receiverName) || !imports.TryGetValue(receiverName, out var resolved) ||
+            string.IsNullOrEmpty(resolved))
+        {
+            return false;
+        }
+
+        // Only local/relative modules can own routes; npm packages mounted as middleware never do.
+        if (!resolved.StartsWith('.') && !resolved.StartsWith('/'))
+        {
+            return false;
+        }
+
+        importPath = resolved;
+        return true;
     }
 
     private static void RegisterRouterMount(string currentFilePath, string importPath, string mountPrefix, ParsingContext? ctx)

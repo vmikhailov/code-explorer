@@ -503,7 +503,8 @@ public static class EndpointSemanticAnalyzer
             syntactic?.Policies,
             syntactic?.RequestType,
             syntactic?.ResponseType,
-            operationType)
+            operationType,
+            CustomProperties: new Dictionary<string, string> { [OntologyConstants.PropertyNames.Route] = route })
         {
             FilePath = relativePath,
             StartLine = startLine,

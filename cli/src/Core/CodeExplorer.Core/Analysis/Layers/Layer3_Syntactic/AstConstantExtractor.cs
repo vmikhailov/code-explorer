@@ -37,7 +37,7 @@ public static class AstConstantExtractor
 
         if (pending.Count > 0)
         {
-            ResolveTopologicalConstants(pending, projectName);
+            ResolveTopologicalConstants(pending, projectName, rootNode.Document?.RelativePath ?? rootNode.Document?.FilePath);
         }
     }
 
@@ -64,7 +64,7 @@ public static class AstConstantExtractor
         }
     }
 
-    private static void ResolveTopologicalConstants(List<PendingConstant> pending, string? projectName)
+    private static void ResolveTopologicalConstants(List<PendingConstant> pending, string? projectName, string? declaringFilePath = null)
     {
         var resolved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -80,6 +80,7 @@ public static class AstConstantExtractor
                 if (item.InitialLiteral != null)
                 {
                     ConstantRegistry.Register(projectName, item.Key, item.InitialLiteral);
+                    ConstantRegistry.RegisterPackageScoped(declaringFilePath, item.Key, item.InitialLiteral);
                     resolved.Add(item.Key);
                     progress = true;
                     continue;
@@ -91,6 +92,7 @@ public static class AstConstantExtractor
                         !string.IsNullOrWhiteSpace(val))
                     {
                         ConstantRegistry.Register(projectName, item.Key, val);
+                        ConstantRegistry.RegisterPackageScoped(declaringFilePath, item.Key, val);
                         resolved.Add(item.Key);
                         progress = true;
                     }
@@ -114,6 +116,7 @@ public static class AstConstantExtractor
                     if (!string.IsNullOrWhiteSpace(unquoted))
                     {
                         ConstantRegistry.Register(projectName, item.Key, unquoted);
+                        ConstantRegistry.RegisterPackageScoped(declaringFilePath, item.Key, unquoted);
                         resolved.Add(item.Key);
                     }
                 }

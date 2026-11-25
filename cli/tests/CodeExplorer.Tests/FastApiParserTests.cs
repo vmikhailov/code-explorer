@@ -169,6 +169,129 @@ public class FastApiParserTests
     }
 
     [Test]
+    public async Task FastApi_IncludeRouterCrossModule_ImportAliasResolvesMountPrefix()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-fastapi-x-" + Guid.NewGuid().ToString("N"));
+        var appDir = Path.Combine(tempDir, "app");
+        var routersDir = Path.Combine(appDir, "routers");
+        Directory.CreateDirectory(routersDir);
+        var mainPath = Path.Combine(appDir, "main.py");
+        var routerPath = Path.Combine(routersDir, "ofp.py");
+
+        var mainCode = """
+        from fastapi import FastAPI
+
+        from app.routers.ofp import router as ofp_router
+
+        app = FastAPI()
+
+        def setup_routes():
+            app.include_router(ofp_router, prefix="/api/v1")
+        """;
+
+        var routerCode = """
+        from fastapi import APIRouter
+
+        router = APIRouter(prefix="/ofp")
+
+        @router.get("/items")
+        def list_items():
+            return []
+        """;
+
+        await File.WriteAllTextAsync(mainPath, mainCode);
+        await File.WriteAllTextAsync(routerPath, routerCode);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            // Layer 3 order: declarations (mount discovery) from main.py first,
+            // then the router module is visited and its endpoints enriched.
+            using var mainTree = await _parser.ParseAsync(mainPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ((CodeExplorer.Core.Parser.IFileParser)_parser).DiscoverDeclarations(mainTree.Tree!.RootNode, "app/main.py", "fastapi-x-service", ctx);
+
+            using var routerTree = await _parser.ParseAsync(routerPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(routerTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = new List<EndpointNode>();
+            var allNodes = new List<IOntologyNode>();
+            CollectNodes(routerTree.FileNode!.Children, endpoints, allNodes);
+            endpoints.Should().HaveCount(1);
+
+            var ep = endpoints[0];
+            ep.HttpMethod.Should().Be("GET");
+            ep.RouteTemplate.Should().Be("/api/v1/ofp/items");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task FastApi_IncludeRouterRelativeImport_ResolvesMountPrefix()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-fastapi-rel-" + Guid.NewGuid().ToString("N"));
+        var routersDir = Path.Combine(tempDir, "routers");
+        Directory.CreateDirectory(routersDir);
+        var mainPath = Path.Combine(tempDir, "main.py");
+        var routerPath = Path.Combine(routersDir, "ofp.py");
+
+        var mainCode = """
+        from fastapi import FastAPI
+
+        from .routers import ofp
+
+        app = FastAPI()
+
+        def setup_routes():
+            app.include_router(ofp.router, prefix="/api/v1")
+        """;
+
+        var routerCode = """
+        from fastapi import APIRouter
+
+        router = APIRouter()
+
+        @router.get("/items")
+        def list_items():
+            return []
+        """;
+
+        await File.WriteAllTextAsync(mainPath, mainCode);
+        await File.WriteAllTextAsync(routerPath, routerCode);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var mainTree = await _parser.ParseAsync(mainPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ((CodeExplorer.Core.Parser.IFileParser)_parser).DiscoverDeclarations(mainTree.Tree!.RootNode, "main.py", "fastapi-rel-service", ctx);
+
+            using var routerTree = await _parser.ParseAsync(routerPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(routerTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = new List<EndpointNode>();
+            var allNodes = new List<IOntologyNode>();
+            CollectNodes(routerTree.FileNode!.Children, endpoints, allNodes);
+            endpoints.Should().HaveCount(1);
+
+            var ep = endpoints[0];
+            ep.HttpMethod.Should().Be("GET");
+            ep.RouteTemplate.Should().Be("/api/v1/items");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task FastApi_WebSocketAndApiRoute_ParsedCorrectly()
     {
         var code = """
