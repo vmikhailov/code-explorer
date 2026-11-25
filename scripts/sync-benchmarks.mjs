@@ -664,11 +664,12 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${ceRecPct} vs ${cbmRecDisplay}</strong> native graph recall`;
 
     b['index.cs01_head_html'] = `Case 01: <code>twentyhq/twenty</code> (${fmtInt(c1.repo.files)} files)`;
-    b['index.cs01_cbm_val'] = `${fmtDurShort(cbm.time_to_answer_s)}, ${cbm.turns} turns, ${fmtRoundTokens(cbm.cum_input_tokens)} tokens`;
-    b['index.cs01_ce_val'] = `${fmtDurShort(ce.time_to_answer_s)} (${fmtRoundMult(speedup)} faster), ${ce.turns} turns, ${fmtRoundTokens(ce.cum_input_tokens)} tokens`;
+    b['index.cs01_cbm_val'] = `${fmtDurShort(cbm.time_to_answer_s)}, ${cbm.turns} turns, ${cbmRecDisplay} graph recall (${c1.recall.cbm_graph_matched}/${c1.recall.gt_total})`;
+    b['index.cs01_ce_val'] = `${fmtDurShort(ce.time_to_answer_s)} (${fmtRoundMult(speedup)} faster), ${ce.turns} turns, ${ceRecPct} recall (${c1.recall.ce_matched}/${c1.recall.gt_total})`;
     b['index.cs01_cbm_rec'] = `${cbmRecDisplay} (${c1.recall.cbm_graph_matched}/${c1.recall.gt_total}) from CBM graph`;
     b['index.cs01_ce_rec'] = `${ceRecPct} (${c1.recall.ce_matched}/${c1.recall.gt_total}) directly from graph.db`;
     b['index.card_token_comp'] = fmtRoundMult(tokRatio);
+    b['index.card_recall_stat'] = `${ceRecPct} recall`;
   }
 
   // --- Case Study 02 ---
@@ -765,13 +766,16 @@ function buildBindings(data, rawMilestones01) {
       `<strong>${c2.recall.ce_pct} vs ${c2.recall.rg_pct_round}</strong> (rg missed ${c2.recall.rg_missed_services} services)`;
 
     b['index.cs02_head_html'] = `Case 02: ${c2.repo.services}-service workspace (${fmtInt(c2.repo.files)} files)`;
-    b['index.cs02_rg_label_html'] = `<code>ripgrep</code> + Python scripts (missed ${c2.recall.rg_missed_services} services)`;
+    b['index.cs02_rg_label_html'] = `<code>ripgrep</code> + Python scripts`;
     b['index.cs02_ce_label'] =
       `<code>CodeExplorer</code> (${ce.run_command_calls} CLI commands + ${ce.view_file_calls} file reads, ${ce.scripts_written} scripts, ${ce.compactions} compactions)`;
     b['index.cs02_rg_val'] =
-      `${fmtDurShort(rg.time_to_answer_s)}, ${rg.turns} turns, ${fmtRoundTokens(rg.cum_input_est_tokens)} tokens ($${rg.cost_flash_usd.toFixed(2)})`;
+      `${fmtDurShort(rg.time_to_answer_s)}, ${rg.turns} turns, ${c2.recall.rg_pct_round} recall (missed ${c2.recall.rg_missed_services} services)`;
     b['index.cs02_ce_val'] =
-      `${fmtDurShort(ce.time_to_answer_s)} (${fmtRoundMult(speedup)} faster), ${ce.turns} turns, ${fmtRoundTokens(ce.cum_input_est_tokens)} tokens ($${ce.cost_flash_usd.toFixed(2)})`;
+      `${fmtDurShort(ce.time_to_answer_s)} (${fmtRoundMult(speedup)} faster), ${ce.turns} turns, ${c2.recall.ce_pct} recall (0 missed)`;
+    b['index.card_speed_comp'] = fmtRoundMult(speedup);
+    b['index.card_speed_copy'] =
+      `Answered in ${fmtDurShort(data.cs01.telemetry.ce.time_to_answer_s)} vs ${fmtDurShort(data.cs01.telemetry.cbm.time_to_answer_s)} on twentyhq/twenty (${data.cs01.telemetry.ce.turns} vs ${data.cs01.telemetry.cbm.turns} turns) and ${fmtDurShort(ce.time_to_answer_s)} vs ${fmtDurShort(rg.time_to_answer_s)} across ${c2.repo.services} services (${ce.turns} vs ${rg.turns} turns).`;
     b['index.card_token_copy'] =
       `Reduced cumulative input tokens from ~${fmtCompactTokens(data.cs01.telemetry.cbm.cum_input_tokens, 2)} to ${fmtRoundTokens(data.cs01.telemetry.ce.cum_input_tokens)} on twentyhq/twenty (and ${fmtRoundMult(tokRatio)} on ${c2.repo.services} services).`;
   }

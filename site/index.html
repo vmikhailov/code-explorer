@@ -26,10 +26,10 @@
   <meta name="twitter:image" content="https://code-explorer.app/all_services.png">
 
   <link rel="stylesheet" href="/fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="/assets/app-D05FZaqJ.css">
+  <link rel="stylesheet" href="/assets/app-C4MhMI9p.css">
 </head>
 <body>
-  <div id="root"><a class="skip-link" href="#main-content">Skip to content</a><header class="site-nav"><div class="wrap nav-bar"><a href="/" class="wordmark" aria-label="CodeExplorer home"><svg class="wordmark-glyph" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 3"></circle><circle cx="16" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".55"></circle><circle cx="16" cy="16" r="3" fill="var(--signal)"></circle><circle cx="27.2" cy="9.5" r="2" fill="var(--svc)"></circle><circle cx="6" cy="22" r="2" fill="var(--db)"></circle></svg><span>CodeExplorer</span></a><nav aria-label="Primary"><ul class="nav-links"><li class="nav-anchor-item"><a href="#readers">Product</a></li><li class="nav-anchor-item"><a href="#playground">Query</a></li><li class="nav-anchor-item"><a href="#gates">Gates</a></li><li><a href="/architectures">Architectures</a></li><li><a href="/ontology">Ontology</a></li><li><a href="/benchmarks">Benchmarks</a></li><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li></ul></nav><div class="nav-actions"><a href="https://github.com/vmikhailov/code-explorer/releases/latest" target="_blank" rel="noopener" class="nav-version" id="heroReleaseBadge" aria-label="Latest CodeExplorer release">v1.101.0</a><a href="#install" class="btn btn--primary btn--sm">Install</a></div></div></header><main id="main-content" class="page-home"><!-- 1. Hero: split layout with dissolving radial orbit map -->
+  <div id="root"><a class="skip-link" href="#main-content">Skip to content</a><header class="site-nav"><div class="wrap nav-bar"><a href="/" class="wordmark" aria-label="CodeExplorer home"><svg class="wordmark-glyph" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 3"></circle><circle cx="16" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".55"></circle><circle cx="16" cy="16" r="3" fill="var(--signal)"></circle><circle cx="27.2" cy="9.5" r="2" fill="var(--svc)"></circle><circle cx="6" cy="22" r="2" fill="var(--db)"></circle></svg><span>CodeExplorer</span></a><nav aria-label="Primary"><ul class="nav-links"><li class="nav-anchor-item"><a href="#readers">Product</a></li><li class="nav-anchor-item"><a href="#playground">Query</a></li><li class="nav-anchor-item"><a href="#gates">Gates</a></li><li><a href="/architectures">Architectures</a></li><li><a href="/ontology">Ontology</a></li><li><a href="/benchmarks">Benchmarks</a></li><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li></ul></nav><div class="nav-actions"><a href="https://github.com/vmikhailov/code-explorer/releases/latest" target="_blank" rel="noopener" class="nav-version" id="heroReleaseBadge" aria-label="Latest CodeExplorer release">v1.101.1</a><a href="#install" class="btn btn--primary btn--sm">Install</a></div></div></header><main id="main-content" class="page-home"><!-- 1. Hero: split layout with dissolving radial orbit map -->
     <section class="hero" aria-labelledby="hero-title">
       <div class="wrap hero-grid">
         <div class="hero-copy">
@@ -159,12 +159,12 @@
       <div class="wrap">
         <div class="proof-grid">
           <div class="proof-lead">
-            <h2 id="proof-title" class="h2">Stop paying agents to grep in the dark.</h2>
-            <p class="big-number" data-bind="index.card_token_comp">~7.0×</p>
-            <p class="big-number-label">fewer input tokens</p>
-            <p class="proof-note" data-bind="index.card_token_copy">Reduced cumulative input tokens from ~1.68M to ~242K on twentyhq/twenty (and ~25× on 324 services).</p>
+            <h2 id="proof-title" class="h2">Stop letting agents guess in the dark.</h2>
+            <p class="big-number" data-bind="index.card_speed_comp">~7.0×</p>
+            <p class="big-number-label">faster time to answer</p>
+            <p class="proof-note" data-bind="index.card_speed_copy">Answered in 1m 33s vs 9m 15s on twentyhq/twenty (7 vs 28 turns) and 4m 16s vs 29m 52s across 324 services (18 vs 285 turns).</p>
             <p class="proof-stat-inline">
-              <strong class="ok" data-bind="index.card_arch_recall">~98%</strong> SQL and queue lineage recall across ORM queries, raw SQL tables, and message broker topics missed by AST-only indexers.
+              <strong class="ok" data-bind="index.card_recall_stat">100% recall</strong> on paired architectural audits (<strong class="ok" data-bind="index.card_arch_recall">~98%</strong> across ORM queries, raw SQL tables, and message broker topics where AST-only indexers and <code>ripgrep</code> miss callers and services).
             </p>
             <a href="/benchmarks" class="link-quiet">Explore all 10 benchmark reports</a>
           </div>
@@ -178,19 +178,19 @@
               <div class="race-row">
                 <div class="race-meta">
                   <span class="race-who"><code>codebase-memory-mcp</code> + AST scripts</span>
-                  <span class="race-val" data-bind="index.cs01_cbm_val">9m 15s, 28 turns, ~1.7M tokens</span>
+                  <span class="race-val" data-bind="index.cs01_cbm_val">9m 15s, 28 turns, 3.4% graph recall (13/381)</span>
                 </div>
                 <div class="bar"><span class="bar-fill bar-fill--other" style="--w: 1"></span></div>
               </div>
               <div class="race-row race-row--ce">
                 <div class="race-meta">
                   <span class="race-who race-who--ce">CodeExplorer MCP</span>
-                  <span class="race-val" data-bind="index.cs01_ce_val">1m 33s (~6.0× faster), 7 turns, ~242K tokens</span>
+                  <span class="race-val" data-bind="index.cs01_ce_val">1m 33s (~6.0× faster), 7 turns, 100% recall (381/381)</span>
                 </div>
                 <div class="bar"><span class="bar-fill bar-fill--ce" style="--w: 0.168"></span></div>
               </div>
               <p class="race-foot">
-                Recall across 381 ground-truth items: <span data-bind="index.cs01_cbm_rec">3.4% (13/381) from CBM graph</span> vs <strong data-bind="index.cs01_ce_rec">100% (381/381) directly from graph.db</strong>.
+                Recall across 381 ground-truth items: <span data-bind="index.cs01_cbm_rec">3.4% (13/381) from CBM graph</span> vs <strong data-bind="index.cs01_ce_rec">100% (381/381) directly from graph.db</strong> (0 source file reads).
               </p>
             </article>
 
@@ -201,15 +201,15 @@
               </div>
               <div class="race-row">
                 <div class="race-meta">
-                  <span class="race-who" data-bind-html="index.cs02_rg_label_html"><code>ripgrep</code> + Python scripts (missed 9 services)</span>
-                  <span class="race-val" data-bind="index.cs02_rg_val">29m 52s, 285 turns, ~17.2M tokens ($1.15)</span>
+                  <span class="race-who" data-bind-html="index.cs02_rg_label_html"><code>ripgrep</code> + Python scripts</span>
+                  <span class="race-val" data-bind="index.cs02_rg_val">29m 52s, 285 turns, ~82% recall (missed 9 services)</span>
                 </div>
                 <div class="bar"><span class="bar-fill bar-fill--other" style="--w: 1"></span></div>
               </div>
               <div class="race-row race-row--ce">
                 <div class="race-meta">
                   <span class="race-who race-who--ce" data-bind-html="index.cs02_ce_label"><code>CodeExplorer</code> (10 CLI commands + 16 file reads, 0 scripts, 0 compactions)</span>
-                  <span class="race-val" data-bind="index.cs02_ce_val">4m 16s (~7.0× faster), 18 turns, ~686K tokens ($0.10)</span>
+                  <span class="race-val" data-bind="index.cs02_ce_val">4m 16s (~7.0× faster), 18 turns, 100% recall (0 missed)</span>
                 </div>
                 <div class="bar"><span class="bar-fill bar-fill--ce" style="--w: 0.143"></span></div>
               </div>
@@ -439,6 +439,6 @@
         </div>
       </div>
     </section></main><footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><a href="/" class="wordmark-text">CodeExplorer</a><p>Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks. Free and open source under the MIT License.</p></div><ul class="footer-links"><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li><li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li><li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li><li><a href="/benchmarks">Benchmarks</a></li><li><a href="/ontology">Graph ontology</a></li><li><a href="/architectures">Architecture gate packs</a></li><li><a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">NuGet (codeexplorer.cli)</a></li><li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release notes</a></li><li><a href="/privacy">Privacy Policy</a></li></ul><p class="footer-version" id="footerCeVersion">v1.100.0</p></div></footer><div class="lightbox-modal" id="lightboxModal" role="dialog" aria-modal="true" aria-label="Architecture Cockpit screenshot preview"><img id="lightboxImg" src="/all_services.webp?v=3" alt="Enlarged CodeExplorer Architecture Cockpit view"/></div><div class="toast" id="toast" role="status" aria-live="polite">Copied to clipboard!</div></div>
-  <script type="module" src="/assets/app-B1YGCpRY.js"></script>
+  <script type="module" src="/assets/app-CxVyZJpC.js"></script>
 </body>
 </html>
