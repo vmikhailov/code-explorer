@@ -27,6 +27,7 @@ tar -czf - \
   logo.svg \
   icon-512.png \
   all_services.png \
+  all_services.webp \
   selected_services.png \
   project_flow.png \
   robots.txt \

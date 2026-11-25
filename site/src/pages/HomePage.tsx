@@ -28,7 +28,7 @@ export const HomeOverlays: React.FC = () => (
     >
       <img
         id="lightboxImg"
-        src="/all_services.png?v=2"
+        src="/all_services.webp?v=3"
         alt="Enlarged CodeExplorer Architecture Cockpit view"
       />
     </div>

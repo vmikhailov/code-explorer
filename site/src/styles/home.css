@@ -2,7 +2,7 @@
 
 .page-home {
   --text-h2: clamp(2.125rem, 1.4rem + 2.5vw, 3.35rem);
-  --text-hero: clamp(2.75rem, 1.5rem + 4.2vw, 4.85rem);
+  --text-hero: clamp(2.45rem, 1.3rem + 3.3vw, 4.05rem);
   --text-huge: clamp(5.5rem, 2.8rem + 8.5vw, 10.5rem);
   color: var(--ink);
   font-size: var(--text-md);
@@ -78,14 +78,15 @@
 /* ---------- 1. Hero ---------- */
 .page-home .hero {
   position: relative;
-  padding-block: clamp(32px, 4vw, 56px) var(--s-6);
+  padding-block: clamp(20px, 2.5vw, 36px) var(--s-6);
 }
 
 .page-home .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  grid-template-columns: minmax(0, 5.5fr) minmax(0, 6.5fr);
+  gap: var(--s-5);
   align-items: center;
-  min-height: min(calc(100svh - 64px - 80px), 800px);
+  min-height: min(calc(100svh - 64px - 64px), 820px);
 }
 
 .page-home .hero-copy {
@@ -169,21 +170,27 @@
 .page-home .hero-map {
   position: relative;
   z-index: 1;
-  margin-left: -34%;
-  margin-right: calc(-1 * var(--gutter) - 12vw);
+  max-width: 720px;
+  width: 100%;
+  justify-self: center;
+  margin-right: calc(-1 * var(--s-4));
   cursor: zoom-in;
+}
+
+.page-home .hero-map picture {
+  display: block;
 }
 
 .page-home .hero-map img {
   width: 100%;
-  -webkit-mask-image: radial-gradient(ellipse 50% 54% at 50% 50%, #000 64%, transparent 100%);
-  mask-image: radial-gradient(ellipse 50% 54% at 50% 50%, #000 64%, transparent 100%);
+  -webkit-mask-image: radial-gradient(closest-side at 50% 50%, #000 82%, transparent 100%);
+  mask-image: radial-gradient(closest-side at 50% 50%, #000 82%, transparent 100%);
   animation: ce-map-in 1.4s var(--ease) both;
 }
 
 .page-home .map-caption {
   position: relative;
-  margin-top: calc(-1 * var(--s-5));
+  margin-top: var(--s-2);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -1003,10 +1010,11 @@
     padding-bottom: 0;
   }
   .page-home .hero-map {
-    margin: calc(-1 * var(--s-5)) calc(-1 * var(--gutter)) 0;
+    margin: var(--s-2) auto 0;
+    max-width: 680px;
   }
   .page-home .map-caption {
-    padding-inline: var(--gutter);
+    padding-inline: var(--s-2);
   }
   .page-home .readers {
     grid-template-columns: minmax(0, 1fr);
@@ -1031,14 +1039,16 @@
   }
   .page-home .hero-map {
     overflow: hidden;
+    margin-inline: calc(-1 * var(--s-2));
+    width: calc(100% + var(--s-4));
   }
   .page-home .hero-map img {
-    width: 156%;
+    width: 100%;
     max-width: none;
-    margin-left: -28%;
+    margin-left: 0;
   }
   .page-home .map-caption {
-    margin-top: var(--s-3);
+    margin-top: var(--s-2);
   }
   .page-home .code {
     font-size: 0.8125rem;
