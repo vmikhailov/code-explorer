@@ -9,6 +9,9 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
 {
     private const string ApiPrefixMatch = "api";
     private const string VersionPrefixMatch = "v";
+    private const string SlashSeparator = "/";
+    private const string PyExtension = ".py";
+    private const string PackageInitSuffix = "/__init__.py";
 
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -734,139 +737,8 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
         {
             return;
         }
-        var importTargets = CollectImportTargets(rootNode, relativePath);
+        var importTargets = PythonAstHelper.CollectImportTargets(rootNode, relativePath);
         TraverseForFastApiDeclarations(rootNode, relativePath, projectName, ctx, importTargets);
-    }
-
-    /// <summary>
-    /// Maps local names (import aliases and plain imported names) to workspace-relative module paths
-    /// so that <c>include_router(&lt;name&gt;, prefix=...)</c> can be tied to the module declaring the router.
-    /// Handles <c>from a.b import c [as alias]</c>, <c>import a.b [as alias]</c>, and relative
-    /// <c>from .b import c</c> imports resolved against the declaring file's directory.
-    /// </summary>
-    private static Dictionary<string, string> CollectImportTargets(Node rootNode, string relativePath)
-    {
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        var declaringDir = GetDirectoryOf(relativePath);
-        CollectImportTargetsRecursive(rootNode, map, declaringDir);
-        return map;
-    }
-
-    private static void CollectImportTargetsRecursive(Node node, Dictionary<string, string> map, string declaringDir)
-    {
-        if (node.Is(TreeSitterSyntax.Python.ImportFromStatement))
-        {
-            var moduleNode = node.GetChildForField(TreeSitterSyntax.Fields.ModuleName);
-            var moduleText = moduleNode.IsValid() ? moduleNode.Text.Trim() : "";
-            var resolvedModule = ResolveRelativeModule(moduleText, declaringDir);
-            if (string.IsNullOrEmpty(resolvedModule)) return;
-
-            var nameChildren = node.GetChildrenForField(TreeSitterSyntax.Fields.Name).ToList();
-            if (nameChildren.Count == 0)
-            {
-                // Some converters surface imported names without field roles; fall back to
-                // non-module children that look like imported names or aliased pairs.
-                nameChildren = node.Children
-                    .Where(c => !ReferenceEquals(c, moduleNode) &&
-                                (c.Is(TreeSitterSyntax.Python.Identifier) ||
-                                 c.Is(TreeSitterSyntax.Python.DottedName) ||
-                                 c.Is(TreeSitterSyntax.Python.AliasedName) ||
-                                 c is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax))
-                    .ToList();
-            }
-
-            foreach (var nameChild in nameChildren)
-            {
-                RegisterImportedNames(nameChild, resolvedModule, map);
-            }
-            return;
-        }
-
-        if (node.Is(TreeSitterSyntax.Python.ImportStatement))
-        {
-            var moduleNode = node.GetChildForField(TreeSitterSyntax.Fields.ModuleName);
-            var moduleText = moduleNode.IsValid() ? moduleNode.Text.Trim() : "";
-            var resolvedModule = ResolveRelativeModule(moduleText, declaringDir);
-            if (!string.IsNullOrEmpty(resolvedModule))
-            {
-                RegisterImportedNames(node, resolvedModule, map);
-            }
-
-            foreach (var child in node.Children)
-            {
-                if (ReferenceEquals(child, moduleNode)) continue;
-                if (child.Is(TreeSitterSyntax.Python.DottedName) ||
-                    child.Is(TreeSitterSyntax.Python.AliasedName) ||
-                    child.Is(TreeSitterSyntax.Python.Identifier))
-                {
-                    var childModule = ResolveRelativeModule(child.Text.Trim(), declaringDir);
-                    if (string.IsNullOrEmpty(childModule)) continue;
-                    RegisterImportedNames(child, childModule, map);
-                }
-            }
-            return;
-        }
-
-        foreach (var child in node.Children)
-        {
-            CollectImportTargetsRecursive(child, map, declaringDir);
-        }
-    }
-
-    private static void RegisterImportedNames(Node nameChild, string resolvedModule, Dictionary<string, string> map)
-    {
-        if (nameChild.Is(TreeSitterSyntax.Python.AliasedName) ||
-            nameChild is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax { Children.Count: >= 2 })
-        {
-            // aliased import: key = imported name, value = local alias
-            var imported = nameChild.Children[0].Text.Trim();
-            var alias = nameChild.Children[^1].Text.Trim();
-            if (!string.IsNullOrEmpty(alias))
-            {
-                map[alias] = resolvedModule;
-            }
-            if (!string.IsNullOrEmpty(imported) && !imported.Contains('.'))
-            {
-                map.TryAdd(imported, resolvedModule);
-            }
-        }
-        else
-        {
-            var name = nameChild.Text.Trim();
-            if (!string.IsNullOrEmpty(name))
-            {
-                map[name] = resolvedModule;
-            }
-        }
-    }
-
-    private static string? ResolveRelativeModule(string moduleText, string declaringDir)
-    {
-        if (string.IsNullOrWhiteSpace(moduleText)) return null;
-
-        var text = moduleText.Trim();
-        if (!text.StartsWith('.')) return text.Replace('.', '/');
-
-        var dotCount = 0;
-        while (dotCount < text.Length && text[dotCount] == '.') dotCount++;
-        var rest = text[dotCount..].Replace('.', '/');
-
-        // 1 leading dot = current package directory; each additional dot = one level up.
-        var dirParts = declaringDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var upLevels = dotCount - 1;
-        if (upLevels > dirParts.Length) return null;
-
-        var baseParts = upLevels > 0 ? dirParts[..^upLevels] : dirParts;
-        var combined = string.Join("/", baseParts.Concat(rest.Split('/', StringSplitOptions.RemoveEmptyEntries)));
-        return combined;
-    }
-
-    private static string GetDirectoryOf(string? relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(relativePath)) return string.Empty;
-        var normalized = relativePath.Replace('\\', '/');
-        var lastSlash = normalized.LastIndexOf('/');
-        return lastSlash <= 0 ? string.Empty : normalized[..lastSlash];
     }
 
     private static void TraverseForFastApiDeclarations(Node node, string relativePath, string? projectName, ParsingContext? ctx, Dictionary<string, string>? importTargets = null)
@@ -981,13 +853,13 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
                                         // name is a submodule referenced through an attribute — in a
                                         // sibling file named after it.
                                         RouteDictionaryRegistry.RegisterMountPrefix(modulePath, cleanPrefix);
-                                        RouteDictionaryRegistry.RegisterMountPrefix(modulePath + ".py", cleanPrefix);
-                                        RouteDictionaryRegistry.RegisterMountPrefix(modulePath + "/__init__.py", cleanPrefix);
+                                        RouteDictionaryRegistry.RegisterMountPrefix(modulePath + PyExtension, cleanPrefix);
+                                        RouteDictionaryRegistry.RegisterMountPrefix(modulePath + PackageInitSuffix, cleanPrefix);
                                         if (isAttributeRef)
                                         {
                                             var subModule = $"{modulePath}/{localName}";
                                             RouteDictionaryRegistry.RegisterMountPrefix(subModule, cleanPrefix);
-                                            RouteDictionaryRegistry.RegisterMountPrefix(subModule + ".py", cleanPrefix);
+                                            RouteDictionaryRegistry.RegisterMountPrefix(subModule + PyExtension, cleanPrefix);
                                         }
                                     }
                                 }
@@ -995,7 +867,7 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
                                 // Raw-text fallback for same-file routers or unresolved imports.
                                 var targetMod = rText.Contains('.') ? rText[..rText.IndexOf('.')] : rText;
                                 RouteDictionaryRegistry.RegisterMountPrefix(targetMod, cleanPrefix);
-                                RouteDictionaryRegistry.RegisterMountPrefix(targetMod + ".py", cleanPrefix);
+                                RouteDictionaryRegistry.RegisterMountPrefix(targetMod + PyExtension, cleanPrefix);
                             }
                         }
                     }

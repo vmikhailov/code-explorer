@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.101.0] - 2026-11-25
+
+### Added
+- **Cross-File Route Prefix Resolution for Go, FastAPI, and Express (`ConstantRegistry`, `GoAstHelper`, `FastApiLibraryParser`, `PythonAstHelper`, `ExpressLibraryParser`)**:
+  - **Go Package-Scoped Constant Resolution & Chained Receiver Unwrapping**: Added `ConstantRegistry.RegisterPackageScoped` / `TryResolvePackageScoped` keyed by package directory with ambiguity guards, and chained call-receiver unwrapping (`r.server.Router().Fiber().Post(...)`) in `GoAstHelper.ResolveRoutePrefix`.
+  - **FastAPI Cross-Module `include_router` Mount Resolution**: Added `PythonAstHelper.CollectImportTargets` to resolve aliased (`from a.b import router as r`), plain (`from a.b import r`), and relative (`from .routers import ofp`) imports so `include_router(..., prefix=...)` binds mount prefixes to the declaring module path.
+  - **Express Factory-Call Mount Resolution**: Extended `ExpressLibraryParser` to resolve factory-mounted routers (`app.use('/data/', serve_data.init(options))`, `app.use(mount, serve_font(options))`) from local relative modules while ignoring external npm middleware packages.
+- **Uniform `route` Property on `EndpointNode` & Single-Pass Generic DB-Wrapper Signal Detection (`EndpointSemanticAnalyzer`, `Layer3FileSignalEnricher`, `ResourceSemanticAnalyzer`)**:
+  - Populated `route` alongside `route_template` on `EndpointNode` (`coalesce(ep.route_template, ep.route)` across projections and MCP context packs).
+  - Added single-pass Layer 3 SQL call-shape, SQL-literal (excluding Salesforce SOQL lookalikes), and schema-qualified table candidate signals (`HasSqlClientCallShape`, `HasSqlLiteralEvidence`, `SqlSchemaCandidates`) for architecture-neutral in-house database wrapper detection in Layer 4.
+
+---
+
 ## [1.100.0] - 2026-11-24
 
 ### Added
