@@ -10,6 +10,7 @@ export const HomePage: React.FC = () => {
   const entry = ROUTES_DATA[HOME_KEY];
   return (
     <main
+      id="main-content"
       className="page-home"
       dangerouslySetInnerHTML={{ __html: entry.mainHtml }}
     />

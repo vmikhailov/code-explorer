@@ -6,6 +6,6 @@ const BENCHMARKS_KEY = '/benchmarks';
 export const BenchmarksPage: React.FC = () => {
   const entry = ROUTES_DATA[BENCHMARKS_KEY];
   return (
-    <main dangerouslySetInnerHTML={{ __html: entry.mainHtml }} />
+    <main id="main-content" dangerouslySetInnerHTML={{ __html: entry.mainHtml }} />
   );
 };

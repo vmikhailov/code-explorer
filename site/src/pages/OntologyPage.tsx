@@ -10,6 +10,7 @@ export const OntologyPage: React.FC = () => {
   const entry = ROUTES_DATA[ONTOLOGY_KEY];
   return (
     <main
+      id="main-content"
       className="ontology-page"
       dangerouslySetInnerHTML={{ __html: entry.mainHtml }}
     />

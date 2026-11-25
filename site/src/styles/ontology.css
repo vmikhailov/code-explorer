@@ -2,8 +2,8 @@
 /* Pre-emit critique: Extends the Console (graphite) design system from benchmarks.css for the interactive CodeExplorer Ontology Reference. Uses tokenized oklch surfaces, 1px rules, Host Grotesk for headings/UI, and Atkinson Hyperlegible Mono for URN templates, property names, edge labels, and OpenCypher queries. Stratified 5-layer bands pair with a live ego-relationship strip and sticky entity inspector. */
 
 :root {
-  --ont-canvas-bg: oklch(16% 0.024 264);
-  --ont-grid-dot: oklch(72% 0.02 255 / 0.09);
+  --ont-canvas-bg: #090d18;
+  --ont-grid-dot: rgba(166, 176, 195, 0.09);
   --ont-c-logical: oklch(59% 0.21 350);
   --ont-c-logical-ink: oklch(82% 0.16 350);
   --ont-logical-border: oklch(72% 0.16 350 / 0.65);

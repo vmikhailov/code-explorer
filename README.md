@@ -46,7 +46,7 @@ brew install vmikhailov/tap/ce
 code --install-extension vmikhailov.code-explorer-vscode
 
 # Standalone binary installer (macOS / Linux)
-curl -fsSL https://code-explorer.app/install.sh | bash
+curl -fsSL https://code-explorer.app/install.sh | sh
 
 # Standalone binary installer (Windows PowerShell)
 irm https://code-explorer.app/install.ps1 | iex

@@ -10,6 +10,7 @@ export const ArchitecturesPage: React.FC = () => {
   const entry = ROUTES_DATA[ARCH_KEY];
   return (
     <main
+      id="main-content"
       className="arch-page"
       dangerouslySetInnerHTML={{ __html: entry.mainHtml }}
     />

@@ -4,141 +4,85 @@ export interface MastFooterProps {
   versionLabel?: string;
 }
 
-const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v1.100.0';
+const DEFAULT_VERSION_LABEL = 'v1.100.0';
 
 export const MastFooter: React.FC<MastFooterProps> = ({
   versionLabel = DEFAULT_VERSION_LABEL,
 }) => (
-  <footer className="mast-footer">
-    <div className="wrap">
-      <div className="mast-top">
-        <div className="mast-col">
-          <a href="/" className="brand-lockup">
-            <span className="brand-mark">ce</span>
-            <span>CodeExplorer</span>
+  <footer className="site-footer">
+    <div className="wrap footer-grid">
+      <div className="footer-brand">
+        <a href="/" className="wordmark-text">
+          CodeExplorer
+        </a>
+        <p>
+          Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks. Free and open source under the MIT License.
+        </p>
+      </div>
+
+      <ul className="footer-links">
+        <li>
+          <a
+            href="https://github.com/vmikhailov/code-explorer"
+            target="_blank"
+            rel="noopener"
+          >
+            GitHub
           </a>
-          <p className="panel-copy">
-            Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks.
-          </p>
-        </div>
+        </li>
+        <li>
+          <a
+            href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode"
+            target="_blank"
+            rel="noopener"
+          >
+            VS Code Marketplace
+          </a>
+        </li>
+        <li>
+          <a
+            href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode"
+            target="_blank"
+            rel="noopener"
+          >
+            Open VSX Registry
+          </a>
+        </li>
+        <li>
+          <a href="/benchmarks">Benchmarks</a>
+        </li>
+        <li>
+          <a href="/ontology">Graph ontology</a>
+        </li>
+        <li>
+          <a href="/architectures">Architecture gate packs</a>
+        </li>
+        <li>
+          <a
+            href="https://www.nuget.org/packages/codeexplorer.cli"
+            target="_blank"
+            rel="noopener"
+          >
+            NuGet (codeexplorer.cli)
+          </a>
+        </li>
+        <li>
+          <a
+            href="https://github.com/vmikhailov/code-explorer/releases"
+            target="_blank"
+            rel="noopener"
+          >
+            Release notes
+          </a>
+        </li>
+        <li>
+          <a href="/privacy">Privacy Policy</a>
+        </li>
+      </ul>
 
-        <div className="mast-col">
-          <span className="mast-heading">Distribution</span>
-          <ul className="mast-list">
-            <li>
-              <a
-                href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode"
-                target="_blank"
-                rel="noopener"
-              >
-                VS Code Marketplace
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode"
-                target="_blank"
-                rel="noopener"
-              >
-                Open VSX Registry
-              </a>
-            </li>
-            <li>
-              <a href="https://github.com/vmikhailov/homebrew-tap" target="_blank" rel="noopener">
-                Homebrew Tap
-              </a>
-            </li>
-            <li>
-              <a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">
-                NuGet Global Tool
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        <div className="mast-col">
-          <span className="mast-heading">Architecture &amp; Docs</span>
-          <ul className="mast-list">
-            <li>
-              <a href="/architectures">Architecture Encyclopedia</a>
-            </li>
-            <li>
-              <a href="/ontology">Graph Ontology Map</a>
-            </li>
-            <li>
-              <a href="/benchmarks">Competitor Benchmarks</a>
-            </li>
-            <li>
-              <a
-                href="https://passport.code-explorer.app"
-                target="_blank"
-                rel="noopener"
-                className="tone-accent"
-              >
-                CodePassport
-              </a>
-            </li>
-            <li>
-              <a href="/presentation.html" target="_blank" rel="noopener">
-                Interactive Presentation
-              </a>
-            </li>
-            <li>
-              <a href="/llms.txt" target="_blank" rel="noopener">
-                llms.txt for Agents
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        <div className="mast-col">
-          <span className="mast-heading">Project &amp; Legal</span>
-          <ul className="mast-list">
-            <li>
-              <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">
-                GitHub Repository
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://github.com/vmikhailov/code-explorer/releases"
-                target="_blank"
-                rel="noopener"
-              >
-                Release Notes
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://github.com/vmikhailov/code-explorer/issues"
-                target="_blank"
-                rel="noopener"
-              >
-                Issue Tracker
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE"
-                target="_blank"
-                rel="noopener"
-              >
-                MIT License
-              </a>
-            </li>
-            <li>
-              <a href="/privacy">Privacy Policy</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <div className="mast-bottom">
-        <span>Built by Viacheslav Mikhailov, 100% local execution</span>
-        <span className="measured" id="footerCeVersion">
-          {versionLabel}
-        </span>
-      </div>
+      <p className="footer-version" id="footerCeVersion">
+        {versionLabel}
+      </p>
     </div>
   </footer>
 );

@@ -17,6 +17,16 @@ const NO_CACHE_OPTIONS: RequestInit = { cache: 'no-cache' };
 
 export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
   const [releaseVersion, setReleaseVersion] = useState<string>(DEFAULT_VERSION);
+  const [isScrolled, setIsScrolled] = useState<boolean>(false);
+
+  useEffect(() => {
+    const onScroll = (): void => {
+      setIsScrolled(window.scrollY > 8);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     fetch(VERSION_JSON_URL, NO_CACHE_OPTIONS)
@@ -28,7 +38,7 @@ export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
           setReleaseVersion(v);
           const footerVer = document.getElementById(FOOTER_VER_ID);
           if (footerVer) {
-            footerVer.textContent = `CodeExplorer CLI & Extension ${v}`;
+            footerVer.textContent = v;
           }
         }
       })
@@ -42,71 +52,100 @@ export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
   const isOnt = currentRoute === ONT_ROUTE;
   const isBench = currentRoute === BENCH_ROUTE || currentRoute.startsWith(BENCH_PREFIX);
 
+  const readersHref = isHome ? '#readers' : '/#readers';
   const queryHref = isHome ? '#playground' : '/#playground';
-  const mcpHref = isHome ? '#ai-mcp' : '/#ai-mcp';
   const gatesHref = isHome ? '#gates' : '/#gates';
   const installHref = isHome ? '#install' : '/#install';
 
   return (
-    <header className="slab-header">
-      <nav className="wrap slab-bar" aria-label="Primary">
-        <a href="/" className="brand-lockup" aria-label="CodeExplorer home">
-          <span className="brand-mark">ce</span>
-          <span>CodeExplorer</span>
-        </a>
-
-        <ul className="slab-links">
-          <li className="slab-anchor-item">
-            <a href={queryHref}>Query</a>
-          </li>
-          <li className="slab-anchor-item">
-            <a href={mcpHref}>MCP</a>
-          </li>
-          <li className="slab-anchor-item">
-            <a href={gatesHref}>Gates</a>
-          </li>
-          <li className="slab-anchor-item">
-            <a href={installHref}>Install</a>
-          </li>
-          <li className="slab-sep" aria-hidden="true" />
-          <li>
-            <a href="/architectures" aria-current={isArch ? 'page' : undefined}>
-              Architectures
-            </a>
-          </li>
-          <li>
-            <a href="/ontology" aria-current={isOnt ? 'page' : undefined}>
-              Ontology
-            </a>
-          </li>
-          <li>
-            <a href="/benchmarks" aria-current={isBench ? 'page' : undefined}>
-              Benchmarks
-            </a>
-          </li>
-        </ul>
-
-        <div className="slab-actions">
-          <a
-            href="https://github.com/vmikhailov/code-explorer/releases/latest"
-            target="_blank"
-            rel="noopener"
-            className="btn"
-            id="heroReleaseBadge"
-            aria-label="Latest CodeExplorer release"
-          >
-            {releaseVersion}
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <header className={`site-nav${isScrolled ? ' is-scrolled' : ''}`}>
+        <div className="wrap nav-bar">
+          <a href="/" className="wordmark" aria-label="CodeExplorer home">
+            <svg className="wordmark-glyph" viewBox="0 0 32 32" aria-hidden="true">
+              <circle
+                cx="16"
+                cy="16"
+                r="13"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeDasharray="2 3"
+              />
+              <circle
+                cx="16"
+                cy="16"
+                r="7.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                opacity=".55"
+              />
+              <circle cx="16" cy="16" r="3" fill="var(--signal)" />
+              <circle cx="27.2" cy="9.5" r="2" fill="var(--svc)" />
+              <circle cx="6" cy="22" r="2" fill="var(--db)" />
+            </svg>
+            <span>CodeExplorer</span>
           </a>
-          <a
-            href="https://github.com/vmikhailov/code-explorer"
-            target="_blank"
-            rel="noopener"
-            className="btn"
-          >
-            GitHub
-          </a>
+
+          <nav aria-label="Primary">
+            <ul className="nav-links">
+              <li className="nav-anchor-item">
+                <a href={readersHref}>Product</a>
+              </li>
+              <li className="nav-anchor-item">
+                <a href={queryHref}>Query</a>
+              </li>
+              <li className="nav-anchor-item">
+                <a href={gatesHref}>Gates</a>
+              </li>
+              <li>
+                <a href="/architectures" aria-current={isArch ? 'page' : undefined}>
+                  Architectures
+                </a>
+              </li>
+              <li>
+                <a href="/ontology" aria-current={isOnt ? 'page' : undefined}>
+                  Ontology
+                </a>
+              </li>
+              <li>
+                <a href="/benchmarks" aria-current={isBench ? 'page' : undefined}>
+                  Benchmarks
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/vmikhailov/code-explorer"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  GitHub
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <div className="nav-actions">
+            <a
+              href="https://github.com/vmikhailov/code-explorer/releases/latest"
+              target="_blank"
+              rel="noopener"
+              className="nav-version"
+              id="heroReleaseBadge"
+              aria-label="Latest CodeExplorer release"
+            >
+              {releaseVersion}
+            </a>
+            <a href={installHref} className="btn btn--primary btn--sm">
+              Install
+            </a>
+          </div>
         </div>
-      </nav>
-    </header>
+      </header>
+    </>
   );
 };

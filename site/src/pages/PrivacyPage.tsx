@@ -7,6 +7,7 @@ export const PrivacyPage: React.FC = () => {
   const entry = ROUTES_DATA[PRIVACY_KEY];
   return (
     <main
+      id="main-content"
       className="page-privacy"
       dangerouslySetInnerHTML={{ __html: entry.mainHtml }}
     />

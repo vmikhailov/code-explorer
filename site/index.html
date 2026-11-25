@@ -7,7 +7,7 @@
   <meta name="description" content="Map services and SQL tables from source code in VS Code, query call chains and data lineage via MCP, and check architectural rules in CI.">
   <meta name="author" content="CodeExplorer">
   <meta name="robots" content="index, follow">
-  <meta name="theme-color" content="#121417">
+  <meta name="theme-color" content="#090D18">
   <link rel="canonical" href="https://code-explorer.app/">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
@@ -26,389 +26,280 @@
   <meta name="twitter:image" content="https://code-explorer.app/all_services.png">
 
   <link rel="stylesheet" href="/fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="/assets/app-0BjiTMJO.css">
+  <link rel="stylesheet" href="/assets/app-CJKdiIAV.css">
 </head>
 <body>
-  <div id="root"><header class="slab-header"><nav class="wrap slab-bar" aria-label="Primary"><a href="/" class="brand-lockup" aria-label="CodeExplorer home"><span class="brand-mark">ce</span><span>CodeExplorer</span></a><ul class="slab-links"><li class="slab-anchor-item"><a href="#playground">Query</a></li><li class="slab-anchor-item"><a href="#ai-mcp">MCP</a></li><li class="slab-anchor-item"><a href="#gates">Gates</a></li><li class="slab-anchor-item"><a href="#install">Install</a></li><li class="slab-sep" aria-hidden="true"></li><li><a href="/architectures">Architectures</a></li><li><a href="/ontology">Ontology</a></li><li><a href="/benchmarks">Benchmarks</a></li></ul><div class="slab-actions"><a href="https://github.com/vmikhailov/code-explorer/releases/latest" target="_blank" rel="noopener" class="btn" id="heroReleaseBadge" aria-label="Latest CodeExplorer release">v1.99.0</a><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">GitHub</a></div></nav></header><main class="page-home"><!-- Stage / Workbench Hero -->
-    <section class="hero-stage" id="cockpit">
-      <div class="wrap">
-        <div class="hero-top">
-          <div>
-            <h1 class="hero-title">Understand, query, and guard your architecture. <span class="tone-accent">For you and your agent.</span></h1>
+  <div id="root"><a class="skip-link" href="#main-content">Skip to content</a><header class="site-nav"><div class="wrap nav-bar"><a href="/" class="wordmark" aria-label="CodeExplorer home"><svg class="wordmark-glyph" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 3"></circle><circle cx="16" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".55"></circle><circle cx="16" cy="16" r="3" fill="var(--signal)"></circle><circle cx="27.2" cy="9.5" r="2" fill="var(--svc)"></circle><circle cx="6" cy="22" r="2" fill="var(--db)"></circle></svg><span>CodeExplorer</span></a><nav aria-label="Primary"><ul class="nav-links"><li class="nav-anchor-item"><a href="#readers">Product</a></li><li class="nav-anchor-item"><a href="#playground">Query</a></li><li class="nav-anchor-item"><a href="#gates">Gates</a></li><li><a href="/architectures">Architectures</a></li><li><a href="/ontology">Ontology</a></li><li><a href="/benchmarks">Benchmarks</a></li><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li></ul></nav><div class="nav-actions"><a href="https://github.com/vmikhailov/code-explorer/releases/latest" target="_blank" rel="noopener" class="nav-version" id="heroReleaseBadge" aria-label="Latest CodeExplorer release">v1.100.0</a><a href="#install" class="btn btn--primary btn--sm">Install</a></div></div></header><main id="main-content" class="page-home"><!-- 1. Hero: split layout with dissolving radial orbit map -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <h1 id="hero-title" class="display">Understand, query, and guard your architecture. <span class="tone-accent">For you and your agent.</span></h1>
+          <p class="hero-lede">
+            CodeExplorer indexes your repositories into one local SQLite database. Inspect architecture diagrams in VS Code, expose structural queries to coding agents over MCP, and check layer boundaries in CI.
+          </p>
+          <div class="hero-actions">
+            <a href="#install" class="btn btn--primary">Installation</a>
+            <button type="button" class="cmd-chip" data-copy="brew install vmikhailov/tap/ce" aria-label="Copy Homebrew install command">
+              <span class="cmd-prompt" aria-hidden="true">$</span>
+              <code>brew install vmikhailov/tap/ce</code>
+              <span class="cmd-copy">Copy</span>
+            </button>
           </div>
-          <div class="hero-aside">
-            <p class="hero-lede">
-              CodeExplorer indexes your repositories (C#, Java, Kotlin, TypeScript/JS, Go, Python, Rust, PHP, Perl, SQL, Terraform) into one local SQLite database. Inspect architecture diagrams in VS Code, expose structural queries to coding agents over MCP, and check layer boundaries in CI.
-            </p>
-            <div class="hero-controls">
-              <a href="#install" class="btn btn--framed">Installation</a>
-              <a href="/benchmarks" class="btn">Benchmarks</a>
-              <a href="/presentation.html" target="_blank" rel="noopener" class="btn">Presentation</a>
-            </div>
-          </div>
+          <ul class="hero-facts">
+            <li>Open source, MIT</li>
+            <li>Runs 100% locally</li>
+            <li>12 languages</li>
+            <li>16 MCP tools</li>
+          </ul>
         </div>
 
-        <!-- 3 Clear Questions / Pillars Strip -->
-        <div class="panels panels--3" style="margin-bottom: var(--space-xl);">
-          <div class="panel">
-            <div class="panel-head">
-              <h2 class="panel-title">1. Understand It Yourself</h2>
-              <code class="tone-accent">VS Code</code>
-            </div>
-            <p class="panel-copy">
-              Service, REST/gRPC, message queue, and SQL table diagrams built straight from source code, without hand-maintained schemas going stale.
-            </p>
-          </div>
-          <div class="panel">
-            <div class="panel-head">
-              <h2 class="panel-title">2. Give Memory to Your AI</h2>
-              <code class="tone-cool">MCP Server</code>
-            </div>
-            <p class="panel-copy">
-              Attach <code>ce mcp</code> to Claude Code or Cursor. Your AI agent queries exact call chains, one-shot task context packs, and blast radius in milliseconds instead of burning tokens on blind <code>grep</code>.
-            </p>
-          </div>
-          <div class="panel">
-            <div class="panel-head">
-              <h2 class="panel-title">3. Guard Architecture in CI</h2>
-              <code class="tone-ok">SIG + Ratchet</code>
-            </div>
-            <p class="panel-copy">
-              Enforce custom and built-in architectural rules on every PR. Freeze existing legacy tech debt as a baseline ratchet (<code>ce gate ratchet</code>) so CI stays green while blocking new violations.
-            </p>
-          </div>
-        </div>
-
-        <!-- Interactive VS Code Architecture Cockpit Workbench -->
-        <div class="workbench" data-slot="cockpit" data-kind="product">
-          <div class="workbench-bar">
-            <div class="workbench-tabs" role="tablist" aria-label="Architecture Cockpit views">
-              <button type="button" class="tab-btn active" onclick="switchShowcase(0, this)">1. System Map</button>
-              <button type="button" class="tab-btn" onclick="switchShowcase(1, this)">2. Blast Radius</button>
-              <button type="button" class="tab-btn" onclick="switchShowcase(2, this)">3. Call Flows</button>
-            </div>
-            <span class="workbench-readout">VS Code Webview: <code id="showcasePathLabel">all_services.png</code></span>
-          </div>
-
-          <div class="cockpit-viewport" onclick="openLightbox()" role="button" tabindex="0" aria-label="Enlarge Architecture Cockpit screenshot" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openLightbox();}">
-            <img id="showcaseImage" src="/all_services.png?v=2" alt="CodeExplorer Interactive Architecture Cockpit in VS Code" fetchpriority="high" width="1920" height="1080">
-          </div>
-
-          <div class="cockpit-footer">
-            <p class="cockpit-caption" id="showcaseDescription">
-              <strong>Full System Architecture Map:</strong> Every microservice, REST/gRPC endpoint, RabbitMQ/Kafka topic, and database table rendered automatically from your code. Double-click any service to drill into internal call chains.
-            </p>
-            <div class="cockpit-metrics" id="showcasePills">
-              <span class="metric-chip metric-chip--accent">Always Synced With Code</span>
-              <span class="metric-chip metric-chip--ok">Sub-10ms SQLite Queries</span>
-              <span class="metric-chip">Click image to enlarge</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 6 Core Capabilities Cut as Console Hairline Panels -->
-        <div class="panels panels--3" id="features" style="margin-top: var(--space-2xl);">
-          <article class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Cross-Service Topology</h3>
-              <code class="tone-accent">L4 + L5</code>
-            </div>
-            <p class="panel-copy">
-              Automatically links outgoing <code>HttpClient</code>, <code>Feign</code>, <code>axios</code>, and gRPC calls to target API controllers, and connects RabbitMQ/Kafka publishers to consumer handlers.
-            </p>
-            <code class="panel-code">CALLS, PUBLISHES_TO, SUBSCRIBES_TO</code>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Transitive Graph Contraction</h3>
-              <code class="tone-cool">Cockpit</code>
-            </div>
-            <p class="panel-copy">
-              Select any subset of services in VS Code and collapse intermediate pass-through nodes while preserving indirect dependency paths and edge provenance.
-            </p>
-            <code class="panel-code">Interactive C1 to C4 drill-down</code>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">End-to-End SQL Data Lineage</h3>
-              <code class="tone-ok">Lineage</code>
-            </div>
-            <p class="panel-copy">
-              Extracts Dapper, Entity Framework, Hibernate, Doctrine, Nette, DBI, and raw SQL queries to map exact <code>READS_FROM</code> and <code>WRITES_TO</code> edges down to database tables.
-            </p>
-            <code class="panel-code">ce lineage &lt;table-or-endpoint&gt;</code>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Cypher Query Engine</h3>
-              <code class="tone-accent">Cypher</code>
-            </div>
-            <p class="panel-copy">
-              Query your codebase in milliseconds using Cypher pattern matching, variable-length paths (<code>*1..6</code>), aggregations, and comprehensions.
-            </p>
-            <code class="panel-code">ce query &quot;MATCH (fn:Function)...&quot;</code>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Semantic Invariant Gates</h3>
-              <code class="tone-bad">CI Gate</code>
-            </div>
-            <p class="panel-copy">
-              Codify architectural boundaries as declarative YAML rules. Block forbidden layer couplings, god classes, and unauthenticated endpoints before merge.
-            </p>
-            <code class="panel-code">ce gate check</code>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Zero-Config MCP Server</h3>
-              <code class="tone-cool">stdio MCP</code>
-            </div>
-            <p class="panel-copy">
-              Exposes 16 MCP tools over <code>stdio</code> to Claude Code, Cursor, Windsurf, and GitHub Copilot backed by local SQLite.
-            </p>
-            <code class="panel-code">ce mcp</code>
-          </article>
-        </div>
+        <figure class="hero-map" data-lightbox-src="/all_services.png?v=2" title="Click to enlarge System Architecture Map">
+          <img src="/all_services.png?v=2" width="1920" height="1080" alt="CodeExplorer orbit map of services, queues, and SQL tables built from source code" fetchpriority="high">
+          <figcaption class="map-caption">
+            <span class="map-legend">
+              <span class="key key--svc">Services</span>
+              <span class="key key--queue">Queues</span>
+              <span class="key key--db">Databases</span>
+            </span>
+            <span class="map-source">Built straight from source code. Click map to enlarge.</span>
+          </figcaption>
+        </figure>
       </div>
     </section>
 
-    <!-- Section 1: Before vs After Agent Proof -->
-    <section class="band band--deep" id="benchmark">
+    <!-- 2. One graph, three readers -->
+    <section class="section" id="readers" aria-labelledby="readers-title">
       <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Stop paying agents to grep in the dark.</h2>
-          <p class="band-lede">
-            Paired agent runs on production monorepos and multi-service codebases with 100% symmetric system prompts.
+        <div class="section-head">
+          <h2 id="readers-title" class="h2">One graph for engineers and AI agents.</h2>
+          <p class="section-lede">
+            CodeExplorer scans your repository once into <code>.codeexplorer/graph.db</code> so your IDE, coding agent, and pull-request checks read the same structural graph.
           </p>
         </div>
 
-        <div class="diff-layout">
-          <div class="diff-stack" data-slot="benchmark-diff">
-            <div class="diff-surface">
-              <div class="diff-head">
-                <span data-bind-html="index.cs01_head_html">Case 01: <code>twentyhq/twenty</code> (24,527 files)</span>
-                <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty">Report</a>
-              </div>
-              <div class="diff-row diff-row--minus">
-                <span class="diff-sign">&minus;</span>
-                <span><code>codebase-memory-mcp</code> + AST scripts (<span data-bind="index.cs01_cbm_rec">3.4% (13/381) from CBM graph</span>)</span>
-                <span class="diff-val" data-bind="index.cs01_cbm_val">9m 15s, 28 turns, ~1.7M tokens</span>
-              </div>
-              <div class="diff-row diff-row--plus">
-                <span class="diff-sign">+</span>
-                <span><code>CodeExplorer MCP</code> (<span data-bind="index.cs01_ce_rec">100% (381/381) directly from graph.db</span>)</span>
-                <span class="diff-val tone-ok" data-bind="index.cs01_ce_val">1m 33s (~6.0× faster), 7 turns, ~242K tokens</span>
-              </div>
-            </div>
-
-            <div class="diff-surface">
-              <div class="diff-head">
-                <span data-bind-html="index.cs02_head_html">Case 02: 324-service workspace (13,782 files)</span>
-                <a href="/benchmarks/02-enterprise-microservices-deep-audit">Report</a>
-              </div>
-              <div class="diff-row diff-row--minus">
-                <span class="diff-sign">&minus;</span>
-                <span data-bind-html="index.cs02_rg_label_html"><code>ripgrep</code> + Python scripts (missed 9 services)</span>
-                <span class="diff-val" data-bind="index.cs02_rg_val">29m 52s, 285 turns, ~17.2M tokens ($1.15)</span>
-              </div>
-              <div class="diff-row diff-row--plus">
-                <span class="diff-sign">+</span>
-                <span data-bind-html="index.cs02_ce_label"><code>CodeExplorer</code> (10 CLI commands + 16 file reads, 0 scripts, 0 compactions)</span>
-                <span class="diff-val tone-ok" data-bind="index.cs02_ce_val">4m 16s (~7.0× faster), 18 turns, ~686K tokens ($0.10)</span>
-              </div>
-            </div>
+        <div class="readers">
+          <div class="reader-list" role="tablist" aria-label="How CodeExplorer is used" aria-orientation="vertical">
+            <button type="button" role="tab" class="reader-tab" id="tab-you" aria-controls="panel-you" aria-selected="true">
+              <span class="reader-num">01</span>
+              <span class="reader-text">
+                <span class="reader-title">Understand It Yourself</span>
+                <span class="reader-desc">Service, REST/gRPC, message queue, and SQL table diagrams built straight from source code, without hand-maintained schemas going stale.</span>
+              </span>
+            </button>
+            <button type="button" role="tab" class="reader-tab" id="tab-agent" aria-controls="panel-agent" aria-selected="false" tabindex="-1">
+              <span class="reader-num">02</span>
+              <span class="reader-text">
+                <span class="reader-title">Give Memory to Your AI</span>
+                <span class="reader-desc">Attach <code>ce mcp</code> to Claude Code or Cursor. Your agent queries exact call chains, one-shot task context packs, and blast radius in milliseconds instead of blind <code>grep</code>.</span>
+              </span>
+            </button>
+            <button type="button" role="tab" class="reader-tab" id="tab-ci" aria-controls="panel-ci" aria-selected="false" tabindex="-1">
+              <span class="reader-num">03</span>
+              <span class="reader-text">
+                <span class="reader-title">Guard Architecture in CI</span>
+                <span class="reader-desc">Enforce custom and built-in architectural rules on every PR. Freeze existing legacy debt as a baseline ratchet (<code>ce gate ratchet</code>) so CI stays green while blocking new violations.</span>
+              </span>
+            </button>
           </div>
 
-          <div class="proof-ledger" data-slot="benchmark-ledger">
-            <div class="proof-stat">
-              <span class="reading tone-accent" data-bind="index.card_token_comp">~7.0×</span>
-              <h3 class="proof-label">Fewer input tokens</h3>
-              <p class="panel-copy" data-bind="index.card_token_copy">Reduced cumulative input tokens from ~1.68M to ~242K on twentyhq/twenty (and ~25× on 324 services).</p>
+          <div class="reader-stage">
+            <div class="reader-panel" role="tabpanel" id="panel-you" aria-labelledby="tab-you">
+              <img class="shot" src="/project_flow.png?v=2" width="2699" height="2033" loading="lazy" data-lightbox-src="/project_flow.png?v=2" title="Click to enlarge Project Flow view" alt="CodeExplorer Project Flow view in VS Code showing a service with its PostgreSQL tables, Pub/Sub topics, cache, and libraries">
             </div>
 
-            <div class="proof-stat">
-              <span class="reading tone-ok" data-bind="index.card_arch_recall">~98%</span>
-              <h3 class="proof-label">SQL and queue lineage recall</h3>
-              <p class="panel-copy">Captures ORM queries, raw SQL tables, and message broker topics missed by AST-only indexers.</p>
+            <div class="reader-panel" role="tabpanel" id="panel-agent" aria-labelledby="tab-agent" hidden>
+              <div class="transcript">
+                <div class="transcript-top">
+                  <span>stdio MCP · <code>ce mcp</code></span>
+                  <button type="button" class="link-quiet" data-copy-mcp>Copy MCP JSON</button>
+                </div>
+                <p class="t-user">Who breaks if I change <code>PaymentProcessor.ChargeAsync</code>?</p>
+                <div class="t-call">
+                  <span class="t-label">tool call</span>
+                  <code>get_call_chain(symbol: "ChargeAsync", direction: "callers", depth: 4)</code>
+                </div>
+                <div class="t-result">
+                  <span class="t-label">result · 4 rows in 3.8 ms</span>
+                  <ol class="t-rows">
+                    <li><code>CaptureOrderHandler.Handle</code><span>1 hop</span></li>
+                    <li><code>CheckoutController.SubmitOrder</code><span>2 hops</span></li>
+                    <li><code>RenewalConsumer.Consume</code><span>2 hops</span></li>
+                    <li><code>MobileCheckoutEndpoint.Execute</code><span>3 hops</span></li>
+                  </ol>
+                </div>
+                <p class="t-agent">Four callers across Billing, Orders, Subscriptions, and the mobile gateway. I will update the two direct callers and verify the renewal consumer tests.</p>
+              </div>
             </div>
 
-            <div>
-              <a href="/benchmarks" class="btn">Explore All Benchmarks</a>
+            <div class="reader-panel" role="tabpanel" id="panel-ci" aria-labelledby="tab-ci" hidden>
+              <pre class="terminal"><span class="dim"># 1. Index polyglot workspace into .codeexplorer/graph.db</span>
+<span class="dim">$</span> ce scan
+<span class="ok">Indexed 452 modules, 18,420 types, 142,810 edges in 3.4s</span>
+
+<span class="dim"># 2. Check Semantic Invariant Gates &amp; affected tests</span>
+<span class="dim">$</span> ce gate check &amp;&amp; ce test impact --git -f commands
+<span class="ok">pass</span>  SIG-CA-B-001  Domain Layer Must Not Reference Infrastructure
+<span class="ok">pass</span>  SIG-DDD-001   No Shared Table Writes Across Services
+<span class="bad">fail</span>  SIG-AST-012   No Blocking .Result or .Wait() Inside Async Functions
+        Payments.Api.WebhookController.HandleStripeAsync
+        <span class="dim">src/Payments.Api/Controllers/WebhookController.cs:112</span>
+
+<span class="bad">1 new violation.</span> <span class="dim">2 legacy violations tolerated by baseline. Exit 1.</span></pre>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Section 2: Interactive OpenCypher Query Playground -->
-    <section class="band" id="playground">
+    <!-- 3. Proof: paired agent benchmarks -->
+    <section class="section section--deep" id="benchmark" aria-labelledby="proof-title">
       <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Query your architecture with Cypher.</h2>
-          <p class="band-lede">
+        <div class="proof-grid">
+          <div class="proof-lead">
+            <h2 id="proof-title" class="h2">Stop paying agents to grep in the dark.</h2>
+            <p class="big-number" data-bind="index.card_token_comp">~7.0×</p>
+            <p class="big-number-label">fewer input tokens</p>
+            <p class="proof-note" data-bind="index.card_token_copy">Reduced cumulative input tokens from ~1.68M to ~242K on twentyhq/twenty (and ~25× on 324 services).</p>
+            <p class="proof-stat-inline">
+              <strong class="ok" data-bind="index.card_arch_recall">~98%</strong> SQL and queue lineage recall across ORM queries, raw SQL tables, and message broker topics missed by AST-only indexers.
+            </p>
+            <a href="/benchmarks" class="link-quiet">Explore all 10 benchmark reports</a>
+          </div>
+
+          <div class="races">
+            <article class="race">
+              <div class="race-head">
+                <h3 class="race-title" data-bind-html="index.cs01_head_html">Case 01: <code>twentyhq/twenty</code> (24,527 files)</h3>
+                <a href="/benchmarks/01-agent-audit-ce-vs-cbm-on-twenty" class="link-quiet">Report</a>
+              </div>
+              <div class="race-row">
+                <div class="race-meta">
+                  <span class="race-who"><code>codebase-memory-mcp</code> + AST scripts</span>
+                  <span class="race-val" data-bind="index.cs01_cbm_val">9m 15s, 28 turns, ~1.7M tokens</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--other" style="--w: 1"></span></div>
+              </div>
+              <div class="race-row race-row--ce">
+                <div class="race-meta">
+                  <span class="race-who race-who--ce">CodeExplorer MCP</span>
+                  <span class="race-val" data-bind="index.cs01_ce_val">1m 33s (~6.0× faster), 7 turns, ~242K tokens</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--ce" style="--w: 0.168"></span></div>
+              </div>
+              <p class="race-foot">
+                Recall across 381 ground-truth items: <span data-bind="index.cs01_cbm_rec">3.4% (13/381) from CBM graph</span> vs <strong data-bind="index.cs01_ce_rec">100% (381/381) directly from graph.db</strong>.
+              </p>
+            </article>
+
+            <article class="race">
+              <div class="race-head">
+                <h3 class="race-title" data-bind-html="index.cs02_head_html">Case 02: 324-service workspace (13,782 files)</h3>
+                <a href="/benchmarks/02-enterprise-microservices-deep-audit" class="link-quiet">Report</a>
+              </div>
+              <div class="race-row">
+                <div class="race-meta">
+                  <span class="race-who" data-bind-html="index.cs02_rg_label_html"><code>ripgrep</code> + Python scripts (missed 9 services)</span>
+                  <span class="race-val" data-bind="index.cs02_rg_val">29m 52s, 285 turns, ~17.2M tokens ($1.15)</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--other" style="--w: 1"></span></div>
+              </div>
+              <div class="race-row race-row--ce">
+                <div class="race-meta">
+                  <span class="race-who race-who--ce" data-bind-html="index.cs02_ce_label"><code>CodeExplorer</code> (10 CLI commands + 16 file reads, 0 scripts, 0 compactions)</span>
+                  <span class="race-val" data-bind="index.cs02_ce_val">4m 16s (~7.0× faster), 18 turns, ~686K tokens ($0.10)</span>
+                </div>
+                <div class="bar"><span class="bar-fill bar-fill--ce" style="--w: 0.143"></span></div>
+              </div>
+              <p class="race-foot">Paired agent runs with identical system prompts. Bars show wall-clock time to answer.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Cypher Query Playground -->
+    <section class="section" id="playground" aria-labelledby="query-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="query-title" class="h2">Query your architecture with Cypher.</h2>
+          <p class="section-lede">
             Ask structural and cross-service questions in Cypher instead of chaining grep across dozens of files.
           </p>
         </div>
 
-        <div class="workbench" data-slot="cypher-workbench">
-          <div class="workbench-bar">
-            <div class="workbench-tabs" role="tablist" aria-label="OpenCypher query presets">
-              <button type="button" class="preset-btn active" onclick="loadQueryPreset('blast_radius', this)">Blast Radius (*1..4)</button>
-              <button type="button" class="preset-btn" onclick="loadQueryPreset('cqrs_pipeline', this)">CQRS Command to Handler</button>
-              <button type="button" class="preset-btn" onclick="loadQueryPreset('api_to_db', this)">Endpoint to SQL Lineage</button>
-              <button type="button" class="preset-btn" onclick="loadQueryPreset('cyclic_deps', this)">Cross-Module Cycles</button>
-            </div>
-            <button type="button" class="btn" id="runQueryBtn" onclick="runQueryAnimation()">Run Query</button>
+        <div class="bench">
+          <div class="chips" role="tablist" aria-label="Cypher query presets">
+            <button type="button" role="tab" class="chip active" data-preset="blast_radius" aria-selected="true">Blast Radius (*1..4)</button>
+            <button type="button" role="tab" class="chip" data-preset="cqrs_pipeline" aria-selected="false" tabindex="-1">CQRS Command to Handler</button>
+            <button type="button" role="tab" class="chip" data-preset="api_to_db" aria-selected="false" tabindex="-1">Service to SQL Lineage</button>
+            <button type="button" role="tab" class="chip" data-preset="cyclic_deps" aria-selected="false" tabindex="-1">Cross-Module Cycles</button>
           </div>
 
-          <div class="split-bench">
-            <div class="bench-pane">
-              <div class="bench-pane-head">
-                <span>Cypher Editor</span>
-                <span class="measured" id="queryPresetTag">blast_radius.cypher</span>
+          <div class="bench-split">
+            <div class="pane">
+              <div class="pane-head">
+                <span id="queryPresetTag" class="measured">blast_radius.cypher</span>
+                <button type="button" class="link-quiet" data-copy-query>Copy CLI Command</button>
               </div>
-              <pre class="code-view" id="queryCodeArea"><span class="syn-kw">MATCH</span> path = (caller:Function)-[:CALLS*<span class="syn-num">1..4</span>]-&gt;(target:Function {name: <span class="syn-str">"ChargeAsync"</span>})
+              <pre class="code" id="queryCodeArea"><span class="syn-kw">MATCH</span> path = (caller:Function)-[:CALLS*<span class="syn-num">1..4</span>]-&gt;
+      (target:Function {name: <span class="syn-str">"ChargeAsync"</span>})
 <span class="syn-kw">RETURN</span> caller.symbol <span class="syn-kw">AS</span> UpstreamCaller,
        <span class="syn-fn">length</span>(path) <span class="syn-kw">AS</span> Hops
 <span class="syn-kw">ORDER BY</span> Hops <span class="syn-kw">ASC</span>
 <span class="syn-kw">LIMIT</span> <span class="syn-num">10</span></pre>
-              <div class="bench-meta-row">
-                <span id="queryExplanation">Finds all upstream callers within 4 hops that can impact PaymentProcessor.ChargeAsync.</span>
-                <button type="button" class="btn" onclick="copyCurrentQuery()">Copy CLI Command</button>
-              </div>
+              <p class="pane-foot" id="queryExplanation">Finds upstream callers within 4 hops that reach PaymentProcessor.ChargeAsync.</p>
             </div>
 
-            <div class="bench-pane">
-              <div class="bench-pane-head">
+            <div class="pane">
+              <div class="pane-head">
                 <span>Execution Result (SQLite Graph Engine)</span>
-                <span class="measured tone-ok" id="queryTimingBadge">4 rows in 3.8 ms</span>
+                <span class="measured ok" id="queryTimingBadge">4 rows in 3.8 ms</span>
               </div>
-              <div class="data-table-wrap" id="queryResultsArea"><table class="data-table"><thead><tr><th>UpstreamCaller</th><th>Hops</th></tr></thead><tbody><tr><td>Billing.Application.Commands.CaptureOrderHandler.Handle</td><td>1</td></tr><tr><td>Orders.Api.Controllers.CheckoutController.SubmitOrder</td><td>2</td></tr><tr><td>Subscriptions.Worker.Consumers.RenewalConsumer.Consume</td><td>2</td></tr><tr><td>Gateway.Bff.Endpoints.MobileCheckoutEndpoint.Execute</td><td>3</td></tr></tbody></table></div>
+              <div class="table-wrap" id="queryResultsArea">
+                <table class="table">
+                  <thead><tr><th>UpstreamCaller</th><th>Hops</th></tr></thead>
+                  <tbody>
+                    <tr><td>Billing.Application.Commands.CaptureOrderHandler.Handle</td><td>1</td></tr>
+                    <tr><td>Orders.Api.Controllers.CheckoutController.SubmitOrder</td><td>2</td></tr>
+                    <tr><td>Subscriptions.Worker.Consumers.RenewalConsumer.Consume</td><td>2</td></tr>
+                    <tr><td>Gateway.Bff.Endpoints.MobileCheckoutEndpoint.Execute</td><td>3</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Section 3: Native CLI & Model Context Protocol (MCP) Server -->
-    <section class="band" id="ai-mcp">
+    <!-- 5. Semantic Invariant Gates + 5 Presets + Ratchet + GitHub Actions YAML -->
+    <section class="section" id="gates" aria-labelledby="gates-title">
       <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">One graph for engineers and AI agents.</h2>
-          <p class="band-lede">
-            CodeExplorer indexes your repository and stores the graph locally. Use the fast native CLI in your terminal, or attach the built-in MCP server to Claude Code, Cursor, Windsurf, or Antigravity.
-          </p>
-        </div>
-
-        <div class="panels panels--2">
-          <div class="panel panel--sunken">
-            <div class="panel-head">
-              <h3 class="panel-title">Terminal CLI Workflow</h3>
-              <code class="tone-accent">ce scan, ce context, ce query, ce gate</code>
-            </div>
-            <p class="panel-copy">
-              Incremental file-hash caching re-parses only modified files in milliseconds. Output clean YAML/tables for humans or SARIF for CI automation.
-            </p>
-            <pre class="code-view" style="margin-top: var(--space-sm);"><span class="syn-cmt"># 1. Index polyglot workspace into .codeexplorer/graph.db</span>
-<span class="tone-accent">$</span> ce scan
-<span class="tone-ok">Indexed 452 modules, 18,420 types, 142,810 edges in 3.4s</span>
-
-<span class="syn-cmt"># 2. Compile a one-shot task context pack for an issue</span>
-<span class="tone-accent">$</span> ce context &quot;revoke api key usage limit&quot;
-
-<span class="syn-cmt"># 3. Enforce Semantic Invariant Gates &amp; affected tests</span>
-<span class="tone-accent">$</span> ce gate check &amp;&amp; ce test impact --git -f commands
-<span class="tone-ok">PASS: 32 gates verified (0 net-new violations)</span></pre>
-          </div>
-
-          <div class="panel panel--sunken">
-            <div class="panel-head">
-              <h3 class="panel-title">Model Context Protocol (MCP) Server</h3>
-              <button type="button" class="btn" onclick="copyMCPConfig()">Copy MCP JSON</button>
-            </div>
-            <p class="panel-copy">
-              Add CodeExplorer to your agent's <code>mcpServers</code> configuration. Gives agents <code>get_task_context</code>, <code>get_architecture_map</code>, <code>find_symbol</code>, <code>get_call_chain</code>, <code>analyze_code_impact</code>, <code>inspect_data_lineage</code>, and <code>get_affected_tests</code>.
-            </p>
-            <pre class="code-view" id="mcpConfigSnippet" style="margin-top: var(--space-sm);">{
-  <span class="syn-kw">"mcpServers"</span>: {
-    <span class="syn-fn">"code-explorer"</span>: {
-      <span class="syn-kw">"command"</span>: <span class="syn-str">"ce"</span>,
-      <span class="syn-kw">"args"</span>: [<span class="syn-str">"mcp"</span>]
-    }
-  }
-}</pre>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 4: Semantic Invariant Gates (SIG) & Baseline Ratchet -->
-    <section class="band" id="gates">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Semantic Invariant Gates: architectural checks in CI.</h2>
-          <p class="band-lede">
+        <div class="section-head">
+          <h2 id="gates-title" class="h2">Semantic Invariant Gates: architectural checks in CI.</h2>
+          <p class="section-lede">
             Linters inspect one file at a time. Semantic Invariant Gates (SIG) check dependencies and dataflow across the full 5-layer graph, with a SHA-256 baseline ratchet so legacy violations stay frozen while new ones fail the build.
           </p>
         </div>
 
-        <!-- Four Orthogonal Invariant Dimensions -->
-        <div class="panels panels--4" style="margin-bottom: var(--space-xl);">
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Boundaries</h3>
-              <code class="tone-accent">L2 / L3</code>
-            </div>
-            <p class="panel-copy">Forbid Domain types from referencing Infrastructure, ORM, or transport assemblies.</p>
+        <div class="chips-bar">
+          <div class="chips" role="tablist" aria-label="Semantic Invariant Gate presets">
+            <button type="button" role="tab" class="chip active" data-gate-preset="boundaries" aria-selected="true">1. Clean Architecture Boundary</button>
+            <button type="button" role="tab" class="chip" data-gate-preset="topology" aria-selected="false" tabindex="-1">2. Shared SQL Table Coupling</button>
+            <button type="button" role="tab" class="chip" data-gate-preset="visitor" aria-selected="false" tabindex="-1">3. Async Deadlock (.Result)</button>
+            <button type="button" role="tab" class="chip" data-gate-preset="literal" aria-selected="false" tabindex="-1">4. Hardcoded URLs &amp; Literals</button>
+            <button type="button" role="tab" class="chip" data-gate-preset="ratchet" aria-selected="false" tabindex="-1">5. Legacy Baseline Ratchet</button>
           </div>
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Topology</h3>
-              <code class="tone-cool">L4 / L5</code>
-            </div>
-            <p class="panel-copy">Prevent synchronous REST call chains deeper than N hops or shared-table coupling across services.</p>
-          </div>
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">AST Visitor &amp; CFG</h3>
-              <code class="tone-ok">L1 / L2</code>
-            </div>
-            <p class="panel-copy">Detect async-over-sync deadlocks (<code>.Result</code>), missing cancellation tokens, or high cyclomatic complexity.</p>
-          </div>
-          <div class="panel">
-            <div class="panel-head">
-              <h3 class="panel-title">Baseline Ratchet</h3>
-              <code class="tone-bad">CI Lock</code>
-            </div>
-            <p class="panel-copy">Fingerprint existing legacy violations so brownfield teams block new regressions on day one.</p>
-          </div>
+          <a href="/architectures" class="link-quiet">Architecture Gate Packs</a>
         </div>
 
-        <!-- Interactive SIG Gate Workbench -->
-        <div class="workbench" data-slot="gate-workbench">
-          <div class="workbench-bar">
-            <div class="workbench-tabs" role="tablist" aria-label="Semantic Invariant Gate presets">
-              <button type="button" class="preset-btn active" onclick="loadGatePreset('boundaries', this)">1. Clean Architecture Boundary</button>
-              <button type="button" class="preset-btn" onclick="loadGatePreset('topology', this)">2. Shared SQL Table Coupling</button>
-              <button type="button" class="preset-btn" onclick="loadGatePreset('visitor', this)">3. Async Deadlock (.Result)</button>
-              <button type="button" class="preset-btn" onclick="loadGatePreset('literal', this)">4. Hardcoded Secrets &amp; Literals</button>
-              <button type="button" class="preset-btn" onclick="loadGatePreset('ratchet', this)">5. Legacy Baseline Ratchet</button>
+        <div class="gate-split">
+          <div class="pane">
+            <div class="pane-head">
+              <span id="gateFileLabel" class="measured">.codeexplorer/gates/domain-purity.yaml</span>
+              <button type="button" class="link-quiet" data-copy-gate>Copy Gate YAML</button>
             </div>
-            <a href="/architectures" class="btn">Architecture Gate Packs</a>
-          </div>
-
-          <div class="split-bench">
-            <div class="bench-pane">
-              <div class="bench-pane-head">
-                <span id="gateFileLabel">.codeexplorer/gates/domain-purity.yaml</span>
-                <span class="measured" id="gateDimensionBadge">Layer boundary</span>
-              </div>
-              <pre class="code-view" id="gateYamlArea"><span class="syn-kw">id:</span> <span class="syn-str">SIG-CA-B-001</span>
+            <pre class="code" id="gateYamlArea"><span class="syn-kw">id:</span> <span class="syn-str">SIG-CA-B-001</span>
 <span class="syn-kw">name:</span> <span class="syn-str">Domain Layer Must Not Reference Infrastructure</span>
 <span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
 <span class="syn-kw">query:</span> |-
@@ -418,61 +309,54 @@
       <span class="syn-kw">OR</span> inf.symbol <span class="syn-kw">CONTAINS</span> <span class="syn-str">"DbContext"</span>)
   <span class="syn-kw">RETURN</span> d.file_path <span class="syn-kw">AS</span> file, d.start_line <span class="syn-kw">AS</span> line,
          d.name <span class="syn-kw">AS</span> symbol, inf.name <span class="syn-kw">AS</span> target</pre>
-              <div class="bench-meta-row">
-                <span id="gateDescriptionText">Blocks any type inside a Domain module from depending on Infrastructure or EF Core types.</span>
-                <button type="button" class="btn" onclick="copyCurrentGateYaml()">Copy Gate YAML</button>
-              </div>
-            </div>
+            <p class="pane-foot" id="gateDescriptionText">Blocks any type inside a Domain module from referencing Infrastructure or EF Core types.</p>
+          </div>
 
-            <div class="bench-pane">
-              <div class="bench-pane-head">
-                <span>Gate Evaluation Output</span>
-                <span class="measured tone-bad" id="gateStatusBadge">Exit 1 (2 violations)</span>
+          <div class="pane">
+            <div class="pane-head">
+              <span>Gate Evaluation Output</span>
+              <span class="measured bad" id="gateStatusBadge">Exit 1 · 2 violations</span>
+            </div>
+            <div class="violations-list" id="gateViolationsArea">
+              <div class="violation">
+                <span class="violation-rule bad">SIG-CA-B-001 · Error</span>
+                <span class="violation-target">Orders.Domain.Aggregates.Order -&gt; Orders.Infrastructure.Persistence.OrderDbContext</span>
+                <span class="violation-loc">src/Orders.Domain/Aggregates/Order.cs:84</span>
               </div>
-              <div class="violation-list" id="gateViolationsArea">
-                <div class="violation-item">
-                  <strong class="tone-bad">SIG-CA-B-001 (Error)</strong>
-                  <span>Orders.Domain.Aggregates.Order -&gt; Orders.Infrastructure.Persistence.OrderDbContext</span>
-                  <span class="tone-muted">src/Orders.Domain/Aggregates/Order.cs:84</span>
-                </div>
-                <div class="violation-item">
-                  <strong class="tone-bad">SIG-CA-B-001 (Error)</strong>
-                  <span>Billing.Domain.Services.InvoiceCalculator -&gt; Billing.Infrastructure.Http.TaxRateClient</span>
-                  <span class="tone-muted">src/Billing.Domain/Services/InvoiceCalculator.cs:41</span>
-                </div>
+              <div class="violation">
+                <span class="violation-rule bad">SIG-CA-B-001 · Error</span>
+                <span class="violation-target">Billing.Domain.Services.InvoiceCalculator -&gt; Billing.Infrastructure.Http.TaxRateClient</span>
+                <span class="violation-loc">src/Billing.Domain/Services/InvoiceCalculator.cs:41</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Baseline Ratchet Trail & GitHub Actions CI Integration -->
-        <div class="diff-layout" style="margin-top: var(--space-xl);">
-          <div class="trail">
-            <div class="trail-step">
-              <h3 class="panel-title">1. Author declarative YAML rules</h3>
-              <p class="panel-copy">Place invariant rules in <code>.codeexplorer/gates/*.yaml</code> or scaffold defaults with <code>ce gate init</code>.</p>
-            </div>
-            <div class="trail-step">
-              <h3 class="panel-title">2. Snapshot brownfield debt</h3>
-              <p class="panel-copy">Run <code>ce gate ratchet --update</code> to record SHA-256 fingerprints of existing legacy violations in <code>.codeexplorer/baselines/*.json</code>.</p>
-            </div>
-            <div class="trail-step">
-              <h3 class="panel-title">3. Block net-new violations in CI</h3>
-              <p class="panel-copy"><code>ce gate check</code> passes when only baselined debt is present and exits with code 1 when a PR introduces a new violation.</p>
-            </div>
-            <div class="trail-step">
-              <h3 class="panel-title">4. Auto-tighten as code heals</h3>
-              <p class="panel-copy">Whenever a baselined violation is fixed, the ratchet lowers the ceiling automatically so debt can never return.</p>
-            </div>
-          </div>
+        <ol class="ratchet">
+          <li>
+            <span class="ratchet-step">Author YAML rules</span>
+            <span class="ratchet-copy">Place invariant rules in <code>.codeexplorer/gates/*.yaml</code> or scaffold defaults with <code>ce gate init</code>.</span>
+          </li>
+          <li>
+            <span class="ratchet-step">Snapshot brownfield debt</span>
+            <span class="ratchet-copy">Run <code>ce gate ratchet --update</code> to record SHA-256 fingerprints of existing legacy violations in <code>.codeexplorer/baselines/*.json</code>.</span>
+          </li>
+          <li>
+            <span class="ratchet-step">Block net-new violations</span>
+            <span class="ratchet-copy"><code>ce gate check</code> passes when only baselined debt is present and exits with code 1 when a PR introduces a new violation.</span>
+          </li>
+          <li>
+            <span class="ratchet-step">Auto-tighten as code heals</span>
+            <span class="ratchet-copy">Whenever a baselined violation is fixed, re-running the ratchet lowers the ceiling so resolved debt cannot return.</span>
+          </li>
+        </ol>
 
-          <div class="workbench">
-            <div class="workbench-bar">
-              <span>GitHub Actions CI Pipeline</span>
-              <code class="tone-muted">.github/workflows/architecture-gates.yml</code>
-            </div>
-            <div class="bench-pane">
-              <pre class="code-view"><span class="syn-kw">name:</span> Architecture Invariant Gates
+        <div class="pane ci-card">
+          <div class="pane-head">
+            <span>GitHub Actions CI Pipeline</span>
+            <code class="measured dim">.github/workflows/architecture-gates.yml</code>
+          </div>
+          <pre class="code"><span class="syn-kw">name:</span> Architecture Invariant Gates
 <span class="syn-kw">on:</span> [pull_request]
 
 <span class="syn-kw">jobs:</span>
@@ -481,237 +365,77 @@
     <span class="syn-kw">steps:</span>
       - <span class="syn-kw">uses:</span> actions/checkout@v4
       - <span class="syn-kw">name:</span> Install CodeExplorer CLI
-        <span class="syn-kw">run:</span> dotnet tool install -g codeexplorer.cli
+        <span class="syn-kw">run:</span> curl -fsSL https://code-explorer.app/install.sh | sh
       - <span class="syn-kw">name:</span> Build Graph &amp; Verify Invariant Gates
         <span class="syn-kw">run:</span> |
-          ce scan
-          ce gate check --format sarif &gt; results.sarif</pre>
-            </div>
-          </div>
+          ~/.local/bin/ce scan
+          ~/.local/bin/ce gate check --format sarif &gt; results.sarif</pre>
         </div>
       </div>
     </section>
 
-    <!-- Section 5: 5-Layer Graph Ontology Trail & Polyglot AST Matrix -->
-    <section class="band" id="ontology">
+    <!-- 6. Languages & Ontology -->
+    <section class="section" id="languages" aria-labelledby="languages-title">
       <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Five-layer graph ontology across twelve languages.</h2>
-          <p class="band-lede">
-            Every node and relationship in <code>.codeexplorer/graph.db</code> belongs to one of five layers, from files on disk up to bounded contexts.
-          </p>
+        <div class="section-head section-head--row">
+          <div>
+            <h2 id="languages-title" class="h2">Five-layer graph ontology across twelve languages.</h2>
+            <p class="section-lede">
+              Every node and relationship in <code>.codeexplorer/graph.db</code> belongs to one of five layers, from files on disk up to services, queues, SQL tables, and bounded contexts.
+            </p>
+          </div>
+          <a href="/ontology" class="link-quiet">Explore all 39 entities &amp; 57 relationships</a>
         </div>
 
-        <div class="trail">
-          <div class="trail-item">
-            <code class="tone-accent">Layer 5</code>
-            <h3 class="panel-title">Logical Structure</h3>
-            <p class="panel-copy">Business domains, DDD bounded contexts, and cross-context ownership boundaries.</p>
-            <code class="tone-muted">Domain, BoundedContext, CONTAINS, DEPENDS_ON</code>
-          </div>
-
-          <div class="trail-item">
-            <code class="tone-cool">Layer 4</code>
-            <h3 class="panel-title">Semantic Architecture</h3>
-            <p class="panel-copy">Services, apps, workers, endpoints, messages, caches, jobs, transactions, topics, SQL tables, and cloud resources.</p>
-            <code class="tone-muted">Workload, Endpoint, Message, Cache, Transaction, Table</code>
-          </div>
-
-          <div class="trail-item">
-            <code class="tone-ok">Layer 3</code>
-            <h3 class="panel-title">Syntactic UAST &amp; Dataflow</h3>
-            <p class="panel-copy">Types, functions, members, catch blocks, call graphs, and argument dataflow.</p>
-            <code class="tone-muted">Type, Function, Parameter, CallArgument, CALLS</code>
-          </div>
-
-          <div class="trail-item">
-            <code class="tone-ink-2">Layer 2</code>
-            <h3 class="panel-title">Project &amp; Package Boundaries</h3>
-            <p class="panel-copy">Compilation projects, external package dependencies, and binary entrypoints.</p>
-            <code class="tone-muted">Project, Package, EntryPoint, DEPENDS_ON, PRODUCES</code>
-          </div>
-
-          <div class="trail-item">
-            <code class="tone-muted">Layer 1</code>
-            <h3 class="panel-title">Physical File System</h3>
-            <p class="panel-copy">Workspace folders, source files, content hashes, and repository Git metadata.</p>
-            <code class="tone-muted">Folder, File, GitSettings, CONTAINS, LOCATED_IN</code>
-          </div>
-        </div>
-
-        <!-- 12-Language Polyglot Matrix -->
-        <div class="lang-grid" aria-label="Supported programming languages">
-          <div class="lang-cell">
-            <span class="lang-code">CS</span>
-            <span class="lang-name">C# / .NET</span>
-            <span class="lang-detail">ASP.NET, gRPC, Wolverine, Hangfire, MassTransit, EF Core, Dapper</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">JV</span>
-            <span class="lang-name">Java</span>
-            <span class="lang-detail">Spring Boot, Quarkus, Micronaut, Dubbo, MyBatis, jOOQ, Hibernate</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">KT</span>
-            <span class="lang-name">Kotlin</span>
-            <span class="lang-detail">Spring, Ktor, Exposed, Room, SQLDelight, Coroutines, Retrofit</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">TS</span>
-            <span class="lang-name">TypeScript &amp; JS</span>
-            <span class="lang-detail">NestJS, Next.js, tRPC, Hono, Kysely, TypeORM, Prisma, BullMQ</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">GO</span>
-            <span class="lang-name">Go</span>
-            <span class="lang-detail">Gin, Fiber, Fasthttp, gRPC-Gateway, Watermill, GORM, sqlx, Ent</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">PY</span>
-            <span class="lang-name">Python</span>
-            <span class="lang-detail">FastAPI, Litestar, Django, Celery, Dramatiq, SQLAlchemy, Temporal</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">RS</span>
-            <span class="lang-name">Rust</span>
-            <span class="lang-detail">Axum, Actix Web, Tonic gRPC, SQLx, SeaORM, Diesel, Tokio</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">PHP</span>
-            <span class="lang-name">PHP</span>
-            <span class="lang-detail">Symfony, Zend Framework 1, Kirby CMS, Laravel, Doctrine ORM, Nette DB, PDO</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">PL</span>
-            <span class="lang-name">Perl</span>
-            <span class="lang-detail">CPAN, DBI / DBD::mysql, LWP::UserAgent, Mail::Sendmail, Switch, Cron CLI</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">CF</span>
-            <span class="lang-name">ColdFusion</span>
-            <span class="lang-detail">CFML Components (.cfc/.cfm), cfquery SQL Lineage, cfhttp, Stored Procs</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">SQL</span>
-            <span class="lang-name">Database Schemas</span>
-            <span class="lang-detail">PostgreSQL, T-SQL, MySQL, SQLite, ClickHouse, BigQuery Lineage</span>
-          </div>
-          <div class="lang-cell">
-            <span class="lang-code">TF</span>
-            <span class="lang-name">Terraform &amp; HCL</span>
-            <span class="lang-detail">Terraform Modules, Terragrunt Units, AWS/GCP/Azure Cloud Resources</span>
-          </div>
-        </div>
+        <ul class="langs" aria-label="Supported programming languages">
+          <li><span class="lang">C# / .NET</span><span class="fw">ASP.NET Core, EF Core, Dapper, MassTransit</span></li>
+          <li><span class="lang">Java</span><span class="fw">Spring Boot, Quarkus, Hibernate, Kafka</span></li>
+          <li><span class="lang">Kotlin</span><span class="fw">Spring, Ktor, Exposed, Coroutines</span></li>
+          <li><span class="lang">TypeScript / JS</span><span class="fw">NestJS, Next.js, Express, TypeORM, Prisma</span></li>
+          <li><span class="lang">Go</span><span class="fw">Gin, Echo, gRPC-Gateway, GORM, sqlx</span></li>
+          <li><span class="lang">Python</span><span class="fw">FastAPI, Django, Flask, SQLAlchemy, Celery</span></li>
+          <li><span class="lang">Rust</span><span class="fw">Axum, Actix, Tonic gRPC, SQLx, Diesel</span></li>
+          <li><span class="lang">PHP</span><span class="fw">Symfony, Laravel, Doctrine, Nette</span></li>
+          <li><span class="lang">Perl</span><span class="fw">DBI, Mojolicious, Dancer2, LWP</span></li>
+          <li><span class="lang">ColdFusion</span><span class="fw">CFML components, cfquery SQL lineage</span></li>
+          <li><span class="lang">SQL</span><span class="fw">PostgreSQL, T-SQL, MySQL, ClickHouse, BigQuery</span></li>
+          <li><span class="lang">Terraform</span><span class="fw">HCL modules, Terragrunt, AWS/GCP/Azure</span></li>
+        </ul>
       </div>
     </section>
 
-    <!-- Section 6: Installation & CLI Reference -->
-    <section class="band--tight" id="install">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Install in 30 seconds.</h2>
-          <p class="band-lede">
-            Run 100% locally with zero cloud telemetry. Choose the VS Code extension for visual exploration or the standalone <code>ce</code> binary for CLI and CI pipelines.
+    <!-- 7. Install -->
+    <section class="section section--install" id="install" aria-labelledby="install-title">
+      <div class="wrap install-grid">
+        <div>
+          <h2 id="install-title" class="h2">Install in thirty seconds.</h2>
+          <p class="section-lede">
+            Single native binary. Runs locally on your machine and CI runners with no account, cloud dependencies, or source code uploads.
           </p>
         </div>
 
-        <div class="workbench" data-slot="install-workbench">
-          <div class="workbench-bar">
-            <div class="workbench-tabs" role="tablist" aria-label="Installation methods">
-              <button type="button" class="tab-btn active" onclick="switchInstallTab('brew', this)">macOS / Linux (Homebrew)</button>
-              <button type="button" class="tab-btn" onclick="switchInstallTab('vscode', this)">VS Code Extension</button>
-              <button type="button" class="tab-btn" onclick="switchInstallTab('win', this)">Windows (PowerShell)</button>
-              <button type="button" class="tab-btn" onclick="switchInstallTab('curl', this)">Linux / macOS (curl)</button>
-              <button type="button" class="tab-btn" onclick="switchInstallTab('dotnet', this)">.NET Global Tool</button>
-            </div>
-            <span class="workbench-readout">MIT License, Standalone Native Binary</span>
+        <div class="install">
+          <div class="chips" role="tablist" aria-label="Install method">
+            <button type="button" role="tab" class="chip active" aria-selected="true" data-cmd="brew install vmikhailov/tap/ce" data-note="Install native binary via Homebrew on macOS (Apple Silicon & Intel) or Linux.">Homebrew</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="code --install-extension vmikhailov.code-explorer-vscode" data-note="Install from VS Code Marketplace or Open VSX (automatically manages the ce CLI).">VS Code</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\install.ps1" data-note="Download and run the standalone Windows installer in PowerShell.">Windows</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="curl -fsSL https://code-explorer.app/install.sh | sh" data-note="Install the standalone binary on Linux or macOS directly to ~/.local/bin/ce.">curl</button>
+            <button type="button" role="tab" class="chip" aria-selected="false" tabindex="-1" data-cmd="dotnet tool install -g codeexplorer.cli" data-note="Install cross-platform via the NuGet global tool package (linux-*, osx-*, win-*).">.NET tool</button>
           </div>
-
-          <div class="install-pane active" id="tab-brew">
-            <p class="panel-copy">Install the native <code>ce</code> binary via Homebrew on macOS (Apple Silicon &amp; Intel) or Linux:</p>
-            <div class="install-cmd-row">
-              <code>brew install vmikhailov/tap/ce</code>
-              <button type="button" class="btn" onclick="copyInstallCmd('brew install vmikhailov/tap/ce')">Copy</button>
-            </div>
+          <div class="install-cmd">
+            <code id="install-cmd">brew install vmikhailov/tap/ce</code>
+            <button type="button" class="btn btn--primary btn--sm" data-copy-install>Copy</button>
           </div>
-
-          <div class="install-pane" id="tab-vscode">
-            <p class="panel-copy">Install the official extension from VS Code Marketplace or Open VSX (automatically manages the <code>ce</code> CLI):</p>
-            <div class="install-cmd-row">
-              <code>code --install-extension vmikhailov.code-explorer-vscode</code>
-              <div class="slab-actions">
-                <button type="button" class="btn" onclick="copyInstallCmd('code --install-extension vmikhailov.code-explorer-vscode')">Copy</button>
-                <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn">Open Marketplace</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="install-pane" id="tab-win">
-            <p class="panel-copy">Download and execute the standalone Windows installer in PowerShell:</p>
-            <div class="install-cmd-row">
-              <code>Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\install.ps1</code>
-              <button type="button" class="btn" onclick="copyInstallCmd('Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\\install.ps1')">Copy</button>
-            </div>
-          </div>
-
-          <div class="install-pane" id="tab-curl">
-            <p class="panel-copy">Download and install the standalone binary directly to <code>~/.local/bin/ce</code>:</p>
-            <div class="install-cmd-row">
-              <code>curl -fsSL -O https://code-explorer.app/install.sh &amp;&amp; sh install.sh</code>
-              <button type="button" class="btn" onclick="copyInstallCmd('curl -fsSL -O https://code-explorer.app/install.sh && sh install.sh')">Copy</button>
-            </div>
-          </div>
-
-          <div class="install-pane" id="tab-dotnet">
-            <p class="panel-copy">Install cross-platform via the NuGet global tool package (<code>linux-*</code>, <code>osx-*</code>, <code>win-*</code>):</p>
-            <div class="install-cmd-row">
-              <code>dotnet tool install -g codeexplorer.cli</code>
-              <button type="button" class="btn" onclick="copyInstallCmd('dotnet tool install -g codeexplorer.cli')">Copy</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Essential CLI Commands Grid -->
-        <div class="panels panels--3" style="margin-top: var(--space-xl);">
-          <div class="panel">
-            <code>ce scan</code>
-            <p class="panel-copy">Index the repository and build or update <code>.codeexplorer/graph.db</code>.</p>
-          </div>
-          <div class="panel">
-            <code>ce context &quot;&lt;task&gt;&quot;</code>
-            <p class="panel-copy">Compile a one-shot task context pack with focal symbols, SQL owners, gates, and read plan.</p>
-          </div>
-          <div class="panel">
-            <code>ce map</code>
-            <p class="panel-copy">Render a complete C1/C2 system architecture overview with endpoints, brokers, and databases.</p>
-          </div>
-          <div class="panel">
-            <code>ce query &quot;&lt;cypher&gt;&quot;</code>
-            <p class="panel-copy">Run read-only Cypher queries against <code>.codeexplorer/graph.db</code>.</p>
-          </div>
-          <div class="panel">
-            <code>ce impact &lt;symbol&gt;</code>
-            <p class="panel-copy">Compute upstream and downstream transitive blast radius across modules and services.</p>
-          </div>
-          <div class="panel">
-            <code>ce lineage &lt;table&gt;</code>
-            <p class="panel-copy">Inspect every service and method that reads from or writes to a database table.</p>
-          </div>
-          <div class="panel">
-            <code>ce gate check</code>
-            <p class="panel-copy">Evaluate Semantic Invariant Gates against the graph and apply any configured baselines.</p>
-          </div>
-          <div class="panel">
-            <code>ce test impact --git</code>
-            <p class="panel-copy">Discover transitively affected test classes and generate the exact test runner filter command.</p>
-          </div>
-          <div class="panel">
-            <code>ce mcp</code>
-            <p class="panel-copy">Start the Model Context Protocol server over <code>stdio</code> for AI coding agents.</p>
+          <p class="install-note" id="install-note">Install native binary via Homebrew on macOS (Apple Silicon &amp; Intel) or Linux.</p>
+          <div class="next-steps">
+            <p><code>ce scan</code> indexes the repository into <code>.codeexplorer/graph.db</code>.</p>
+            <p><code>ce context "&lt;task&gt;"</code> builds a one-shot context pack for an issue.</p>
+            <p><code>ce mcp</code> starts the Model Context Protocol server over <code>stdio</code>.</p>
+            <p><code>ce gate check</code> evaluates Semantic Invariant Gates in CI.</p>
           </div>
         </div>
       </div>
-    </section></main><footer class="mast-footer"><div class="wrap"><div class="mast-top"><div class="mast-col"><a href="/" class="brand-lockup"><span class="brand-mark">ce</span><span>CodeExplorer</span></a><p class="panel-copy">Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks.</p></div><div class="mast-col"><span class="mast-heading">Distribution</span><ul class="mast-list"><li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li><li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li><li><a href="https://github.com/vmikhailov/homebrew-tap" target="_blank" rel="noopener">Homebrew Tap</a></li><li><a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">NuGet Global Tool</a></li></ul></div><div class="mast-col"><span class="mast-heading">Architecture &amp; Docs</span><ul class="mast-list"><li><a href="/architectures">Architecture Encyclopedia</a></li><li><a href="/ontology">Graph Ontology Map</a></li><li><a href="/benchmarks">Competitor Benchmarks</a></li><li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener" class="tone-accent">CodePassport</a></li><li><a href="/presentation.html" target="_blank" rel="noopener">Interactive Presentation</a></li><li><a href="/llms.txt" target="_blank" rel="noopener">llms.txt for Agents</a></li></ul></div><div class="mast-col"><span class="mast-heading">Project &amp; Legal</span><ul class="mast-list"><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub Repository</a></li><li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release Notes</a></li><li><a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener">Issue Tracker</a></li><li><a href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li><li><a href="/privacy">Privacy Policy</a></li></ul></div></div><div class="mast-bottom"><span>Built by Viacheslav Mikhailov, 100% local execution</span><span class="measured" id="footerCeVersion">CodeExplorer CLI &amp; Extension v1.99.0</span></div></div></footer><div class="lightbox-modal" id="lightboxModal" role="dialog" aria-modal="true" aria-label="Architecture Cockpit screenshot preview"><img id="lightboxImg" src="/all_services.png?v=2" alt="Enlarged CodeExplorer Architecture Cockpit view"/></div><div class="toast" id="toast" role="status" aria-live="polite">Copied to clipboard!</div></div>
-  <script type="module" src="/assets/app-D6DpyHXj.js"></script>
+    </section></main><footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><a href="/" class="wordmark-text">CodeExplorer</a><p>Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks. Free and open source under the MIT License.</p></div><ul class="footer-links"><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li><li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li><li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li><li><a href="/benchmarks">Benchmarks</a></li><li><a href="/ontology">Graph ontology</a></li><li><a href="/architectures">Architecture gate packs</a></li><li><a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">NuGet (codeexplorer.cli)</a></li><li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release notes</a></li><li><a href="/privacy">Privacy Policy</a></li></ul><p class="footer-version" id="footerCeVersion">v1.100.0</p></div></footer><div class="lightbox-modal" id="lightboxModal" role="dialog" aria-modal="true" aria-label="Architecture Cockpit screenshot preview"><img id="lightboxImg" src="/all_services.png?v=2" alt="Enlarged CodeExplorer Architecture Cockpit view"/></div><div class="toast" id="toast" role="status" aria-live="polite">Copied to clipboard!</div></div>
+  <script type="module" src="/assets/app-ClA13cA-.js"></script>
 </body>
 </html>

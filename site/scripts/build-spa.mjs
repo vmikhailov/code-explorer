@@ -57,10 +57,13 @@ fs.writeFileSync(
   `${hallmarkStamp}\n${rawCss}`,
   'utf8',
 );
-fs.copyFileSync(
-  path.join(distAssetsDir, jsFile),
-  path.join(outAssetsDir, jsFile),
-);
+for (const file of assetFiles) {
+  if (file === cssFile) continue;
+  fs.copyFileSync(
+    path.join(distAssetsDir, file),
+    path.join(outAssetsDir, file),
+  );
+}
 
 console.log(`3. Writing SPA entry index.html with ${cssFile} and ${jsFile}...`);
 const ssrModuleUrl = pathToFileURL(
@@ -80,7 +83,7 @@ const html = `<!DOCTYPE html>
   <meta name="description" content="${escapeAttr(meta.description)}">
   <meta name="author" content="CodeExplorer">
   <meta name="robots" content="index, follow">
-  <meta name="theme-color" content="#121417">
+  <meta name="theme-color" content="#090D18">
   <link rel="canonical" href="${escapeAttr(meta.canonical)}">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
