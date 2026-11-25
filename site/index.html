@@ -305,13 +305,14 @@
             <pre class="code" id="gateYamlArea"><span class="syn-kw">id:</span> <span class="syn-str">SIG-CA-B-001</span>
 <span class="syn-kw">name:</span> <span class="syn-str">Domain Layer Must Not Reference Infrastructure</span>
 <span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
+<span class="syn-kw">target:</span> <span class="syn-str">"{inf.name}"</span>
+<span class="syn-kw">message:</span> <span class="syn-str">"Domain type '{d.name}' references infrastructure type '{inf.name}'"</span>
 <span class="syn-kw">query:</span> |-
   <span class="syn-kw">MATCH</span> (d:Type)-[:DEPENDS_ON|INHERITS|IMPLEMENTS]-&gt;(inf:Type)
   <span class="syn-kw">WHERE</span> d.file_path <span class="syn-kw">CONTAINS</span> <span class="syn-str">"/Domain/"</span>
     <span class="syn-kw">AND</span> (inf.file_path <span class="syn-kw">CONTAINS</span> <span class="syn-str">"/Infrastructure/"</span>
       <span class="syn-kw">OR</span> inf.symbol <span class="syn-kw">CONTAINS</span> <span class="syn-str">"DbContext"</span>)
-  <span class="syn-kw">RETURN</span> d.file_path <span class="syn-kw">AS</span> file, d.start_line <span class="syn-kw">AS</span> line,
-         d.name <span class="syn-kw">AS</span> symbol, inf.name <span class="syn-kw">AS</span> target</pre>
+  <span class="syn-kw">RETURN</span> d, inf</pre>
             <p class="pane-foot" id="gateDescriptionText">Blocks any type inside a Domain module from referencing Infrastructure or EF Core types.</p>
           </div>
 
@@ -439,6 +440,6 @@
         </div>
       </div>
     </section></main><footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><a href="/" class="wordmark-text">CodeExplorer</a><p>Local code architecture graph for VS Code, MCP coding agents, and CI invariant checks. Free and open source under the MIT License.</p></div><ul class="footer-links"><li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub</a></li><li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li><li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li><li><a href="/benchmarks">Benchmarks</a></li><li><a href="/ontology">Graph ontology</a></li><li><a href="/architectures">Architecture gate packs</a></li><li><a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">NuGet (codeexplorer.cli)</a></li><li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release notes</a></li><li><a href="/privacy">Privacy Policy</a></li></ul><p class="footer-version" id="footerCeVersion">v1.100.0</p></div></footer><div class="lightbox-modal" id="lightboxModal" role="dialog" aria-modal="true" aria-label="Architecture Cockpit screenshot preview"><img id="lightboxImg" src="/all_services.webp?v=3" alt="Enlarged CodeExplorer Architecture Cockpit view"/></div><div class="toast" id="toast" role="status" aria-live="polite">Copied to clipboard!</div></div>
-  <script type="module" src="/assets/app-CxVyZJpC.js"></script>
+  <script type="module" src="/assets/app-CCXjIIFh.js"></script>
 </body>
 </html>

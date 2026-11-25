@@ -90,7 +90,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Domain)-[:DEPENDS_ON|CALLS]->(Application|Infrastructure|Presentation)",
                 severity: "Error",
                 description: "Domain types and functions must never call or depend on Application, Infrastructure, or Presentation layers.",
-                query: "MATCH (src:Function)-[:CALLS]->(dst:Function)\n  WHERE src.file_path CONTAINS '" + s.domain + "'\n    AND (dst.file_path CONTAINS '" + s.infra + "' OR dst.file_path CONTAINS '" + s.app + "' OR dst.file_path CONTAINS '" + s.ui + "')\n  RETURN src.file_path AS file, src.start_line AS line, src.name AS symbol, dst.name AS target,\n         'Domain symbol ' + src.name + ' calls outer-layer symbol ' + dst.name AS message",
+                target: "{dst.name}",
+                message: "Domain symbol '{src.name}' calls outer-layer symbol '{dst.name}'",
+                query: "MATCH (src:Function)-[:CALLS]->(dst:Function)\n  WHERE src.file_path CONTAINS '" + s.domain + "'\n    AND (dst.file_path CONTAINS '" + s.infra + "' OR dst.file_path CONTAINS '" + s.app + "' OR dst.file_path CONTAINS '" + s.ui + "')\n  RETURN src, dst",
                 platform: stack
               },
               {
@@ -100,7 +102,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Application)-[:DEPENDS_ON|CALLS]->(Infrastructure|Presentation)",
                 severity: "Error",
                 description: "Application use cases orchestrate Domain logic without importing concrete Infrastructure or Delivery adapters.",
-                query: "MATCH (src:Function)-[:CALLS]->(dst:Function)\n  WHERE src.file_path CONTAINS '" + s.app + "'\n    AND (dst.file_path CONTAINS '" + s.infra + "' OR dst.file_path CONTAINS '" + s.ui + "')\n  RETURN src.file_path AS file, src.start_line AS line, src.name AS symbol, dst.name AS target,\n         'Application use case ' + src.name + ' depends directly on adapter ' + dst.name AS message",
+                target: "{dst.name}",
+                message: "Application use case '{src.name}' depends directly on adapter '{dst.name}'",
+                query: "MATCH (src:Function)-[:CALLS]->(dst:Function)\n  WHERE src.file_path CONTAINS '" + s.app + "'\n    AND (dst.file_path CONTAINS '" + s.infra + "' OR dst.file_path CONTAINS '" + s.ui + "')\n  RETURN src, dst",
                 platform: stack
               },
               {
@@ -110,7 +114,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Endpoint|Controller)-[:CALLS|READS_FROM|WRITES_TO]->(Query|Table)",
                 severity: "Error",
                 description: "Delivery handlers must dispatch through Application use cases rather than issuing SQL or ORM queries directly.",
-                query: "MATCH (q:Query)-[:ACCESSED_BY]->(fn:Function)\n  WHERE fn.file_path CONTAINS '" + s.ui + "'\n  RETURN fn.file_path AS file, fn.start_line AS line, fn.name AS symbol, q.name AS target,\n         'Delivery handler ' + fn.name + ' executes database query directly, bypassing Application layer' AS message",
+                target: "{q.name}",
+                message: "Delivery handler '{fn.name}' executes database query '{q.name}' directly, bypassing Application layer",
+                query: "MATCH (q:Query)-[:ACCESSED_BY]->(fn:Function)\n  WHERE fn.file_path CONTAINS '" + s.ui + "'\n  RETURN fn, q",
                 platform: stack
               },
               {
@@ -120,7 +126,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Type {layer:'Domain'}) with ORM or HTTP transport annotations",
                 severity: "Warning",
                 description: "Domain entities should stay free of database table or HTTP serialization decorators.",
-                query: "MATCH (t:Type)\n  WHERE t.file_path CONTAINS '" + s.domain + "'\n    AND (coalesce(t.attributes, '') CONTAINS 'Table' OR coalesce(t.attributes, '') CONTAINS 'Entity' OR coalesce(t.attributes, '') CONTAINS 'JsonProperty')\n  RETURN t.file_path AS file, t.start_line AS line, t.name AS symbol, t.attributes AS target,\n         'Domain type ' + t.name + ' carries outer framework annotation ' + t.attributes AS message",
+                target: "{t.attributes}",
+                message: "Domain type '{t.name}' carries outer framework annotation '{t.attributes}'",
+                query: "MATCH (t:Type)\n  WHERE t.file_path CONTAINS '" + s.domain + "'\n    AND (coalesce(t.attributes, '') CONTAINS 'Table' OR coalesce(t.attributes, '') CONTAINS 'Entity' OR coalesce(t.attributes, '') CONTAINS 'JsonProperty')\n  RETURN t",
                 platform: stack
               },
               {
@@ -130,7 +138,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(p1:Project)-[:DEPENDS_ON]->(p2:Project)-[:DEPENDS_ON]->(p1)",
                 severity: "Error",
                 description: "Projects must form a strict directed acyclic graph without mutual dependencies.",
-                query: "MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project)-[:DEPENDS_ON]->(p1)\n  WHERE p1.id < p2.id\n  RETURN p1.path AS file, 1 AS line, p1.name AS symbol, p2.name AS target,\n         'Circular project dependency between ' + p1.name + ' and ' + p2.name AS message",
+                target: "{p2.name}",
+                message: "Circular project dependency between '{p1.name}' and '{p2.name}'",
+                query: "MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project)-[:DEPENDS_ON]->(p1)\n  WHERE p1.id < p2.id\n  RETURN p1, p2",
                 platform: stack
               }
             ];
@@ -169,7 +179,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(DrivingAdapter)-[:CALLS]->(DrivenAdapter) bypassing Core Port",
                 severity: "Error",
                 description: "Inbound HTTP/gRPC/CLI adapters must never invoke outbound persistence or external SDK adapters directly.",
-                query: "MATCH (inbound:Function)-[:CALLS]->(outbound:Function)\n  WHERE inbound.file_path CONTAINS '" + s.ui + "' AND outbound.file_path CONTAINS '" + s.infra + "'\n  RETURN inbound.file_path AS file, inbound.start_line AS line, inbound.name AS symbol, outbound.name AS target,\n         'Inbound adapter ' + inbound.name + ' bypasses Core Port and calls outbound adapter ' + outbound.name AS message",
+                target: "{outbound.name}",
+                message: "Inbound adapter '{inbound.name}' bypasses Core Port and calls outbound adapter '{outbound.name}'",
+                query: "MATCH (inbound:Function)-[:CALLS]->(outbound:Function)\n  WHERE inbound.file_path CONTAINS '" + s.ui + "' AND outbound.file_path CONTAINS '" + s.infra + "'\n  RETURN inbound, outbound",
                 platform: stack
               },
               {
@@ -179,7 +191,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Core)-[:CALLS]->(DrivenAdapter|ExternalService)",
                 severity: "Error",
                 description: "Domain and Port definitions inside the hexagon must never call concrete adapter implementations.",
-                query: "MATCH (core:Function)-[:CALLS]->(adapter:Function)\n  WHERE (core.file_path CONTAINS '" + s.domain + "' OR core.file_path CONTAINS '" + s.app + "')\n    AND adapter.file_path CONTAINS '" + s.infra + "'\n  RETURN core.file_path AS file, core.start_line AS line, core.name AS symbol, adapter.name AS target,\n         'Hexagon core function ' + core.name + ' calls concrete driven adapter ' + adapter.name AS message",
+                target: "{adapter.name}",
+                message: "Hexagon core function '{core.name}' calls concrete driven adapter '{adapter.name}'",
+                query: "MATCH (core:Function)-[:CALLS]->(adapter:Function)\n  WHERE (core.file_path CONTAINS '" + s.domain + "' OR core.file_path CONTAINS '" + s.app + "')\n    AND adapter.file_path CONTAINS '" + s.infra + "'\n  RETURN core, adapter",
                 platform: stack
               },
               {
@@ -189,7 +203,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "Repository or Adapter class without IMPLEMENTS -> Port interface",
                 severity: "Warning",
                 description: "Every concrete outbound repository or client adapter must implement an explicit Port interface.",
-                query: "MATCH (repo:Type)\n  WHERE repo.file_path CONTAINS '" + s.infra + "' AND repo.name ENDS WITH 'Repository'\n    AND coalesce(repo.implements, '') = ''\n  RETURN repo.file_path AS file, repo.start_line AS line, repo.name AS symbol, 'PortInterface' AS target,\n         'Driven adapter ' + repo.name + ' does not implement an outbound Port interface' AS message",
+                target: "PortInterface",
+                message: "Driven adapter '{repo.name}' does not implement an outbound Port interface",
+                query: "MATCH (repo:Type)\n  WHERE repo.file_path CONTAINS '" + s.infra + "' AND repo.name ENDS WITH 'Repository'\n    AND coalesce(repo.implements, '') = ''\n  RETURN repo",
                 platform: stack
               },
               {
@@ -199,7 +215,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(ExternalService)-[:DECLARED_IN]->(File outside Driven Adapters)",
                 severity: "Error",
                 description: "Outbound HTTP/RPC calls must originate strictly from driven adapter modules.",
-                query: "MATCH (es:ExternalService)-[:DECLARED_IN]->(f:File)\n  WHERE NOT f.path CONTAINS '" + s.infra + "'\n  RETURN f.path AS file, coalesce(es.start_line, 1) AS line, es.name AS symbol, es.url AS target,\n         'External service call ' + es.name + ' is declared outside driven adapters' AS message",
+                target: "{es.url}",
+                message: "External service call '{es.name}' is declared outside driven adapters in '{f.path}'",
+                query: "MATCH (es:ExternalService)-[:DECLARED_IN]->(f:File)\n  WHERE NOT f.path CONTAINS '" + s.infra + "'\n  RETURN es, f",
                 platform: stack
               }
             ];
@@ -238,7 +256,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(ModuleA)-[:CALLS]->(ModuleB/Internal) bypassing Contracts",
                 severity: "Error",
                 description: "Modules may only invoke another module through its Contracts or Public API namespace.",
-                query: "MATCH (caller:Function)-[:CALLS]->(callee:Function)\n  WHERE caller.project_name <> callee.project_name\n    AND callee.file_path CONTAINS '" + s.modPrefix + "'\n    AND (callee.file_path CONTAINS '/Internal/' OR callee.file_path CONTAINS '/Domain/' OR callee.file_path CONTAINS '/Persistence/')\n  RETURN caller.file_path AS file, caller.start_line AS line, caller.name AS symbol, callee.name AS target,\n         'Cross-module encapsulation breach: ' + caller.project_name + ' calls internal symbol ' + callee.name AS message",
+                target: "{callee.name}",
+                message: "Cross-module encapsulation breach: '{caller.project_name}' calls internal symbol '{callee.name}'",
+                query: "MATCH (caller:Function)-[:CALLS]->(callee:Function)\n  WHERE caller.project_name <> callee.project_name\n    AND callee.file_path CONTAINS '" + s.modPrefix + "'\n    AND (callee.file_path CONTAINS '/Internal/' OR callee.file_path CONTAINS '/Domain/' OR callee.file_path CONTAINS '/Persistence/')\n  RETURN caller, callee",
                 platform: stack
               },
               {
@@ -248,7 +268,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Two distinct Modules)<-[:DECLARED_IN]-(Query)-[:WRITES_TO]->(Shared Table)",
                 severity: "Error",
                 description: "Each database table must have a single owning module responsible for mutations.",
-                query: "MATCH (q1:Query)-[:WRITES_TO]->(t:Table)<-[:WRITES_TO]-(q2:Query)\n  MATCH (q1)-[:ACCESSED_BY]->(f1:Function), (q2)-[:ACCESSED_BY]->(f2:Function)\n  WHERE f1.project_name < f2.project_name\n  RETURN f1.file_path AS file, f1.start_line AS line, f1.project_name AS symbol, t.name AS target,\n         'Table ' + t.name + ' is mutated by multiple modules: ' + f1.project_name + ' and ' + f2.project_name AS message",
+                target: "{t.name}",
+                message: "Table '{t.name}' is mutated by multiple modules: '{f1.project_name}' and '{f2.project_name}'",
+                query: "MATCH (q1:Query)-[:WRITES_TO]->(t:Table)<-[:WRITES_TO]-(q2:Query)\n  MATCH (q1)-[:ACCESSED_BY]->(f1:Function), (q2)-[:ACCESSED_BY]->(f2:Function)\n  WHERE f1.project_name < f2.project_name\n  RETURN f1, t, f2",
                 platform: stack
               },
               {
@@ -258,7 +280,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(ModuleA Query)-[:READS_FROM]->(Table owned/written by ModuleB)",
                 severity: "Warning",
                 description: "Modules should read foreign module data via query facades or integration events instead of SQL joins.",
-                query: "MATCH (qw:Query)-[:WRITES_TO]->(t:Table)<-[:READS_FROM]-(qr:Query)\n  MATCH (qw)-[:ACCESSED_BY]->(fw:Function), (qr)-[:ACCESSED_BY]->(fr:Function)\n  WHERE fw.project_name <> fr.project_name\n  RETURN fr.file_path AS file, fr.start_line AS line, fr.name AS symbol, t.name AS target,\n         'Module ' + fr.project_name + ' reads table ' + t.name + ' owned by module ' + fw.project_name AS message",
+                target: "{t.name}",
+                message: "Module '{fr.project_name}' reads table '{t.name}' owned by module '{fw.project_name}'",
+                query: "MATCH (qw:Query)-[:WRITES_TO]->(t:Table)<-[:READS_FROM]-(qr:Query)\n  MATCH (qw)-[:ACCESSED_BY]->(fw:Function), (qr)-[:ACCESSED_BY]->(fr:Function)\n  WHERE fw.project_name <> fr.project_name\n  RETURN fr, t, fw",
                 platform: stack
               },
               {
@@ -268,7 +292,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(SharedKernel)-[:DEPENDS_ON|CALLS]->(BusinessModule)",
                 severity: "Error",
                 description: "Shared building blocks must never depend back on any concrete business module.",
-                query: "MATCH (pShared:Project)-[:DEPENDS_ON]->(pMod:Project)\n  WHERE (pShared.name CONTAINS 'Shared' OR pShared.name CONTAINS 'Common' OR pShared.name CONTAINS 'BuildingBlocks')\n    AND pMod.path CONTAINS '" + s.modPrefix + "'\n  RETURN pShared.path AS file, 1 AS line, pShared.name AS symbol, pMod.name AS target,\n         'Shared kernel ' + pShared.name + ' depends on business module ' + pMod.name AS message",
+                target: "{pMod.name}",
+                message: "Shared kernel '{pShared.name}' depends on business module '{pMod.name}'",
+                query: "MATCH (pShared:Project)-[:DEPENDS_ON]->(pMod:Project)\n  WHERE (pShared.name CONTAINS 'Shared' OR pShared.name CONTAINS 'Common' OR pShared.name CONTAINS 'BuildingBlocks')\n    AND pMod.path CONTAINS '" + s.modPrefix + "'\n  RETURN pShared, pMod",
                 platform: stack
               },
               {
@@ -278,7 +304,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(ModA)-[:DEPENDS_ON]->(ModB)-[:DEPENDS_ON]->(ModA)",
                 severity: "Error",
                 description: "Module contract dependencies must remain strictly acyclic.",
-                query: "MATCH (m1:Project)-[:DEPENDS_ON]->(m2:Project)-[:DEPENDS_ON]->(m1)\n  WHERE m1.id < m2.id\n  RETURN m1.path AS file, 1 AS line, m1.name AS symbol, m2.name AS target,\n         'Bidirectional coupling between modules ' + m1.name + ' and ' + m2.name AS message",
+                target: "{m2.name}",
+                message: "Bidirectional coupling between modules '{m1.name}' and '{m2.name}'",
+                query: "MATCH (m1:Project)-[:DEPENDS_ON]->(m2:Project)-[:DEPENDS_ON]->(m1)\n  WHERE m1.id < m2.id\n  RETURN m1, m2",
                 platform: stack
               }
             ];
@@ -317,7 +345,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Features/SliceA)-[:CALLS]->(Features/SliceB)",
                 severity: "Error",
                 description: "Feature slices must remain independent and never directly call handlers, DTOs, or helpers in sibling slices.",
-                query: "MATCH (a:Function)-[:CALLS]->(b:Function)\n  WHERE a.file_path CONTAINS '" + s.slicePrefix + "' AND b.file_path CONTAINS '" + s.slicePrefix + "'\n    AND split(a.file_path, '/')[2] <> split(b.file_path, '/')[2]\n  RETURN a.file_path AS file, a.start_line AS line, a.name AS symbol, b.name AS target,\n         'Feature slice function ' + a.name + ' couples laterally to sibling slice symbol ' + b.name AS message",
+                target: "{b.name}",
+                message: "Feature slice function '{a.name}' couples laterally to sibling slice symbol '{b.name}'",
+                query: "MATCH (a:Function)-[:CALLS]->(b:Function)\n  WHERE a.file_path CONTAINS '" + s.slicePrefix + "' AND b.file_path CONTAINS '" + s.slicePrefix + "'\n    AND split(a.file_path, '/')[2] <> split(b.file_path, '/')[2]\n  RETURN a, b",
                 platform: stack
               },
               {
@@ -327,7 +357,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(Shared|Common|Domain)-[:CALLS]->(Features/*)",
                 severity: "Error",
                 description: "Shared infrastructure and domain primitives must never depend upward on specific feature slices.",
-                query: "MATCH (sh:Function)-[:CALLS]->(feat:Function)\n  WHERE NOT sh.file_path CONTAINS '" + s.slicePrefix + "' AND feat.file_path CONTAINS '" + s.slicePrefix + "'\n    AND (sh.file_path CONTAINS 'Shared' OR sh.file_path CONTAINS 'Common' OR sh.file_path CONTAINS 'Domain')\n  RETURN sh.file_path AS file, sh.start_line AS line, sh.name AS symbol, feat.name AS target,\n         'Shared symbol ' + sh.name + ' depends upward on feature slice ' + feat.name AS message",
+                target: "{feat.name}",
+                message: "Shared symbol '{sh.name}' depends upward on feature slice '{feat.name}'",
+                query: "MATCH (sh:Function)-[:CALLS]->(feat:Function)\n  WHERE NOT sh.file_path CONTAINS '" + s.slicePrefix + "' AND feat.file_path CONTAINS '" + s.slicePrefix + "'\n    AND (sh.file_path CONTAINS 'Shared' OR sh.file_path CONTAINS 'Common' OR sh.file_path CONTAINS 'Domain')\n  RETURN sh, feat",
                 platform: stack
               },
               {
@@ -337,7 +369,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "Slice Handler method exceeding 150 LOC",
                 severity: "Warning",
                 description: "Keep vertical slice handlers concise by pushing complex invariants into pure domain methods.",
-                query: "MATCH (fn:Function)\n  WHERE fn.file_path CONTAINS '" + s.slicePrefix + "' AND coalesce(fn.loc, 0) > 150\n  RETURN fn.file_path AS file, fn.start_line AS line, fn.name AS symbol, toString(fn.loc) + ' LOC' AS target,\n         'Slice handler ' + fn.name + ' exceeds 150 LOC ceiling' AS message",
+                target: "{fn.loc} LOC",
+                message: "Slice handler '{fn.name}' exceeds 150 LOC ceiling ({fn.loc} LOC)",
+                query: "MATCH (fn:Function)\n  WHERE fn.file_path CONTAINS '" + s.slicePrefix + "' AND coalesce(fn.loc, 0) > 150\n  RETURN fn",
                 platform: stack
               },
               {
@@ -347,7 +381,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "Generic Repository class (>15 methods) shared across slices",
                 severity: "Warning",
                 description: "Vertical slices favor direct query/command access over giant shared repository classes.",
-                query: "MATCH (t:Type)-[:HAS_METHOD]->(m:Function)\n  WHERE t.name ENDS WITH 'Repository'\n  WITH t, count(m) AS methods WHERE methods > 15\n  RETURN t.file_path AS file, t.start_line AS line, t.name AS symbol, toString(methods) + ' methods' AS target,\n         'Shared repository ' + t.name + ' accumulates ' + toString(methods) + ' methods across slices' AS message",
+                target: "{methods} methods",
+                message: "Shared repository '{t.name}' accumulates {methods} methods across slices",
+                query: "MATCH (t:Type)-[:HAS_METHOD]->(m:Function)\n  WHERE t.name ENDS WITH 'Repository'\n  WITH t, count(m) AS methods WHERE methods > 15\n  RETURN t, methods",
                 platform: stack
               }
             ];
@@ -387,7 +423,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(shared|entities)-[:CALLS]->(features|widgets|pages|app)",
                 severity: "Error",
                 description: "Lower FSD layers (shared, entities) must never reference higher layers (features, widgets, pages, app).",
-                query: "MATCH (low:Function)-[:CALLS]->(high:Function)\n  WHERE (low.file_path CONTAINS 'src/shared/' OR low.file_path CONTAINS 'src/entities/')\n    AND (high.file_path CONTAINS 'src/features/' OR high.file_path CONTAINS 'src/widgets/' OR high.file_path CONTAINS 'src/pages/' OR high.file_path CONTAINS 'src/app/')\n  RETURN low.file_path AS file, low.start_line AS line, low.name AS symbol, high.name AS target,\n         'Upward FSD layer violation: ' + low.file_path + ' calls ' + high.file_path AS message",
+                target: "{high.file_path}",
+                message: "Upward FSD layer violation: '{low.file_path}' calls '{high.file_path}'",
+                query: "MATCH (low:Function)-[:CALLS]->(high:Function)\n  WHERE (low.file_path CONTAINS 'src/shared/' OR low.file_path CONTAINS 'src/entities/')\n    AND (high.file_path CONTAINS 'src/features/' OR high.file_path CONTAINS 'src/widgets/' OR high.file_path CONTAINS 'src/pages/' OR high.file_path CONTAINS 'src/app/')\n  RETURN low, high",
                 platform: effStack
               },
               {
@@ -397,7 +435,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(src/features/Auth)-[:CALLS]->(src/features/Checkout)",
                 severity: "Error",
                 description: "Slices on the same FSD layer (features or entities) must not couple horizontally; compose them in widgets or pages.",
-                query: "MATCH (a:Function)-[:CALLS]->(b:Function)\n  WHERE a.file_path CONTAINS 'src/features/' AND b.file_path CONTAINS 'src/features/'\n    AND split(a.file_path, '/')[2] <> split(b.file_path, '/')[2]\n  RETURN a.file_path AS file, a.start_line AS line, a.name AS symbol, b.name AS target,\n         'Horizontal FSD slice coupling between features/' + split(a.file_path, '/')[2] + ' and features/' + split(b.file_path, '/')[2] AS message",
+                target: "{b.file_path}",
+                message: "Horizontal FSD slice coupling between '{a.file_path}' and '{b.file_path}'",
+                query: "MATCH (a:Function)-[:CALLS]->(b:Function)\n  WHERE a.file_path CONTAINS 'src/features/' AND b.file_path CONTAINS 'src/features/'\n    AND split(a.file_path, '/')[2] <> split(b.file_path, '/')[2]\n  RETURN a, b",
                 platform: effStack
               },
               {
@@ -407,7 +447,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(src/features/*)-[:CALLS]->(src/widgets/* | src/pages/*)",
                 severity: "Error",
                 description: "Features sit below widgets and pages and must never call upward into composite page blocks.",
-                query: "MATCH (f:Function)-[:CALLS]->(up:Function)\n  WHERE f.file_path CONTAINS 'src/features/'\n    AND (up.file_path CONTAINS 'src/widgets/' OR up.file_path CONTAINS 'src/pages/')\n  RETURN f.file_path AS file, f.start_line AS line, f.name AS symbol, up.name AS target,\n         'Feature ' + f.name + ' calls upward FSD layer ' + up.file_path AS message",
+                target: "{up.file_path}",
+                message: "Feature '{f.name}' calls upward FSD layer '{up.file_path}'",
+                query: "MATCH (f:Function)-[:CALLS]->(up:Function)\n  WHERE f.file_path CONTAINS 'src/features/'\n    AND (up.file_path CONTAINS 'src/widgets/' OR up.file_path CONTAINS 'src/pages/')\n  RETURN f, up",
                 platform: effStack
               },
               {
@@ -417,7 +459,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "src/shared/** referencing domain API endpoints directly",
                 severity: "Warning",
                 description: "src/shared should provide generic UI/lib primitives rather than domain-specific API calls.",
-                query: "MATCH (es:ExternalService)-[:DECLARED_IN]->(f:File)\n  WHERE f.path CONTAINS 'src/shared/' AND NOT f.path CONTAINS 'src/shared/api/'\n  RETURN f.path AS file, coalesce(es.start_line, 1) AS line, es.name AS symbol, es.url AS target,\n         'Domain network call ' + es.name + ' leaked into generic src/shared layer' AS message",
+                target: "{es.url}",
+                message: "Domain network call '{es.name}' leaked into generic src/shared layer ('{f.path}')",
+                query: "MATCH (es:ExternalService)-[:DECLARED_IN]->(f:File)\n  WHERE f.path CONTAINS 'src/shared/' AND NOT f.path CONTAINS 'src/shared/api/'\n  RETURN es, f",
                 platform: effStack
               }
             ];
@@ -456,7 +500,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(ServiceA) and (ServiceB) both READS_FROM or WRITES_TO (Table)",
                 severity: "Error",
                 description: "No database table may be accessed directly by more than one microservice.",
-                query: "MATCH (q1:Query)-[:READS_FROM|WRITES_TO]->(t:Table)<-[:READS_FROM|WRITES_TO]-(q2:Query)\n  MATCH (q1)-[:ACCESSED_BY]->(f1:Function), (q2)-[:ACCESSED_BY]->(f2:Function)\n  WHERE f1.project_name < f2.project_name\n  RETURN f1.file_path AS file, f1.start_line AS line, f1.project_name AS symbol, t.name AS target,\n         'Shared database coupling on table ' + t.name + ' between ' + f1.project_name + ' and ' + f2.project_name AS message",
+                target: "{t.name}",
+                message: "Shared database coupling on table '{t.name}' between '{f1.project_name}' and '{f2.project_name}'",
+                query: "MATCH (q1:Query)-[:READS_FROM|WRITES_TO]->(t:Table)<-[:READS_FROM|WRITES_TO]-(q2:Query)\n  MATCH (q1)-[:ACCESSED_BY]->(f1:Function), (q2)-[:ACCESSED_BY]->(f2:Function)\n  WHERE f1.project_name < f2.project_name\n  RETURN f1, t, f2",
                 platform: stack
               },
               {
@@ -466,7 +512,9 @@ export function initArchitecturesController(): () => void {
                 pattern: "(SvcA)-[:SERVICE_CALL]->(SvcB)-[:SERVICE_CALL]->(SvcA)",
                 severity: "Error",
                 description: "Synchronous HTTP/gRPC service-to-service calls must never form distributed cycles.",
-                query: "MATCH (a:App)-[:SERVICE_CALL]->(b:App)-[:SERVICE_CALL]->(a)\n  WHERE a.id < b.id\n  RETURN a.path AS file, 1 AS line, a.name AS symbol, b.name AS target,\n         'Distributed synchronous call cycle between ' + a.name + ' and ' + b.name AS message",
+                target: "{b.name}",
+                message: "Distributed synchronous call cycle between '{a.name}' and '{b.name}'",
+                query: "MATCH (a:App)-[:SERVICE_CALL]->(b:App)-[:SERVICE_CALL]->(a)\n  WHERE a.id < b.id\n  RETURN a, b",
                 platform: stack
               },
               {
@@ -476,17 +524,21 @@ export function initArchitecturesController(): () => void {
                 pattern: "(ServiceA:App)-[:DEPENDS_ON]->(ServiceB:App)",
                 severity: "Error",
                 description: "Deployable microservices may depend on shared libraries, never directly on another deployable service.",
-                query: "MATCH (s1:App)-[:IMPLEMENTED_BY]->(p1:Project)-[:DEPENDS_ON]->(p2:Project)<-[:IMPLEMENTED_BY]-(s2:App)\n  WHERE p1.id <> p2.id\n  RETURN p1.path AS file, 1 AS line, p1.name AS symbol, p2.name AS target,\n         'Deployable service ' + p1.name + ' directly imports deployable service ' + p2.name AS message",
+                target: "{p2.name}",
+                message: "Deployable service '{p1.name}' directly imports deployable service '{p2.name}'",
+                query: "MATCH (s1:App)-[:IMPLEMENTED_BY]->(p1:Project)-[:DEPENDS_ON]->(p2:Project)<-[:IMPLEMENTED_BY]-(s2:App)\n  WHERE p1.id <> p2.id\n  RETURN p1, p2",
                 platform: stack
               },
               {
                 id: "SIG-MS-R-004",
                 name: "N+1 Synchronous HTTP Call Inside Loop",
                 coords: "Method x Resources",
-                pattern: "Outbound HTTP client call inside loop execution context",
+                pattern: "Outbound HTTP client call inside loop execution Scope",
                 severity: "Warning",
                 description: "Avoid sequential cross-service HTTP calls inside loops; prefer batch endpoints or async fan-out.",
-                query: "MATCH (es:ExternalService)<-[:CALLED_BY]-(fn:Function)\n  WHERE fn.loc > 25\n  RETURN fn.file_path AS file, coalesce(es.start_line, fn.start_line) AS line, fn.name AS symbol, es.name AS target,\n         'Verify outbound RPC call ' + es.name + ' in ' + fn.name + ' uses batching and explicit timeout' AS message",
+                target: "{es.name}",
+                message: "Outbound RPC call '{es.name}' in '{fn.name}' executes inside a loop scope",
+                query: "MATCH (fn:Function)-[:DECLARES]->(s:Scope {kind: 'loop'}),\n        (fn)-[:CALLS]->(es:ExternalService)\n  RETURN fn, s, es",
                 platform: stack
               }
             ];
@@ -516,6 +568,8 @@ export function initArchitecturesController(): () => void {
           "severity: " + g.severity,
           "name: " + g.name,
           "description: " + g.description,
+          "target: \"" + g.target + "\"",
+          "message: \"" + g.message + "\"",
           "query: >-",
           "  " + g.query
         ].join("\n");

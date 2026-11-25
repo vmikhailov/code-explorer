@@ -134,14 +134,19 @@ Linters check syntax and style within single files. Semantic Invariant Gates (SI
 id: SIG-P-B-001
 name: Clean Architecture Layer Isolation
 category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
 severity: Error
+target: "{target.name}"
+message: "Core project '{source.name}' cannot depend on '{target.name}'"
 query: |
   MATCH (source:Project)-[:DEPENDS_ON]->(target:Project)
   WHERE source.name CONTAINS "Core" AND target.name CONTAINS "Infrastructure"
-  RETURN
-    coalesce(source.path, "workspace") AS file, 1 AS line, 1 AS column,
-    source.name AS symbol, target.name AS target,
-    "Core project '" + source.name + "' cannot depend on '" + target.name + "'" AS message
+  RETURN source, target
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-001.json
 ```
 
 To adopt strict rules in brownfield repositories without fixing legacy violations upfront, gates support **SHA-256 ratchet baselines** (`.codeexplorer/baselines/*.json`):
@@ -174,7 +179,7 @@ Every entity in `.codeexplorer/graph.db` belongs to a 5-layer schema (interactiv
 
 1. Layer 1 (Physical): `Workspace`, `Folder`, `File`, `GitSettings`.
 2. Layer 2 (Project): `Project`, `Package`, `EntryPoint`, `DEPENDS_ON`.
-3. Layer 3 (Syntactic & Dataflow): `Type`, `Function`, `Member`, `Parameter`, `CallArgument`, `CallLiteral`, `CatchClause`, `CALLS`, `IMPLEMENTS`.
+3. Layer 3 (Syntactic & Dataflow): `Type`, `Function`, `Member`, `Parameter`, `CallArgument`, `CallLiteral`, `Scope`, `CALLS`, `IMPLEMENTS`.
 4. Layer 4 (Semantic Architecture): `Workload` (`Service`, `App`, `Worker`, `CliTool`), `Module` (`Library`, `TestSuite`), `Endpoint`, `Message`, `Topic`, `ExternalService`, `Policy`, `Job`, `Cache`, `Transaction`, `Database`, `DbSchema`, `Table`, `Query`, `Procedure`, `Cloud`, `CloudResource`.
 5. Layer 5 (Cross-Service & Domain): Resolved cross-project `CALLS`, `HANDLES_QUERY`, `HANDLES_COMMAND`, `HANDLES_EVENT`, `PUBLISHES_TO`, `SUBSCRIBES_TO`, `READS_FROM`, `WRITES_TO`, `OWNS`, plus `Domain` and `BoundedContext` groupings.
 

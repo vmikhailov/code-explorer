@@ -261,21 +261,24 @@ export function initHomeController(): () => void {
       rawYaml: `id: SIG-CA-B-001
 name: Domain Layer Must Not Reference Infrastructure
 severity: Error
+target: "{inf.name}"
+message: "Domain type '{d.name}' references infrastructure type '{inf.name}'"
 query: |-
   MATCH (d:Type)-[:DEPENDS_ON|INHERITS|IMPLEMENTS]->(inf:Type)
   WHERE d.file_path CONTAINS "/Domain/"
     AND (inf.file_path CONTAINS "/Infrastructure/" OR inf.symbol CONTAINS "DbContext")
-  RETURN d.file_path AS file, d.start_line AS line, d.name AS symbol, inf.name AS target`,
+  RETURN d, inf`,
       yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-CA-B-001</span>
 <span class="syn-kw">name:</span> <span class="syn-str">Domain Layer Must Not Reference Infrastructure</span>
 <span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
+<span class="syn-kw">target:</span> <span class="syn-str">"{inf.name}"</span>
+<span class="syn-kw">message:</span> <span class="syn-str">"Domain type '{d.name}' references infrastructure type '{inf.name}'"</span>
 <span class="syn-kw">query:</span> |-
   <span class="syn-kw">MATCH</span> (d:Type)-[:DEPENDS_ON|INHERITS|IMPLEMENTS]-&gt;(inf:Type)
   <span class="syn-kw">WHERE</span> d.file_path <span class="syn-kw">CONTAINS</span> <span class="syn-str">"/Domain/"</span>
     <span class="syn-kw">AND</span> (inf.file_path <span class="syn-kw">CONTAINS</span> <span class="syn-str">"/Infrastructure/"</span>
       <span class="syn-kw">OR</span> inf.symbol <span class="syn-kw">CONTAINS</span> <span class="syn-str">"DbContext"</span>)
-  <span class="syn-kw">RETURN</span> d.file_path <span class="syn-kw">AS</span> file, d.start_line <span class="syn-kw">AS</span> line,
-         d.name <span class="syn-kw">AS</span> symbol, inf.name <span class="syn-kw">AS</span> target`,
+  <span class="syn-kw">RETURN</span> d, inf`,
       violations: [
         {
           rule: 'SIG-CA-B-001 · Error',
@@ -297,6 +300,8 @@ query: |-
       rawYaml: `id: SIG-DDD-001
 name: No Shared Table Writes Across Services
 severity: Error
+target: "{t.name}"
+message: "Table '{t.name}' written by both '{s1.name}' and '{s2.name}'"
 query: |-
   MATCH (s1:Service)-[:IMPLEMENTED_BY]->(p1:Project),
         (s2:Service)-[:IMPLEMENTED_BY]->(p2:Project),
@@ -306,6 +311,8 @@ query: |-
       yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-DDD-001</span>
 <span class="syn-kw">name:</span> <span class="syn-str">No Shared Table Writes Across Services</span>
 <span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
+<span class="syn-kw">target:</span> <span class="syn-str">"{t.name}"</span>
+<span class="syn-kw">message:</span> <span class="syn-str">"Table '{t.name}' written by both '{s1.name}' and '{s2.name}'"</span>
 <span class="syn-kw">query:</span> |-
   <span class="syn-kw">MATCH</span> (s1:Service)-[:IMPLEMENTED_BY]-&gt;(p1:Project),
         (s2:Service)-[:IMPLEMENTED_BY]-&gt;(p2:Project),
@@ -329,18 +336,21 @@ query: |-
       rawYaml: `id: SIG-AST-012
 name: No Blocking .Result or .Wait() Inside Async Functions
 severity: Error
+target: "{b.name}"
+message: "Async function '{fn.name}' makes blocking call '{b.name}'"
 query: |-
   MATCH (fn:Function {is_async: true})-[:CALLS]->(b:Function)
   WHERE b.name IN ["get_Result", "Wait", "GetResult"] AND NOT fn.is_test
-  RETURN fn.file_path AS file, fn.start_line AS line, fn.name AS symbol, b.name AS target`,
+  RETURN fn, b`,
       yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-AST-012</span>
 <span class="syn-kw">name:</span> <span class="syn-str">No Blocking .Result or .Wait() Inside Async Functions</span>
 <span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
+<span class="syn-kw">target:</span> <span class="syn-str">"{b.name}"</span>
+<span class="syn-kw">message:</span> <span class="syn-str">"Async function '{fn.name}' makes blocking call '{b.name}'"</span>
 <span class="syn-kw">query:</span> |-
   <span class="syn-kw">MATCH</span> (fn:Function {is_async: <span class="syn-num">true</span>})-[:CALLS]-&gt;(b:Function)
   <span class="syn-kw">WHERE</span> b.name <span class="syn-kw">IN</span> [<span class="syn-str">"get_Result"</span>, <span class="syn-str">"Wait"</span>, <span class="syn-str">"GetResult"</span>] <span class="syn-kw">AND NOT</span> fn.is_test
-  <span class="syn-kw">RETURN</span> fn.file_path <span class="syn-kw">AS</span> file, fn.start_line <span class="syn-kw">AS</span> line,
-         fn.name <span class="syn-kw">AS</span> symbol, b.name <span class="syn-kw">AS</span> target`,
+  <span class="syn-kw">RETURN</span> fn, b`,
       violations: [
         {
           rule: 'SIG-AST-012 · Error',
@@ -362,19 +372,22 @@ query: |-
       rawYaml: `id: SIG-SEC-003
 name: No Hardcoded Internal Service URLs Outside Config
 severity: Error
+target: "{lit.value}"
+message: "Function '{fn.name}' passes hardcoded URL '{lit.value}'"
 query: |-
   MATCH (fn:Function)-[:PASSES_LITERAL]->(lit:CallLiteral)
   WHERE lit.value STARTS WITH "http://" AND NOT fn.is_test
-  RETURN fn.file_path AS file, lit.line AS line, fn.name AS symbol, lit.value AS target`,
+  RETURN fn, lit`,
       yamlHtml: `<span class="syn-kw">id:</span> <span class="syn-str">SIG-SEC-003</span>
 <span class="syn-kw">name:</span> <span class="syn-str">No Hardcoded Internal Service URLs Outside Config</span>
 <span class="syn-kw">severity:</span> <span class="syn-fn">Error</span>
+<span class="syn-kw">target:</span> <span class="syn-str">"{lit.value}"</span>
+<span class="syn-kw">message:</span> <span class="syn-str">"Function '{fn.name}' passes hardcoded URL '{lit.value}'"</span>
 <span class="syn-kw">query:</span> |-
   <span class="syn-kw">MATCH</span> (fn:Function)-[:PASSES_LITERAL]-&gt;(lit:CallLiteral)
   <span class="syn-kw">WHERE</span> lit.value <span class="syn-kw">STARTS WITH</span> <span class="syn-str">"http://"</span>
     <span class="syn-kw">AND NOT</span> fn.is_test
-  <span class="syn-kw">RETURN</span> fn.file_path <span class="syn-kw">AS</span> file, lit.line <span class="syn-kw">AS</span> line,
-         fn.name <span class="syn-kw">AS</span> symbol, lit.value <span class="syn-kw">AS</span> target`,
+  <span class="syn-kw">RETURN</span> fn, lit`,
       violations: [
         {
           rule: 'SIG-SEC-003 · Error',
