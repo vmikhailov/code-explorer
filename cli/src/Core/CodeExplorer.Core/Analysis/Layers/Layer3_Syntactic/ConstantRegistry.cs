@@ -29,6 +29,12 @@ public static class ConstantRegistry
     private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _projectConstantsByKey =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Package-scoped (directory) lookup: "{Dir}:{Key}" -> (unique value or null if ambiguous, match count).
+    // Mirrors Go package semantics (constants visible across all files of the same package directory)
+    // and enables cross-file constant resolution for any language with directory-scoped modules.
+    private static readonly ConcurrentDictionary<string, (string? Value, int MatchCount)> _packageConstants =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static IReadOnlyDictionary<string, string> ProjectConstants => _projectConstants;
     public static IReadOnlyDictionary<string, string> GlobalConstants => _globalConstants;
 
@@ -38,6 +44,7 @@ public static class ConstantRegistry
         _globalConstants.Clear();
         _globalConstantsByLeaf.Clear();
         _projectConstantsByLeaf.Clear();
+        _packageConstants.Clear();
         _projectConstantsByKey.Clear();
     }
 
@@ -132,6 +139,68 @@ public static class ConstantRegistry
                 IndexGlobalLeaf(cleanKey, cleanVal);
             }
         }
+    }
+
+    /// <summary>
+    /// Registers a constant under its declaring file's directory (package scope).
+    /// Mirrors Go package semantics where constants are visible to every file of the same
+    /// package directory, and serves any language with directory-scoped modules.
+    /// </summary>
+    public static void RegisterPackageScoped(string? filePath, string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value)) return;
+
+        var dir = ExtractDirectoryKey(filePath);
+        if (dir == null) return;
+
+        var cleanKey = key.Trim();
+        var cleanVal = value.Trim().Trim('\'', '"', '`');
+        var leafKey = cleanKey.Contains('.') ? cleanKey[(cleanKey.LastIndexOf('.') + 1)..] : cleanKey;
+        if (GenericVariableNames.Contains(cleanKey) || GenericVariableNames.Contains(leafKey)) return;
+
+        _packageConstants.AddOrUpdate(
+            $"{dir}:{cleanKey}",
+            _ => (cleanVal, 1),
+            (_, existing) => string.Equals(existing.Value, cleanVal, StringComparison.OrdinalIgnoreCase)
+                ? existing
+                : (null, existing.MatchCount + 1));
+    }
+
+    /// <summary>
+    /// Resolves a constant declared in any file of the same directory (package scope) as <paramref name="filePath"/>.
+    /// Returns false when the key is absent or ambiguous within the directory.
+    /// </summary>
+    public static bool TryResolvePackageScoped(string? filePath, string key, out string value)
+    {
+        value = null!;
+        if (string.IsNullOrWhiteSpace(key)) return false;
+
+        var dir = ExtractDirectoryKey(filePath);
+        if (dir == null) return false;
+
+        var cleanKey = key.Trim().Trim('\'', '"', '`');
+        if (_packageConstants.TryGetValue($"{dir}:{cleanKey}", out var entry) &&
+            entry.MatchCount == 1 &&
+            !string.IsNullOrEmpty(entry.Value))
+        {
+            value = entry.Value;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Normalizes a declaring file path to its package (directory) key, or null when unavailable.</summary>
+    private static string? ExtractDirectoryKey(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return null;
+
+        var normalized = filePath.Replace('\\', '/').Trim();
+        var lastSlash = normalized.LastIndexOf('/');
+        if (lastSlash < 0) return null;
+
+        var dir = normalized[..lastSlash].Trim();
+        return string.IsNullOrEmpty(dir) ? "/" : dir;
     }
 
     private const string SuffixDotTests = ".tests";

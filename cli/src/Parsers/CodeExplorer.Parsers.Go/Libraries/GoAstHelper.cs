@@ -52,6 +52,23 @@ public static class GoAstHelper
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
             }
 
+            // Cross-file fallback: package-scope constants/vars registered during Layer 3
+            // pre-scan (AstConstantExtractor / ConstantRegistry) may live in another file of the
+            // same package. Mirrors AstValueResolver.TryResolveIdentifier for other languages
+            // while preserving Go package visibility semantics (same directory).
+            var scopeHint = argNode.Document?.RelativePath ?? argNode.Document?.FilePath;
+            if (ConstantRegistry.TryResolvePackageScoped(scopeHint, varName, out var packageVal) &&
+                !string.IsNullOrEmpty(packageVal))
+            {
+                return RouteDictionaryRegistry.NormalizeResolvedUrl(packageVal);
+            }
+
+            if (ConstantRegistry.TryResolve(scopeHint, varName, out var constVal) &&
+                !string.IsNullOrEmpty(constVal))
+            {
+                return RouteDictionaryRegistry.NormalizeResolvedUrl(constVal);
+            }
+
             if (!WorkspaceConventions.IsPlaceholderName(varName) && (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
                                                                      varName.EndsWith("Topic",
                                                                          StringComparison.OrdinalIgnoreCase) ||
@@ -414,6 +431,39 @@ public static class GoAstHelper
 
         var currReceiver = receiverNode;
         var visited = new HashSet<string>(StringComparer.Ordinal);
+
+        // Unwrap chained call receivers (e.g. x.Router().Fiber().Post(...)) so the underlying
+        // identifier receiver can still be traced to its route-group initializer, and any
+        // Group/Route/Mount call inside the chain contributes its prefix (mirrors the
+        // identifier-based loop below).
+        for (var chain = 0; chain < MaxRecursionDepth && currReceiver.Is(TreeSitterSyntax.Go.CallExpression); chain++)
+        {
+            var chainFunc = currReceiver.GetFunctionNode();
+            if (!chainFunc.IsValid() || !chainFunc.Is(TreeSitterSyntax.Go.SelectorExpression)) break;
+
+            var chainField = chainFunc.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (chainField.IsValid() && (chainField.Text == "Group" || chainField.Text == "Route" || chainField.Text == "Mount"))
+            {
+                var chainArgs = currReceiver.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+                var chainFirstArg = chainArgs.IsValid()
+                    ? chainArgs.Children.FirstOrDefault(c =>
+                        c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral,
+                                TreeSitterSyntax.Go.RawStringLiteral,
+                                TreeSitterSyntax.Go.StringLiteral,
+                                TreeSitterSyntax.Go.Identifier))
+                    : null;
+
+                var chainGroupStr = ResolveStringOrVariable(chainFirstArg);
+                if (!string.IsNullOrEmpty(chainGroupStr))
+                {
+                    prefixes.Insert(0, chainGroupStr.Trim('"', '`'));
+                }
+            }
+
+            var chainNext = chainFunc.GetChildForField(TreeSitterSyntax.Fields.Operand);
+            if (!chainNext.IsValid()) break;
+            currReceiver = chainNext;
+        }
 
         for (var step = 0; step < MaxRecursionDepth; step++)
         {

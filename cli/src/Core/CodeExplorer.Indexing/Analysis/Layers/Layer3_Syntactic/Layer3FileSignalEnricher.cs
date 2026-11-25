@@ -89,6 +89,50 @@ public static class Layer3FileSignalEnricher
             syntaxTree.FileNode.Signals().VerifiedDbSignals = joined;
         }
 
+        // 2b. SQL evidence for the generic in-house DB-wrapper detection in Layer 4:
+        // documents can be released after Layer 3 (PipelineMemoryEvictor), so the call-shape,
+        // SQL-literal, and schema-qualified table evidence is computed here while the AST is
+        // still in memory.
+        if (!ctx.LightweightAstScanMode)
+        {
+            var hasSqlCalls = ResourceSemanticAnalyzer.HasStandardSqlClientCallShape(syntaxTree);
+            var hasSqlLiterals = hasSqlCalls || ResourceSemanticAnalyzer.HasSqlShapedStringLiterals(syntaxTree);
+            if (hasSqlCalls || hasSqlLiterals)
+            {
+                var schemaCandidates = ResourceSemanticAnalyzer.ExtractSqlSchemaCandidates(syntaxTree);
+                l1File.Signals().HasSqlClientCallShape = hasSqlCalls;
+                l1File.Signals().HasSqlLiteralEvidence = hasSqlLiterals;
+                l1File.Signals().SqlSchemaCandidates = schemaCandidates;
+                syntaxTree.FileNode.Signals().HasSqlClientCallShape = hasSqlCalls;
+                syntaxTree.FileNode.Signals().HasSqlLiteralEvidence = hasSqlLiterals;
+                syntaxTree.FileNode.Signals().SqlSchemaCandidates = schemaCandidates;
+
+                // SQL literals and DB-client calls often live in different files of the same
+                // project (spec/query modules vs store implementations), so schema candidates
+                // and literal evidence are also aggregated at project level (thread-safe:
+                // Layer 3 Step 1 is parallel).
+                {
+                    var projSignals = project.Signals();
+                    lock (projSignals)
+                    {
+                        if (!string.IsNullOrEmpty(schemaCandidates))
+                        {
+                            var merged = (projSignals.SqlSchemaCandidates?
+                                              .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [])
+                                .Union(schemaCandidates.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                                    StringComparer.OrdinalIgnoreCase)
+                                .Take(10);
+                            projSignals.SqlSchemaCandidates = string.Join(',', merged);
+                        }
+                        if (hasSqlLiterals)
+                        {
+                            projSignals.HasSqlLiteralEvidence = true;
+                        }
+                    }
+                }
+            }
+        }
+
         // 3. Language-specific file signal enrichment delegated to the file parser
         var fileParser = syntaxTree.FileParser ?? WorkspaceIndexer.GetParserForFile(l1File.FullPath);
         fileParser?.EnrichFileSignals(l1File, syntaxTree, project, sourceText);

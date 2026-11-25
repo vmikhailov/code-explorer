@@ -246,7 +246,7 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         var epQuery = $@"
             MATCH (p:Project)-[:CONTAINS*1..2]->(ep:Endpoint)
             {scopeClause}
-            RETURN ep.id AS id, ep.name AS name, ep.route AS route, ep.method AS method, ep.path AS path
+            RETURN ep.id AS id, ep.name AS name, coalesce(ep.route_template, ep.route) AS route, ep.method AS method, ep.path AS path
         ";
         try
         {

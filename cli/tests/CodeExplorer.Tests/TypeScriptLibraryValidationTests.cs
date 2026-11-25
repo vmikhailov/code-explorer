@@ -715,6 +715,76 @@ export default router;
     }
 
     [Test]
+    public async Task Test_Express_FactoryInitMount_CrossFileResolvesPrefix()
+    {
+        // Mirrors real-world tileserver layouts:
+        //   server.js: app.use('/data/', serve_data.init(options, serving, opts));
+        //   serve_data.js: router.get('/:id/:z/:x/:y.:format', handler)
+        // The mount target is a factory call whose receiver is imported from a local module.
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_express_mount_" + Guid.NewGuid().ToString("N"));
+        var srcDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(srcDir);
+        var serverPath = Path.Combine(srcDir, "server.js");
+        var dataPath = Path.Combine(srcDir, "serve_data.js");
+
+        var serverCode = @"
+import express from 'express';
+import { serve_data } from './serve_data.js';
+
+const app = express();
+
+export function start(options) {
+    app.use('/data/', serve_data.init(options, null, null));
+}
+";
+        var dataCode = @"
+import express from 'express';
+
+const router = express.Router();
+
+export const serve_data = {
+    init(options, serving, opts) {
+        router.get('/:id/:z/:x/:y.:format', (req, res) => res.json({}));
+        return router;
+    },
+};
+
+export default serve_data;
+";
+
+        await File.WriteAllTextAsync(serverPath, serverCode);
+        await File.WriteAllTextAsync(dataPath, dataCode);
+
+        try
+        {
+            var parser = new TypeScriptFileParser();
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            // Layer 3 order: mount discovery on the mounting file first,
+            // then the router module is visited and its endpoints enriched.
+            using var serverTree = await parser.ParseAsync(serverPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ((CodeExplorer.Core.Parser.IFileParser)parser).DiscoverDeclarations(serverTree.Tree!.RootNode, "src/server.js", "express-mount-service", ctx);
+
+            using var dataTree = await parser.ParseAsync(dataPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(dataTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = FindNodes<EndpointNode>(dataTree.FileNode!.Children);
+            endpoints.Should().HaveCount(1);
+
+            var tileEp = endpoints[0];
+            tileEp.HttpMethod.Should().Be("GET");
+            tileEp.RouteTemplate.Should().Be("/data/:id/:z/:x/:y.:format");
+        }
+        finally
+        {
+            RouteDictionaryRegistry.Clear();
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Test_NestJs_AppGetConfigService_NotTreatedAsExpressEndpoint()
     {
         var code = @"

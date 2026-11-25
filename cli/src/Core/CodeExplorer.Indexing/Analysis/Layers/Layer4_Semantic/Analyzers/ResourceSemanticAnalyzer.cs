@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -265,18 +266,48 @@ public partial class ResourceSemanticAnalyzer
             }
         }
 
+        // Generic in-house database-wrapper detection (architecture-neutral, no project/package names):
+        // a file qualifies as relational database access when it carries database evidence —
+        // a declared schema, SQL-shaped string literals, or calls to the standard DB-client
+        // surface (Query/Exec/SelectContext/... exposed by database/sql, sqlx and DB-API style
+        // wrappers) — combined with either a database-flavoured import or that call shape itself.
+        var synthesizedDatabaseWrapper = false;
         if (!matchedParsers.Any(p => p.Type.IsDatabase()))
         {
-            if (_syntaxTree.RawImports.Any(i => i.Path.Contains("postgres", StringComparison.OrdinalIgnoreCase) ||
-                                                i.Path.Contains("lib/pq", StringComparison.OrdinalIgnoreCase) ||
-                                                i.Path.Contains("database/sql", StringComparison.OrdinalIgnoreCase) ||
-                                                i.Path.Contains("sqlx", StringComparison.OrdinalIgnoreCase)) &&
-                DetectDeclaredSchemas(projectNode, fileNode, _syntaxTree, "relational").Count > 0)
+            var hasDatabaseImportSignal = _syntaxTree.RawImports.Any(i => i.Path.Contains("postgres", StringComparison.OrdinalIgnoreCase) ||
+                                                                         i.Path.Contains("lib/pq", StringComparison.OrdinalIgnoreCase) ||
+                                                                         i.Path.Contains("database/sql", StringComparison.OrdinalIgnoreCase) ||
+                                                                         i.Path.Contains("sqlx", StringComparison.OrdinalIgnoreCase));
+            // Evidence computed during Layer 3 (FileAnalysisSignals) survives document release;
+            // the live document checks cover direct EnrichAsync invocations (e.g. tests).
+            var fileSignals = fileNode.TryGetSignals();
+            var hasSqlClientCallShape = (fileSignals?.HasSqlClientCallShape == true) || HasStandardSqlClientCallShape(_syntaxTree);
+            var hasSqlLiteralEvidence = (fileSignals?.HasSqlLiteralEvidence == true) || HasSqlShapedStringLiterals(_syntaxTree);
+
+            // SQL literals alone never qualify (Salesforce SOQL and dialect-lookalikes would
+            // fabricate databases); they only corroborate a DB-flavoured import, a DB-client
+            // call shape, or a declared schema. Generic store wrappers whose calls happen
+            // inside the library (no call shape in service code) still qualify via a per-file
+            // DB-flavoured import plus project-level SQL literal evidence (specs live in
+            // separate files).
+            var projectHasSqlLiterals = projectNode.Signals().HasSqlLiteralEvidence;
+            if ((hasDatabaseImportSignal || hasSqlClientCallShape || hasSqlLiteralEvidence) &&
+                (hasSqlClientCallShape ||
+                 (hasDatabaseImportSignal && (hasSqlLiteralEvidence || projectHasSqlLiterals)) ||
+                 DetectDeclaredSchemas(projectNode, fileNode, _syntaxTree, "relational").Count > 0))
             {
-                var ext = _semanticExtensions.FirstOrDefault(e => e.Id.Contains("sqlx", StringComparison.OrdinalIgnoreCase) ||
-                                                                  (e.Type.IsDatabase() && e.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)))
-                          ?? new PackageSemanticExtensionAdapter(new PackageDescriptor("postgres-client", "PostgreSQL", LibraryRole.OrmOrDatabase, SemanticExtensionType.RelationalDb, ["*postgres*"]));
+                // Synthesize a relational extension named after the engine inferred from the
+                // imports (generic driver/engine names only) so the resulting Database nodes use
+                // canonical engine names instead of library names.
+                var inferredEngine = InferRelationalEngineName(_syntaxTree.RawImports);
+                var ext = new PackageSemanticExtensionAdapter(new PackageDescriptor(
+                    "db-client-" + inferredEngine.ToLowerInvariant().Replace(' ', '-'),
+                    inferredEngine,
+                    LibraryRole.OrmOrDatabase,
+                    SemanticExtensionType.RelationalDb,
+                    []));
                 matchedParsers.Add(ext);
+                synthesizedDatabaseWrapper = true;
             }
         }
 
@@ -326,6 +357,33 @@ public partial class ResourceSemanticAnalyzer
                     var declaredSchemas = (dbType.Equals("relational", StringComparison.OrdinalIgnoreCase) || dbType.Equals("document", StringComparison.OrdinalIgnoreCase))
                         ? DetectDeclaredSchemas(projectNode, fileNode, _syntaxTree, dbType).ToList()
                         : new List<string>();
+
+                    // Step A.2: For generic in-house DB wrappers, prefer schemas extracted from
+                    // schema-qualified SQL table references (file-level and project-level signals
+                    // computed during Layer 3) so the workload binds to the concrete schema
+                    // instead of a generic engine-level default. Project-level matters because
+                    // SQL literals and DB-client calls often live in different files.
+                    if (declaredSchemas.Count == 0)
+                    {
+                        var fileCandidates = fileNode.TryGetSignals()?.SqlSchemaCandidates;
+                        var projectCandidates = projectNode.Signals().SqlSchemaCandidates;
+                        var mergedCandidates = string.Join(',',
+                            new[] { fileCandidates, projectCandidates }
+                                .Where(s => !string.IsNullOrWhiteSpace(s)));
+                        var signalSchemas = mergedCandidates.Length > 0
+                            ? mergedCandidates.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            : null;
+                        if (signalSchemas is { Length: > 0 })
+                        {
+                            foreach (var candidate in signalSchemas)
+                            {
+                                if (IsValidSchemaName(candidate) && !declaredSchemas.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                                {
+                                    declaredSchemas.Add(candidate);
+                                }
+                            }
+                        }
+                    }
 
                     var declaredSchema = declaredSchemas.FirstOrDefault();
                     CanonicalResource? canonicalRes = null;
@@ -419,7 +477,8 @@ public partial class ResourceSemanticAnalyzer
                         declaredSchema = "main";
                     }
 
-                    if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary && HasEntityOrTableDeclaration(fileNode))
+                    if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary &&
+                        (synthesizedDatabaseWrapper || HasEntityOrTableDeclaration(fileNode)))
                     {
                         var domain = CleanProjectNameToDomain(projectNode.Name);
                         if (!string.IsNullOrEmpty(domain) && IsValidSchemaName(domain))
@@ -820,5 +879,162 @@ public partial class ResourceSemanticAnalyzer
                clean.Equals("Schema", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("String", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("str", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Standard DB-client method surface shared by database/sql, sqlx, and DB-API style
+    /// wrappers (including in-house packages wrapping those drivers). Only unambiguous
+    /// database verbs are used — generic verbs like Get/Select are excluded to avoid
+    /// confusing HTTP clients and caches with database access.
+    /// </summary>
+    private static readonly FrozenSet<string> StandardSqlClientMethodNames = new[]
+    {
+        "Query", "QueryRow", "QueryContext", "QueryRowContext",
+        "Exec", "ExecContext", "NamedExec", "Execer",
+        "Prepare", "PrepareContext", "PrepareNamed",
+        "Begin", "BeginTx", "Commit", "Rollback",
+        "Ping", "PingContext",
+        "SelectContext", "GetContext", "Rebind"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Infers a canonical relational engine name from a file's import paths using public
+    /// driver/engine names only (architecture-neutral: no project or package specifics).
+    /// Defaults to PostgreSQL, mirroring <see cref="ResourceNamingHelper.NormalizeEngineName"/>.
+    /// </summary>
+    private static string InferRelationalEngineName(IEnumerable<RawImport> imports)
+    {
+        foreach (var import in imports)
+        {
+            var path = import.Path ?? string.Empty;
+            if (path.Contains("postgres", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains("pgx", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains("lib/pq", StringComparison.OrdinalIgnoreCase))
+            {
+                return "PostgreSQL";
+            }
+            if (path.Contains("mysql", StringComparison.OrdinalIgnoreCase)) return "MySQL";
+            if (path.Contains("mariadb", StringComparison.OrdinalIgnoreCase)) return "MariaDB";
+            if (path.Contains("sqlite", StringComparison.OrdinalIgnoreCase)) return "SQLite";
+            if (path.Contains("clickhouse", StringComparison.OrdinalIgnoreCase)) return "ClickHouse";
+        }
+        return "PostgreSQL";
+    }
+
+    internal static bool HasStandardSqlClientCallShape(SyntaxTree syntaxTree)
+    {
+        var calls = syntaxTree.Document?.AllCalls;
+        if (calls == null || calls.Count == 0) return false;
+
+        foreach (var call in calls)
+        {
+            if (!string.IsNullOrEmpty(call.MethodName) &&
+                StandardSqlClientMethodNames.Contains(call.MethodName))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SchemaQualifiedTablePattern = new(
+        @"(?:FROM|INTO|UPDATE|JOIN|TABLE)\s+([a-zA-Z_][a-zA-Z0-9_]{2,63})\.[a-zA-Z_][a-zA-Z0-9_]{2,63}",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly FrozenSet<string> NonSchemaQualifiers = new[]
+    {
+        "the", "this", "tmp", "temp", "sql", "data", "test", "demo", "sample", "log", "logs"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Extracts schema names from schema-qualified table references in the file's SQL-shaped
+    /// string literals (e.g. "FROM billing.orders" → "event_feed"). Distinct, ordered, capped.
+    /// </summary>
+    internal static string? ExtractSqlSchemaCandidates(SyntaxTree syntaxTree)
+    {
+        var root = syntaxTree.Document;
+        if (root == null) return null;
+
+        var schemas = new List<string>();
+        CollectSqlSchemas(root, schemas);
+        return schemas.Count > 0 ? string.Join(',', schemas) : null;
+    }
+
+    private static void CollectSqlSchemas(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, List<string> schemas)
+    {
+        if (schemas.Count >= 5) return;
+
+        if (node is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax
+            {
+                LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String or CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.RawString
+            })
+        {
+            var span = node.AsSpan().Trim();
+            if (span.Length is > 12 and < 4096 && NestedSqlParser.FastCheckSqlCandidate(span) && !LooksLikeSalesforceSoql(span.ToString()))
+            {
+                var text = span.ToString();
+                foreach (var match in SchemaQualifiedTablePattern.Matches(text).Cast<System.Text.RegularExpressions.Match>())
+                {
+                    var candidate = match.Groups[1].Value;
+                    if (!NonSchemaQualifiers.Contains(candidate) &&
+                        !schemas.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                    {
+                        schemas.Add(candidate);
+                        if (schemas.Count >= 5) return;
+                    }
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            CollectSqlSchemas(child, schemas);
+            if (schemas.Count >= 5) return;
+        }
+    }
+
+    internal static bool HasSqlShapedStringLiterals(SyntaxTree syntaxTree)
+    {
+        var root = syntaxTree.Document;
+        if (root == null) return false;
+        return ContainsSqlShapedLiteral(root);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SalesforceObjectPattern = new(
+        @"(?:FROM|INTO|UPDATE|DELETE\s+FROM)\s+""?[a-zA-Z_][a-zA-Z0-9_]*__(?:c|kav|ka|mdt|e|b|x|hd|Share|History|Feed|Tag|ChangeEvent)""?",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Detects Salesforce SOQL lookalikes (WITH DATA CATEGORY clauses, __c/__kav-style
+    /// custom object suffixes) that must not count as relational SQL evidence.
+    /// </summary>
+    private static bool LooksLikeSalesforceSoql(string text) =>
+        text.Contains("WITH DATA CATEGORY", StringComparison.OrdinalIgnoreCase) ||
+        SalesforceObjectPattern.IsMatch(text);
+
+    private static bool IsSqlEvidenceLiteral(string text) =>
+        text.Length is > 12 and < 4096 &&
+        NestedSqlParser.FastCheckSqlCandidate(text.AsSpan()) &&
+        !LooksLikeSalesforceSoql(text);
+
+    private static bool ContainsSqlShapedLiteral(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+    {
+        if (node is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax
+            {
+                LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String or CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.RawString
+            })
+        {
+            var span = node.AsSpan().Trim();
+            if (span.Length is > 12 and < 4096 && NestedSqlParser.FastCheckSqlCandidate(span) && !LooksLikeSalesforceSoql(span.ToString()))
+            {
+                return true;
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            if (ContainsSqlShapedLiteral(child)) return true;
+        }
+        return false;
     }
 }

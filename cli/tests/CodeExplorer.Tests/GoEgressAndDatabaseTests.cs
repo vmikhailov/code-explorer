@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parsers.Go;
@@ -8,6 +9,8 @@ using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
+[TestFixture]
+[NonParallelizable]
 public class GoEgressAndDatabaseTests
 {
     private static List<EndpointNode> FindEndpointNodes(IEnumerable<IOntologyNode> nodes)
@@ -61,6 +64,62 @@ public class GoEgressAndDatabaseTests
             result.AddRange(FindReferences(node.Children));
         }
         return result;
+    }
+
+    [Test]
+    public async Task InHouseDbWrapper_StandardSqlClientShape_ExtractsUsesDb()
+    {
+        // Mirrors in-house wrappers around database/sql (e.g. internal platform packages
+        // exposing *postgres.Client with SelectContext/ExecContext): the import path matches
+        // no built-in DB extension pattern, yet the standard DB-client call shape and
+        // SQL literals identify relational database access.
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-dbwrapper-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "store.go");
+
+        var code = @"package store
+
+import (
+	""context""
+
+	""internal.example.com/platform/postgres""
+)
+
+type UAVStore struct {
+	*postgres.Client
+}
+
+func (s *UAVStore) GetEvents(ctx context.Context) error {
+	return s.SelectContext(ctx, nil, ""SELECT object_id, ts FROM event_feed.uav_zone_events ORDER BY ts DESC"", 1)
+}
+
+func (s *UAVStore) DeleteEvents(ctx context.Context) error {
+	_, err := s.ExecContext(ctx, ""DELETE FROM event_feed.uav_zone_events WHERE ts < $1"", 1)
+	return err
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoFileParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var proj = new ProjectNode("proj:wrapper-svc", "wrapper-svc", "/wrapper-svc", "go");
+            await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, proj, parser, ctx);
+
+            ctx.GlobalProjectDependencies.Any(d => d.Kind == RelationshipKind.UsesDb)
+                .Should().BeTrue("in-house DB wrappers with the standard database/sql call shape must produce USES_DB");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
     }
 
     [Test]

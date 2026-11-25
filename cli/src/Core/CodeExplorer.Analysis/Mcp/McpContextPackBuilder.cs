@@ -41,10 +41,10 @@ internal static partial class McpContextPackBuilder
         "coalesce(f.path, n.file_path, n.path, '') AS filePath, coalesce(n.start_line, 0) AS startLine LIMIT 25";
 
     private const string RouteEndpointSearchQuery =
-        "MATCH (ep:Endpoint) WHERE ep.route IS NOT NULL AND toLower(ep.route) CONTAINS toLower($term) " +
+        "MATCH (ep:Endpoint) WHERE coalesce(ep.route_template, ep.route) IS NOT NULL AND toLower(coalesce(ep.route_template, ep.route)) CONTAINS toLower($term) " +
         "OPTIONAL MATCH (ep)-[:TRIGGERS|CALLS|IMPLEMENTED_BY]->(fn:Function) " +
         "OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-        "RETURN ep.id AS id, coalesce(ep.http_method, 'HTTP') + ' ' + ep.route AS name, " +
+        "RETURN ep.id AS id, coalesce(ep.http_method, 'HTTP') + ' ' + coalesce(ep.route_template, ep.route) AS name, " +
         "coalesce(owner.name + '.' + fn.name, fn.name, '') AS handlerName, " +
         "coalesce(fn.id, '') AS handlerId, coalesce(owner.id, '') AS ownerId, " +
         "coalesce(fn.file_path, ep.file_path, ep.path, '') AS filePath, coalesce(fn.start_line, ep.start_line, 0) AS startLine LIMIT 10";
@@ -90,7 +90,7 @@ internal static partial class McpContextPackBuilder
         "WHERE callerOwner IS NULL OR targetOwner IS NULL OR callerOwner.id <> targetOwner.id " +
         "RETURN coalesce(targetOwner.name + '.' + target.name, target.name) AS calleeName, " +
         "coalesce(callerOwner.name, '') AS callerOwner, " +
-        "CASE WHEN caller:Endpoint THEN coalesce(caller.http_method, 'HTTP') + ' ' + coalesce(caller.route, caller.name) ELSE coalesce(caller.name, '') END AS callerName, " +
+        "CASE WHEN caller:Endpoint THEN coalesce(caller.http_method, 'HTTP') + ' ' + coalesce(caller.route_template, caller.route, caller.name) ELSE coalesce(caller.name, '') END AS callerName, " +
         "type(r) AS relName, coalesce(caller.file_path, caller.path, '') AS filePath, " +
         "coalesce(caller.start_line, 0) AS startLine LIMIT 50";
 

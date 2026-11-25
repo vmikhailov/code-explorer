@@ -8,8 +8,29 @@ using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
+[TestFixture]
+[NonParallelizable]
 public class GoWebFrameworksTests
 {
+    private IDisposable? _lock;
+
+    [SetUp]
+    public async Task SetUp()
+    {
+        _lock = await TestRegistryLock.AcquireAsync();
+        RouteDictionaryRegistry.Clear();
+        ConstantRegistry.Clear();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        RouteDictionaryRegistry.Clear();
+        ConstantRegistry.Clear();
+        _lock?.Dispose();
+        _lock = null;
+    }
+
     private static List<EndpointNode> FindEndpointNodes(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<EndpointNode>();
@@ -147,6 +168,186 @@ func setupApp() {
             updateEp.Should().NotBeNull();
             updateEp!.RouteTemplate.Should().Be("/orders/:id");
             updateEp.HttpMethod.Should().Be("PUT");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Fiber_PackageConstRoutePrefix_SameFile_ResolvesFullPath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-fiber-const-" + Guid.NewGuid().ToString("N"));
+        var pkgDir = Path.Combine(tempDir, "handlers");
+        Directory.CreateDirectory(pkgDir);
+        var filePath = Path.Combine(pkgDir, "resolver.go");
+
+        var code = @"package handlers
+
+import ""github.com/gofiber/fiber/v2""
+
+const (
+	apiPrefix  = ""api""
+	apiVersion = ""v1""
+	pathPrefix = apiPrefix + ""/"" + apiVersion
+)
+
+func handleZones(c *fiber.Ctx) error { return nil }
+func handleUsers(c *fiber.Ctx) error { return nil }
+
+func initRoutes(app *fiber.App) {
+	app.Post(pathPrefix+""/objects/zones/list"", handleZones)
+	app.Get(pathPrefix+""/objects/users"", handleUsers)
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoFileParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(syntaxTree, "fiber-const-service");
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = FindEndpointNodes(syntaxTree.FileNode.Children);
+            endpoints.Should().HaveCount(2);
+
+            var zonesEp = endpoints.FirstOrDefault(e => e.Name == "POST:/api/v1/objects/zones/list");
+            zonesEp.Should().NotBeNull();
+            zonesEp!.RouteTemplate.Should().Be("/api/v1/objects/zones/list");
+            zonesEp.HttpMethod.Should().Be("POST");
+
+            var usersEp = endpoints.FirstOrDefault(e => e.Name == "GET:/api/v1/objects/users");
+            usersEp.Should().NotBeNull();
+            usersEp!.RouteTemplate.Should().Be("/api/v1/objects/users");
+            usersEp.HttpMethod.Should().Be("GET");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Fiber_PackageConstRoutePrefix_CrossFile_ResolvesFullPath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-fiber-const-x-" + Guid.NewGuid().ToString("N"));
+        var pkgDir = Path.Combine(tempDir, "handlers");
+        Directory.CreateDirectory(pkgDir);
+        var constsPath = Path.Combine(pkgDir, "consts.go");
+        var routesPath = Path.Combine(pkgDir, "resolver.go");
+
+        var constsCode = @"package handlers
+
+const (
+	apiPrefix  = ""api""
+	apiVersion = ""v1""
+	pathPrefix = apiPrefix + ""/"" + apiVersion
+)
+";
+        var routesCode = @"package handlers
+
+import ""github.com/gofiber/fiber/v2""
+
+func handleZones(c *fiber.Ctx) error { return nil }
+
+func initRoutes(app *fiber.App) {
+	app.Post(pathPrefix+""/objects/zones/list"", handleZones)
+}
+";
+        await File.WriteAllTextAsync(constsPath, constsCode);
+        await File.WriteAllTextAsync(routesPath, routesCode);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoFileParser();
+
+            // Layer 3 Step 1 order: constants are registered for every file of the package
+            // before the visitors (Step 2) run on the route-declaring file.
+            using var constsTree = await parser.ParseAsync(constsPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(constsTree, "fiber-const-service");
+
+            using var routesTree = await parser.ParseAsync(routesPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(routesTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = FindEndpointNodes(routesTree.FileNode.Children);
+            endpoints.Should().HaveCount(1);
+
+            var zonesEp = endpoints.FirstOrDefault(e => e.Name == "POST:/api/v1/objects/zones/list");
+            zonesEp.Should().NotBeNull();
+            zonesEp!.RouteTemplate.Should().Be("/api/v1/objects/zones/list");
+            zonesEp.HttpMethod.Should().Be("POST");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Fiber_ChainedReceiverWithPackageConst_ResolvesFullPath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-fiber-chain-" + Guid.NewGuid().ToString("N"));
+        var pkgDir = Path.Combine(tempDir, "rest", "handlers");
+        Directory.CreateDirectory(pkgDir);
+        var filePath = Path.Combine(pkgDir, "resolver.go");
+
+        var code = @"package handlers
+
+import ""github.com/gofiber/fiber/v2""
+
+const (
+	APIPrefix  = ""ota-ssh/api""
+	APIVersion = ""v1""
+	pathPrefix = APIPrefix + ""/"" + APIVersion
+)
+
+type Server interface {
+	Router() Router
+}
+
+type Router interface {
+	Fiber() *fiber.App
+}
+
+type Resolver struct {
+	server Server
+}
+
+func (r *Resolver) prepareUpload(c *fiber.Ctx) error { return nil }
+
+func (r *Resolver) initRoutes() {
+	r.server.Router().Fiber().Post(pathPrefix+""/uploads"", r.prepareUpload)
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoFileParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(syntaxTree, "chained-fiber-service");
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = FindEndpointNodes(syntaxTree.FileNode.Children);
+            endpoints.Should().HaveCount(1);
+
+            var uploadEp = endpoints.FirstOrDefault(e => e.Name == "POST:/ota-ssh/api/v1/uploads");
+            uploadEp.Should().NotBeNull();
+            uploadEp!.RouteTemplate.Should().Be("/ota-ssh/api/v1/uploads");
+            uploadEp.HttpMethod.Should().Be("POST");
         }
         finally
         {
