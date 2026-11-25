@@ -15,6 +15,20 @@ const VERSION_PREFIX = 'v';
 const FOOTER_VER_ID = 'footerCeVersion';
 const NO_CACHE_OPTIONS: RequestInit = { cache: 'no-cache' };
 
+function parseSemVerTuple(ver: string): [number, number, number] {
+  const clean = ver.startsWith(VERSION_PREFIX) ? ver.slice(1) : ver;
+  const parts = clean.split('.').map((n) => parseInt(n, 10) || 0);
+  return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+}
+
+function isNewerOrEqualSemVer(candidate: string, baseline: string): boolean {
+  const [cMaj, cMin, cPat] = parseSemVerTuple(candidate);
+  const [bMaj, bMin, bPat] = parseSemVerTuple(baseline);
+  if (cMaj !== bMaj) return cMaj > bMaj;
+  if (cMin !== bMin) return cMin > bMin;
+  return cPat >= bPat;
+}
+
 export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
   const [releaseVersion, setReleaseVersion] = useState<string>(DEFAULT_VERSION);
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
@@ -35,10 +49,12 @@ export const SlabHeader: React.FC<SlabHeaderProps> = ({ currentRoute }) => {
         const rawVer = data && (data.tag_name || data.version);
         if (rawVer) {
           const v = rawVer.startsWith(VERSION_PREFIX) ? rawVer : `${VERSION_PREFIX}${rawVer}`;
-          setReleaseVersion(v);
-          const footerVer = document.getElementById(FOOTER_VER_ID);
-          if (footerVer) {
-            footerVer.textContent = v;
+          if (isNewerOrEqualSemVer(v, DEFAULT_VERSION)) {
+            setReleaseVersion(v);
+            const footerVer = document.getElementById(FOOTER_VER_ID);
+            if (footerVer) {
+              footerVer.textContent = v;
+            }
           }
         }
       })

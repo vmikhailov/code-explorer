@@ -135,7 +135,7 @@ if (Test-Path $slabHeaderPath) {
 $mastFooterPath = Join-Path $repoRoot "site\src\components\MastFooter.tsx"
 if (Test-Path $mastFooterPath) {
     $mastContent = Get-Content $mastFooterPath -Raw
-    $updatedMast = $mastContent -replace "(const DEFAULT_VERSION_LABEL = 'CodeExplorer CLI & Extension v)\d+\.\d+\.\d+(';)", ('${1}' + $newVersion + '${2}')
+    $updatedMast = $mastContent -replace "(const DEFAULT_VERSION_LABEL = '(?:CodeExplorer CLI & Extension )?v)\d+\.\d+\.\d+(';)", ('${1}' + $newVersion + '${2}')
     Set-Content -Path $mastFooterPath -Value $updatedMast -NoNewline
     Write-Host "  [OK] Updated $mastFooterPath" -ForegroundColor Gray
 }
