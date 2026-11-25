@@ -8,6 +8,8 @@
 [![VS Marketplace](https://vsmarketplacebadges.dev/version/vmikhailov.code-explorer-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
 [![vmikhailov/code-explorer MCP server](https://glama.ai/mcp/servers/vmikhailov/code-explorer/badges/score.svg)](https://glama.ai/mcp/servers/vmikhailov/code-explorer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Viacheslav_Mikhailov-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/vgmikhailov)
+[![Telegram](https://img.shields.io/badge/Telegram-@vmikhailov-26A5E4?logo=telegram&logoColor=white)](https://t.me/vmikhailov)
 
 </div>
 
@@ -32,6 +34,10 @@ CodeExplorer indexes polyglot repositories into a single local SQLite database (
   <a href="#graph-ontology--languages">Ontology &amp; Languages</a> •
   <a href="#benchmarks">Benchmarks</a> •
   <a href="#scope-limitations--privacy">Scope &amp; SDK</a>
+</p>
+
+<p align="center">
+  Author &amp; Contact: <strong>Viacheslav Mikhailov</strong> — <a href="https://www.linkedin.com/in/vgmikhailov">LinkedIn</a> • <a href="https://t.me/vmikhailov">Telegram (@vmikhailov)</a>
 </p>
 
 ---
