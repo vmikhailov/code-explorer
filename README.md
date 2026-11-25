@@ -1,6 +1,12 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/media/github-social-preview.png" alt="CodeExplorer" width="80%" />
 
+
+<p align="center">
+  Author &amp; Contact: <strong>Viacheslav Mikhailov</strong> — <a href="https://www.linkedin.com/in/vgmikhailov">LinkedIn</a> • <a href="https://t.me/vmikhailov">Telegram (@vmikhailov)</a>
+</p>
+
+
 [![Website](https://img.shields.io/badge/Website-code--explorer.app-8b5cf6.svg)](https://code-explorer.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![Homebrew](https://img.shields.io/badge/Homebrew-vmikhailov%2Ftap%2Fce-orange.svg)](https://github.com/vmikhailov/homebrew-tap)
@@ -34,10 +40,6 @@ CodeExplorer indexes polyglot repositories into a single local SQLite database (
   <a href="#graph-ontology--languages">Ontology &amp; Languages</a> •
   <a href="#benchmarks">Benchmarks</a> •
   <a href="#scope-limitations--privacy">Scope &amp; SDK</a>
-</p>
-
-<p align="center">
-  Author &amp; Contact: <strong>Viacheslav Mikhailov</strong> — <a href="https://www.linkedin.com/in/vgmikhailov">LinkedIn</a> • <a href="https://t.me/vmikhailov">Telegram (@vmikhailov)</a>
 </p>
 
 ---
