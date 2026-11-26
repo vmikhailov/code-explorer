@@ -150,6 +150,9 @@ public class ParsingContext
     /// <summary>Go module paths (module -> workspace-relative directory) extracted from go.mod files in Layer 2.</summary>
     public Dictionary<string, string> WorkspaceGoModules { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Named DI/UI component aliases (e.g. Seam @Name("foo"), CDI @Named("foo"), components.xml) mapped to simple Type name.</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, string> NamedBeanTypes { get; } = new(StringComparer.Ordinal);
+
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
     private readonly ILogger _logger;

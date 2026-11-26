@@ -12,7 +12,7 @@ namespace CodeExplorer.Parsers.Java;
 
 /// <summary>
 /// Dedicated file parser for JBoss Seam 2 XML descriptors (pages.xml, components.xml) and Tuckey urlrewrite.xml.
-/// Extracts page/URL endpoints, navigation redirects, component-to-class wiring, and EL bean action references.
+/// Extracts page/URL endpoints, navigation redirects, component-to-class wiring, JMS queues, and EL bean action references.
 /// </summary>
 public class SeamXmlParser : IFileParser
 {
@@ -28,15 +28,24 @@ public class SeamXmlParser : IFileParser
         public const string UrlRewriteRoot = "urlrewrite";
         public const string PageTag = "page";
         public const string RedirectTag = "redirect";
-        public const string ComponentTag = "component";
         public const string RuleTag = "rule";
         public const string FromTag = "from";
         public const string ToTag = "to";
         public const string ViewIdAttr = "view-id";
         public const string ClassAttr = "class";
+        public const string NameAttr = "name";
+        public const string TypeAttr = "type";
+        public const string QueueJndiAttr = "queue-jndi-name";
+        public const string TopicJndiAttr = "topic-jndi-name";
+        public const string ResourcePathPrefixAttr = "resource-path-prefix";
         public const string GetMethod = "GET";
+        public const string AnyMethod = "ANY";
         public const string ProtocolSeam = "jsf-seam";
+        public const string ProtocolRestEasy = "jaxrs-resteasy";
         public const string ProtocolUrlRewrite = "urlrewrite";
+        public const string JmsPrefix = "jms:";
+        public const string GetterPrefix = "get";
+        public const string BooleanGetterPrefix = "is";
         public const string WildcardView = "*";
         public const string StreamingModeUnary = "Unary";
         public const string PomXml = "pom.xml";
@@ -48,9 +57,14 @@ public class SeamXmlParser : IFileParser
     }
 
     private static readonly Regex ElReferenceRegex = new(
-        @"#\{[^}]*?([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)",
+        @"#\{[^}]*?([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(\s*\()?",
         RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(200));
+
+    private static readonly Regex RewriteGroupRegex = new(
+        @"\([^)]+\)",
+        RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(100));
 
     private static readonly HashSet<string> ElAttributes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -126,28 +140,30 @@ public class SeamXmlParser : IFileParser
 
         var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
+        var rawTypeBindings = new List<RawTypeBinding>();
         if (string.IsNullOrWhiteSpace(content))
         {
-            return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
+            return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], rawTypeBindings);
         }
 
         try
         {
-            ParseSeamXml(content, fileNode, relativePath, workspaceId);
+            ParseSeamXml(content, fileNode, relativePath, workspaceId, rawTypeBindings);
         }
         catch (Exception ex) when (ex is XmlException or InvalidOperationException or RegexMatchTimeoutException)
         {
             // Tolerate malformed XML gracefully
         }
 
-        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
+        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], rawTypeBindings);
     }
 
     private static void ParseSeamXml(
         string content,
         FileNode fileNode,
         string relativePath,
-        string workspaceId)
+        string workspaceId,
+        List<RawTypeBinding> rawTypeBindings)
     {
         var settings = new XmlReaderSettings
         {
@@ -167,7 +183,7 @@ public class SeamXmlParser : IFileParser
         }
         else if (rootName.Equals(Constants.ComponentsRoot, StringComparison.OrdinalIgnoreCase))
         {
-            ParseSeamComponents(xDoc.Root, fileNode);
+            ParseSeamComponents(xDoc.Root, fileNode, relativePath, workspaceId, rawTypeBindings);
         }
         else if (rootName.Equals(Constants.UrlRewriteRoot, StringComparison.OrdinalIgnoreCase))
         {
@@ -186,18 +202,21 @@ public class SeamXmlParser : IFileParser
         foreach (var page in root.Descendants().Where(e => e.Name.LocalName.Equals(Constants.PageTag, StringComparison.OrdinalIgnoreCase)))
         {
             var viewId = page.Attribute(Constants.ViewIdAttr)?.Value?.Trim();
-            if (string.IsNullOrWhiteSpace(viewId) || viewId == Constants.WildcardView) continue;
+            if (string.IsNullOrWhiteSpace(viewId)) continue;
 
             var lineInfo = (IXmlLineInfo)page;
             var line = lineInfo.HasLineInfo() ? lineInfo.LineNumber : 1;
-            var route = viewId.StartsWith('/') ? viewId : "/" + viewId;
             var sourceId = fileNode.Id;
 
-            if (emittedRoutes.Add(route))
+            if (viewId != Constants.WildcardView)
             {
-                var ep = CreateRouteEndpoint(workspaceId, relativePath, route, Constants.ProtocolSeam, line);
-                fileNode.Children.Add(ep);
-                sourceId = ep.Id;
+                var route = viewId.StartsWith('/') ? viewId : "/" + viewId;
+                if (emittedRoutes.Add(route))
+                {
+                    var ep = CreateRouteEndpoint(workspaceId, relativePath, route, Constants.ProtocolSeam, line);
+                    fileNode.Children.Add(ep);
+                    sourceId = ep.Id;
+                }
             }
 
             foreach (var elem in page.DescendantsAndSelf())
@@ -224,22 +243,71 @@ public class SeamXmlParser : IFileParser
         }
     }
 
-    private static void ParseSeamComponents(XElement root, FileNode fileNode)
+    private static void ParseSeamComponents(
+        XElement root,
+        FileNode fileNode,
+        string relativePath,
+        string workspaceId,
+        List<RawTypeBinding> rawTypeBindings)
     {
         foreach (var elem in root.Descendants())
         {
             var lineInfo = (IXmlLineInfo)elem;
             var line = lineInfo.HasLineInfo() ? lineInfo.LineNumber : 1;
 
-            var classAttr = elem.Attribute(Constants.ClassAttr)?.Value?.Trim();
+            var classAttr = elem.Attribute(Constants.ClassAttr)?.Value?.Trim()
+                            ?? elem.Attribute(Constants.TypeAttr)?.Value?.Trim();
             if (!string.IsNullOrWhiteSpace(classAttr))
             {
-                fileNode.References.Add(new Reference(fileNode.Id, classAttr, OntologyConstants.Relationships.References, line, 1));
-                var dotIdx = classAttr.LastIndexOf('.');
-                if (dotIdx >= 0 && dotIdx < classAttr.Length - 1)
+                var simpleClass = ExtractSimpleClassName(classAttr);
+                fileNode.References.Add(new Reference(fileNode.Id, simpleClass, OntologyConstants.Relationships.UsesType, line, 1));
+                if (!string.Equals(simpleClass, classAttr, StringComparison.Ordinal))
                 {
-                    fileNode.References.Add(new Reference(fileNode.Id, classAttr[(dotIdx + 1)..], OntologyConstants.Relationships.References, line, 1));
+                    fileNode.References.Add(new Reference(fileNode.Id, classAttr, OntologyConstants.Relationships.UsesType, line, 1));
                 }
+
+                var compName = elem.Attribute(Constants.NameAttr)?.Value?.Trim();
+                if (!string.IsNullOrWhiteSpace(compName))
+                {
+                    rawTypeBindings.Add(new RawTypeBinding(compName, simpleClass, string.Empty, string.Empty));
+                }
+            }
+
+            var restPrefix = elem.Attribute(Constants.ResourcePathPrefixAttr)?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(restPrefix))
+            {
+                var route = restPrefix.StartsWith('/') ? restPrefix : "/" + restPrefix;
+                var epId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{Constants.AnyMethod}:{route}";
+                var ep = new EndpointNode(
+                    epId,
+                    $"{Constants.AnyMethod}:{route}",
+                    relativePath,
+                    Constants.AnyMethod,
+                    route,
+                    Constants.ProtocolRestEasy,
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Constants.StreamingModeUnary)
+                {
+                    FilePath = relativePath,
+                    StartLine = line,
+                    EndLine = line,
+                    Line = line,
+                    LineEnd = line,
+                    Operation = Constants.AnyMethod,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint
+                };
+                fileNode.Children.Add(ep);
+            }
+
+            var jndiQueue = elem.Attribute(Constants.QueueJndiAttr)?.Value?.Trim()
+                            ?? elem.Attribute(Constants.TopicJndiAttr)?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(jndiQueue))
+            {
+                fileNode.References.Add(new Reference(fileNode.Id, Constants.JmsPrefix + jndiQueue, OntologyConstants.Relationships.PublishesTo, line, 1));
             }
 
             foreach (var attr in elem.Attributes())
@@ -250,6 +318,12 @@ public class SeamXmlParser : IFileParser
                 }
             }
         }
+    }
+
+    private static string ExtractSimpleClassName(string fqn)
+    {
+        var dotIdx = fqn.LastIndexOf('.');
+        return (dotIdx >= 0 && dotIdx < fqn.Length - 1) ? fqn[(dotIdx + 1)..] : fqn;
     }
 
     private static void ParseUrlRewrite(
@@ -288,11 +362,6 @@ public class SeamXmlParser : IFileParser
             }
         }
     }
-
-    private static readonly Regex RewriteGroupRegex = new(
-        @"\([^)]+\)",
-        RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
 
     private static string NormalizeRewritePattern(string pattern)
     {
@@ -344,10 +413,20 @@ public class SeamXmlParser : IFileParser
         {
             var bean = m.Groups[1].Value;
             var member = m.Groups[2].Value;
+            var hasParen = m.Groups[3].Success;
             if (BuiltInElRoots.Contains(bean)) continue;
 
+            fileNode.References.Add(new Reference(sourceId, bean, OntologyConstants.Relationships.UsesType, line, 1));
             fileNode.References.Add(new Reference(sourceId, $"{bean}.{member}", OntologyConstants.Relationships.Calls, line, 1));
-            fileNode.References.Add(new Reference(sourceId, bean, OntologyConstants.Relationships.References, line, 1));
+
+            if (!hasParen &&
+                !member.StartsWith(Constants.GetterPrefix, StringComparison.Ordinal) &&
+                !member.StartsWith(Constants.BooleanGetterPrefix, StringComparison.Ordinal))
+            {
+                var pascalProp = FaceletsXhtmlParser.ToPascalIdentifier(member);
+                fileNode.References.Add(new Reference(sourceId, $"{bean}.{Constants.GetterPrefix}{pascalProp}", OntologyConstants.Relationships.Calls, line, 1));
+                fileNode.References.Add(new Reference(sourceId, $"{bean}.{Constants.BooleanGetterPrefix}{pascalProp}", OntologyConstants.Relationships.Calls, line, 1));
+            }
         }
     }
 }

@@ -1115,7 +1115,9 @@ internal static partial class Layer5SymbolVisibilityResolver
         Layer5AnalysisParser.SymbolLookups symbols,
         List<Relationship> referenceRelationships)
     {
-        var targetName = refItem.TargetName;
+        var targetName = ctx.NamedBeanTypes.TryGetValue(refItem.TargetName, out var mappedBeanType)
+            ? mappedBeanType
+            : refItem.TargetName;
         var targetTypeId = ResolveVisibleTypeSymbol(targetName, refItem.ScopeSymbolId, ctx, symbols);
         if (targetTypeId != null && refItem.ScopeSymbolId != targetTypeId)
         {

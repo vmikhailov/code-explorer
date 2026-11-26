@@ -41,7 +41,9 @@ public static class OntologyUploader
                 {
                     continue;
                 }
-                if (refItem.Kind == RelationshipKind.UsesType && !ctx.IsKnownWorkspaceType(refItem.TargetName))
+                if (refItem.Kind == RelationshipKind.UsesType &&
+                    !ctx.IsKnownWorkspaceType(refItem.TargetName) &&
+                    !ctx.NamedBeanTypes.ContainsKey(refItem.TargetName))
                 {
                     continue;
                 }

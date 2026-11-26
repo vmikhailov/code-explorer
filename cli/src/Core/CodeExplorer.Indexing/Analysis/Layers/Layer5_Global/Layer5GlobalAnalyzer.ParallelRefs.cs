@@ -139,7 +139,7 @@ public partial class Layer5AnalysisParser
             switch (refItem.Kind)
             {
                 case RelationshipKind.Triggers:
-                    ResolveTriggersReference(refItem, symbols, referenceRelationships, existingRefRels);
+                    Layer5TriggersResolver.ResolveTriggersReference(refItem, symbols, referenceRelationships, existingRefRels);
                     break;
                 case RelationshipKind.PublishesTo:
                 case RelationshipKind.SubscribesTo:

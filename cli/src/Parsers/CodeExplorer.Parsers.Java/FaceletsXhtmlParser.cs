@@ -10,7 +10,8 @@ namespace CodeExplorer.Parsers.Java;
 
 /// <summary>
 /// Dedicated file parser for JSF / Facelets XHTML view templates (*.xhtml).
-/// Extracts view page endpoints, Facelets template/include composition links, navigation outcomes, and EL bean bindings (#{bean.action}).
+/// Extracts view page endpoints, Facelets template/include composition links, navigation outcomes,
+/// and EL bean method + JavaBean getter/boolean bindings (#{bean.action()}, #{bean.totalDocuments}).
 /// </summary>
 public class FaceletsXhtmlParser : IFileParser
 {
@@ -23,6 +24,8 @@ public class FaceletsXhtmlParser : IFileParser
         public const string StreamingModeUnary = "Unary";
         public const string WebappMarker = "/webapp/";
         public const string WebInfMarker = "/WEB-INF/";
+        public const string GetterPrefix = "get";
+        public const string BooleanGetterPrefix = "is";
     }
 
     private static readonly Regex TemplateOrIncludeRegex = new(
@@ -36,12 +39,12 @@ public class FaceletsXhtmlParser : IFileParser
         TimeSpan.FromMilliseconds(250));
 
     private static readonly Regex ElExpressionRegex = new(
-        @"#\{([^}]{1,256})\}",
+        @"#\{([^}]{1,512})\}",
         RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(250));
 
-    private static readonly Regex ElIdentifierChainRegex = new(
-        @"\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b",
+    private static readonly Regex ElMemberAccessRegex = new(
+        @"\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(\s*\()?",
         RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(200));
 
@@ -114,7 +117,9 @@ public class FaceletsXhtmlParser : IFileParser
         string relativePath,
         string workspaceId)
     {
-        var sourceId = fileNode.Id;
+        var lineStarts = BuildLineStarts(content);
+        string? endpointId = null;
+
         var pageRoute = TryDeriveWebappRoute(relativePath);
         if (pageRoute != null)
         {
@@ -142,7 +147,7 @@ public class FaceletsXhtmlParser : IFileParser
                 EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint
             };
             fileNode.Children.Add(ep);
-            sourceId = ep.Id;
+            endpointId = ep.Id;
         }
 
         var seenTemplates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -151,7 +156,8 @@ public class FaceletsXhtmlParser : IFileParser
             var target = m.Groups[1].Value.Trim();
             if (seenTemplates.Add(target))
             {
-                fileNode.References.Add(new Reference(sourceId, target, OntologyConstants.Relationships.References, 1, 1));
+                var line = GetLineNumber(lineStarts, m.Index);
+                fileNode.References.Add(new Reference(fileNode.Id, target, OntologyConstants.Relationships.DependsOn, line, 1));
             }
         }
 
@@ -161,31 +167,94 @@ public class FaceletsXhtmlParser : IFileParser
             var outcome = m.Groups[1].Value.Trim();
             if (seenOutcomes.Add(outcome))
             {
-                fileNode.References.Add(new Reference(sourceId, outcome, OntologyConstants.Relationships.Calls, 1, 1));
+                var line = GetLineNumber(lineStarts, m.Index);
+                var src = endpointId ?? fileNode.Id;
+                fileNode.References.Add(new Reference(src, outcome, OntologyConstants.Relationships.Calls, line, 1));
             }
         }
 
-        var seenEl = new HashSet<string>(StringComparer.Ordinal);
+        var seenBeanTypes = new HashSet<string>(StringComparer.Ordinal);
+        var seenCalls = new HashSet<(string Target, int Line)>();
+
         foreach (Match elMatch in ElExpressionRegex.Matches(content))
         {
             var expr = elMatch.Groups[1].Value;
-            foreach (Match chain in ElIdentifierChainRegex.Matches(expr))
+            var line = GetLineNumber(lineStarts, elMatch.Index);
+
+            foreach (Match chain in ElMemberAccessRegex.Matches(expr))
             {
                 var bean = chain.Groups[1].Value;
                 var member = chain.Groups[2].Value;
+                var hasParen = chain.Groups[3].Success;
                 if (BuiltInElRoots.Contains(bean)) continue;
 
-                var qualified = $"{bean}.{member}";
-                if (seenEl.Add(qualified))
+                if (seenBeanTypes.Add(bean))
                 {
-                    fileNode.References.Add(new Reference(sourceId, qualified, OntologyConstants.Relationships.Calls, 1, 1));
+                    fileNode.References.Add(new Reference(fileNode.Id, bean, OntologyConstants.Relationships.UsesType, line, 1));
+                    var pascalBean = ToPascalIdentifier(bean);
+                    if (!string.Equals(pascalBean, bean, StringComparison.Ordinal))
+                    {
+                        fileNode.References.Add(new Reference(fileNode.Id, pascalBean, OntologyConstants.Relationships.UsesType, line, 1));
+                    }
+                    if (endpointId != null)
+                    {
+                        fileNode.References.Add(new Reference(endpointId, bean, OntologyConstants.Relationships.UsesType, line, 1));
+                    }
                 }
-                if (seenEl.Add(bean))
+
+                EmitBeanCall(fileNode, fileNode.Id, endpointId, $"{bean}.{member}", line, seenCalls);
+
+                if (!hasParen &&
+                    !member.StartsWith(Constants.GetterPrefix, StringComparison.Ordinal) &&
+                    !member.StartsWith(Constants.BooleanGetterPrefix, StringComparison.Ordinal))
                 {
-                    fileNode.References.Add(new Reference(sourceId, bean, OntologyConstants.Relationships.References, 1, 1));
+                    var pascalProp = ToPascalIdentifier(member);
+                    EmitBeanCall(fileNode, fileNode.Id, endpointId, $"{bean}.{Constants.GetterPrefix}{pascalProp}", line, seenCalls);
+                    EmitBeanCall(fileNode, fileNode.Id, endpointId, $"{bean}.{Constants.BooleanGetterPrefix}{pascalProp}", line, seenCalls);
                 }
             }
         }
+    }
+
+    private static void EmitBeanCall(
+        FileNode fileNode,
+        string fileId,
+        string? endpointId,
+        string qualifiedTarget,
+        int line,
+        HashSet<(string Target, int Line)> seenCalls)
+    {
+        if (!seenCalls.Add((qualifiedTarget, line))) return;
+
+        fileNode.References.Add(new Reference(fileId, qualifiedTarget, OntologyConstants.Relationships.Calls, line, 1));
+        if (endpointId != null)
+        {
+            fileNode.References.Add(new Reference(endpointId, qualifiedTarget, OntologyConstants.Relationships.Calls, line, 1));
+        }
+    }
+
+    internal static string ToPascalIdentifier(string identifier) =>
+        string.IsNullOrEmpty(identifier) || char.IsUpper(identifier[0])
+            ? identifier
+            : $"{char.ToUpperInvariant(identifier[0])}{identifier[1..]}";
+
+    internal static List<int> BuildLineStarts(string text)
+    {
+        var starts = new List<int>(128) { 0 };
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                starts.Add(i + 1);
+            }
+        }
+        return starts;
+    }
+
+    internal static int GetLineNumber(List<int> lineStarts, int charIndex)
+    {
+        var idx = lineStarts.BinarySearch(charIndex);
+        return idx >= 0 ? idx + 1 : ~idx;
     }
 
     private static string? TryDeriveWebappRoute(string relativePath)

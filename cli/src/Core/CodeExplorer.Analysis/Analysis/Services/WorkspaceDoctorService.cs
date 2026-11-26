@@ -103,13 +103,13 @@ public sealed class WorkspaceDoctorService
         "project", "Project", "manifest", "configuration", "packages", "package",
         "settings", "ruleset", "StyleCopSettings", "Directory.Build.props",
         "assembly", "nlog", "log4j2", "logback", "checkstyle", "pmd", "svg",
-        "plist", "xcworkspace", "xcodeproj", "idea", "module", "component",
+        "plist", "xcworkspace", "xcodeproj", "idea", "module", "component", "UiBinder",
         "TestRun", "testsuites", "testsuite", "coverage", "cobertura", "report"
     };
 
     private static readonly string[] CompoundXmlSuffixes =
     [
-        ".gwt.xml", ".hbm.xml", ".orm.xml", ".cfg.xml", ".taglib.xml",
+        ".gwt.xml", ".ui.xml", ".hbm.xml", ".orm.xml", ".cfg.xml", ".taglib.xml",
         ".page.xml", ".pages.xml", ".bpel.xml", ".wsdl.xml", ".xsd.xml"
     ];
 

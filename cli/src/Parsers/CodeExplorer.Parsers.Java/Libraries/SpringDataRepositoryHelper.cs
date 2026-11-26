@@ -15,15 +15,27 @@ internal static partial class SpringDataRepositoryHelper
 {
     private const string TableOrDocumentMarker = "@Table";
     private const string DocumentMarker = "@Document";
+    private const string EntityMarker = "@Entity";
     private const string InterfaceDeclType = "interface_declaration";
+    private const string ClassDeclNode = "class_declaration";
     private const string MethodDeclType = "method_declaration";
     private const string MethodInvocationType = "method_invocation";
     private const string CallExpressionType = "call_expression";
     private const string ThisDotPrefix = "this.";
+    private const string SuperReceiver = "super";
+    private const string ThisReceiver = "this";
+    private const string NewKeywordPrefix = "new ";
+    private const string DotClassSuffix = ".class";
+    private const string IdGenericParam = "ID";
     private const string ObjectField = "object";
     private const string NameField = "name";
 
-    internal static readonly string[] RepositoryNodeTypes = [InterfaceDeclType, MethodDeclType, MethodInvocationType, CallExpressionType];
+    internal static readonly string[] RepositoryNodeTypes = [InterfaceDeclType, ClassDeclNode, MethodDeclType, MethodInvocationType, CallExpressionType];
+
+    private static readonly FrozenSet<string> SessionReceiverNames = new[]
+    {
+        "session", "getSession()", "entityManager", "getEntityManager()", "em", "statelessSession", "getStatelessSession()"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     private static readonly string[] ReadMethodPrefixes =
     [
@@ -55,18 +67,30 @@ internal static partial class SpringDataRepositoryHelper
 
     private static readonly string[] WriteMethodPrefixes =
     [
-        "save", "delete", "remove", "insert", "update", "upsert", "flush", "create", "persist", "merge"
+        "save", "saveOrUpdate", "makePersistent", "makeTransient", "delete", "remove", "insert", "update", "upsert", "flush", "create", "persist", "merge"
+    ];
+
+    private static readonly string[] QueryFactoryPrefixes =
+    [
+        "createQuery", "createNativeQuery", "createNamedQuery", "createSQLQuery", "createCriteria", "createFilter"
     ];
 
     // Matches @Table(name = "orders") or @Document(collection = "orders") followed by class OrderEntity
     [GeneratedRegex(@"@(?:Table|Document)\s*\((?:[^)]*?\b(?:name|collection|value)\s*=\s*)?""([^""]+)""[^)]*\)(?:[\s\S]{0,400}?)\b(?:class|record)\s+([A-Za-z_][A-Za-z0-9_]*)", RegexOptions.Compiled)]
     private static partial Regex EntityTableRegex();
 
-    [GeneratedRegex(@"\binterface\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+[^{]*?\b(?:JpaRepository|CrudRepository|PagingAndSortingRepository|ListCrudRepository|ReactiveCrudRepository|R2dbcRepository|MongoRepository|ReactiveMongoRepository)\s*<\s*([A-Za-z_][A-Za-z0-9_]*)", RegexOptions.Compiled)]
+    // Matches @Entity classes without explicit @Table(name = "...") (JPA defaults table name to entity class name)
+    [GeneratedRegex(@"@Entity\b(?:[\s\S]{0,600}?)\bclass\s+([A-Za-z_][A-Za-z0-9_]*)", RegexOptions.Compiled)]
+    private static partial Regex PlainEntityClassRegex();
+
+    [GeneratedRegex(@"\b(?:interface|class)\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:extends|implements)\s+[^{]*?\b(?:JpaRepository|CrudRepository|PagingAndSortingRepository|ListCrudRepository|ReactiveCrudRepository|R2dbcRepository|MongoRepository|ReactiveMongoRepository|[A-Za-z0-9_]*(?:DAO|Dao|Repository|EntityHome)[A-Za-z0-9_]*)\s*<\s*([A-Za-z_][A-Za-z0-9_]*)", RegexOptions.Compiled)]
     private static partial Regex RepoInterfaceRegex();
 
-    [GeneratedRegex(@"\b([A-Za-z_][A-Za-z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:;|,|\))", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b([A-Za-z_][A-Za-z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|,|\))", RegexOptions.Compiled)]
     private static partial Regex FieldOrParamBindingRegex();
+
+    [GeneratedRegex(@"\b(?:class|interface)\s+([A-Za-z_][A-Za-z0-9_]*)", RegexOptions.Compiled)]
+    private static partial Regex EnclosingTypeHeaderRegex();
 
     internal sealed class WorkspaceEntityMaps
     {
@@ -113,13 +137,27 @@ internal static partial class SpringDataRepositoryHelper
             }
         }
 
+        if (content.Contains(EntityMarker, StringComparison.Ordinal))
+        {
+            foreach (Match match in PlainEntityClassRegex().Matches(content))
+            {
+                var entityName = match.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(entityName))
+                {
+                    entityToTable.TryAdd(entityName, entityName);
+                }
+            }
+        }
+
         if (repoToEntity != null)
         {
             foreach (Match m in RepoInterfaceRegex().Matches(content))
             {
                 var repoName = m.Groups[1].Value.Trim();
                 var entityName = m.Groups[2].Value.Trim();
-                if (!string.IsNullOrEmpty(repoName) && !string.IsNullOrEmpty(entityName))
+                if (!string.IsNullOrEmpty(repoName) &&
+                    entityName.Length > 1 &&
+                    !string.Equals(entityName, IdGenericParam, StringComparison.Ordinal))
                 {
                     repoToEntity[repoName] = entityName;
                 }
@@ -151,7 +189,7 @@ internal static partial class SpringDataRepositoryHelper
         {
             receiverName = receiverName[ThisDotPrefix.Length..];
         }
-        if (string.IsNullOrEmpty(receiverName) || string.IsNullOrEmpty(methodName)) return;
+        if (string.IsNullOrEmpty(methodName)) return;
 
         var isWrite = IsWriteMethod(methodName);
         var isRead = !isWrite && IsReadMethod(methodName);
@@ -161,16 +199,35 @@ internal static partial class SpringDataRepositoryHelper
         if (string.IsNullOrEmpty(enclosingClass)) return;
 
         string? entityType = null;
-        foreach (Match bm in FieldOrParamBindingRegex().Matches(enclosingClass))
+
+        if (string.IsNullOrEmpty(receiverName) ||
+            string.Equals(receiverName, SuperReceiver, StringComparison.Ordinal) ||
+            string.Equals(receiverName, ThisReceiver, StringComparison.Ordinal))
         {
-            if (string.Equals(bm.Groups[2].Value, receiverName, StringComparison.Ordinal))
+            var headerMatch = EnclosingTypeHeaderRegex().Match(enclosingClass);
+            if (headerMatch.Success && repoToEntity.TryGetValue(headerMatch.Groups[1].Value, out var selfDaoEntity))
             {
-                var declaredType = bm.Groups[1].Value;
-                if (repoToEntity.TryGetValue(declaredType, out var mappedEntity))
+                entityType = selfDaoEntity;
+            }
+        }
+        else
+        {
+            foreach (Match bm in FieldOrParamBindingRegex().Matches(enclosingClass))
+            {
+                if (string.Equals(bm.Groups[2].Value, receiverName, StringComparison.Ordinal))
                 {
-                    entityType = mappedEntity;
-                    break;
+                    var declaredType = bm.Groups[1].Value;
+                    if (repoToEntity.TryGetValue(declaredType, out var mappedEntity))
+                    {
+                        entityType = mappedEntity;
+                        break;
+                    }
                 }
+            }
+
+            if (entityType == null && SessionReceiverNames.Contains(receiverName) && call.Arguments.Count > 0)
+            {
+                entityType = TryResolveSessionCallEntity(call.Arguments[0].Text, enclosingClass, entityToTable, repoToEntity);
             }
         }
 
@@ -180,18 +237,86 @@ internal static partial class SpringDataRepositoryHelper
         references.Add(new Reference(scopeSymbolId, tableName, relKind, node.StartPosition.Row + 1, node.StartPosition.Column + 1));
     }
 
+    private static string? TryResolveSessionCallEntity(
+        string rawArgText,
+        string enclosingClass,
+        ConcurrentDictionary<string, string> entityToTable,
+        ConcurrentDictionary<string, string> repoToEntity)
+    {
+        var arg = rawArgText.Trim();
+        if (string.IsNullOrEmpty(arg) || arg[0] == '"' || arg[0] == '\'') return null;
+
+        if (arg.EndsWith(DotClassSuffix, StringComparison.Ordinal))
+        {
+            var cls = arg[..^DotClassSuffix.Length].Trim();
+            var dotIdx = cls.LastIndexOf('.');
+            if (dotIdx >= 0 && dotIdx < cls.Length - 1) cls = cls[(dotIdx + 1)..];
+            return entityToTable.ContainsKey(cls) ? cls : null;
+        }
+
+        if (arg.StartsWith(NewKeywordPrefix, StringComparison.Ordinal))
+        {
+            var rest = arg[NewKeywordPrefix.Length..].TrimStart();
+            var parenIdx = rest.IndexOfAny(['(', '<', ' ']);
+            var constructed = parenIdx > 0 ? rest[..parenIdx].Trim() : rest;
+            return entityToTable.ContainsKey(constructed) ? constructed : null;
+        }
+
+        if (arg.StartsWith(ThisDotPrefix, StringComparison.Ordinal))
+        {
+            arg = arg[ThisDotPrefix.Length..];
+        }
+
+        foreach (Match bm in FieldOrParamBindingRegex().Matches(enclosingClass))
+        {
+            if (string.Equals(bm.Groups[2].Value, arg, StringComparison.Ordinal))
+            {
+                var declaredType = bm.Groups[1].Value;
+                if (entityToTable.ContainsKey(declaredType))
+                {
+                    return declaredType;
+                }
+            }
+        }
+
+        var headerMatch = EnclosingTypeHeaderRegex().Match(enclosingClass);
+        if (headerMatch.Success && repoToEntity.TryGetValue(headerMatch.Groups[1].Value, out var enclosingDaoEntity))
+        {
+            return enclosingDaoEntity;
+        }
+
+        return null;
+    }
+
     internal static void EnrichRepositorySymbol(
         Node node,
         SyntacticSymbol symbol,
         FrozenSet<string> repositoryInterfaces,
-        ConcurrentDictionary<string, string> entityToTable)
+        ConcurrentDictionary<string, string> entityToTable,
+        ConcurrentDictionary<string, string>? repoToEntity = null)
     {
         if (node.Type == InterfaceDeclType || node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface })
         {
             var entityType = DeclarativeSemanticExtension.ExtractGenericTypeFromInterfaces(node, repositoryInterfaces);
-            if (string.IsNullOrEmpty(entityType)) return;
+            if (string.IsNullOrEmpty(entityType) && (repoToEntity == null || !repoToEntity.TryGetValue(symbol.Name, out entityType)))
+            {
+                return;
+            }
 
-            var tableName = ResolveTableName(entityType, entityToTable);
+            var tableName = ResolveTableName(entityType!, entityToTable);
+            symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.ReadsFrom));
+            symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.WritesTo));
+            return;
+        }
+
+        if (node.Type == ClassDeclNode || node is TypeDeclSyntax { Kind: TypeSyntaxKind.Class })
+        {
+            if (repoToEntity == null || !repoToEntity.TryGetValue(symbol.Name, out var daoEntity) || string.IsNullOrEmpty(daoEntity))
+            {
+                return;
+            }
+
+            var tableName = ResolveTableName(daoEntity, entityToTable);
             symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.ReadsFrom));
             symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.WritesTo));
             return;
@@ -263,6 +388,13 @@ internal static partial class SpringDataRepositoryHelper
     private static bool IsWriteMethod(string? methodName)
     {
         if (string.IsNullOrEmpty(methodName)) return false;
+        for (var i = 0; i < QueryFactoryPrefixes.Length; i++)
+        {
+            if (methodName.StartsWith(QueryFactoryPrefixes[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
         for (var i = 0; i < WriteMethodPrefixes.Length; i++)
         {
             if (methodName.StartsWith(WriteMethodPrefixes[i], StringComparison.OrdinalIgnoreCase))

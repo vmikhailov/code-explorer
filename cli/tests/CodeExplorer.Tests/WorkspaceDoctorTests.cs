@@ -39,9 +39,9 @@ public class WorkspaceDoctorTests
                       <version>2.5.33</version>
                     </dependency>
                     <dependency>
-                      <groupId>com.google.gwt</groupId>
-                      <artifactId>gwt-user</artifactId>
-                      <version>2.10.0</version>
+                      <groupId>org.apache.wicket</groupId>
+                      <artifactId>wicket-core</artifactId>
+                      <version>9.16.0</version>
                     </dependency>
                     <dependency>
                       <groupId>org.jboss.resteasy</groupId>
@@ -74,10 +74,10 @@ public class WorkspaceDoctorTests
                 </struts>
                 """);
 
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "resources", "App.gwt.xml"), """
-                <module rename-to="app">
-                  <inherits name="com.google.gwt.user.User" />
-                </module>
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "resources", "Order.hbm.xml"), """
+                <hibernate-mapping package="com.legacy">
+                  <class name="Order" table="orders" />
+                </hibernate-mapping>
                 """);
 
             await using var client = new SqliteGraphClient(dbPath);
@@ -102,14 +102,14 @@ public class WorkspaceDoctorTests
 
             fullReport.Gaps.Should().NotBeNull();
             fullReport.Gaps!.UnhandledExtensions.Should().Contain(e => e.Extension == ".jsp" && e.FileCount == 1);
-            fullReport.Gaps.UnhandledExtensions.Should().Contain(e => e.Extension == ".gwt.xml" && e.FileCount == 1);
+            fullReport.Gaps.UnhandledExtensions.Should().Contain(e => e.Extension == ".hbm.xml" && e.FileCount == 1);
 
             fullReport.Gaps.UnhandledXmlDialects.Should().Contain(d =>
                 d.RootElement == "struts" &&
                 d.NamespaceUri.Contains("struts", StringComparison.OrdinalIgnoreCase));
 
             fullReport.Gaps.UnmatchedPackages.Should().Contain(p => p.Name.Contains("struts", StringComparison.OrdinalIgnoreCase));
-            fullReport.Gaps.UnmatchedPackages.Should().Contain(p => p.Name.Contains("gwt", StringComparison.OrdinalIgnoreCase));
+            fullReport.Gaps.UnmatchedPackages.Should().Contain(p => p.Name.Contains("wicket", StringComparison.OrdinalIgnoreCase));
             fullReport.Gaps.CoverageAnomalies.Should().Contain(a => a.Kind == DoctorAnomalyKind.MissingEndpoints);
 
             var textOutput = DoctorCommandHandler.FormatAsText(fullReport);

@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.105.0] - 2026-11-26
+
+### Added
+- **Google Web Toolkit (GWT) Support (`GwtXmlParser` + `GwtLibraryParser`)**: Parses `*.gwt.xml` module descriptors (`<entry-point>`, `<servlet>`, `<inherits>`) and `*.ui.xml` UiBinder templates (companion view class, `<ui:with>`, `<ui:style>`), plus `@RemoteServiceRelativePath`, `RemoteServiceServlet`, and `ActionHandler` RPC endpoints.
+- **Groovy File Parser (`GroovyFileParser`)**: Parses `*.groovy` source and build/automation scripts to extract imports, classes/traits/interfaces/enums, methods, and call sites.
+
+### Fixed
+- **Facelets XHTML & Seam EL Call Resolution (`FaceletsXhtmlParser`, `SeamLibraryParser`, `Layer5GlobalAnalyzer`)**: Resolved `@Name("...")` / `@Named("...")` backing-bean aliases in Layer 5 (`USES_TYPE` and `CALLS`), expanded JavaBean EL property expressions (`#{bean.totalDocuments}` -> `getTotalDocuments` / `isTotalDocuments`), preserved exact template line numbers, and attached edges directly to the view `File` and `Endpoint` nodes.
+- **Seam `components.xml` Graph Wiring (`SeamXmlParser`)**: Fixed `<component class="..."/>` and `<event type="..."/>` references to emit `USES_TYPE` instead of FK-only `REFERENCES`, and extracted `<resteasy:application resource-path-prefix="..."/>` endpoints and JMS queue references.
+- **Hibernate GenericDAO & Session Write Lineage (`SpringDataRepositoryHelper`, `JpaLibraryParser`)**: Registered `@Entity` classes without explicit `@Table(name = "...")`, matched generic DAO / `EntityHome` classes (`extends AbstractDAOImpl<Entity, ID>`), added `makePersistent` / `makeTransient` / `saveOrUpdate` write prefixes while excluding `createQuery` / `createCriteria` query factories, and resolved direct `Session` / `EntityManager` write calls.
+
 ## [1.104.0] - 2026-11-26
 
 ### Added

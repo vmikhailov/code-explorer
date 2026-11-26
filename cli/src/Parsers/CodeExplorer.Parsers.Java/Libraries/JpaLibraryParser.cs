@@ -52,7 +52,7 @@ public class JpaLibraryParser : DeclarativeSemanticExtension
                 EnrichSymbol = (node, symbol, ctx) =>
                 {
                     var maps = SpringDataRepositoryHelper.GetOrCreateContextMaps(ctx, _contextMaps);
-                    SpringDataRepositoryHelper.EnrichRepositorySymbol(node, symbol, SpringDataRepositoryHelper.JpaRepositoryInterfaces, maps.EntityToTable);
+                    SpringDataRepositoryHelper.EnrichRepositorySymbol(node, symbol, SpringDataRepositoryHelper.JpaRepositoryInterfaces, maps.EntityToTable, maps.RepoToEntity);
                 },
                 CollectReferences = (node, scopeId, refs, ctx) =>
                 {
@@ -72,7 +72,10 @@ public class JpaLibraryParser : DeclarativeSemanticExtension
     public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
     {
         var maps = SpringDataRepositoryHelper.GetOrCreateContextMaps(ctx, _contextMaps);
-        SpringDataRepositoryHelper.DiscoverEntityTables(rootNode.Text, maps.EntityToTable, maps.RepoToEntity);
+        var sourceText = (rootNode as CodeExplorer.Core.Parser.Syntax.SyntaxDocument)?.SourceText
+                         ?? rootNode.Document?.SourceText
+                         ?? rootNode.Text;
+        SpringDataRepositoryHelper.DiscoverEntityTables(sourceText, maps.EntityToTable, maps.RepoToEntity);
     }
 }
 
