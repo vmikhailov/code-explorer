@@ -5,6 +5,12 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.105.1] - 2026-11-26
+
+### Fixed
+- **Layer-2 Package Alias Priority (`Layer2ProjectParser.RegisterPackageAlias`)**: Prevented `Test` projects (e.g. duplicated repositories under `test/`) from overwriting production libraries/services in `PackageToProjectMap` during directory scanning, and prioritized explicit `Library` projects when resolving package aliases so cross-project `DEPENDS_ON` and Layer-5 library-to-service lifting stay intact.
+- **TypeScript / NestJS Library Classification (`TypeScriptProjectParser.Manifest`)**: Preserved `is_library` and `manifest_type: library` for web-framework libraries (e.g. NestJS shared listener libraries) that declare `peerDependencies`, `publishConfig`, `npm publish` scripts, or `exports`/`types`/`typings` without a primary app launch script (`start`/`start:prod`/`serve`), while keeping minimal apps with only `main` classified as services.
+
 ## [1.105.0] - 2026-11-26
 
 ### Added

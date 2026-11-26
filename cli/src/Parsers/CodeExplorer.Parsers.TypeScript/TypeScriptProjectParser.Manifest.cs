@@ -429,9 +429,11 @@ public partial class TypeScriptProjectParser
                                        sObj.Kind == CypherValueKind.Object &&
                                        sObj.AsObject().Any(s => s.Value.AsString().Contains("npm publish", StringComparison.OrdinalIgnoreCase));
 
-                var hasExplicitExports = root.TryGetProperty("exports", out _) ||
-                                         root.TryGetProperty("types", out _) ||
-                                         root.TryGetProperty("typings", out _) ||
+                var hasExplicitTypesOrExports = root.TryGetProperty("exports", out _) ||
+                                                root.TryGetProperty("types", out _) ||
+                                                root.TryGetProperty("typings", out _);
+
+                var hasExplicitExports = hasExplicitTypesOrExports ||
                                          root.TryGetProperty("main", out _);
 
                 var hasPrimaryAppStartScript = root.TryGetProperty("scripts", out var scriptsObj) &&
@@ -450,7 +452,11 @@ public partial class TypeScriptProjectParser
                                          actProp.Kind == CypherValueKind.Array) ||
                                         allDeps.Contains("@types/vscode");
 
-                var isLibraryByContract = !isWorkerProject && !isVsCodeExtension && (hasPeerDeps || hasPublishConfig || hasPublishScript || (hasExplicitExports && !hasPrimaryAppStartScript));
+                var hasStrongLibraryContract = !isWorkerProject && !isVsCodeExtension &&
+                                               (hasPeerDeps || hasPublishConfig || hasPublishScript ||
+                                                (hasExplicitTypesOrExports && !hasPrimaryAppStartScript));
+                var isLibraryByContract = hasStrongLibraryContract ||
+                                          (!isWorkerProject && !isVsCodeExtension && hasExplicitExports && !hasPrimaryAppStartScript);
                 if (isLibraryByContract)
                 {
                     props["is_library"] = "true";
@@ -475,14 +481,14 @@ public partial class TypeScriptProjectParser
                 else if (hasWebFramework)
                 {
                     props["framework_type"] = "web";
-                    if (!hasPublishConfig && !hasPublishScript)
+                    if (!hasStrongLibraryContract)
                     {
                         props["manifest_type"] = isDedicatedWorkerName && hasWorkerDeps ? "worker" : "application";
                         props.Remove(PropIsLibrary);
                     }
                     else if (!props.ContainsKey("manifest_type"))
                     {
-                        props["manifest_type"] = isDedicatedWorkerName && hasWorkerDeps ? "worker" : "application";
+                        props["manifest_type"] = "library";
                     }
                 }
                 else if (hasWorkerDeps)

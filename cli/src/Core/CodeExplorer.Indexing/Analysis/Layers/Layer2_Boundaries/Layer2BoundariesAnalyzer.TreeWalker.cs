@@ -702,6 +702,46 @@ public partial class Layer2ProjectParser
         return manifestProps;
     }
 
+    internal static void RegisterPackageAlias(
+        Dictionary<string, ProjectNode> packageToProjectMap,
+        string key,
+        ProjectNode candidate)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        if (!packageToProjectMap.TryGetValue(key, out var existing))
+        {
+            packageToProjectMap[key] = candidate;
+            return;
+        }
+
+        if (string.Equals(existing.Id, candidate.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Never let a test project overwrite a non-test project (e.g. duplicated repos under test/)
+        if (!existing.IsTest && candidate.IsTest)
+        {
+            return;
+        }
+
+        if (existing.IsTest && !candidate.IsTest)
+        {
+            packageToProjectMap[key] = candidate;
+            return;
+        }
+
+        // When two non-test projects claim the same package alias, prefer an explicit library
+        if (!existing.IsLibrary && candidate.IsLibrary)
+        {
+            packageToProjectMap[key] = candidate;
+        }
+    }
+
     private static void RegisterProjectAliases(
         ProjectNode projectNode,
         string projectName,
@@ -709,16 +749,16 @@ public partial class Layer2ProjectParser
         bool isSingleEntryInDir,
         Dictionary<string, ProjectNode> packageToProjectMap)
     {
-        packageToProjectMap[projectName] = projectNode;
+        RegisterPackageAlias(packageToProjectMap, projectName, projectNode);
         var normName = WorkspaceConventions.NormalizeServiceName(projectName);
         if (!string.IsNullOrEmpty(normName))
         {
-            packageToProjectMap[normName] = projectNode;
+            RegisterPackageAlias(packageToProjectMap, normName, projectNode);
             WorkspaceConventions.RegisterServiceAlias(projectName, normName);
         }
         if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase) && isSingleEntryInDir)
         {
-            packageToProjectMap[folderName] = projectNode;
+            RegisterPackageAlias(packageToProjectMap, folderName, projectNode);
             WorkspaceConventions.RegisterServiceAlias(folderName, normName ?? projectName);
         }
     }
@@ -762,14 +802,14 @@ public partial class Layer2ProjectParser
         var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, state.Ctx);
         if (!string.IsNullOrEmpty(prodPkg))
         {
-            state.PackageToProjectMap[prodPkg] = projectNode;
-            state.PackageToProjectMap[$"{state.Ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prodPkg.ToLowerInvariant()}"] = projectNode;
+            RegisterPackageAlias(state.PackageToProjectMap, prodPkg, projectNode);
+            RegisterPackageAlias(state.PackageToProjectMap, $"{state.Ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prodPkg.ToLowerInvariant()}", projectNode);
             if (prodPkg.Contains('/'))
             {
                 var shortName = prodPkg.Split('/')[^1];
                 if (!string.IsNullOrEmpty(shortName))
                 {
-                    state.PackageToProjectMap.TryAdd(shortName, projectNode);
+                    RegisterPackageAlias(state.PackageToProjectMap, shortName, projectNode);
                 }
             }
         }
