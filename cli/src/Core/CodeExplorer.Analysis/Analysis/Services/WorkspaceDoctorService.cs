@@ -55,16 +55,16 @@ public sealed class WorkspaceDoctorService
         "MATCH (proj:Project)<-[:BELONGS_TO]-(:ProjectSyntax)-[:CONTAINS]->(:Type)-[:HAS_METHOD]->(fn:Function) RETURN proj.id AS id, count(fn) AS cnt";
 
     private const string QueryProjectEndpointCounts =
-        "MATCH (proj:Project)-[:EXPOSES]->(e:Endpoint) RETURN proj.id AS id, count(DISTINCT e) AS cnt";
+        "MATCH (p)-[:EXPOSES]->(e:Endpoint) RETURN p.name AS id, count(DISTINCT e) AS cnt";
 
     private const string QueryProjectDbCounts =
-        "MATCH (proj:Project)-[:USES_DB]->(d:Database) RETURN proj.id AS id, count(DISTINCT d) AS cnt";
+        "MATCH (p)-[:USES_DB]->(d) WHERE d:Database OR d:Table RETURN p.name AS id, count(DISTINCT d) AS cnt";
 
     private const string QueryProjectQueryCounts =
-        "MATCH (proj:Project)-[:CONTAINS]->(q:Query) RETURN proj.id AS id, count(DISTINCT q) AS cnt";
+        "MATCH (p)-[:CONTAINS]->(q:Query) RETURN p.name AS id, count(DISTINCT q) AS cnt";
 
     private const string QueryProjectTopicCounts =
-        "MATCH (proj:Project)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN proj.id AS id, count(DISTINCT t) AS cnt";
+        "MATCH (p)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN p.name AS id, count(DISTINCT t) AS cnt";
 
     private static readonly HashSet<string> KeyKindsToReport = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -415,6 +415,15 @@ public sealed class WorkspaceDoctorService
                     manifestNames.Add(m);
                 }
             }
+
+            foreach (var ext in pp.ManifestExtensions)
+            {
+                if (!string.IsNullOrWhiteSpace(ext))
+                {
+                    var normalized = ext.Trim();
+                    manifestExtensions.Add(normalized.StartsWith('.') ? normalized : "." + normalized);
+                }
+            }
         }
 
         var unhandledExtCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -671,12 +680,12 @@ public sealed class WorkspaceDoctorService
             var pid = row.GetStringProp(ColId);
             var name = row.GetStringProp(ColName);
             var lang = row.GetStringProp(ColLanguage);
-            var endpoints = endpointsByProj.GetValueOrDefault(pid);
+            var endpoints = endpointsByProj.GetValueOrDefault(name);
             var functions = directFnByProj.GetValueOrDefault(pid) + nestedFnByProj.GetValueOrDefault(pid);
             var files = filesByProj.GetValueOrDefault(pid);
-            var tables = dbsByProj.GetValueOrDefault(pid);
-            var queries = queriesByProj.GetValueOrDefault(pid);
-            var topics = topicsByProj.GetValueOrDefault(pid);
+            var tables = dbsByProj.GetValueOrDefault(name);
+            var queries = queriesByProj.GetValueOrDefault(name);
+            var topics = topicsByProj.GetValueOrDefault(name);
 
             anonIndex++;
             var label = options.Anonymize

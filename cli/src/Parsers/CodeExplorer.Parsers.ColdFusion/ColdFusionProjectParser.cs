@@ -13,7 +13,7 @@ public class ColdFusionProjectParser : IProjectParser
 
     public IReadOnlyCollection<string> ExcludedFolders =>
     [
-        ".svn", ".hg", "node_modules", "bin", "obj", "dist", "build", "WEB-INF"
+        ".svn", ".hg", "node_modules", "bin", "obj", "dist", "build"
     ];
 
     public IReadOnlyCollection<string> ManifestFileNames =>

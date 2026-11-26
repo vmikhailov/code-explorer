@@ -34,14 +34,9 @@ public class WorkspaceDoctorTests
                   <version>1.0.0</version>
                   <dependencies>
                     <dependency>
-                      <groupId>org.jboss.seam</groupId>
-                      <artifactId>jboss-seam</artifactId>
-                      <version>2.3.1.Final</version>
-                    </dependency>
-                    <dependency>
-                      <groupId>org.liquibase</groupId>
-                      <artifactId>liquibase-core</artifactId>
-                      <version>4.25.0</version>
+                      <groupId>org.apache.struts</groupId>
+                      <artifactId>struts2-core</artifactId>
+                      <version>2.5.33</version>
                     </dependency>
                     <dependency>
                       <groupId>com.google.gwt</groupId>
@@ -68,23 +63,15 @@ public class WorkspaceDoctorTests
                 }
                 """);
 
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "webapp", "orders.xhtml"), """
-                <ui:composition xmlns="http://www.w3.org/1999/xhtml"
-                                xmlns:ui="http://java.sun.com/jsf/facelets">
-                  <div />
-                </ui:composition>
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "webapp", "orders.jsp"), """
+                <%@ page contentType="text/html;charset=UTF-8" %>
+                <html><body>Orders</body></html>
                 """);
 
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "webapp", "components.xml"), """
-                <components xmlns="http://jboss.com/products/seam/components">
-                  <component name="orderAction" />
-                </components>
-                """);
-
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "resources", "db", "changelog.xml"), """
-                <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog">
-                  <changeSet id="1" author="dev" />
-                </databaseChangeLog>
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "resources", "struts.xml"), """
+                <struts xmlns="http://struts.apache.org/dtds/struts-2.5.dtd">
+                  <package name="default" extends="struts-default" />
+                </struts>
                 """);
 
             await File.WriteAllTextAsync(Path.Combine(tempDir, "src", "main", "resources", "App.gwt.xml"), """
@@ -114,25 +101,20 @@ public class WorkspaceDoctorTests
             fullReport.Issues.Samples.Should().NotBeEmpty();
 
             fullReport.Gaps.Should().NotBeNull();
-            fullReport.Gaps!.UnhandledExtensions.Should().Contain(e => e.Extension == ".xhtml" && e.FileCount == 1);
+            fullReport.Gaps!.UnhandledExtensions.Should().Contain(e => e.Extension == ".jsp" && e.FileCount == 1);
             fullReport.Gaps.UnhandledExtensions.Should().Contain(e => e.Extension == ".gwt.xml" && e.FileCount == 1);
 
             fullReport.Gaps.UnhandledXmlDialects.Should().Contain(d =>
-                d.RootElement == "databaseChangeLog" &&
-                d.NamespaceUri.Contains("liquibase", StringComparison.OrdinalIgnoreCase));
-            fullReport.Gaps.UnhandledXmlDialects.Should().Contain(d =>
-                d.RootElement == "components" &&
-                d.NamespaceUri.Contains("seam", StringComparison.OrdinalIgnoreCase));
-            fullReport.Gaps.UnhandledXmlDialects.Should().Contain(d =>
-                d.RootElement == "composition");
+                d.RootElement == "struts" &&
+                d.NamespaceUri.Contains("struts", StringComparison.OrdinalIgnoreCase));
 
-            fullReport.Gaps.UnmatchedPackages.Should().Contain(p => p.Name.Contains("seam", StringComparison.OrdinalIgnoreCase));
+            fullReport.Gaps.UnmatchedPackages.Should().Contain(p => p.Name.Contains("struts", StringComparison.OrdinalIgnoreCase));
             fullReport.Gaps.UnmatchedPackages.Should().Contain(p => p.Name.Contains("gwt", StringComparison.OrdinalIgnoreCase));
             fullReport.Gaps.CoverageAnomalies.Should().Contain(a => a.Kind == DoctorAnomalyKind.MissingEndpoints);
 
             var textOutput = DoctorCommandHandler.FormatAsText(fullReport);
             textOutput.Should().Contain("CodeExplorer Doctor");
-            textOutput.Should().Contain("databaseChangeLog");
+            textOutput.Should().Contain("struts");
 
             var anonReport = await doctor.AnalyzeAsync(client, tempDir, new WorkspaceDoctorOptions
             {

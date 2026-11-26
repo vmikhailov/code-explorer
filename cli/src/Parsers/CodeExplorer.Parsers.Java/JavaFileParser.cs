@@ -63,6 +63,7 @@ public class JavaFileParser : IFileParser
         new Libraries.SpringRuntimeLibraryParser(),
         new Libraries.SoapJaxWsLibraryParser(),
         new Libraries.SpringGraphQlLibraryParser(),
+        new Libraries.SeamLibraryParser(),
         Libraries.JavaTestLibraryParser.Instance
     ];
 

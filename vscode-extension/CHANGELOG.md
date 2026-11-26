@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.103.0] - 2026-11-26
+
+### Added
+- **Liquibase XML Changelog Parser (`LiquibaseXmlParser`)**: Parses `<databaseChangeLog>` XML files (`*changelog*.xml`, `/changelogs/`, `/liquibase/`) to extract DDL `Table` nodes (`createTable`, `addColumn`, `dropTable`, `renameTable`, `modifyDataType`, `createIndex`, constraints, DML), foreign-key `REFERENCES` edges, inline `<sql>` queries, and `<sqlFile>` / `<include>` references.
+- **JBoss Seam 2 Support (`SeamLibraryParser` + `SeamXmlParser`)**: Extracts `@Name` component exports, `@In`/`@Out` dependencies, `@Observer`/`@RaiseEvent`/`Events.raiseEvent` event bus `Topic` links, plus XML routing and wiring from `pages.xml`, `urlrewrite.xml`, and `components.xml`.
+- **JSF / Facelets XHTML Parser (`FaceletsXhtmlParser`)**: Parses `*.xhtml` views to extract page `Endpoint` routes, `<ui:composition>`/`<ui:include>` template links, navigation outcomes, and EL backing-bean bindings (`#{bean.action}`).
+
+### Fixed
+- **Global `WEB-INF` Exclusion Bug**: Removed `"WEB-INF"` from `ColdFusionProjectParser.ExcludedFolders`, which previously caused `WorkspaceFileFilter` to skip `WEB-INF/` descriptors (`pages.xml`, `components.xml`, `urlrewrite.xml`, Facelets templates) across all Java EE repositories.
+- **`ce doctor` Coverage Attribution**: Fixed `Endpoint`/`Database`/`Table` project attribution by matching Layer 4 semantic module names and honoring `IProjectParser.ManifestExtensions` (eliminating false `.csproj` extension gaps and false `MissingEndpoints` on Java web modules).
+
 ## [1.102.0] - 2026-11-26
 
 ### Added
