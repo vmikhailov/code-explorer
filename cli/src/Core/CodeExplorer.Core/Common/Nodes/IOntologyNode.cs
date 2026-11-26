@@ -121,9 +121,6 @@ public static class OntologyNodeExtensions
             case "rust_topology_body_summary" when node is Layer1_Physical.FileNode fileRtbs:
                 fileRtbs.Signals().RustTopologyBodySummary = value;
                 return;
-            case "compose_participants" when node is Layer1_Physical.FileNode fileCp:
-                fileCp.Signals().ComposeParticipants = value;
-                return;
             case "db_driver_engine" when node is Layer1_Physical.FileNode fDde:
                 fDde.Signals().DbDriverEngine = value;
                 return;

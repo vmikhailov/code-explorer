@@ -818,12 +818,6 @@
           "toKind": "Endpoint",
           "category": "control_flow",
           "description": "Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes."
-        },
-        {
-          "rel": "COORDINATES_WITH",
-          "toKind": "PeerMesh",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
         }
       ],
       "inEdges": [
@@ -2737,52 +2731,6 @@
         }
       ],
       "sampleCypher": "MATCH (n:Job)-[:TRIGGERS]->(t:Function)\nRETURN n.name, n.sub_kind, n.schedule_expr, t.name\nLIMIT 25"
-    },
-    {
-      "kind": "PeerMesh",
-      "pluralLabel": "Peer Meshes",
-      "layerId": 4,
-      "layerKey": "L4_semantic",
-      "icon": "share-alt",
-      "order": 14,
-      "idScheme": "{workspaceId}:mesh:peer-network",
-      "purpose": "Represents a symmetric peer-to-peer cluster or collective topology.",
-      "properties": [
-        {
-          "name": "name",
-          "sourceName": "Name",
-          "type": "string",
-          "description": "The name of the peer mesh."
-        },
-        {
-          "name": "path",
-          "sourceName": "Path",
-          "type": "string",
-          "description": "The path of the folder or file relative to its parent container."
-        },
-        {
-          "name": "member_count",
-          "sourceName": "MemberCount",
-          "type": "integer",
-          "description": "The number of configured peer members, when known."
-        },
-        {
-          "name": "protocols",
-          "sourceName": "Protocols",
-          "type": "string",
-          "description": "The detected communication protocols."
-        }
-      ],
-      "outEdges": [],
-      "inEdges": [
-        {
-          "rel": "COORDINATES_WITH",
-          "fromKind": "Service",
-          "category": "type_dependency",
-          "description": "Links a workload to the symmetric peer mesh it coordinates with."
-        }
-      ],
-      "sampleCypher": "MATCH (s:Service)-[:COORDINATES_WITH]->(n:PeerMesh)\nRETURN s.name, n.name, n.member_count, n.protocols\nLIMIT 25"
     },
     {
       "kind": "Database",
@@ -6773,24 +6721,6 @@
         {
           "fromKind": "Query",
           "toKind": "Table"
-        }
-      ]
-    },
-    {
-      "rel": "COORDINATES_WITH",
-      "category": "type_dependency",
-      "description": "Links a workload to the symmetric peer mesh it coordinates with.",
-      "properties": [
-        {
-          "name": "line",
-          "type": "integer",
-          "description": "Optional 1-indexed source line where the relationship is declared."
-        }
-      ],
-      "pairs": [
-        {
-          "fromKind": "Service",
-          "toKind": "PeerMesh"
         }
       ]
     },

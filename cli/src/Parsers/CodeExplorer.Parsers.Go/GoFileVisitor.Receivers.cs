@@ -83,9 +83,8 @@ public partial class GoFileVisitor
 
             if (targetSymbol == null)
             {
-                targetSymbol = new SyntacticSymbol(SyntacticSymbolKind.Class, receiverTypeName, node);
-                targetSymbol.Properties["type_kind"] = "struct";
-                RootSymbol.Children.Add(targetSymbol);
+                base.VisitMethodDeclaration(node, depth);
+                return;
             }
             _typesByName[receiverTypeName] = targetSymbol;
         }

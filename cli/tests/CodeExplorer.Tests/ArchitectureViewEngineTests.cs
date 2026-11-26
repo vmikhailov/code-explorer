@@ -174,21 +174,11 @@ public class ArchitectureViewEngineTests
     }
 
     [Test]
-    public async Task GetSystemContextView_IncludesPeerMeshesAndTypedCloudResourceEdges()
+    public async Task GetSystemContextView_IncludesTypedCloudResourceEdges()
     {
-        const string meshId = "ws:mesh:mpc-peer-mesh";
         const string bucketId = "ws:cloud:aws:s3:encrypted-shares";
         await _db.UploadNodesAsync(
         [
-            new Node(meshId, "PeerMesh", new Dictionary<string, object>
-            {
-                ["name"] = "3-Party MPC Peer Mesh",
-                ["path"] = ".",
-                ["member_count"] = 3,
-                ["protocols"] = "TCP/mTLS, NCCL",
-                ["topology"] = "symmetric",
-                ["is_semantic_entity"] = "true"
-            }),
             new Node(bucketId, "CloudService", new Dictionary<string, object>
             {
                 ["name"] = "AWS S3: Encrypted Shares Bucket",
@@ -200,8 +190,6 @@ public class ArchitectureViewEngineTests
         ]);
         await _db.UploadRelationshipsAsync(
         [
-            new Relationship("ws:project:order-service:", meshId, "COORDINATES_WITH",
-                new Dictionary<string, object> { ["protocols"] = "TCP/mTLS, NCCL" }),
             new Relationship("ws:project:order-service:", bucketId, "READS_FROM",
                 new Dictionary<string, object> { ["category"] = "external_resource" }),
             new Relationship("ws:project:order-service:", bucketId, "WRITES_TO",
@@ -210,14 +198,7 @@ public class ArchitectureViewEngineTests
 
         var view = await _engine.GetSystemContextViewAsync(includeLibraries: false);
 
-        var mesh = view.Nodes.Single(node => node.Id == meshId);
-        mesh.Kind.Should().Be(NodeKind.PeerMesh);
-        mesh.Properties!["member_count"].Should().Be("3");
         view.Nodes.Should().Contain(node => node.Id == bucketId && node.Kind == NodeKind.CloudService);
-        view.Edges.Should().Contain(edge =>
-            edge.Source == "ws:project:order-service:" &&
-            edge.Target == meshId &&
-            edge.Kind == RelationshipKind.CoordinatesWith);
         view.Edges.Should().Contain(edge =>
             edge.Source == "ws:project:order-service:" &&
             edge.Target == bucketId &&

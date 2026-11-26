@@ -302,9 +302,12 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             if (!string.IsNullOrEmpty(callName) && currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
             {
+                var isSyntheticRequire = callName.StartsWith("__req_", StringComparison.Ordinal);
                 var callRef = new Reference(string.Empty, callName, CallsRelationshipKind,
                     node.StartPosition.Row + 1,
-                    node.StartPosition.Column + 1, receiverName: (node as CallExprSyntax)?.ExplicitReceiverPath, memberName: (node as CallExprSyntax) is { MethodName.Length: > 0 } ce ? ce.MethodName : null);
+                    node.StartPosition.Column + 1,
+                    receiverName: isSyntheticRequire ? null : (node as CallExprSyntax)?.ExplicitReceiverPath,
+                    memberName: isSyntheticRequire ? null : ((node as CallExprSyntax) is { MethodName.Length: > 0 } ce ? ce.MethodName : null));
                 currentScope.References.Add(callRef);
                 if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
                 {

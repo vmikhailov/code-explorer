@@ -92,7 +92,6 @@ const NODE_STYLE_MAP: Record<string, OntologyGraphNodeStyle> = {
 
   Endpoint: { fill: COLOR_CONTRACT, glyph: 'endpoint', cluster: 1 },
   Topic: { fill: COLOR_CONTRACT, glyph: 'topic', cluster: 1 },
-  PeerMesh: { fill: COLOR_CONTRACT, glyph: 'mesh', cluster: 1 },
 
   Database: { fill: COLOR_DATA, glyph: 'database', cluster: 2 },
   DbSchema: { fill: COLOR_DATA, glyph: 'schema', cluster: 2 },

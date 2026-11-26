@@ -367,10 +367,6 @@ public partial class Layer2ProjectParser
         }
     }
 
-    private static readonly Regex ComposeParticipantRegex = new(
-        @"\b(?<name>[A-Za-z0-9-]+_participant_\d+)\b",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
     private static void PopulateWorkspaceManifestsAndDrivers(
         Layer1Result l1Result,
         List<ProjectNode> projects,
@@ -556,36 +552,7 @@ public partial class Layer2ProjectParser
             }
         }
 
-        // 5. Docker compose participants for Layer 4 PeerMesh synthesis
-        var participants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in l1Result.Files)
-        {
-            var fileName = Path.GetFileName(file.Path);
-            var ext = Path.GetExtension(fileName);
-            if ((ext.Equals(".yml", StringComparison.OrdinalIgnoreCase) || ext.Equals(".yaml", StringComparison.OrdinalIgnoreCase)) &&
-                (fileName.StartsWith("docker-compose", StringComparison.OrdinalIgnoreCase) || fileName.StartsWith("compose", StringComparison.OrdinalIgnoreCase)) &&
-                !fileName.Contains(".test.", StringComparison.OrdinalIgnoreCase))
-            {
-                var content = file.PreloadedContent ?? PhysicalFileStore.ReadAllText(file.FullPath);
-                if (!string.IsNullOrEmpty(content))
-                {
-                    foreach (Match m in ComposeParticipantRegex.Matches(content))
-                    {
-                        participants.Add(m.Groups["name"].Value);
-                    }
-                    if (participants.Count > 0)
-                    {
-                        file.Signals().ComposeParticipants = string.Join(" ", participants);
-                    }
-                }
-            }
-        }
-        if (participants.Count > 0)
-        {
-            wsSignals.ComposeParticipants = string.Join(",", participants);
-        }
-
-        // 6. Pre-compute project database drivers from Layer 1/2 manifests & packages
+        // 5. Pre-compute project database drivers from Layer 1/2 manifests & packages
         PopulateProjectDatabaseDrivers(projects, dependencies, ctx);
     }
 

@@ -58,7 +58,6 @@ graph TD
         Library["Library"]
         Message["Message"]
         Module["Module"]
-        PeerMesh["PeerMesh"]
         Policy["Policy"]
         Procedure["Procedure"]
         Query["Query"]
@@ -239,14 +238,12 @@ graph TD
     SemanticStructure -->|CONTAINS| CloudService
     SemanticStructure -->|CONTAINS| ApiInUse
     SemanticStructure -->|CONTAINS| Endpoint
-    SemanticStructure -->|CONTAINS| PeerMesh
     SemanticStructure -->|CONTAINS| Message
     SemanticStructure -->|CONTAINS| Cache
     SemanticStructure -->|CONTAINS| Transaction
     SemanticStructure -->|CONTAINS| Policy
     SemanticStructure -->|CONTAINS| Job
     Service -->|EXPOSES| Endpoint
-    Service -->|COORDINATES_WITH| PeerMesh
     Service -->|CALLED_BY| Function
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|ACCESSED_BY| Function
@@ -1637,28 +1634,6 @@ graph TD
 
 ---
 
-#### `PeerMesh`
-
-> Represents a symmetric peer-to-peer cluster or collective topology.
-
-**Incoming edges** *(derived from other nodes' declarations)*:
-
-| From | Relationship |
-| :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
-| `Service` | `COORDINATES_WITH` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `Name` | `string` | The name of the peer mesh. |
-| `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `MemberCount` | `int?` | The number of configured peer members, when known. |
-| `Protocols` | `string` | The detected communication protocols. |
-
----
-
 #### `Policy`
 
 > Represents an authentication, role, permission, guard, or explicit public-access security policy protecting endpoints and CQRS messages.
@@ -1794,7 +1769,6 @@ graph TD
 | `CONTAINS` | `CloudService` |
 | `CONTAINS` | `ApiInUse` |
 | `CONTAINS` | `Endpoint` |
-| `CONTAINS` | `PeerMesh` |
 | `CONTAINS` | `Message` |
 | `CONTAINS` | `Cache` |
 | `CONTAINS` | `Transaction` |
@@ -1825,7 +1799,6 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `EXPOSES` | `Endpoint` |
-| `COORDINATES_WITH` | `PeerMesh` |
 | `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -2168,7 +2141,6 @@ graph TD
 | `CALLS_ENDPOINT` | Links an external API call to the target HTTP endpoint it invokes. |
 | `CONFIGURES` | Links a configuration or infrastructure file to the semantic node (database, message broker, cloud or external service) it configures. |
 | `CONTAINS` | Represents directory structure containment or syntactic scoping of elements. |
-| `COORDINATES_WITH` | Links a workload to the symmetric peer mesh it coordinates with. |
 | `DECLARED_IN` | Links a syntactic type, function, or member declaration to its physical declaring source file. |
 | `DECLARES` | Indicates that a container entity declares a sub-entity. |
 | `DECLARES_TYPE` | Indicates that a project declares a specific type. |
@@ -2270,7 +2242,6 @@ graph TD
 | Layer 4: Semantic Structure | `Library` | `{workspaceId}:lib:{libraryName}` |
 | Layer 4: Semantic Structure | `Message` | `{workspaceId}:msg:{subKind}:{messageName}` |
 | Layer 4: Semantic Structure | `Module` | `{workspaceId}:{kindPrefix}:{moduleName}` |
-| Layer 4: Semantic Structure | `PeerMesh` | `{workspaceId}:mesh:peer-network` |
 | Layer 4: Semantic Structure | `Policy` | `{workspaceId}:pol:{subKind}:{policyName}` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:proc:{procedureName}` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:q:{queryHash}` |

@@ -14,7 +14,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     pluralLabel: "Services"
 )]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Exposes)]
-[OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.CoordinatesWith)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
 public record ServiceNode(
     string Id,

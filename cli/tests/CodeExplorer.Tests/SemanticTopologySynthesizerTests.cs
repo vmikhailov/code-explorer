@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parsers.Rust.Libraries;
 using NUnit.Framework;
 
@@ -32,64 +31,5 @@ public class SemanticTopologySynthesizerTests
 
         AwsSdkRustLibraryParser.DetectAwsResourceRoles(source, packages)
             .Should().BeEquivalentTo("graph_checkpoints");
-    }
-
-    [Test]
-    public void FindSharedNetworkingPeers_LinksSiblingServersButIgnoresSharedConfigModules()
-    {
-        var files = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["hawk"] = ["common/config.rs", "core/server/mod.rs"],
-            ["linear-scan"] = ["common/config.rs", "core/server/mod.rs"],
-            ["sidecar"] = ["common/config.rs"],
-            ["reshare"] = ["common/config.rs"],
-            ["anon-stats"] = ["bins/anon_stats/main.rs"],
-            ["nccl"] = []
-        };
-
-        var peers = SemanticTopologySynthesizer.FindSharedNetworkingPeers(
-            new HashSet<string>(["hawk", "nccl"]),
-            new HashSet<string>(["linear-scan", "sidecar", "reshare", "anon-stats"]),
-            files);
-
-        peers.Should().BeEquivalentTo(["linear-scan"]);
-    }
-
-    [Test]
-    public void EvaluatePeerMeshEvidence_RequiresTwoIndependentSignals()
-    {
-        var singleSignal = SemanticTopologySynthesizer.EvaluatePeerMeshEvidence(
-            "let party_id = config.party_id;",
-            "",
-            collectiveCompute: false);
-
-        singleSignal.PeerConfiguration.Should().BeTrue();
-        singleSignal.IsMesh.Should().BeFalse();
-
-        var peerConfigurationAndTransport = SemanticTopologySynthesizer.EvaluatePeerMeshEvidence(
-            "let party_id = config.party_id; TcpListener::bind(addr); TcpStream::connect(addr);",
-            "",
-            collectiveCompute: false);
-
-        peerConfigurationAndTransport.IsMesh.Should().BeTrue();
-        peerConfigurationAndTransport.Protocols.Should().Contain("TCP/mTLS");
-    }
-
-    [Test]
-    public void EvaluatePeerMeshEvidence_DerivesMemberCountFromComposeParticipants()
-    {
-        var evidence = SemanticTopologySynthesizer.EvaluatePeerMeshEvidence(
-            "let party_id = config.party_id;",
-            """
-            services:
-              hawk_participant_0:
-              hawk_participant_1:
-              unrelated:
-            """,
-            collectiveCompute: false);
-
-        evidence.IsMesh.Should().BeTrue();
-        evidence.MemberCount.Should().Be(2);
-        evidence.ComposeReplicas.Should().BeTrue();
     }
 }

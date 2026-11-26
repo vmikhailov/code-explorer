@@ -282,6 +282,36 @@ public partial class SqliteGraphClient
         }
     }
 
+    public async Task<string?> GetMetadataAsync(string key, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return await _conn.QueryFirstOrDefaultAsync<string?>(
+                "SELECT value FROM metadata WHERE key = @Key LIMIT 1;",
+                new { Key = key });
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task SetMetadataAsync(string key, string value, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await _conn.ExecuteAsync(
+                "INSERT INTO metadata (key, value) VALUES (@Key, @Value) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
+                new { Key = key, Value = value });
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     private void CreateIndices()
     {
         CreateTablesAndAuxiliaryIndices();

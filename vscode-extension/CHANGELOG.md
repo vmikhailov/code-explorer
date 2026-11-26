@@ -5,6 +5,27 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.101.2] - 2026-11-26
+
+### Fixed
+- **Go Selector Call Receiver Preservation, Implicit Interface Dispatch & Package-Qualified Types (`Reference`, `GoFileVisitor`, `GoFileParser`, `Layer5GoSymbolHelper`)**:
+  - Preserved explicit `ReceiverName` across C# `with` record clones on unqualified `Reference.TargetName`, fixing a bug where package-qualified calls like `errors.New(...)` lost their package receiver and resolved via same-project fallback to Go constructors (`store.New` -> `initPG` / `initSQLite`), polluting C3 endpoint dependencies with schema DDL queries.
+  - Added structural Go interface satisfaction (`ResolveImplicitGoInterfaces`) so method calls on Go interfaces (e.g. `SessionStore.RevokeSession`) link to implementing structs (`Store.RevokeSession`), and avoided synthesizing duplicate `Type` nodes in sibling receiver-only `.go` files.
+  - Qualified cross-package Go type references (`*auth.Manager` vs `*eastereggs.Manager`) while skipping `UsesType` edges on external/stdlib Go package types (`*http.Client`), and resolved `go.mod` paths relative to `absoluteWorkspacePath` across single-binary and multi-binary layouts.
+- **Zero-Argument `URL.Query()` SQL Filtering & Test Query Scoping (`DeclarativeSemanticExtension`, `EndpointSemanticAnalyzer`, `ArchitectureViewEngine`)**:
+  - Excluded zero-argument `.Query()` calls and `*.URL.Query()` receivers from SQL sink and datastore rules (eliminating false `PostgreSQL: Query` nodes on Go `net/http` / `net/url`), and propagated `is_test` onto `QueryNode` so `*_test.go` queries do not leak into C3 component maps.
+- **Automatic Incremental `ce scan` Invalidation & Parallel Pipeline Thread Safety (`WorkspaceIndexer`, `SqliteGraphClient`, `ParsingContext`)**:
+  - Persisted `indexer_version` in the SQLite `metadata` table and automatically triggered a clean full rescan (`clear: true`) when `ce scan` detects a newer CLI indexer binary on an unchanged workspace.
+  - Synchronized concurrent `ParsingContext` dependency and symbol collection mutations during parallel Layer 3 semantic enrichment, and moved cross-layer registries (`ResourceReconciliationService`, `SemanticExtensionRegistry`) into layer-neutral pipeline/parser directories.
+- **`inspect_data_lineage` Query Latency Optimization (`CypherQueryParser`, `McpLineageFormatter`)**:
+  - Added a bounded AST parse cache in `CypherQueryParser` and optimized multi-branch lineage union queries with `UNION ALL`, keeping `inspect_data_lineage` well under the 50 ms SLA on 100k-node graphs.
+
+### Removed
+- **`PeerMesh` & `COORDINATES_WITH` Ontology Concept**:
+  - Removed the synthetic `PeerMesh` Layer 4 entity and `COORDINATES_WITH` relationship across CLI analyzers, storage, VS Code extension webviews, ontology documentation, and website topology views.
+
+---
+
 ## [1.101.1] - 2026-11-25
 
 ### Fixed

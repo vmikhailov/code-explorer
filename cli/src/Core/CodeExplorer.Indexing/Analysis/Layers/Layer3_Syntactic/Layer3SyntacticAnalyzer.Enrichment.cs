@@ -553,9 +553,8 @@ public partial class Layer3SyntacticParser
 
         foreach (var reference in syntactic.References)
         {
-            var target = reference.TargetName;
             var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? typedNode.Id : reference.ScopeSymbolId;
-            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId, TargetName = target });
+            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId });
         }
 
         if (syntactic.HasProperties)

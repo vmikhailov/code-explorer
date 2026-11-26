@@ -91,7 +91,6 @@ function renderLayoutPart(safeJsonInline) {
         TestSuite: { fill: PAL.module, glyph: "beaker", cluster: 0 },
         Endpoint: { fill: PAL.contract, glyph: "endpoint", cluster: 1 },
         Topic: { fill: PAL.contract, glyph: "topic", cluster: 1 },
-        PeerMesh: { fill: PAL.contract, glyph: "mesh", cluster: 1 },
         Database: { fill: PAL.data, glyph: "database", cluster: 2 },
         DbSchema: { fill: PAL.data, glyph: "schema", cluster: 2 },
         Table: { fill: PAL.data, glyph: "table", cluster: 2 },

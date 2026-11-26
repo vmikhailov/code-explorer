@@ -15,7 +15,6 @@ public sealed class WorkspaceAnalysisSignals
     public string? VsCodeFolderOpenTasksJson { get; set; }
     public string? NuspecId { get; set; }
     public string? NuspecVersion { get; set; }
-    public string? ComposeParticipants { get; set; }
 }
 
 public sealed class FileAnalysisSignals
@@ -29,7 +28,6 @@ public sealed class FileAnalysisSignals
     public string? DbDriverFamily { get; set; }
     public string? RustTopologySummary { get; set; }
     public string? RustTopologyBodySummary { get; set; }
-    public string? ComposeParticipants { get; set; }
     public ConcurrentDictionary<string, int>? SchemaLines { get; set; }
 
     /// <summary>

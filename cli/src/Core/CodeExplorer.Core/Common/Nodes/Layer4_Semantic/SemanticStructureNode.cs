@@ -25,7 +25,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<MessageNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CacheNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<TransactionNode>(OntologyConstants.Relationships.Contains)]

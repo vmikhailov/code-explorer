@@ -97,8 +97,13 @@ public static class EndpointSemanticAnalyzer
                 }
                 var qStartLine = (int)node.StartPosition.Row + 1;
                 var qEndLine = (int)node.EndPosition.Row + 1;
-                typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name, qStartLine, qEndLine) ??
-                            new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath, qStartLine, qEndLine);
+                var queryNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name, qStartLine, qEndLine) ??
+                                new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath, qStartLine, qEndLine);
+                if (symbolIsTest)
+                {
+                    queryNode.IsTest = true;
+                }
+                typedNode = queryNode;
                 var parentScopeId = syntactic.ParentScopeId;
                 if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
                 {

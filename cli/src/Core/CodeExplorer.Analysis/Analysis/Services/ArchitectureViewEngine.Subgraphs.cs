@@ -54,9 +54,6 @@ public partial class ArchitectureViewEngine
                 case "CloudService":
                     ProcessCloudServiceNode(elem, id, name, props, nodeMap, graph);
                     break;
-                case "PeerMesh":
-                    ProcessPeerMeshNode(id, name, props, nodeMap, graph);
-                    break;
                 case "ExternalService":
                     ProcessExternalServiceNode(elem, id, name, props, discovery, projectToWorkloadMap, nodeMap, graph);
                     break;
@@ -107,7 +104,7 @@ public partial class ArchitectureViewEngine
         CancellationToken ct)
     {
         var edgesQuery =
-            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'USES_CLOUD', 'READS_FROM', 'WRITES_TO', 'COORDINATES_WITH', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY', 'TESTS'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
+            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'USES_CLOUD', 'READS_FROM', 'WRITES_TO', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY', 'TESTS'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
         var edgesRes = await db.ExecuteCypherAsync(edgesQuery, null, ct);
 
         var edgeSet = new HashSet<(string From, string To, string Kind)>();
@@ -173,12 +170,6 @@ public partial class ArchitectureViewEngine
                 depType = "external_resource";
                 normalizedKind = rKind;
             }
-            else if (tgtNode.Kind == NodeKind.PeerMesh && rKind == "COORDINATES_WITH")
-            {
-                category = DependencyCategory.ServiceCall;
-                depType = "peer_mesh";
-                normalizedKind = rKind;
-            }
 
             var categoryStr = (rKind is "TESTS" or "tests") ? "test" : category.ToCategoryString();
             edgeProps["category"] = categoryStr;
@@ -209,8 +200,6 @@ public partial class ArchitectureViewEngine
                 : rKind == "USES_CLOUD" && tgtNode.Kind == NodeKind.CloudService
                     ? "USES_CLOUD"
                 : tgtNode.Kind == NodeKind.CloudService && rKind is "READS_FROM" or "WRITES_TO"
-                    ? rKind
-                : tgtNode.Kind == NodeKind.PeerMesh && rKind == "COORDINATES_WITH"
                     ? rKind
                 : category switch
             {
@@ -608,7 +597,7 @@ public partial class ArchitectureViewEngine
         {
             $"MATCH (p)-[:CONTAINS*1..3]->(c) WHERE {projectMatch} AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path) AS path",
             $"MATCH (p)<-[:BELONGS_TO]-(ps:ProjectSyntax)-[:CONTAINS]->(c:Type) WHERE {projectMatch} AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path) AS path",
-            $"MATCH (p)-[:CONTAINS]->(f:File)<-[:DECLARED_IN]-(c) WHERE {projectMatch} AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Query', 'Table'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path, f.path) AS path"
+            $"MATCH (p)-[:CONTAINS]->(f:File)<-[:DECLARED_IN]-(c) WHERE {projectMatch} AND (f.is_test IS NULL OR f.is_test = false) AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Query', 'Table'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, coalesce(c.path, c.file_path, f.path) AS path"
         };
 
         var compIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

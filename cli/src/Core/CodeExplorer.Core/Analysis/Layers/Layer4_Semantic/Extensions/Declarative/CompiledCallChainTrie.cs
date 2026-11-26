@@ -250,6 +250,8 @@ internal sealed class CompiledCallChainTrie
         string terminalRelation)
     {
         if (!DeclarativeUniversalRuleEvaluator.IsCallNode(callNode, rule.CallNodeTypes)) return;
+        var dataStoreMethodSpan = DeclarativeSemanticExtension.GetCallMethodSpan(callNode);
+        if (DeclarativeSemanticExtension.IsZeroArgOrUrlQueryCall(callNode, dataStoreMethodSpan)) return;
 
         // O(1) Outer-chain deferral: if this node is an inner step (e.g. db.table("orders")) of an outer call
         // whose terminal method is also in the Trie for this rule, skip the inner node immediately.

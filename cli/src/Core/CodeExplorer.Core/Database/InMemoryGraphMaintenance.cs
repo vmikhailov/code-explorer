@@ -70,7 +70,7 @@ public static class InMemoryGraphMaintenance
             if (kind is not (NodeKind.Project or NodeKind.Service or NodeKind.App or NodeKind.Worker or
                 NodeKind.Library or NodeKind.Package or NodeKind.Database or NodeKind.Topic or
                 NodeKind.Endpoint or NodeKind.EntryPoint or NodeKind.ExternalService or
-                NodeKind.CloudService or NodeKind.PeerMesh))
+                NodeKind.CloudService))
             {
                 continue;
             }

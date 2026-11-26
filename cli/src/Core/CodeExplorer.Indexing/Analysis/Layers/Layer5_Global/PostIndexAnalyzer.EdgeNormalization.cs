@@ -39,10 +39,6 @@ public partial class PostIndexAnalyzer
     {
         var kind = (rawKind ?? "").ToUpperInvariant();
 
-        if (kind == OntologyConstants.Relationships.CoordinatesWith)
-        {
-            return (DependencyCategory.ServiceCall, "peer_mesh", OntologyConstants.Relationships.CoordinatesWith);
-        }
         if (targetKind == OntologyConstants.NodeLabels.CloudService &&
             kind is OntologyConstants.Relationships.UsesCloud or OntologyConstants.Relationships.ReadsFrom or OntologyConstants.Relationships.WritesTo)
         {

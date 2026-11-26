@@ -126,7 +126,12 @@ public class GoFileParser : IFileParser
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
-        return ResolveGoImportType(importPath, filePath);
+        var effectiveFilePath = !string.IsNullOrEmpty(filePath) &&
+                                !Path.IsPathRooted(filePath) &&
+                                !string.IsNullOrEmpty(absoluteWorkspacePath)
+            ? Path.Combine(absoluteWorkspacePath, filePath)
+            : filePath;
+        return ResolveGoImportType(importPath, effectiveFilePath);
     }
 
     public ImportType ResolveGoImportType(string importPath, string filePath)

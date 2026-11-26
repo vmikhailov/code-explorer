@@ -315,6 +315,10 @@ internal static class DeclarativeUniversalRuleEvaluator
 
         if (!string.IsNullOrEmpty(rule.StaticTargetName))
         {
+            if (DeclarativeSemanticExtension.IsZeroArgOrUrlQueryCall(callNode, cachedMethodSpan))
+            {
+                return;
+            }
             if (!matchesReceiverDirectly && !DeclarativeCallChainCombinators.ChainMatchesReceiver(callNode, rule.ReceiverSubstrings))
             {
                 return;

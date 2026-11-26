@@ -227,7 +227,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
     [
         "role", "is_library", "db_type", "project_type", "framework",
         "package_count", "primary_role", "secondary_roles", "all_roles",
-        "is_build_orchestrator", "member_count", "protocols"
+        "is_build_orchestrator"
     ];
 
     private static readonly string[] LayerNodePropertyKeys =
@@ -562,43 +562,6 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
         };
         nodeMap[id] = cloudNode;
         graph.Nodes.Add(cloudNode);
-    }
-
-    private static void ProcessPeerMeshNode(
-        string id,
-        string name,
-        Dictionary<string, string> props,
-        Dictionary<string, GraphNodeDto> nodeMap,
-        GraphDataDto graph)
-    {
-        if (nodeMap.ContainsKey(id)) return;
-
-        props["is_semantic_entity"] = "true";
-        props["is_library"] = "false";
-        props["entity_type"] = "peer_mesh";
-        props["topology"] = props.GetValueOrDefault("topology", "symmetric");
-
-        if (!props.ContainsKey("layer"))
-        {
-            props["layer"] = StandardLayers.Egress.LayerId;
-            props["layerId"] = StandardLayers.Egress.LayerId;
-            props["layerName"] = StandardLayers.Egress.LayerName;
-            props["layerOrder"] = StandardLayers.Egress.Order.ToString();
-            props["layerColor"] = StandardLayers.Egress.Color;
-            props["layerIcon"] = StandardLayers.Egress.Icon;
-        }
-
-        var meshNode = new GraphNodeDto
-        {
-            Id = id,
-            Kind = NodeKind.PeerMesh,
-            Name = name,
-            DisplayName = name,
-            FilePath = props.GetValueOrDefault("path"),
-            Properties = props
-        };
-        nodeMap[id] = meshNode;
-        graph.Nodes.Add(meshNode);
     }
 
     private static void ProcessExternalServiceNode(

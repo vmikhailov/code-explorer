@@ -177,6 +177,5 @@ internal static class PipelineMemoryEvictor
             or CloudNode
             or CloudResourceNode
             or CloudServiceNode
-            or PeerMeshNode
             or ApiInUseNode;
 }

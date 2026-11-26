@@ -26,12 +26,30 @@ public partial class DeclarativeSemanticExtension
             var methodSpan = GetCallMethodSpan(node);
             if (!methodSpan.IsEmpty && rule.CallMethodNames.GetAlternateLookup<ReadOnlySpan<char>>().Contains(methodSpan))
             {
+                if (IsZeroArgOrUrlQueryCall(node, methodSpan)) return false;
                 if (!rule.RequireExtractableSqlOnCall) return true;
                 return !string.IsNullOrEmpty(ExtractSqlText(node));
             }
         }
 
         return false;
+    }
+
+    internal static bool IsZeroArgOrUrlQueryCall(Node callNode, ReadOnlySpan<char> methodSpan)
+    {
+        if (methodSpan is not ("Query" or "QueryRow" or "Exec" or "QueryContext" or "QueryRowContext" or "ExecContext"))
+        {
+            return false;
+        }
+
+        if (callNode is CallExprSyntax { Arguments.Count: 0 })
+        {
+            return true;
+        }
+
+        var recvSpan = GetCallReceiverSpan(callNode).Trim();
+        return recvSpan.Equals("URL", StringComparison.OrdinalIgnoreCase) ||
+               recvSpan.EndsWith(".URL", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string? ExtractSqlText(Node node)

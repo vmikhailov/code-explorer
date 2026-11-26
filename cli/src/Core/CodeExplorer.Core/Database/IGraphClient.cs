@@ -192,6 +192,8 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     int? MigratedFromVersion => null;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
     Task<bool> UpgradeSchemaAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+    Task<string?> GetMetadataAsync(string key, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+    Task SetMetadataAsync(string key, string value, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     Task<(Dictionary<string, long> NodeCounts, Dictionary<string, long> RelationshipCounts)?> TryGetRawEntityKindCountsAsync(
         CancellationToken cancellationToken = default) =>

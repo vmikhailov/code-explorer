@@ -729,7 +729,7 @@ export const App: React.FC = () => {
       return;
     }
 
-    const isResourceNode = ['database', 'topic', 'cloudservice', 'peermesh'].includes(selectedDrawerNode.kind?.toLowerCase() || '');
+    const isResourceNode = ['database', 'topic', 'cloudservice'].includes(selectedDrawerNode.kind?.toLowerCase() || '');
     if (!isResourceNode) {
       setDrawerUsages(null);
       setDrawerUsagesLoading(false);

@@ -86,7 +86,7 @@ public partial class SqliteGraphClient
 
         var nodeMap = new Dictionary<string, (NodeKind Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
         const string nodesQuery =
-            "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role";
+            "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role";
 
         var nodesRes = await ExecuteCypherAsync(nodesQuery, null, cancellationToken);
         foreach (var row in nodesRes.Rows)

@@ -17,8 +17,15 @@ public record Reference
         get => _targetName;
         init
         {
-            _targetName = value ?? string.Empty;
-            SplitQualifiedTarget(_targetName, out _receiverName, out _memberName);
+            var next = value ?? string.Empty;
+            var unchanged = string.Equals(_targetName, next, StringComparison.Ordinal);
+            _targetName = next;
+            SplitQualifiedTarget(_targetName, out var parsedReceiver, out var parsedMember);
+            if (parsedReceiver != null || !unchanged || _receiverName == null)
+            {
+                _receiverName = parsedReceiver;
+                _memberName = parsedMember;
+            }
         }
     }
 

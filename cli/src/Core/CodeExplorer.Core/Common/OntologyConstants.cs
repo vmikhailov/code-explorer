@@ -32,7 +32,6 @@ public static class OntologyConstants
         public const string EntryPoint = "EntryPoint";
         public const string Endpoint = "Endpoint";
         public const string CloudService = "CloudService";
-        public const string PeerMesh = "PeerMesh";
         public const string ExternalService = "ExternalService";
         public const string GitSettings = "GitSettings";
         public const string ApiInUse = "ApiInUse";
@@ -87,7 +86,6 @@ public static class OntologyConstants
         public const string Query = "q";
         public const string EntryPoint = "entry";
         public const string CloudService = "cloud";
-        public const string PeerMesh = "mesh";
         public const string ApiInUse = "api";
         public const string Domain = "dom";
         public const string BoundedContext = "bc";
@@ -137,7 +135,6 @@ public static class OntologyConstants
         public const string UsesGit = "USES_GIT";
         public const string UsesApi = "USES_API";
         public const string UsesCloud = "USES_CLOUD";
-        public const string CoordinatesWith = "COORDINATES_WITH";
         public const string TransitivelyCalls = "TRANSITIVELY_CALLS";
         public const string AttributedTo = "ATTRIBUTED_TO";
         public const string Defines = "DEFINES";

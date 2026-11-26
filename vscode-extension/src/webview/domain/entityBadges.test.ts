@@ -18,7 +18,6 @@ test('entityBadges: getEntityBadgeMeta maps all standard and alias kinds and sha
     { kind: 'Topic', expectedCode: 'MSG', expectedBgColor: '#f59e0b', expectedShape: 'round-rectangle' },
     { kind: 'ExternalService', expectedCode: 'EXT', expectedBgColor: '#26a69a', expectedShape: 'round-rectangle' },
     { kind: 'CloudService', expectedCode: 'AWS', expectedBgColor: '#0284c7', expectedShape: 'round-rectangle' },
-    { kind: 'PeerMesh', expectedCode: 'MESH', expectedBgColor: '#0f766e', expectedShape: 'round-rectangle' },
     { kind: 'Library', expectedCode: 'LIB', expectedBgColor: '#4b5563', expectedShape: 'ellipse' },
     { kind: 'TestSuite', expectedCode: 'TST', expectedBgColor: '#059669', expectedShape: 'ellipse' },
     { kind: 'Group', expectedCode: 'GRP', expectedBgColor: '#4f46e5', expectedShape: 'ellipse' },

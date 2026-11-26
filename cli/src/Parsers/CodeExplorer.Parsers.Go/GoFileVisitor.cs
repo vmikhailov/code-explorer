@@ -77,11 +77,15 @@ public partial class GoFileVisitor : BaseParserVisitor
     {
         if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
         {
-            GoBindingExtractor.CollectGoStructFields(node, symbolNode, RawTypeBindings);
+            GoBindingExtractor.CollectGoStructFields(node, symbolNode, RawTypeBindings, RawImports);
+        }
+        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface)
+        {
+            GoBindingExtractor.CollectGoInterfaceMethods(node, symbolNode, RawTypeBindings);
         }
         else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
         {
-            GoBindingExtractor.CollectGoFunctionSignature(node, symbolNode, RawTypeBindings);
+            GoBindingExtractor.CollectGoFunctionSignature(node, symbolNode, RawTypeBindings, RawImports);
         }
 
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
@@ -180,7 +184,7 @@ public partial class GoFileVisitor : BaseParserVisitor
     {
         if (node is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax { Kind: CodeExplorer.Core.Parser.Syntax.CollectionSyntaxKind.Initializer })
         {
-            GoBindingExtractor.CollectGoCompositeLiteralTypeReference(node, SymbolStack.Peek());
+            GoBindingExtractor.CollectGoCompositeLiteralTypeReference(node, SymbolStack.Peek(), RawImports);
         }
         base.VisitDefault(node, depth);
     }
@@ -289,7 +293,7 @@ public partial class GoFileVisitor : BaseParserVisitor
                     ));
                 }
 
-                GoBindingExtractor.TryCollectGoShortVarBindings(names, rightNode, SymbolStack.Peek().Name, RawTypeBindings);
+                GoBindingExtractor.TryCollectGoShortVarBindings(names, rightNode, SymbolStack.Peek().Name, RawTypeBindings, RawImports);
             }
         }
     }

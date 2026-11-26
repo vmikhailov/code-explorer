@@ -6,6 +6,7 @@ namespace CodeExplorer.Parsers.Go;
 
 internal static class GoBindingExtractor
 {
+    internal const string GoInterfaceMethodMarker = "__go_iface_method__";
     private const string GoFieldResult = "result";
     private const string GoPropEnclosingType = "enclosing_type";
     private const string GoConstructorPrefix = "New";
@@ -70,7 +71,11 @@ internal static class GoBindingExtractor
 
         var importType = fileParser.ResolveImportType(importText, relativePath, absoluteWorkspacePath);
         List<ImportSpecifier>? specifiers = null;
-        if (importType == ImportType.Internal && explicitAlias != BlankIdentifier)
+        if (explicitAlias == DotImportAlias)
+        {
+            specifiers = [new ImportSpecifier(WildcardSymbol, WildcardSymbol, IsDefault: false, IsNamespace: false)];
+        }
+        else if (explicitAlias != BlankIdentifier)
         {
             var localPkgName = !string.IsNullOrEmpty(explicitAlias) ? explicitAlias : InferGoDefaultPackageAlias(importText);
             if (!string.IsNullOrEmpty(localPkgName))
@@ -83,10 +88,37 @@ internal static class GoBindingExtractor
         injectLibrary(importText);
     }
 
+    internal static void CollectGoInterfaceMethods(
+        Node ifaceOrTypeSpecNode,
+        SyntacticSymbol ifaceSymbol,
+        List<RawTypeBinding> rawTypeBindings)
+    {
+        var ifaceName = ifaceSymbol.Name;
+        if (string.IsNullOrEmpty(ifaceName)) return;
+
+        foreach (var desc in ifaceOrTypeSpecNode.DescendantsAndSelf())
+        {
+            if (!desc.IsValid()) continue;
+            var hasParamList = desc.Children.Any(c => c is SyntaxList { Kind: SyntaxListKind.Parameters });
+            if (!hasParamList) continue;
+
+            var methodId = desc.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+            if (methodId != null && methodId.IsValid())
+            {
+                var mName = methodId.Text.Trim();
+                if (!string.IsNullOrEmpty(mName))
+                {
+                    rawTypeBindings.Add(new RawTypeBinding(GoInterfaceMethodMarker, mName, string.Empty, ifaceName));
+                }
+            }
+        }
+    }
+
     internal static void CollectGoStructFields(
         Node structOrTypeSpecNode,
         SyntacticSymbol structSymbol,
-        List<RawTypeBinding> rawTypeBindings)
+        List<RawTypeBinding> rawTypeBindings,
+        IReadOnlyList<RawImport>? fileImports = null)
     {
         var structName = structSymbol.Name;
         if (string.IsNullOrEmpty(structName)) return;
@@ -111,14 +143,15 @@ internal static class GoBindingExtractor
             }
 
             if (fieldTypeNode == null) continue;
-            EmitGoUsesTypeReferences(fieldTypeNode, structSymbol, desc.StartPosition.Row + 1, desc.StartPosition.Column + 1);
+            EmitGoUsesTypeReferences(fieldTypeNode, structSymbol, desc.StartPosition.Row + 1, desc.StartPosition.Column + 1, fileImports);
 
-            var primaryType = ExtractPrimaryGoTypeName(fieldTypeNode);
+            var primaryType = ExtractPrimaryGoTypeName(fieldTypeNode, fileImports);
             if (string.IsNullOrEmpty(primaryType) || GoBuiltinTypes.Contains(primaryType)) continue;
 
             if (fieldNames.Count == 0)
             {
-                rawTypeBindings.Add(new RawTypeBinding(primaryType, primaryType, string.Empty, structName));
+                var embeddedFieldName = primaryType.Contains(DotChar) ? primaryType[(primaryType.LastIndexOf(DotChar) + 1)..] : primaryType;
+                rawTypeBindings.Add(new RawTypeBinding(embeddedFieldName, primaryType, string.Empty, structName));
                 continue;
             }
 
@@ -132,7 +165,8 @@ internal static class GoBindingExtractor
     internal static void CollectGoFunctionSignature(
         Node fnNode,
         SyntacticSymbol fnSymbol,
-        List<RawTypeBinding> rawTypeBindings)
+        List<RawTypeBinding> rawTypeBindings,
+        IReadOnlyList<RawImport>? fileImports = null)
     {
         var fnName = fnSymbol.Name;
         var paramLists = new List<Node>();
@@ -149,18 +183,18 @@ internal static class GoBindingExtractor
 
         for (var p = paramStartIdx; p < paramLists.Count; p++)
         {
-            CollectGoParameterListBindings(paramLists[p], fnSymbol, fnName, rawTypeBindings);
+            CollectGoParameterListBindings(paramLists[p], fnSymbol, fnName, rawTypeBindings, fileImports);
         }
 
         if (isMethod && paramLists.Count >= 1)
         {
-            CollectGoReceiverBinding(paramLists[0], fnSymbol, fnName, rawTypeBindings);
+            CollectGoReceiverBinding(paramLists[0], fnSymbol, fnName, rawTypeBindings, fileImports);
         }
 
         var resultNode = fnNode.GetChildForField(GoFieldResult);
         if (resultNode.IsValid())
         {
-            EmitGoUsesTypeReferences(resultNode, fnSymbol, resultNode.StartPosition.Row + 1, resultNode.StartPosition.Column + 1);
+            EmitGoUsesTypeReferences(resultNode, fnSymbol, resultNode.StartPosition.Row + 1, resultNode.StartPosition.Column + 1, fileImports);
         }
     }
 
@@ -168,7 +202,8 @@ internal static class GoBindingExtractor
         Node receiverParamList,
         SyntacticSymbol fnSymbol,
         string fnName,
-        List<RawTypeBinding> rawTypeBindings)
+        List<RawTypeBinding> rawTypeBindings,
+        IReadOnlyList<RawImport>? fileImports)
     {
         foreach (var paramDecl in receiverParamList.Children)
         {
@@ -190,11 +225,11 @@ internal static class GoBindingExtractor
             }
 
             if (recvTypeNode == null) continue;
-            var recvTypeName = ExtractPrimaryGoTypeName(recvTypeNode);
+            var recvTypeName = ExtractPrimaryGoTypeName(recvTypeNode, fileImports);
             if (string.IsNullOrEmpty(recvTypeName) || GoBuiltinTypes.Contains(recvTypeName)) continue;
 
             fnSymbol.Properties[GoPropEnclosingType] = recvTypeName;
-            EmitGoUsesTypeReferences(recvTypeNode, fnSymbol, paramDecl.StartPosition.Row + 1, paramDecl.StartPosition.Column + 1);
+            EmitGoUsesTypeReferences(recvTypeNode, fnSymbol, paramDecl.StartPosition.Row + 1, paramDecl.StartPosition.Column + 1, fileImports);
             if (!string.IsNullOrEmpty(recvVar))
             {
                 rawTypeBindings.Add(new RawTypeBinding(recvVar, recvTypeName, string.Empty, fnName));
@@ -206,7 +241,8 @@ internal static class GoBindingExtractor
         Node paramList,
         SyntacticSymbol fnSymbol,
         string fnName,
-        List<RawTypeBinding> rawTypeBindings)
+        List<RawTypeBinding> rawTypeBindings,
+        IReadOnlyList<RawImport>? fileImports)
     {
         foreach (var paramDecl in paramList.Children)
         {
@@ -228,9 +264,9 @@ internal static class GoBindingExtractor
             }
 
             if (paramTypeNode == null) continue;
-            EmitGoUsesTypeReferences(paramTypeNode, fnSymbol, paramDecl.StartPosition.Row + 1, paramDecl.StartPosition.Column + 1);
+            EmitGoUsesTypeReferences(paramTypeNode, fnSymbol, paramDecl.StartPosition.Row + 1, paramDecl.StartPosition.Column + 1, fileImports);
 
-            var primaryType = ExtractPrimaryGoTypeName(paramTypeNode);
+            var primaryType = ExtractPrimaryGoTypeName(paramTypeNode, fileImports);
             if (string.IsNullOrEmpty(primaryType) || GoBuiltinTypes.Contains(primaryType)) continue;
 
             for (var i = 0; i < paramNames.Count; i++)
@@ -240,7 +276,10 @@ internal static class GoBindingExtractor
         }
     }
 
-    internal static void CollectGoCompositeLiteralTypeReference(Node compositeLitNode, SyntacticSymbol currentScope)
+    internal static void CollectGoCompositeLiteralTypeReference(
+        Node compositeLitNode,
+        SyntacticSymbol currentScope,
+        IReadOnlyList<RawImport>? fileImports = null)
     {
         if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.File) return;
 
@@ -256,7 +295,8 @@ internal static class GoBindingExtractor
                 typeNode,
                 currentScope,
                 compositeLitNode.StartPosition.Row + 1,
-                compositeLitNode.StartPosition.Column + 1);
+                compositeLitNode.StartPosition.Column + 1,
+                fileImports);
         }
     }
 
@@ -264,7 +304,8 @@ internal static class GoBindingExtractor
         List<string> lhsNames,
         Node rightNode,
         string scopeName,
-        List<RawTypeBinding> rawTypeBindings)
+        List<RawTypeBinding> rawTypeBindings,
+        IReadOnlyList<RawImport>? fileImports = null)
     {
         if (lhsNames.Count == 0 || !rightNode.IsValid()) return;
 
@@ -274,7 +315,7 @@ internal static class GoBindingExtractor
 
         if (exprs.Count == 1 && exprs[0] is CallExprSyntax)
         {
-            var inferred = InferTypeFromGoCall(exprs[0]);
+            var inferred = InferTypeFromGoCall(exprs[0], fileImports);
             if (!string.IsNullOrEmpty(inferred) && !GoBuiltinTypes.Contains(inferred))
             {
                 rawTypeBindings.Add(new RawTypeBinding(lhsNames[0], inferred, string.Empty, scopeName));
@@ -285,7 +326,7 @@ internal static class GoBindingExtractor
         var count = Math.Min(lhsNames.Count, exprs.Count);
         for (var i = 0; i < count; i++)
         {
-            var inferred = InferTypeFromGoExpr(exprs[i]);
+            var inferred = InferTypeFromGoExpr(exprs[i], fileImports);
             if (!string.IsNullOrEmpty(inferred) && !GoBuiltinTypes.Contains(inferred))
             {
                 rawTypeBindings.Add(new RawTypeBinding(lhsNames[i], inferred, string.Empty, scopeName));
@@ -293,12 +334,12 @@ internal static class GoBindingExtractor
         }
     }
 
-    private static string? InferTypeFromGoExpr(Node expr)
+    private static string? InferTypeFromGoExpr(Node expr, IReadOnlyList<RawImport>? fileImports)
     {
         if (!expr.IsValid()) return null;
         if (expr is CallExprSyntax)
         {
-            return InferTypeFromGoCall(expr);
+            return InferTypeFromGoCall(expr, fileImports);
         }
 
         var target = expr;
@@ -314,13 +355,13 @@ internal static class GoBindingExtractor
             {
                 tNode = target.Children[0];
             }
-            return tNode.IsValid() ? ExtractPrimaryGoTypeName(tNode) : null;
+            return tNode.IsValid() ? ExtractPrimaryGoTypeName(tNode, fileImports) : null;
         }
 
         return null;
     }
 
-    private static string? InferTypeFromGoCall(Node callExpr)
+    private static string? InferTypeFromGoCall(Node callExpr, IReadOnlyList<RawImport>? fileImports)
     {
         var fn = callExpr.GetFunctionNode();
         if (!fn.IsValid()) return null;
@@ -342,12 +383,14 @@ internal static class GoBindingExtractor
 
         if (fnName.StartsWith(GoConstructorPrefix, StringComparison.Ordinal) && fnName.Length > GoConstructorPrefix.Length)
         {
-            return fnName[GoConstructorPrefix.Length..];
+            var constructedType = fnName[GoConstructorPrefix.Length..];
+            return !string.IsNullOrEmpty(pkg) ? $"{pkg}.{constructedType}" : constructedType;
         }
 
         if (fnName == GoConstructorPrefix && !string.IsNullOrEmpty(pkg) && char.IsLower(pkg[0]))
         {
-            return char.ToUpperInvariant(pkg[0]) + pkg[1..];
+            var inferredStruct = char.ToUpperInvariant(pkg[0]) + pkg[1..];
+            return ClassifyGoPackageQualifier(pkg, fileImports) != null ? $"{pkg}.{inferredStruct}" : inferredStruct;
         }
 
         return null;
@@ -356,7 +399,47 @@ internal static class GoBindingExtractor
     private static bool IsGoTypeNode(Node node) =>
         node is TypeRefSyntax or IdentifierExprSyntax { Role: IdentifierRole.Type } or TypeDeclSyntax;
 
-    private static string? ExtractPrimaryGoTypeName(Node typeNode)
+    private static ImportType? ClassifyGoPackageQualifier(string pkgAlias, IReadOnlyList<RawImport>? fileImports)
+    {
+        if (string.IsNullOrEmpty(pkgAlias) || fileImports == null) return null;
+        for (var i = 0; i < fileImports.Count; i++)
+        {
+            var specs = fileImports[i].Specifiers;
+            if (specs == null) continue;
+            for (var s = 0; s < specs.Count; s++)
+            {
+                if (string.Equals(specs[s].LocalName, pkgAlias, StringComparison.Ordinal))
+                {
+                    return fileImports[i].Type;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static bool TryExtractQualifiedGoType(Node node, out string pkgAlias, out string typeName)
+    {
+        pkgAlias = string.Empty;
+        typeName = string.Empty;
+        if (node is not TypeRefSyntax { Kind: TypeRefKind.Named }) return false;
+
+        foreach (var child in node.Children)
+        {
+            if (!child.IsValid()) continue;
+            if (child is IdentifierExprSyntax { Role: IdentifierRole.Type } && string.IsNullOrEmpty(typeName))
+            {
+                typeName = child.Text.Trim();
+            }
+            else if (child is IdentifierExprSyntax { Role: not IdentifierRole.Type } && string.IsNullOrEmpty(pkgAlias))
+            {
+                pkgAlias = child.Text.Trim();
+            }
+        }
+
+        return !string.IsNullOrEmpty(pkgAlias) && !string.IsNullOrEmpty(typeName);
+    }
+
+    private static string? ExtractPrimaryGoTypeName(Node typeNode, IReadOnlyList<RawImport>? fileImports = null)
     {
         var curr = typeNode;
         while (curr is TypeRefSyntax { Kind: TypeRefKind.Pointer or TypeRefKind.Slice or TypeRefKind.Array })
@@ -366,9 +449,20 @@ internal static class GoBindingExtractor
             curr = next;
         }
 
+        if (TryExtractQualifiedGoType(curr, out var qPkg, out var qType))
+        {
+            return $"{qPkg}.{qType}";
+        }
+
         if (curr is IdentifierExprSyntax { Role: IdentifierRole.Type })
         {
             return curr.Text.Trim();
+        }
+
+        var nestedQualified = curr.DescendantsAndSelf().LastOrDefault(d => d is TypeRefSyntax { Kind: TypeRefKind.Named });
+        if (nestedQualified != null && TryExtractQualifiedGoType(nestedQualified, out var nPkg, out var nType))
+        {
+            return $"{nPkg}.{nType}";
         }
 
         var lastTypeId = curr.DescendantsAndSelf().LastOrDefault(d => d is IdentifierExprSyntax { Role: IdentifierRole.Type });
@@ -381,31 +475,79 @@ internal static class GoBindingExtractor
         {
             var raw = curr.Text.Trim().TrimStart(PointerChar, '[', ']');
             var dot = raw.LastIndexOf(DotChar);
-            return dot >= 0 ? raw[(dot + 1)..] : raw;
+            if (dot > 0)
+            {
+                var pkg = raw[..dot].Trim();
+                var shortName = raw[(dot + 1)..].Trim();
+                return ClassifyGoPackageQualifier(pkg, fileImports) != null ? $"{pkg}.{shortName}" : shortName;
+            }
+            return raw;
         }
 
         return null;
     }
 
-    private static void EmitGoUsesTypeReferences(Node typeTree, SyntacticSymbol targetSymbol, int line, int col)
+    private static void EmitGoUsesTypeReferences(
+        Node typeTree,
+        SyntacticSymbol targetSymbol,
+        int line,
+        int col,
+        IReadOnlyList<RawImport>? fileImports = null)
     {
-        foreach (var d in typeTree.DescendantsAndSelf())
-        {
-            if (d is not IdentifierExprSyntax { Role: IdentifierRole.Type }) continue;
-            var tName = d.Text.Trim();
-            if (string.IsNullOrEmpty(tName) || GoBuiltinTypes.Contains(tName)) continue;
+        EmitGoUsesTypeNodeRecursive(typeTree, targetSymbol, line, col, fileImports);
+    }
 
-            if (!targetSymbol.References.Any(r =>
-                    r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.UsesType &&
-                    string.Equals(r.TargetName, tName, StringComparison.Ordinal)))
+    private static void EmitGoUsesTypeNodeRecursive(
+        Node current,
+        SyntacticSymbol targetSymbol,
+        int line,
+        int col,
+        IReadOnlyList<RawImport>? fileImports)
+    {
+        if (!current.IsValid()) return;
+
+        if (TryExtractQualifiedGoType(current, out var pkgAlias, out var shortType))
+        {
+            if (GoBuiltinTypes.Contains(shortType)) return;
+            var pkgKind = ClassifyGoPackageQualifier(pkgAlias, fileImports);
+            if (pkgKind == ImportType.External)
             {
-                targetSymbol.References.Add(new Reference(
-                    string.Empty,
-                    tName,
-                    CodeExplorer.Cypher.Common.RelationshipKind.UsesType,
-                    line,
-                    col));
+                return;
             }
+
+            var refTarget = $"{pkgAlias}.{shortType}";
+            AddUniqueUsesTypeReference(targetSymbol, refTarget, line, col);
+            return;
+        }
+
+        if (current is IdentifierExprSyntax { Role: IdentifierRole.Type })
+        {
+            var tName = current.Text.Trim();
+            if (!string.IsNullOrEmpty(tName) && !GoBuiltinTypes.Contains(tName))
+            {
+                AddUniqueUsesTypeReference(targetSymbol, tName, line, col);
+            }
+            return;
+        }
+
+        foreach (var child in current.Children)
+        {
+            EmitGoUsesTypeNodeRecursive(child, targetSymbol, line, col, fileImports);
+        }
+    }
+
+    private static void AddUniqueUsesTypeReference(SyntacticSymbol targetSymbol, string targetName, int line, int col)
+    {
+        if (!targetSymbol.References.Any(r =>
+                r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.UsesType &&
+                string.Equals(r.TargetName, targetName, StringComparison.Ordinal)))
+        {
+            targetSymbol.References.Add(new Reference(
+                string.Empty,
+                targetName,
+                CodeExplorer.Cypher.Common.RelationshipKind.UsesType,
+                line,
+                col));
         }
     }
 

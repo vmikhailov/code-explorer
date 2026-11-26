@@ -181,12 +181,16 @@ public partial class Layer5AnalysisParser
                 {
                     if (spec.IsNamespace || spec.LocalName == wildcardImportSymbol)
                     {
-                        if (!starImportsByFile.TryGetValue(normFile, out var starList))
+                        if (imp.Type != ImportType.External &&
+                            (spec.LocalName == wildcardImportSymbol || !normFile.EndsWith(".go", StringComparison.OrdinalIgnoreCase)))
                         {
-                            starList = [];
-                            starImportsByFile[normFile] = starList;
+                            if (!starImportsByFile.TryGetValue(normFile, out var starList))
+                            {
+                                starList = [];
+                                starImportsByFile[normFile] = starList;
+                            }
+                            starList.Add(imp.Path);
                         }
-                        starList.Add(imp.Path);
 
                         if (!string.IsNullOrEmpty(spec.LocalName) && spec.LocalName != wildcardImportSymbol)
                         {
@@ -235,6 +239,8 @@ public partial class Layer5AnalysisParser
                 }
             }
         }
+
+        Layer5GoSymbolHelper.RegisterWorkspaceGoModules(ctx.AbsoluteWorkspacePath, workspacePackages);
 
         var tsConfigPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (k, v) in ctx.TsConfigPaths) tsConfigPaths[k] = v;

@@ -74,37 +74,37 @@ internal static class McpLineageFormatter
     {
         var anchor = $"MATCH (t:Table) WHERE t.id IN [{idListLiteral}] ";
         return anchor + "OPTIONAL MATCH (t)-[:IMPLEMENTED_BY]->(e:Type) " +
-               "RETURN t.name AS tableName, 'ENTITY' AS kind, coalesce(e.name, '') AS name, '' AS ownerName, '' AS extra, coalesce(e.file_path, e.path, '') AS filePath, 0 AS startLine UNION " +
+               "RETURN t.name AS tableName, 'ENTITY' AS kind, coalesce(e.name, '') AS name, '' AS ownerName, '' AS extra, coalesce(e.file_path, e.path, '') AS filePath, 0 AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(q:Query)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(q.verb, r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION " +
+               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
+               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(q.verb, r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(q:Query)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION " +
+               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
+               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, '') AS filePath, coalesce(fn.start_line, 0) AS startLine UNION " +
+               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, '') AS filePath, coalesce(fn.start_line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
+               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
+               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION " +
+               "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query) " +
-               "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, '') AS filePath, 0 AS startLine UNION " +
+               "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, '') AS filePath, 0 AS startLine UNION ALL " +
                anchor +
-               "RETURN t.name AS tableName, 'META' AS kind, coalesce(t.sub_kind, '') AS name, '' AS ownerName, coalesce(t.columns, '') AS extra, coalesce(t.path, '') AS filePath, 0 AS startLine UNION " +
+               "RETURN t.name AS tableName, 'META' AS kind, coalesce(t.sub_kind, '') AS name, '' AS ownerName, coalesce(t.columns, '') AS extra, coalesce(t.path, '') AS filePath, 0 AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[r:REFERENCES]->(parent:Table) " +
-               "RETURN t.name AS tableName, 'FK_OUT' AS kind, coalesce(parent.name, '') AS name, '' AS ownerName, coalesce(r.operation, '') AS extra, '' AS filePath, 0 AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (child:Table)-[r:REFERENCES]->(t) " +
-               "RETURN t.name AS tableName, 'FK_IN' AS kind, coalesce(child.name, '') AS name, '' AS ownerName, coalesce(r.operation, '') AS extra, '' AS filePath, 0 AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (v:Table)-[:READS_FROM]->(t) " +
-               "RETURN t.name AS tableName, 'VIEW' AS kind, coalesce(v.name, '') AS name, coalesce(v.sub_kind, 'view') AS ownerName, '' AS extra, coalesce(v.path, '') AS filePath, 0 AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (p:Procedure)-[:READS_FROM]->(t) " +
-               "RETURN t.name AS tableName, 'PROC' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'procedure') AS ownerName, 'READ' AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine UNION " +
-               anchor + "OPTIONAL MATCH (p:Procedure)-[:WRITES_TO]->(t) " +
-               "RETURN t.name AS tableName, 'PROC' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'procedure') AS ownerName, 'WRITE' AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine UNION " +
+               "RETURN t.name AS tableName, 'FK_OUT' AS kind, coalesce(parent.name, '') AS name, '' AS ownerName, coalesce(r.operation, '') AS extra, '' AS filePath, 0 AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[r:REFERENCES]-(child:Table) " +
+               "RETURN t.name AS tableName, 'FK_IN' AS kind, coalesce(child.name, '') AS name, '' AS ownerName, coalesce(r.operation, '') AS extra, '' AS filePath, 0 AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM]-(v:Table) " +
+               "RETURN t.name AS tableName, 'VIEW' AS kind, coalesce(v.name, '') AS name, coalesce(v.sub_kind, 'view') AS ownerName, '' AS extra, coalesce(v.path, '') AS filePath, 0 AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM]-(p:Procedure) " +
+               "RETURN t.name AS tableName, 'PROC' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'procedure') AS ownerName, 'READ' AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[:WRITES_TO]-(p:Procedure) " +
+               "RETURN t.name AS tableName, 'PROC' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'procedure') AS ownerName, 'WRITE' AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[r:TRIGGERS]->(p:Procedure) " +
                "RETURN t.name AS tableName, 'TRIGGER' AS kind, coalesce(p.name, '') AS name, coalesce(p.sub_kind, 'trigger') AS ownerName, coalesce(r.operation, p.trigger_event, '') AS extra, coalesce(p.path, '') AS filePath, 0 AS startLine";
     }

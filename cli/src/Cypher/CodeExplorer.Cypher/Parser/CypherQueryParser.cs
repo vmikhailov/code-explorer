@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeExplorer.Cypher.Ast;
 using Superpower;
 using Superpower.Model;
@@ -6,6 +7,8 @@ namespace CodeExplorer.Cypher.Parser;
 
 public static class CypherQueryParser
 {
+    private const int MaxParsedAstCacheEntries = 512;
+    private static readonly ConcurrentDictionary<string, CypherQuery> ParsedAstCache = new(StringComparer.Ordinal);
     public static TokenListParser<CypherToken, (List<MatchClause> Matches, List<WithClause> Withs, List<UnwindClause> Unwinds, List<CallClause> Calls)> QueryBody { get; } =
         input =>
         {
@@ -93,8 +96,19 @@ public static class CypherQueryParser
 
     public static CypherQuery Parse(string cypherText)
     {
+        if (ParsedAstCache.TryGetValue(cypherText, out var cached))
+        {
+            return cached;
+        }
+
         var tokens = CypherTokenizer.Instance.Tokenize(cypherText);
-        return Query.Parse(tokens);
+        var parsed = Query.Parse(tokens);
+        if (ParsedAstCache.Count >= MaxParsedAstCacheEntries)
+        {
+            ParsedAstCache.Clear();
+        }
+        ParsedAstCache.TryAdd(cypherText, parsed);
+        return parsed;
     }
 
     public static bool TryParse(string cypherText, out CypherQuery? query, out string? error)

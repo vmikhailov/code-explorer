@@ -38,7 +38,6 @@ export type EntityKind =
   | 'Module'
   | 'Topic'
   | 'CloudService'
-  | 'PeerMesh'
   | 'ExternalService'
   | 'Group';
 

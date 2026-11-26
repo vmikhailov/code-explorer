@@ -49,6 +49,9 @@ public record QueryNode(
     [JsonPropertyName("line_end"), OntologyProperty("The ending line number of the query.", isSystem: true)]
     public int? LineEnd { get; set; }
 
+    [JsonPropertyName("is_test"), OntologyProperty("Indicates whether the query is declared within test code.", isSystem: true)]
+    public bool? IsTest { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Query;
 }

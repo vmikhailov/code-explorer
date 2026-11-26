@@ -146,7 +146,7 @@ public partial class Layer5AnalysisParser
 
             if (targetTypeName == null && varName.Contains('.'))
             {
-                targetTypeName = Layer5GoSymbolHelper.TryResolveChainedFieldReceiverType(varName, normCallerFile, refItem.ScopeSymbolId, scopeForFile.EnclosingTypeName, bindings);
+                targetTypeName = Layer5GoSymbolHelper.TryResolveChainedFieldReceiverType(varName, normCallerFile, refItem.ScopeSymbolId, scopeForFile.EnclosingTypeName, bindings, ctx);
             }
 
             if (targetTypeName != null)
@@ -287,7 +287,10 @@ public partial class Layer5AnalysisParser
         }
 
         // Interface implementors
-        if (targetTypeName != null && !string.IsNullOrEmpty(methodName) && interfaceToImplementors.TryGetValue(targetTypeName, out var implementors))
+        var shortTargetType = targetTypeName != null ? Layer5GoSymbolHelper.StripGoPackageQualifier(targetTypeName) : null;
+        if (targetTypeName != null && !string.IsNullOrEmpty(methodName) &&
+            (interfaceToImplementors.TryGetValue(targetTypeName, out var implementors) ||
+             (shortTargetType != null && interfaceToImplementors.TryGetValue(shortTargetType, out implementors))))
         {
             var anchorScope = targetNodeId != null
                 ? Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(targetNodeId, null, ctx)
@@ -295,7 +298,8 @@ public partial class Layer5AnalysisParser
 
             foreach (var implClass in implementors)
             {
-                if (symbols.FunctionsByName.TryGetValue($"{implClass}.{methodName}", out var implNodeIds))
+                if (symbols.FunctionsByName.TryGetValue($"{implClass}.{methodName}", out var implNodeIds) ||
+                    (implNodeIds = Layer5GoSymbolHelper.FindGoMethodsForReceiverType(symbols, ctx, implClass, methodName)) != null)
                 {
                     var visibleImpls = new List<string>(implNodeIds.Count);
                     for (var idx = 0; idx < implNodeIds.Count; idx++)
@@ -357,15 +361,17 @@ public partial class Layer5AnalysisParser
             Layer5SymbolVisibilityResolver.ResolveVisibleTypeSymbol(targetTypeName, refItem.ScopeSymbolId, ctx, symbols) is { } resolvedTypeId)
         {
             var typeFile = ExtractFilePathFromSymbolId(resolvedTypeId);
+            var shortRecv = Layer5GoSymbolHelper.StripGoPackageQualifier(targetTypeName);
             if (typeFile != null &&
                 symbols.FunctionSymbolsByFile.TryGetValue((typeFile, methodName), out var typeMethodId) &&
-                Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, typeMethodId, hasExplicitReceiver, targetTypeName, symbols, ctx))
+                Layer5GoSymbolHelper.MatchesTypeMethodOwner(typeMethodId, typeFile, shortRecv, ctx) &&
+                Layer5SymbolVisibilityResolver.IsSymbolVisibleToCaller(refItem.ScopeSymbolId, normCallerFile, typeMethodId, hasExplicitReceiver, shortRecv, symbols, ctx))
             {
                 referenceRelationships.Add(CreateCallRel(refItem, typeMethodId));
                 callAdded = true;
             }
             else if (typeFile != null &&
-                     Layer5GoSymbolHelper.TryResolveGoSiblingPackageMethod(typeFile, targetTypeName, methodName, refItem.ScopeSymbolId, normCallerFile, symbols, ctx) is { } goSiblingMethodId)
+                     Layer5GoSymbolHelper.TryResolveGoSiblingPackageMethod(typeFile, shortRecv, methodName, refItem.ScopeSymbolId, normCallerFile, symbols, ctx) is { } goSiblingMethodId)
             {
                 referenceRelationships.Add(CreateCallRel(refItem, goSiblingMethodId));
                 callAdded = true;

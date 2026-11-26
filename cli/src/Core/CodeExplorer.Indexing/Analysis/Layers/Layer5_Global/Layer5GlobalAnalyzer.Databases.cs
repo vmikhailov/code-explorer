@@ -591,6 +591,7 @@ public partial class Layer5AnalysisParser
         }
 
         PropagateTransitiveImplements(directInherits, directImplements, referenceRelationships, inheritanceRels, symbols, interfaceToImplementors);
+        Layer5GoSymbolHelper.ResolveImplicitGoInterfaces(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
     }
 
     private static void PropagateTransitiveImplements(
@@ -761,6 +762,10 @@ public partial class Layer5AnalysisParser
 
         foreach (var b in ctx.RawTypeBindings)
         {
+            if (string.Equals(b.VariableName, Layer5GoSymbolHelper.GoInterfaceMethodMarker, StringComparison.Ordinal))
+            {
+                continue;
+            }
             var normPath = b.FilePath.Replace('\\', '/');
             var key = (normPath, b.VariableName);
             if (!bindingsLookup.TryGetValue(key, out var list))

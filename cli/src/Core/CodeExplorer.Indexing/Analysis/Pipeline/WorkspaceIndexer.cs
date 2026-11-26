@@ -28,6 +28,12 @@ public class WorkspaceIndexer
     private const string InvalidatingViewCacheProgressMessage = "Invalidating view cache...";
     private const string CompletedProgressTitle = "Completed";
     private const string CompletedProgressMessage = "Indexing process completed successfully.";
+    internal const string IndexerVersionMetadataKey = "indexer_version";
+
+    internal static readonly string CurrentIndexerVersion =
+        typeof(WorkspaceIndexer).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(WorkspaceIndexer).Assembly.GetName().Version?.ToString()
+        ?? "0.0.0";
 
     public static Func<Layer3Result, ParsingContext, Task>? PostSyntacticPipelineHook { get; set; } = static async (l3, ctx) =>
     {
@@ -136,6 +142,7 @@ public class WorkspaceIndexer
         var ctx = CreateContext(root, scanPath, clear, enableIntentAnalysis, cancellationToken, progress);
 
         await RunParsingPipelineAsync(ctx);
+        await _dbClient.SetMetadataAsync(IndexerVersionMetadataKey, CurrentIndexerVersion, cancellationToken);
 
         ctx.ReportProgress(100, CompletedProgressTitle, CompletedProgressMessage, ctx.TotalNodesCount, ctx.TotalNodesCount);
         ctx.PipelineLog.IndexingCompleted(ctx.TotalNodesCount, ctx.TotalRelsCount, totalSw.ElapsedMilliseconds);
@@ -486,6 +493,20 @@ public class WorkspaceIndexer
             _logger.LogInformation("[Incremental:Decision] Full rescan triggered: File registry in database is empty (workspace not indexed yet).");
             await IndexAsync(targetPath, workspaceRoot, clear: false, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
             return true;
+        }
+
+        if (_dbClient.DbPath != null && knownChangedFiles == null)
+        {
+            var recordedVersion = await _dbClient.GetMetadataAsync(IndexerVersionMetadataKey, cancellationToken);
+            if (!string.Equals(recordedVersion, CurrentIndexerVersion, StringComparison.Ordinal))
+            {
+                _logger.LogInformation(
+                    "[Incremental:Decision] Full rescan triggered: Indexer version changed ({RecordedVersion} -> {CurrentVersion}).",
+                    recordedVersion ?? "legacy",
+                    CurrentIndexerVersion);
+                await IndexAsync(targetPath, workspaceRoot, clear: true, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
+                return true;
+            }
         }
 
         var filter = new WorkspaceFileFilter(_projectParsers, _fileParsers);
