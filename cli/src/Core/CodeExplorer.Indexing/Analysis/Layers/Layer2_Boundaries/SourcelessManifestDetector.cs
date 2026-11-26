@@ -25,7 +25,12 @@ internal static class SourcelessManifestDetector
     /// Returns the nearest enclosing project when <paramref name="dir"/> declares a project manifest but contains
     /// no source files beneath it; otherwise <c>null</c>. The workspace root itself is never absorbed.
     /// </summary>
-    public static ProjectNode? FindOwner(string dir, string[] filesInDir, List<ProjectNode> projects, ParsingContext ctx)
+    public static ProjectNode? FindOwner(
+        string dir,
+        string[] filesInDir,
+        List<ProjectNode> projects,
+        ParsingContext ctx,
+        bool? precomputedHasSourceFiles = null)
     {
         if (projects.Count == 0) return null;
 
@@ -50,8 +55,9 @@ internal static class SourcelessManifestDetector
             }
         }
 
-        if (owner == null || ContainsSourceFiles(dir)) return null;
-        return owner;
+        if (owner == null) return null;
+        var hasSources = precomputedHasSourceFiles ?? ContainsSourceFiles(dir);
+        return hasSources ? null : owner;
     }
 
     private static bool ContainsSourceFiles(string dir)

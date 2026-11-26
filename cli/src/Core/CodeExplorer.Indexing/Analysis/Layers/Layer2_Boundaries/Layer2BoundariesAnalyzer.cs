@@ -24,24 +24,28 @@ public partial class Layer2ProjectParser
         var packages = new List<PackageNode>();
         var dependencies = new List<Relationship>();
 
+        var hasUnifiedPlan = UnifiedScanPlanStore.TryGet(l1Result, out var unifiedPlan) && unifiedPlan != null;
         var dirsToCheck = new List<string>();
-        if (ctx.IsSubtreeScan)
+        if (!hasUnifiedPlan)
         {
-            dirsToCheck.Add(ctx.ScanPath);
-            dirsToCheck.AddRange(l1Result.Folders
-                .Where(f => f.Path.StartWithIC(ctx.ScanPath.TrimEnd('/') + "/"))
-                .Select(f => f.Path));
+            if (ctx.IsSubtreeScan)
+            {
+                dirsToCheck.Add(ctx.ScanPath);
+                dirsToCheck.AddRange(l1Result.Folders
+                    .Where(f => f.Path.StartWithIC(ctx.ScanPath.TrimEnd('/') + "/"))
+                    .Select(f => f.Path));
+            }
+            else
+            {
+                dirsToCheck.Add(ctx.AbsoluteWorkspacePath);
+                dirsToCheck.AddRange(l1Result.Folders.Select(f => f.Path));
+            }
+            dirsToCheck = [.. dirsToCheck
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(d => d.Replace('\\', '/').Trim('/').Count(c => c == '/'))
+                .ThenBy(d => d.Replace('\\', '/').Length)
+                .ThenBy(d => d, StringComparer.OrdinalIgnoreCase)];
         }
-        else
-        {
-            dirsToCheck.Add(ctx.AbsoluteWorkspacePath);
-            dirsToCheck.AddRange(l1Result.Folders.Select(f => f.Path));
-        }
-        dirsToCheck = [.. dirsToCheck
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(d => d.Replace('\\', '/').Trim('/').Count(c => c == '/'))
-            .ThenBy(d => d.Replace('\\', '/').Length)
-            .ThenBy(d => d, StringComparer.OrdinalIgnoreCase)];
 
         var projectDepList = new List<(ProjectNode Project, ProjectDependencyInfo DepInfo)>();
         var packageToProjectMap = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
@@ -59,7 +63,8 @@ public partial class Layer2ProjectParser
             projectDepList,
             packageToProjectMap,
             absorbedDirectoryOwners,
-            explicitChildToParentMap);
+            explicitChildToParentMap,
+            unifiedPlan);
 
         NormalizeProjectFolderNames(projects, packageToProjectMap, ctx);
 
@@ -70,10 +75,11 @@ public partial class Layer2ProjectParser
             projectDepList,
             packageToProjectMap);
 
+        var manifestDirsToCheck = hasUnifiedPlan ? unifiedPlan!.ManifestDirectories : dirsToCheck;
         await ScanAdditionalProjectsAsync(
             ctx,
             projectsStructureNode,
-            dirsToCheck,
+            manifestDirsToCheck,
             projects,
             packages,
             dependencies,

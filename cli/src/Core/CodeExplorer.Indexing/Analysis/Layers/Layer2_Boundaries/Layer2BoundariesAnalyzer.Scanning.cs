@@ -21,7 +21,8 @@ public partial class Layer2ProjectParser
         List<(ProjectNode Project, ProjectDependencyInfo DepInfo)> projectDepList,
         Dictionary<string, ProjectNode> packageToProjectMap,
         Dictionary<string, ProjectNode> absorbedDirectoryOwners,
-        Dictionary<string, string> explicitChildToParentMap)
+        Dictionary<string, string> explicitChildToParentMap,
+        UnifiedWorkspaceScanPlan? unifiedPlan = null)
     {
         var scanState = new DirectoryScanState(
             ctx,
@@ -34,11 +35,19 @@ public partial class Layer2ProjectParser
             absorbedDirectoryOwners,
             explicitChildToParentMap);
 
-        await WalkDirectoryForestAsync(dirsToCheck, scanState);
+        if (unifiedPlan != null)
+        {
+            await WalkPreDiscoveredTreeAsync(unifiedPlan.RootNodes, scanState);
+        }
+        else
+        {
+            await WalkDirectoryForestAsync(dirsToCheck, scanState);
+        }
 
         // Pass 2: Fallback project detection for directories with loose scripts or unmanaged projects not enclosed in any standard project
         var fallbackParsers = WorkspaceIndexer._projectParsers.Where(p => p.IsFallback).ToList();
-        if (!ctx.IsSubtreeScan && fallbackParsers.Count > 0)
+        var fallbackCandidateDirs = unifiedPlan != null ? unifiedPlan.FallbackCandidateDirectories : dirsToCheck;
+        if (!ctx.IsSubtreeScan && fallbackParsers.Count > 0 && fallbackCandidateDirs.Count > 0)
         {
             var hasRootNonScriptOwner = projects.Any(p =>
                 string.IsNullOrEmpty(p.Path) &&
@@ -49,7 +58,7 @@ public partial class Layer2ProjectParser
                 .Select(p => (Exact: p.Path, Prefix: p.Path.TrimEnd('/') + "/"))
                 .ToList();
 
-            foreach (var dir in dirsToCheck)
+            foreach (var dir in fallbackCandidateDirs)
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
 
@@ -392,7 +401,7 @@ public partial class Layer2ProjectParser
     private static async Task ScanAdditionalProjectsAsync(
         ParsingContext ctx,
         ProjectsStructureNode projectsStructureNode,
-        List<string> dirsToCheck,
+        IReadOnlyList<string> dirsToCheck,
         List<ProjectNode> projects,
         List<PackageNode> packages,
         List<Relationship> dependencies,

@@ -5,6 +5,11 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.106.2] - 2026-11-26
+
+### Changed
+- **Single-Pass Scoped Directory & Project Boundary Discovery (`Layer1PhysicalAnalyzer`, `Layer2BoundariesAnalyzer`, `GitIgnoreTrieMatcher`, `UnifiedWorkspaceScanPlan`)**: Unified physical directory traversal and project-scope filtering into a single top-down/bottom-up pass with incremental per-folder `GitIgnoreScopeChain` Trie compilation (`GitIgnoreTrieMatcher`), parent-scoped candidate parser filtering (blocking manifestless fallback projects inside owned projects while allowing explicit nested manifests), inline project-scoped file collection, and $O(1)$ bottom-up `SubtreeLanguageCounts` / `DescendantGitRepoCount` / `HasSourceFiles` rollups — eliminating `RefreshContainerProjectParsers`, the separate `CollectCandidateFiles` pass, and Layer 2's duplicate directory forest rebuild.
+
 ## [1.106.1] - 2026-11-26
 
 ### Fixed

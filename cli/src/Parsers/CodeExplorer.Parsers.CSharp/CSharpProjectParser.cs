@@ -143,6 +143,39 @@ public partial class CSharpProjectParser : IProjectParser
         }
     }
 
+    public void CollectDirectoryIgnorePatterns(string directoryPath, string relativeDir, string workspaceRoot, List<string> outGlobalPatterns, Action<string>? log = null)
+    {
+        const string libmanFileName = "libman.json";
+        const string slash = "/";
+        var libmanPath = Path.Combine(directoryPath, libmanFileName);
+        if (!PhysicalFileStore.FileExistsInCachedDirectory(libmanPath) && !File.Exists(libmanPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var content = PhysicalFileStore.ReadAllText(libmanPath);
+            var cfg = JsonSerializer.Deserialize<LibManConfig>(content, LibManJsonOptions);
+            if (cfg?.Libraries is null) return;
+            foreach (var lib in cfg.Libraries)
+            {
+                if (string.IsNullOrWhiteSpace(lib.Destination)) continue;
+                var fullDest = Path.GetFullPath(Path.Combine(directoryPath, lib.Destination));
+                var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/').Trim('/');
+                if (!string.IsNullOrEmpty(relDest))
+                {
+                    outGlobalPatterns.Add(relDest + slash);
+                    log?.Invoke($"[CSharpProjectParser] LibMan: Excluded library destination '{relDest}'");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"[CSharpProjectParser] Error reading libman.json: {ex.Message}");
+        }
+    }
+
     private sealed record LibManConfig(IReadOnlyList<LibManEntry>? Libraries);
     private sealed record LibManEntry(string? Destination);
     private static readonly JsonSerializerOptions LibManJsonOptions = new()

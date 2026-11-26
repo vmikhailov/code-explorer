@@ -392,4 +392,243 @@ packages/
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public void Test_GitIgnoreTrieMatcher_100PercentParityWithLegacyMatcher()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_trie_parity_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, ".gitignore"), """
+# Root ignore rules
+Scripts/vendor/
+*.generated.cs
+*.log
+!important.log
+!overridden.txt
+overridden.txt
+**/lib/
+!packages/ui/src/lib/
+packages/legacy/
+!packages/legacy/keep/
+npm-debug.log*
+.env.*
+build-*/*.tmp
+""");
+            var nestedAuthDir = Path.Combine(tempDir, "services", "auth");
+            Directory.CreateDirectory(nestedAuthDir);
+            var nestedIgnore = Path.Combine(nestedAuthDir, ".gitignore");
+            File.WriteAllText(nestedIgnore, """
+local_cache/
+*.secret
+!public.secret
+snapshots/*.snap
+""");
+
+            var legacy = new GitIgnoreMatcher(tempDir);
+            legacy.LoadScopedFile(nestedIgnore, "services/auth");
+
+            var trie = new GitIgnoreTrieMatcher(tempDir);
+            trie.LoadScopedFile(nestedIgnore, "services/auth");
+
+            (string Path, bool IsDir)[] testCases =
+            [
+                ("Scripts/vendor", true),
+                ("Scripts/vendor/bundle.js", false),
+                ("Scripts/app.js", false),
+                ("Foo.generated.cs", false),
+                ("Foo.cs", false),
+                ("node_modules/express/index.js", false),
+                ("bin/Debug/net10.0/app.dll", false),
+                ("obj/Release/app.pdb", false),
+                ("dist/bundle.js", false),
+                ("src/app.ts", false),
+                ("debug.log", false),
+                ("important.log", false),
+                ("overridden.txt", false),
+                ("packages/ui/src/lib", true),
+                ("packages/ui/src/lib/utils.ts", false),
+                ("other/package/lib", true),
+                ("other/package/lib/utils.ts", false),
+                ("packages/legacy", true),
+                ("packages/legacy/keep", true),
+                ("packages/legacy/keep/file.ts", false),
+                ("packages/legacy/drop", true),
+                ("npm-debug.log.1", false),
+                (".env.local", false),
+                ("build-prod/out.tmp", false),
+                ("services/auth/local_cache", true),
+                ("services/auth/local_cache/data.bin", false),
+                ("services/billing/local_cache/data.bin", false),
+                ("services/auth/db.secret", false),
+                ("services/auth/public.secret", false),
+                ("services/auth/snapshots/login.snap", false),
+                ("services/billing/snapshots/login.snap", false)
+            ];
+
+            foreach (var (path, isDir) in testCases)
+            {
+                if (isDir)
+                {
+                    var legacyIgnored = legacy.IsIgnoredDirectory(path, out var legacyKept);
+                    var trieIgnored = trie.IsIgnoredDirectory(path, out var trieKept);
+                    trieIgnored.Should().Be(legacyIgnored, $"directory '{path}' IsIgnoredDirectory mismatch");
+                    trieKept.Should().Be(legacyKept, $"directory '{path}' keptForLaterNegation mismatch");
+                }
+                else
+                {
+                    var legacyIgnoredFull = legacy.IsIgnoredFile(path, skipDirectoryOnlyRules: false);
+                    var trieIgnoredFull = trie.IsIgnoredFile(path, skipDirectoryOnlyRules: false);
+                    trieIgnoredFull.Should().Be(legacyIgnoredFull, $"file '{path}' (skipDirOnly=false) mismatch");
+
+                    var legacyIgnoredSkipDir = legacy.IsIgnoredFile(path, skipDirectoryOnlyRules: true);
+                    var trieIgnoredSkipDir = trie.IsIgnoredFile(path, skipDirectoryOnlyRules: true);
+                    trieIgnoredSkipDir.Should().Be(legacyIgnoredSkipDir, $"file '{path}' (skipDirOnly=true) mismatch");
+                }
+            }
+
+            // Also verify incremental GitIgnoreScopeChain compilation parity for subtree paths
+            var authChain = trie.CompileChildScope(trie.RootScope, "services/auth", nestedIgnore, null);
+            trie.IsIgnoredDirectoryInScope(authChain, "services/auth/local_cache", out _).Should().BeTrue();
+            trie.IsIgnoredFileInScope(authChain, "services/auth/db.secret", skipDirectoryOnlyRules: true).Should().BeTrue();
+            trie.IsIgnoredFileInScope(authChain, "services/auth/public.secret", skipDirectoryOnlyRules: true).Should().BeFalse();
+            trie.IsIgnoredFileInScope(trie.RootScope, "services/billing/db.secret", skipDirectoryOnlyRules: true).Should().BeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void Benchmark_GitIgnoreTrieMatcher_Vs_LegacyRegexMatcher_On700Projects44kFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_trie_bench_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var legacy = new GitIgnoreMatcher(tempDir);
+            var trie = new GitIgnoreTrieMatcher(tempDir);
+
+            // Root .gitignore with 40 realistic rules
+            string[] rootRules =
+            [
+                "*.log", "*.tmp", "*.bak", "*.swp", "*.pyc", "*.pyo", "*.pyd", "*.so", "*.dylib", "*.dll",
+                "*.exe", "*.o", "*.a", "*.class", "*.jar", "*.war", "*.ear", "*.zip", "*.tar.gz", "*.rar",
+                "*.generated.cs", "*.g.cs", "*.g.i.cs", "*.designer.cs", "*.min.js", "*.bundle.js",
+                "npm-debug.log*", "yarn-debug.log*", "yarn-error.log*", "pnpm-debug.log*", ".env.*",
+                "coverage/", ".nyc_output/", ".cache/", ".parcel-cache/", ".turbo/", ".vercel/",
+                "docs/internal/drafts/", "scripts/local/tmp/", "!scripts/local/tmp/keep.sh"
+            ];
+            foreach (var r in rootRules)
+            {
+                legacy.AddPattern(r);
+                trie.AddPattern(r);
+            }
+
+            // 100 scoped project .gitignore files across 700 projects (15 rules each = 1,500 scoped rules)
+            for (var p = 0; p < 100; p++)
+            {
+                var scope = $"repos/project-{p:D3}";
+                string[] scopedRules =
+                [
+                    "dist/", "build/", "out/", ".next/", "coverage/", "temp/",
+                    "*.tsbuildinfo", "*.local", "*.snap", "*.orig",
+                    "src/generated/", "!src/generated/schema.ts",
+                    "test-results/", "playwright-report/", "cypress/videos/"
+                ];
+                foreach (var sr in scopedRules)
+                {
+                    legacy.AddPattern(sr, scope);
+                    trie.AddPattern(sr, scope);
+                }
+            }
+
+            // Generate 44,000 realistic file paths and 7,000 directory paths across 700 projects
+            var filePaths = new string[44000];
+            for (var i = 0; i < filePaths.Length; i++)
+            {
+                var projIdx = i % 700;
+                var modIdx = (i / 10) % 20;
+                filePaths[i] = (i % 12) switch
+                {
+                    0 => $"repos/project-{projIdx:D3}/src/modules/mod-{modIdx}/service-{i}.ts",
+                    1 => $"repos/project-{projIdx:D3}/src/modules/mod-{modIdx}/controller-{i}.cs",
+                    2 => $"repos/project-{projIdx:D3}/src/components/View-{i}.tsx",
+                    3 => $"repos/project-{projIdx:D3}/src/domain/Entity-{i}.go",
+                    4 => $"repos/project-{projIdx:D3}/src/generated/Client-{i}.generated.cs",
+                    5 => $"repos/project-{projIdx:D3}/dist/assets/app-{i}.min.js",
+                    6 => $"repos/project-{projIdx:D3}/logs/server-{i}.log",
+                    7 => $"repos/project-{projIdx:D3}/tests/unit/spec-{i}.spec.ts",
+                    8 => $"repos/project-{projIdx:D3}/src/repositories/Repo-{i}.py",
+                    9 => $"repos/project-{projIdx:D3}/src/generated/schema.ts",
+                    10 => $"repos/project-{projIdx:D3}/.env.development",
+                    _ => $"repos/project-{projIdx:D3}/src/handlers/Handler-{i}.java"
+                };
+            }
+
+            var dirPaths = new string[7000];
+            for (var i = 0; i < dirPaths.Length; i++)
+            {
+                var projIdx = i % 700;
+                dirPaths[i] = (i % 7) switch
+                {
+                    0 => $"repos/project-{projIdx:D3}/src",
+                    1 => $"repos/project-{projIdx:D3}/src/modules",
+                    2 => $"repos/project-{projIdx:D3}/node_modules",
+                    3 => $"repos/project-{projIdx:D3}/dist",
+                    4 => $"repos/project-{projIdx:D3}/src/generated",
+                    5 => $"repos/project-{projIdx:D3}/tests/unit",
+                    _ => $"repos/project-{projIdx:D3}/src/components"
+                };
+            }
+
+            // Warmup & verify parity on sample
+            for (var i = 0; i < 500; i++)
+            {
+                var lRes = legacy.IsIgnoredFile(filePaths[i], skipDirectoryOnlyRules: true);
+                var tRes = trie.IsIgnoredFile(filePaths[i], skipDirectoryOnlyRules: true);
+                tRes.Should().Be(lRes, $"file '{filePaths[i]}' parity mismatch");
+            }
+
+            var swLegacy = System.Diagnostics.Stopwatch.StartNew();
+            var legacyIgnoredCount = 0;
+            for (var i = 0; i < dirPaths.Length; i++)
+            {
+                if (legacy.IsIgnoredDirectory(dirPaths[i], out _)) legacyIgnoredCount++;
+            }
+            for (var i = 0; i < filePaths.Length; i++)
+            {
+                if (legacy.IsIgnoredFile(filePaths[i], skipDirectoryOnlyRules: true)) legacyIgnoredCount++;
+            }
+            swLegacy.Stop();
+
+            var swTrie = System.Diagnostics.Stopwatch.StartNew();
+            var trieIgnoredCount = 0;
+            for (var i = 0; i < dirPaths.Length; i++)
+            {
+                if (trie.IsIgnoredDirectory(dirPaths[i], out _)) trieIgnoredCount++;
+            }
+            for (var i = 0; i < filePaths.Length; i++)
+            {
+                if (trie.IsIgnoredFile(filePaths[i], skipDirectoryOnlyRules: true)) trieIgnoredCount++;
+            }
+            swTrie.Stop();
+
+            var speedup = swLegacy.Elapsed.TotalMilliseconds / Math.Max(0.01, swTrie.Elapsed.TotalMilliseconds);
+            TestContext.Out.WriteLine(
+                $"[GitIgnore Benchmark: 700 projects, 100 scoped .gitignore files (~1,580 rules), 7,000 dirs + 44,000 files]\n" +
+                $"  Legacy Regex GitIgnoreMatcher : {swLegacy.Elapsed.TotalMilliseconds:F2} ms (ignored={legacyIgnoredCount})\n" +
+                $"  Zero-Regex GitIgnoreTrieMatcher: {swTrie.Elapsed.TotalMilliseconds:F2} ms (ignored={trieIgnoredCount})\n" +
+                $"  Speedup                        : {speedup:F2}x faster");
+
+            trieIgnoredCount.Should().Be(legacyIgnoredCount);
+            swTrie.Elapsed.Should().BeLessThan(swLegacy.Elapsed);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

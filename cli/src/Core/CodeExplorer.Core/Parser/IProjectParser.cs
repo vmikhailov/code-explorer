@@ -182,6 +182,11 @@ public interface IProjectParser
     void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null) { }
 
     /// <summary>
+    /// Collects dialect-specific ignore patterns (relative to the directory or workspace) when entering a project directory (e.g. LibMan destinations).
+    /// </summary>
+    void CollectDirectoryIgnorePatterns(string directoryPath, string relativeDir, string workspaceRoot, List<string> outGlobalPatterns, Action<string>? log = null) { }
+
+    /// <summary>
     /// Inspects files discovered in a directory to record dialect-specific binary/native artifacts on the workspace node.
     /// </summary>
     void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) { }

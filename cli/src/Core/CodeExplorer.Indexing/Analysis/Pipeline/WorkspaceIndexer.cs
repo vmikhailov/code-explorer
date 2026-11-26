@@ -382,13 +382,11 @@ public class WorkspaceIndexer
 
         if (ctx.IncrementalChangedFiles == null)
         {
-            // Register all project manifests across the workspace
-            var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
             // Register all project manifests discovered in Layer 1 without re-scanning disk
             var fileByRelPath = files.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             var candidateManifests = ctx.DiscoveredManifestFiles.Count > 0
                 ? ctx.DiscoveredManifestFiles.Keys.Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)))
-                : ctx.FileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
+                : WorkspaceCandidateEnumerator.EnumerateWithTrie(ctx.FileFilter, ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, new GitIgnoreTrieMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter))
                 .Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)));
 
             foreach (var relPath in candidateManifests)
@@ -536,7 +534,7 @@ public class WorkspaceIndexer
         }
 
         var filter = new WorkspaceFileFilter(_projectParsers, _fileParsers);
-        var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath, filter);
+        var gitTrie = new GitIgnoreTrieMatcher(absoluteWorkspacePath, filter);
 
         var targetSubPath = string.Equals(absoluteTargetPath, absoluteWorkspacePath, StringComparison.OrdinalIgnoreCase)
             ? null
@@ -547,16 +545,17 @@ public class WorkspaceIndexer
         {
             var filteredPaths = knownChangedFiles
                 .Select(p => p.Replace('\\', '/').TrimStart('/'))
-                .Where(p => !string.IsNullOrWhiteSpace(p) && !gitignore.IsIgnored(p, false))
+                .Where(p => !string.IsNullOrWhiteSpace(p) && !gitTrie.IsIgnored(p, false))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             changeset = _fileRegistry.ComputeChangesetForKnownPaths(absoluteWorkspacePath, filteredPaths);
         }
         else
         {
-            var allFiles = filter.EnumerateCandidateFiles(
+            var allFiles = WorkspaceCandidateEnumerator.EnumerateWithTrie(
+                filter,
                 absoluteTargetPath,
                 absoluteWorkspacePath,
-                gitignore,
+                gitTrie,
                 msg => _logger.LogInformation("{Msg}", msg));
             changeset = _fileRegistry.ComputeChangeset(absoluteWorkspacePath, allFiles, targetSubPath);
         }

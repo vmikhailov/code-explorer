@@ -182,74 +182,11 @@ public partial class Layer2ProjectParser
         }
     }
 
-    private static readonly HashSet<string> CandidateTriggerFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "package.json", "tsconfig.json", "tsconfig.base.json", "jsconfig.json",
-        "project.json", "ng-package.json", "wrangler.toml", "wrangler.jsonc",
-        "wrangler.json", "angular.json", "nest-cli.json",
-        "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "AndroidManifest.xml",
-        "go.mod", "Cargo.toml",
-        "requirements.txt", "pyproject.toml", "setup.py", "setup.cfg", "Pipfile", "alembic.ini", "manage.py",
-        "composer.json", "composer.lock",
-        "cpanfile", "Makefile.PL", "Build.PL", "META.json", "META.yml", "dist.ini",
-        "terragrunt.hcl", "root.hcl",
-        "box.json", "Application.cfc", "Application.cfm",
-        "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "packages.config",
-        "Dockerfile", "compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"
-    };
+    private static bool HasCandidateProjectTrigger(string dir, string[] filesInDir) =>
+        ProjectTriggerDetector.HasCandidateProjectTrigger(dir, filesInDir);
 
-    private static readonly HashSet<string> CandidateTriggerExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".csproj", ".fsproj", ".vbproj", ".nuspec",
-        ".tf", ".tofu",
-        ".cfc", ".cfm", ".cfml",
-        ".php", ".phtml", ".inc",
-        ".pl", ".pm", ".t", ".psgi",
-        ".py"
-    };
-
-    private const string BuiltInParserNamespacePrefix = "CodeExplorer.Parsers";
-
-    private static bool HasCandidateProjectTrigger(string dir, string[] filesInDir)
-    {
-        if (PhysicalFileStore.IsGitRepositoryRoot(dir) ||
-            PhysicalFileStore.TryGetConfiguredProject(dir, out _))
-        {
-            return true;
-        }
-
-        if (filesInDir.Length == 0)
-        {
-            return IsPotentialManifestlessBinarySubfolder(dir);
-        }
-
-        for (var i = 0; i < filesInDir.Length; i++)
-        {
-            var file = filesInDir[i];
-            var fileName = Path.GetFileName(file);
-            if (CandidateTriggerFileNames.Contains(fileName))
-            {
-                return true;
-            }
-
-            var ext = Path.GetExtension(fileName);
-            if (!string.IsNullOrEmpty(ext) && CandidateTriggerExtensions.Contains(ext))
-            {
-                return true;
-            }
-        }
-
-        return IsPotentialManifestlessBinarySubfolder(dir) ||
-               WorkspaceIndexer._projectParsers.Any(p => !p.IsFallback && p.GetType().Namespace?.StartsWith(BuiltInParserNamespacePrefix, StringComparison.Ordinal) != true);
-    }
-
-    private static bool IsPotentialManifestlessBinarySubfolder(string dir)
-    {
-        var parentDir = Path.GetDirectoryName(dir.TrimEnd('/', '\\'));
-        if (string.IsNullOrEmpty(parentDir)) return false;
-        var parentName = Path.GetFileName(parentDir);
-        return parentName.Equals("bin", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsPotentialManifestlessBinarySubfolder(string dir) =>
+        ProjectTriggerDetector.IsPotentialManifestlessBinarySubfolder(dir);
 
     private static bool HasChildContainerProjectTrigger(DirectoryTreeNode node)
     {
@@ -270,7 +207,7 @@ public partial class Layer2ProjectParser
         {
             var fileName = Path.GetFileName(filesInDir[i]);
             if (parser.IsManifestFile(fileName) ||
-                CandidateTriggerFileNames.Contains(fileName))
+                ProjectTriggerDetector.CandidateTriggerFileNames.Contains(fileName))
             {
                 return true;
             }
@@ -294,10 +231,13 @@ public partial class Layer2ProjectParser
         string dir,
         string[] filesInDir,
         EnclosingProjectScope? enclosingScope,
-        DirectoryScanState state)
+        DirectoryScanState state,
+        bool? precomputedIsLeafGitRepo = null,
+        bool? precomputedHasSourceFiles = null)
     {
-        if (PhysicalFileStore.TryGetConfiguredProject(dir, out _) ||
-            (PhysicalFileStore.IsGitRepositoryRoot(dir) && !PhysicalFileStore.HasChildGitRepositories(dir)))
+        var isLeafGitRepo = precomputedIsLeafGitRepo
+                            ?? (PhysicalFileStore.IsGitRepositoryRoot(dir) && !PhysicalFileStore.HasChildGitRepositories(dir));
+        if ((PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(dir, out _)) || isLeafGitRepo)
         {
             return null;
         }
@@ -311,7 +251,7 @@ public partial class Layer2ProjectParser
             }
         }
 
-        var sourcelessOwner = SourcelessManifestDetector.FindOwner(dir, filesInDir, state.Projects, state.Ctx);
+        var sourcelessOwner = SourcelessManifestDetector.FindOwner(dir, filesInDir, state.Projects, state.Ctx, precomputedHasSourceFiles);
         if (sourcelessOwner != null)
         {
             return sourcelessOwner;
@@ -370,16 +310,21 @@ public partial class Layer2ProjectParser
         string dir,
         string[] filesInDir,
         EnclosingProjectScope? enclosingScope,
-        ParsingContext ctx)
+        ParsingContext ctx,
+        bool? precomputedIsLeafGitRepo = null,
+        SubtreeLanguageCounts? precomputedCounts = null)
     {
-        var isExplicitConfigured = PhysicalFileStore.TryGetConfiguredProject(dir, out var configuredSetting) && configuredSetting != null;
-        if (!isExplicitConfigured && PhysicalFileStore.HasChildConfiguredProjects(dir))
+        WorkspaceProjectSetting? configuredSetting = null;
+        var isExplicitConfigured = PhysicalFileStore.HasAnyConfiguredProjects &&
+                                   PhysicalFileStore.TryGetConfiguredProject(dir, out configuredSetting) &&
+                                   configuredSetting != null;
+        if (!isExplicitConfigured && PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.HasChildConfiguredProjects(dir))
         {
             return [];
         }
 
-        var isNestedGitRepo = PhysicalFileStore.IsGitRepositoryRoot(dir) &&
-                              !PhysicalFileStore.HasChildGitRepositories(dir);
+        var isNestedGitRepo = precomputedIsLeafGitRepo
+                              ?? (PhysicalFileStore.IsGitRepositoryRoot(dir) && !PhysicalFileStore.HasChildGitRepositories(dir));
         var parseContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath);
         var matchedResults = new List<(IProjectParser Parser, ProjectParseResult Result)>();
 
@@ -440,168 +385,8 @@ public partial class Layer2ProjectParser
         var matchingParsers = matchedResults.Select(m => m.Parser).ToList();
         ProjectParserPrecedence.RemoveSuperseded(matchingParsers);
         var filtered = matchedResults.Where(m => matchingParsers.Contains(m.Parser)).ToList();
-        return RankMultiEcosystemMatches(dir, filtered);
+        return RankMultiEcosystemMatches(dir, filtered, precomputedCounts);
     }
-
-    private const string ExtOrchestratorKey = "is_orchestrator";
-    private const string TrueFlagValue = "true";
-
-    private static List<(IProjectParser Parser, ProjectParseResult Result)> RankMultiEcosystemMatches(
-        string dir,
-        List<(IProjectParser Parser, ProjectParseResult Result)> matches)
-    {
-        if (matches.Count <= 1 || !PhysicalFileStore.HasCachedDirectory(dir))
-        {
-            return matches;
-        }
-
-        var counts = CountLanguageFilesInSubtree(dir);
-        var maxPrimaryAppFiles = 0;
-        foreach (var (parser, _) in matches)
-        {
-            if (ProjectParserPrecedence.GetTier(parser) == ParserTier.Primary &&
-                !string.Equals(parser.ProjectType, "terraform", StringComparison.OrdinalIgnoreCase))
-            {
-                var c = GetParserLanguageFileCount(parser.ProjectType, counts);
-                if (c > maxPrimaryAppFiles) maxPrimaryAppFiles = c;
-            }
-        }
-
-        if (maxPrimaryAppFiles == 0)
-        {
-            return matches;
-        }
-
-        var pruned = matches
-            .Where(m =>
-            {
-                if (ProjectParserPrecedence.GetTier(m.Parser) != ParserTier.Primary) return true;
-                if (m.Result.ClaimMode == ParserClaimMode.AbsorbSecondaryInDirectory) return true;
-                if (m.Result.AdditionalSiblingProjects is { Count: > 0 }) return true;
-                if (m.Result.Project.ManifestProperties != null &&
-                    m.Result.Project.ManifestProperties.TryGetValue(ExtOrchestratorKey, out var orch) &&
-                    orch == TrueFlagValue)
-                {
-                    return true;
-                }
-                return GetParserLanguageFileCount(m.Parser.ProjectType, counts) > 0;
-            })
-            .ToList();
-
-        if (pruned.Count == 0)
-        {
-            return matches;
-        }
-
-        return pruned
-            .Select((item, idx) => (
-                item,
-                idx,
-                tier: ProjectParserPrecedence.GetTier(item.Parser) == ParserTier.Primary ? 1 : 0,
-                isAppLang: !string.Equals(item.Parser.ProjectType, "terraform", StringComparison.OrdinalIgnoreCase) ? 1 : 0,
-                count: GetParserLanguageFileCount(item.Parser.ProjectType, counts)))
-            .OrderByDescending(x => x.tier)
-            .ThenByDescending(x => x.count > 0 ? x.isAppLang : 0)
-            .ThenByDescending(x => x.count)
-            .ThenBy(x => x.idx)
-            .Select(x => x.item)
-            .ToList();
-    }
-
-    private readonly record struct SubtreeLanguageCounts(
-        int TypeScript,
-        int JavaScript,
-        int Python,
-        int Java,
-        int Kotlin,
-        int CSharp,
-        int Go,
-        int Rust,
-        int Php,
-        int Perl,
-        int Ruby,
-        int Cpp,
-        int Swift,
-        int Terraform,
-        int ColdFusion);
-
-    private static SubtreeLanguageCounts CountLanguageFilesInSubtree(string dir)
-    {
-        int ts = 0, js = 0, py = 0, java = 0, kt = 0, cs = 0, go = 0, rs = 0, php = 0, pl = 0, rb = 0, cpp = 0, swift = 0, tf = 0, cf = 0;
-        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(dir))
-        {
-            switch (Path.GetExtension(file).ToLowerInvariant())
-            {
-                case ".ts" or ".tsx" or ".mts" or ".cts":
-                    ts++;
-                    break;
-                case ".js" or ".jsx" or ".mjs" or ".cjs":
-                    js++;
-                    break;
-                case ".py" or ".pyi":
-                    py++;
-                    break;
-                case ".java" or ".groovy":
-                    java++;
-                    break;
-                case ".kt":
-                    kt++;
-                    break;
-                case ".cs" or ".razor" or ".cshtml":
-                    cs++;
-                    break;
-                case ".go":
-                    go++;
-                    break;
-                case ".rs":
-                    rs++;
-                    break;
-                case ".php" or ".phtml" or ".inc":
-                    php++;
-                    break;
-                case ".pl" or ".pm":
-                    pl++;
-                    break;
-                case ".rb":
-                    rb++;
-                    break;
-                case ".c" or ".cc" or ".cpp" or ".cxx" or ".h" or ".hpp":
-                    cpp++;
-                    break;
-                case ".swift":
-                    swift++;
-                    break;
-                case ".tf" or ".tfvars" or ".hcl" or ".tofu":
-                    tf++;
-                    break;
-                case ".cfc" or ".cfm":
-                    cf++;
-                    break;
-            }
-        }
-        return new SubtreeLanguageCounts(ts, js, py, java, kt, cs, go, rs, php, pl, rb, cpp, swift, tf, cf);
-    }
-
-    private static int GetParserLanguageFileCount(string projectType, SubtreeLanguageCounts c) =>
-        projectType.ToLowerInvariant() switch
-        {
-            "typescript" => c.TypeScript + c.JavaScript,
-            "javascript" => c.JavaScript + c.TypeScript,
-            "python" => c.Python,
-            "java" => c.Java,
-            "kotlin" => c.Kotlin,
-            "csharp" => c.CSharp,
-            "go" => c.Go,
-            "rust" => c.Rust,
-            "php" => c.Php,
-            "perl" => c.Perl,
-            "ruby" => c.Ruby,
-            "cpp" => c.Cpp,
-            "swift" => c.Swift,
-            "terraform" => c.Terraform,
-            "coldfusion" => c.ColdFusion,
-            _ => 0
-        };
 
     private static IProjectParser? ResolveConfiguredProjectParser(string dir, WorkspaceProjectSetting setting)
     {
