@@ -809,6 +809,9 @@ public partial class TypeScriptProjectParser : IProjectParser
                 })
                 .Take(200);
 
+            var tsConfigDir = Path.GetDirectoryName(tsConfigPath) ?? projectDirectory;
+            var normSelfDir = Path.GetFullPath(projectDirectory).Replace('\\', '/').TrimEnd('/');
+            var normRootDir = Path.GetFullPath(tsConfigDir).Replace('\\', '/').TrimEnd('/');
             var matchedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var file in tsFiles)
@@ -834,11 +837,21 @@ public partial class TypeScriptProjectParser : IProjectParser
 
                     if (text.Contains($"'{alias}") || text.Contains($"\"{alias}"))
                     {
+                        const string wildcardVer = "*", ecoNpm = "npm", scopeRuntime = "runtime";
                         matchedTargets.Add(target);
 
-                        if (existingNames.Add(shortName))
+                        var ownerDir = TryResolveTsConfigTargetProjectDir(tsConfigDir, normRootDir, target);
+                        if (ownerDir != null)
                         {
-                            externalPackages.Add(new ProducedPackageInfo(shortName, "*", "npm", "runtime"));
+                            if (!ownerDir.Equals(normSelfDir, StringComparison.OrdinalIgnoreCase) &&
+                                !localProjectPaths.Contains(ownerDir, StringComparer.OrdinalIgnoreCase))
+                            {
+                                localProjectPaths.Add(ownerDir);
+                            }
+                        }
+                        else if (existingNames.Add(alias))
+                        {
+                            externalPackages.Add(new ProducedPackageInfo(alias, wildcardVer, ecoNpm, scopeRuntime));
                         }
                     }
                 }
@@ -848,5 +861,37 @@ public partial class TypeScriptProjectParser : IProjectParser
         {
             // Ignore
         }
+    }
+
+    private static string? TryResolveTsConfigTargetProjectDir(string tsConfigDir, string normRootDir, string targetRelPath)
+    {
+        const string projJsonName = "project.json", pkgJsonName = "package.json", slash = "/";
+        try
+        {
+            var fullTarget = Path.GetFullPath(Path.Combine(tsConfigDir, targetRelPath));
+            var curr = Directory.Exists(fullTarget) ? fullTarget : Path.GetDirectoryName(fullTarget);
+            while (!string.IsNullOrEmpty(curr))
+            {
+                var normCurr = curr.Replace('\\', '/').TrimEnd('/');
+                if (normCurr.Equals(normRootDir, StringComparison.OrdinalIgnoreCase) ||
+                    !normCurr.StartsWith(normRootDir + slash, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (File.Exists(Path.Combine(curr, projJsonName)) ||
+                    File.Exists(Path.Combine(curr, pkgJsonName)))
+                {
+                    return normCurr;
+                }
+
+                curr = Path.GetDirectoryName(curr);
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
+        {
+            // Ignore malformed path
+        }
+        return null;
     }
 }

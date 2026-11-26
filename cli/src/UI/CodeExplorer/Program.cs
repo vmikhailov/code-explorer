@@ -46,7 +46,8 @@ public class Program
             typeof(TraceOptions), typeof(CallChainOptions), typeof(LineageOptions),
             typeof(TestOptions), typeof(CoverageOptions), typeof(ConfigureOptions), typeof(GateOptions), typeof(CallersOptions),
             typeof(ImpactOptions), typeof(ContextOptions), typeof(SearchOptions), typeof(SymbolOptions), typeof(FindSymbolAliasOptions),
-            typeof(TaxonomyOptions), typeof(SchemaOptions), typeof(DoctorOptions), typeof(DetectorOptions)
+            typeof(TaxonomyOptions), typeof(SchemaOptions), typeof(DoctorOptions), typeof(DetectorOptions),
+            typeof(DomainsOptions), typeof(SliceOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -81,6 +82,8 @@ public class Program
                 TaxonomyOptions opts => await TaxonomyCommandHandler.HandleAsync(opts),
                 DoctorOptions opts => await DoctorCommandHandler.HandleAsync(opts),
                 DetectorOptions opts => await DetectorCommandHandler.HandleAsync(opts),
+                DomainsOptions opts => await DomainsCommandHandler.HandleAsync(opts),
+                SliceOptions opts => await SliceCommandHandler.HandleAsync(opts),
                 _ => 1
             };
         }

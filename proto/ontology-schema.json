@@ -448,6 +448,12 @@
           "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
         },
         {
+          "rel": "SERVICE_CALL",
+          "toKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+        },
+        {
           "rel": "PUBLISHES_TO",
           "toKind": "Topic",
           "category": "data_flow",
@@ -473,6 +479,12 @@
         }
       ],
       "inEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "fromKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+        },
         {
           "rel": "DEPLOYS",
           "fromKind": "CloudResource",
@@ -639,6 +651,13 @@
           "inheritedFrom": "Workload"
         },
         {
+          "rel": "SERVICE_CALL",
+          "toKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "PUBLISHES_TO",
           "toKind": "Topic",
           "category": "data_flow",
@@ -731,6 +750,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "fromKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "DEPLOYS",
           "fromKind": "CloudResource",
@@ -851,6 +877,13 @@
           "inheritedFrom": "Workload"
         },
         {
+          "rel": "SERVICE_CALL",
+          "toKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "PUBLISHES_TO",
           "toKind": "Topic",
           "category": "data_flow",
@@ -943,6 +976,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "fromKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "DEPLOYS",
           "fromKind": "CloudResource",
@@ -1050,6 +1090,13 @@
           "inheritedFrom": "Workload"
         },
         {
+          "rel": "SERVICE_CALL",
+          "toKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "PUBLISHES_TO",
           "toKind": "Topic",
           "category": "data_flow",
@@ -1142,6 +1189,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "fromKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "DEPLOYS",
           "fromKind": "CloudResource",
@@ -1242,6 +1296,13 @@
           "inheritedFrom": "Workload"
         },
         {
+          "rel": "SERVICE_CALL",
+          "toKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
+        {
           "rel": "PUBLISHES_TO",
           "toKind": "Topic",
           "category": "data_flow",
@@ -1334,6 +1395,13 @@
         }
       ],
       "inheritedInEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "fromKind": "Workload",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API.",
+          "inheritedFrom": "Workload"
+        },
         {
           "rel": "DEPLOYS",
           "fromKind": "CloudResource",
@@ -5161,6 +5229,12 @@
           "description": "Links an executable ProjectNode to its binary or process EntryPointNode."
         },
         {
+          "rel": "SERVICE_CALL",
+          "toKind": "Project",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+        },
+        {
           "rel": "DEPENDS_ON",
           "toKind": "Package",
           "category": "type_dependency",
@@ -5210,6 +5284,12 @@
         }
       ],
       "inEdges": [
+        {
+          "rel": "SERVICE_CALL",
+          "fromKind": "Project",
+          "category": "control_flow",
+          "description": "Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API."
+        },
         {
           "rel": "DEPENDS_ON",
           "fromKind": "Project",
@@ -6183,12 +6263,20 @@
       ],
       "pairs": [
         {
+          "fromKind": "Project",
+          "toKind": "Project"
+        },
+        {
           "fromKind": "Workload",
           "toKind": "ExternalService"
         },
         {
           "fromKind": "Workload",
           "toKind": "Service"
+        },
+        {
+          "fromKind": "Workload",
+          "toKind": "Workload"
         }
       ]
     },

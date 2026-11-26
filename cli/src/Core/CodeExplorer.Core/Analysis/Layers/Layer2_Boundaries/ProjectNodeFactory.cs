@@ -134,6 +134,61 @@ public static class ProjectNodeFactory
         _ => null
     };
 
+    private static readonly HashSet<string> GenericPackageOrModuleShortNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "core", "common", "commons", "src", "source", "lib", "libs", "library",
+        "app", "apps", "application", "api", "apis", "service", "services",
+        "server", "client", "clients", "utils", "util", "shared", "model", "models",
+        "dto", "dtos", "domain", "data", "db", "database", "main", "root",
+        "web", "ui", "frontend", "backend", "worker", "workers", "cli",
+        "tools", "tool", "scripts", "script", "config", "configuration",
+        "pkg", "internal", "base", "sdk", "spi", "test", "tests", "testing",
+        "unit-test", "integration-test", "spec", "specs", "docs"
+    };
+
+    public static bool IsGenericPackageShortName(string? name) =>
+        string.IsNullOrWhiteSpace(name) || GenericPackageOrModuleShortNames.Contains(name.Trim());
+
+    public static string GetCanonicalPackageEcosystem(ProjectLanguage lang) => lang switch
+    {
+        ProjectLanguage.TypeScript or ProjectLanguage.JavaScript => "npm",
+        ProjectLanguage.Java or ProjectLanguage.Kotlin or ProjectLanguage.Scala => "jvm",
+        ProjectLanguage.Python => "pypi",
+        ProjectLanguage.CSharp => "nuget",
+        ProjectLanguage.Go => "go",
+        ProjectLanguage.Rust => "cargo",
+        ProjectLanguage.Php => "composer",
+        ProjectLanguage.Perl => "cpan",
+        ProjectLanguage.Ruby => "rubygems",
+        ProjectLanguage.Terraform => "terraform",
+        ProjectLanguage.C or ProjectLanguage.Cpp => "native",
+        ProjectLanguage.Swift => "swiftpm",
+        _ => lang.ToCanonicalString()
+    };
+
+    public static string NormalizePackageEcosystem(string? rawEcosystem, ProjectLanguage fallbackLang)
+    {
+        if (!string.IsNullOrWhiteSpace(rawEcosystem))
+        {
+            var lower = rawEcosystem.Trim().ToLowerInvariant();
+            return lower switch
+            {
+                "npm" or "yarn" or "pnpm" or "node" or "typescript" or "javascript" => "npm",
+                "maven" or "gradle" or "jvm" or "java" or "kotlin" or "scala" or "groovy" => "jvm",
+                "pip" or "pypi" or "poetry" or "uv" or "conda" or "python" => "pypi",
+                "nuget" or "dotnet" or "csharp" => "nuget",
+                "go" or "gomod" => "go",
+                "cargo" or "crates" or "rust" => "cargo",
+                "composer" or "packagist" or "php" => "composer",
+                "cpan" or "perl" => "cpan",
+                "gem" or "rubygems" or "bundler" or "ruby" => "rubygems",
+                "terraform" or "hcl" or "opentofu" => "terraform",
+                _ => lower
+            };
+        }
+        return GetCanonicalPackageEcosystem(fallbackLang);
+    }
+
     public static bool AreCompatibleEcosystems(ProjectLanguage parentType, ProjectLanguage childType)
     {
         if (parentType == ProjectLanguage.Unspecified || childType == ProjectLanguage.Unspecified) return false;

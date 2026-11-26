@@ -903,6 +903,37 @@ public partial class Layer2ProjectParser
         }
     }
 
+    internal static void RegisterEcosystemPackageAlias(
+        Dictionary<string, ProjectNode> packageToProjectMap,
+        string? rawEcosystem,
+        string key,
+        ProjectNode candidate,
+        bool isExplicitPackageCoordinate = false)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var trimmed = key.Trim();
+        if (!isExplicitPackageCoordinate && ProjectNodeFactory.IsGenericPackageShortName(trimmed))
+        {
+            return;
+        }
+
+        var eco = ProjectNodeFactory.NormalizePackageEcosystem(rawEcosystem, candidate.ProjectType);
+        RegisterPackageAlias(packageToProjectMap, $"{eco}:{trimmed}", candidate);
+
+        if (eco == "pypi" && (trimmed.Contains('_') || trimmed.Contains('-')))
+        {
+            var pep503 = trimmed.Replace('_', '-');
+            if (!ProjectNodeFactory.IsGenericPackageShortName(pep503))
+            {
+                RegisterPackageAlias(packageToProjectMap, $"pypi:{pep503}", candidate);
+            }
+        }
+    }
+
     private static void RegisterProjectAliases(
         ProjectNode projectNode,
         string projectName,
@@ -910,16 +941,16 @@ public partial class Layer2ProjectParser
         bool isSingleEntryInDir,
         Dictionary<string, ProjectNode> packageToProjectMap)
     {
-        RegisterPackageAlias(packageToProjectMap, projectName, projectNode);
+        RegisterEcosystemPackageAlias(packageToProjectMap, null, projectName, projectNode);
         var normName = WorkspaceConventions.NormalizeServiceName(projectName);
         if (!string.IsNullOrEmpty(normName))
         {
-            RegisterPackageAlias(packageToProjectMap, normName, projectNode);
+            RegisterEcosystemPackageAlias(packageToProjectMap, null, normName, projectNode);
             WorkspaceConventions.RegisterServiceAlias(projectName, normName);
         }
         if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase) && isSingleEntryInDir)
         {
-            RegisterPackageAlias(packageToProjectMap, folderName, projectNode);
+            RegisterEcosystemPackageAlias(packageToProjectMap, null, folderName, projectNode);
             WorkspaceConventions.RegisterServiceAlias(folderName, normName ?? projectName);
         }
     }
@@ -960,19 +991,10 @@ public partial class Layer2ProjectParser
         string dir,
         DirectoryScanState state)
     {
-        var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, state.Ctx);
+        var (prodPkg, prodEco, explicitCoord) = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, state.Ctx);
         if (!string.IsNullOrEmpty(prodPkg))
         {
-            RegisterPackageAlias(state.PackageToProjectMap, prodPkg, projectNode);
-            RegisterPackageAlias(state.PackageToProjectMap, $"{state.Ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prodPkg.ToLowerInvariant()}", projectNode);
-            if (prodPkg.Contains('/'))
-            {
-                var shortName = prodPkg.Split('/')[^1];
-                if (!string.IsNullOrEmpty(shortName))
-                {
-                    RegisterPackageAlias(state.PackageToProjectMap, shortName, projectNode);
-                }
-            }
+            RegisterEcosystemPackageAlias(state.PackageToProjectMap, prodEco, prodPkg, projectNode, isExplicitPackageCoordinate: explicitCoord);
         }
     }
 }

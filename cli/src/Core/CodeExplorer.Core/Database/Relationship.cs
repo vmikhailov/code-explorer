@@ -63,6 +63,9 @@ public record Relationship
     private const string PropOut = "out";
     private const string PropOutputName = "output_name";
     private const string PropInferred = "inferred";
+    private const string PropReason = "reason";
+    private const string PropSourceDep = "source_dep";
+    private const string PropMatchedEndpoint = "matched_endpoint";
     private const string BoolTrueStr = "true";
     private const string BoolFalseStr = "false";
 
@@ -211,6 +214,15 @@ public record Relationship
     public bool IsInferred { get; set; }
 
     [JsonIgnore]
+    public string? Reason { get; set; }
+
+    [JsonIgnore]
+    public string? SourceDep { get; set; }
+
+    [JsonIgnore]
+    public string? MatchedEndpoint { get; set; }
+
+    [JsonIgnore]
     public Dictionary<string, string>? CustomProperties { get; set; }
 
     [JsonIgnore]
@@ -258,6 +270,9 @@ public record Relationship
         !string.IsNullOrEmpty(ReferenceExpression) ||
         !string.IsNullOrEmpty(OutputName) ||
         IsInferred ||
+        !string.IsNullOrEmpty(Reason) ||
+        !string.IsNullOrEmpty(SourceDep) ||
+        !string.IsNullOrEmpty(MatchedEndpoint) ||
         (CustomProperties is { Count: > 0 }) ||
         (_properties is { Count: > 0 });
 
@@ -365,6 +380,9 @@ public record Relationship
         if (props.TryGetValue(PropOut, out var ot) && ot != null) OutputName = ot.ToString();
         else if (props.TryGetValue(PropOutputName, out var otLong) && otLong != null) OutputName = otLong.ToString();
         if (props.TryGetValue(PropInferred, out var inf) && bool.TryParse(inf?.ToString(), out var pInf)) IsInferred = pInf;
+        if (props.TryGetValue(PropReason, out var rsn) && rsn != null) Reason = rsn.ToString();
+        if (props.TryGetValue(PropSourceDep, out var sdep) && sdep != null) SourceDep = sdep.ToString();
+        if (props.TryGetValue(PropMatchedEndpoint, out var mep) && mep != null) MatchedEndpoint = mep.ToString();
         HydrateCallContext(props);
     }
 
@@ -452,6 +470,9 @@ public record Relationship
             dbRel.ReferenceExpression = typed.ReferenceExpression;
             dbRel.OutputName = typed.OutputName;
             dbRel.IsInferred = typed.IsInferred;
+            dbRel.Reason = typed.Reason;
+            dbRel.SourceDep = typed.SourceDep;
+            dbRel.MatchedEndpoint = typed.MatchedEndpoint;
         }
         if (rel.CustomProperties is { Count: > 0 })
         {
@@ -544,6 +565,9 @@ public record Relationship
             dict[PropOutputName] = OutputName;
         }
         if (IsInferred) dict[PropInferred] = BoolTrueStr;
+        if (!string.IsNullOrEmpty(Reason)) dict[PropReason] = Reason;
+        if (!string.IsNullOrEmpty(SourceDep)) dict[PropSourceDep] = SourceDep;
+        if (!string.IsNullOrEmpty(MatchedEndpoint)) dict[PropMatchedEndpoint] = MatchedEndpoint;
 
         if (EvidenceIds is { Count: > 0 })
         {
@@ -671,6 +695,9 @@ public record Relationship
             writer.WriteString(PropOutputName, OutputName);
         }
         if (IsInferred) writer.WriteString(PropInferred, BoolTrueStr);
+        if (!string.IsNullOrEmpty(Reason)) writer.WriteString(PropReason, Reason);
+        if (!string.IsNullOrEmpty(SourceDep)) writer.WriteString(PropSourceDep, SourceDep);
+        if (!string.IsNullOrEmpty(MatchedEndpoint)) writer.WriteString(PropMatchedEndpoint, MatchedEndpoint);
 
         if (EvidenceIds is { Count: > 0 })
         {

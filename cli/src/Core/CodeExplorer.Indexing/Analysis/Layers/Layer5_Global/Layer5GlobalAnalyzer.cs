@@ -409,22 +409,27 @@ public partial class Layer5AnalysisParser
 
             foreach (var entryPoint in candidateEntryPoints)
             {
+                if (!Layer5RuntimeCallBinder.HasSufficientRouteOrHostSpecificity(
+                        extService, entryPoint.Segments, extService.CallerProj, entryPoint.TargetProj, CheckProjectMatch,
+                        entryPoint.EntryPoint.EntryType.ToCanonicalString()))
+                {
+                    continue;
+                }
+
                 ctx.Layer5Log.BindingToEntryPoint(extService.Service.Id, entryPoint.EntryPoint.Id);
                 var rel = Relationship.FromRelationship(new CallsRelationship(extService.Service.Id, entryPoint.EntryPoint.Id));
                 lateBoundRels.Add(rel);
                 matchedEndpoint = true;
                 boundServicesCount++;
 
-                var callerProj = extService.CallerProj;
-                var targetProj = entryPoint.TargetProj;
-                if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
-                {
-                    if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
-                    {
-                        ctx.Layer5Log.SynthesizedDependencyViaEntryPoint(callerProj.Name, targetProj.Name, entryPoint.EntryPoint.Name);
-                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id) { DependencyType = "service_call" }));
-                    }
-                }
+                Layer5RuntimeCallBinder.EmitServiceCallViaEntryPoint(
+                    ctx,
+                    extService.CallerProj,
+                    entryPoint.TargetProj,
+                    entryPoint.EntryPoint.Name,
+                    extService.Service.DomainOrService,
+                    addedProjectDeps,
+                    lateBoundRels);
             }
 
             var candidateEndpoints = new List<PreparedEndpoint>();
@@ -480,6 +485,16 @@ public partial class Layer5AnalysisParser
 
             foreach (var endpoint in candidateEndpoints)
             {
+                if (extService.CallerProj != null &&
+                    endpoint.TargetProj != null &&
+                    extService.CallerProj.Id != endpoint.TargetProj.Id &&
+                    !Layer5RuntimeCallBinder.HasSufficientRouteOrHostSpecificity(
+                        extService, endpoint.Segments, extService.CallerProj, endpoint.TargetProj, CheckProjectMatch,
+                        endpoint.Endpoint.Protocol))
+                {
+                    continue;
+                }
+
                 ctx.Layer5Log.BindingToEndpoint(extService.Service.Id, endpoint.Endpoint.Id);
                 var epProtocol = endpoint.Endpoint.Protocol ?? "REST";
                 var evKind = epProtocol.Equals("gRPC", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
@@ -538,73 +553,28 @@ public partial class Layer5AnalysisParser
                     }
                 }
 
-                // Synthesize Project -> Project DEPENDS_ON relationship
-                var callerProj = extService.CallerProj;
-                var targetProj = endpoint.TargetProj;
-
-                if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
-                {
-                    var contribRel = rel;
-                    if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
-                    {
-                        ctx.Layer5Log.SynthesizedDependencyViaEndpoint(callerProj.Name, targetProj.Name, endpoint.Endpoint.RouteTemplate);
-                        var projDep = Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id) { DependencyType = "service_call" });
-                        EvidenceProvenanceHelper.RecordContributingEdge(projDep, contribRel);
-                        lateBoundRels.Add(projDep);
-                    }
-                    else
-                    {
-                        var existingProjDep = lateBoundRels.FirstOrDefault(r =>
-                            r.From == callerProj.Id && r.To == targetProj.Id && r.Kind == RelationshipKind.DependsOn);
-                        if (existingProjDep != null)
-                        {
-                            EvidenceProvenanceHelper.RecordContributingEdge(existingProjDep, contribRel);
-                        }
-                    }
-                }
+                // Synthesize runtime SERVICE_CALL relationship (never conflated with build-time DEPENDS_ON)
+                Layer5RuntimeCallBinder.EmitServiceCallViaEndpoint(
+                    ctx,
+                    extService.CallerProj,
+                    endpoint.TargetProj,
+                    endpoint.Endpoint.RouteTemplate,
+                    extService.Service.DomainOrService,
+                    rel,
+                    addedProjectDeps,
+                    lateBoundRels);
             }
 
-            // Also match by domain/service name ONLY if no endpoint was matched and a known project exists
-            if (!matchedEndpoint &&
-                !string.IsNullOrWhiteSpace(extService.Service.DomainOrService) &&
-                extService.Service.DomainOrService is not ("*" or "unknown-service"))
+            // Also match by domain/service name ONLY if no endpoint was matched and a single runnable service matches
+            if (!matchedEndpoint)
             {
-                if (extService.Service.Path.StartsWith('/') && !extService.Service.Path.Contains("://"))
-                {
-                    // Relative endpoint call, not remote microservice host
-                }
-                else
-                {
-                    var callerProj = extService.CallerProj;
-                    if (callerProj != null)
-                    {
-                        if (!CheckProjectMatch(callerProj, extService.Service.DomainOrService))
-                        {
-                            foreach (var proj in allProjects)
-                            {
-                                if (proj.Id == callerProj.Id) continue;
-                                var pName = proj.Name.ToLowerInvariant();
-
-                                if (pName.EndsWith(".tests") || pName.EndsWith(".test") ||
-                                    pName.EndsWith(".data") || pName.EndsWith(".logic") ||
-                                    pName.EndsWith(".contracts") || pName.EndsWith(".client") ||
-                                    pName.EndsWith(".common") || pName.EndsWith(".shared"))
-                                {
-                                    continue;
-                                }
-
-                                if (CheckProjectMatch(proj, extService.Service.DomainOrService))
-                                {
-                                    if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
-                                    {
-                                        ctx.Layer5Log.InferredDependencyViaDomain(callerProj.Name, proj.Name, extService.Service.DomainOrService);
-                                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id) { DependencyType = "service_call" }));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                Layer5RuntimeCallBinder.TryInferServiceCallViaHost(
+                    ctx,
+                    extService,
+                    allProjects,
+                    CheckProjectMatch,
+                    addedProjectDeps,
+                    lateBoundRels);
             }
 
             processedExt++;

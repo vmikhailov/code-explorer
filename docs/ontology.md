@@ -201,6 +201,7 @@ graph TD
     Project -->|LOCATED_IN| Workspace
     Project -->|CONTAINS| Project
     Project -->|DEPENDS_ON| Project
+    Project -->|SERVICE_CALL| Project
     Project -->|DEPENDS_ON| Package
     Project -->|PRODUCES| Package
     Project -->|CONTAINS| File
@@ -276,6 +277,7 @@ graph TD
     Worker -->|SUBSCRIBES_TO| Topic
     Workload -->|HOSTED_IN| Cloud
     Workload -->|IMPLEMENTED_BY| CloudResource
+    Workload -->|SERVICE_CALL| Workload
     Workload -->|SERVICE_CALL| Service
     Workload -->|SERVICE_CALL| ExternalService
     Workload -->|USES_DB| Database
@@ -604,6 +606,7 @@ graph TD
 | `LOCATED_IN` | `Workspace` |
 | `CONTAINS` | `Project` |
 | `DEPENDS_ON` | `Project` |
+| `SERVICE_CALL` | `Project` |
 | `DEPENDS_ON` | `Package` |
 | `PRODUCES` | `Package` |
 | `CONTAINS` | `File` |
@@ -623,6 +626,7 @@ graph TD
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `CONTAINS` |
 | `Project` | `DEPENDS_ON` |
+| `Project` | `SERVICE_CALL` |
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |
 
@@ -2021,6 +2025,7 @@ graph TD
 | :--- | :--- |
 | `HOSTED_IN` | `Cloud` |
 | `IMPLEMENTED_BY` | `CloudResource` |
+| `SERVICE_CALL` | `Workload` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |
@@ -2032,6 +2037,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `CloudResource` | `DEPLOYS` |
+| `Workload` | `SERVICE_CALL` |
 
 **Properties:**
 

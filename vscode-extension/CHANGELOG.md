@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.106.0] - 2026-11-26
+
+### Added
+- **Multi-Repo Domain Partitioning (`ce domains`)**: Coarsens nested `Project -[:CONTAINS]-> Project` and multi-module repository hierarchies into root units, projects IDF-weighted signals (`DEPENDS_ON`, internal `Package`s, shared `Topic`s & `Table`s, and verified `SERVICE_CALL`s), extracts high in-degree **Shared Platform / Commons** hubs (`--hub-threshold`), isolates standalone repositories via WCC, and partitions bounded-context domains using deterministic **Leiden community detection** (`--resolution`).
+- **Task-Focused Subgraph Slicing (`ce slice <seeds...>`)**: Runs **Personalized PageRank (PPR)** with automatic hub dampening from 1+ seed repositories, services, `/endpoint` routes, or database tables (`--max-repos`, `--alpha`), and optionally writes a ready-to-open VS Code multi-root `.code-workspace` file (`--write-workspace`).
+- **Provenance Metadata on Cross-Project Edges (`Relationship`)**: Added `reason` (`package_dep`, `local_project_ref`, `submodule_lib`, `runtime_http`, `runtime_entrypoint`, `runtime_host`), `source_dep`, and `matched_endpoint` properties on cross-project relationships.
+
+### Fixed
+- **Ecosystem-Scoped `Project -[:DEPENDS_ON]-> Project` Resolution (`Layer2BoundariesAnalyzer`, `ProjectNodeFactory`)**: Enforced strict package ecosystem compatibility (`npm`, `jvm`, `pypi`, `nuget`, `go`, `cargo`, `composer`, `cpan`, `rubygems`, `terraform`), preserved full `@scope/pkg` npm and `groupId:artifactId` Maven/Gradle coordinates without short-name stripping (`@actions/core` never matches a Java `core` module), and blocked generic directory short names (`core`, `common`, `src`, `lib`, `service`, `utils`) from registering unscoped package aliases.
+- **Separation of Runtime HTTP `SERVICE_CALL` from Build-Time `DEPENDS_ON` (`Layer5GlobalAnalyzer`, `Layer5RuntimeCallBinder`)**: Emitted verified cross-service HTTP/RPC bindings as `SERVICE_CALL` rather than `Project -[:DEPENDS_ON]-> Project`, excluded `Test` callers and `Library`/`Test` targets from runtime service-call synthesis, and required either an explicit host/service-name match or `>= 2` non-generic static route segments for cross-repository HTTP calls.
+
 ## [1.105.4] - 2026-11-26
 
 ### Fixed

@@ -122,4 +122,13 @@ public abstract record OntologyRelationship(
 
     [JsonIgnore]
     public bool IsInferred { get; init; }
+
+    [JsonIgnore]
+    public string? Reason { get; init; }
+
+    [JsonIgnore]
+    public string? SourceDep { get; init; }
+
+    [JsonIgnore]
+    public string? MatchedEndpoint { get; init; }
 }

@@ -117,16 +117,16 @@ public partial class Layer2ProjectParser
                     {
                         coveredPaths.Add((relativeProjectDir, relativeProjectDir.TrimEnd('/') + "/"));
                     }
-                    RegisterPackageAlias(packageToProjectMap, projectName, projectNode);
+                    RegisterEcosystemPackageAlias(packageToProjectMap, null, projectName, projectNode);
                     var normName = WorkspaceConventions.NormalizeServiceName(projectName);
                     if (!string.IsNullOrEmpty(normName))
                     {
-                        RegisterPackageAlias(packageToProjectMap, normName, projectNode);
+                        RegisterEcosystemPackageAlias(packageToProjectMap, null, normName, projectNode);
                         WorkspaceConventions.RegisterServiceAlias(projectName, normName);
                     }
                     if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
                     {
-                        RegisterPackageAlias(packageToProjectMap, folderName, projectNode);
+                        RegisterEcosystemPackageAlias(packageToProjectMap, null, folderName, projectNode);
                         WorkspaceConventions.RegisterServiceAlias(folderName, normName ?? projectName);
                     }
                 }
@@ -181,15 +181,15 @@ public partial class Layer2ProjectParser
 
                             projectsStructureNode.Children.Add(projectNode);
                             projects.Add(projectNode);
-                            RegisterPackageAlias(packageToProjectMap, projectName, projectNode);
+                            RegisterEcosystemPackageAlias(packageToProjectMap, null, projectName, projectNode);
                             var normName = WorkspaceConventions.NormalizeServiceName(projectName);
                             if (!string.IsNullOrEmpty(normName))
                             {
-                                RegisterPackageAlias(packageToProjectMap, normName, projectNode);
+                                RegisterEcosystemPackageAlias(packageToProjectMap, null, normName, projectNode);
                             }
                             if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
                             {
-                                RegisterPackageAlias(packageToProjectMap, folderName, projectNode);
+                                RegisterEcosystemPackageAlias(packageToProjectMap, null, folderName, projectNode);
                             }
 
                             if (depInfo != null)
@@ -198,19 +198,10 @@ public partial class Layer2ProjectParser
                                 projectDepList.Add((projectNode, depInfo));
                             }
 
-                            var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+                            var (prodPkg, prodEco, explicitCoord) = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
                             if (!string.IsNullOrEmpty(prodPkg))
                             {
-                                RegisterPackageAlias(packageToProjectMap, prodPkg, projectNode);
-                                RegisterPackageAlias(packageToProjectMap, $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prodPkg.ToLowerInvariant()}", projectNode);
-                                if (prodPkg.Contains('/'))
-                                {
-                                    var shortName = prodPkg.Split('/')[^1];
-                                    if (!string.IsNullOrEmpty(shortName))
-                                    {
-                                        RegisterPackageAlias(packageToProjectMap, shortName, projectNode);
-                                    }
-                                }
+                                RegisterEcosystemPackageAlias(packageToProjectMap, prodEco, prodPkg, projectNode, isExplicitPackageCoordinate: explicitCoord);
                             }
 
                             if (uncoveredFiles.All(f => projects.Any(p => IsEnclosedInProject(f, p, projects))))
@@ -246,12 +237,12 @@ public partial class Layer2ProjectParser
                 {
                     var oldName = proj.Name;
                     proj.Name = folderName;
-                    RegisterPackageAlias(packageToProjectMap, folderName, proj);
-                    RegisterPackageAlias(packageToProjectMap, oldName, proj);
+                    RegisterEcosystemPackageAlias(packageToProjectMap, null, folderName, proj);
+                    RegisterEcosystemPackageAlias(packageToProjectMap, null, oldName, proj);
                     var normFolder = WorkspaceConventions.NormalizeServiceName(folderName);
                     if (!string.IsNullOrEmpty(normFolder))
                     {
-                        RegisterPackageAlias(packageToProjectMap, normFolder, proj);
+                        RegisterEcosystemPackageAlias(packageToProjectMap, null, normFolder, proj);
                     }
                 }
             }
@@ -294,12 +285,12 @@ public partial class Layer2ProjectParser
             {
                 var oldName = proj.Name;
                 proj.Name = folderName;
-                RegisterPackageAlias(packageToProjectMap, folderName, proj);
-                RegisterPackageAlias(packageToProjectMap, oldName, proj);
+                RegisterEcosystemPackageAlias(packageToProjectMap, null, folderName, proj);
+                RegisterEcosystemPackageAlias(packageToProjectMap, null, oldName, proj);
                 var normFolder = WorkspaceConventions.NormalizeServiceName(folderName);
                 if (!string.IsNullOrEmpty(normFolder))
                 {
-                    RegisterPackageAlias(packageToProjectMap, normFolder, proj);
+                    RegisterEcosystemPackageAlias(packageToProjectMap, null, normFolder, proj);
                 }
             }
         }
@@ -313,12 +304,11 @@ public partial class Layer2ProjectParser
         Dictionary<string, ProjectNode> packageToProjectMap)
     {
         var unresolvedPackages = projectDepList
-            .SelectMany(p => p.DepInfo.ExternalPackages)
-            .Where(p => !string.IsNullOrWhiteSpace(p.Name) &&
-                        !packageToProjectMap.ContainsKey(p.Name) &&
-                        (!p.Name.Contains('/') || !packageToProjectMap.ContainsKey(p.Name.Split('/')[^1])))
-            .Select(p => p.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .SelectMany(p => p.DepInfo.ExternalPackages.Select(pkg => (Proj: p.Project, Pkg: pkg)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Pkg.Name) &&
+                        !packageToProjectMap.ContainsKey($"{ProjectNodeFactory.NormalizePackageEcosystem(x.Pkg.Ecosystem, x.Proj.ProjectType)}:{x.Pkg.Name}"))
+            .Select(x => (Eco: ProjectNodeFactory.NormalizePackageEcosystem(x.Pkg.Ecosystem, x.Proj.ProjectType), Name: x.Pkg.Name))
+            .ToHashSet();
 
         if (unresolvedPackages.Count == 0) return;
 
@@ -348,7 +338,10 @@ public partial class Layer2ProjectParser
                     if (subParser != null)
                     {
                         var prod = await subParser.GetProducedPackageAsync(subDir);
-                        if (prod != null && (unresolvedPackages.Contains(prod.Name) || (prod.Name.Contains('/') && unresolvedPackages.Contains(prod.Name.Split('/')[^1]))))
+                        var prodEco = prod != null
+                            ? ProjectNodeFactory.NormalizePackageEcosystem(prod.Ecosystem, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(subParser.ProjectType))
+                            : string.Empty;
+                        if (prod != null && unresolvedPackages.Any(u => string.Equals(u.Eco, prodEco, StringComparison.OrdinalIgnoreCase) && string.Equals(u.Name, prod.Name, StringComparison.OrdinalIgnoreCase)))
                         {
                             var folderName = Path.GetFileName(subDir);
                             var relDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, subDir).Replace('\\', '/');
@@ -368,13 +361,8 @@ public partial class Layer2ProjectParser
 
                                 var ecosystem = !string.IsNullOrEmpty(prod.Ecosystem) ? prod.Ecosystem.ToLowerInvariant() : subParser.ProjectType.ToLowerInvariant();
                                 var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{prod.Name.ToLowerInvariant()}";
-                                RegisterPackageAlias(packageToProjectMap, folderName, libProjectNode);
-                                RegisterPackageAlias(packageToProjectMap, prod.Name, libProjectNode);
-                                RegisterPackageAlias(packageToProjectMap, packageNodeId, libProjectNode);
-                                if (prod.Name.Contains('/'))
-                                {
-                                    RegisterPackageAlias(packageToProjectMap, prod.Name.Split('/')[^1], libProjectNode);
-                                }
+                                RegisterEcosystemPackageAlias(packageToProjectMap, prod.Ecosystem, folderName, libProjectNode);
+                                RegisterEcosystemPackageAlias(packageToProjectMap, prod.Ecosystem, prod.Name, libProjectNode, isExplicitPackageCoordinate: true);
 
                                 var packageNode = new PackageNode(
                                     Id: packageNodeId,
@@ -473,7 +461,7 @@ public partial class Layer2ProjectParser
 
                     projectsStructureNode.Children.Add(projectNode);
                     projects.Add(projectNode);
-                    RegisterPackageAlias(packageToProjectMap, descriptor.Name, projectNode);
+                    RegisterEcosystemPackageAlias(packageToProjectMap, null, descriptor.Name, projectNode);
 
                     var dependencyInfo = await ParseProjectDependenciesAsync(parser, manifestDirectory, ctx);
                     if (dependencyInfo != null)
@@ -497,6 +485,59 @@ public partial class Layer2ProjectParser
         }
     }
 
+    private const string DepTypeLibrary = "library";
+    private const string ReasonPackageDep = "package_dep";
+    private const string ReasonLocalProjectRef = "local_project_ref";
+    private const string ReasonSubmoduleLib = "submodule_lib";
+
+    private static bool TryResolveSameEcosystemPackageTarget(
+        Dictionary<string, ProjectNode> packageToProjectMap,
+        ProjectNode callerProj,
+        ProducedPackageInfo extPack,
+        out ProjectNode? targetProj)
+    {
+        targetProj = null;
+        var rawName = extPack.Name.Trim();
+        var depEco = ProjectNodeFactory.NormalizePackageEcosystem(extPack.Ecosystem, callerProj.ProjectType);
+
+        if (packageToProjectMap.TryGetValue($"{depEco}:{rawName}", out var direct) &&
+            ProjectNodeFactory.AreCompatibleEcosystems(callerProj.ProjectType, direct.ProjectType))
+        {
+            targetProj = direct;
+            return true;
+        }
+
+        if (depEco == "pypi" && (rawName.Contains('_') || rawName.Contains('-')))
+        {
+            var pep503 = rawName.Replace('_', '-');
+            if (!ProjectNodeFactory.IsGenericPackageShortName(pep503) &&
+                packageToProjectMap.TryGetValue($"pypi:{pep503}", out var pyMatch) &&
+                ProjectNodeFactory.AreCompatibleEcosystems(callerProj.ProjectType, pyMatch.ProjectType))
+            {
+                targetProj = pyMatch;
+                return true;
+            }
+        }
+
+        // Go subpackage imports (e.g. "example.com/service-a/pkg/foo" -> module "example.com/service-a")
+        if (depEco == "go" && rawName.Contains('/'))
+        {
+            var segments = rawName.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            for (var len = segments.Length - 1; len >= 2; len--)
+            {
+                var prefix = string.Join('/', segments.Take(len));
+                if (packageToProjectMap.TryGetValue($"go:{prefix}", out var goModMatch) &&
+                    ProjectNodeFactory.AreCompatibleEcosystems(callerProj.ProjectType, goModMatch.ProjectType))
+                {
+                    targetProj = goModMatch;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static void ResolveCrossProjectDependencies(
         ParsingContext ctx,
         List<(ProjectNode Project, ProjectDependencyInfo DepInfo)> projectDepList,
@@ -515,21 +556,18 @@ public partial class Layer2ProjectParser
                 if (string.IsNullOrWhiteSpace(extPack.Name)) continue;
                 if (string.Equals(extPack.Scope, "dev", StringComparison.OrdinalIgnoreCase)) continue;
 
-                var matched = packageToProjectMap.TryGetValue(extPack.Name, out var targetProj) ||
-                              packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{extPack.Name.ToLowerInvariant()}", out targetProj);
-
-                if (!matched && extPack.Name.Contains('/'))
-                {
-                    var shortName = extPack.Name.Split('/')[^1];
-                    matched = packageToProjectMap.TryGetValue(shortName, out targetProj);
-                }
-
-                if (matched && targetProj != null)
+                if (TryResolveSameEcosystemPackageTarget(packageToProjectMap, proj, extPack, out var targetProj) &&
+                    targetProj != null)
                 {
                     if (!string.Equals(proj.Id, targetProj.Id, StringComparison.OrdinalIgnoreCase) &&
                         seenDependsOn.Add((proj.Id, targetProj.Id)))
                     {
-                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id, new() { ["dependency_type"] = "library" }));
+                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id)
+                        {
+                            DependencyType = DepTypeLibrary,
+                            Reason = ReasonPackageDep,
+                            SourceDep = extPack.Name
+                        });
                         dependencies.Add(depRel);
                         ctx.AddGlobalProjectDependency(depRel);
                     }
@@ -591,7 +629,12 @@ public partial class Layer2ProjectParser
                     bestParent.ProjectType != ProjectLanguage.CSharp &&
                     !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
                 {
-                    var depRel = Relationship.FromRelationship(new DependsOnRelationship(bestParent.Id, childProj.Id, new() { ["dependency_type"] = "library" }));
+                    var depRel = Relationship.FromRelationship(new DependsOnRelationship(bestParent.Id, childProj.Id)
+                    {
+                        DependencyType = DepTypeLibrary,
+                        Reason = ReasonSubmoduleLib,
+                        SourceDep = childProj.Path
+                    });
                     dependencies.Add(depRel);
                     ctx.AddGlobalProjectDependency(depRel);
                 }
@@ -603,12 +646,22 @@ public partial class Layer2ProjectParser
         List<ProjectNode> projects,
         List<Relationship> dependencies)
     {
-        var canonicalProjectIds = projects.ToDictionary(p => p.Id, p => p.Id, StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < dependencies.Count; i++)
+        var projectsById = projects.ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+        for (var i = dependencies.Count - 1; i >= 0; i--)
         {
             var dep = dependencies[i];
-            var normFrom = canonicalProjectIds.GetValueOrDefault(dep.From, dep.From);
-            var normTo = canonicalProjectIds.GetValueOrDefault(dep.To, dep.To);
+            var normFrom = projectsById.TryGetValue(dep.From, out var fromProj) ? fromProj.Id : dep.From;
+            var normTo = projectsById.TryGetValue(dep.To, out var toProj) ? toProj.Id : dep.To;
+
+            if (dep.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn &&
+                fromProj != null &&
+                toProj != null &&
+                !CodeExplorer.Core.Analysis.ProjectNodeFactory.AreCompatibleEcosystems(fromProj.ProjectType, toProj.ProjectType))
+            {
+                dependencies.RemoveAt(i);
+                continue;
+            }
+
             if (!string.Equals(normFrom, dep.From, StringComparison.Ordinal) ||
                 !string.Equals(normTo, dep.To, StringComparison.Ordinal))
             {
@@ -701,7 +754,12 @@ public partial class Layer2ProjectParser
 
             if (seenTargets.Add(targetProjectNodeId))
             {
-                var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
+                var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId)
+                {
+                    DependencyType = DepTypeLibrary,
+                    Reason = ReasonLocalProjectRef,
+                    SourceDep = localPath
+                });
                 dependencies.Add(dependsOnRel);
                 ctx.AddGlobalProjectDependency(dependsOnRel);
             }
@@ -737,7 +795,7 @@ public partial class Layer2ProjectParser
         }
     }
 
-    private static async Task<string?> LinkProducedPackageAsync(
+    private static async Task<(string? Name, string? Ecosystem, bool IsExplicitCoordinate)> LinkProducedPackageAsync(
         ProjectNode projectNode,
         string projectNodeId,
         IProjectParser projectParser,
@@ -746,6 +804,7 @@ public partial class Layer2ProjectParser
     {
         var packageDetected = false;
         string? resultName = null;
+        string? resultEco = null;
 
         try
         {
@@ -773,6 +832,7 @@ public partial class Layer2ProjectParser
 
                 packageDetected = true;
                 resultName = producedPackage.Name;
+                resultEco = ecosystem;
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -786,7 +846,7 @@ public partial class Layer2ProjectParser
         {
             var dirName = Path.GetFileName(projectDir);
 
-            if (!string.IsNullOrEmpty(dirName))
+            if (!string.IsNullOrEmpty(dirName) && !ProjectNodeFactory.IsGenericPackageShortName(dirName))
             {
                 const string defaultInternalPkgVersion = "1.0.0";
                 var ecosystem = projectParser.ProjectType.ToLowerInvariant();
@@ -807,9 +867,10 @@ public partial class Layer2ProjectParser
                 ctx.AddRelsCount(2);
 
                 resultName = dirName;
+                resultEco = ecosystem;
             }
         }
 
-        return resultName;
+        return (resultName, resultEco, packageDetected);
     }
 }

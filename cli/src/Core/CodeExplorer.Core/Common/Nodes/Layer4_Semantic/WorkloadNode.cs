@@ -14,6 +14,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<CloudNode>(OntologyConstants.Relationships.HostedIn)]
 [OntologyEdge<CloudResourceNode>(OntologyConstants.Relationships.ImplementedBy)]
+[OntologyEdge<WorkloadNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<ServiceNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]

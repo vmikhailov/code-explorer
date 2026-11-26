@@ -17,6 +17,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.Produces)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
