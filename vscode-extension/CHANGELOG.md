@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.105.3] - 2026-11-26
+
+### Fixed
+- **Multi-Manifest Project Language Detection (`PythonProjectParser`, `Layer2BoundariesAnalyzer`)**: Prevented root `requirements.txt` (or tooling `pyproject.toml`) from overriding `package.json` + `tsconfig.json` in TypeScript/JavaScript repositories with `0` `.py` files, and ranked coexisting primary project parsers by actual source file count in the subtree.
+- **Database Extraction Noise & First-Class Snowflake Support (`ConfigurationParser`, `ResourceNamingHelper`, `Layer3FileSignalEnricher`, `NestedSqlParser`, `PostIndexAnalyzer`)**: Fixed `oauth2` keys matching `h2` (`realms/.../protocol/openid-connect/token` misclassified as H2), rejected generic config/identifier/placeholder tokens (`self`, `url`, `uri`, `src`, `string`, `driver-class-name`, `template-connection-url`, `project_0`..`project_9`) and unexpanded YAML/Ansible templates, and added first-class `Snowflake` (`analytics`) engine recognition.
+- **ExternalService Extraction Noise (`NetworkEntityValidator`, `ConfigurationIndex`, `EndpointSemanticAnalyzer`, `AngularOidcLibraryParser`)**: Filtered config property keys (`metadataUrl`, `tokenIssuerPrefix`, `token-url`, `token`, `scope`, `*-base-url`, `*PriUrl`), unresolved member expressions (`self.*`, `args.*`), UI/doc words and semver strings (`More info`, `home`, `icon`, `wrong`, `0.0.1`, `" conda"`), and placeholder domains (`test.com`, `example.com`, `your-org.*`), while normalizing colon-delimited config keys (`destination:endpoints:elasticsearch` -> `elasticsearch`).
+- **Table Extraction Noise & Schema Separator Recovery (`SqlAlchemyLibraryParser`, `ResourceNamingHelper`, `SqlFileParser`, `BaseSqlParser`, `EndpointSemanticAnalyzer`)**: Guarded Python `Table(...)` against CLI display table libraries (`rich.table`, `prettytable`) and suppressed `"SQLAlchemy: Table"` fallbacks, rejected invalid SQL table tokens (`PYTHONPATH" =`, `for`, `com`, `Old`, unparsed template fragments), and recovered missing `.` separators on `PUBLIC`/`DBO`-prefixed table names (`PUBLICoutbox_event_audit` -> `PUBLIC` + `outbox_event_audit`).
+- **Java Multi-Module Gradle & Maven Role Classification (`JavaProjectParser`, `ProjectEntityClassifierRegistry`)**: Restricted `Service` classification in multi-module Gradle and Maven repositories to subprojects with an executable boot/application plugin, `Dockerfile`, or runnable `@SpringBootApplication`/`main` entrypoint, classifying shared `/core/*` submodules as `Library` and `unit-test` / `*-test-utils` submodules as `Test`.
+
 ## [1.105.2] - 2026-11-26
 
 ### Fixed

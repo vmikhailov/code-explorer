@@ -48,9 +48,11 @@ public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
 
         if (IsSqlAlchemyCall(node, out var method, out var target, out var isTable))
         {
-            if (isTable && !string.IsNullOrEmpty(target))
+            if (isTable)
             {
-                return target;
+                return !string.IsNullOrEmpty(target) && ResourceNamingHelper.IsValidTableIdentifier(target)
+                    ? target
+                    : null;
             }
 
             if (!string.IsNullOrEmpty(target))
@@ -145,22 +147,37 @@ public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
         var func = node.GetFunctionNode();
         if (!func.IsValid()) return false;
 
-        var funcName = func.Text;
+        var rawFuncText = func.Text;
+        var funcName = rawFuncText;
+        string? receiverPrefix = null;
         if (funcName.Contains('.'))
         {
-            funcName = funcName[(funcName.LastIndexOf('.') + 1)..];
+            var lastDot = funcName.LastIndexOf('.');
+            receiverPrefix = funcName[..lastDot].Trim();
+            funcName = funcName[(lastDot + 1)..];
         }
 
         if (SqlAlchemyMethods.Contains(funcName))
         {
-            methodName = funcName;
             var args = PythonAstHelper.GetCallArguments(node);
-            if (funcName == "Table" && args.Count > 0)
+            if (funcName == "Table")
             {
+                if (!IsSqlAlchemyTableConstructor(node, receiverPrefix, args))
+                {
+                    return false;
+                }
+                var resolvedTbl = PythonAstHelper.ResolveStringOrVariable(args[0]);
+                if (string.IsNullOrWhiteSpace(resolvedTbl) || !ResourceNamingHelper.IsValidTableIdentifier(resolvedTbl))
+                {
+                    return false;
+                }
+                methodName = funcName;
                 isTable = true;
-                targetInfo = PythonAstHelper.ResolveStringOrVariable(args[0]);
+                targetInfo = resolvedTbl;
                 return true;
             }
+
+            methodName = funcName;
 
             if (args.Count > 0)
             {
@@ -183,5 +200,45 @@ public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
         }
 
         return false;
+    }
+
+    private static bool IsSqlAlchemyTableConstructor(Node callNode, string? receiverPrefix, IReadOnlyList<Node> args)
+    {
+        if (args.Count == 0) return false;
+
+        if (!string.IsNullOrEmpty(receiverPrefix))
+        {
+            var lowerRecv = receiverPrefix.ToLowerInvariant();
+            if (lowerRecv is "sa" or "sqlalchemy" or "db" or "sql" or "sqlalchemy.schema")
+            {
+                return true;
+            }
+            if (lowerRecv.Contains("rich") || lowerRecv.Contains("pretty") || lowerRecv.Contains("console") || lowerRecv.Contains("ui"))
+            {
+                return false;
+            }
+        }
+
+        var docText = callNode.Document?.SourceText;
+        if (!string.IsNullOrEmpty(docText))
+        {
+            var hasSqlAlchemy = docText.Contains("sqlalchemy", StringComparison.OrdinalIgnoreCase) ||
+                                docText.Contains("sqlmodel", StringComparison.OrdinalIgnoreCase) ||
+                                docText.Contains("alembic", StringComparison.OrdinalIgnoreCase);
+            if (!hasSqlAlchemy)
+            {
+                return false;
+            }
+            if ((docText.Contains("from rich", StringComparison.Ordinal) ||
+                 docText.Contains("import rich", StringComparison.Ordinal) ||
+                 docText.Contains("prettytable", StringComparison.OrdinalIgnoreCase)) &&
+                args.Count < 2)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        return args.Count >= 2;
     }
 }

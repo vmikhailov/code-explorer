@@ -419,10 +419,11 @@ public class SqlFileParser : IFileParser
     public static bool IsDisallowedIdentifier(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return true;
+        if (!ResourceNamingHelper.IsValidTableIdentifier(name)) return true;
         var trimmed = CleanIdentifier(name);
         if (trimmed.Length <= 1) return true;
         if (char.IsDigit(trimmed[0])) return true;
-        return BaseSqlParser.CleanIdentifier(trimmed).Length <= 1;
+        return !ResourceNamingHelper.IsValidTableIdentifier(trimmed) || BaseSqlParser.CleanIdentifier(trimmed).Length <= 1;
     }
 
     public static (string schemaName, string tableName) ParseTableIdentifier(string rawTableName)

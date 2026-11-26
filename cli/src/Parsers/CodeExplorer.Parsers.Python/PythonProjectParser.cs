@@ -109,8 +109,18 @@ public class PythonProjectParser : IProjectParser
             }
         }
 
+        var hasOtherManifest = HasOtherPrimaryManifest(directoryPath, filesInDirectory);
+
         if (hasPrimaryManifest)
         {
+            if (HasNonTerraformApplicationManifest(filesInDirectory) && !HasSetupOrManageManifest(filesInDirectory))
+            {
+                var (pyFiles, otherFiles) = CountPythonVsOtherSourceFiles(directoryPath, filesInDirectory);
+                if (pyFiles == 0 && otherFiles > 0)
+                {
+                    return false;
+                }
+            }
             return true;
         }
 
@@ -123,6 +133,20 @@ public class PythonProjectParser : IProjectParser
             {
                 return false;
             }
+
+            if (hasOtherManifest || PhysicalFileStore.HasCachedDirectory(directoryPath))
+            {
+                var (pyFiles, otherFiles) = CountPythonVsOtherSourceFiles(directoryPath, filesInDirectory);
+                if (pyFiles == 0 && (hasOtherManifest || otherFiles > 0))
+                {
+                    return false;
+                }
+                if (hasOtherManifest && otherFiles > pyFiles)
+                {
+                    return false;
+                }
+            }
+
             return true;
         }
 
@@ -157,6 +181,11 @@ public class PythonProjectParser : IProjectParser
                 fn.Equals("composer.json", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("composer.lock", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("package.json", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("tsconfig.json", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("build.gradle", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("settings.gradle", StringComparison.OrdinalIgnoreCase) ||
+                fn.Equals("settings.gradle.kts", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("Makefile.PL", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("cpanfile", StringComparison.OrdinalIgnoreCase) ||
                 fn.Equals("go.mod", StringComparison.OrdinalIgnoreCase) ||
@@ -208,7 +237,73 @@ public class PythonProjectParser : IProjectParser
 
     private static bool IsOtherCompiledOrTypedSourceFile(string file) =>
         Path.GetExtension(file).ToLowerInvariant() is
-            ".cs" or ".ts" or ".tsx" or ".go" or ".rs" or ".java" or ".kt" or ".tf" or ".tofu" or ".cfc" or ".cfm";
+            ".cs" or ".ts" or ".tsx" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".go" or ".rs" or ".java" or ".kt" or ".tf" or ".tofu" or ".cfc" or ".cfm";
+
+    private static bool HasSetupOrManageManifest(string[] filesInDirectory)
+    {
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var lowerFn = Path.GetFileName(filesInDirectory[i]).ToLowerInvariant();
+            if (lowerFn is "setup.py" or "manage.py" or "alembic.ini")
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool HasNonTerraformApplicationManifest(string[] filesInDirectory)
+    {
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var lowerFn = Path.GetFileName(filesInDirectory[i]).ToLowerInvariant();
+            if (lowerFn is "package.json" or "tsconfig.json" or "pom.xml" or "build.gradle" or "build.gradle.kts"
+                or "cargo.toml" or "go.mod" or "composer.json"
+                || lowerFn.EndsWith(".csproj", StringComparison.Ordinal)
+                || lowerFn.EndsWith(".sln", StringComparison.Ordinal)
+                || lowerFn.EndsWith(".slnx", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static (int PyCount, int OtherCodeCount) CountPythonVsOtherSourceFiles(string directoryPath, string[] filesInDirectory)
+    {
+        var pyCount = 0;
+        var otherCount = 0;
+        if (PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            {
+                var ext = Path.GetExtension(file).ToLowerInvariant();
+                if (ext is ".py" or ".pyi") pyCount++;
+                else if (IsOtherCompiledOrTypedSourceFile(file)) otherCount++;
+            }
+            return (pyCount, otherCount);
+        }
+
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var ext = Path.GetExtension(filesInDirectory[i]).ToLowerInvariant();
+            if (ext is ".py" or ".pyi") pyCount++;
+            else if (IsOtherCompiledOrTypedSourceFile(filesInDirectory[i])) otherCount++;
+        }
+
+        ReadOnlySpan<string> commonSourceDirs = ["src", "app", "apps", "packages", "lib"];
+        foreach (var sub in commonSourceDirs)
+        {
+            var subFiles = PhysicalFileStore.GetDirectoryFiles(Path.Combine(directoryPath, sub));
+            for (var i = 0; i < subFiles.Length; i++)
+            {
+                var ext = Path.GetExtension(subFiles[i]).ToLowerInvariant();
+                if (ext is ".py" or ".pyi") pyCount++;
+                else if (IsOtherCompiledOrTypedSourceFile(subFiles[i])) otherCount++;
+            }
+        }
+        return (pyCount, otherCount);
+    }
 
     private static bool IsPythonContainerRoot(string directoryPath, string[] filesInDirectory)
     {

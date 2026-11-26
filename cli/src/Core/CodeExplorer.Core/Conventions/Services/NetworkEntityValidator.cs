@@ -9,9 +9,10 @@ namespace CodeExplorer.Core.Conventions.Services;
 /// </summary>
 public sealed class NetworkEntityValidator
 {
-    private static readonly Regex VersionSegmentRegex = new(@"^v\d+(\.\d+)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ValidDnsLabelRegex = new(@"^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex Ipv4Regex = new(@"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", RegexOptions.Compiled);
+    private static readonly TimeSpan ValidatorRegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly Regex VersionSegmentRegex = new(@"^v?\d+(?:\.\d+){1,2}(?:[-+][a-z0-9._-]+)?$|^v\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase, ValidatorRegexTimeout);
+    private static readonly Regex ValidDnsLabelRegex = new(@"^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$", RegexOptions.Compiled | RegexOptions.IgnoreCase, ValidatorRegexTimeout);
+    private static readonly Regex Ipv4Regex = new(@"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", RegexOptions.Compiled, ValidatorRegexTimeout);
 
     public static readonly HashSet<string> GenericUrlVariableStems = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -19,7 +20,8 @@ public sealed class NetworkEntityValidator
         "request", "full", "ws", "endpoint", "url", "uri", "host", "origin", "client",
         "post", "get", "put", "delete", "patch", "options", "head", "ep",
         "page", "response", "subscribe", "registry", "presignedupload", "storybook",
-        "ticket", "english", "he", "en", "ru", "graphql", "ajax", "trimmed"
+        "ticket", "english", "he", "en", "ru", "graphql", "ajax", "trimmed",
+        "metadata", "token", "scope", "issuer", "authority", "home", "icon", "wrong", "conda"
     };
 
     public static readonly HashSet<string> HttpMethodVerbs = new(StringComparer.OrdinalIgnoreCase)
@@ -61,11 +63,17 @@ public sealed class NetworkEntityValidator
     public bool IsGarbageExternalService(string domain)
     {
         if (string.IsNullOrWhiteSpace(domain)) return true;
-        var lower = domain.Trim().Trim('\'', '"', '`').ToLowerInvariant();
+        var lower = domain.Trim().Trim('\'', '"', '`').Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(lower) || lower.Contains(' ') || lower.Contains('\t'))
+        {
+            return true;
+        }
 
         // 1. Primitive types, keywords, and unresolvable placeholders
         if (lower is "*" or "unknown-service" or "httprequest" or "pageurl"
-            or "string" or "undefined" or "null" or "void" or "any" or "never" or "object" or "boolean" or "number")
+            or "string" or "undefined" or "null" or "void" or "any" or "never" or "object" or "boolean" or "number"
+            or "self" or "this" or "cls" or "args" or "kwargs" or "token" or "tokens" or "scope" or "scopes"
+            or "home" or "icon" or "wrong" or "conda" or "more info")
         {
             return true;
         }
@@ -85,14 +93,17 @@ public sealed class NetworkEntityValidator
         // 4. Code expressions, property access, AST fragments, and unparsed template interpolations
         if (lower.Contains('!') || lower.Contains("${") || lower.Contains("}}") ||
             lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") ||
-            lower.StartsWith("config.") || lower.StartsWith("options.") || lower.StartsWith("env.") ||
+            lower.StartsWith("self.") || lower.StartsWith("this.") || lower.StartsWith("cls.") || lower.StartsWith("super.") ||
+            lower.StartsWith("args.") || lower.StartsWith("kwargs.") || lower.StartsWith("settings.") || lower.StartsWith("params.") ||
+            lower.StartsWith("req.") || lower.StartsWith("res.") || lower.StartsWith("request.") || lower.StartsWith("response.") ||
+            lower.StartsWith("config.") || lower.StartsWith("options.") || lower.StartsWith("env.") || lower.StartsWith("os.") ||
             lower.Contains("global_env", StringComparison.OrdinalIgnoreCase) ||
             lower.Contains("process.env", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        // 5. Version-only segments (e.g. "v1", "v2.0") or purely numeric IDs (e.g. AWS account ID "000000000000")
+        // 5. Version-only segments (e.g. "v1", "v2.0", "0.0.1") or purely numeric IDs (e.g. AWS account ID "000000000000")
         if (VersionSegmentRegex.IsMatch(lower) || lower.All(char.IsDigit))
         {
             return true;
@@ -100,8 +111,12 @@ public sealed class NetworkEntityValidator
 
         // 6. Test, mock, and placeholder asset domains
         if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower.EndsWith(".invalid") ||
+            lower.EndsWith(".test.com") ||
+            lower.StartsWith("your-org.") || lower.StartsWith("your-domain.") || lower.StartsWith("your_") ||
             lower.Length == 1 ||
-            lower is "test" or "invalid" or "0.0.0.0" or "via.placeholder.com" or "picsum.photos")
+            lower is "test" or "invalid" or "0.0.0.0" or "::1" or "[::1]"
+                or "test.com"
+                or "via.placeholder.com" or "picsum.photos")
         {
             return true;
         }
@@ -113,9 +128,15 @@ public sealed class NetworkEntityValidator
             return true;
         }
 
-        // 6c. Unresolved SCREAMING_SNAKE_CASE env var keys (e.g. FRONTEND_INDEX_URL, TWENTY_APP_BASE_URL)
-        if (!lower.Contains('.') && lower.Contains('_') &&
-            (lower.EndsWith("_url") || lower.EndsWith("_uri") || lower.EndsWith("_host") || lower.EndsWith("_base") || lower.EndsWith("_endpoint")))
+        // 6c. Unresolved config property keys / env var keys without a domain dot (e.g. metadataUrl, tokenIssuerPrefix, token-url, gravitee-apim-public-base-url, FRONTEND_INDEX_URL)
+        if (!lower.Contains('.') &&
+            ((lower.Length > 4 && (lower.EndsWith("url") || lower.EndsWith("uri"))) ||
+             lower.EndsWith("-url") || lower.EndsWith("_url") ||
+             lower.EndsWith("-uri") || lower.EndsWith("_uri") ||
+             lower.EndsWith("_host") || lower.EndsWith("-host") ||
+             lower.EndsWith("_base") || lower.EndsWith("-base") ||
+             lower.EndsWith("_endpoint") || lower.EndsWith("-endpoint") ||
+             lower.EndsWith("issuerprefix") || lower.EndsWith("tokenissuer")))
         {
             return true;
         }

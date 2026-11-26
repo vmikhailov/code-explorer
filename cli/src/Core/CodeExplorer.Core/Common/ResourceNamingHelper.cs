@@ -11,8 +11,8 @@ public static class ResourceNamingHelper
 {
     public static readonly HashSet<string> KnownDbEnginesAndNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3",
-        "clickhouse", "bigquery", "redis", "mongodb", "mongo",
+        "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3", "h2",
+        "clickhouse", "bigquery", "snowflake", "redis", "mongodb", "mongo",
         "sqlserver", "mssql", "sql server", "oracle", "cassandra",
         "elasticsearch", "neo4j", "dynamodb", "firestore", "cosmosdb",
         "couchdb", "cockroachdb", "tidb", "influxdb", "timescaledb",
@@ -22,8 +22,8 @@ public static class ResourceNamingHelper
 
     public static readonly HashSet<string> AbstractEngineNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite",
-        "mongodb", "mongo", "oracle", "database", "db", "default", "relational", "redis", "cache",
+        "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite", "h2",
+        "mongodb", "mongo", "oracle", "snowflake", "database", "db", "default", "relational", "redis", "cache",
         "ef-core", "dapper", "typeorm", "prisma", "hibernate", "nhibernate", "sequelize", "drizzle"
     };
 
@@ -191,6 +191,10 @@ public static class ResourceNamingHelper
                 return "ClickHouse";
             case "bigquery":
                 return "BigQuery";
+            case "snowflake":
+                return "Snowflake";
+            case "h2":
+                return "H2";
             case "cassandra":
                 return "Cassandra";
             case "elasticsearch":
@@ -201,6 +205,8 @@ public static class ResourceNamingHelper
 
         if (lower.StartsWith("postgres", StringComparison.Ordinal) || lower.Contains("pgx", StringComparison.Ordinal) || lower.Contains("npgsql", StringComparison.Ordinal) || lower.Contains("lib/pq", StringComparison.Ordinal))
             return "PostgreSQL";
+        if (lower.Contains("snowflake", StringComparison.Ordinal))
+            return "Snowflake";
         if (lower.Contains("sqlite", StringComparison.Ordinal))
             return "SQLite";
         if (lower.StartsWith("mariadb", StringComparison.Ordinal))
@@ -219,17 +225,46 @@ public static class ResourceNamingHelper
         return string.IsNullOrWhiteSpace(engine) || IsGenericConfigKey(lower) ? "PostgreSQL" : engine.Trim();
     }
 
+    private static readonly TimeSpan NamingRegexTimeout = TimeSpan.FromMilliseconds(250);
+
+    private static readonly Regex IndexedPlaceholderDbNameRegex = new(
+        @"^(?:project|db|test|item|tenant|schema|table|model)_\d+$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase,
+        NamingRegexTimeout);
+
+    private static readonly Regex ValidTablePartCompiledRegex = new(
+        @"^[a-zA-Z_][a-zA-Z0-9_\*]*$",
+        RegexOptions.Compiled,
+        NamingRegexTimeout);
+
+    private static readonly HashSet<string> DisallowedSingleTableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "for", "com", "org", "net", "io", "edu", "gov",
+        "old", "new", "self", "this", "cls", "src",
+        "none", "true", "false", "pythonpath", "table"
+    };
+
     public static bool IsGenericConfigKey(string key)
     {
         var lower = (key ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(lower)) return true;
+        if (IndexedPlaceholderDbNameRegex.IsMatch(lower)) return true;
         return lower is "defaultconnection" or "connectionstring" or "connectionstrings" or
                "database" or "db" or "datasource" or "main" or "default" or
                "relational" or "keyvalue" or "document" or
+               "url" or "uri" or "src" or "self" or "cls" or "this" or
+               "string" or "str" or "int" or "integer" or "bool" or "boolean" or "object" or "array" or
+               "driver" or "driver-class-name" or "driver_class_name" or "driverclassname" or "dialect" or
+               "username" or "user" or "password" or "pwd" or "host" or "hostname" or "port" or "ssl" or "sslmode" or
+               "template-connection-url" or "template_connection_url" or "templateconnectionurl" or
+               "connection-url" or "connection_url" or "connectionurl" or "jdbc-url" or "jdbc_url" or "jdbcurl" or
                "spring.datasource.url" or "spring-datasource" or "database_url" or
                "typeorm" or "ef-core" or "efcore" or "ef core" or "microsoft.entityframeworkcore" or "dapper" or
                "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
                "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" ||
-               lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");
+               lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data") ||
+               lower.Contains("template-connection") || lower.Contains("templateconnection") ||
+               lower.EndsWith("driver-class-name", StringComparison.Ordinal);
     }
 
     public static string NormalizeAlias(string raw)
@@ -238,7 +273,7 @@ public static class ResourceNamingHelper
         var clean = raw.Trim().ToLowerInvariant();
         if (clean.StartsWith("postgresql://") || clean.StartsWith("postgres://"))
             clean = clean[(clean.IndexOf("://") + 3)..];
-        else if (clean.StartsWith("mysql://") || clean.StartsWith("redis://") || clean.StartsWith("mongodb://") || clean.StartsWith("amqp://"))
+        else if (clean.StartsWith("mysql://") || clean.StartsWith("redis://") || clean.StartsWith("mongodb://") || clean.StartsWith("amqp://") || clean.StartsWith("snowflake://"))
             clean = clean[(clean.IndexOf("://") + 3)..];
 
         return clean;
@@ -249,12 +284,12 @@ public static class ResourceNamingHelper
         var lower = (engine ?? "").Trim().ToLowerInvariant();
         return lower is "postgres" or "postgresql" or "npgsql" or "pg" or
                "mysql" or "mysql2" or "mariadb" or
-               "sqlite" or "sqlite3" or
+               "sqlite" or "sqlite3" or "h2" or
                "mssql" or "sqlserver" or "sql server" or "tedious" or
                "oracle" or "oracledb" or
                "mongodb" or "mongo" or
                "redis" or "ioredis" or
-               "clickhouse" or "bigquery" or "cassandra" or "elasticsearch" or "neo4j";
+               "clickhouse" or "bigquery" or "snowflake" or "cassandra" or "elasticsearch" or "neo4j";
     }
 
     public static bool IsDisallowedDatabaseAlias(string alias)
@@ -262,6 +297,7 @@ public static class ResourceNamingHelper
         if (string.IsNullOrWhiteSpace(alias)) return true;
         var lower = alias.Trim().ToLowerInvariant();
         return IsKnownDatabaseEngine(lower) ||
+               IsGenericConfigKey(lower) ||
                lower is "typeorm" or "ef-core" or "microsoft.entityframeworkcore" or "dapper" or
                "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
                "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" or
@@ -273,16 +309,33 @@ public static class ResourceNamingHelper
     public static bool IsValidTableIdentifier(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
-        var clean = name.Trim('`', '"', '\'', '[', ']').Trim();
-        if (clean.Length < 1 || clean.Length > 128) return false;
-        if (clean.Contains(' ') || clean.Contains('\t') || clean.Contains('\n') || clean.Contains('\r')) return false;
+        var rawTrimmed = name.Trim();
+        if (rawTrimmed.Contains('=') || rawTrimmed.Contains('{') || rawTrimmed.Contains('}') ||
+            rawTrimmed.Contains('+') || rawTrimmed.Contains(':') || rawTrimmed.Contains('<') ||
+            rawTrimmed.Contains('>') || rawTrimmed.Contains(';'))
+        {
+            return false;
+        }
 
-        if (clean.StartsWith('#') || clean.StartsWith('@') || clean.EndsWith('_'))
+        var clean = rawTrimmed.Trim('`', '"', '\'', '[', ']').Trim();
+        if (clean.Length < 1 || clean.Length > 128) return false;
+        if (clean.Contains(' ') || clean.Contains('\t') || clean.Contains('\n') || clean.Contains('\r') ||
+            clean.Contains('"') || clean.Contains('\''))
+        {
+            return false;
+        }
+
+        if (clean.StartsWith('#') || clean.StartsWith('@') || clean.StartsWith('*') || clean.EndsWith('_'))
         {
             return false;
         }
 
         var parts = clean.Split('.');
+        if (parts.Length == 1 && DisallowedSingleTableNames.Contains(parts[0].Trim('`', '"', '\'', '[', ']').Trim()))
+        {
+            return false;
+        }
+
         foreach (var p in parts)
         {
             var trimmedPart = p.Trim('`', '"', '\'', '[', ']').Trim();
@@ -294,11 +347,12 @@ public static class ResourceNamingHelper
                 return false;
             }
             if (IsSqlKeyword(trimmedPart)) return false;
-            if (!Regex.IsMatch(trimmedPart, @"^[a-zA-Z_][a-zA-Z0-9_\*]*$")) return false;
+            if (!ValidTablePartCompiledRegex.IsMatch(trimmedPart)) return false;
         }
 
         var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
-        if (tableName.StartsWith("temp_", StringComparison.OrdinalIgnoreCase) ||
+        if (DisallowedSingleTableNames.Contains(tableName) ||
+            tableName.StartsWith("temp_", StringComparison.OrdinalIgnoreCase) ||
             tableName.StartsWith("tmp_", StringComparison.OrdinalIgnoreCase) ||
             tableName.StartsWith("pg_stat_", StringComparison.OrdinalIgnoreCase) ||
             tableName.StartsWith("pg_toast", StringComparison.OrdinalIgnoreCase) ||
@@ -321,7 +375,7 @@ public static class ResourceNamingHelper
                "union" or "all" or "distinct" or "as" or "on" or "and" or "or" or "not" or
                "null" or "is" or "in" or "exists" or "between" or "like" or "case" or "when" or
                "then" or "else" or "end" or "create" or "alter" or "drop" or "table" or
-               "index" or "view" or "database" or "schema" or "values" or "with";
+               "index" or "view" or "database" or "schema" or "values" or "with" or "for";
     }
 
     public static string CleanProjectNameToDomain(string projectName)

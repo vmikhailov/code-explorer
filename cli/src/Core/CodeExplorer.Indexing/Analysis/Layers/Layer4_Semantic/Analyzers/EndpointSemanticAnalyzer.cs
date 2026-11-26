@@ -252,6 +252,22 @@ public static class EndpointSemanticAnalyzer
                 var sm = Regex.Match(node.Text, @"schema_name\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase);
                 if (sm.Success) explicitSchema = sm.Groups[1].Value;
             }
+            const string upperPublicPrefix = "PUBLIC";
+            const string upperDboPrefix = "DBO";
+            if (resolvedName.Length > 6 && resolvedName.StartsWith(upperPublicPrefix, StringComparison.Ordinal) && char.IsLower(resolvedName[6]))
+            {
+                explicitSchema ??= upperPublicPrefix;
+                resolvedName = resolvedName[6..];
+            }
+            else if (resolvedName.Length > 3 && resolvedName.StartsWith(upperDboPrefix, StringComparison.Ordinal) && char.IsLower(resolvedName[3]))
+            {
+                explicitSchema ??= upperDboPrefix;
+                resolvedName = resolvedName[3..];
+            }
+            if (!ResourceNamingHelper.IsValidTableIdentifier(resolvedName))
+            {
+                return null;
+            }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
             var canonicalTbl = TableCanonicalParser.Parse(resolvedName, CodeExplorer.Cypher.Common.TableDialect.Auto, explicitSchema);
             typedNode = new TableNode(tableId, resolvedName, relativePath)
@@ -716,6 +732,22 @@ public static class EndpointSemanticAnalyzer
                 protocol = candidateProto;
                 domainOrService = domainOrService[(idx + 1)..];
             }
+            else if (!domainOrService.Contains('/'))
+            {
+                // Normalize colon-delimited config key paths (e.g. "destination:endpoints:elasticsearch" -> "elasticsearch")
+                var colonParts = domainOrService.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (colonParts.Length >= 2 && !int.TryParse(colonParts[^1], out _))
+                {
+                    var leafCandidate = ConfigurationIndex.StripServiceOptionsSuffixes(colonParts[^1]);
+                    if (string.IsNullOrEmpty(leafCandidate) || WorkspaceConventions.IsGarbageExternalService(leafCandidate))
+                    {
+                        leafCandidate = colonParts.Length >= 3 ? ConfigurationIndex.StripServiceOptionsSuffixes(colonParts[^2]) : string.Empty;
+                    }
+                    domainOrService = !string.IsNullOrEmpty(leafCandidate) && !WorkspaceConventions.IsGarbageExternalService(leafCandidate)
+                        ? leafCandidate
+                        : "unknown-service";
+                }
+            }
         }
 
         var path = "/";
@@ -844,7 +876,8 @@ public static class EndpointSemanticAnalyzer
         }
 
         var isGarbage = WorkspaceConventions.IsGarbageExternalService(domainOrService) ||
-                        WorkspaceConventions.IsGenericUrlStemOrVariable(domainOrService);
+                        WorkspaceConventions.IsGenericUrlStemOrVariable(domainOrService) ||
+                        (!hasExplicitScheme && path == "/" && domainOrService is "localhost" or "127.0.0.1");
         if (isGarbage)
         {
             domainOrService = "unknown-service";

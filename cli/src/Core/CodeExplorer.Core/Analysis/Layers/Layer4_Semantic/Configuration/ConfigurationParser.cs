@@ -81,33 +81,62 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        var lower = connStr.ToLowerInvariant();
+        var lower = connStr.Trim().ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
-        var isPostgres = lower.StartsWith("postgres://") ||
+        const string httpSchemePrefix = "http://";
+        const string httpsSchemePrefix = "https://";
+        const string oidcProtocolPath = "/protocol/openid-connect/";
+        const string oauth2Segment = "/oauth2/";
+        const string templateMustacheOpen = "{{";
+        const string jdbcSnowflakePrefix = "jdbc:snowflake:";
+        const string snowflakeSchemePrefix = "snowflake://";
+        const string snowflakeHostToken = ".snowflakecomputing.com";
+        const string snowflakeWord = "snowflake";
+        const string dbTypeAnalytics = "analytics";
+        const string engineSnowflake = "Snowflake";
+
+        // Reject OAuth2/OIDC endpoints, generic HTTP(S) URLs, YAML schema type markers, and unexpanded Ansible/Helm templates
+        if (lower.Contains(oidcProtocolPath, StringComparison.Ordinal) ||
+            lower.Contains(oauth2Segment, StringComparison.Ordinal) ||
+            lower.StartsWith(httpSchemePrefix, StringComparison.Ordinal) ||
+            lower.StartsWith(httpsSchemePrefix, StringComparison.Ordinal) ||
+            lower.StartsWith(templateMustacheOpen, StringComparison.Ordinal) ||
+            lower is "string" or "str" or "int" or "integer" or "boolean" or "bool" or "object" or "array" or "true" or "false" or "null")
+        {
+            return;
+        }
+
+        var isSnowflake = lower.StartsWith(snowflakeSchemePrefix, StringComparison.Ordinal) ||
+                          lower.StartsWith(jdbcSnowflakePrefix, StringComparison.Ordinal) ||
+                          lower.Contains(snowflakeHostToken, StringComparison.Ordinal) ||
+                          lowerName.Contains(snowflakeWord, StringComparison.Ordinal);
+
+        var isPostgres = !isSnowflake && (
+                         lower.StartsWith("postgres://") ||
                          lower.StartsWith("postgresql://") ||
                          lower.Contains("jdbc:postgresql://") ||
-                         lowerName.Contains("postgres") ||
-                         lowerName.Contains("npgsql") ||
+                         (HasConnectionValueSignal(lower) && (lowerName.Contains("postgres") || lowerName.Contains("npgsql"))) ||
                          lower.Contains("port=5432") ||
                          lower.Contains("user id=postgres") ||
                          lower.Contains("username=postgres") ||
                          lower.Contains("include error detail=") ||
                          lower.Contains("search path=") ||
                          lower.Contains("searchpath=") ||
-                         ((lower.Contains("host=") || lower.Contains("server=")) && lower.Contains("database=") && (lower.Contains("username=") || lower.Contains("user id=postgres") || lower.Contains("port=5432")));
+                         ((lower.Contains("host=") || lower.Contains("server=")) && lower.Contains("database=") && (lower.Contains("username=") || lower.Contains("user id=postgres") || lower.Contains("port=5432"))));
 
         var isMySql = lower.StartsWith("mysql://") ||
                       lower.StartsWith("jdbc:mysql://") ||
                       lower.Contains("com.mysql.cj.jdbc.driver") ||
                       lower.Contains("com.mysql.jdbc.driver") ||
-                      lowerName.Contains("mysql") ||
+                      (HasConnectionValueSignal(lower) && lowerName.Contains("mysql")) ||
                       lower.Contains("port=3306") ||
                       lower.Contains("uid=root");
 
+        const string h2Token = "h2";
         var isH2 = lower.StartsWith("jdbc:h2:") ||
                    lower.Contains("org.h2.driver") ||
-                   lowerName.Contains("h2");
+                   (HasConnectionValueSignal(lower) && ContainsStandaloneKeyToken(lowerName, h2Token));
 
         const string dbTypeRelational = "relational";
         const string dbTypeDocument = "document";
@@ -122,15 +151,19 @@ public static class ConfigurationParser
         const string brokerRabbitMq = "rabbitmq";
         const string brokerKafka = "kafka";
 
-        if (isPostgres)
+        if (isSnowflake)
+        {
+            CreateDatabaseNode(engineSnowflake, dbTypeAnalytics, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+        }
+        else if (isPostgres)
         {
             CreateDatabaseNode(enginePostgres, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
-        else if (lower.StartsWith("mongodb://") || lower.StartsWith("mongodb+srv://") || lowerName.Contains("mongo"))
+        else if (lower.StartsWith("mongodb://") || lower.StartsWith("mongodb+srv://") || (HasConnectionValueSignal(lower) && lowerName.Contains("mongo")))
         {
             CreateDatabaseNode(engineMongo, dbTypeDocument, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
-        else if (lower.StartsWith("redis://") || lower.StartsWith("valkey://") || lower.Contains("localhost:6379") || lowerName.Contains("redis") || lowerName.Contains("valkey"))
+        else if (lower.StartsWith("redis://") || lower.StartsWith("valkey://") || lower.Contains("localhost:6379") || (HasConnectionValueSignal(lower) && (lowerName.Contains("redis") || lowerName.Contains("valkey"))))
         {
             CreateDatabaseNode(engineRedis, dbTypeCache, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
@@ -158,11 +191,11 @@ public static class ConfigurationParser
         {
             CreateDatabaseNode(engineH2, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
-        else if (lower.Contains("data source=") || lower.Contains("server=") || lower.StartsWith("jdbc:sqlserver://") || lowerName.Contains("sqlserver") || lowerName.Contains("mssql"))
+        else if (lower.Contains("data source=") || lower.Contains("server=") || lower.StartsWith("jdbc:sqlserver://") || (HasConnectionValueSignal(lower) && (lowerName.Contains("sqlserver") || lowerName.Contains("mssql"))))
         {
             CreateDatabaseNode(engineSqlServer, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
-        else if (Regex.IsMatch(lower, @"\.(?:db|sqlite|sqlite3)(?:$|[\s;'""?])") || lowerName.Contains("sqlite"))
+        else if (Regex.IsMatch(lower, @"\.(?:db|sqlite|sqlite3)(?:$|[\s;'""?])") || (HasConnectionValueSignal(lower) && lowerName.Contains("sqlite")))
         {
             CreateDatabaseNode(engineSqlite, dbTypeRelational, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
@@ -180,8 +213,8 @@ public static class ConfigurationParser
             if (IsValidCatalogName(db)) return db;
         }
 
-        // 2. URI format: (postgres|postgresql|mongodb|mysql|mariadb|redis)://.../[dbname] (including jdbc: prefixes)
-        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
+        // 2. URI format: explicit DB schemes only (never http/https OIDC or REST URLs)
+        var uriMatch = DbUriCatalogRegex.Match(connStr);
         if (uriMatch.Success)
         {
             var db = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
@@ -215,11 +248,66 @@ public static class ConfigurationParser
         return null;
     }
 
+    private static readonly TimeSpan ConfigRegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly Regex DbUriCatalogRegex = new(
+        @"^(?:jdbc:[a-z0-9+-]+://|(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis(?:s)?|valkey|mssql|sqlserver|snowflake|clickhouse)://)[^/]+/([^/?#;\s]+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        ConfigRegexTimeout);
+
+    private static bool HasConnectionValueSignal(string lowerVal)
+    {
+        if (string.IsNullOrWhiteSpace(lowerVal)) return false;
+        const string colonSlashSlash = "://";
+        const string jdbcColon = "jdbc:";
+        const string hostEq = "host=";
+        const string serverEq = "server=";
+        const string dataSourceEq = "data source=";
+        const string databaseEq = "database=";
+        const string portEq = "port=";
+        const char colonChar = ':';
+        const char semicolonChar = ';';
+        return lowerVal.Contains(colonSlashSlash, StringComparison.Ordinal) ||
+               lowerVal.StartsWith(jdbcColon, StringComparison.Ordinal) ||
+               lowerVal.Contains(hostEq, StringComparison.Ordinal) ||
+               lowerVal.Contains(serverEq, StringComparison.Ordinal) ||
+               lowerVal.Contains(dataSourceEq, StringComparison.Ordinal) ||
+               lowerVal.Contains(databaseEq, StringComparison.Ordinal) ||
+               lowerVal.Contains(portEq, StringComparison.Ordinal) ||
+               lowerVal.Contains(semicolonChar) ||
+               lowerVal.Contains(colonChar);
+    }
+
+    private static bool ContainsStandaloneKeyToken(string lowerKey, string token)
+    {
+        var idx = 0;
+        while ((idx = lowerKey.IndexOf(token, idx, StringComparison.Ordinal)) >= 0)
+        {
+            var leftOk = idx == 0 || !char.IsLetterOrDigit(lowerKey[idx - 1]);
+            var after = idx + token.Length;
+            var rightOk = after >= lowerKey.Length || !char.IsLetterOrDigit(lowerKey[after]);
+            if (leftOk && rightOk) return true;
+            idx = after;
+        }
+        return false;
+    }
+
     private static bool IsValidCatalogName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
-        // Ignore unexpanded template placeholders like {{DB_NAME}}, ${DB_NAME}, %DB_NAME%, <DB_NAME>
-        if (name.StartsWith("{{") || name.StartsWith("${") || name.StartsWith('%') || name.StartsWith('<')) return false;
+        const string mustacheOpen = "{{";
+        const string dollarBrace = "${";
+        // Ignore unexpanded template placeholders like {{DB_NAME}}, ${DB_NAME}, %DB_NAME%, <DB_NAME>, URL paths, and generic config keys
+        if (name.StartsWith(mustacheOpen, StringComparison.Ordinal) ||
+            name.StartsWith(dollarBrace, StringComparison.Ordinal) ||
+            name.StartsWith('%') ||
+            name.StartsWith('<') ||
+            name.Contains('/') ||
+            name.Contains(':') ||
+            name.Contains(' ') ||
+            ResourceNamingHelper.IsGenericConfigKey(name))
+        {
+            return false;
+        }
         return true;
     }
 

@@ -15,7 +15,25 @@ public class JavaProjectParser : IProjectParser
     }
 
     private const string PomPackagingPattern = @"<packaging>\s*pom\s*</packaging>";
-    private static readonly Regex PomPackagingRegex = new(PomPackagingPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private const string WarPackagingPattern = @"<packaging>\s*war\s*</packaging>";
+    private const string GradleExecutablePluginPattern =
+        @"(?:id\s*\(?\s*['""](?:org\.springframework\.boot|io\.quarkus|io\.micronaut\.application|war|com\.google\.cloud\.tools\.jib|com\.bmuschko\.docker-spring-boot-application)['""]|apply\s*\(?\s*plugin\s*[:=]\s*['""](?:org\.springframework\.boot|io\.quarkus|io\.micronaut\.application|war)['""]|alias\s*\(\s*libs\.plugins\.[a-zA-Z0-9_.]*(?:spring[._-]?boot|quarkus|micronaut[._-]?application)|(?<!\.)\bbootJar\b|\bspringBoot\s*\{)";
+    private const string GradleJavaLibraryPluginPattern =
+        @"(?:id\s*\(?\s*['""](?:java-library|java-test-fixtures)['""]|apply\s*\(?\s*plugin\s*[:=]\s*['""]java-library['""]|alias\s*\(\s*libs\.plugins\.[a-zA-Z0-9_.]*java[._-]?library)";
+    private const string GradleBootJarDisabledPattern =
+        @"(?:bootJar\s*\{[^}]*\benabled\s*=\s*false|bootJar\.enabled\s*=\s*false|named\s*<\s*BootJar\s*>\s*\([^)]*\)\s*\{[^}]*\benabled\s*=\s*false)";
+    private const string MavenExecutablePluginPattern =
+        @"(?:<artifactId>\s*(?:spring-boot-maven-plugin|quarkus-maven-plugin|micronaut-maven-plugin|jib-maven-plugin|dockerfile-maven-plugin)\s*</artifactId>|<mainClass>\s*[^<\s]+\s*</mainClass>)";
+    private const string MavenBootSkipPattern =
+        @"spring-boot-maven-plugin[\s\S]{0,400}?<skip>\s*true\s*</skip>";
+    private static readonly TimeSpan ManifestRegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly Regex PomPackagingRegex = new(PomPackagingPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
+    private static readonly Regex WarPackagingRegex = new(WarPackagingPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
+    private static readonly Regex GradleExecutablePluginRegex = new(GradleExecutablePluginPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
+    private static readonly Regex GradleJavaLibraryPluginRegex = new(GradleJavaLibraryPluginPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
+    private static readonly Regex GradleBootJarDisabledRegex = new(GradleBootJarDisabledPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
+    private static readonly Regex MavenExecutablePluginRegex = new(MavenExecutablePluginPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
+    private static readonly Regex MavenBootSkipRegex = new(MavenBootSkipPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, ManifestRegexTimeout);
 
     public string ProjectType => "java";
 
@@ -196,9 +214,25 @@ public class JavaProjectParser : IProjectParser
     {
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        if (IsJavaTestModuleDirectory(directoryPath))
+        {
+            props["manifest_type"] = "test";
+            props["role"] = "Test";
+            props["primary_role"] = "Test";
+            props["is_test_project"] = "true";
+            props["is_library"] = "false";
+            return props;
+        }
+
+        var isSubmodule = HasAncestorJavaBuildRoot(directoryPath);
+        var isInternalLibPath = IsInternalLibrarySubmodulePath(directoryPath);
+        var hasRunnableEntrypoint = HasDockerfileOrRunnableJavaEntrypoint(directoryPath, filesInDirectory);
+
         var buildGradle = Path.Combine(directoryPath, "build.gradle");
         var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
-        var gradleFile = File.Exists(buildGradle) ? buildGradle : (File.Exists(buildGradleKts) ? buildGradleKts : null);
+        var gradleFile = PhysicalFileStore.FileExistsInCachedDirectory(buildGradle) || File.Exists(buildGradle)
+            ? buildGradle
+            : (PhysicalFileStore.FileExistsInCachedDirectory(buildGradleKts) || File.Exists(buildGradleKts) ? buildGradleKts : null);
 
         if (gradleFile != null)
         {
@@ -221,6 +255,10 @@ public class JavaProjectParser : IProjectParser
 
                 if (hasGrpc) props["has_grpc"] = "true";
 
+                var hasExecutableGradlePlugin = hasAppPlugin || GradleExecutablePluginRegex.IsMatch(content);
+                var isJavaLibraryPlugin = GradleJavaLibraryPluginRegex.IsMatch(content);
+                var isBootJarDisabled = GradleBootJarDisabledRegex.IsMatch(content);
+
                 if (content.Contains("com.android.application", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("com.android.library", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("dev.flutter.flutter-gradle-plugin", StringComparison.OrdinalIgnoreCase) ||
@@ -233,11 +271,17 @@ public class JavaProjectParser : IProjectParser
                         ? "Flutter Android"
                         : "Android";
                 }
-                else if (content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
-                         hasAppPlugin || hasGrpc)
+                else if (!isBootJarDisabled &&
+                         (hasExecutableGradlePlugin ||
+                          hasRunnableEntrypoint ||
+                          (!isSubmodule && !isJavaLibraryPlugin && !isInternalLibPath &&
+                           (content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("spring-boot-starter-webflux", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("grpc-netty", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("grpc-services", StringComparison.OrdinalIgnoreCase)))))
                 {
                     props["manifest_type"] = "application";
                     props["framework_type"] = "web";
@@ -248,6 +292,9 @@ public class JavaProjectParser : IProjectParser
                 else
                 {
                     props["manifest_type"] = "library";
+                    props["role"] = "Library";
+                    props["primary_role"] = "Library";
+                    props["is_library"] = "true";
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -258,7 +305,9 @@ public class JavaProjectParser : IProjectParser
 
         var settingsGradle = Path.Combine(directoryPath, "settings.gradle");
         var settingsGradleKts = Path.Combine(directoryPath, "settings.gradle.kts");
-        var settingsFile = File.Exists(settingsGradle) ? settingsGradle : (File.Exists(settingsGradleKts) ? settingsGradleKts : null);
+        var settingsFile = PhysicalFileStore.FileExistsInCachedDirectory(settingsGradle) || File.Exists(settingsGradle)
+            ? settingsGradle
+            : (PhysicalFileStore.FileExistsInCachedDirectory(settingsGradleKts) || File.Exists(settingsGradleKts) ? settingsGradleKts : null);
         if (settingsFile != null && !props.ContainsKey("framework_type"))
         {
             try
@@ -279,7 +328,7 @@ public class JavaProjectParser : IProjectParser
         }
 
         var pomPath = Path.Combine(directoryPath, "pom.xml");
-        if (File.Exists(pomPath))
+        if (PhysicalFileStore.FileExistsInCachedDirectory(pomPath) || File.Exists(pomPath))
         {
             try
             {
@@ -297,21 +346,25 @@ public class JavaProjectParser : IProjectParser
                 }
                 else
                 {
-                    var isWebService = content.Contains("spring-boot-starter", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("spring-cloud-starter", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("spring-cloud-config-server", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("spring-boot-admin", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("spring-boot-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("io.dropwizard", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("io.helidon", StringComparison.OrdinalIgnoreCase) ||
-                                      content.Contains("io.ktor", StringComparison.OrdinalIgnoreCase);
+                    var isMavenBootSkipped = MavenBootSkipRegex.IsMatch(content);
+                    var hasRunnableMavenSignal = !isMavenBootSkipped &&
+                                                 (WarPackagingRegex.IsMatch(content) ||
+                                                  MavenExecutablePluginRegex.IsMatch(content) ||
+                                                  hasRunnableEntrypoint);
+                    var hasStandaloneWebFramework = !isSubmodule && !isInternalLibPath &&
+                        (content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("spring-boot-starter-webflux", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("spring-cloud-config-server", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("spring-boot-admin", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.dropwizard", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.helidon", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.ktor", StringComparison.OrdinalIgnoreCase));
 
-                    if (isWebService)
+                    if (hasRunnableMavenSignal || hasStandaloneWebFramework)
                     {
                         props["manifest_type"] = "application";
                         props["framework_type"] = "web";
@@ -322,6 +375,9 @@ public class JavaProjectParser : IProjectParser
                     else
                     {
                         props["manifest_type"] = "library";
+                        props["role"] = "Library";
+                        props["primary_role"] = "Library";
+                        props["is_library"] = "true";
                     }
                 }
             }
@@ -332,6 +388,117 @@ public class JavaProjectParser : IProjectParser
         }
 
         return props;
+    }
+
+    private static bool IsJavaTestModuleDirectory(string directoryPath)
+    {
+        var folder = Path.GetFileName(directoryPath.TrimEnd('/', '\\')).ToLowerInvariant();
+        return folder is "unit-test" or "unit-tests" or "integration-test" or "integration-tests"
+                   or "functional-test" or "functional-tests" or "test-utils" or "test-support" or "test-fixtures"
+               || folder.EndsWith("-unit-test", StringComparison.Ordinal)
+               || folder.EndsWith("-integration-test", StringComparison.Ordinal)
+               || folder.EndsWith("-test-utils", StringComparison.Ordinal)
+               || folder.EndsWith("-test-support", StringComparison.Ordinal)
+               || folder.EndsWith("-test-fixtures", StringComparison.Ordinal);
+    }
+
+    private static bool IsInternalLibrarySubmodulePath(string directoryPath)
+    {
+        var norm = directoryPath.Replace('\\', '/').TrimEnd('/');
+        var folder = Path.GetFileName(norm).ToLowerInvariant();
+        if (norm.Contains("/core/", StringComparison.OrdinalIgnoreCase) ||
+            norm.Contains("/common/", StringComparison.OrdinalIgnoreCase) ||
+            norm.Contains("/commons/", StringComparison.OrdinalIgnoreCase) ||
+            norm.Contains("/libs/", StringComparison.OrdinalIgnoreCase) ||
+            norm.Contains("/shared/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return folder is "core" or "common" or "commons" or "shared" or "api" or "client" or "sdk" or "spi" or "dto" or "model" or "models"
+               || folder.EndsWith("-api", StringComparison.Ordinal)
+               || folder.EndsWith("-client", StringComparison.Ordinal)
+               || folder.EndsWith("-common", StringComparison.Ordinal)
+               || folder.EndsWith("-commons", StringComparison.Ordinal)
+               || folder.EndsWith("-core", StringComparison.Ordinal)
+               || folder.EndsWith("-dto", StringComparison.Ordinal)
+               || folder.EndsWith("-model", StringComparison.Ordinal)
+               || folder.EndsWith("-models", StringComparison.Ordinal)
+               || folder.EndsWith("-sdk", StringComparison.Ordinal)
+               || folder.EndsWith("-spi", StringComparison.Ordinal)
+               || folder.EndsWith("-starter", StringComparison.Ordinal)
+               || folder.EndsWith("-autoconfigure", StringComparison.Ordinal);
+    }
+
+    private static bool HasAncestorJavaBuildRoot(string directoryPath)
+    {
+        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var current = Directory.GetParent(directoryPath);
+        var depth = 0;
+        while (current != null && depth < 8)
+        {
+            depth++;
+            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            {
+                break;
+            }
+            if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath))
+            {
+                return false;
+            }
+
+            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            for (var i = 0; i < parentFiles.Length; i++)
+            {
+                var fn = Path.GetFileName(parentFiles[i]).ToLowerInvariant();
+                if (fn is "settings.gradle" or "settings.gradle.kts" or "pom.xml" or "build.gradle" or "build.gradle.kts")
+                {
+                    return true;
+                }
+            }
+            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            {
+                break;
+            }
+            current = current.Parent;
+        }
+        return false;
+    }
+
+    private static bool HasDockerfileOrRunnableJavaEntrypoint(string directoryPath, string[] filesInDirectory)
+    {
+        for (var i = 0; i < filesInDirectory.Length; i++)
+        {
+            var fn = Path.GetFileName(filesInDirectory[i]).ToLowerInvariant();
+            if (fn is "dockerfile")
+            {
+                return true;
+            }
+        }
+
+        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        {
+            return false;
+        }
+
+        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+        {
+            var norm = file.Replace('\\', '/');
+            if (norm.Contains("/src/test/", StringComparison.OrdinalIgnoreCase)) continue;
+            var ext = Path.GetExtension(norm).ToLowerInvariant();
+            if (ext is not (".java" or ".kt" or ".groovy")) continue;
+
+            var src = PhysicalFileStore.ReadAllText(file);
+            if (src.Contains("@SpringBootApplication", StringComparison.Ordinal) ||
+                src.Contains("@MicronautApplication", StringComparison.Ordinal) ||
+                src.Contains("@QuarkusMain", StringComparison.Ordinal) ||
+                src.Contains("static void main(", StringComparison.Ordinal) ||
+                src.Contains("fun main(", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)

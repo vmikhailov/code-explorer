@@ -166,9 +166,11 @@ public class AngularOidcLibraryParser : DeclarativeSemanticExtension
             return $"{uri.Host}/{fullPath}";
         }
 
-        var clean = raw.Trim('/');
-        return string.IsNullOrEmpty(clean)
-            ? "identity/.well-known/openid-configuration"
-            : $"{clean}/.well-known/openid-configuration";
+        var clean = raw.Trim().Trim('/');
+        if (string.IsNullOrEmpty(clean) || WorkspaceConventions.IsGarbageExternalService(clean))
+        {
+            return "identity/.well-known/openid-configuration";
+        }
+        return $"{clean}/.well-known/openid-configuration";
     }
 }

@@ -609,6 +609,15 @@ public static class NestedSqlParser
             rawText.Contains("clickhouse", StringComparison.OrdinalIgnoreCase) ||
             filePath.Contains("clickhouse", StringComparison.OrdinalIgnoreCase);
 
+        const string snowflakeEngineName = "Snowflake";
+        const string accountUsageSchema = "account_usage";
+        bool isSnowflakeContext =
+            rawText.Contains(snowflakeEngineName, StringComparison.OrdinalIgnoreCase) ||
+            rawText.Contains(accountUsageSchema, StringComparison.OrdinalIgnoreCase) ||
+            filePath.Contains(snowflakeEngineName, StringComparison.OrdinalIgnoreCase) ||
+            tables.Any(t => string.Equals(t.Db, snowflakeEngineName, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(t.Schema, accountUsageSchema, StringComparison.OrdinalIgnoreCase));
+
         if (isBigQueryContext)
         {
             engine = "BigQuery";
@@ -616,6 +625,10 @@ public static class NestedSqlParser
         else if (isClickHouseContext)
         {
             engine = "ClickHouse";
+        }
+        else if (isSnowflakeContext)
+        {
+            engine = snowflakeEngineName;
         }
         else
         {
@@ -674,7 +687,14 @@ public static class NestedSqlParser
                 }
             }
 
-            var targetDbType = targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) || targetEngine.Equals("ClickHouse", StringComparison.OrdinalIgnoreCase)
+            if (ResourceNamingHelper.IsKnownDatabaseEngine(targetEngine))
+            {
+                targetEngine = ResourceNamingHelper.NormalizeEngineName(targetEngine);
+            }
+
+            var targetDbType = targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ||
+                               targetEngine.Equals("ClickHouse", StringComparison.OrdinalIgnoreCase) ||
+                               targetEngine.Equals(snowflakeEngineName, StringComparison.OrdinalIgnoreCase)
                 ? "analytics"
                 : "relational";
 

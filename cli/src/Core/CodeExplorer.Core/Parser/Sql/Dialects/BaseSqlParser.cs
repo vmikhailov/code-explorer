@@ -91,6 +91,17 @@ public abstract partial class BaseSqlParser : ISqlDialectParser
         {
             return (null, parts[0], parts[1]);
         }
+        if (parts.Length == 1 && parts[0].Length > 6)
+        {
+            if (parts[0].StartsWith("PUBLIC", StringComparison.Ordinal) && char.IsLower(parts[0][6]))
+            {
+                return (null, "PUBLIC", parts[0][6..]);
+            }
+            if (parts[0].StartsWith("DBO", StringComparison.Ordinal) && char.IsLower(parts[0][3]))
+            {
+                return (null, "DBO", parts[0][3..]);
+            }
+        }
         return (null, null, parts.Length > 0 ? parts[0] : string.Empty);
     }
 

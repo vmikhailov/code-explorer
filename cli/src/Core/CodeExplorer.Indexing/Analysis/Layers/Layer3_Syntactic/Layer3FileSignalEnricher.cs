@@ -196,7 +196,10 @@ public static class Layer3FileSignalEnricher
 
     private static readonly FrozenSet<string> NonSchemaQualifiers = new[]
     {
-        "the", "this", "tmp", "temp", "sql", "data", "test", "demo", "sample", "log", "logs"
+        "the", "this", "self", "cls", "super", "src", "app", "lib", "pkg",
+        "com", "org", "net", "java", "javax", "jakarta", "python", "numpy", "pandas",
+        "tmp", "temp", "sql", "data", "test", "demo", "sample", "log", "logs",
+        "url", "uri", "string"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex SalesforceObjectPattern = new(
@@ -261,6 +264,7 @@ public static class Layer3FileSignalEnricher
                         {
                             var candidate = match.Groups[1].Value;
                             if (!NonSchemaQualifiers.Contains(candidate) &&
+                                !ResourceNamingHelper.IsGenericConfigKey(candidate) &&
                                 !schemas.Contains(candidate, StringComparer.OrdinalIgnoreCase))
                             {
                                 schemas.Add(candidate);

@@ -436,8 +436,12 @@ public static class ConfigurationIndex
         var clean = name.Trim();
         var suffixes = new[]
         {
+            "-public-base-url", "-internal-base-url", "-base-url", "-service-url", "-api-url",
+            "_public_base_url", "_internal_base_url", "_base_url", "_service_url", "_api_url",
             "RestClientOptions", "ClientOptions", "HttpOptions", "ApiOptions",
-            "ServiceOptions", "GrpcOptions", "RestClient", "HttpClient", "Options"
+            "ServiceOptions", "GrpcOptions", "RestClient", "HttpClient", "Options",
+            "PublicBaseUrl", "InternalBaseUrl", "PriUrl", "SecUrl", "BaseUrl",
+            "-url", "_url", "-uri", "_uri", "Url", "Uri"
         };
         foreach (var s in suffixes)
         {
@@ -518,7 +522,16 @@ public static class ConfigurationIndex
     {
         if (string.IsNullOrWhiteSpace(keyPath)) return true;
         var lower = keyPath.ToLowerInvariant();
-        return lower.Contains("cors") ||
+        const string colonScope = ":scope";
+        const string dotScope = ".scope";
+        const string colonScopes = ":scopes";
+        const string dotScopes = ".scopes";
+        return lower is "scope" or "scopes" ||
+               lower.EndsWith(colonScope, StringComparison.Ordinal) ||
+               lower.EndsWith(dotScope, StringComparison.Ordinal) ||
+               lower.EndsWith(colonScopes, StringComparison.Ordinal) ||
+               lower.EndsWith(dotScopes, StringComparison.Ordinal) ||
+               lower.Contains("cors") ||
                lower.Contains("allowedorigins") ||
                lower.Contains("allowedhosts") ||
                lower.Contains("validissuers") ||

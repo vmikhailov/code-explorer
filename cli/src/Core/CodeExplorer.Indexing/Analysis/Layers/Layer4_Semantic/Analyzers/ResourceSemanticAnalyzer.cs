@@ -864,6 +864,12 @@ public partial class ResourceSemanticAnalyzer
     {
         if (string.IsNullOrWhiteSpace(schema)) return true;
         var clean = schema.Trim('\'', '"', ' ', ';');
+        if (!clean.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+            !clean.Equals("main", StringComparison.OrdinalIgnoreCase) &&
+            ResourceNamingHelper.IsGenericConfigKey(clean))
+        {
+            return true;
+        }
         return clean.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("DefaultSchema", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||

@@ -7,7 +7,7 @@ public partial class PostIndexAnalyzer
     public static readonly HashSet<string> KnownDbEnginesAndNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3", "h2",
-        "clickhouse", "bigquery", "redis", "mongodb", "mongo",
+        "clickhouse", "bigquery", "snowflake", "redis", "mongodb", "mongo",
         "sqlserver", "mssql", "sql server", "oracle", "cassandra",
         "elasticsearch", "neo4j", "dynamodb", "firestore", "cosmosdb",
         "couchdb", "cockroachdb", "tidb", "influxdb", "timescaledb",
@@ -18,7 +18,7 @@ public partial class PostIndexAnalyzer
     public static readonly HashSet<string> AbstractEngineNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite", "h2",
-        "mongodb", "mongo", "oracle", "database", "db", "default", "relational", "redis", "cache",
+        "mongodb", "mongo", "oracle", "snowflake", "database", "db", "default", "relational", "redis", "cache",
         "ef-core", "dapper", "typeorm", "prisma", "hibernate", "nhibernate", "sequelize", "drizzle"
     };
 
@@ -42,48 +42,8 @@ public partial class PostIndexAnalyzer
         "external_query", "read_csv", "read_parquet"
     };
 
-    public static bool IsValidTableIdentifier(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return false;
-        var clean = name.Trim('`', '"', '\'', '[', ']').Trim();
-        if (clean.Length < 1 || clean.Length > 128) return false;
-        if (clean.Contains(' ') || clean.Contains('\t') || clean.Contains('\n') || clean.Contains('\r')) return false;
-
-        // Reject temporary tables, table variables, and cut-off interpolation tokens ending with '_'
-        if (clean.StartsWith('#') || clean.StartsWith('@') || clean.EndsWith('_'))
-        {
-            return false;
-        }
-
-        var parts = clean.Split('.');
-        foreach (var p in parts)
-        {
-            var trimmedPart = p.Trim('`', '"', '\'', '[', ']').Trim();
-            if (string.IsNullOrWhiteSpace(trimmedPart)) return false;
-            if (trimmedPart.Equals("pg_catalog", StringComparison.OrdinalIgnoreCase) ||
-                trimmedPart.Equals("information_schema", StringComparison.OrdinalIgnoreCase) ||
-                trimmedPart.Equals("sys", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-            if (NestedSqlParser.IsSqlKeyword(trimmedPart)) return false;
-            if (!ValidTablePartRegex.IsMatch(trimmedPart)) return false;
-        }
-
-        var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
-        if (tableName.StartWithIC("temp_") ||
-            tableName.StartWithIC("tmp_") ||
-            tableName.StartWithIC("pg_stat_") ||
-            tableName.StartWithIC("pg_toast") ||
-            tableName.StartWithIC("sqlite_") ||
-            SystemCatalogTables.Contains(tableName) ||
-            KnownTableValuedFunctions.Contains(tableName))
-        {
-            return false;
-        }
-
-        return true;
-    }
+    public static bool IsValidTableIdentifier(string? name) =>
+        ResourceNamingHelper.IsValidTableIdentifier(name);
 
     public static bool IsLikelyDatabaseName(string? name, string? engine = null)
     {
@@ -164,6 +124,7 @@ public partial class PostIndexAnalyzer
         {
             return true;
         }
+        if (ResourceNamingHelper.IsGenericConfigKey(clean)) return false;
         if (NestedSqlParser.IsSqlKeyword(clean)) return false;
         if (clean.EndsWith("Schema", StringComparison.OrdinalIgnoreCase) &&
             !clean.Equals("schema", StringComparison.OrdinalIgnoreCase) &&
@@ -339,7 +300,8 @@ public partial class PostIndexAnalyzer
                lower.Contains("oracle") ||
                lower.Contains("clickhouse") ||
                lower.Contains("h2") ||
-               lower.Contains("bigquery");
+               lower.Contains("bigquery") ||
+               lower.Contains("snowflake");
     }
 
     private static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeTechnologyOnly(string rawName, string rawDbType)
@@ -390,6 +352,8 @@ public partial class PostIndexAnalyzer
                 return ("ClickHouse", "analytics", "clickhouse");
             case "bigquery":
                 return ("BigQuery", "analytics", "bigquery");
+            case "snowflake":
+                return ("Snowflake", "analytics", "snowflake");
             case "mssql":
             case "sqlserver":
             case "sql server":

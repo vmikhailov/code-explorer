@@ -87,10 +87,15 @@ public static class ProjectEntityClassifierRegistry
                                 extensions.GetValueOrDefault("manifest_type") == "test" ||
                                 string.Equals(extensions.GetValueOrDefault("role"), "Test", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(extensions.GetValueOrDefault("kind"), "TestSuite", StringComparison.OrdinalIgnoreCase))) ||
+                            normName is "unit-test" or "unit-tests" or "integration-test" or "integration-tests"
+                                or "functional-test" or "functional-tests" or "test-utils" or "test-support" or "test-fixtures" ||
                             normName.EndsWith(".tests") || normName.EndsWith(".unittests") ||
                             normName.EndsWith(".functionaltests") || normName.EndsWith(".integrationtests") ||
-                            normName.EndsWith(".test") ||
+                            normName.EndsWith(".test") || normName.EndsWith("-test") || normName.EndsWith("-tests") ||
+                            normName.EndsWith("-test-utils") || normName.EndsWith("-test-support") || normName.EndsWith("-test-fixtures") ||
                             normRelPath.Contains("/test/") || normRelPath.Contains("/tests/") ||
+                            normRelPath.Contains("/unit-test/") || normRelPath.Contains("/integration-test/") ||
+                            normRelPath.Contains("/test-support/") || normRelPath.Contains("/test-fixtures/") ||
                             normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
                             normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/") ||
                             normRelPath.Contains("/fixtures/") || normRelPath.Contains("/__fixtures__/") ||
