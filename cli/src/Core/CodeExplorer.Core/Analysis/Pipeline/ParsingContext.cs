@@ -131,6 +131,7 @@ public class ParsingContext
     public SemanticStructureNode? SemanticStructure { get; set; }
     public ResourceReconciliationService ResourceRegistry { get; } = new();
     public WorkspaceFileFilter FileFilter { get; set; } = WorkspaceFileFilter.Default;
+    public WorkspaceDetectorCatalog DetectorCatalog { get; init; } = WorkspaceDetectorCatalog.Empty;
 
     /// <summary>Shared-parser results for files that belong to no project (workspace root files).</summary>
     public List<IProjectEnrichment> WorkspaceEnrichments { get; } = [];

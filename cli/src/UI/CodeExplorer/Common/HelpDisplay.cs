@@ -40,6 +40,7 @@ public static class HelpDisplay
   query "<cypher>"        Execute read-only or saved OpenCypher queries (alias: queries for --list)
   status (alias: info)    Show workspace summary, projects, node kinds, and statistics
   doctor [--issues|--gaps|--report] Diagnose index health, ScanIssue parse errors, and unsupported stack gaps
+  detector [list|validate|schema] Manage declarative L4 YAML detectors (.codeexplorer/detectors/*.yaml)
   init / clear / export   Workspace lifecycle and standalone diagram export helpers
   mcp / serve / configure Start MCP server, WebSocket API server, or configure AI coding tools
 """;

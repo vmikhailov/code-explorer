@@ -375,7 +375,7 @@ public sealed class WorkspaceDoctorService
         ScanWorkspaceFileGaps(workspaceRoot, fileParsers, projectParsers, gaps, options.MaxSamples, ct);
 
         // 2. Unmatched external packages vs registered ISemanticExtension patterns
-        await CollectUnmatchedPackagesAsync(db, fileParsers, gaps, options, ct);
+        await CollectUnmatchedPackagesAsync(db, workspaceRoot, fileParsers, gaps, options, ct);
 
         // 3. Graph coverage anomalies (projects with framework deps but 0 extracted semantic nodes)
         await CollectCoverageAnomaliesAsync(db, gaps, options, ct);
@@ -575,15 +575,17 @@ public sealed class WorkspaceDoctorService
 
     private static async Task CollectUnmatchedPackagesAsync(
         IGraphClient db,
+        string workspaceRoot,
         IReadOnlyList<IFileParser> fileParsers,
         DoctorGapsSummary gaps,
         WorkspaceDoctorOptions options,
         CancellationToken ct)
     {
+        var customCatalog = WorkspaceDetectorLoader.LoadForWorkspace(workspaceRoot, strict: false);
         var allExtensions = new List<ISemanticExtension>();
         foreach (var fp in fileParsers)
         {
-            allExtensions.AddRange(fp.SemanticExtensions);
+            allExtensions.AddRange(customCatalog.GetEffectiveExtensions(fp));
         }
         var registry = new SemanticExtensionRegistry(allExtensions);
 

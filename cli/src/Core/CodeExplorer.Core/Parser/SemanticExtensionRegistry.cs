@@ -33,7 +33,7 @@ public class SemanticExtensionRegistry
         // 1. Wildcard / Glob pattern (* or ?) compiled for general import matching
         if (pattern.Contains('*') || pattern.Contains('?'))
         {
-            var regex = CompileGlobRegex(pattern);
+            var regex = CompileGlobRegex(pattern, compileToIl: extension is not YamlDeclarativeSemanticExtension);
             _wildcardPatterns.Add(new WildcardPattern(pattern, regex, extension));
         }
 
@@ -57,11 +57,18 @@ public class SemanticExtensionRegistry
         }
     }
 
-    private static Regex CompileGlobRegex(string pattern)
+    private static readonly TimeSpan GlobMatchTimeout = TimeSpan.FromMilliseconds(100);
+
+    private static Regex CompileGlobRegex(string pattern, bool compileToIl = true)
     {
         var escaped = Regex.Escape(pattern);
         var regexStr = "^" + escaped.Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
-        return new Regex(regexStr, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        var opts = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+        if (compileToIl)
+        {
+            opts |= RegexOptions.Compiled;
+        }
+        return new Regex(regexStr, opts, GlobMatchTimeout);
     }
 
     public ISemanticExtension? Match(string import)

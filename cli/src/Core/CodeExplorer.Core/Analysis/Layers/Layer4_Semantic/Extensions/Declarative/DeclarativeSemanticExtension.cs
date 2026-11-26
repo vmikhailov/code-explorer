@@ -149,6 +149,7 @@ public sealed record ServiceCallSinkRule
 public partial class DeclarativeSemanticExtension : ISemanticExtension
 {
     public virtual string Id { get; init; } = "";
+    internal virtual string CacheKeyToken => Id;
     public virtual string Name { get; init; } = "";
     public virtual SemanticExtensionType Type { get; init; } = SemanticExtensionType.Framework;
     public virtual LibraryRole LibraryRole { get; init; } = LibraryRole.General;

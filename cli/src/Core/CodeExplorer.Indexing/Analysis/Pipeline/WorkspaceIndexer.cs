@@ -29,6 +29,7 @@ public class WorkspaceIndexer
     private const string CompletedProgressTitle = "Completed";
     private const string CompletedProgressMessage = "Indexing process completed successfully.";
     internal const string IndexerVersionMetadataKey = "indexer_version";
+    internal const string DetectorsHashMetadataKey = "detectors_hash";
 
     internal static readonly string CurrentIndexerVersion =
         typeof(WorkspaceIndexer).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
@@ -143,6 +144,7 @@ public class WorkspaceIndexer
 
         await RunParsingPipelineAsync(ctx);
         await _dbClient.SetMetadataAsync(IndexerVersionMetadataKey, CurrentIndexerVersion, cancellationToken);
+        await _dbClient.SetMetadataAsync(DetectorsHashMetadataKey, ctx.DetectorCatalog.CombinedHash, cancellationToken);
 
         ctx.ReportProgress(100, CompletedProgressTitle, CompletedProgressMessage, ctx.TotalNodesCount, ctx.TotalNodesCount);
         ctx.PipelineLog.IndexingCompleted(ctx.TotalNodesCount, ctx.TotalRelsCount, totalSw.ElapsedMilliseconds);
@@ -184,6 +186,12 @@ public class WorkspaceIndexer
         var sharedChannel = Channel.CreateUnbounded<Func<Task>>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
+        var detectorCatalog = WorkspaceDetectorLoader.LoadForWorkspace(absoluteWorkspacePath, strict: true);
+        foreach (var warn in detectorCatalog.Warnings)
+        {
+            _logger.LogWarning("[Detectors  ] {File}: {Message}", warn.FilePath, warn.Message);
+        }
+
         var ctx = new ParsingContext(
             absoluteWorkspacePath,
             absoluteWorkspacePath,
@@ -196,7 +204,8 @@ public class WorkspaceIndexer
             logger: _logger,
             enableIntentAnalysis: enableIntentAnalysis)
         {
-            FileFilter = new WorkspaceFileFilter(_projectParsers, _fileParsers)
+            FileFilter = new WorkspaceFileFilter(_projectParsers, _fileParsers),
+            DetectorCatalog = detectorCatalog
         };
         return ctx;
     }
@@ -213,6 +222,7 @@ public class WorkspaceIndexer
         IReadOnlyList<SyntaxTree> syntaxTrees;
         Dictionary<string, Incremental.FileGraphSnapshot> precomputedSnapshots;
         int parsedTreeCount;
+        WorkspaceDetectorCatalog.CurrentScope = ctx.DetectorCatalog;
         try
         {
             await using (new DatabasePersistenceWriter(ctx))
@@ -242,6 +252,7 @@ public class WorkspaceIndexer
         }
         finally
         {
+            WorkspaceDetectorCatalog.CurrentScope = null;
             await _dbClient.CommitBulkLoadAsync(CancellationToken.None);
         }
 
@@ -493,6 +504,21 @@ public class WorkspaceIndexer
             _logger.LogInformation("[Incremental:Decision] Full rescan triggered: File registry in database is empty (workspace not indexed yet).");
             await IndexAsync(targetPath, workspaceRoot, clear: false, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
             return true;
+        }
+
+        var currentDetectorCatalog = WorkspaceDetectorLoader.LoadForWorkspace(absoluteWorkspacePath, strict: true);
+        if (_dbClient.DbPath != null)
+        {
+            var recordedDetectorsHash = await _dbClient.GetMetadataAsync(DetectorsHashMetadataKey, cancellationToken) ?? "none";
+            if (!string.Equals(recordedDetectorsHash, currentDetectorCatalog.CombinedHash, StringComparison.Ordinal))
+            {
+                _logger.LogInformation(
+                    "[Incremental:Decision] Full rescan triggered: Custom YAML detectors changed ({RecordedHash} -> {CurrentHash}).",
+                    recordedDetectorsHash,
+                    currentDetectorCatalog.CombinedHash);
+                await IndexAsync(targetPath, workspaceRoot, clear: true, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
+                return true;
+            }
         }
 
         if (_dbClient.DbPath != null && knownChangedFiles == null)
@@ -852,7 +878,7 @@ public class WorkspaceIndexer
         }
     }
 
-    public static async Task<WorkspaceScanResult> ScanInMemoryAsync(
+    public static Task<WorkspaceScanResult> ScanInMemoryAsync(
         string workspacePath,
         WorkspaceScanOptions? options = null,
         CancellationToken cancellationToken = default,
@@ -865,122 +891,14 @@ public class WorkspaceIndexer
             AutoRegisterParsers();
         }
 
-        var fullDir = Path.GetFullPath(workspacePath).Replace('\\', '/');
-        if (!Directory.Exists(fullDir))
-        {
-            throw new DirectoryNotFoundException($"Directory '{fullDir}' does not exist.");
-        }
-
-        var fileFilter = new WorkspaceFileFilter(
+        return InMemoryWorkspaceScanner.RunAsync(
+            workspacePath,
             _projectParsers,
             _fileParsers,
-            options.ExcludedDirectories)
-        {
-            IncludeDistAndMinifiedArtifacts = options.IncludeDistAndMinifiedArtifacts
-        };
-
-        var buildInMemoryGraph = options.PersistToGraphDb || options.MaxLayer >= AnalysisLayer.Layer4_Semantic;
-        var inMemoryGraph = buildInMemoryGraph ? new InMemoryGraphRepository() : null;
-        var sharedChannel = buildInMemoryGraph
-            ? Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false })
-            : null!;
-
-        var ctx = new ParsingContext(
-            absoluteWorkspacePath: fullDir,
-            hostWorkspacePath: fullDir,
-            dbClient: inMemoryGraph!,
-            sharedChannel: sharedChannel,
-            clear: true,
-            cancellationToken: cancellationToken,
-            progress: progress,
-            logger: logger)
-        {
-            PersistToGraphDb = buildInMemoryGraph,
-            LightweightAstScanMode = options.LightweightAstMode,
-            CustomFileExclusionPredicate = options.FileExclusionPredicate,
-            CustomProjectFileFilter = options.ProjectFileFilter,
-            FileFilter = fileFilter
-        };
-
-        var prevDataflow = CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled;
-        if (options.LightweightAstMode)
-        {
-            CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled = false;
-        }
-
-        var totalSw = System.Diagnostics.Stopwatch.StartNew();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
-        Layer1Result l1Result;
-        Layer2Result? l2Result = null;
-        Layer3Result? l3Result = null;
-        Layer4Result? l4Result = null;
-        Layer5Result? l5Result = null;
-        long l1Ms = 0, l2Ms = 0, l3Ms = 0, l4Ms = 0, l5Ms = 0;
-
-        try
-        {
-            await using var writer = buildInMemoryGraph ? new DatabasePersistenceWriter(ctx) : null;
-
-            l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
-            l1Ms = sw.ElapsedMilliseconds;
-
-            if (options.MaxLayer >= AnalysisLayer.Layer2_Boundaries)
-            {
-                sw.Restart();
-                l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
-                l2Ms = sw.ElapsedMilliseconds;
-            }
-
-            if (options.MaxLayer >= AnalysisLayer.Layer3_Syntactic && l2Result != null)
-            {
-                sw.Restart();
-                l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
-                l3Ms = sw.ElapsedMilliseconds;
-            }
-
-            if (options.MaxLayer >= AnalysisLayer.Layer4_Semantic && l3Result != null)
-            {
-                sw.Restart();
-                l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
-                l4Ms = sw.ElapsedMilliseconds;
-            }
-
-            if (options.MaxLayer >= AnalysisLayer.Layer5_Global && l4Result != null)
-            {
-                sw.Restart();
-                l5Result = await new Layer5AnalysisParser().ParseAsync(l4Result, ctx);
-                l5Ms = sw.ElapsedMilliseconds;
-            }
-        }
-        finally
-        {
-            CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled = prevDataflow;
-        }
-
-        totalSw.Stop();
-        var (finalNodesCount, finalRelsCount) = inMemoryGraph != null
-            ? await inMemoryGraph.GetGraphCountsAsync(cancellationToken)
-            : (ctx.TotalNodesCount, ctx.TotalRelsCount);
-
-        return new WorkspaceScanResult
-        {
-            Layer1 = l1Result,
-            Layer2 = l2Result,
-            Layer3 = l3Result,
-            Layer4 = l4Result,
-            Layer5 = l5Result,
-            Graph = inMemoryGraph,
-            Timings = new LayerScanTimings(
-                L1Ms: l1Ms,
-                L2Ms: l2Ms,
-                L3Ms: l3Ms,
-                L4Ms: l4Ms,
-                L5Ms: l5Ms,
-                TotalMs: totalSw.ElapsedMilliseconds,
-                NodeCount: finalNodesCount,
-                RelationshipCount: finalRelsCount)
-        };
+            options,
+            cancellationToken,
+            progress,
+            logger);
     }
 
     private void LogPersistenceSummary(ParsingContext ctx)

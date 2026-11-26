@@ -108,7 +108,28 @@ public static class ProjectEntityClassifierRegistry
             return ProjectClassification.Test;
         }
 
-        // Orchestrator / explicit library priority
+        // Orchestrator / explicit library priority (allow custom YAML detectors to upgrade default 'library' manifests unless orchestrator)
+        const string keyIsOrch = "is_orchestrator";
+        const string keySecRoles = "secondary_roles";
+        const string emptyArr = "[]";
+        if (extensions != null &&
+            extensions.GetValueOrDefault(keyIsOrch) != "true" &&
+            Parser.WorkspaceDetectorCatalog.CurrentScope is { HasCustomDetectors: true } customScope)
+        {
+            var customClassification = Parser.IProjectParser.ClassifyFromCustomDetectors(normType, projectContext, customScope);
+            if (customClassification != null && customClassification.Kind != ProjectEntityKind.Unknown)
+            {
+                if (extensions is Dictionary<string, string> cd)
+                {
+                    cd["primary_role"] = customClassification.Kind.ToString();
+                    cd["is_library"] = "false";
+                    cd.TryAdd(keySecRoles, emptyArr);
+                    cd["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { cd["primary_role"] });
+                }
+                return customClassification;
+            }
+        }
+
         if (extensions != null && (
             extensions.GetValueOrDefault("is_orchestrator") == "true" ||
             extensions.GetValueOrDefault("role") == "Library" ||
@@ -324,7 +345,9 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
 
         if (cloudRuntime == "cloudflare-worker") return ProjectClassification.Worker;
 
-        if (extensions.GetValueOrDefault("role") == "FrontendApp" || extensions.GetValueOrDefault("kind") == "App")
+        const string keyRole = "role";
+        const string keyKind = "kind";
+        if (extensions.GetValueOrDefault(keyRole) == "FrontendApp" || extensions.GetValueOrDefault(keyKind) == "App")
         {
             if (manifestType == "mobile" || frameworkType == "mobile" || uiType == "mobile") return ProjectClassification.MobileApp;
             if (manifestType == "desktop" || frameworkType == "desktop" || uiType == "desktop") return ProjectClassification.DesktopApp;

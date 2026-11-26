@@ -5,6 +5,12 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.104.0] - 2026-11-26
+
+### Added
+- **Pluggable Declarative L4 YAML Detectors (`.codeexplorer/detectors/*.yaml`)**: Teams and AI agents can now author workspace-scoped (`.codeexplorer/detectors/`) and global (`~/.codeexplorer/detectors/`) Layer-4 framework and library detectors in YAML without modifying or recompiling C# code. Supports all 10 `DeclarativeSemanticExtension` rule families (`annotation_endpoints`, `inbound_route_calls`, `outbound_http`, `sql_sinks`, `orm_tables`, `messaging_brokers`, `data_store_access`, `service_call_sinks`, `annotation_sinks`, `class_hierarchy_sinks`), canonical language aliases, Layer-2 project role classification (`library_role`), `ce doctor` package coverage integration, strict ontology/ReDoS validation, explicit `override: true` protection against accidental shadowing of built-in imperative detectors, scan-scoped workspace isolation, and automatic incremental cache invalidation (`detectors_hash`).
+- **`ce detector` CLI Command (`list | validate | schema`)**: Added `ce detector list` (`--custom`, `-l <lang>`, `-f table|json|yaml`), `ce detector validate` (`--strict`), and `ce detector schema` (`--template`, JSON Schema 2020-12) for inspecting, validating, and generating declarative YAML detectors.
+
 ## [1.103.0] - 2026-11-26
 
 ### Added

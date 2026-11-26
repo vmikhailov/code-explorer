@@ -368,13 +368,24 @@ public interface IProjectParser
     /// </summary>
     ProjectClassification? ClassifyProject(ProjectContext context) => DefaultClassifyProject(this, context);
 
+    private const string KeyIsOrchestrator = "is_orchestrator";
+
     public static ProjectClassification? DefaultClassifyProject(IProjectParser parser, ProjectContext context)
     {
         // 1. Dialect Manifest Evidence
 
         var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
         if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
-        if (manifestType == "library") return ProjectClassification.Library;
+        if (manifestType == "library")
+        {
+            if (WorkspaceDetectorCatalog.CurrentScope is { HasCustomDetectors: true } scope &&
+                context.ManifestProperties.GetValueOrDefault(KeyIsOrchestrator) != "true")
+            {
+                var customMatch = ClassifyFromCustomDetectors(parser.ProjectType, context, scope);
+                if (customMatch != null) return customMatch;
+            }
+            return ProjectClassification.Library;
+        }
         if (manifestType == "cli" || context.ManifestProperties.GetValueOrDefault("has_cli_bin") == "true") return ProjectClassification.CliApp;
         if (manifestType == "worker") return ProjectClassification.Worker;
         if (manifestType == "migration") return ProjectClassification.DatabaseMigration;
@@ -392,7 +403,8 @@ public interface IProjectParser
 
 
         // 2. Inversion of Control: Query dialect's test framework packages FIRST!
-        var testPackages = parser.Packages.Where(p => p.Role == LibraryRole.TestFramework);
+        var effectivePackages = WorkspaceDetectorCatalog.CurrentScope?.GetEffectivePackages(parser) ?? parser.Packages;
+        var testPackages = effectivePackages.Where(p => p.Role == LibraryRole.TestFramework);
         var normProjectName = (context.ProjectName ?? "").Trim().ToLowerInvariant();
         var isTestByName = normProjectName.EndsWith(".tests") ||
                            normProjectName.EndsWith(".unittests") ||
@@ -414,7 +426,7 @@ public interface IProjectParser
         }
 
         // 3. Inversion of Control: Query dialect's application framework packages
-        var appPackages = parser.Packages.Where(p => p.Role is LibraryRole.WebFramework
+        var appPackages = effectivePackages.Where(p => p.Role is LibraryRole.WebFramework
             or LibraryRole.WebService
             or LibraryRole.FrontendFramework
             or LibraryRole.WorkerService
@@ -443,6 +455,37 @@ public interface IProjectParser
             }
         }
 
+        return null;
+    }
+
+    internal static ProjectClassification? ClassifyFromCustomDetectors(
+        string projectType,
+        ProjectContext context,
+        WorkspaceDetectorCatalog scope)
+    {
+        var canonicalLang = WorkspaceDetectorLanguageMap.NormalizeProjectLanguage(projectType);
+        foreach (var custom in scope.CustomDetectors)
+        {
+            if (!custom.AppliesToLanguage(canonicalLang)) continue;
+            foreach (var pkg in custom.GetPackageDescriptors())
+            {
+                if (!pkg.Matches(context)) continue;
+                var mapped = pkg.Role switch
+                {
+                    LibraryRole.TestFramework => ProjectClassification.Test,
+                    LibraryRole.FrontendFramework => ProjectClassification.WebApp,
+                    LibraryRole.WebFramework or LibraryRole.WebService => ProjectClassification.Service,
+                    LibraryRole.WorkerService => ProjectClassification.Worker,
+                    LibraryRole.FunctionFramework => ProjectClassification.FunctionApp,
+                    LibraryRole.CliFramework => ProjectClassification.CliApp,
+                    LibraryRole.MobileFramework => ProjectClassification.MobileApp,
+                    LibraryRole.DesktopFramework => ProjectClassification.DesktopApp,
+                    LibraryRole.DatabaseMigration => ProjectClassification.DatabaseMigration,
+                    _ => null
+                };
+                if (mapped != null) return mapped;
+            }
+        }
         return null;
     }
 }

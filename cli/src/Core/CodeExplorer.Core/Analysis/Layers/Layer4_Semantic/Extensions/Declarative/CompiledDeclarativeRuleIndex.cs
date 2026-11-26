@@ -37,10 +37,17 @@ internal sealed class CompiledDeclarativeRuleIndex
     internal required FrozenDictionary<string, CustomAstRule[]> CustomRulesByNodeType { get; init; }
     internal required CustomAstRule[] UnfilteredCustomRules { get; init; }
 
+    private const int MaxFusedCacheEntries = 4096;
+
     internal static DeclarativeSemanticExtension? GetOrCreateFused(IReadOnlyList<DeclarativeSemanticExtension> extensions)
     {
         if (extensions.Count == 0) return null;
         if (extensions.Count == 1) return extensions[0];
+
+        if (FusedCache.Count > MaxFusedCacheEntries)
+        {
+            FusedCache.Clear();
+        }
 
         var key = BuildCacheKey(extensions);
         return FusedCache.GetOrAdd(key, _ => CreateFusedExtension(extensions, key));
@@ -51,7 +58,7 @@ internal sealed class CompiledDeclarativeRuleIndex
         var ids = new string[extensions.Count];
         for (var i = 0; i < extensions.Count; i++)
         {
-            ids[i] = extensions[i].Id;
+            ids[i] = extensions[i].CacheKeyToken;
         }
         return string.Join(KeySeparator, ids);
     }

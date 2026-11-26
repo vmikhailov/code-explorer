@@ -552,12 +552,15 @@ public partial class Layer3SyntacticParser
 
         var relativePath = syntaxTree.RelativePath;
 
-        var (cachedActive, registry) = _parserRegistryCache.GetOrAdd(fileParser, fp =>
-        {
-            var active = fp.SemanticExtensions.Where(lp => lp.IsImplemented && lp.IsBuiltIn).ToList();
-            var reg = new SemanticExtensionRegistry(fp.SemanticExtensions);
-            return (active, reg);
-        });
+        var activeCatalog = ctx?.DetectorCatalog ?? WorkspaceDetectorCatalog.CurrentScope;
+        var (cachedActive, registry) = activeCatalog is { HasCustomDetectors: true }
+            ? activeCatalog.GetEffectiveRegistry(fileParser)
+            : _parserRegistryCache.GetOrAdd(fileParser, fp =>
+            {
+                var active = fp.SemanticExtensions.Where(lp => lp.IsImplemented && lp.IsBuiltIn).ToList();
+                var reg = new SemanticExtensionRegistry(fp.SemanticExtensions);
+                return (active, reg);
+            });
 
         if (ctx?.LightweightAstScanMode == true)
         {
