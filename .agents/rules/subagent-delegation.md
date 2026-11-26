@@ -13,5 +13,5 @@ trigger: always_on
 
 3. **Token & Scanning Discipline**:
    - **Avoid massive source scanning** and full-repo re-indexing unless strictly required.
-   - Read only targeted line ranges (`StartLine` / `EndLine`), run filtered tests (`dotnet test --filter ...`), and limit query outputs (`LIMIT`, concise projections) to prevent token overspending.
+   - Read only targeted line ranges (`StartLine` / `EndLine`), limit query outputs (`LIMIT`, concise projections), and use filtered tests (`dotnet test --filter ...`) **only during inner-loop iteration** — never as the final pre-commit/pre-push verification gate (always run `get_affected_tests` on all modified files or the full `dotnet test cli/CodeExplorer.slnx -c Release --no-build -m:1` before finishing/committing).
 

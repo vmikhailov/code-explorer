@@ -30,9 +30,12 @@ Whenever fixes or features are made to CodeExplorer's shipped code (CLI, MCP ser
      - **All gates MUST pass (Failed: 0)**. Never finish a task or publish a release while any gate is in [FAIL] state — always fix all failed gates first.
    - **CLI**:
      - Run `dotnet build cli/CodeExplorer.slnx -c Release` (compiles with 0 warnings and 0 errors; `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` is enforced globally via [Directory.Build.props](../../cli/Directory.Build.props)).
-     - Call `get_affected_tests` (`filePaths`) on all modified source files and execute its `runnerCommands.dotnet` command (never hand-pick `--filter` by guessing), or run the full test suites:
-       - `dotnet test cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj`
-       - `dotnet test cli/tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj`
+     - **Mandatory Pre-Commit / Pre-Push Test Parity with CI (NO guessed `--filter`!)**:
+       - **Multi-project / cross-cutting changes (> 1 project or shared `Core`/`Indexing`/`Parsers.Shared` modified)** OR **any release commit**: ALWAYS run the **exact full CI test command** before finishing, committing, or pushing:
+         ```bash
+         dotnet test cli/CodeExplorer.slnx -c Release --no-build -m:1
+         ```
+       - **Single-project localized edits only**: you may run `get_affected_tests` (`filePaths` = ALL `git diff --name-only` modified files) and execute its exact `runnerCommands.dotnet` command — **NEVER** hand-pick `--filter` by guessing class names. If `get_affected_tests` is unavailable or returns empty, fall back to the full `dotnet test cli/CodeExplorer.slnx -c Release --no-build -m:1`.
    - **VS Code Extension**:
      - In `vscode-extension/`, run `npm run typecheck` and `npm run test`.
 
