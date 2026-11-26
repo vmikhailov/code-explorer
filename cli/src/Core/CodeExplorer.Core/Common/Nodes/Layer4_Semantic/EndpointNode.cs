@@ -97,5 +97,11 @@ public record EndpointNode(
     public string? Summary { get; set; }
 
     [JsonIgnore]
+    [JsonPropertyName("canonical_route"), OntologyProperty("Normalized canonical route template with typed parameter slots (e.g. /users/{id:uuid}/orders).")]
+    public string? CanonicalRoute { get; set; }
+
+    [JsonPropertyName("canonical_shape"), OntologyProperty("Structural canonical route shape for O(1) endpoint matching (e.g. /users/{}/orders).")]
+    public string? CanonicalShape { get; set; }
+
     public override NodeKind Kind => NodeKind.Endpoint;
 }

@@ -85,6 +85,12 @@ public record ExternalServiceNode(
     [JsonPropertyName("inferred_from_identifier"), OntologyProperty("Indicates whether the service was inferred from an identifier.", isSystem: true)]
     public bool? InferredFromIdentifier { get; set; }
 
+    [JsonPropertyName("canonical_route"), OntologyProperty("Normalized canonical outbound route template with typed parameter or literal slots (e.g. /users/{=42:int}/orders).")]
+    public string? CanonicalRoute { get; set; }
+
+    [JsonPropertyName("canonical_shape"), OntologyProperty("Structural canonical outbound route shape for O(1) endpoint matching (e.g. /users/{}/orders).")]
+    public string? CanonicalShape { get; set; }
+
     [JsonIgnore]
     public CallSiteExecutionContext CallContext { get; set; }
 

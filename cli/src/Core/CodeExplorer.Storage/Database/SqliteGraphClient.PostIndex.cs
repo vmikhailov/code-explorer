@@ -273,6 +273,8 @@ public partial class SqliteGraphClient
             const string propHttpMethod = "http_method";
             const string propRouteTemplate = "route_template";
             const string propRoute = "route";
+            const string propCanonicalRoute = "canonical_route";
+            const string propCanonicalShape = "canonical_shape";
             const string propEntryType = "entry_type";
             const string propType = "type";
             const string propProtocol = "protocol";
@@ -302,7 +304,13 @@ public partial class SqliteGraphClient
                     var filePath = root.GetStringProp(propPath, root.GetStringProp(propFilePath));
                     var httpMethod = root.GetStringProp(propHttpMethod);
                     var route = root.GetStringProp(propRouteTemplate, root.GetStringProp(propRoute));
-                    endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route));
+                    var canonicalRoute = root.GetStringProp(propCanonicalRoute);
+                    var canonicalShape = root.GetStringProp(propCanonicalShape);
+                    endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route)
+                    {
+                        CanonicalRoute = string.IsNullOrEmpty(canonicalRoute) ? null : canonicalRoute,
+                        CanonicalShape = string.IsNullOrEmpty(canonicalShape) ? null : canonicalShape
+                    });
                 }
                 else if (kind == "EntryPoint")
                 {
@@ -317,7 +325,13 @@ public partial class SqliteGraphClient
                     var protocol = root.GetStringProp(propProtocol, root.GetStringProp(propServiceType));
                     var domain = root.GetStringProp(propDomainOrService, root.GetStringProp(propDomain, root.GetStringProp(propService)));
                     var path = root.GetStringProp(propPath, root.GetStringProp(propTargetPath));
-                    externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path));
+                    var canonicalRoute = root.GetStringProp(propCanonicalRoute);
+                    var canonicalShape = root.GetStringProp(propCanonicalShape);
+                    externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path)
+                    {
+                        CanonicalRoute = string.IsNullOrEmpty(canonicalRoute) ? null : canonicalRoute,
+                        CanonicalShape = string.IsNullOrEmpty(canonicalShape) ? null : canonicalShape
+                    });
                 }
                 else if (kind == "Project")
                 {

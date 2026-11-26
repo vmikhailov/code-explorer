@@ -1454,6 +1454,8 @@ graph TD
 | `IsGraphqlSdl` | `bool?` | Indicates whether the endpoint was extracted from a GraphQL SDL schema. |
 | `StatusCode` | `string?` | Declared HTTP response status codes (e.g. 200, 201, 404). |
 | `Summary` | `string?` | OpenAPI / Swagger or docstring endpoint summary. |
+| `CanonicalRoute` | `string?` | Normalized canonical route template with typed parameter slots (e.g. /users/{id:uuid}/orders). |
+| `CanonicalShape` | `string?` | Structural canonical route shape for O(1) endpoint matching (e.g. /users/{}/orders). |
 
 ---
 
@@ -1504,6 +1506,8 @@ graph TD
 | `Provider` | `string?` | Cloud platform or SaaS vendor hosting this external service (e.g. AWS, GCP, Azure, Stripe, Auth0). |
 | `ResourceRole` | `string?` | Operational role when representing a managed cloud resource (storage, secrets, auth, compute, cdn, ai). |
 | `IsExternal` | `bool?` | True when the target resolves outside workspace services. |
+| `CanonicalRoute` | `string?` | Normalized canonical outbound route template with typed parameter or literal slots (e.g. /users/{=42:int}/orders). |
+| `CanonicalShape` | `string?` | Structural canonical outbound route shape for O(1) endpoint matching (e.g. /users/{}/orders). |
 
 ---
 

@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Parser.Canonical;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -509,6 +510,18 @@ public partial class Layer5AnalysisParser
             {
                 return false;
             }
+        }
+
+        if (ext.HasTypedParameter && ep.HasTypedParameter &&
+            !RouteCanonicalParser.AreRoutesTypeCompatible(ext.Canonical, ep.Canonical))
+        {
+            return false;
+        }
+
+        if (ep.HasStaticSegment &&
+            string.Equals(ext.Canonical.CanonicalShape, ep.Canonical.CanonicalShape, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
         }
 
         if (string.Equals(ext.ServicePathNorm, ep.RouteNorm, StringComparison.OrdinalIgnoreCase) ||

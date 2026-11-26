@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Parser.Canonical;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -13,7 +15,16 @@ public record EndpointMatchCandidate(
     string EndpointId,
     string RouteTemplate,
     string? HttpMethod = null,
-    string? ParentProjectId = null);
+    string? ParentProjectId = null,
+    string? CanonicalRoute = null)
+{
+    private CanonicalRoute? _parsedCanonical;
+
+    internal CanonicalRoute GetParsedCanonical() =>
+        _parsedCanonical ??= RouteCanonicalParser.Parse(
+            !string.IsNullOrEmpty(CanonicalRoute) ? CanonicalRoute : RouteTemplate,
+            RouteDialect.Auto);
+}
 
 public record MatchResult(
     ProjectMatchCandidate? Project,
@@ -86,9 +97,6 @@ public static partial class EndpointScoringEngine
     [GeneratedRegex(@"^(environment\.|env\.|config\.|base_url_)", RegexOptions.IgnoreCase)]
     private static partial Regex EnvPrefixRegex();
 
-    [GeneratedRegex(@"^(:[a-zA-Z0-9_]+|\{[a-zA-Z0-9_]+\})$")]
-    private static partial Regex RouteParamRegex();
-
     [GeneratedRegex(@"[-_.]")]
     private static partial Regex DelimiterRegex();
 
@@ -126,11 +134,12 @@ public static partial class EndpointScoringEngine
 
         if (endpoints != null && !string.IsNullOrWhiteSpace(effectiveRoute))
         {
+            var callCanonical = RouteCanonicalParser.Parse(effectiveRoute, RouteDialect.OutboundClient);
             foreach (var ep in endpoints)
             {
                 // If a project is matched with high confidence, prefer endpoints of that project
                 var projectBias = (bestProject != null && ep.ParentProjectId == bestProject.ProjectId) ? 20.0 : 0.0;
-                var score = ScoreEndpointMatch(effectiveRoute, httpMethod, ep) + projectBias;
+                var score = ScoreEndpointMatch(callCanonical, httpMethod, ep) + projectBias;
                 if (score > bestEpScore)
                 {
                     bestEpScore = score;
@@ -179,9 +188,10 @@ public static partial class EndpointScoringEngine
         score = 0.0;
         if (string.IsNullOrWhiteSpace(pathOrRoute) || endpoints == null) return false;
 
+        var callCanonical = RouteCanonicalParser.Parse(pathOrRoute, RouteDialect.OutboundClient);
         foreach (var ep in endpoints)
         {
-            var s = ScoreEndpointMatch(pathOrRoute, httpMethod, ep);
+            var s = ScoreEndpointMatch(callCanonical, httpMethod, ep);
             if (s > score)
             {
                 score = s;
@@ -328,48 +338,74 @@ public static partial class EndpointScoringEngine
     }
 
     /// <summary>
-    /// Scores candidate endpoint against route and HTTP method.
+    /// Scores candidate endpoint against route and HTTP method using canonical route parsing and parameter type compatibility.
     /// </summary>
     public static double ScoreEndpointMatch(string route, string? httpMethod, EndpointMatchCandidate endpoint)
     {
         if (string.IsNullOrWhiteSpace(route) || string.IsNullOrWhiteSpace(endpoint.RouteTemplate))
             return 0.0;
 
-        var cleanCallRoute = route.Trim().Split('?')[0].Trim('/');
-        var cleanEpRoute = endpoint.RouteTemplate.Trim().Split('?')[0].Trim('/');
+        var callCanonical = RouteCanonicalParser.Parse(route, RouteDialect.OutboundClient);
+        return ScoreEndpointMatch(callCanonical, httpMethod, endpoint);
+    }
 
-        var callSegs = cleanCallRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var epSegs = cleanEpRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    public static double ScoreEndpointMatch(CanonicalRoute callCanonical, string? httpMethod, EndpointMatchCandidate endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint.RouteTemplate))
+            return 0.0;
 
-        if (callSegs.Length == 0 || epSegs.Length == 0) return 0.0;
+        var epCanonical = endpoint.GetParsedCanonical();
 
-        // Compare segment by segment
+        var callSegs = callCanonical.Segments;
+        var epSegs = epCanonical.Segments;
+
+        if (callSegs.Count == 0 || epSegs.Count == 0) return 0.0;
+
         int matchCount = 0;
-        int minLen = Math.Min(callSegs.Length, epSegs.Length);
+        double typeBonus = 0.0;
+        int minLen = Math.Min(callSegs.Count, epSegs.Count);
 
         for (int i = 0; i < minLen; i++)
         {
             var cSeg = callSegs[i];
             var eSeg = epSegs[i];
 
-            if (RouteParamRegex().IsMatch(eSeg) || RouteParamRegex().IsMatch(cSeg))
+            if (cSeg.IsParameter && eSeg.IsParameter)
             {
-                // Parameter wildcard match
+                if (!RouteCanonicalParser.AreTypesCompatible(cSeg.ParamType, eSeg.ParamType))
+                {
+                    return 0.0;
+                }
+                matchCount++;
+                if (cSeg.ParamType != RouteParamType.Any && cSeg.ParamType == eSeg.ParamType)
+                {
+                    typeBonus += 5.0;
+                }
+            }
+            else if (eSeg.IsParameter && !cSeg.IsParameter)
+            {
+                if (eSeg.ParamType is not (RouteParamType.Any or RouteParamType.String or RouteParamType.WildcardPath))
+                {
+                    return 0.0;
+                }
                 matchCount++;
             }
-            else if (string.Equals(cSeg, eSeg, StringComparison.OrdinalIgnoreCase) ||
-                     NormalizeAlphanumeric(cSeg) == NormalizeAlphanumeric(eSeg))
+            else if (cSeg.IsParameter && !eSeg.IsParameter)
+            {
+                matchCount++;
+            }
+            else if (string.Equals(cSeg.Text, eSeg.Text, StringComparison.OrdinalIgnoreCase))
             {
                 matchCount++;
             }
         }
 
-        var jaccard = (double)matchCount / (callSegs.Length + epSegs.Length - matchCount);
-        var score = jaccard * 60.0;
+        var jaccard = (double)matchCount / (callSegs.Count + epSegs.Count - matchCount);
+        var score = (jaccard * 60.0) + typeBonus;
 
-        if (cleanCallRoute.Equals(cleanEpRoute, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(callCanonical.CanonicalTemplate, epCanonical.CanonicalTemplate, StringComparison.OrdinalIgnoreCase))
         {
-            score = 70.0;
+            score = 70.0 + typeBonus;
         }
 
         // HTTP method match bonus

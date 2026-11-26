@@ -4,6 +4,8 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Nodes.Layer5_Logical;
 using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Parser.Canonical;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -312,6 +314,7 @@ public partial class Layer5AnalysisParser
 
         // Prepare and filter endpoints and entry points
         var prepEndpoints = new List<PreparedEndpoint>(endpoints.Count);
+        var endpointsByShape = new Dictionary<string, List<PreparedEndpoint>>(StringComparer.OrdinalIgnoreCase);
         foreach (var ep in endpoints)
         {
             nodeToProject.TryGetValue(ep.Id, out var targetProj);
@@ -319,6 +322,15 @@ public partial class Layer5AnalysisParser
             if (!string.IsNullOrEmpty(prep.RouteNorm) && !prep.IsApiPrefixOnly)
             {
                 prepEndpoints.Add(prep);
+                if (prep.HasStaticSegment)
+                {
+                    if (!endpointsByShape.TryGetValue(prep.Canonical.CanonicalShape, out var shapeList))
+                    {
+                        shapeList = new List<PreparedEndpoint>(2);
+                        endpointsByShape[prep.Canonical.CanonicalShape] = shapeList;
+                    }
+                    shapeList.Add(prep);
+                }
             }
         }
 
@@ -417,22 +429,50 @@ public partial class Layer5AnalysisParser
 
             var candidateEndpoints = new List<PreparedEndpoint>();
             var isRelOrPathSeg = extService.Service.IsRelativePath == true || extService.IsPathSegment;
-            foreach (var endpoint in prepEndpoints)
+
+            // O(1) CanonicalShape hash-join lookup first
+            if (extService.HasStaticSegment &&
+                endpointsByShape.TryGetValue(extService.Canonical.CanonicalShape, out var exactShapeCandidates))
             {
-                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEndpointIds.Contains(endpoint.Endpoint.Id))
+                foreach (var endpoint in exactShapeCandidates)
                 {
-                    continue;
-                }
+                    if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEndpointIds.Contains(endpoint.Endpoint.Id))
+                    {
+                        continue;
+                    }
 
-                if (isRelOrPathSeg &&
-                    IsRelativeFrontendTargetMismatch(extService.CallerProj, endpoint.TargetProj, projectsWithEndpoints))
-                {
-                    continue;
-                }
+                    if (isRelOrPathSeg &&
+                        IsRelativeFrontendTargetMismatch(extService.CallerProj, endpoint.TargetProj, projectsWithEndpoints))
+                    {
+                        continue;
+                    }
 
-                if (IsMatch(extService, endpoint, CheckProjectMatch))
+                    if (IsMatch(extService, endpoint, CheckProjectMatch))
+                    {
+                        candidateEndpoints.Add(endpoint);
+                    }
+                }
+            }
+
+            if (candidateEndpoints.Count == 0)
+            {
+                foreach (var endpoint in prepEndpoints)
                 {
-                    candidateEndpoints.Add(endpoint);
+                    if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEndpointIds.Contains(endpoint.Endpoint.Id))
+                    {
+                        continue;
+                    }
+
+                    if (isRelOrPathSeg &&
+                        IsRelativeFrontendTargetMismatch(extService.CallerProj, endpoint.TargetProj, projectsWithEndpoints))
+                    {
+                        continue;
+                    }
+
+                    if (IsMatch(extService, endpoint, CheckProjectMatch))
+                    {
+                        candidateEndpoints.Add(endpoint);
+                    }
                 }
             }
 
@@ -688,6 +728,9 @@ public partial class Layer5AnalysisParser
         public required string LastSegment { get; init; }
         public required bool IsLastSegmentParam { get; init; }
         public required bool IsApiPrefixOnly { get; init; }
+        public required CanonicalRoute Canonical { get; init; }
+        public required bool HasStaticSegment { get; init; }
+        public required bool HasTypedParameter { get; init; }
     }
 
     internal sealed class PreparedEntryPoint
@@ -716,6 +759,9 @@ public partial class Layer5AnalysisParser
         public required string LastSegment { get; init; }
         public required bool IsLastSegmentParam { get; init; }
         public required bool IsRootOrGenericPath { get; init; }
+        public required CanonicalRoute Canonical { get; init; }
+        public required bool HasStaticSegment { get; init; }
+        public required bool HasTypedParameter { get; init; }
     }
 
     internal static PreparedEndpoint PrepareEndpoint(EndpointNode endpoint, ProjectNode? targetProj)
@@ -726,6 +772,17 @@ public partial class Layer5AnalysisParser
         var isParam = last == "*" || last.StartsWith(':') || (last.StartsWith('{') && last.EndsWith('}'));
         var isPrefixOnly = IsApiPrefixOnly(segs, null);
         var clean = "/" + routeNorm.Trim('/') + "/";
+        var canonical = RouteCanonicalParser.Parse(
+            !string.IsNullOrEmpty(endpoint.CanonicalRoute) ? endpoint.CanonicalRoute : routeNorm,
+            RouteDialect.Auto);
+        var hasStatic = false;
+        var hasTyped = false;
+        for (var i = 0; i < canonical.Segments.Count; i++)
+        {
+            var s = canonical.Segments[i];
+            if (!s.IsParameter) hasStatic = true;
+            else if (s.ParamType != RouteParamType.Any) hasTyped = true;
+        }
 
         return new PreparedEndpoint
         {
@@ -736,7 +793,10 @@ public partial class Layer5AnalysisParser
             Segments = segs,
             LastSegment = last,
             IsLastSegmentParam = isParam,
-            IsApiPrefixOnly = isPrefixOnly
+            IsApiPrefixOnly = isPrefixOnly,
+            Canonical = canonical,
+            HasStaticSegment = hasStatic,
+            HasTypedParameter = hasTyped
         };
     }
 
@@ -774,6 +834,17 @@ public partial class Layer5AnalysisParser
         var isPathSeg = IsInferredPathSegmentDomain(extService);
         var clean = "/" + pathNorm.Trim('/') + "/";
         var isRootOrGeneric = IsRootOrGenericPath(pathNorm);
+        var canonical = RouteCanonicalParser.Parse(
+            !string.IsNullOrEmpty(extService.CanonicalRoute) ? extService.CanonicalRoute : pathNorm,
+            RouteDialect.OutboundClient);
+        var hasStatic = false;
+        var hasTyped = false;
+        for (var i = 0; i < canonical.Segments.Count; i++)
+        {
+            var s = canonical.Segments[i];
+            if (!s.IsParameter) hasStatic = true;
+            else if (s.ParamType != RouteParamType.Any) hasTyped = true;
+        }
 
         return new PreparedExternalService
         {
@@ -788,7 +859,10 @@ public partial class Layer5AnalysisParser
             Segments = segs,
             LastSegment = last,
             IsLastSegmentParam = isParam,
-            IsRootOrGenericPath = isRootOrGeneric
+            IsRootOrGenericPath = isRootOrGeneric,
+            Canonical = canonical,
+            HasStaticSegment = hasStatic,
+            HasTypedParameter = hasTyped
         };
     }
 

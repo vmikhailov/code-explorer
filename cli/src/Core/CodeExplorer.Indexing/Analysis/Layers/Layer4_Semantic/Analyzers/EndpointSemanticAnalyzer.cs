@@ -4,6 +4,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
@@ -499,6 +500,13 @@ public static class EndpointSemanticAnalyzer
         var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}{schemaPart}{method}:{route}";
         var startLine = (int)node.StartPosition.Row + 1;
         var endLine = (int)node.EndPosition.Row + 1;
+        var epParamTypes = RouteCanonicalParser.MayHaveNamedParameters(route)
+            ? RouteCanonicalParser.ExtractHandlerParameterTypes(node)
+            : null;
+        var canonicalEp = RouteCanonicalParser.Parse(
+            route,
+            CodeExplorer.Cypher.Common.RouteDialect.Auto,
+            epParamTypes);
         return new EndpointNode(
             endpointId,
             name,
@@ -520,7 +528,9 @@ public static class EndpointSemanticAnalyzer
             Line = startLine,
             LineEnd = endLine,
             Operation = method,
-            EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint
+            EvidenceKind = OntologyConstants.EvidenceKinds.Endpoint,
+            CanonicalRoute = canonicalEp.CanonicalTemplate,
+            CanonicalShape = canonicalEp.CanonicalShape
         };
     }
 
@@ -925,6 +935,13 @@ public static class EndpointSemanticAnalyzer
                 ? $"#{projScope}#{path}"
                 : "";
         var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}{serviceScopeSuffix}";
+        var extParamTypes = RouteCanonicalParser.MayHaveNamedParameters(path)
+            ? RouteCanonicalParser.ExtractHandlerParameterTypes(node)
+            : null;
+        var canonicalExt = RouteCanonicalParser.Parse(
+            path,
+            CodeExplorer.Cypher.Common.RouteDialect.OutboundClient,
+            extParamTypes);
 
         return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path)
         {
@@ -937,7 +954,9 @@ public static class EndpointSemanticAnalyzer
             IsExternal = isExternal,
             IsRelativePath = isRelativePath,
             InferredFromPath = inferredFromPath,
-            InferredFromIdentifier = inferredFromIdentifier
+            InferredFromIdentifier = inferredFromIdentifier,
+            CanonicalRoute = canonicalExt.CanonicalTemplate,
+            CanonicalShape = canonicalExt.CanonicalShape
         };
     }
 

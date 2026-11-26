@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.101.3] - 2026-11-26
+
+### Fixed
+- **Zero-Regex Bijective Canonical Route Normalization & $O(1)$ Layer 5 Hash-Join (`RouteCanonicalParser`, `EndpointSemanticAnalyzer`, `Layer5GlobalAnalyzer`, `EndpointScoringEngine`)**:
+  - Added `RouteCanonicalParser` (`ReadOnlySpan<char>`, zero regexes), `RouteParamType`, and `RouteDialect` to normalize route templates across ASP.NET (`{id:guid}`), Express/NestJS/Gin (`:id`, `:id(int)`), Flask/Django (`<int:id>`, `<path:subpath>`), Next.js/SvelteKit (`[id]`, `[...slug]`), and outbound client calls (`/users/42/orders`, `/users/${userId}/orders`) into a bijectively reversible canonical grammar (`{name:type}` / `{=literal:type}` / `{*name:path}`) and structural shape (`canonical_shape`, e.g. `/users/{}/orders`) without mutating static segment names (`/users` $\neq$ `/user`).
+  - Enriched untyped route parameters with handler parameter types extracted from AST method signatures (`Guid`/`UUID` -> `uuid`, `int`/`int64` -> `int`, `ParseUUIDPipe` -> `uuid`) and verified parameter type compatibility during endpoint scoring and Layer 5 late binding, disambiguating typed endpoint overloads (`GET /users/{id:int}` vs `GET /users/{id:guid}`).
+  - Indexed endpoints by `CanonicalShape` in `Layer5GlobalAnalyzer` and cached parsed `CanonicalRoute` instances on `EndpointMatchCandidate`, accelerating `EndpointScoringEngine` by `5.34x` and Layer 5 late-binding by `86.0x` on 2M candidate pairs.
+- **Architectural & Platform Semantic Invariant Gates Hardening (`SIG-C-R-002`, `SIG-M-R-002`, `SIG-S-I-001`, `SIG-M-I-006`, `SIG-P-B-012`)**:
+  - Replaced unbounded static `ConcurrentDictionary` caches in library parsers and `ArchitectureViewEngine` with scan-scoped / bounded caches (`SIG-C-R-002`), eliminated sync-over-async calls in storage and analysis (`SIG-M-R-002`), converted manual quote-escaping queries to parameterized bindings (`SIG-S-I-001`), promoted inline static regex calls to compiled regexes with explicit timeouts (`SIG-M-I-006`), and replaced ad-hoc Cypher string splitting with `CypherQueryParser.Parse` (`SIG-P-B-012`).
+
+---
+
 ## [1.101.2] - 2026-11-26
 
 ### Fixed

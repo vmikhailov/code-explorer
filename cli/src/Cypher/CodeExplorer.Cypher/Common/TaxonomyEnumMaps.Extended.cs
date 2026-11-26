@@ -379,4 +379,37 @@ public static class TaxonomyEnumExtendedExtensions
         SyntaxDiagnosticKind.Warning => "warning",
         _ => "syntax_error"
     };
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string ToCanonicalString(this RouteParamType val) => val switch
+    {
+        RouteParamType.Int => "int",
+        RouteParamType.Float => "float",
+        RouteParamType.Uuid => "uuid",
+        RouteParamType.Bool => "bool",
+        RouteParamType.Date => "date",
+        RouteParamType.String => "string",
+        RouteParamType.WildcardPath => "path",
+        _ => "any"
+    };
+
+    public static RouteParamType ParseRouteParamType(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return RouteParamType.Any;
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "int" or "integer" or "int16" or "int32" or "int64" or "long" or "short" or "byte" or "sbyte"
+                or "uint" or "uint16" or "uint32" or "uint64" or "ulong" or "ushort"
+                or "i8" or "i16" or "i32" or "i64" or "i128" or "isize"
+                or "u8" or "u16" or "u32" or "u64" or "u128" or "usize"
+                or "number" or "num" or "digits" or "bigint" => RouteParamType.Int,
+            "float" or "double" or "decimal" or "f32" or "f64" or "single" => RouteParamType.Float,
+            "uuid" or "guid" => RouteParamType.Uuid,
+            "bool" or "boolean" => RouteParamType.Bool,
+            "date" or "datetime" or "dateonly" or "datetimeoffset" or "localdate" or "localdatetime" or "instant" or "time" => RouteParamType.Date,
+            "string" or "str" or "alpha" or "slug" or "text" => RouteParamType.String,
+            "path" or "wildcard" or "catchall" => RouteParamType.WildcardPath,
+            _ => RouteParamType.Any
+        };
+    }
 }

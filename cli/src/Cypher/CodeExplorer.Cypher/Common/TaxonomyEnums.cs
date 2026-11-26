@@ -575,3 +575,26 @@ public enum DataSensitivity : byte
     Pci = 4,
     Secret = 5
 }
+
+public enum RouteParamType : byte
+{
+    Any = 0,
+    Int = 1,
+    Float = 2,
+    Uuid = 3,
+    Bool = 4,
+    Date = 5,
+    String = 6,
+    WildcardPath = 7
+}
+
+public enum RouteDialect : byte
+{
+    Auto = 0,
+    Canonical = 1,
+    AspNet = 2,
+    ColonParam = 3,
+    FlaskAngle = 4,
+    NextBracket = 5,
+    OutboundClient = 6
+}

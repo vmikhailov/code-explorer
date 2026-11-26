@@ -1771,6 +1771,18 @@
           "sourceName": "Summary",
           "type": "string",
           "description": "OpenAPI / Swagger or docstring endpoint summary."
+        },
+        {
+          "name": "canonical_route",
+          "sourceName": "CanonicalRoute",
+          "type": "string",
+          "description": "Normalized canonical route template with typed parameter slots (e.g. /users/{id:uuid}/orders)."
+        },
+        {
+          "name": "canonical_shape",
+          "sourceName": "CanonicalShape",
+          "type": "string",
+          "description": "Structural canonical route shape for O(1) endpoint matching (e.g. /users/{}/orders)."
         }
       ],
       "outEdges": [
@@ -2117,6 +2129,18 @@
           "sourceName": "IsExternal",
           "type": "boolean",
           "description": "True when the target resolves outside workspace services."
+        },
+        {
+          "name": "canonical_route",
+          "sourceName": "CanonicalRoute",
+          "type": "string",
+          "description": "Normalized canonical outbound route template with typed parameter or literal slots (e.g. /users/{=42:int}/orders)."
+        },
+        {
+          "name": "canonical_shape",
+          "sourceName": "CanonicalShape",
+          "type": "string",
+          "description": "Structural canonical outbound route shape for O(1) endpoint matching (e.g. /users/{}/orders)."
         }
       ],
       "outEdges": [
