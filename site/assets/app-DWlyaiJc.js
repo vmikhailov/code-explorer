@@ -396,12 +396,12 @@ Error generating stack: `+s.message+`
               Every node and relationship in <code>.codeexplorer/graph.db</code> belongs to one of five layers, from files on disk up to services, queues, SQL tables, and bounded contexts.
             </p>
           </div>
-          <a href="/ontology" class="link-quiet">Explore all 39 entities &amp; 57 relationships</a>
+          <a href="/ontology" class="link-quiet">Explore all 38 entities &amp; 56 relationships</a>
         </div>
 
         <ul class="langs" aria-label="Supported programming languages">
           <li><span class="lang">C# / .NET</span><span class="fw">ASP.NET Core, EF Core, Dapper, MassTransit</span></li>
-          <li><span class="lang">Java</span><span class="fw">Spring Boot, Quarkus, Hibernate, Kafka</span></li>
+          <li><span class="lang">Java &amp; Groovy</span><span class="fw">Spring, Quarkus, Seam/JSF, GWT, Hibernate, Liquibase</span></li>
           <li><span class="lang">Kotlin</span><span class="fw">Spring, Ktor, Exposed, Coroutines</span></li>
           <li><span class="lang">TypeScript / JS</span><span class="fw">NestJS, Next.js, Express, TypeORM, Prisma</span></li>
           <li><span class="lang">Go</span><span class="fw">Gin, Echo, gRPC-Gateway, GORM, sqlx</span></li>
@@ -413,6 +413,23 @@ Error generating stack: `+s.message+`
           <li><span class="lang">SQL</span><span class="fw">PostgreSQL, T-SQL, MySQL, ClickHouse, BigQuery</span></li>
           <li><span class="lang">Terraform</span><span class="fw">HCL modules, Terragrunt, AWS/GCP/Azure</span></li>
         </ul>
+
+        <div class="pane ci-card">
+          <div class="pane-head">
+            <span>Pluggable YAML Framework Detectors &amp; Coverage Diagnostics</span>
+            <code class="measured dim">.codeexplorer/detectors/custom-bus.yaml</code>
+          </div>
+          <pre class="code"><span class="syn-kw">schema_version:</span> <span class="syn-num">1</span>
+<span class="syn-kw">id:</span> <span class="syn-str">internal-rpc-bus</span>
+<span class="syn-kw">name:</span> <span class="syn-str">Internal RPC &amp; Event Bus</span>
+<span class="syn-kw">languages:</span> [java, kotlin, typescript]
+<span class="syn-kw">packages:</span> [<span class="syn-str">"com.acme.platform:rpc-bus*"</span>]
+<span class="syn-kw">messaging_brokers:</span>
+  - <span class="syn-kw">protocol:</span> <span class="syn-str">acme-bus</span>
+    <span class="syn-kw">listener_annotations:</span> [BusSubscriber]
+    <span class="syn-kw">publish_methods:</span> [publishEvent]</pre>
+          <p class="pane-foot">Spot uncovered legacy or internal packages with <code>ce doctor --gaps</code>, drop a declarative YAML detector into <code>.codeexplorer/detectors/</code>, and validate with <code>ce detector validate</code> without recompiling.</p>
+        </div>
       </div>
     </section>
 
@@ -442,6 +459,7 @@ Error generating stack: `+s.message+`
           <div class="next-steps">
             <p><code>ce scan</code> indexes the repository into <code>.codeexplorer/graph.db</code>.</p>
             <p><code>ce context "&lt;task&gt;"</code> builds a one-shot context pack for an issue.</p>
+            <p><code>ce doctor --gaps</code> checks index health, parse errors, and uncovered frameworks.</p>
             <p><code>ce mcp</code> starts the Model Context Protocol server over <code>stdio</code>.</p>
             <p><code>ce gate check</code> evaluates Semantic Invariant Gates in CI.</p>
           </div>

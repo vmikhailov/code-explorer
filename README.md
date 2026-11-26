@@ -82,7 +82,10 @@ ce lineage orders
 ce query "MATCH (a:Project)-[:DEPENDS_ON]->(b:Project) RETURN a.name, b.name"
 ce gate check
 
-# 4. Configure MCP and agent instructions for Cursor, Claude Code, VS Code, Windsurf, etc.
+# 4. Diagnose index health, parse issues, or uncovered framework/XML gaps
+ce doctor --gaps
+
+# 5. Configure MCP and agent instructions for Cursor, Claude Code, VS Code, Windsurf, etc.
 ce configure all
 ```
 
@@ -122,7 +125,7 @@ CodeExplorer exposes the same 16 tools across the terminal CLI (`ce <command> [-
 | `ce gate [check\|anomalies]` | `check_semantic_gates` | Evaluate Semantic Invariant Gates (`SIG-*`), baselines, or dead-code/god-object checks. |
 | `ce query "<cypher>"` | `execute_custom_read_cypher` | Execute read-only Cypher queries or saved `.codeexplorer/queries/` templates. |
 
-*Additional workspace helpers*: `ce status` (node/edge summary), `ce export` (standalone Mermaid/C4 diagrams), `ce serve` (WebSocket/HTTP server for VS Code), and `ce clear` (reset index).
+*Additional workspace helpers*: `ce doctor` (`--issues`, `--gaps`, `--report`, `--anonymize` for index health, parse errors, and framework/XML coverage gaps), `ce detector [list|validate|schema]` (pluggable `.codeexplorer/detectors/*.yaml` Layer-4 detectors), `ce status` (node/edge summary), `ce export` (standalone Mermaid/C4 diagrams), `ce serve` (WebSocket/HTTP server for VS Code), and `ce clear` (reset index).
 
 ---
 
@@ -196,7 +199,7 @@ Tree-sitter grammars, SQL/HCL parsers, and framework analyzers extract architect
 | **C# / .NET** | Stable | `.cs`, `.csproj`, `.sln`, `.slnx` | ASP.NET Core, Minimal APIs, gRPC, HttpClient, EF Core, Dapper, MassTransit, Wolverine, Hangfire, MediatR |
 | **TypeScript / JS** | Stable | `.ts`, `.tsx`, `.js`, `.jsx`, `package.json` | NestJS (REST, GraphQL, DI, `@Module` cycles), Next.js, Express, Fastify, Hono, tRPC, Prisma, TypeORM, Kysely, BullMQ |
 | **Go** | Stable | `.go`, `go.mod` | Gin, Fiber, Echo, `net/http`, gRPC, Watermill, Asynq, Kafka-Go, GORM, `sqlx`, `sqlc`, Ent |
-| **Java** | Stable | `.java`, `pom.xml`, `build.gradle` | Spring Boot/Cloud, Quarkus, Micronaut, Dubbo, Kafka, JPA/Hibernate, MyBatis, jOOQ, OpenFeign |
+| **Java & Groovy** | Stable | `.java`, `.groovy`, `.xhtml`, `.gwt.xml`, `.ui.xml`, `pom.xml`, `build.gradle` | Spring Boot/Cloud, Quarkus, Micronaut, JBoss Seam 2, JSF/Facelets, GWT/UiBinder, JPA/Hibernate, Liquibase, MyBatis, jOOQ, Kafka, OpenFeign |
 | **Kotlin & Android** | Stable | `.kt`, `.kts`, `AndroidManifest.xml` | Spring, Ktor, Exposed, Room, SQLDelight, Coroutines, Retrofit/OkHttp, Hilt/Koin, Jetpack Compose |
 | **Python** | Stable | `.py`, `pyproject.toml`, `requirements.txt` | FastAPI, Litestar, Django, Flask, SQLAlchemy, Celery, Dramatiq, FastStream, Temporal |
 | **Rust** | Stable | `.rs`, `Cargo.toml` | Axum, Actix Web, Tonic gRPC, Reqwest, SQLx, SeaORM, Diesel, Tokio |
@@ -205,6 +208,28 @@ Tree-sitter grammars, SQL/HCL parsers, and framework analyzers extract architect
 | **SQL** | Stable | `.sql` & embedded SQL strings | PostgreSQL, T-SQL, MySQL, SQLite, ClickHouse, BigQuery DDL & `READS_FROM` / `WRITES_TO` lineage |
 | **Terraform / HCL** | Stable | `.tf`, `.tfvars`, `terragrunt.hcl` | Resources, modules, variables, data sources, outputs, Terragrunt hierarchy, provider & infrastructure links |
 | **ColdFusion** | Beta | `.cfc`, `.cfm` | Components, functions, `cfquery` SQL lineage, outbound HTTP calls |
+
+### Pluggable YAML Detectors & Coverage Diagnostics (`ce doctor` & `ce detector`)
+
+When onboarding legacy or internal stacks, `ce doctor --gaps` audits `.codeexplorer/graph.db` and the file tree to surface unhandled file extensions, unrecognized XML dialects, unmatched framework packages, and modules missing expected endpoints or database lineage (use `--report --anonymize` for NDA-safe sharing).
+
+Teams and AI agents can close Layer-4 framework gaps without editing or recompiling C# by dropping declarative YAML detectors into `.codeexplorer/detectors/*.yaml` (or `~/.codeexplorer/detectors/*.yaml`):
+
+```yaml
+schema_version: 1
+id: internal-rpc-bus
+name: Internal RPC & Event Bus
+languages: [java, kotlin]
+library_role: messaging
+packages: ["com.acme.platform:rpc-bus*"]
+messaging_brokers:
+  - protocol: acme-bus
+    listener_annotations: [BusSubscriber]
+    producer_annotations: [BusPublisher]
+    publish_methods: [publishEvent]
+```
+
+Run `ce detector schema --template` to scaffold a detector, `ce detector validate --strict` to check ontology and regex safety, and `ce scan` to re-index automatically when detector files change.
 
 ---
 
