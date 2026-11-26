@@ -39,6 +39,7 @@ public static class HelpDisplay
   gate [check|list|...]   Evaluate Semantic Invariant Gates (SIG), baselines, and code anomalies
   query "<cypher>"        Execute read-only or saved OpenCypher queries (alias: queries for --list)
   status (alias: info)    Show workspace summary, projects, node kinds, and statistics
+  doctor [--issues|--gaps|--report] Diagnose index health, ScanIssue parse errors, and unsupported stack gaps
   init / clear / export   Workspace lifecycle and standalone diagram export helpers
   mcp / serve / configure Start MCP server, WebSocket API server, or configure AI coding tools
 """;

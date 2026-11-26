@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.102.0] - 2026-11-26
+
+### Added
+- **Self-Improvement Diagnostics Command `ce doctor` (`WorkspaceDoctorService`, `DoctorCommandHandler`, `DoctorOptions`)**:
+  - Added `ce doctor` to inspect workspace index health, grouped `ScanIssue` parsing/visitor errors (`--issues`), and parser/framework coverage gaps (`--gaps`): unhandled code/markup file extensions (including compound suffixes like `.gwt.xml`), unhandled XML dialects (root element + `xmlns` via XXE-safe `XmlReader`, e.g. Liquibase, Seam 2, JSF/Facelets), unmatched external framework/library packages against `SemanticExtensionRegistry`, and graph coverage anomalies (e.g. web/DB/messaging projects with 0 extracted endpoints/tables/topics).
+  - Added `--report` / `--anonymize` (redacting file paths and project names for NDA-safe sharing), `-f text|markdown|yaml|json`, and `-o <path>` file export.
+
+---
+
 ## [1.101.4] - 2026-11-26
 
 ### Fixed

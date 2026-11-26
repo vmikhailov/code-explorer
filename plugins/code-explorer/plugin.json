@@ -1,10 +1,15 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "code-explorer",
   "displayName": "CodeExplorer",
-  "version": "1.101.4",
-  "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius analysis, and OpenCypher Semantic Invariant Gates for C#, TypeScript/JS, Go, Python, Java, Kotlin, Rust, and SQL.",
+  "version": "1.102.0",
+  "description": "Semantic code graph and polyglot architecture intelligence: trace call chains, project dependencies, blast radius, endpoints, and SQL/ORM data lineage, and enforce architectural and security Semantic Invariant Gates via Cypher.",
   "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Map this repository's services, APIs, message queues, and databases using CodeExplorer.",
+    "Trace the blast radius, SQL table lineage, and affected tests before refactoring this symbol.",
+    "Run Semantic Invariant Gates and fix any architectural or authorization violations."
+  ],
   "author": {
     "name": "Slava Mikhailov",
     "url": "https://code-explorer.app"
@@ -13,18 +18,14 @@
   "repository": "https://github.com/vmikhailov/code-explorer",
   "license": "MIT",
   "keywords": [
-    "architecture",
     "code-graph",
+    "architecture",
     "mcp",
     "call-graph",
     "data-lineage",
     "blast-radius",
-    "opencypher",
+    "cypher",
+    "security",
     "architecture-gates"
-  ],
-  "suggestedPrompts": [
-    "Map this repository's services, APIs, message queues, and databases using CodeExplorer.",
-    "Analyze the blast radius and affected tests before refactoring this symbol.",
-    "Run Semantic Invariant Gates and fix any architectural violations."
   ]
 }

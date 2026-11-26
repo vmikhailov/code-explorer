@@ -1,8 +1,10 @@
 {
   "mcpServers": {
     "codeexplorer": {
-      "command": "ce",
-      "args": ["mcp", "-q"]
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/scripts/mcp-launcher.mjs"
+      ]
     }
   }
 }
