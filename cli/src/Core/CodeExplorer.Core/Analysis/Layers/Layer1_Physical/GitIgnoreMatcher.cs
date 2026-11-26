@@ -14,20 +14,33 @@ public class GitIgnoreMatcher
         "*.bundle.min.js"
     ];
 
+    private const char SlashChar = '/';
+    private const string SlashStr = "/";
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Regex> SharedRegexCache =
+        new(StringComparer.Ordinal);
+
     private sealed record Rule(
+        int Order,
         string OriginalPattern,
         string CleanPattern,
         Regex Regex,
+        string? RequiredLiteral,
         bool IsDirectoryOnly,
         bool IsNegated,
         bool IsAnchored,
-        string? Scope);
+        string? Scope,
+        string? ScopePrefix);
 
     public static readonly string[] IgnoreFileNames = [".gitignore", ".codeexplorerignore"];
 
     private readonly string _workspaceRoot;
     private readonly WorkspaceFileFilter _filter;
     private readonly List<Rule> _rules = [];
+    private readonly List<Rule> _globalRules = [];
+    private readonly Dictionary<string, List<Rule>> _scopedRulesByScope = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<Rule> _negatedRules = [];
+    private bool _hasGlobalRuleAfterScoped;
 
     public string WorkspaceRoot => _workspaceRoot;
 
@@ -164,15 +177,46 @@ public class GitIgnoreMatcher
 
         try
         {
-            var regex = new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            _rules.Add(new Rule(
+            var normScope = string.IsNullOrEmpty(scope) ? null : scope.Replace('\\', SlashChar).Trim(SlashChar);
+            var regex = SharedRegexCache.GetOrAdd(
+                regexPattern,
+                static pat => new Regex(pat, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+            var cleanPat = rawPattern.Replace('\\', SlashChar).Trim(SlashChar);
+            var requiredLiteral = ExtractLongestLiteralToken(cleanPat);
+            var rule = new Rule(
+                _rules.Count,
                 pattern,
-                rawPattern.Replace('\\', '/').Trim('/'),
+                cleanPat,
                 regex,
+                requiredLiteral,
                 isDirectoryOnly,
                 isNegated,
                 isAnchored,
-                string.IsNullOrEmpty(scope) ? null : scope));
+                normScope,
+                normScope != null ? normScope + SlashStr : null);
+            _rules.Add(rule);
+            if (isNegated)
+            {
+                _negatedRules.Add(rule);
+            }
+
+            if (normScope == null)
+            {
+                _globalRules.Add(rule);
+                if (_scopedRulesByScope.Count > 0)
+                {
+                    _hasGlobalRuleAfterScoped = true;
+                }
+            }
+            else
+            {
+                if (!_scopedRulesByScope.TryGetValue(normScope, out var bucket))
+                {
+                    bucket = [];
+                    _scopedRulesByScope[normScope] = bucket;
+                }
+                bucket.Add(rule);
+            }
         }
         catch
         {
@@ -188,37 +232,82 @@ public class GitIgnoreMatcher
     public bool IsIgnoredDirectory(string relativePath, out bool keptForLaterNegation)
     {
         keptForLaterNegation = false;
-        relativePath = relativePath.Replace('\\', '/').Trim('/');
+        relativePath = relativePath.Replace('\\', SlashChar).Trim(SlashChar);
         if (string.IsNullOrEmpty(relativePath)) return false;
 
         var ignored = false;
         var lastExclusionIndex = -1;
 
-        for (var i = 0; i < _rules.Count; i++)
+        if (_hasGlobalRuleAfterScoped)
         {
-            var rule = _rules[i];
-            var testPath = relativePath;
-
-            if (rule.Scope != null)
+            EvaluateDirectoryRuleList(_rules, relativePath, relativePath, useRuleScope: true, ref ignored, ref lastExclusionIndex);
+        }
+        else
+        {
+            EvaluateDirectoryRuleList(_globalRules, relativePath, relativePath, useRuleScope: false, ref ignored, ref lastExclusionIndex);
+            if (_scopedRulesByScope.Count > 0)
             {
-                if (string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
+                var lookup = _scopedRulesByScope.GetAlternateLookup<ReadOnlySpan<char>>();
+                var span = relativePath.AsSpan();
+                var searchFrom = 0;
+                while (searchFrom < span.Length)
                 {
-                    // A scoped rule loaded from inside a directory cannot ignore the directory itself
+                    var nextRel = span[searchFrom..].IndexOf(SlashChar);
+                    if (nextRel < 0) break;
+                    var slashIdx = searchFrom + nextRel;
+                    if (lookup.TryGetValue(span[..slashIdx], out var scopedBucket))
+                    {
+                        var subPath = relativePath[(slashIdx + 1)..];
+                        EvaluateDirectoryRuleList(scopedBucket, relativePath, subPath, useRuleScope: false, ref ignored, ref lastExclusionIndex);
+                    }
+                    searchFrom = slashIdx + 1;
+                }
+            }
+        }
+
+        if (ignored && _negatedRules.Count > 0 && HasLaterNegationUnderneath(relativePath, lastExclusionIndex))
+        {
+            keptForLaterNegation = true;
+            return false;
+        }
+
+        return ignored;
+    }
+
+    private void EvaluateDirectoryRuleList(
+        List<Rule> rules,
+        string fullRelativePath,
+        string candidatePath,
+        bool useRuleScope,
+        ref bool ignored,
+        ref int lastExclusionIndex)
+    {
+        for (var i = 0; i < rules.Count; i++)
+        {
+            var rule = rules[i];
+            var testPath = candidatePath;
+
+            if (useRuleScope && rule.Scope != null)
+            {
+                if (string.Equals(candidatePath, rule.Scope, StringComparison.OrdinalIgnoreCase) ||
+                    rule.ScopePrefix == null ||
+                    !candidatePath.StartWithIC(rule.ScopePrefix))
+                {
                     continue;
                 }
+                testPath = candidatePath[rule.ScopePrefix.Length..];
+            }
 
-                if (!relativePath.StartWithIC(rule.Scope + "/"))
-                {
-                    continue;
-                }
-
-                testPath = relativePath[(rule.Scope.Length + 1)..];
+            if (rule.RequiredLiteral != null &&
+                !testPath.Contains(rule.RequiredLiteral, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
             }
 
             if (rule.Regex.IsMatch(testPath))
             {
                 if (!string.IsNullOrEmpty(_workspaceRoot) &&
-                    _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
+                    _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, fullRelativePath)) == false)
                 {
                     continue;
                 }
@@ -230,110 +319,133 @@ public class GitIgnoreMatcher
                 else
                 {
                     ignored = true;
-                    lastExclusionIndex = i;
+                    lastExclusionIndex = rule.Order;
                 }
             }
         }
-
-        if (ignored && HasLaterNegationUnderneath(relativePath, lastExclusionIndex))
-        {
-            keptForLaterNegation = true;
-            return false;
-        }
-
-        return ignored;
     }
 
     public bool IsIgnoredFile(string relativePath, bool skipDirectoryOnlyRules)
     {
-        relativePath = relativePath.Replace('\\', '/').Trim('/');
+        relativePath = relativePath.Replace('\\', SlashChar).Trim(SlashChar);
         if (string.IsNullOrEmpty(relativePath)) return false;
 
         var ignoredByDir = false;
         var ignoredByFile = false;
 
-        for (var i = 0; i < _rules.Count; i++)
+        if (_hasGlobalRuleAfterScoped)
         {
-            var rule = _rules[i];
-            if (skipDirectoryOnlyRules && rule.IsDirectoryOnly)
-            {
-                continue;
-            }
+            EvaluateFileRuleList(_rules, relativePath, relativePath, skipDirectoryOnlyRules, useRuleScope: true, ref ignoredByDir, ref ignoredByFile);
+            return ignoredByDir || ignoredByFile;
+        }
 
-            var testPath = relativePath;
+        EvaluateFileRuleList(_globalRules, relativePath, relativePath, skipDirectoryOnlyRules, useRuleScope: false, ref ignoredByDir, ref ignoredByFile);
 
-            if (rule.Scope != null)
+        if (_scopedRulesByScope.Count > 0)
+        {
+            var lookup = _scopedRulesByScope.GetAlternateLookup<ReadOnlySpan<char>>();
+            var span = relativePath.AsSpan();
+            var searchFrom = 0;
+            while (searchFrom < span.Length)
             {
-                if (!relativePath.StartWithIC(rule.Scope + "/"))
+                var nextRel = span[searchFrom..].IndexOf(SlashChar);
+                if (nextRel < 0) break;
+                var slashIdx = searchFrom + nextRel;
+                if (lookup.TryGetValue(span[..slashIdx], out var scopedBucket))
                 {
-                    continue;
+                    var subPath = relativePath[(slashIdx + 1)..];
+                    EvaluateFileRuleList(scopedBucket, relativePath, subPath, skipDirectoryOnlyRules, useRuleScope: false, ref ignoredByDir, ref ignoredByFile);
                 }
-
-                testPath = relativePath[(rule.Scope.Length + 1)..];
-            }
-
-            if (rule.IsDirectoryOnly)
-            {
-                var m = rule.Regex.Match(testPath);
-                if (m.Success && m.Value.EndsWith('/'))
-                {
-                    if (!string.IsNullOrEmpty(_workspaceRoot) &&
-                        _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
-                    {
-                        continue;
-                    }
-
-                    if (rule.IsNegated)
-                    {
-                        ignoredByDir = false;
-                    }
-                    else
-                    {
-                        ignoredByDir = true;
-                    }
-                }
-            }
-            else
-            {
-                if (rule.Regex.IsMatch(testPath))
-                {
-                    if (rule.IsNegated)
-                    {
-                        ignoredByFile = false;
-                        ignoredByDir = false;
-                    }
-                    else
-                    {
-                        ignoredByFile = true;
-                    }
-                }
+                searchFrom = slashIdx + 1;
             }
         }
 
         return ignoredByDir || ignoredByFile;
     }
 
+    private void EvaluateFileRuleList(
+        List<Rule> rules,
+        string fullRelativePath,
+        string candidatePath,
+        bool skipDirectoryOnlyRules,
+        bool useRuleScope,
+        ref bool ignoredByDir,
+        ref bool ignoredByFile)
+    {
+        for (var i = 0; i < rules.Count; i++)
+        {
+            var rule = rules[i];
+            if (skipDirectoryOnlyRules && rule.IsDirectoryOnly)
+            {
+                continue;
+            }
+
+            var testPath = candidatePath;
+            if (useRuleScope && rule.ScopePrefix != null)
+            {
+                if (!candidatePath.StartWithIC(rule.ScopePrefix))
+                {
+                    continue;
+                }
+                testPath = candidatePath[rule.ScopePrefix.Length..];
+            }
+
+            if (rule.RequiredLiteral != null &&
+                !testPath.Contains(rule.RequiredLiteral, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (rule.IsDirectoryOnly)
+            {
+                var m = rule.Regex.Match(testPath);
+                if (m.Success && m.Value.EndsWith(SlashChar))
+                {
+                    if (!string.IsNullOrEmpty(_workspaceRoot) &&
+                        _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, fullRelativePath)) == false)
+                    {
+                        continue;
+                    }
+
+                    ignoredByDir = !rule.IsNegated;
+                }
+            }
+            else if (rule.Regex.IsMatch(testPath))
+            {
+                if (rule.IsNegated)
+                {
+                    ignoredByFile = false;
+                    ignoredByDir = false;
+                }
+                else
+                {
+                    ignoredByFile = true;
+                }
+            }
+        }
+    }
+
     private bool HasLaterNegationUnderneath(string relativeDir, int afterRuleIndex)
     {
-        if (afterRuleIndex < 0) return false;
+        if (afterRuleIndex < 0 || _negatedRules.Count == 0) return false;
 
-        var dirPrefix = relativeDir.EndsWith('/') ? relativeDir : relativeDir + "/";
+        var dirPrefix = relativeDir.EndsWith(SlashChar) ? relativeDir : relativeDir + SlashStr;
 
-        for (var i = afterRuleIndex + 1; i < _rules.Count; i++)
+        for (var i = 0; i < _negatedRules.Count; i++)
         {
-            var rule = _rules[i];
-            if (!rule.IsNegated) continue;
+            var rule = _negatedRules[i];
+            if (rule.Order <= afterRuleIndex) continue;
 
-            if (rule.Scope != null)
+            if (rule.Scope != null && rule.ScopePrefix != null)
             {
                 if (rule.Scope.StartWithIC(dirPrefix))
                 {
                     return true;
                 }
 
-                if (dirPrefix.StartWithIC(rule.Scope + "/"))
+                if (dirPrefix.StartWithIC(rule.ScopePrefix))
                 {
-                    var relToScope = dirPrefix[(rule.Scope.Length + 1)..];
+                    var relToScope = dirPrefix[rule.ScopePrefix.Length..];
                     if (rule.CleanPattern.StartWithIC(relToScope))
                     {
                         return true;
@@ -342,12 +454,8 @@ public class GitIgnoreMatcher
             }
             else
             {
-                if (rule.CleanPattern.StartWithIC(dirPrefix))
-                {
-                    return true;
-                }
-
-                if (rule.IsAnchored && rule.CleanPattern.StartWithIC(relativeDir + "/"))
+                if (rule.CleanPattern.StartWithIC(dirPrefix) ||
+                    (rule.IsAnchored && rule.CleanPattern.StartWithIC(dirPrefix)))
                 {
                     return true;
                 }
@@ -355,5 +463,30 @@ public class GitIgnoreMatcher
         }
 
         return false;
+    }
+
+    private static string? ExtractLongestLiteralToken(string cleanPattern)
+    {
+        if (string.IsNullOrEmpty(cleanPattern) || cleanPattern.Contains('['))
+        {
+            return null;
+        }
+
+        string? best = null;
+        var span = cleanPattern.AsSpan();
+        var start = 0;
+        for (var i = 0; i <= span.Length; i++)
+        {
+            if (i == span.Length || span[i] is '*' or '?')
+            {
+                var len = i - start;
+                if (len >= 2 && (best == null || len > best.Length))
+                {
+                    best = cleanPattern.Substring(start, len);
+                }
+                start = i + 1;
+            }
+        }
+        return best;
     }
 }

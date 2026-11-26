@@ -316,4 +316,85 @@ public class CrossRepoDependsOnAndSubgraphTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public void Layer1Scale_15kDirectories_And_100ScopedGitIgnores_CompletesUnder200Ms()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ce-scale-l1-" + Guid.NewGuid().ToString("N")[..8]).Replace('\\', '/');
+        try
+        {
+            // 1. Register 15,000 directories across 100 repos in PhysicalFileStore
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (var r = 0; r < 100; r++)
+            {
+                var repoDir = $"{root}/repo-{r:D3}";
+                PhysicalFileStore.SetDirectoryFiles(repoDir, []);
+                for (var p = 0; p < 10; p++)
+                {
+                    PhysicalFileStore.SetDirectoryFiles($"{repoDir}/pkg-{p}", []);
+                }
+                for (var d = 0; d < 140; d++)
+                {
+                    var dir = $"{repoDir}/pkg-{d / 14}/mod-{d % 14}";
+                    PhysicalFileStore.SetDirectoryFiles(dir, [$"{dir}/index.ts", $"{dir}/helper.ts"]);
+                }
+            }
+
+            // Query HasCachedDirectChildDirectories & EnumerateCachedFilesInSubtree across all 15,000 folders
+            var childHits = 0;
+            for (var r = 0; r < 100; r++)
+            {
+                if (PhysicalFileStore.HasCachedDirectChildDirectories($"{root}/repo-{r:D3}"))
+                {
+                    childHits++;
+                }
+                for (var d = 0; d < 140; d++)
+                {
+                    _ = PhysicalFileStore.HasCachedDirectChildDirectories($"{root}/repo-{r:D3}/pkg-{d / 14}/mod-{d % 14}");
+                }
+            }
+            var repo0Files = PhysicalFileStore.EnumerateCachedFilesInSubtree($"{root}/repo-000").Count();
+            sw.Stop();
+
+            childHits.Should().Be(100);
+            repo0Files.Should().Be(280);
+            sw.ElapsedMilliseconds.Should().BeLessThan(250);
+
+            // 2. Load 100 repo-scoped .gitignore rule sets (4,000 scoped rules) and check 50,000 file paths
+            var matcher = new GitIgnoreMatcher(root);
+            for (var r = 0; r < 100; r++)
+            {
+                var scope = $"repo-{r:D3}";
+                for (var p = 0; p < 40; p++)
+                {
+                    matcher.AddPattern($"*.gen-{p}.ts", scope);
+                }
+                matcher.AddPattern("!keep.gen-0.ts", scope);
+            }
+
+            var swIgnore = System.Diagnostics.Stopwatch.StartNew();
+            var ignoredCount = 0;
+            for (var r = 0; r < 100; r++)
+            {
+                for (var f = 0; f < 500; f++)
+                {
+                    var rel = f == 0
+                        ? $"repo-{r:D3}/src/keep.gen-0.ts"
+                        : (f == 1 ? $"repo-{r:D3}/src/foo.gen-5.ts" : $"repo-{r:D3}/src/comp-{f}.tsx");
+                    if (matcher.IsIgnoredFile(rel, skipDirectoryOnlyRules: true))
+                    {
+                        ignoredCount++;
+                    }
+                }
+            }
+            swIgnore.Stop();
+
+            ignoredCount.Should().Be(100);
+            swIgnore.ElapsedMilliseconds.Should().BeLessThan(500);
+        }
+        finally
+        {
+            PhysicalFileStore.ClearWorkspace(root);
+        }
+    }
 }

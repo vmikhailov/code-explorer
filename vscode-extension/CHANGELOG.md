@@ -5,6 +5,11 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.106.1] - 2026-11-26
+
+### Fixed
+- **Eliminated 2-Minute Layer-1 Pause Between `Discovering directory tree` and `Streaming physical files` (`PhysicalFileStore`, `GitIgnoreMatcher`, `Layer1PhysicalAnalyzer`, `WorkspaceFileFilter`)**: Replaced $O(D^2)$ full-dictionary scans in `PhysicalFileStore.GetCachedDirectChildDirectories` and `EnumerateCachedFilesInSubtree` with an $O(1)$ parent-to-child directory index, indexed `.gitignore` rules by directory scope in `GitIgnoreMatcher` (evaluating only ancestor scopes instead of all rules across 100+ repositories), skipped redundant `MatchDirectProjectParsers` probes in `RefreshContainerProjectParsers`, cached supported file extensions, and parallelized `CollectCandidateFiles`.
+
 ## [1.106.0] - 2026-11-26
 
 ### Added

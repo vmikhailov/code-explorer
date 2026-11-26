@@ -19,6 +19,9 @@ public static class PhysicalFileStore
     private static readonly ConcurrentDictionary<string, string[]> _directoryFiles =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _directChildDirectories =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly ConcurrentDictionary<string, byte> _gitRepositoryRoots =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -403,6 +406,32 @@ public static class PhysicalFileStore
         if (!string.IsNullOrEmpty(key))
         {
             _directoryFiles[key] = files;
+            RegisterDirectoryHierarchy(key);
+        }
+    }
+
+    private static void RegisterDirectoryHierarchy(string normalizedDirKey)
+    {
+        var childPath = normalizedDirKey;
+        var slash = childPath.LastIndexOf('/');
+        while (slash > 0)
+        {
+            var parentKey = childPath[..slash];
+            if (parentKey.Length == 2 && parentKey[1] == ':')
+            {
+                break;
+            }
+
+            var children = _directChildDirectories.GetOrAdd(
+                parentKey,
+                static _ => new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+            if (!children.TryAdd(childPath, 1))
+            {
+                break;
+            }
+
+            childPath = parentKey;
+            slash = childPath.LastIndexOf('/');
         }
     }
 
@@ -424,22 +453,38 @@ public static class PhysicalFileStore
         return !string.IsNullOrEmpty(key) && _directoryFiles.ContainsKey(key);
     }
 
+    public static bool HasCachedDirectChildDirectories(string parentDirectoryPath)
+    {
+        var parentKey = NormalizePath(parentDirectoryPath);
+        if (string.IsNullOrEmpty(parentKey) || !_directChildDirectories.TryGetValue(parentKey, out var children))
+        {
+            return false;
+        }
+
+        foreach (var childKey in children.Keys)
+        {
+            if (_directoryFiles.ContainsKey(childKey))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static List<(string DirectoryPath, string[] Files)> GetCachedDirectChildDirectories(string parentDirectoryPath)
     {
         var parentKey = NormalizePath(parentDirectoryPath);
-        if (string.IsNullOrEmpty(parentKey)) return [];
-
-        var prefix = parentKey + "/";
-        var result = new List<(string DirectoryPath, string[] Files)>();
-        foreach (var (k, arr) in _directoryFiles)
+        if (string.IsNullOrEmpty(parentKey) || !_directChildDirectories.TryGetValue(parentKey, out var children))
         {
-            if (k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return [];
+        }
+
+        var result = new List<(string DirectoryPath, string[] Files)>(children.Count);
+        foreach (var childKey in children.Keys)
+        {
+            if (_directoryFiles.TryGetValue(childKey, out var arr))
             {
-                var remainder = k[prefix.Length..];
-                if (!remainder.Contains('/'))
-                {
-                    result.Add((k, arr));
-                }
+                result.Add((childKey, arr));
             }
         }
         return result;
@@ -450,17 +495,25 @@ public static class PhysicalFileStore
         var rootKey = NormalizePath(rootDirectoryPath);
         if (string.IsNullOrEmpty(rootKey)) yield break;
 
-        if (_directoryFiles.TryGetValue(rootKey, out var rootFiles))
+        var stack = new Stack<string>();
+        stack.Push(rootKey);
+        while (stack.Count > 0)
         {
-            foreach (var f in rootFiles) yield return f;
-        }
-
-        var prefix = rootKey + "/";
-        foreach (var (k, arr) in _directoryFiles)
-        {
-            if (k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            var currentKey = stack.Pop();
+            if (_directoryFiles.TryGetValue(currentKey, out var files))
             {
-                foreach (var f in arr) yield return f;
+                for (var i = 0; i < files.Length; i++)
+                {
+                    yield return files[i];
+                }
+            }
+
+            if (_directChildDirectories.TryGetValue(currentKey, out var children))
+            {
+                foreach (var childKey in children.Keys)
+                {
+                    stack.Push(childKey);
+                }
             }
         }
     }
@@ -562,6 +615,8 @@ public static class PhysicalFileStore
         return false;
     }
 
+    public static bool HasAnyConfiguredProjects => !_configuredProjects.IsEmpty;
+
     public static void ClearWorkspace(string workspaceRootPath)
     {
         var rootKey = NormalizePath(workspaceRootPath);
@@ -569,6 +624,7 @@ public static class PhysicalFileStore
         {
             _fileContents.Clear();
             _directoryFiles.Clear();
+            _directChildDirectories.Clear();
             _gitRepositoryRoots.Clear();
             _configuredProjects.Clear();
             return;
@@ -591,6 +647,21 @@ public static class PhysicalFileStore
             {
                 _directoryFiles.TryRemove(k, out _);
             }
+        }
+
+        foreach (var k in _directChildDirectories.Keys)
+        {
+            if (k.Equals(rootKey, StringComparison.OrdinalIgnoreCase) ||
+                k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                _directChildDirectories.TryRemove(k, out _);
+            }
+        }
+
+        var parentSlash = rootKey.LastIndexOf('/');
+        if (parentSlash > 0 && _directChildDirectories.TryGetValue(rootKey[..parentSlash], out var parentChildren))
+        {
+            parentChildren.TryRemove(rootKey, out _);
         }
 
         foreach (var k in _gitRepositoryRoots.Keys)

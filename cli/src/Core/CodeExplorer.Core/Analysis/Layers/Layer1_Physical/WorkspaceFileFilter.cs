@@ -19,6 +19,8 @@ public class WorkspaceFileFilter
     private readonly HashSet<string> _manifestExtensions = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyList<IProjectParser> _projectParsers;
     private readonly IReadOnlyList<IFileParser> _fileParsers;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _supportedExtensionCache =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlySet<string> ActiveExcludedDirectoryNames => _excludedDirectoryNames;
     public IReadOnlySet<string> ActiveManifestFileNames => _manifestFileNames;
@@ -146,7 +148,7 @@ public class WorkspaceFileFilter
         string[] dirFilePaths,
         bool includeFallback)
     {
-        var hasCachedChildDirs = PhysicalFileStore.GetCachedDirectChildDirectories(currentDir).Count > 0;
+        var hasCachedChildDirs = PhysicalFileStore.HasCachedDirectChildDirectories(currentDir);
         if (!includeFallback && dirFiles.Count == 0 && !hasCachedChildDirs)
         {
             var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
@@ -629,12 +631,34 @@ public class WorkspaceFileFilter
 
     public bool IsSupportedSourceOrConfigFile(string fileName, IReadOnlyList<IProjectParser>? activeParsers = null)
     {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        var baseName = Path.GetFileName(fileName);
-        var hasParser = _fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName) || p.CanParseFile(baseName));
-        if (hasParser)
+        var ext = Path.GetExtension(fileName);
+        if (!string.IsNullOrEmpty(ext))
         {
-            return true;
+            var extSupported = _supportedExtensionCache.GetOrAdd(ext, e =>
+            {
+                var lowerExt = e.ToLowerInvariant();
+                for (var i = 0; i < _fileParsers.Count; i++)
+                {
+                    if (_fileParsers[i].CanParse(lowerExt))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            if (extSupported)
+            {
+                return true;
+            }
+        }
+
+        var baseName = Path.GetFileName(fileName);
+        for (var i = 0; i < _fileParsers.Count; i++)
+        {
+            if (_fileParsers[i].CanParseFile(fileName) || _fileParsers[i].CanParseFile(baseName))
+            {
+                return true;
+            }
         }
 
         if (SharedFileParserRegistry.CanParse(baseName))
@@ -643,7 +667,14 @@ public class WorkspaceFileFilter
         }
 
         var parsersToCheck = activeParsers ?? _projectParsers;
-        return parsersToCheck.Any(p => p.IsConfigurationFile(baseName));
+        for (var i = 0; i < parsersToCheck.Count; i++)
+        {
+            if (parsersToCheck[i].IsConfigurationFile(baseName))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static bool IsStandaloneContractOrEnvFile(string filePathOrName, bool isWorkspaceRootFile)

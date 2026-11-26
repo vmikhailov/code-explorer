@@ -152,6 +152,7 @@ public class Layer1PhysicalParser
         IOntologyNode ParentNode,
         FolderNode? FolderNode,
         FileInfo[] DirFiles,
+        IReadOnlyList<IProjectParser>? InheritedParsers,
         IReadOnlyList<IProjectParser>? ActiveParsers,
         bool IsProjectRoot,
         bool KeptForNegation = false);
@@ -341,6 +342,7 @@ public class Layer1PhysicalParser
             parentNode,
             folderNode,
             dirFiles,
+            inheritedParsers,
             activeParsers,
             IsProjectRoot: directParsers is { Count: > 0 },
             KeptForNegation: keptForNegation));
@@ -408,25 +410,41 @@ public class Layer1PhysicalParser
 
             if (!entry.IsProjectRoot)
             {
-                var cachedPaths = PhysicalFileStore.GetDirectoryFiles(entry.CurrentDir);
-                var direct = ctx.FileFilter.MatchDirectProjectParsers(
-                    entry.CurrentDir,
-                    entry.DirFiles,
-                    cachedPaths,
-                    allowFallback: inherited is not { Count: > 0 });
-                if (direct is not { Count: > 0 } &&
-                    PhysicalFileStore.TryGetConfiguredProject(entry.CurrentDir, out var cfgProj) &&
-                    cfgProj != null)
+                var hasConfigured = PhysicalFileStore.HasAnyConfiguredProjects &&
+                                    PhysicalFileStore.TryGetConfiguredProject(entry.CurrentDir, out _);
+                var allowFallbackNow = inherited is not { Count: > 0 };
+                var allowFallbackBefore = entry.InheritedParsers is not { Count: > 0 };
+                var needRecheckDirect = hasConfigured || (allowFallbackNow && !allowFallbackBefore);
+
+                IReadOnlyList<IProjectParser>? direct = null;
+                if (needRecheckDirect)
                 {
-                    direct = ctx.FileFilter.ConnectedProjectParsers
-                        .Where(p => string.IsNullOrEmpty(cfgProj.Language) ||
-                                    p.ProjectType.Equals(cfgProj.Language, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
+                    var cachedPaths = PhysicalFileStore.GetDirectoryFiles(entry.CurrentDir);
+                    direct = ctx.FileFilter.MatchDirectProjectParsers(
+                        entry.CurrentDir,
+                        entry.DirFiles,
+                        cachedPaths,
+                        allowFallback: allowFallbackNow);
+                    if (direct is not { Count: > 0 } &&
+                        hasConfigured &&
+                        PhysicalFileStore.TryGetConfiguredProject(entry.CurrentDir, out var cfgProj) &&
+                        cfgProj != null)
+                    {
+                        direct = ctx.FileFilter.ConnectedProjectParsers
+                            .Where(p => string.IsNullOrEmpty(cfgProj.Language) ||
+                                        p.ProjectType.Equals(cfgProj.Language, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                    }
                 }
 
                 if (direct is { Count: > 0 })
                 {
                     entry = entry with { ActiveParsers = direct, IsProjectRoot = true };
+                    discoveredDirs[i] = entry;
+                }
+                else if (!ReferenceEquals(entry.InheritedParsers, inherited) && inherited is { Count: > 0 })
+                {
+                    entry = entry with { ActiveParsers = inherited };
                     discoveredDirs[i] = entry;
                 }
                 else if (entry.ActiveParsers is not { Count: > 0 } && inherited is { Count: > 0 })
@@ -468,15 +486,26 @@ public class Layer1PhysicalParser
         GitIgnoreMatcher gitignore,
         ParsingContext ctx)
     {
-        var hasAnyOwnedDirectory = discoveredDirs.Any(d => d.ActiveParsers is { Count: > 0 });
-        var candidates = new List<CandidateFileItem>();
-
-        foreach (var dirEntry in discoveredDirs)
+        if (discoveredDirs.Count == 0)
         {
+            return [];
+        }
+
+        var hasAnyOwnedDirectory = discoveredDirs.Any(d => d.ActiveParsers is { Count: > 0 });
+        var perDirResults = new List<CandidateFileItem>?[discoveredDirs.Count];
+
+        void ProcessDirectory(int dirIdx)
+        {
+            var dirEntry = discoveredDirs[dirIdx];
+            if (dirEntry.DirFiles.Length == 0) return;
+
             var fileParentNode = (IOntologyNode?)dirEntry.FolderNode ?? dirEntry.ParentNode;
             var skipDirOnlyRules = !dirEntry.KeptForNegation;
-            foreach (var fileInfo in dirEntry.DirFiles)
+            List<CandidateFileItem>? localList = null;
+
+            for (var f = 0; f < dirEntry.DirFiles.Length; f++)
             {
+                var fileInfo = dirEntry.DirFiles[f];
                 var file = fileInfo.FullName;
                 var relativeFile = file.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
 
@@ -512,8 +541,9 @@ public class Layer1PhysicalParser
 
                 var absoluteFilePath = file.NormalizeSlashes();
                 var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
-                candidates.Add(new CandidateFileItem(
-                    candidates.Count,
+                localList ??= new List<CandidateFileItem>(dirEntry.DirFiles.Length);
+                localList.Add(new CandidateFileItem(
+                    0,
                     fileInfo,
                     relativeFile,
                     absoluteFilePath,
@@ -521,6 +551,40 @@ public class Layer1PhysicalParser
                     fileParentNode,
                     isManifest,
                     isSupportedSourceOrConfig));
+            }
+
+            perDirResults[dirIdx] = localList;
+        }
+
+        if (discoveredDirs.Count >= 64)
+        {
+            Parallel.For(0, discoveredDirs.Count, new ParallelOptions
+            {
+                CancellationToken = ctx.CancellationToken,
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            }, ProcessDirectory);
+        }
+        else
+        {
+            for (var i = 0; i < discoveredDirs.Count; i++)
+            {
+                ProcessDirectory(i);
+            }
+        }
+
+        var totalCount = 0;
+        for (var i = 0; i < perDirResults.Length; i++)
+        {
+            if (perDirResults[i] is { Count: > 0 } l) totalCount += l.Count;
+        }
+
+        var candidates = new List<CandidateFileItem>(totalCount);
+        for (var i = 0; i < perDirResults.Length; i++)
+        {
+            if (perDirResults[i] is not { Count: > 0 } l) continue;
+            for (var j = 0; j < l.Count; j++)
+            {
+                candidates.Add(l[j] with { Index = candidates.Count });
             }
         }
 
