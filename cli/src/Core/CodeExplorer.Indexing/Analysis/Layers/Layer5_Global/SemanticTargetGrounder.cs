@@ -4,9 +4,11 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Parser.Sql;
 using CodeExplorer.Core.Parser.Sql.Ast;
 using CodeExplorer.Core.Semantics;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -32,8 +34,10 @@ internal sealed class SemanticTargetGrounder
     private readonly Dictionary<string, ProcedureNode> _proceduresById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ProcedureNode>> _proceduresByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<EndpointNode>> _endpointsByNormalizedRoute = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<EndpointNode>> _endpointsByCanonicalShape = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ExternalServiceNode>> _externalServicesByHost = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TopicNode>> _topicsByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<TopicNode>> _topicsByCanonicalShape = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DatabaseNode> _primaryDbByProjectPath = new(StringComparer.OrdinalIgnoreCase);
 
     public static SemanticTargetGrounder Build(Layer4Result l4Result)
@@ -85,11 +89,23 @@ internal sealed class SemanticTargetGrounder
             case ParameterNature.TopicOrQueue:
                 for (var i = 0; i < effectiveValues.Count; i++)
                 {
-                    if (_topicsByName.TryGetValue(effectiveValues[i].Trim(), out var topics))
+                    var rawTopicVal = effectiveValues[i].Trim();
+                    if (_topicsByName.TryGetValue(rawTopicVal, out var topics))
                     {
                         for (var t = 0; t < topics.Count; t++)
                         {
                             addRelationship(new TargetedByRelationship(topics[t].Id, argNode.Id), false);
+                        }
+                    }
+                    else
+                    {
+                        var topShape = TopicCanonicalParser.ToCanonicalShape(rawTopicVal);
+                        if (_topicsByCanonicalShape.TryGetValue(topShape, out var shapeTopics))
+                        {
+                            for (var t = 0; t < shapeTopics.Count; t++)
+                            {
+                                addRelationship(new TargetedByRelationship(shapeTopics[t].Id, argNode.Id), false);
+                            }
                         }
                     }
                 }
@@ -126,6 +142,18 @@ internal sealed class SemanticTargetGrounder
                     }
                     if (!epList.Contains(ep)) epList.Add(ep);
                 }
+                var epShape = !string.IsNullOrEmpty(ep.CanonicalShape)
+                    ? ep.CanonicalShape
+                    : RouteCanonicalParser.ToCanonicalShape(ep.RouteTemplate, RouteDialect.Auto);
+                if (!string.IsNullOrEmpty(epShape) && epShape != "/")
+                {
+                    if (!_endpointsByCanonicalShape.TryGetValue(epShape, out var shapeList))
+                    {
+                        shapeList = [];
+                        _endpointsByCanonicalShape[epShape] = shapeList;
+                    }
+                    if (!shapeList.Contains(ep)) shapeList.Add(ep);
+                }
                 break;
             case ExternalServiceNode es:
                 var hostKey = !string.IsNullOrEmpty(es.DomainOrService) ? es.DomainOrService : es.Name;
@@ -148,6 +176,19 @@ internal sealed class SemanticTargetGrounder
                         _topicsByName[top.Name] = topList;
                     }
                     if (!topList.Contains(top)) topList.Add(top);
+
+                    var topShape = !string.IsNullOrEmpty(top.CanonicalShape)
+                        ? top.CanonicalShape
+                        : TopicCanonicalParser.ToCanonicalShape(top.Name);
+                    if (!string.IsNullOrEmpty(topShape))
+                    {
+                        if (!_topicsByCanonicalShape.TryGetValue(topShape, out var topShapeList))
+                        {
+                            topShapeList = [];
+                            _topicsByCanonicalShape[topShape] = topShapeList;
+                        }
+                        if (!topShapeList.Contains(top)) topShapeList.Add(top);
+                    }
                 }
                 break;
             case DatabaseNode db:
@@ -512,25 +553,42 @@ internal sealed class SemanticTargetGrounder
                 }
 
                 var pathRoute = NormalizeRoutePath(absUri.AbsolutePath);
-                if (!string.IsNullOrEmpty(pathRoute) &&
-                    _endpointsByNormalizedRoute.TryGetValue(pathRoute, out var absEps))
-                {
-                    for (var e = 0; e < absEps.Count; e++)
-                    {
-                        addRelationship(new TargetedByRelationship(absEps[e].Id, argNode.Id), false);
-                    }
-                }
+                GroundRoutePathToEndpoints(pathRoute, argNode, addRelationship);
             }
             else
             {
                 var relRoute = NormalizeRoutePath(val);
-                if (!string.IsNullOrEmpty(relRoute) &&
-                    _endpointsByNormalizedRoute.TryGetValue(relRoute, out var relEps))
+                GroundRoutePathToEndpoints(relRoute, argNode, addRelationship);
+            }
+        }
+    }
+
+    private void GroundRoutePathToEndpoints(
+        string routePath,
+        CallArgumentNode argNode,
+        Action<IOntologyRelationship, bool> addRelationship)
+    {
+        if (string.IsNullOrEmpty(routePath)) return;
+
+        if (_endpointsByNormalizedRoute.TryGetValue(routePath, out var exactEps))
+        {
+            for (var e = 0; e < exactEps.Count; e++)
+            {
+                addRelationship(new TargetedByRelationship(exactEps[e].Id, argNode.Id), false);
+            }
+            return;
+        }
+
+        var parsedCall = RouteCanonicalParser.Parse(routePath, RouteDialect.OutboundClient);
+        if (_endpointsByCanonicalShape.TryGetValue(parsedCall.CanonicalShape, out var shapeEps))
+        {
+            for (var e = 0; e < shapeEps.Count; e++)
+            {
+                var ep = shapeEps[e];
+                var parsedEp = RouteCanonicalParser.Parse(ep.CanonicalRoute ?? ep.RouteTemplate, RouteDialect.Auto);
+                if (RouteCanonicalParser.AreRoutesTypeCompatible(parsedCall, parsedEp))
                 {
-                    for (var e = 0; e < relEps.Count; e++)
-                    {
-                        addRelationship(new TargetedByRelationship(relEps[e].Id, argNode.Id), false);
-                    }
+                    addRelationship(new TargetedByRelationship(ep.Id, argNode.Id), false);
                 }
             }
         }

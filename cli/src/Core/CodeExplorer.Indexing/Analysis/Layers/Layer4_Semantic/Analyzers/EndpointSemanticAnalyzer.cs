@@ -253,9 +253,12 @@ public static class EndpointSemanticAnalyzer
                 if (sm.Success) explicitSchema = sm.Groups[1].Value;
             }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
+            var canonicalTbl = TableCanonicalParser.Parse(resolvedName, CodeExplorer.Cypher.Common.TableDialect.Auto, explicitSchema);
             typedNode = new TableNode(tableId, resolvedName, relativePath)
             {
-                Schema = explicitSchema
+                Schema = explicitSchema,
+                CanonicalTable = canonicalTbl.CanonicalTemplate,
+                CanonicalShape = canonicalTbl.CanonicalShape
             };
             var parentScopeId = syntactic.ParentScopeId;
             if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
@@ -305,6 +308,7 @@ public static class EndpointSemanticAnalyzer
             var msgDirection = isSubscriber
                 ? OntologyConstants.EvidenceKinds.Subscribe
                 : OntologyConstants.EvidenceKinds.Publish;
+            var canonicalTop = TopicCanonicalParser.Parse(name);
             typedNode = new TopicNode(
                 topicId,
                 name,
@@ -314,7 +318,9 @@ public static class EndpointSemanticAnalyzer
                 FilePath = relativePath,
                 Line = startLine,
                 LineEnd = endLine,
-                MessagingDirection = msgDirection
+                MessagingDirection = msgDirection,
+                CanonicalTopic = canonicalTop.CanonicalTemplate,
+                CanonicalShape = canonicalTop.CanonicalShape
             };
             var parentScopeId = syntactic.ParentScopeId;
             if (!string.IsNullOrEmpty(parentScopeId) && !IsFileNodeScope(parentScopeId))
@@ -539,60 +545,8 @@ public static class EndpointSemanticAnalyzer
         SyntaxNode node,
         string relativePath,
         string workspaceId,
-        string? projectName = null)
-    {
-        var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
-        if (!string.IsNullOrEmpty(resolvedProj) &&
-            (resolvedProj.StartWithIC("internal-service-") ||
-             resolvedProj.StartWithIC("integration-service-") ||
-             resolvedProj.StartWithIC("external-service-")))
-        {
-            var stripped = WorkspaceConventions.NormalizeServiceName(resolvedProj);
-            if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
-        }
-        if (string.IsNullOrEmpty(resolvedProj)) resolvedProj = "default";
-
-        var entryType = "grpc";
-        var cleanName = name;
-
-        if (name.StartWithIC("ws:"))
-        {
-            entryType = "queue-listener";
-            cleanName = name[3..];
-        }
-        else if (name.StartWithIC("event:"))
-        {
-            entryType = "queue-listener";
-            cleanName = name[6..];
-        }
-        else if (name.Contains(':'))
-        {
-            var idx = name.IndexOf(':');
-            entryType = name[..idx];
-            cleanName = name[(idx + 1)..];
-        }
-
-        if ((cleanName == "__main__" || (entryType == "main-method" && cleanName == "main")) && !string.IsNullOrEmpty(relativePath))
-        {
-            var dir = Path.GetFileName(Path.GetDirectoryName(relativePath.Replace('\\', '/')));
-            var fn = (!string.IsNullOrEmpty(dir) && dir != "src" && dir != "cmd") ? dir : Path.GetFileName(relativePath);
-            if (!string.IsNullOrEmpty(fn)) cleanName = fn;
-        }
-
-        var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
-        var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{projPart}{entryType}:{cleanName}";
-
-        return new EntryPointNode(
-            entryPointId,
-            cleanName,
-            relativePath,
-            entryType)
-        {
-            FilePath = relativePath,
-            StartLine = (int)node.StartPosition.Row + 1,
-            StartCol = (int)node.StartPosition.Column + 1
-        };
-    }
+        string? projectName = null) =>
+        SyntacticSymbolNodeFactory.CreateEntryPointNode(name, node, relativePath, workspaceId, projectName);
 
     private static ExternalServiceNode CreateExternalServiceNode(
         string name,
@@ -935,11 +889,12 @@ public static class EndpointSemanticAnalyzer
                 ? $"#{projScope}#{path}"
                 : "";
         var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}{serviceScopeSuffix}";
-        var extParamTypes = RouteCanonicalParser.MayHaveNamedParameters(path)
+        var templatePath = RouteDictionaryRegistry.ResolveTemplatePath(name, path);
+        var extParamTypes = RouteCanonicalParser.MayHaveNamedParameters(templatePath)
             ? RouteCanonicalParser.ExtractHandlerParameterTypes(node)
             : null;
         var canonicalExt = RouteCanonicalParser.Parse(
-            path,
+            templatePath,
             CodeExplorer.Cypher.Common.RouteDialect.OutboundClient,
             extParamTypes);
 

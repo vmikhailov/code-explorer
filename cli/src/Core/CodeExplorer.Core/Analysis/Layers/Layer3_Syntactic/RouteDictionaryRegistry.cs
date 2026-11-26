@@ -20,6 +20,30 @@ public static class RouteDictionaryRegistry
     private static readonly ConcurrentDictionary<string, string> _mountPrefixes =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, string> _rawTemplatesByNormalized =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private const int MaxRawTemplatesCapacity = 65536;
+    private const char QuestionMarkChar = '?';
+    private const char AmpersandChar = '&';
+    private const char OpenBraceSlotChar = '{';
+    private const char CloseBraceSlotChar = '}';
+    private const char PercentSpecChar = '%';
+    private const char SlashPathChar = '/';
+    private const char StarWildcardChar = '*';
+    private const char SingleQuoteTrimChar = '\'';
+    private const char DoubleQuoteTrimChar = '"';
+    private const char BacktickTrimChar = '`';
+    private const char SpaceTrimChar = ' ';
+    private const char SemicolonTrimChar = ';';
+    private const string SchemeSeparator = "://";
+    private const string WildcardSlashPrefix = "*/";
+    private const string SchemeHttpPrefix = "http://";
+    private const string SchemeHttpsPrefix = "https://";
+    private const string SchemeWsPrefix = "ws://";
+    private const string SchemeWssPrefix = "wss://";
+    private const string ServiceSuffixToken = "service";
+    private const string ClientSuffixToken = "client";
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
     public static void RegisterMountPrefix(string filePath, string mountPrefix)
@@ -248,6 +272,177 @@ public static class RouteDictionaryRegistry
         _aliases.Clear();
         _globalPrefixes.Clear();
         _mountPrefixes.Clear();
+        _rawTemplatesByNormalized.Clear();
+    }
+
+    public static string ResolveTemplatePath(string? rawServiceName, string normalizedPath)
+    {
+        if (!string.IsNullOrWhiteSpace(rawServiceName))
+        {
+            var trimmed = rawServiceName.Trim(SingleQuoteTrimChar, DoubleQuoteTrimChar, BacktickTrimChar, SpaceTrimChar, SemicolonTrimChar);
+            var qIdx = trimmed.IndexOf(QuestionMarkChar);
+            if (qIdx >= 0) trimmed = trimmed[..qIdx];
+            var ampIdx = trimmed.IndexOf(AmpersandChar);
+            if (ampIdx >= 0) trimmed = trimmed[..ampIdx];
+
+            if (_rawTemplatesByNormalized.TryGetValue(trimmed, out var tplFromFull) &&
+                !string.IsNullOrEmpty(tplFromFull))
+            {
+                return tplFromFull;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedPath) &&
+            _rawTemplatesByNormalized.TryGetValue(normalizedPath, out var tplFromPath) &&
+            !string.IsNullOrEmpty(tplFromPath))
+        {
+            return tplFromPath;
+        }
+
+        return normalizedPath;
+    }
+
+    private static void RecordRawTemplate(string normalizedFull, string rawWithSlots)
+    {
+        var tplPath = ExtractTemplatePathPortion(rawWithSlots);
+        if (string.IsNullOrEmpty(tplPath) || (!tplPath.Contains(OpenBraceSlotChar) && !tplPath.Contains(PercentSpecChar)))
+        {
+            return;
+        }
+
+        if (_rawTemplatesByNormalized.Count >= MaxRawTemplatesCapacity)
+        {
+            _rawTemplatesByNormalized.Clear();
+        }
+
+        if (!string.IsNullOrEmpty(normalizedFull))
+        {
+            _rawTemplatesByNormalized[normalizedFull] = tplPath;
+        }
+
+        var normPath = ExtractTemplatePathPortion(normalizedFull);
+        if (!string.IsNullOrEmpty(normPath))
+        {
+            _rawTemplatesByNormalized[normPath] = tplPath;
+        }
+    }
+
+    private static string ExtractTemplatePathPortion(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return string.Empty;
+        var s = url.Trim(SingleQuoteTrimChar, DoubleQuoteTrimChar, BacktickTrimChar, SpaceTrimChar);
+        var schemeIdx = s.IndexOf(SchemeSeparator, StringComparison.Ordinal);
+        if (schemeIdx >= 0)
+        {
+            s = s[(schemeIdx + 3)..];
+        }
+        else if (s.StartsWith(WildcardSlashPrefix, StringComparison.Ordinal))
+        {
+            s = s[1..];
+        }
+
+        if (s.StartsWith(SlashPathChar))
+        {
+            return s;
+        }
+
+        var slashIdx = s.IndexOf(SlashPathChar);
+        if (slashIdx <= 0)
+        {
+            return string.Empty;
+        }
+
+        var firstSeg = s[..slashIdx].ToLowerInvariant();
+        if (firstSeg is "api" or "rest" or "v1" or "v2" or "v3" or "v4" or "v5" or "graphql")
+        {
+            return "/" + s;
+        }
+
+        return s[slashIdx..];
+    }
+
+    private static string PreserveWholeSegmentPlaceholders(string raw)
+    {
+        var s = raw.Trim(SingleQuoteTrimChar, DoubleQuoteTrimChar, BacktickTrimChar, SpaceTrimChar);
+        if (!s.Contains(OpenBraceSlotChar) && !s.Contains(PercentSpecChar)) return s;
+
+        var sb = new System.Text.StringBuilder(s.Length);
+        var i = 0;
+        while (i < s.Length)
+        {
+            var isAfterSlash = i > 0 && s[i - 1] == SlashPathChar;
+            if (s[i] == '$' && i + 1 < s.Length && s[i + 1] == OpenBraceSlotChar)
+            {
+                var close = s.IndexOf(CloseBraceSlotChar, i + 2);
+                if (close > i + 2)
+                {
+                    var isBeforeSlashOrEnd = close + 1 == s.Length || s[close + 1] == SlashPathChar;
+                    var inner = s.AsSpan(i + 2, close - i - 2).Trim();
+                    if (isAfterSlash && isBeforeSlashOrEnd && IsValidSlotIdentifier(inner))
+                    {
+                        sb.Append(OpenBraceSlotChar).Append(inner).Append(CloseBraceSlotChar);
+                    }
+                    else
+                    {
+                        sb.Append(StarWildcardChar);
+                    }
+                    i = close + 1;
+                    continue;
+                }
+            }
+            else if (s[i] == OpenBraceSlotChar)
+            {
+                var close = s.IndexOf(CloseBraceSlotChar, i + 1);
+                if (close > i + 1)
+                {
+                    var isBeforeSlashOrEnd = close + 1 == s.Length || s[close + 1] == SlashPathChar;
+                    var inner = s.AsSpan(i + 1, close - i - 1).Trim();
+                    if (isAfterSlash && isBeforeSlashOrEnd && IsValidSlotIdentifier(inner))
+                    {
+                        sb.Append(OpenBraceSlotChar).Append(inner).Append(CloseBraceSlotChar);
+                    }
+                    else
+                    {
+                        sb.Append(StarWildcardChar);
+                    }
+                    i = close + 1;
+                    continue;
+                }
+            }
+            else if (s[i] == PercentSpecChar && i + 1 < s.Length && s[i + 1] is 's' or 'd' or 'v' or 'f')
+            {
+                var isBeforeSlashOrEnd = i + 2 == s.Length || s[i + 2] == SlashPathChar;
+                if (isAfterSlash && isBeforeSlashOrEnd)
+                {
+                    sb.Append(s[i]).Append(s[i + 1]);
+                }
+                else
+                {
+                    sb.Append(StarWildcardChar);
+                }
+                i += 2;
+                continue;
+            }
+
+            sb.Append(s[i]);
+            i++;
+        }
+
+        return sb.ToString();
+    }
+
+    private static bool IsValidSlotIdentifier(ReadOnlySpan<char> span)
+    {
+        if (span.IsEmpty) return false;
+        for (var i = 0; i < span.Length; i++)
+        {
+            var c = span[i];
+            if (!char.IsLetterOrDigit(c) && c is not '_' and not ':' and not '.' and not '-')
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static string NormalizeResolvedUrl(string raw)
@@ -264,11 +459,18 @@ public static class RouteDictionaryRegistry
         {
             if (TryResolve(routeKey, out var rPath, out var rService))
             {
-                var cleanPath = rPath.Split('?')[0];
-                cleanPath = Regex.Replace(cleanPath, @"\{[a-zA-Z0-9_]+\}", "*");
-                return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                var rawCleanPath = rPath.Split('?')[0];
+                var cleanPath = Regex.Replace(rawCleanPath, @"\{[a-zA-Z0-9_]+\}", "*");
+                var res = !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                if (rawCleanPath != cleanPath)
+                {
+                    RecordRawTemplate(res, !string.IsNullOrEmpty(rService) ? $"{rService}{rawCleanPath}" : rawCleanPath);
+                }
+                return res;
             }
         }
+
+        var preservedSlots = PreserveWholeSegmentPlaceholders(raw);
 
         // Replace template placeholders: ${...}, {var}, and format specifiers: %s, %d, %v, {0}
         var clean = Regex.Replace(raw, @"\$\{[^}]+\}", "*");
@@ -279,33 +481,48 @@ public static class RouteDictionaryRegistry
         // Check if route registry has this key directly (e.g. SINGLE_STAGE, BUY_DOMAIN, NETWORKS)
         if (TryResolve(clean, out var rp, out var rs))
         {
-            var cleanPath = rp.Split('?')[0];
-            cleanPath = Regex.Replace(cleanPath, @"\{[^}]+\}", "*");
-            return !string.IsNullOrEmpty(rs) ? $"{rs}{cleanPath}" : cleanPath;
+            var rawCleanPath = rp.Split('?')[0];
+            var cleanPath = Regex.Replace(rawCleanPath, @"\{[^}]+\}", "*");
+            var res = !string.IsNullOrEmpty(rs) ? $"{rs}{cleanPath}" : cleanPath;
+            if (rawCleanPath != cleanPath)
+            {
+                RecordRawTemplate(res, !string.IsNullOrEmpty(rs) ? $"{rs}{rawCleanPath}" : rawCleanPath);
+            }
+            return res;
         }
 
-        if (clean.StartWithIC("http://") ||
-            clean.StartWithIC("https://") ||
-            clean.StartWithIC("ws://") ||
-            clean.StartWithIC("wss://"))
+        var normalizedResult = FinalizeNormalizedUrl(clean);
+        if (preservedSlots != clean)
+        {
+            RecordRawTemplate(normalizedResult, preservedSlots);
+        }
+        return normalizedResult;
+    }
+
+    private static string FinalizeNormalizedUrl(string clean)
+    {
+        if (clean.StartWithIC(SchemeHttpPrefix) ||
+            clean.StartWithIC(SchemeHttpsPrefix) ||
+            clean.StartWithIC(SchemeWsPrefix) ||
+            clean.StartWithIC(SchemeWssPrefix))
         {
             return clean;
         }
 
         // If it starts with '*/' (e.g. ${baseUrl}/api/v1/foo -> */api/v1/foo)
-        if (clean.StartsWith("*/"))
+        if (clean.StartsWith(WildcardSlashPrefix, StringComparison.Ordinal))
         {
             return clean;
         }
 
         // If it contains a slash, extract the path part starting with '/' only if prefix is an authority/host (contains '.' or ':')
-        var slashIdx = clean.IndexOf('/');
+        var slashIdx = clean.IndexOf(SlashPathChar);
         if (slashIdx > 0)
         {
             var prefix = clean[..slashIdx];
             if (prefix.Contains('-') || prefix.Contains('_') ||
-                prefix.EndsWith("service", StringComparison.OrdinalIgnoreCase) ||
-                prefix.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
+                prefix.EndsWith(ServiceSuffixToken, StringComparison.OrdinalIgnoreCase) ||
+                prefix.EndsWith(ClientSuffixToken, StringComparison.OrdinalIgnoreCase) ||
                 GetAllKnownServices().Any(s => string.Equals(s, prefix, StringComparison.OrdinalIgnoreCase)))
             {
                 return clean;

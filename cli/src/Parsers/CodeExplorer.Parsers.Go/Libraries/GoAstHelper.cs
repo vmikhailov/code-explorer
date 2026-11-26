@@ -139,6 +139,7 @@ public static class GoAstHelper
 
                 if (args.Count > 0)
                 {
+                    var rawFormat = args[0].Text.Trim('"', '`');
                     var formatStr = ResolveStringOrVariable(args[0], depth + 1, visitedVars);
 
                     if (!string.IsNullOrEmpty(formatStr))
@@ -151,10 +152,15 @@ public static class GoAstHelper
                                                                    hostArg.EndsWith("service") ||
                                                                    hostArg.Contains('.')))
                             {
-                                var pathPart = formatStr.TrimStart('*', '%', 's', '/');
-
+                                var rawPathPart = SubstituteSprintfPathPlaceholders(rawFormat.TrimStart('*', '%', 's', '/'), args, 2);
                                 return RouteDictionaryRegistry.NormalizeResolvedUrl(
-                                    $"{hostArg.TrimEnd('/')}/{pathPart}");
+                                    $"{hostArg.TrimEnd('/')}/{rawPathPart}");
+                            }
+
+                            var substituted = SubstituteSprintfPathPlaceholders(rawFormat, args, 1);
+                            if (!string.IsNullOrEmpty(substituted) && substituted != rawFormat)
+                            {
+                                return RouteDictionaryRegistry.NormalizeResolvedUrl(substituted);
                             }
                         }
 
@@ -557,6 +563,55 @@ public static class GoAstHelper
 
         var combined = prefix + path;
         return combined.StartsWith('/') ? combined : "/" + combined;
+    }
+
+    private const char PercentSpecChar = '%';
+    private const char SlashSepChar = '/';
+    private const char OpenBraceSlotChar = '{';
+    private const char CloseBraceSlotChar = '}';
+    private const string IntTypeSuffix = ":int";
+    private const string FloatTypeSuffix = ":float";
+
+    private static string SubstituteSprintfPathPlaceholders(string rawFormat, List<Node> args, int startArgIdx)
+    {
+        if (string.IsNullOrEmpty(rawFormat) || !rawFormat.Contains(PercentSpecChar)) return rawFormat;
+
+        var sb = new System.Text.StringBuilder(rawFormat.Length + 16);
+        var argIdx = startArgIdx;
+        var i = 0;
+        while (i < rawFormat.Length)
+        {
+            if (rawFormat[i] == PercentSpecChar && i + 1 < rawFormat.Length)
+            {
+                var spec = rawFormat[i + 1];
+                if (spec is 's' or 'd' or 'v' or 'f')
+                {
+                    var isAfterSlash = i == 0 || rawFormat[i - 1] == SlashSepChar;
+                    var isBeforeSlashOrEnd = i + 2 == rawFormat.Length || rawFormat[i + 2] == SlashSepChar;
+                    if (isAfterSlash && isBeforeSlashOrEnd && argIdx < args.Count)
+                    {
+                        var argNode = args[argIdx++];
+                        var argName = argNode.Is(TreeSitterSyntax.Go.Identifier) ? argNode.Text : null;
+                        if (!string.IsNullOrEmpty(argName))
+                        {
+                            var typeSuffix = spec == 'd' ? IntTypeSuffix : (spec == 'f' ? FloatTypeSuffix : string.Empty);
+                            sb.Append(OpenBraceSlotChar).Append(argName).Append(typeSuffix).Append(CloseBraceSlotChar);
+                            i += 2;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        argIdx++;
+                    }
+                }
+            }
+
+            sb.Append(rawFormat[i]);
+            i++;
+        }
+
+        return sb.ToString();
     }
 
     public static bool TryGetIndexAssignment(Node node, out string operandText, out string indexText)

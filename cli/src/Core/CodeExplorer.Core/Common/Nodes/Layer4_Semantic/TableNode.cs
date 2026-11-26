@@ -49,6 +49,12 @@ public record TableNode(
     [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the table node uses an implicit default schema.", isSystem: true)]
     public bool? IsImplicitSchema { get; set; }
 
+    [JsonPropertyName("canonical_table"), OntologyProperty("Normalized canonical table address preserving schema and table name.")]
+    public string? CanonicalTable { get; set; }
+
+    [JsonPropertyName("canonical_shape"), OntologyProperty("Structural canonical table shape for SQL and ORM matching.")]
+    public string? CanonicalShape { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Table;
 }

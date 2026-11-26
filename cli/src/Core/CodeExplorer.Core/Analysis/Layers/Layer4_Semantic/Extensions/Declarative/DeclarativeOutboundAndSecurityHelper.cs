@@ -370,6 +370,11 @@ internal static class DeclarativeOutboundAndSecurityHelper
                         }
                         if (!string.IsNullOrEmpty(leftText) && (leftText.Contains(SlashChar) || leftText.StartsWith(HttpPrefix, StringComparison.OrdinalIgnoreCase)))
                         {
+                            if (right is IdentifierExprSyntax rightId && !string.IsNullOrEmpty(rightId.Text))
+                            {
+                                var slotName = rightId.Text.TrimStart(DollarChar);
+                                return RouteDictionaryRegistry.NormalizeResolvedUrl($"{leftText.TrimEnd(SlashChar)}/{{{slotName}}}");
+                            }
                             return RouteDictionaryRegistry.NormalizeResolvedUrl(leftText.EndsWith(SlashChar) ? leftText + WildcardStr : leftText);
                         }
                         if (!string.IsNullOrEmpty(rightText))
@@ -433,6 +438,11 @@ internal static class DeclarativeOutboundAndSecurityHelper
                                             if (right.IsValid() && DeclarativeSemanticExtension.IsStringLiteral(right))
                                             {
                                                 return leftText + right.Text.Trim(DoubleQuoteChar, SingleQuoteChar);
+                                            }
+                                            if (right is IdentifierExprSyntax rightId && !string.IsNullOrEmpty(rightId.Text))
+                                            {
+                                                var slotName = rightId.Text.TrimStart(DollarChar);
+                                                return $"{leftText.TrimEnd(SlashChar)}/{{{slotName}}}";
                                             }
                                             return leftText + WildcardStr;
                                         }

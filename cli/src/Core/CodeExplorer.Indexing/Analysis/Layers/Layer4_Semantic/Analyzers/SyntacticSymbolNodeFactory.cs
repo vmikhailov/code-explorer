@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
@@ -147,5 +148,82 @@ internal static class SyntacticSymbolNodeFactory
         });
         ctx?.AddGlobalProjectDependency(hostedRel);
         relationships?.Add(hostedRel);
+    }
+
+    private const string ServicePrefixInternal = "internal-service-";
+    private const string ServicePrefixIntegration = "integration-service-";
+    private const string ServicePrefixExternal = "external-service-";
+    private const string DefaultProjName = "default";
+    private const string EntryTypeGrpc = "grpc";
+    private const string EntryTypeQueueListener = "queue-listener";
+    private const string WsColonPrefix = "ws:";
+    private const string EventColonPrefix = "event:";
+    private const string MainDunder = "__main__";
+    private const string MainMethodEntry = "main-method";
+    private const string MainFunc = "main";
+    private const string SrcDir = "src";
+    private const string CmdDir = "cmd";
+    private const char ColonSep = ':';
+    private const char BackslashSep = '\\';
+    private const char SlashSep = '/';
+
+    public static EntryPointNode CreateEntryPointNode(
+        string name,
+        SyntaxNode node,
+        string relativePath,
+        string workspaceId,
+        string? projectName = null)
+    {
+        var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : EndpointSemanticAnalyzer.GetProjectNameFromRelativePath(relativePath);
+        if (!string.IsNullOrEmpty(resolvedProj) &&
+            (resolvedProj.StartWithIC(ServicePrefixInternal) ||
+             resolvedProj.StartWithIC(ServicePrefixIntegration) ||
+             resolvedProj.StartWithIC(ServicePrefixExternal)))
+        {
+            var stripped = WorkspaceConventions.NormalizeServiceName(resolvedProj);
+            if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
+        }
+        if (string.IsNullOrEmpty(resolvedProj)) resolvedProj = DefaultProjName;
+
+        var entryType = EntryTypeGrpc;
+        var cleanName = name;
+
+        if (name.StartWithIC(WsColonPrefix))
+        {
+            entryType = EntryTypeQueueListener;
+            cleanName = name[3..];
+        }
+        else if (name.StartWithIC(EventColonPrefix))
+        {
+            entryType = EntryTypeQueueListener;
+            cleanName = name[6..];
+        }
+        else if (name.Contains(ColonSep))
+        {
+            var idx = name.IndexOf(ColonSep);
+            entryType = name[..idx];
+            cleanName = name[(idx + 1)..];
+        }
+
+        if ((cleanName == MainDunder || (entryType == MainMethodEntry && cleanName == MainFunc)) && !string.IsNullOrEmpty(relativePath))
+        {
+            var dir = Path.GetFileName(Path.GetDirectoryName(relativePath.Replace(BackslashSep, SlashSep)));
+            var fn = (!string.IsNullOrEmpty(dir) && dir != SrcDir && dir != CmdDir) ? dir : Path.GetFileName(relativePath);
+            if (!string.IsNullOrEmpty(fn)) cleanName = fn;
+        }
+
+        var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != DefaultProjName) ? $"{resolvedProj}:" : "";
+        var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{projPart}{entryType}:{cleanName}";
+
+        return new EntryPointNode(
+            entryPointId,
+            cleanName,
+            relativePath,
+            entryType)
+        {
+            FilePath = relativePath,
+            StartLine = (int)node.StartPosition.Row + 1,
+            StartCol = (int)node.StartPosition.Column + 1
+        };
     }
 }

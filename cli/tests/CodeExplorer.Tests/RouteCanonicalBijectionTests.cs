@@ -1,11 +1,24 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using CodeExplorer.Core.Analysis;
+using CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Cypher.Common;
+using CodeExplorer.Parsers.CSharp;
+using CodeExplorer.Parsers.Go;
+using CodeExplorer.Parsers.Java;
+using CodeExplorer.Parsers.Python;
+using CodeExplorer.Parsers.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -327,5 +340,305 @@ public class RouteCanonicalBijectionTests
         hashMatches.Should().Be(callCount);
         swCanonicalScoring.Elapsed.Should().BeLessThan(swLegacyScoring.Elapsed);
         swHashJoinL5.Elapsed.Should().BeLessThan(swLinearL5.Elapsed);
+    }
+
+    private static async Task<List<ExternalServiceNode>> ParseExternalServicesAsync(IFileParser parser, string code, string fileName)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_can_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var filePath = Path.Combine(tempDir, fileName);
+            await File.WriteAllTextAsync(filePath, code);
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var list = new List<ExternalServiceNode>();
+            CollectExternalServices(syntaxTree.FileNode.Children, list);
+            return list;
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    private static void CollectExternalServices(IEnumerable<IOntologyNode> nodes, List<ExternalServiceNode> result)
+    {
+        foreach (var n in nodes)
+        {
+            if (n is ExternalServiceNode es) result.Add(es);
+            CollectExternalServices(n.Children, result);
+        }
+    }
+
+    [Test]
+    public async Task Phase2_MultiLanguageOutboundAst_PreservesVariableNamesAndTypesInCanonicalRoute()
+    {
+        RouteDictionaryRegistry.Clear();
+
+        // 1. Python f-string with typed parameter (bundle_id: UUID)
+        var pyServices = await ParseExternalServicesAsync(
+            new PythonFileParser(),
+            """
+            import requests
+            from uuid import UUID
+
+            def get_bundle(bundle_id: UUID):
+                url = f"http://bundle-service/api/v1/bundles/{bundle_id}"
+                return requests.get(url)
+            """,
+            "client.py");
+        pyServices.Should().NotBeEmpty();
+        pyServices[0].Path.Should().Be("/api/v1/bundles/*");
+        pyServices[0].CanonicalRoute.Should().Be("/api/v1/bundles/{bundle_id:uuid}");
+        pyServices[0].CanonicalShape.Should().Be("/api/v1/bundles/{}");
+
+        // 2. Go fmt.Sprintf with typed parameter (bundleId string & orderId int64)
+        var goServices = await ParseExternalServicesAsync(
+            new GoFileParser(),
+            """
+            package client
+            import (
+                "fmt"
+                "net/http"
+            )
+            func GetOrder(bundleId string, orderId int64) (*http.Response, error) {
+                url := fmt.Sprintf("%s/api/v1/bundles/%s/orders/%d", "http://bundle-service", bundleId, orderId)
+                return http.Get(url)
+            }
+            """,
+            "client.go");
+        goServices.Should().NotBeEmpty();
+        goServices[0].Path.Should().Be("/api/v1/bundles/*/orders/*");
+        goServices[0].CanonicalRoute.Should().Be("/api/v1/bundles/{bundleId:string}/orders/{orderId:int}");
+        goServices[0].CanonicalShape.Should().Be("/api/v1/bundles/{}/orders/{}");
+
+        // 3. C# Interpolated string with Guid parameter
+        var csServices = await ParseExternalServicesAsync(
+            new CSharpFileParser(),
+            """
+            using System;
+            using System.Net.Http;
+            using System.Threading.Tasks;
+
+            public class BundleClient
+            {
+                private readonly IHttpClientFactory _factory;
+                public BundleClient(IHttpClientFactory factory) => _factory = factory;
+
+                public async Task<string> GetBundleAsync(Guid bundleId)
+                {
+                    var client = _factory.CreateClient("bundle-service");
+                    var response = await client.GetAsync($"/api/v1/bundles/{bundleId}");
+                    return await response.Content.ReadAsStringAsync();
+                }
+            }
+            """,
+            "BundleClient.cs");
+        csServices.Should().NotBeEmpty();
+        csServices[0].Path.Should().Be("/api/v1/bundles/*");
+        csServices[0].CanonicalRoute.Should().Be("/api/v1/bundles/{bundleId:uuid}");
+        csServices[0].CanonicalShape.Should().Be("/api/v1/bundles/{}");
+
+        // 4. Java RestTemplate binary concatenation with String parameter
+        var javaServices = await ParseExternalServicesAsync(
+            new JavaFileParser(),
+            """
+            package com.example.client;
+            import org.springframework.web.client.RestTemplate;
+
+            public class OrderClient {
+                private RestTemplate restTemplate;
+
+                public String getOrder(String orderId) {
+                    String url = "http://order-service/api/v1/orders/" + orderId;
+                    return restTemplate.getForObject(url, String.class);
+                }
+            }
+            """,
+            "OrderClient.java");
+        javaServices.Should().NotBeEmpty();
+        javaServices[0].Path.Should().Be("/api/v1/orders/*");
+        javaServices[0].CanonicalRoute.Should().Be("/api/v1/orders/{orderId:string}");
+        javaServices[0].CanonicalShape.Should().Be("/api/v1/orders/{}");
+
+        // 5. TypeScript template string with number parameter
+        var tsServices = await ParseExternalServicesAsync(
+            new TypeScriptFileParser(),
+            """
+            import axios from 'axios';
+
+            export async function fetchUserOrders(userId: number) {
+                return axios.get(`http://user-service/users/${userId}/orders`);
+            }
+            """,
+            "client.ts");
+        tsServices.Should().NotBeEmpty();
+        tsServices[0].Path.Should().Be("/users/*/orders");
+        tsServices[0].CanonicalRoute.Should().Be("/users/{userId:int}/orders");
+        tsServices[0].CanonicalShape.Should().Be("/users/{}/orders");
+    }
+
+    [TestCase("orders.created", TopicDialect.Plain, "topic:orders.created")]
+    [TestCase("projects/acme-prod/topics/orders.created", TopicDialect.GcpPubSubTopic, "topic://gcp/acme-prod/topics/orders.created")]
+    [TestCase("projects/acme-prod/subscriptions/orders-worker", TopicDialect.GcpPubSubSubscription, "topic://gcp/acme-prod/subscriptions/orders-worker")]
+    [TestCase("arn:aws:sns:us-east-1:123456789012:orders-created", TopicDialect.AwsArn, "topic://aws/sns/us-east-1/123456789012/orders-created")]
+    [TestCase("topic://gcp/{projectId:string}/topics/orders.created", TopicDialect.Canonical, "topic://gcp/{projectId:string}/topics/orders.created")]
+    public void Phase4_TopicCanonicalParser_AcrossAllDialects_IsStrictlyBijective(
+        string rawTopic,
+        TopicDialect dialect,
+        string expectedCanonical)
+    {
+        var canonical = TopicCanonicalParser.ToCanonical(rawTopic, dialect);
+        canonical.Should().Be(expectedCanonical);
+
+        var restored = TopicCanonicalParser.FromCanonical(canonical, dialect);
+        restored.Should().Be(rawTopic);
+
+        var reCanonical = TopicCanonicalParser.ToCanonical(restored, dialect);
+        reCanonical.Should().Be(canonical);
+    }
+
+    [TestCase("[dbo].[UserOrders]", TableDialect.TSqlBracket, "table:dbo.UserOrders")]
+    [TestCase("[UserOrders]", TableDialect.TSqlBracket, "table:UserOrders")]
+    [TestCase("\"public\".\"user_orders\"", TableDialect.AnsiDoubleQuote, "table:public.user_orders")]
+    [TestCase("`shop_db`.`user_orders`", TableDialect.MySqlBacktick, "table:shop_db.user_orders")]
+    [TestCase("public.user_orders", TableDialect.Plain, "table:public.user_orders")]
+    [TestCase("table:dbo.UserOrders", TableDialect.Canonical, "table:dbo.UserOrders")]
+    public void Phase4_TableCanonicalParser_AcrossAllDialects_IsStrictlyBijective(
+        string rawTable,
+        TableDialect dialect,
+        string expectedCanonical)
+    {
+        var canonical = TableCanonicalParser.ToCanonical(rawTable, dialect);
+        canonical.Should().Be(expectedCanonical);
+
+        var restored = TableCanonicalParser.FromCanonical(canonical, dialect);
+        restored.Should().Be(rawTable);
+
+        var reCanonical = TableCanonicalParser.ToCanonical(restored, dialect);
+        reCanonical.Should().Be(canonical);
+    }
+
+    [TestCase("postgresql://app_user@db.internal:5432/orders_db", DsnDialect.Uri, "dsn://postgresql/app_user@db.internal:5432/orders_db")]
+    [TestCase("jdbc:postgresql://db.internal:5432/orders_db", DsnDialect.Jdbc, "dsn://postgresql/db.internal:5432/orders_db")]
+    [TestCase("Host=db.internal;Port=5432;Database=orders_db;Username=app_user", DsnDialect.AdoNet, "dsn://postgresql/app_user@db.internal:5432/orders_db")]
+    public void Phase4_DsnCanonicalParser_AcrossAllDialects_IsStrictlyBijective(
+        string rawDsn,
+        DsnDialect dialect,
+        string expectedCanonical)
+    {
+        var canonical = DsnCanonicalParser.ToCanonical(rawDsn, dialect);
+        canonical.Should().Be(expectedCanonical);
+
+        var restored = DsnCanonicalParser.FromCanonical(canonical, dialect);
+        restored.Should().Be(rawDsn);
+
+        var reCanonical = DsnCanonicalParser.ToCanonical(restored, dialect);
+        reCanonical.Should().Be(canonical);
+    }
+
+    [TestCase("/orders.v1.OrderService/CreateOrder", RpcDialect.GrpcPath, "rpc://orders.v1/OrderService/CreateOrder")]
+    [TestCase("orders.v1.OrderService.CreateOrder", RpcDialect.DotQualified, "rpc://orders.v1/OrderService/CreateOrder")]
+    [TestCase("orders.v1.OrderService:CreateOrder", RpcDialect.ColonQualified, "rpc://orders.v1/OrderService/CreateOrder")]
+    [TestCase("rpc://orders.v1/OrderService/CreateOrder", RpcDialect.Canonical, "rpc://orders.v1/OrderService/CreateOrder")]
+    public void Phase4_RpcCanonicalParser_AcrossAllDialects_IsStrictlyBijective(
+        string rawRpc,
+        RpcDialect dialect,
+        string expectedCanonical)
+    {
+        var canonical = RpcCanonicalParser.ToCanonical(rawRpc, dialect);
+        canonical.Should().Be(expectedCanonical);
+
+        var restored = RpcCanonicalParser.FromCanonical(canonical, dialect);
+        restored.Should().Be(rawRpc);
+
+        var reCanonical = RpcCanonicalParser.ToCanonical(restored, dialect);
+        reCanonical.Should().Be(canonical);
+    }
+
+    [Test]
+    public async Task Phase5_CrossServiceEndpointSlotDataflow_EmitsParameterToParameterFlowsToEdge()
+    {
+        var callerFn = new FunctionNode("fn:caller", "GetBundleAsync", "GetBundleAsync", "Client.cs", "Client.cs", 10, 20, 1, 1);
+        var handlerFn = new FunctionNode("fn:handler", "GetById", "GetById", "BundlesController.cs", "BundlesController.cs", 30, 45, 1, 1);
+
+        var extService = new ExternalServiceNode(
+            "ext:1",
+            "GET /api/v1/bundles/*",
+            "HTTP",
+            "bundle-service",
+            "/api/v1/bundles/*")
+        {
+            Url = "http://bundle-service/api/v1/bundles/{bundleId}",
+            Method = "GET",
+            FilePath = "Client.cs",
+            StartLine = 14,
+            CallerSymbolId = callerFn.Id,
+            CanonicalRoute = "/api/v1/bundles/{bundleId:uuid}",
+            CanonicalShape = "/api/v1/bundles/{}"
+        };
+
+        var endpoint = new EndpointNode(
+            "ep:1",
+            "GET /api/v1/bundles/{id:guid}",
+            "BundlesController.cs",
+            "GET",
+            "/api/v1/bundles/{id:guid}",
+            "REST")
+        {
+            FilePath = "BundlesController.cs",
+            StartLine = 30,
+            CanonicalRoute = "/api/v1/bundles/{id:uuid}",
+            CanonicalShape = "/api/v1/bundles/{}"
+        };
+        endpoint.Children.Add(handlerFn);
+
+        var ws = new WorkspaceNode("ws0", "TestWs", ".");
+        var filesStructure = new FilesStructureNode("ws0:files", "FilesStructure", ".");
+        var projectsStructure = new ProjectsStructureNode("ws0:projects", "ProjectsStructure", ".");
+        var syntaxStructure = new SyntaxStructureNode("ws0:syntax", "SyntaxStructure", ".");
+        syntaxStructure.Children.Add(callerFn);
+        syntaxStructure.Children.Add(handlerFn);
+
+        var semanticStructure = new SemanticStructureNode("ws0:sem", "SemanticStructure", ".");
+        var l1Result = new Layer1Result(ws, filesStructure, [], []);
+        var l2Result = new Layer2Result(l1Result, projectsStructure, [], [], []);
+        var l3Result = new Layer3Result(l2Result, syntaxStructure, [], [], [], [], [], new Dictionary<(string Kind, string Name), string>());
+        var l4Result = new Layer4Result(
+            l3Result,
+            semanticStructure,
+            [extService, endpoint],
+            []);
+
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        var client = new InMemoryGraphRepository();
+        var ctx = new ParsingContext(".", ".", client, channel);
+
+        var lateBoundRels = new List<Relationship>
+        {
+            Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id))
+        };
+
+        await SemanticArgumentPropagator.PropagateAndGroundAsync(
+            l4Result,
+            ctx,
+            [],
+            lateBoundRels);
+
+        channel.Writer.Complete();
+        while (channel.Reader.TryRead(out var work))
+        {
+            await work();
+        }
+
+        var allRels = client.UploadedRelationships;
+        allRels.Should().Contain(r =>
+            r.Kind == RelationshipKind.FlowsTo &&
+            r.From.Contains("bundleId") &&
+            r.To.Contains("id"));
     }
 }

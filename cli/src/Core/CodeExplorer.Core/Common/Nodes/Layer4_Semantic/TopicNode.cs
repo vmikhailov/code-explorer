@@ -60,6 +60,12 @@ public record TopicNode(
     [JsonPropertyName("provisioned_by"), OntologyProperty("IaC tool or engine provisioning this topic (e.g. terraform).")]
     public string? ProvisionedBy { get; init; }
 
+    [JsonPropertyName("canonical_topic"), OntologyProperty("Normalized canonical topic URI preserving provider namespace and topic name.")]
+    public string? CanonicalTopic { get; set; }
+
+    [JsonPropertyName("canonical_shape"), OntologyProperty("Structural canonical topic shape for cross-service pub/sub matching.")]
+    public string? CanonicalShape { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Topic;
 }

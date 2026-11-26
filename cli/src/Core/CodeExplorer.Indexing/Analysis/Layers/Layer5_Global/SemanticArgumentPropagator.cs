@@ -1,8 +1,11 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Semantics;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -242,6 +245,17 @@ internal static class SemanticArgumentPropagator
                     AddRelationship);
             }
         }
+
+        // 3. Cross-service endpoint slot parameter dataflow (Caller Parameter -> Endpoint Handler Parameter FLOWS_TO)
+        PropagateCrossServiceEndpointParameterFlows(
+            l4Result,
+            ctx,
+            functionsById,
+            paramNodesByFnAndIdx,
+            referenceRelationships,
+            lateBoundRels,
+            newNodes,
+            AddRelationship);
 
         if (newNodes.Count > 0)
         {
@@ -563,5 +577,220 @@ internal static class SemanticArgumentPropagator
         return string.IsNullOrWhiteSpace(filePath)
             ? string.Empty
             : string.Concat(workspaceId, ColonChar, OntologyConstants.IdPrefixes.File, ColonChar, filePath);
+    }
+
+    private const string WildcardSlotName = "*";
+    private const string RouteParameterSinkName = "route_parameter";
+
+    internal static void PropagateCrossServiceEndpointParameterFlows(
+        Layer4Result l4Result,
+        ParsingContext ctx,
+        Dictionary<string, FunctionNode> functionsById,
+        Dictionary<(string FnId, int ParamIdx), ParameterNode> paramNodesByFnAndIdx,
+        List<Relationship> referenceRelationships,
+        List<Relationship> lateBoundRels,
+        List<Node> newNodes,
+        Action<IOntologyRelationship, bool> addRelationship)
+    {
+        if (lateBoundRels.Count == 0) return;
+
+        var endpointsById = new Dictionary<string, EndpointNode>(StringComparer.Ordinal);
+        var extServicesById = new Dictionary<string, ExternalServiceNode>(StringComparer.Ordinal);
+        var visited = new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance);
+
+        void CollectContractNodes(IOntologyNode? node)
+        {
+            if (node == null || !visited.Add(node)) return;
+            if (node is EndpointNode ep) endpointsById.TryAdd(ep.Id, ep);
+            else if (node is ExternalServiceNode es) extServicesById.TryAdd(es.Id, es);
+            for (var i = 0; i < node.Children.Count; i++)
+            {
+                CollectContractNodes(node.Children[i]);
+            }
+        }
+
+        CollectContractNodes(l4Result.SemanticStructure);
+        CollectContractNodes(l4Result.Prev.Prev.Prev.Workspace);
+        foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectContractNodes(f);
+        for (var i = 0; i < l4Result.SemanticNodes.Count; i++) CollectContractNodes(l4Result.SemanticNodes[i]);
+
+        if (endpointsById.Count == 0 || extServicesById.Count == 0) return;
+
+        var handlersByEndpointId = new Dictionary<string, List<FunctionNode>>(StringComparer.Ordinal);
+        void RegisterHandler(string epId, string fnId)
+        {
+            if (!endpointsById.ContainsKey(epId) || !functionsById.TryGetValue(fnId, out var fn)) return;
+            if (!handlersByEndpointId.TryGetValue(epId, out var list))
+            {
+                list = [];
+                handlersByEndpointId[epId] = list;
+            }
+            if (!list.Contains(fn)) list.Add(fn);
+        }
+
+        foreach (var ep in endpointsById.Values)
+        {
+            for (var c = 0; c < ep.Children.Count; c++)
+            {
+                if (ep.Children[c] is FunctionNode childFn) RegisterHandler(ep.Id, childFn.Id);
+            }
+        }
+
+        for (var i = 0; i < ctx.TreeRelationships.Count; i++)
+        {
+            var rel = ctx.TreeRelationships[i];
+            if (rel.Kind is RelationshipKind.Triggers or RelationshipKind.ExposedBy)
+            {
+                RegisterHandler(rel.From, rel.To);
+            }
+        }
+
+        for (var i = 0; i < referenceRelationships.Count; i++)
+        {
+            var rel = referenceRelationships[i];
+            if (rel.Kind is RelationshipKind.Triggers or RelationshipKind.ExposedBy)
+            {
+                RegisterHandler(rel.From, rel.To);
+            }
+        }
+
+        ParameterNode? FindOrMaterializeParamByName(FunctionNode fn, string slotName, RouteParamType paramType)
+        {
+            if (string.IsNullOrEmpty(slotName) || slotName == WildcardSlotName) return null;
+
+            var signals = fn.TryGetSignals()?.SemanticParams;
+            if (signals != null)
+            {
+                for (var p = 0; p < signals.Count; p++)
+                {
+                    var sig = signals[p];
+                    if (string.Equals(sig.Name, slotName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (paramNodesByFnAndIdx.TryGetValue((fn.Id, sig.Index), out var existing))
+                        {
+                            return existing;
+                        }
+
+                        var paramId = string.Concat(
+                            ctx.WorkspaceId, ColonChar, OntologyConstants.IdPrefixes.Parameter, ColonChar,
+                            fn.Id, ColonChar, sig.Index.ToString(), ColonChar, sig.Name);
+                        var created = new ParameterNode(
+                            paramId,
+                            sig.Name,
+                            fn.Id,
+                            sig.Index,
+                            !string.IsNullOrEmpty(sig.DataType) ? sig.DataType : paramType.ToCanonicalString(),
+                            fn.FilePath,
+                            sig.Line > 0 ? sig.Line : fn.StartLine,
+                            sig.Nature != ParameterNature.Unspecified ? sig.Nature : ParameterNature.UrlOrRoute,
+                            sig.SinkCallee ?? RouteParameterSinkName,
+                            fn.IsTest,
+                            fn.ProjectKind,
+                            fn.ProjectName);
+                        paramNodesByFnAndIdx[(fn.Id, sig.Index)] = created;
+                        newNodes.Add(Node.FromNode(created));
+                        addRelationship(new HasParameterRelationship(fn.Id, created.Id), false);
+                        var fileId = BuildFileId(ctx.WorkspaceId, fn.FilePath);
+                        if (!string.IsNullOrEmpty(fileId))
+                        {
+                            addRelationship(new DeclaredInRelationship(created.Id, fileId), false);
+                        }
+                        return created;
+                    }
+                }
+            }
+
+            foreach (var ((fnKey, _), pNode) in paramNodesByFnAndIdx)
+            {
+                if (fnKey == fn.Id && string.Equals(pNode.Name, slotName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return pNode;
+                }
+            }
+
+            var synthId = string.Concat(
+                ctx.WorkspaceId, ColonChar, OntologyConstants.IdPrefixes.Parameter, ColonChar,
+                fn.Id, ColonChar, slotName);
+            var synthNode = new ParameterNode(
+                synthId,
+                slotName,
+                fn.Id,
+                0,
+                paramType.ToCanonicalString(),
+                fn.FilePath,
+                fn.StartLine,
+                ParameterNature.UrlOrRoute,
+                RouteParameterSinkName,
+                fn.IsTest,
+                fn.ProjectKind,
+                fn.ProjectName);
+            newNodes.Add(Node.FromNode(synthNode));
+            addRelationship(new HasParameterRelationship(fn.Id, synthNode.Id), false);
+            var synthFileId = BuildFileId(ctx.WorkspaceId, fn.FilePath);
+            if (!string.IsNullOrEmpty(synthFileId))
+            {
+                addRelationship(new DeclaredInRelationship(synthNode.Id, synthFileId), false);
+            }
+            return synthNode;
+        }
+
+        for (var i = 0; i < lateBoundRels.Count; i++)
+        {
+            var rel = lateBoundRels[i];
+            if (rel.Kind != RelationshipKind.CallsEndpoint) continue;
+            if (!extServicesById.TryGetValue(rel.From, out var extService) ||
+                !endpointsById.TryGetValue(rel.To, out var endpoint))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(extService.CallerSymbolId) ||
+                !functionsById.TryGetValue(extService.CallerSymbolId, out var callerFn))
+            {
+                continue;
+            }
+
+            if (!handlersByEndpointId.TryGetValue(endpoint.Id, out var handlerFns) || handlerFns.Count == 0)
+            {
+                continue;
+            }
+
+            var extRoute = RouteCanonicalParser.Parse(extService.CanonicalRoute ?? extService.Path, RouteDialect.OutboundClient);
+            var epRoute = RouteCanonicalParser.Parse(endpoint.CanonicalRoute ?? endpoint.RouteTemplate, RouteDialect.Auto);
+
+            var minLen = Math.Min(extRoute.Segments.Count, epRoute.Segments.Count);
+            for (var s = 1; s <= minLen; s++)
+            {
+                var extSeg = extRoute.Segments[^s];
+                var epSeg = epRoute.Segments[^s];
+
+                if (!extSeg.IsParameter || !epSeg.IsParameter || extSeg.IsLiteral)
+                {
+                    continue;
+                }
+
+                if (extSeg.Text == WildcardSlotName || epSeg.Text == WildcardSlotName)
+                {
+                    continue;
+                }
+
+                if (!RouteCanonicalParser.AreTypesCompatible(extSeg.ParamType, epSeg.ParamType))
+                {
+                    continue;
+                }
+
+                var callerParam = FindOrMaterializeParamByName(callerFn, extSeg.Text, extSeg.ParamType);
+                if (callerParam == null) continue;
+
+                for (var h = 0; h < handlerFns.Count; h++)
+                {
+                    var handlerParam = FindOrMaterializeParamByName(handlerFns[h], epSeg.Text, epSeg.ParamType);
+                    if (handlerParam != null && callerParam.Id != handlerParam.Id)
+                    {
+                        addRelationship(new FlowsToRelationship(callerParam.Id, handlerParam.Id), true);
+                    }
+                }
+            }
+        }
     }
 }

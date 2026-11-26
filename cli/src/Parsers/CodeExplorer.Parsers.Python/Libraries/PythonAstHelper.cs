@@ -240,7 +240,8 @@ public static class PythonAstHelper
             if (RouteDictionaryRegistry.TryResolve(varName, out var rPath, out var rService))
             {
                 var cleanPath = rPath.Split('?')[0];
-                return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                var combined = !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                return RouteDictionaryRegistry.NormalizeResolvedUrl(combined);
             }
 
             if (ConstantRegistry.TryResolve(null, varName, out var constVal) && !string.IsNullOrEmpty(constVal))
@@ -279,24 +280,32 @@ public static class PythonAstHelper
             }
         }
 
-        // 3. Binary operator: BASE_URL + "/api/v1/..."
+        // 3. Binary operator: BASE_URL + "/api/v1/..." or "http://svc/orders/" + order_id
         if (argNode.IsAny(TreeSitterSyntax.Python.BinaryOperator, TreeSitterSyntax.Common.BinaryExpression))
         {
-            var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
-                        (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
-            if (right.IsValid())
-            {
-                var rightResolved = ResolveStringOrVariable(right, depth + 1, visitedVars);
-                if (!string.IsNullOrEmpty(rightResolved))
-                {
-                    return rightResolved;
-                }
-            }
             var left = argNode.GetField(TreeSitterSyntax.Fields.Left) ??
                        (argNode.Children.Count > 0 ? argNode.Children[0] : null);
-            if (left.IsValid())
+            var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
+                        (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
+            var leftResolved = left.IsValid() ? ResolveStringOrVariable(left, depth + 1, visitedVars) : null;
+            var rightResolved = right.IsValid() ? ResolveStringOrVariable(right, depth + 1, visitedVars) : null;
+
+            const char slashSep = '/';
+            if (!string.IsNullOrEmpty(leftResolved) && !string.IsNullOrEmpty(rightResolved))
             {
-                return ResolveStringOrVariable(left, depth + 1, visitedVars);
+                return RouteDictionaryRegistry.NormalizeResolvedUrl($"{leftResolved.TrimEnd(slashSep)}/{rightResolved.TrimStart(slashSep)}");
+            }
+            if (!string.IsNullOrEmpty(leftResolved))
+            {
+                if (right.IsValid() && right.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName) && !string.IsNullOrEmpty(right.Text))
+                {
+                    return RouteDictionaryRegistry.NormalizeResolvedUrl($"{leftResolved.TrimEnd(slashSep)}/{{{right.Text}}}");
+                }
+                return leftResolved;
+            }
+            if (!string.IsNullOrEmpty(rightResolved))
+            {
+                return rightResolved;
             }
         }
 

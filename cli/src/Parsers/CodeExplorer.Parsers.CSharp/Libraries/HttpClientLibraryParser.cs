@@ -228,12 +228,10 @@ public partial class HttpClientLibraryParser : DeclarativeSemanticExtension
                 if (!string.IsNullOrEmpty(interpUri))
                 {
                     var cleanInterp = interpUri.Split('?')[0].Split('&')[0];
-                    var norm = NormalizeUrl(cleanInterp);
-                    if (!string.IsNullOrEmpty(namedService) && norm.StartsWith('/'))
-                    {
-                        return $"{namedService}{norm}";
-                    }
-                    return norm;
+                    var withService = (!string.IsNullOrEmpty(namedService) && cleanInterp.StartsWith('/'))
+                        ? $"{namedService}{cleanInterp}"
+                        : cleanInterp;
+                    return NormalizeUrl(withService);
                 }
             }
 

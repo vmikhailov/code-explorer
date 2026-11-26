@@ -1956,6 +1956,18 @@
           "sourceName": "ProvisionedBy",
           "type": "string",
           "description": "IaC tool or engine provisioning this topic (e.g. terraform)."
+        },
+        {
+          "name": "canonical_topic",
+          "sourceName": "CanonicalTopic",
+          "type": "string",
+          "description": "Normalized canonical topic URI preserving provider namespace and topic name."
+        },
+        {
+          "name": "canonical_shape",
+          "sourceName": "CanonicalShape",
+          "type": "string",
+          "description": "Structural canonical topic shape for cross-service pub/sub matching."
         }
       ],
       "outEdges": [
@@ -2855,6 +2867,18 @@
           "sourceName": "ProvisionedBy",
           "type": "string",
           "description": "IaC tool or engine provisioning this database (e.g. terraform)."
+        },
+        {
+          "name": "canonical_dsn",
+          "sourceName": "CanonicalDsn",
+          "type": "string",
+          "description": "Normalized canonical database DSN address."
+        },
+        {
+          "name": "canonical_shape",
+          "sourceName": "CanonicalShape",
+          "type": "string",
+          "description": "Structural canonical database shape for cross-service database consolidation."
         }
       ],
       "outEdges": [
@@ -3045,6 +3069,18 @@
           "sourceName": "Sensitivity",
           "type": "enum (DataSensitivity)",
           "description": "Data sensitivity classification (public, internal, pii, pci, secret)."
+        },
+        {
+          "name": "canonical_table",
+          "sourceName": "CanonicalTable",
+          "type": "string",
+          "description": "Normalized canonical table address preserving schema and table name."
+        },
+        {
+          "name": "canonical_shape",
+          "sourceName": "CanonicalShape",
+          "type": "string",
+          "description": "Structural canonical table shape for SQL and ORM matching."
         }
       ],
       "outEdges": [

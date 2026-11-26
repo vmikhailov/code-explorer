@@ -92,6 +92,12 @@ public record DatabaseNode(
     [JsonPropertyName("provisioned_by"), OntologyProperty("IaC tool or engine provisioning this database (e.g. terraform).")]
     public string? ProvisionedBy { get; set; }
 
+    [JsonPropertyName("canonical_dsn"), OntologyProperty("Normalized canonical database DSN address.")]
+    public string? CanonicalDsn { get; set; }
+
+    [JsonPropertyName("canonical_shape"), OntologyProperty("Structural canonical database shape for cross-service database consolidation.")]
+    public string? CanonicalShape { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Database;
 }

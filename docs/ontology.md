@@ -1354,6 +1354,8 @@ graph TD
 | `IsOrm` | `bool?` | Indicates whether access was inferred via an ORM entity/DbContext mapping. |
 | `ResourceType` | `string?` | IaC resource type when provisioned by Terraform or cloud templates. |
 | `ProvisionedBy` | `string?` | IaC tool or engine provisioning this database (e.g. terraform). |
+| `CanonicalDsn` | `string?` | Normalized canonical database DSN address. |
+| `CanonicalShape` | `string?` | Structural canonical database shape for cross-service database consolidation. |
 
 ---
 
@@ -1870,6 +1872,8 @@ graph TD
 | `SubKind` | `string?` | Specific relational object kind (e.g. table, view, materialized_view). |
 | `ColumnsJson` | `string?` | Compact JSON array describing table columns (name, type, pk, nullable, unique, fk). |
 | `Sensitivity` | `DataSensitivity?` | Data sensitivity classification (public, internal, pii, pci, secret). |
+| `CanonicalTable` | `string?` | Normalized canonical table address preserving schema and table name. |
+| `CanonicalShape` | `string?` | Structural canonical table shape for SQL and ORM matching. |
 
 ---
 
@@ -1941,6 +1945,8 @@ graph TD
 | `MessageType` | `string?` | Payload or event contract type published/consumed on this topic. |
 | `ResourceType` | `string?` | IaC resource type when provisioned by Terraform or cloud templates. |
 | `ProvisionedBy` | `string?` | IaC tool or engine provisioning this topic (e.g. terraform). |
+| `CanonicalTopic` | `string?` | Normalized canonical topic URI preserving provider namespace and topic name. |
+| `CanonicalShape` | `string?` | Structural canonical topic shape for cross-service pub/sub matching. |
 
 ---
 

@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.101.4] - 2026-11-26
+
+### Fixed
+- **Multi-Language Outbound AST Slot & Type Preservation (`RouteDictionaryRegistry`, `HttpClientLibraryParser`, `GoAstHelper`, `DeclarativeOutboundAndSecurityHelper`, `PythonAstHelper`, `AstHelper.Routes`)**:
+  - Updated outbound HTTP client extractors across C# (`$"..."`, `+`), Go (`fmt.Sprintf`), Java (`RestTemplate` / `WebClient` concatenation), Python (`f"..."`), and TypeScript (`` `...` ``) along with `RouteDictionaryRegistry` (`PreserveWholeSegmentPlaceholders`, `RecordRawTemplate`, `ResolveTemplatePath`) so `ExternalServiceNode.CanonicalRoute` preserves exact variable names and inferred AST parameter types (`/api/v1/bundles/{bundleId:uuid}`, `/api/v1/bundles/{bundleId:string}/orders/{orderId:int}`) while maintaining legacy `/*` paths on `ExternalServiceNode.Path` for backward compatibility.
+- **Zero-Regex Bijective Canonical Sub-Parsers for Topics, SQL Tables, DSNs, and RPC Contracts (`TopicCanonicalParser`, `TableCanonicalParser`, `DsnCanonicalParser`, `RpcCanonicalParser`, `EndpointSemanticAnalyzer`)**:
+  - Added 4 zero-regex (`ReadOnlySpan<char>`) bijective canonical sub-parsers in `CodeExplorer.Core/Parser/Canonical/` and enriched `TopicNode` (`canonical_topic`, `canonical_shape`), `TableNode` (`canonical_table`, `canonical_shape`), and `DatabaseNode` (`canonical_dsn`, `canonical_shape`) without mutating static entity or table names.
+- **Canonical Target Grounding & Cross-Service Endpoint Parameter `FLOWS_TO` Dataflow (`SemanticTargetGrounder`, `SemanticArgumentPropagator`)**:
+  - Indexed `EndpointNode` and `TopicNode` by `CanonicalShape` in `SemanticTargetGrounder` with parameter type compatibility checks, and added `PropagateCrossServiceEndpointParameterFlows` in `SemanticArgumentPropagator` to link caller route parameters (`ParameterNode`) to matched endpoint handler parameters (`ParameterNode`) via `FLOWS_TO` across `CALLS_ENDPOINT` boundaries.
+
+---
+
 ## [1.101.3] - 2026-11-26
 
 ### Fixed

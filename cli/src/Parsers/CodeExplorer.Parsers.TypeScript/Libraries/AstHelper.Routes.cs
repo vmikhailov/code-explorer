@@ -279,6 +279,11 @@ public static partial class AstHelper
                 }
                 if (leftRes.StartWithIC(SchemeHttp) || leftRes.StartWithIC(SchemeHttps) || leftRes.StartsWith('/'))
                 {
+                    if (rightNode.IsValid() && rightNode.Is(TreeSitterSyntax.TypeScript.Identifier) && !string.IsNullOrEmpty(rightNode.Text))
+                    {
+                        const char slashSep = '/';
+                        return NormalizeResolvedUrl($"{leftRes.TrimEnd(slashSep)}/{{{rightNode.Text}}}");
+                    }
                     return NormalizeResolvedUrl(leftRes);
                 }
             }

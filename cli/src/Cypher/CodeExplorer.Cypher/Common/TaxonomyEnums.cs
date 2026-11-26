@@ -598,3 +598,41 @@ public enum RouteDialect : byte
     NextBracket = 5,
     OutboundClient = 6
 }
+
+public enum TopicDialect : byte
+{
+    Auto = 0,
+    Canonical = 1,
+    Plain = 2,
+    GcpPubSubTopic = 3,
+    GcpPubSubSubscription = 4,
+    AwsArn = 5
+}
+
+public enum TableDialect : byte
+{
+    Auto = 0,
+    Canonical = 1,
+    Plain = 2,
+    TSqlBracket = 3,
+    AnsiDoubleQuote = 4,
+    MySqlBacktick = 5
+}
+
+public enum DsnDialect : byte
+{
+    Auto = 0,
+    Canonical = 1,
+    Uri = 2,
+    Jdbc = 3,
+    AdoNet = 4
+}
+
+public enum RpcDialect : byte
+{
+    Auto = 0,
+    Canonical = 1,
+    GrpcPath = 2,
+    DotQualified = 3,
+    ColonQualified = 4
+}

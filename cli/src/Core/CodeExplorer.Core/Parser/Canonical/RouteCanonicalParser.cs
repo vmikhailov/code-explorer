@@ -388,15 +388,7 @@ public static class RouteCanonicalParser
         {
             foreach (var p in fnDecl.Parameters)
             {
-                var pName = p.Name;
-                var pType = p.ParameterType?.Text;
-                var mapped = MapLanguageTypeToRouteParamType(pType, p.Text);
-                if (!string.IsNullOrEmpty(pName) && mapped != RouteParamType.Any)
-                {
-                    map ??= new Dictionary<string, RouteParamType>(StringComparer.OrdinalIgnoreCase);
-                    map[pName] = mapped;
-                }
-                TryExtractAliasParamName(p, mapped, ref map);
+                RegisterParameterNode(p, ref map);
             }
         }
 
@@ -409,23 +401,61 @@ public static class RouteCanonicalParser
                 {
                     continue;
                 }
-
-                var nameNode = param.GetField(SyntaxFields.Name) ??
-                               param.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
-                var typeNode = param.GetField(SyntaxFields.Type);
-                var pName = nameNode.IsValid() ? nameNode.Text : null;
-                var pType = typeNode.IsValid() ? typeNode.Text : null;
-                var mapped = MapLanguageTypeToRouteParamType(pType, param.Text);
-                if (!string.IsNullOrEmpty(pName) && mapped != RouteParamType.Any)
-                {
-                    map ??= new Dictionary<string, RouteParamType>(StringComparer.OrdinalIgnoreCase);
-                    map[pName] = mapped;
-                }
-                TryExtractAliasParamName(param, mapped, ref map);
+                RegisterParameterNode(param, ref map);
             }
         }
 
         return map;
+    }
+
+    private static void RegisterParameterNode(SyntaxNode param, ref Dictionary<string, RouteParamType>? map)
+    {
+        string? pName = null;
+        string? pType = null;
+
+        if (param is ParameterDeclSyntax pDecl)
+        {
+            pName = pDecl.Name;
+            pType = pDecl.ParameterType?.Name ?? pDecl.ParameterType?.Text;
+        }
+
+        if (string.IsNullOrEmpty(pName))
+        {
+            var nameNode = param.GetField(SyntaxFields.Name) ??
+                           param.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+            if (nameNode.IsValid()) pName = nameNode.Text;
+        }
+
+        if (string.IsNullOrEmpty(pType))
+        {
+            var typeNode = param.GetField(SyntaxFields.Type) ??
+                           param.Children.FirstOrDefault(c => c is TypeRefSyntax);
+            if (typeNode.IsValid())
+            {
+                pType = typeNode.Text;
+            }
+            else if (param.Children.Count >= 2)
+            {
+                var lastChild = param.Children[^1];
+                if (lastChild is IdentifierExprSyntax && lastChild.Text != pName)
+                {
+                    pType = lastChild.Text;
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(pName))
+        {
+            pName = pName.TrimStart(DollarChar);
+        }
+
+        var mapped = MapLanguageTypeToRouteParamType(pType, param.Text);
+        if (!string.IsNullOrEmpty(pName) && mapped != RouteParamType.Any)
+        {
+            map ??= new Dictionary<string, RouteParamType>(StringComparer.OrdinalIgnoreCase);
+            map[pName] = mapped;
+        }
+        TryExtractAliasParamName(param, mapped, ref map);
     }
 
     private static void TryExtractAliasParamName(
@@ -522,158 +552,46 @@ public static class RouteCanonicalParser
 
     private static void FormatParameterSegment(StringBuilder sb, CanonicalRouteSegment seg, RouteDialect targetDialect)
     {
+        var hasType = seg.HasExplicitType && seg.ParamType != RouteParamType.Any;
         switch (targetDialect)
         {
             case RouteDialect.ColonParam:
-                if (seg.IsWildcard)
-                {
-                    sb.Append(StarChar);
-                    sb.Append(seg.Text);
-                }
-                else if (seg.HasExplicitType && seg.ParamType != RouteParamType.Any)
-                {
-                    sb.Append(ColonChar);
-                    sb.Append(seg.Text);
-                    sb.Append(OpenParenChar);
-                    sb.Append(seg.ParamType.ToCanonicalString());
-                    sb.Append(CloseParenChar);
-                }
-                else
-                {
-                    sb.Append(ColonChar);
-                    sb.Append(seg.Text);
-                }
+                if (seg.IsWildcard) sb.Append(StarChar).Append(seg.Text);
+                else if (hasType) sb.Append(ColonChar).Append(seg.Text).Append(OpenParenChar).Append(seg.ParamType.ToCanonicalString()).Append(CloseParenChar);
+                else sb.Append(ColonChar).Append(seg.Text);
                 break;
 
             case RouteDialect.FlaskAngle:
-                if (seg.IsWildcard)
-                {
-                    sb.Append(OpenAngleChar);
-                    sb.Append(PathTypeToken);
-                    sb.Append(ColonChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseAngleChar);
-                }
-                else if (seg.HasExplicitType && seg.ParamType != RouteParamType.Any)
-                {
-                    sb.Append(OpenAngleChar);
-                    sb.Append(seg.ParamType.ToCanonicalString());
-                    sb.Append(ColonChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseAngleChar);
-                }
-                else
-                {
-                    sb.Append(OpenAngleChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseAngleChar);
-                }
+                if (seg.IsWildcard) sb.Append(OpenAngleChar).Append(PathTypeToken).Append(ColonChar).Append(seg.Text).Append(CloseAngleChar);
+                else if (hasType) sb.Append(OpenAngleChar).Append(seg.ParamType.ToCanonicalString()).Append(ColonChar).Append(seg.Text).Append(CloseAngleChar);
+                else sb.Append(OpenAngleChar).Append(seg.Text).Append(CloseAngleChar);
                 break;
 
             case RouteDialect.NextBracket:
-                if (seg.IsWildcard)
-                {
-                    sb.Append(OpenBracketChar);
-                    sb.Append(EllipsisPrefix);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseBracketChar);
-                }
-                else if (seg.HasExplicitType && seg.ParamType != RouteParamType.Any)
-                {
-                    sb.Append(OpenBracketChar);
-                    sb.Append(seg.Text);
-                    sb.Append(ColonChar);
-                    sb.Append(seg.ParamType.ToCanonicalString());
-                    sb.Append(CloseBracketChar);
-                }
-                else
-                {
-                    sb.Append(OpenBracketChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseBracketChar);
-                }
+                if (seg.IsWildcard) sb.Append(OpenBracketChar).Append(EllipsisPrefix).Append(seg.Text).Append(CloseBracketChar);
+                else if (hasType) sb.Append(OpenBracketChar).Append(seg.Text).Append(ColonChar).Append(seg.ParamType.ToCanonicalString()).Append(CloseBracketChar);
+                else sb.Append(OpenBracketChar).Append(seg.Text).Append(CloseBracketChar);
                 break;
 
             case RouteDialect.AspNet:
-                if (seg.IsWildcard)
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(StarChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseBraceChar);
-                }
-                else if (seg.HasExplicitType && seg.ParamType != RouteParamType.Any)
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(seg.Text);
-                    sb.Append(ColonChar);
-                    sb.Append(MapToAspNetConstraint(seg.ParamType));
-                    sb.Append(CloseBraceChar);
-                }
-                else
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseBraceChar);
-                }
+                if (seg.IsWildcard) sb.Append(OpenBraceChar).Append(StarChar).Append(seg.Text).Append(CloseBraceChar);
+                else if (hasType) sb.Append(OpenBraceChar).Append(seg.Text).Append(ColonChar).Append(MapToAspNetConstraint(seg.ParamType)).Append(CloseBraceChar);
+                else sb.Append(OpenBraceChar).Append(seg.Text).Append(CloseBraceChar);
                 break;
 
             case RouteDialect.OutboundClient:
-                if (seg.IsLiteral || seg.Text == WildcardSegmentStr)
-                {
-                    sb.Append(seg.Text);
-                }
-                else if (seg.HasExplicitType && seg.ParamType != RouteParamType.Any)
-                {
-                    sb.Append(DollarBracePrefix);
-                    sb.Append(seg.Text);
-                    sb.Append(ColonChar);
-                    sb.Append(seg.ParamType.ToCanonicalString());
-                    sb.Append(CloseBraceChar);
-                }
-                else
-                {
-                    sb.Append(DollarBracePrefix);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseBraceChar);
-                }
+                if (seg.IsLiteral || seg.Text == WildcardSegmentStr) sb.Append(seg.Text);
+                else if (hasType) sb.Append(DollarBracePrefix).Append(seg.Text).Append(ColonChar).Append(seg.ParamType.ToCanonicalString()).Append(CloseBraceChar);
+                else sb.Append(DollarBracePrefix).Append(seg.Text).Append(CloseBraceChar);
                 break;
 
             case RouteDialect.Canonical:
             case RouteDialect.Auto:
             default:
-                if (seg.IsWildcard)
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(StarChar);
-                    sb.Append(seg.Text);
-                    sb.Append(ColonChar);
-                    sb.Append(PathTypeToken);
-                    sb.Append(CloseBraceChar);
-                }
-                else if (seg.IsLiteral)
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(EqualsChar);
-                    sb.Append(seg.Text);
-                    sb.Append(ColonChar);
-                    sb.Append(seg.ParamType.ToCanonicalString());
-                    sb.Append(CloseBraceChar);
-                }
-                else if (seg.HasExplicitType && seg.ParamType != RouteParamType.Any)
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(seg.Text);
-                    sb.Append(ColonChar);
-                    sb.Append(seg.ParamType.ToCanonicalString());
-                    sb.Append(CloseBraceChar);
-                }
-                else
-                {
-                    sb.Append(OpenBraceChar);
-                    sb.Append(seg.Text);
-                    sb.Append(CloseBraceChar);
-                }
+                if (seg.IsWildcard) sb.Append(OpenBraceChar).Append(StarChar).Append(seg.Text).Append(ColonChar).Append(PathTypeToken).Append(CloseBraceChar);
+                else if (seg.IsLiteral) sb.Append(OpenBraceChar).Append(EqualsChar).Append(seg.Text).Append(ColonChar).Append(seg.ParamType.ToCanonicalString()).Append(CloseBraceChar);
+                else if (hasType) sb.Append(OpenBraceChar).Append(seg.Text).Append(ColonChar).Append(seg.ParamType.ToCanonicalString()).Append(CloseBraceChar);
+                else sb.Append(OpenBraceChar).Append(seg.Text).Append(CloseBraceChar);
                 break;
         }
     }

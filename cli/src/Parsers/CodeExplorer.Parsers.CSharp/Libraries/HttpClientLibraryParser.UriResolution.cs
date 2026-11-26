@@ -73,6 +73,12 @@ public partial class HttpClientLibraryParser
                             sb.Append(cVal);
                             continue;
                         }
+                        if (sb.Length > 0 && sb[^1] == '/')
+                        {
+                            var wrappedSlot = $"{{{expr.Text}}}";
+                            sb.Append(wrappedSlot);
+                            continue;
+                        }
                     }
 
                     sb.Append('*');
