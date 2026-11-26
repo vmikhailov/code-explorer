@@ -39,8 +39,8 @@ $jsCommit     = "1f0ac36f28d33be17c1f39bc5f265730d146b525"
 $goRepo       = "https://github.com/vmikhailov/tree-sitter-go.git"
 $goCommit     = "b07b8a1baa93183b36db54b7f363bb0d46205145"
 
-$pyRepo       = "https://github.com/tree-sitter/tree-sitter-python.git"
-$pyCommit     = "bffb65a8cfe4e46290331dfef0dbf0ef3679de11"
+$pyRepo       = "https://github.com/vmikhailov/tree-sitter-python.git"
+$pyCommit     = "ad4051f796d80ea31ffbf7e6d3b81ad8f57287b3"
 
 $javaRepo     = "https://github.com/tree-sitter/tree-sitter-java.git"
 $javaCommit   = "94703d5a6bed02b98e438d7cad1136c01a60ba2c"

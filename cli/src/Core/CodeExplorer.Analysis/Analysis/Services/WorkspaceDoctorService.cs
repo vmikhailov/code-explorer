@@ -32,9 +32,10 @@ public sealed class WorkspaceDoctorService
     private const string RedactedPath = "<redacted>";
 
     private const string ColCount = "cnt";
+    private const string SyntaxIdSuffix = "syntax";
 
     private const string QueryProjects =
-        "MATCH (p:Project) RETURN p.id AS id, p.name AS name, coalesce(p.language, '') AS language";
+        "MATCH (p:Project) RETURN p.id AS id, p.name AS name, coalesce(p.path, '') AS path, coalesce(p.language, '') AS language";
 
     private const string QueryScanIssues =
         "MATCH (i:ScanIssue) RETURN coalesce(i.path, '') AS path, coalesce(i.stage, 'unknown') AS stage, coalesce(i.category, 'unknown') AS category, coalesce(i.severity, 'warning') AS severity, coalesce(i.language, 'unknown') AS language, coalesce(i.message, '') AS message, coalesce(i.start_line, 0) AS start_line";
@@ -51,20 +52,44 @@ public sealed class WorkspaceDoctorService
     private const string QueryProjectDirectFunctionCounts =
         "MATCH (proj:Project)<-[:BELONGS_TO]-(:ProjectSyntax)-[:CONTAINS]->(fn:Function) RETURN proj.id AS id, count(fn) AS cnt";
 
-    private const string QueryProjectNestedFunctionCounts =
-        "MATCH (proj:Project)<-[:BELONGS_TO]-(:ProjectSyntax)-[:CONTAINS]->(:Type)-[:HAS_METHOD]->(fn:Function) RETURN proj.id AS id, count(fn) AS cnt";
+    private const string QueryProjectHasNestedFunction =
+        "MATCH (ps:ProjectSyntax {id: $psId})-[:CONTAINS]->(:Type)-[:HAS_METHOD]->(fn:Function) RETURN fn.id AS id LIMIT 1";
 
-    private const string QueryProjectEndpointCounts =
-        "MATCH (p)-[:EXPOSES]->(e:Endpoint) RETURN p.name AS id, count(DISTINCT e) AS cnt";
+    private const string QueryWorkloadEndpointCounts =
+        "MATCH (w:Workload)-[:EXPOSES]->(e:Endpoint) RETURN w.name AS id, count(e) AS cnt";
 
-    private const string QueryProjectDbCounts =
-        "MATCH (p)-[:USES_DB]->(d) WHERE d:Database OR d:Table RETURN p.name AS id, count(DISTINCT d) AS cnt";
+    private const string QueryModuleEndpointCounts =
+        "MATCH (m:Module)-[:EXPOSES]->(e:Endpoint) RETURN m.name AS id, count(e) AS cnt";
 
-    private const string QueryProjectQueryCounts =
-        "MATCH (p)-[:CONTAINS]->(q:Query) RETURN p.name AS id, count(DISTINCT q) AS cnt";
+    private const string QueryWorkloadDbCounts =
+        "MATCH (w:Workload)-[:USES_DB]->(d:Database) RETURN w.name AS id, count(d) AS cnt";
 
-    private const string QueryProjectTopicCounts =
-        "MATCH (p)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN p.name AS id, count(DISTINCT t) AS cnt";
+    private const string QueryWorkloadTableCounts =
+        "MATCH (w:Workload)-[:USES_DB]->(t:Table) RETURN w.name AS id, count(t) AS cnt";
+
+    private const string QueryModuleDbCounts =
+        "MATCH (m:Module)-[:USES_DB]->(d:Database) RETURN m.name AS id, count(d) AS cnt";
+
+    private const string QueryModuleTableCounts =
+        "MATCH (m:Module)-[:USES_DB]->(t:Table) RETURN m.name AS id, count(t) AS cnt";
+
+    private const string QueryWorkloadTopicCounts =
+        "MATCH (w:Workload)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN w.name AS id, count(t) AS cnt";
+
+    private const string QueryModuleTopicCounts =
+        "MATCH (m:Module)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN m.name AS id, count(t) AS cnt";
+
+    private const string QueryEndpointPaths =
+        "MATCH (e:Endpoint) RETURN DISTINCT coalesce(e.file_path, e.path, '') AS path";
+
+    private const string QueryTablePaths =
+        "MATCH (t:Table) RETURN DISTINCT coalesce(t.file_path, t.path, '') AS path";
+
+    private const string QueryQueryPaths =
+        "MATCH (q:Query) RETURN DISTINCT coalesce(q.file_path, q.path, '') AS path";
+
+    private const string QueryTopicPaths =
+        "MATCH (t:Topic) RETURN DISTINCT coalesce(t.file_path, t.path, '') AS path";
 
     private static readonly HashSet<string> KeyKindsToReport = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -247,28 +272,41 @@ public sealed class WorkspaceDoctorService
     {
         options ??= new WorkspaceDoctorOptions();
 
-        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3)
-                      ?? typeof(WorkspaceDoctorService).Assembly.GetName().Version?.ToString(3)
-                      ?? UnknownValue;
-
-        var report = new WorkspaceDoctorReport
+        var previousTimeout = db.CommandTimeoutSeconds;
+        if (options.QueryTimeoutSeconds >= 0)
         {
-            CodeExplorerVersion = version,
-            Anonymized = options.Anonymize,
-            Health = await CollectHealthAsync(db, cancellationToken)
-        };
-
-        if (options.IncludeIssues)
-        {
-            report.Issues = await CollectIssuesAsync(db, options, cancellationToken);
+            db.CommandTimeoutSeconds = options.QueryTimeoutSeconds;
         }
 
-        if (options.IncludeGaps)
+        try
         {
-            report.Gaps = await CollectGapsAsync(db, workspaceRoot, options, cancellationToken);
-        }
+            var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3)
+                          ?? typeof(WorkspaceDoctorService).Assembly.GetName().Version?.ToString(3)
+                          ?? UnknownValue;
 
-        return report;
+            var report = new WorkspaceDoctorReport
+            {
+                CodeExplorerVersion = version,
+                Anonymized = options.Anonymize,
+                Health = await CollectHealthAsync(db, cancellationToken)
+            };
+
+            if (options.IncludeIssues)
+            {
+                report.Issues = await CollectIssuesAsync(db, options, cancellationToken);
+            }
+
+            if (options.IncludeGaps)
+            {
+                report.Gaps = await CollectGapsAsync(db, workspaceRoot, options, cancellationToken);
+            }
+
+            return report;
+        }
+        finally
+        {
+            db.CommandTimeoutSeconds = previousTimeout;
+        }
     }
 
     private static async Task<DoctorHealthSummary> CollectHealthAsync(IGraphClient db, CancellationToken ct)
@@ -666,28 +704,54 @@ public sealed class WorkspaceDoctorService
             return;
         }
 
-        var filesByProj = await LoadProjectCountMapAsync(db, QueryProjectFileCounts, ct);
-        var directFnByProj = await LoadProjectCountMapAsync(db, QueryProjectDirectFunctionCounts, ct);
-        var nestedFnByProj = await LoadProjectCountMapAsync(db, QueryProjectNestedFunctionCounts, ct);
-        var endpointsByProj = await LoadProjectCountMapAsync(db, QueryProjectEndpointCounts, ct);
-        var dbsByProj = await LoadProjectCountMapAsync(db, QueryProjectDbCounts, ct);
-        var queriesByProj = await LoadProjectCountMapAsync(db, QueryProjectQueryCounts, ct);
-        var topicsByProj = await LoadProjectCountMapAsync(db, QueryProjectTopicCounts, ct);
-
-        var anomalies = new List<DoctorCoverageAnomaly>();
-        var anonIndex = 0;
-
+        var projectEntries = new List<(string Id, string Name, string NormPath, string Language)>(projectsRes.Rows.Count);
         foreach (var row in projectsRes.Rows)
         {
             var pid = row.GetStringProp(ColId);
             var name = row.GetStringProp(ColName);
+            var rawPath = row.GetStringProp(ColPath).Replace('\\', '/').Trim('/');
             var lang = row.GetStringProp(ColLanguage);
-            var endpoints = endpointsByProj.GetValueOrDefault(name);
-            var functions = directFnByProj.GetValueOrDefault(pid) + nestedFnByProj.GetValueOrDefault(pid);
+            projectEntries.Add((pid, name, rawPath, lang));
+        }
+
+        var sortedByPathDesc = projectEntries
+            .OrderByDescending(p => p.NormPath.Length)
+            .ToList();
+
+        var filesByProj = await LoadProjectCountMapAsync(db, QueryProjectFileCounts, ct);
+        var directFnByProj = await LoadProjectCountMapAsync(db, QueryProjectDirectFunctionCounts, ct);
+
+        var endpointsByProj = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await MergeProjectCountMapAsync(db, QueryWorkloadEndpointCounts, endpointsByProj, ct);
+        await MergeProjectCountMapAsync(db, QueryModuleEndpointCounts, endpointsByProj, ct);
+        await AttributeNodePathsToProjectsAsync(db, QueryEndpointPaths, sortedByPathDesc, endpointsByProj, ct);
+
+        var dbsByProj = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await MergeProjectCountMapAsync(db, QueryWorkloadDbCounts, dbsByProj, ct);
+        await MergeProjectCountMapAsync(db, QueryWorkloadTableCounts, dbsByProj, ct);
+        await MergeProjectCountMapAsync(db, QueryModuleDbCounts, dbsByProj, ct);
+        await MergeProjectCountMapAsync(db, QueryModuleTableCounts, dbsByProj, ct);
+        await AttributeNodePathsToProjectsAsync(db, QueryTablePaths, sortedByPathDesc, dbsByProj, ct);
+
+        var queriesByProj = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await AttributeNodePathsToProjectsAsync(db, QueryQueryPaths, sortedByPathDesc, queriesByProj, ct);
+
+        var topicsByProj = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await MergeProjectCountMapAsync(db, QueryWorkloadTopicCounts, topicsByProj, ct);
+        await MergeProjectCountMapAsync(db, QueryModuleTopicCounts, topicsByProj, ct);
+        await AttributeNodePathsToProjectsAsync(db, QueryTopicPaths, sortedByPathDesc, topicsByProj, ct);
+
+        var anomalies = new List<DoctorCoverageAnomaly>();
+        var anonIndex = 0;
+
+        foreach (var (pid, name, _, lang) in projectEntries)
+        {
+            var endpoints = endpointsByProj.GetValueOrDefault(name) + endpointsByProj.GetValueOrDefault(pid);
+            var directFunctions = directFnByProj.GetValueOrDefault(pid);
             var files = filesByProj.GetValueOrDefault(pid);
-            var tables = dbsByProj.GetValueOrDefault(name);
-            var queries = queriesByProj.GetValueOrDefault(name);
-            var topics = topicsByProj.GetValueOrDefault(name);
+            var tables = dbsByProj.GetValueOrDefault(name) + dbsByProj.GetValueOrDefault(pid);
+            var queries = queriesByProj.GetValueOrDefault(name) + queriesByProj.GetValueOrDefault(pid);
+            var topics = topicsByProj.GetValueOrDefault(name) + topicsByProj.GetValueOrDefault(pid);
 
             anonIndex++;
             var label = options.Anonymize
@@ -720,10 +784,15 @@ public sealed class WorkspaceDoctorService
                 }
             }
 
-            if (files >= 20 && functions == 0)
+            if (files >= 20 && directFunctions == 0)
             {
-                var fnDetail = $"Contains {files} indexed files but 0 Function nodes were extracted.";
-                anomalies.Add(new DoctorCoverageAnomaly(label, cleanLang, DoctorAnomalyKind.ZeroFunctions, fnDetail));
+                var psId = $"{pid}{SyntaxIdSuffix}";
+                var nestedCheck = await db.ExecuteCypherAsync(QueryProjectHasNestedFunction, new { psId }, ct);
+                if (nestedCheck.Rows.Count == 0)
+                {
+                    var fnDetail = $"Contains {files} indexed files but 0 Function nodes were extracted.";
+                    anomalies.Add(new DoctorCoverageAnomaly(label, cleanLang, DoctorAnomalyKind.ZeroFunctions, fnDetail));
+                }
             }
         }
 
@@ -736,16 +805,56 @@ public sealed class WorkspaceDoctorService
         CancellationToken ct)
     {
         var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await MergeProjectCountMapAsync(db, cypher, map, ct);
+        return map;
+    }
+
+    private static async Task MergeProjectCountMapAsync(
+        IGraphClient db,
+        string cypher,
+        Dictionary<string, int> map,
+        CancellationToken ct)
+    {
         var res = await db.ExecuteCypherAsync(cypher, null, ct);
         foreach (var row in res.Rows)
         {
             var pid = row.GetStringProp(ColId);
             if (!string.IsNullOrEmpty(pid))
             {
-                map[pid] = row.GetNullableIntProp(ColCount) ?? 0;
+                map[pid] = map.GetValueOrDefault(pid) + (row.GetNullableIntProp(ColCount) ?? 0);
             }
         }
-        return map;
+    }
+
+    private static async Task AttributeNodePathsToProjectsAsync(
+        IGraphClient db,
+        string cypher,
+        List<(string Id, string Name, string NormPath, string Language)> projectsSortedByPathDesc,
+        Dictionary<string, int> targetCounts,
+        CancellationToken ct)
+    {
+        var res = await db.ExecuteCypherAsync(cypher, null, ct);
+        foreach (var row in res.Rows)
+        {
+            var rawPath = row.GetStringProp(ColPath);
+            if (string.IsNullOrWhiteSpace(rawPath)) continue;
+            var norm = rawPath.Replace('\\', '/').TrimStart('/');
+
+            for (var i = 0; i < projectsSortedByPathDesc.Count; i++)
+            {
+                var proj = projectsSortedByPathDesc[i];
+                if (string.IsNullOrEmpty(proj.NormPath) ||
+                    norm.Equals(proj.NormPath, StringComparison.OrdinalIgnoreCase) ||
+                    (norm.Length > proj.NormPath.Length &&
+                     norm.StartsWith(proj.NormPath, StringComparison.OrdinalIgnoreCase) &&
+                     norm[proj.NormPath.Length] == '/'))
+                {
+                    var key = !string.IsNullOrEmpty(proj.Id) ? proj.Id : proj.Name;
+                    targetCounts[key] = targetCounts.GetValueOrDefault(key) + 1;
+                    break;
+                }
+            }
+        }
     }
 
     private static string? FindFirstMatchingHint(List<string> packages, string[] hints)

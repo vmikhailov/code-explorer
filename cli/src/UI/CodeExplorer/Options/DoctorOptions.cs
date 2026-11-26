@@ -26,6 +26,9 @@ public class DoctorOptions
     [Option('l', "limit", Required = false, Default = 25, HelpText = "Maximum number of items per section (default: 25).")]
     public int Limit { get; set; } = 25;
 
+    [Option("timeout", Required = false, Default = 60, HelpText = "Database query timeout in seconds (default: 60; 0 to disable timeout).")]
+    public int TimeoutSeconds { get; set; } = 60;
+
     [Option("dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 }

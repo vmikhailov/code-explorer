@@ -67,7 +67,7 @@ public sealed class PythonSyntaxConverter : TreeSitterSyntaxConverterBase
             "match_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Switch },
             "for_statement" or "while_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Loop },
             "try_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Try },
-            "except_clause" => new CatchClauseSyntax { Span = span },
+            "except_clause" or "except_group_clause" => new CatchClauseSyntax { Span = span },
             "with_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Using },
             "return_statement" or "yield" => new ReturnStmtSyntax { Span = span },
             "raise_statement" => new ControlFlowStmtSyntax { Span = span, Kind = ControlFlowKind.Throw },

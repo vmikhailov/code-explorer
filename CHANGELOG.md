@@ -5,6 +5,13 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.105.2] - 2026-11-26
+
+### Fixed
+- **Python 3.11+ / 3.14 Syntax Support (PEP 758 & PEP 646)**: Updated the bundled ABI-14 `tree-sitter-python` grammar (`vmikhailov/tree-sitter-python`) and `PythonSyntaxConverter` to parse unparenthesized comma-separated `except` and `except*` clauses (`except E1, E2, E3:`) and starred unpacking expressions inside subscript brackets (`np.r_[*[...]]`, `Generic[*Ts]`) with zero false `ScanIssue`s.
+- **Terraform / HCL Multiline Tuple & Comprehension Continuation (`HclParser`)**: Fixed binary operator continuation (`&&`, `||`, `==`, `!=`, ternary `? :`, postfix `...`) following multiline `[...]` tuples, `[for ... in ... : ...]` comprehensions, and `func([...])` calls inside `.tf` and `.tftest.hcl` `assert` blocks.
+- **`ce doctor` Large-Graph Query Performance & `--timeout` Flag (`WorkspaceDoctorService`, `DoctorOptions`)**: Replaced unlabelled `(p)` scans and full-graph 4-hop `Type -> Function` joins in `ce doctor --gaps` with indexed `:Workload`/`:Module`/path lookups and targeted `LIMIT 1` probes so ~1M-node / 2M-edge graphs complete in milliseconds, and added `--timeout <seconds>` (default `60`s).
+
 ## [1.105.1] - 2026-11-26
 
 ### Fixed

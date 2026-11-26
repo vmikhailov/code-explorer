@@ -46,7 +46,8 @@ public static class DoctorCommandHandler
                 IncludeIssues = includeIssues,
                 IncludeGaps = includeGaps,
                 Anonymize = anonymize,
-                MaxSamples = Math.Max(1, opts.Limit)
+                MaxSamples = Math.Max(1, opts.Limit),
+                QueryTimeoutSeconds = opts.TimeoutSeconds
             });
 
             var rendered = format switch

@@ -56,7 +56,8 @@ public static class PythonSyntaxProfile
 
         CatchClauses = new[]
         {
-            "except_clause"
+            "except_clause",
+            "except_group_clause"
         }.ToFrozenSet(),
 
         StringLiterals = new[]

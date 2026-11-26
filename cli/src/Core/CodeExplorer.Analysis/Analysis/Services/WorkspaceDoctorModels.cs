@@ -6,6 +6,7 @@ public sealed class WorkspaceDoctorOptions
     public bool IncludeGaps { get; set; } = true;
     public bool Anonymize { get; set; }
     public int MaxSamples { get; set; } = 25;
+    public int QueryTimeoutSeconds { get; set; } = 60;
 }
 
 public sealed class WorkspaceDoctorReport

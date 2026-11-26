@@ -267,30 +267,44 @@ public static class HclParser
 
         var cur = primary.Remainder;
         var next = cur.ConsumeToken();
-        if (!next.HasValue || !IsExpressionContinuation(next.Value, primary.Value.Line))
+        if (!next.HasValue || !IsExpressionContinuation(next.Value, ternaryDepth: 0))
         {
             return primary;
         }
 
         var subExprs = new List<HclExpr> { primary.Value };
-        var line = primary.Value.Line;
+        var ternaryDepth = 0;
 
         while (!cur.IsAtEnd)
         {
             var tok = cur.ConsumeToken();
-            if (!tok.HasValue || !IsExpressionContinuation(tok.Value, line))
+            if (!tok.HasValue || !IsExpressionContinuation(tok.Value, ternaryDepth))
             {
                 break;
             }
 
-            if (tok.Value.Kind is HclToken.Operator or HclToken.Question or HclToken.Colon or HclToken.FatArrow or HclToken.Ellipsis)
+            if (tok.Value.Kind == HclToken.Ellipsis)
+            {
+                cur = tok.Remainder;
+                continue;
+            }
+
+            if (tok.Value.Kind == HclToken.Question)
+            {
+                ternaryDepth++;
+            }
+            else if (tok.Value.Kind == HclToken.Colon && ternaryDepth > 0)
+            {
+                ternaryDepth--;
+            }
+
+            if (tok.Value.Kind is HclToken.Operator or HclToken.Question or HclToken.Colon or HclToken.FatArrow)
             {
                 cur = tok.Remainder;
                 var rhs = ParsePrimaryExpression(cur);
                 if (rhs.HasValue)
                 {
                     subExprs.Add(rhs.Value);
-                    line = Math.Max(line, rhs.Value.Line);
                     cur = rhs.Remainder;
                 }
                 continue;
@@ -311,14 +325,13 @@ public static class HclParser
             cur);
     }
 
-    private static bool IsExpressionContinuation(Token<HclToken> token, int currentLine)
-    {
-        if (token.Kind is HclToken.Operator or HclToken.Question or HclToken.Colon or HclToken.FatArrow or HclToken.Ellipsis)
+    private static bool IsExpressionContinuation(Token<HclToken> token, int ternaryDepth) =>
+        token.Kind switch
         {
-            return token.Position.Line == currentLine || token.Kind is HclToken.Question or HclToken.Colon;
-        }
-        return false;
-    }
+            HclToken.Operator or HclToken.Question or HclToken.FatArrow or HclToken.Ellipsis => true,
+            HclToken.Colon => ternaryDepth > 0,
+            _ => false
+        };
 
     private static TokenListParserResult<HclToken, HclExpr> ParsePrimaryExpression(TokenList<HclToken> input)
     {
@@ -359,12 +372,18 @@ public static class HclParser
 
         if (tok.Kind == HclToken.LBracket)
         {
-            return ParseTupleOrForList(first.Remainder, tok.Position.Line, input);
+            var tupleRes = ParseTupleOrForList(first.Remainder, tok.Position.Line, input);
+            return tupleRes.HasValue
+                ? ParsePostfixContinuations(tupleRes.Value, tupleRes.Remainder, input)
+                : tupleRes;
         }
 
         if (tok.Kind == HclToken.LBrace)
         {
-            return ParseObjectOrForMap(first.Remainder, tok.Position.Line, input);
+            var objRes = ParseObjectOrForMap(first.Remainder, tok.Position.Line, input);
+            return objRes.HasValue
+                ? ParsePostfixContinuations(objRes.Value, objRes.Remainder, input)
+                : objRes;
         }
 
         if (tok.Kind == HclToken.LParen)
@@ -722,6 +741,21 @@ public static class HclParser
             var fallbackExpr = ParseExpression(cur);
             if (fallbackExpr.HasValue)
             {
+                var sepAfterFallback = fallbackExpr.Remainder.ConsumeToken();
+                if (sepAfterFallback.HasValue && sepAfterFallback.Value.Kind is HclToken.Equals or HclToken.Colon)
+                {
+                    var valRes = ParseExpression(sepAfterFallback.Remainder);
+                    if (valRes.HasValue)
+                    {
+                        var combinedRefs = new List<HclReference>();
+                        HclReferenceCollector.CollectExprReferences(fallbackExpr.Value, HclReferenceCollector.DefaultVia, combinedRefs);
+                        HclReferenceCollector.CollectExprReferences(valRes.Value, HclReferenceCollector.DefaultVia, combinedRefs);
+                        var combined = new HclExpr.Complex(string.Empty, [fallbackExpr.Value, valRes.Value], combinedRefs, fallbackExpr.Value.Line);
+                        entries.Add(new HclAttribute(string.Empty, combined, fallbackExpr.Value.Line));
+                        cur = valRes.Remainder;
+                        continue;
+                    }
+                }
                 entries.Add(new HclAttribute(string.Empty, fallbackExpr.Value, fallbackExpr.Value.Line));
                 cur = fallbackExpr.Remainder;
             }

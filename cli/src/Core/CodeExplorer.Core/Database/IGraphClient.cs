@@ -7,6 +7,7 @@ namespace CodeExplorer.Core.Database;
 
 public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 {
+    int CommandTimeoutSeconds { get => 15; set { } }
     GraphContext Graph => new(this);
     IGraphRepository AsRepository() => this is IGraphRepository repo ? repo : new PersistedGraphRepository(this);
 
