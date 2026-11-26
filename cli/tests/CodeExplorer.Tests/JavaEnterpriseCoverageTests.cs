@@ -118,7 +118,7 @@ public class JavaEnterpriseCoverageTests
             ((IFileParser)parser).DiscoverDeclarations(repoPath, repoCode, "orders-service", ctx);
 
             using var repoTree = await parser.ParseAsync(repoPath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(repoTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(repoTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
 
             var refs = CollectAllReferences(repoTree.FileNode.Children);
             refs.Should().Contain(r => r.Kind == RelationshipKind.AccessedBy && r.TargetName == "OrderEntity");
@@ -175,7 +175,7 @@ public class JavaEnterpriseCoverageTests
             ((IFileParser)parser).DiscoverDeclarations(repoPath, repoCode, "inventory-service", ctx);
 
             using var repoTree = await parser.ParseAsync(repoPath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(repoTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(repoTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
 
             var refs = CollectAllReferences(repoTree.FileNode.Children);
             refs.Should().Contain(r => r.ScopeSymbolId == "findBySku" && r.Kind == RelationshipKind.ReadsFrom && r.TargetName == "inventory_items");

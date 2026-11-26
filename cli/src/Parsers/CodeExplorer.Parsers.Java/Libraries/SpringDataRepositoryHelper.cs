@@ -74,15 +74,23 @@ internal static partial class SpringDataRepositoryHelper
         public ConcurrentDictionary<string, string> RepoToEntity { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    private static WeakReference<WorkspaceEntityMaps>? _lastContextMaps;
+
     internal static WorkspaceEntityMaps GetOrCreateContextMaps(
         ParsingContext? ctx,
         System.Runtime.CompilerServices.ConditionalWeakTable<ParsingContext, WorkspaceEntityMaps> store)
     {
         if (ctx == null)
         {
+            if (_lastContextMaps != null && _lastContextMaps.TryGetTarget(out var lastMaps))
+            {
+                return lastMaps;
+            }
             return new WorkspaceEntityMaps();
         }
-        return store.GetValue(ctx, static _ => new WorkspaceEntityMaps());
+        var maps = store.GetValue(ctx, static _ => new WorkspaceEntityMaps());
+        _lastContextMaps = new WeakReference<WorkspaceEntityMaps>(maps);
+        return maps;
     }
 
     internal static void DiscoverEntityTables(
